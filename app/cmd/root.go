@@ -93,3 +93,15 @@ func exitWithErrorF(f string, err error) {
 		log.Fatalf(f, err)
 	}
 }
+
+func getIntFlag(cmd *cobra.Command, name string) int {
+	val, err := cmd.Flags().GetInt(name)
+	exitWithError(err)
+	return val
+}
+
+func getBoolFlag(cmd *cobra.Command, name string) bool {
+	val, err := cmd.Flags().GetBool(name)
+	exitWithError(err)
+	return val
+}
