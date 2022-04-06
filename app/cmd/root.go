@@ -71,6 +71,17 @@ func getInputBytes(args []string) ([]byte, error) {
 	return []byte{}, nil
 }
 
+func getInputBytesRequired(args []string) ([]byte, error) {
+	res, err := getInputBytes(args)
+	if err != nil {
+		return res, err
+	}
+	if len(res) == 0 {
+		return res, fmt.Errorf("Primary command input should not be empty")
+	}
+	return res, err
+}
+
 func exitWithError(err error) {
 	if err != nil {
 		log.Fatal(err)

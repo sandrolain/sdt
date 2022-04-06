@@ -43,43 +43,12 @@ var andCmd = &cobra.Command{
 			p.Write(data)
 			p.Close()
 
-			out, err = c.Output()
+			out, err = c.CombinedOutput()
 			exitWithErrorF(cmdName+": %v\n\n"+string(out), err)
 
 			data = out
 		}
 		fmt.Print(string(out))
-
-		// i := os.Stdin
-		// for _, cmdParts := range cmdList {
-		// 	r, w, err := os.Pipe()
-		// 	exitWithError(err)
-
-		// 	os.Stdin = i
-		// 	rootCmd.SetOut(w)
-		// 	rootCmd.SetArgs(cmdParts)
-
-		// 	err = rootCmd.Execute()
-		// 	exitWithError(err)
-
-		// 	scanner := bufio.NewScanner(r)
-		// 	byt := scanner.Bytes()
-
-		// 	file, err := os.CreateTemp(os.TempDir(), "wd")
-		// 	exitWithError(err)
-		// 	file.Write(byt)
-		// 	file.Close()
-
-		// 	file, err = os.OpenFile(file.Name(), os.O_RDONLY, 0755)
-		// 	exitWithError(err)
-
-		// 	s, _ := file.Stat()
-		// 	fmt.Printf("%+v", s)
-
-		// 	defer os.Remove(file.Name())
-
-		// 	i = file
-		// }
 	},
 }
 

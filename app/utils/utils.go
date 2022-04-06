@@ -16,22 +16,12 @@ import (
 
 	"github.com/TylerBrock/colorjson"
 	"github.com/golang-jwt/jwt"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func RandomBytes(length int) []byte {
 	b := make([]byte, length)
 	rand.Read(b)
 	return b
-}
-
-func BcryptHash(value []byte) ([]byte, error) {
-	return bcrypt.GenerateFromPassword(value, 14)
-}
-
-func BcryptCompare(value []byte, hash []byte) bool {
-	err := bcrypt.CompareHashAndPassword(hash, value)
-	return err == nil
 }
 
 func Sha256Hash(value []byte) []byte {
