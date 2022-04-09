@@ -35,10 +35,11 @@ var fileReadCmd = &cobra.Command{
 		exist, err := fileExists(file)
 		exitWithError(err)
 		if !exist {
-			exitWithError(fmt.Errorf(`file "%s" not exist!`, file))
+			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
 		}
 
 		content, err := ioutil.ReadFile(file)
+		exitWithError(err)
 
 		fmt.Print(string(content))
 	},
@@ -63,7 +64,7 @@ var fileWriteCmd = &cobra.Command{
 		exist, err := fileExists(file)
 		exitWithError(err)
 		if exist && !overwrite {
-			exitWithError(fmt.Errorf(`file "%s" already exist!`, file))
+			exitWithError(fmt.Errorf(`file "%s" already exist`, file))
 		}
 
 		err = ioutil.WriteFile(file, byt, 0666)

@@ -10,8 +10,8 @@ import (
 
 var jwtCmd = &cobra.Command{
 	Use:   "jwt",
-	Short: "jwt Tools",
-	Long:  `jwt Tools`,
+	Short: "JWT Tools",
+	Long:  `JWT Tools`,
 }
 
 var jwtParseCmd = &cobra.Command{

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
@@ -46,23 +45,13 @@ var jsonMinifyCmd = &cobra.Command{
 
 var jsonValidCmd = &cobra.Command{
 	Use:   "valid",
-	Short: "Validate JWT",
-	Long:  `Validare JWT`,
+	Short: "Validate JSON",
+	Long:  `Validare JSON`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str, err := getInputString(args)
 		exitWithError(err)
 
-		secret, err := cmd.Flags().GetBytesBase64("secret")
-		exitWithError(err)
-		issuer, err := cmd.Flags().GetString("issuer")
-		exitWithError(err)
-
-		parts := strings.Split(str, ".")
-		if len(parts) != 3 {
-			exitWithError(fmt.Errorf("invalid JWT parts number: %v", len(parts)))
-		}
-
-		err = utils.ValidateJWT(str, issuer, secret)
+		err = utils.ValidJSON(str)
 		exitWithError(err)
 	},
 }

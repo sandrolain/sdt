@@ -9,8 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cfgFile string
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "sdt",
@@ -77,7 +75,7 @@ func getInputBytesRequired(args []string) ([]byte, error) {
 		return res, err
 	}
 	if len(res) == 0 {
-		return res, fmt.Errorf("Primary command input should not be empty")
+		return res, fmt.Errorf("primary command input should not be empty")
 	}
 	return res, err
 }
