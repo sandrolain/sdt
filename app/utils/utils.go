@@ -206,8 +206,17 @@ func URLDecode(value string) (string, error) {
 	return url.QueryUnescape(value)
 }
 
+func MinifyJSON(str string) ([]byte, error) {
+	var obj interface{}
+	err := json.Unmarshal([]byte(str), &obj)
+	if err != nil {
+		return []byte{}, err
+	}
+	return json.Marshal(obj)
+}
+
 func PrettifyJSON(str string) ([]byte, error) {
-	var obj map[string]interface{}
+	var obj interface{}
 	err := json.Unmarshal([]byte(str), &obj)
 	if err != nil {
 		return []byte{}, err
