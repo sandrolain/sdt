@@ -6,6 +6,7 @@ require (
 	github.com/0xAX/notificator v0.0.0-20220220101646-ee9b8921e557 // indirect
 	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/drhodes/golorem v0.0.0-20220328165741-da82e5b29246 // indirect
 	github.com/dsnet/golib/memfile v1.0.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a // indirect
