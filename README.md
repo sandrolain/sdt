@@ -6,8 +6,6 @@ Collection of CLI utilities for developers
 
 ## Wishlist
 
-DevToys
-
 - [ ] Request input from CLI
 - [ ] Color conversion
 - [x] RegEx match
