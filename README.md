@@ -4,6 +4,13 @@
 
 Collection of CLI utilities for developers
 
+The CLI commands receive input data (where provided) from the Standard Input or from an additional parameter without a flag, and output data to the Standard Output.  
+If an error occurs, the command will be terminated with exit code 1.
+
+## Documentation
+
+Auto-generated CLI documentation is available [here](./docs/sdt.md).
+
 ## Wishlist
 
 - [ ] Request input from CLI
