@@ -17,6 +17,8 @@ require (
 	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29
 )
 
+require sigs.k8s.io/yaml v1.1.0 // indirect
+
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/fatih/color v1.13.0 // indirect
@@ -30,6 +32,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
+	go.hein.dev/go-version v0.1.0
 	golang.org/x/sys v0.0.0-20220408201424-a24fb2fb8a0f // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
