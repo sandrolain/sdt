@@ -17,7 +17,11 @@ require (
 	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29
 )
 
-require sigs.k8s.io/yaml v1.1.0 // indirect
+require (
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
+	github.com/pquerna/otp v1.3.0 // indirect
+	sigs.k8s.io/yaml v1.1.0 // indirect
+)
 
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect

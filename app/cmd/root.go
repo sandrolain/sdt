@@ -98,8 +98,20 @@ func getIntFlag(cmd *cobra.Command, name string) int {
 	return val
 }
 
+func getUintFlag(cmd *cobra.Command, name string) uint {
+	val, err := cmd.Flags().GetUint(name)
+	exitWithError(err)
+	return val
+}
+
 func getBoolFlag(cmd *cobra.Command, name string) bool {
 	val, err := cmd.Flags().GetBool(name)
+	exitWithError(err)
+	return val
+}
+
+func getStringFlag(cmd *cobra.Command, name string) string {
+	val, err := cmd.Flags().GetString(name)
 	exitWithError(err)
 	return val
 }
