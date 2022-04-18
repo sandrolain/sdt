@@ -117,7 +117,7 @@ var totpImageCmd = &cobra.Command{
 var totpCodeCmd = &cobra.Command{
 	Use:   "code",
 	Short: "Generate Code",
-	Long:  `generate Code`,
+	Long:  `Generate Code`,
 	Run: func(cmd *cobra.Command, args []string) {
 		secret := getStringFlag(cmd, "secret")
 		algorithm := getStringFlag(cmd, "algorithm")
@@ -139,34 +139,46 @@ var totpCodeCmd = &cobra.Command{
 	},
 }
 
+var totpVerifyCmd = &cobra.Command{
+	Use:   "verify",
+	Short: "Verify Code",
+	Long:  `Verify Code`,
+	Run: func(cmd *cobra.Command, args []string) {
+		secret := getStringFlag(cmd, "secret")
+		code := getStringFlag(cmd, "code")
+
+		valid := totp.Validate(code, secret)
+		if !valid {
+			exitWithError(fmt.Errorf("Invalid code"))
+		}
+	},
+}
+
 func init() {
-	totpCodeCmd.PersistentFlags().StringP("secret", "s", "", "TOTP Secret (Base 32)")
-	totpCodeCmd.PersistentFlags().UintP("period", "p", 30, "TOTP Period")
-	totpCodeCmd.PersistentFlags().IntP("digits", "d", 6, "TOTP digits (6, 8)")
-	totpCodeCmd.PersistentFlags().StringP("algorithm", "l", "SHA1", "TOTP algorithm (SHA1, SHA256, SHA512, MD5)")
+	pf := totpCmd.PersistentFlags()
+	pf.StringP("code", "c", "", "TOTP Code")
+	pf.StringP("secret", "s", "", "TOTP Secret (Base 32)")
+	pf.StringP("issuer", "i", "", "TOTP Issuer")
+	pf.StringP("account", "a", "", "TOTP Account Name")
+	pf.UintP("period", "p", 30, "TOTP Period")
+	pf.IntP("digits", "d", 6, "TOTP digits (6, 8)")
+	pf.StringP("algorithm", "l", "SHA1", "TOTP algorithm (SHA1, SHA256, SHA512, MD5)")
+
 	totpCodeCmd.MarkPersistentFlagRequired("secret")
 
-	totpUriCmd.PersistentFlags().StringP("secret", "s", "", "TOTP Secret (Base 32)")
-	totpUriCmd.PersistentFlags().StringP("issuer", "i", "", "TOTP Issuer")
-	totpUriCmd.PersistentFlags().StringP("account", "a", "", "TOTP Account Name")
-	totpUriCmd.PersistentFlags().UintP("period", "p", 30, "TOTP Period")
-	totpUriCmd.PersistentFlags().IntP("digits", "d", 6, "TOTP digits (6, 8)")
-	totpUriCmd.PersistentFlags().StringP("algorithm", "l", "SHA1", "TOTP algorithm (SHA1, SHA256, SHA512, MD5)")
+	totpVerifyCmd.MarkPersistentFlagRequired("secret")
+	totpVerifyCmd.MarkPersistentFlagRequired("code")
+
 	totpUriCmd.MarkPersistentFlagRequired("secret")
 	totpUriCmd.MarkPersistentFlagRequired("issuer")
 	totpUriCmd.MarkPersistentFlagRequired("account")
 
-	totpImageCmd.PersistentFlags().StringP("secret", "s", "", "TOTP Secret (Base 32)")
-	totpImageCmd.PersistentFlags().StringP("issuer", "i", "", "TOTP Issuer")
-	totpImageCmd.PersistentFlags().StringP("account", "a", "", "TOTP Account Name")
-	totpImageCmd.PersistentFlags().UintP("period", "p", 30, "TOTP Period")
-	totpImageCmd.PersistentFlags().IntP("digits", "d", 6, "TOTP digits (6, 8)")
-	totpImageCmd.PersistentFlags().StringP("algorithm", "l", "SHA1", "TOTP algorithm (SHA1, SHA256, SHA512, MD5)")
 	totpImageCmd.MarkPersistentFlagRequired("secret")
 	totpImageCmd.MarkPersistentFlagRequired("issuer")
 	totpImageCmd.MarkPersistentFlagRequired("account")
 
 	totpCmd.AddCommand(totpCodeCmd)
+	totpCmd.AddCommand(totpVerifyCmd)
 	totpCmd.AddCommand(totpUriCmd)
 	totpCmd.AddCommand(totpImageCmd)
 
