@@ -115,3 +115,9 @@ func getStringFlag(cmd *cobra.Command, name string) string {
 	exitWithError(err)
 	return val
 }
+
+func getStringArrayFlag(cmd *cobra.Command, name string) []string {
+	val, err := cmd.Flags().GetStringArray(name)
+	exitWithError(err)
+	return val
+}

@@ -4,6 +4,8 @@
 
 Collection of CLI utilities for developers
 
+**W.I.P.**: *Use at your own risk!*
+
 The CLI commands receive input data (where provided) from the Standard Input or from an additional parameter without a flag, and output data to the Standard Output.  
 If an error occurs, the command will be terminated with exit code 1.
 
@@ -42,12 +44,14 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] RegExp all matches
 - [ ] RegExp replace
 - [ ] Query string to JSON and reverse
-- [ ] HTTP request
 - [ ] JSON to YAML and reverse
 - [ ] Global --inputfile parameter
 - [ ] Templating with mustache: https://github.com/cbroglie/mustache
 - [ ] WASM
 - [ ] Data faker
+- [ ] Base 32 encode/decode
+- [ ] Unit Tests!!!
+- [x] HTTP request
 - [x] RegEx match
 - [x] Lorem Ipsum
 - [x] QR code generation
@@ -66,7 +70,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [x] Hash sha1
 - [x] Random Bytes
 - [x] UUID v4
-- [x] Base64 encode/decode
+- [x] Base 64 encode/decode
 - [x] URL encode / decode
 - [x] Time unix
 - [x] Time ISO
