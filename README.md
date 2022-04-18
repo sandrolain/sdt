@@ -39,17 +39,19 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 
 - [ ] Request input from CLI
 - [ ] Color conversion
-- [x] RegEx match
 - [ ] RegExp all matches
 - [ ] RegExp replace
 - [ ] Query string to JSON and reverse
-- [ ] Lorem Ipsum
-- [x] QR code generation
 - [ ] HTTP request
 - [ ] JSON to YAML and reverse
 - [ ] Global --inputfile parameter
 - [ ] Templating with mustache: https://github.com/cbroglie/mustache
 - [ ] WASM
+- [ ] Data faker
+- [x] RegEx match
+- [x] Lorem Ipsum
+- [x] QR code generation
+- [x] TOTP 
 - [x] CSV to JSON
 - [x] Backslash escape/unsescape
 - [x] String case converter
@@ -72,4 +74,19 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [x] JWT validate
 - [x] JWT claims
 - [x] Gzip / Gunzip
+
+## External libraries used
+- [cobra](https://github.com/spf13/cobra)
+- [clipboard](https://github.com/atotto/clipboard)
+- [jwt](https://github.com/golang-jwt/jwt)
+- [colorjson](https://github.com/TylerBrock/colorjson)
+- [golorem](https://github.com/drhodes/golorem)
+- [beeep](https://github.com/gen2brain/beeep)
+- [go-password](https://github.com/sethvargo/go-password)
+- [go-qrcode](https://github.com/skip2/go-qrcode)
+- [otp](https://github.com/pquerna/otp)
+- [uuid](https://github.com/google/uuid)
+- [go-nanoid](https://github.com/matoous/go-nanoid)
+- [ksuid](https://github.com/segmentio/ksuid) 
+- [go-version](https://github.com/christopherhein/go-version)
 
