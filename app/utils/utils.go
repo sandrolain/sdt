@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -188,6 +189,18 @@ func Base64NoPaddingDecode(value string) ([]byte, error) {
 
 func Base64URLNoPaddingDecode(value string) ([]byte, error) {
 	return base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(value)
+}
+
+func Base32Encode(value []byte) string {
+	return base32.StdEncoding.EncodeToString(value)
+}
+
+func Base32Decode(value string) ([]byte, error) {
+	return base32.StdEncoding.DecodeString(value)
+}
+
+func Base32NoPaddingDecode(value string) ([]byte, error) {
+	return base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(value)
 }
 
 func HexEncode(value []byte) string {

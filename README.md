@@ -49,7 +49,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] Templating with mustache: https://github.com/cbroglie/mustache
 - [ ] WASM
 - [ ] Data faker
-- [ ] Base 32 encode/decode
+- [x] Base 32 encode/decode
 - [ ] Unit Tests!!!
 - [x] HTTP request
 - [x] RegEx match
