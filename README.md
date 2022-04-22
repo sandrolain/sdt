@@ -39,7 +39,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 
 ## Wishlist
 
-- [ ] Request input from CLI
+- [x] Request input from CLI
 - [ ] Color conversion
 - [ ] RegExp all matches
 - [ ] RegExp replace

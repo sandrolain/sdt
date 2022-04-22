@@ -17,7 +17,8 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("input", "i", "", "Input File")
+	rootCmd.PersistentFlags().BoolP("input", "i", false, "Input Prompt")
+	rootCmd.PersistentFlags().StringP("file", "f", "", "Input File")
 }
 
 func Execute() {
@@ -28,7 +29,7 @@ func Execute() {
 }
 
 func getInputString(cmd *cobra.Command, args []string) (string, error) {
-	file, err := cmd.InheritedFlags().GetString("input")
+	file, err := cmd.InheritedFlags().GetString("file")
 	exitWithError(err)
 
 	if file != "" {
@@ -42,6 +43,19 @@ func getInputString(cmd *cobra.Command, args []string) (string, error) {
 		exitWithError(err)
 
 		return string(content), nil
+	}
+
+	input, err := cmd.InheritedFlags().GetBool("input")
+	exitWithError(err)
+
+	if input {
+		byt, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return "", err
+		}
+		if len(byt) > 0 {
+			return string(byt), nil
+		}
 	}
 
 	fi, err := os.Stdin.Stat()
@@ -67,7 +81,7 @@ func getInputString(cmd *cobra.Command, args []string) (string, error) {
 }
 
 func getInputBytes(cmd *cobra.Command, args []string) ([]byte, error) {
-	file, err := cmd.InheritedFlags().GetString("input")
+	file, err := cmd.InheritedFlags().GetString("file")
 	exitWithError(err)
 
 	if file != "" {
@@ -81,6 +95,13 @@ func getInputBytes(cmd *cobra.Command, args []string) ([]byte, error) {
 		exitWithError(err)
 
 		return content, nil
+	}
+
+	input, err := cmd.InheritedFlags().GetBool("input")
+	exitWithError(err)
+
+	if input {
+		return ioutil.ReadAll(os.Stdin)
 	}
 
 	fi, err := os.Stdin.Stat()

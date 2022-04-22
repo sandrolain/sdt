@@ -75,9 +75,9 @@ var fileWriteCmd = &cobra.Command{
 }
 
 func init() {
-	fileReadCmd.PersistentFlags().StringP("file", "f", "", "File path")
+	fileReadCmd.PersistentFlags().StringP("file", "p", "", "File path")
 	fileReadCmd.MarkPersistentFlagRequired("file")
-	fileWriteCmd.PersistentFlags().StringP("file", "f", "", "File path")
+	fileWriteCmd.PersistentFlags().StringP("file", "p", "", "File path")
 	fileWriteCmd.PersistentFlags().BoolP("overwrite", "o", false, "Overwrite if already exist")
 	fileWriteCmd.MarkPersistentFlagRequired("file")
 
