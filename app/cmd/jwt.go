@@ -19,7 +19,7 @@ var jwtParseCmd = &cobra.Command{
 	Short: "Parse JWT",
 	Long:  `Parse JWT and return JWT parts`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		pretty, err := cmd.Flags().GetBool("pretty")
@@ -59,7 +59,7 @@ var jwtClaimsCmd = &cobra.Command{
 	Short: "Get JWT claims",
 	Long:  `Parse JWT and return JWT claims`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		pretty, err := cmd.Flags().GetBool("pretty")
@@ -85,7 +85,7 @@ var jwtValidCmd = &cobra.Command{
 	Short: "Validate JWT",
 	Long:  `Validare JWT`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		secret, err := cmd.Flags().GetBytesBase64("secret")
@@ -107,7 +107,7 @@ func init() {
 	jwtCmd.PersistentFlags().BoolP("pretty", "p", false, "Pretty print JSON structures")
 
 	jwtValidCmd.PersistentFlags().BytesBase64P("secret", "s", nil, "Signature secret for JWT validation")
-	jwtValidCmd.PersistentFlags().StringP("issuer", "i", "", "Issuer for JWT validation")
+	jwtValidCmd.PersistentFlags().StringP("issuer", "r", "", "Issuer for JWT validation")
 	jwtValidCmd.MarkPersistentFlagRequired("secret")
 
 	jwtCmd.AddCommand(jwtParseCmd)

@@ -14,7 +14,7 @@ var uppercaseCmd = &cobra.Command{
 	Short:   "Uppercase string",
 	Long:    `Uppercase string`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		res := strings.ToUpper(str)
@@ -28,7 +28,7 @@ var lowercaseCmd = &cobra.Command{
 	Short:   "Lowercase string",
 	Long:    `Lowercase string`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		res := strings.ToLower(str)
@@ -42,7 +42,7 @@ var escapeCmd = &cobra.Command{
 	Short:   "Escape string",
 	Long:    `Escape string`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		j, err := json.Marshal(str)
@@ -59,7 +59,7 @@ var unescapeCmd = &cobra.Command{
 	Short:   "Unescape string",
 	Long:    `Unescape string`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		str = fmt.Sprintf(`"%s"`, str)

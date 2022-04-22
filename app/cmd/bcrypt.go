@@ -12,7 +12,7 @@ var bcryptCmd = &cobra.Command{
 	Short: "Bcrypt password",
 	Long:  `Generate Bcrypt hash for password`,
 	Run: func(cmd *cobra.Command, args []string) {
-		value, err := getInputBytesRequired(args)
+		value, err := getInputBytesRequired(cmd, args)
 		exitWithError(err)
 		cost, err := cmd.Flags().GetInt("cost")
 		exitWithError(err)
@@ -28,7 +28,7 @@ var bcryptVerifyCmd = &cobra.Command{
 	Short:   "Verify Bcrypt",
 	Long:    `Verify password to match Bcrypt hash`,
 	Run: func(cmd *cobra.Command, args []string) {
-		value, err := getInputBytesRequired(args)
+		value, err := getInputBytesRequired(cmd, args)
 		exitWithError(err)
 		pwd, err := cmd.Flags().GetString("password")
 		exitWithError(err)

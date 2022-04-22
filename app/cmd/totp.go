@@ -158,7 +158,7 @@ func init() {
 	pf := totpCmd.PersistentFlags()
 	pf.StringP("code", "c", "", "TOTP Code")
 	pf.StringP("secret", "s", "", "TOTP Secret (Base 32)")
-	pf.StringP("issuer", "i", "", "TOTP Issuer")
+	pf.StringP("issuer", "r", "", "TOTP Issuer")
 	pf.StringP("account", "a", "", "TOTP Account Name")
 	pf.UintP("period", "p", 30, "TOTP Period")
 	pf.IntP("digits", "d", 6, "TOTP digits (6, 8)")

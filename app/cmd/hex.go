@@ -13,7 +13,7 @@ var hexCmd = &cobra.Command{
 	Short: "Hex Encoding",
 	Long:  `Hexadecimal Encoding`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		str := utils.HexEncode(byt)
@@ -26,7 +26,7 @@ var hexDecCmd = &cobra.Command{
 	Short: "Hex Decoding",
 	Long:  `Hexadecimal Decoding`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		byt, err := utils.HexDecode(str)

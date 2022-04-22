@@ -19,7 +19,7 @@ var urlEncCmd = &cobra.Command{
 	Short: "URL Encode",
 	Long:  `URL Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		res := utils.URLEncode(str)
@@ -34,7 +34,7 @@ var urlEncFormCmd = &cobra.Command{
 	Short: "Form URL Encode",
 	Long:  `Form URL Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		res := utils.URLEncode(str)
@@ -48,7 +48,7 @@ var urlDecCmd = &cobra.Command{
 	Short: "URL Decode",
 	Long:  `URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		str, err = utils.URLDecode(str)

@@ -15,7 +15,7 @@ var csvJsonCmd = &cobra.Command{
 	Short: "CSV to JSON",
 	Long:  `Convert CSV to JSON`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		obj, err := cmd.Flags().GetBool("object")

@@ -12,7 +12,7 @@ var b64Cmd = &cobra.Command{
 	Short: "B64 Encode",
 	Long:  `Base 64 Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		fmt.Print(utils.Base64Encode(byt))
@@ -24,7 +24,7 @@ var b64DecCmd = &cobra.Command{
 	Short: "B64 Decode",
 	Long:  `Base 64 Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		byt, err := utils.Base64Decode(str)
@@ -39,7 +39,7 @@ var b64UrlCmd = &cobra.Command{
 	Short: "B64 URL Encode",
 	Long:  `Base 64 URL Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		fmt.Print(utils.Base64URLEncode(byt))
@@ -51,7 +51,7 @@ var b64UrlDecCmd = &cobra.Command{
 	Short: "B64 URL Decode",
 	Long:  `Base 64 URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(args)
+		str, err := getInputString(cmd, args)
 		exitWithError(err)
 
 		byt, err := utils.Base64URLDecode(str)

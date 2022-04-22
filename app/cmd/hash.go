@@ -14,7 +14,7 @@ var sha1Cmd = &cobra.Command{
 	Short: "SHA-1",
 	Long:  `Generate SHA-1`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		res := sha1.Sum(byt)
@@ -27,7 +27,7 @@ var sha256Cmd = &cobra.Command{
 	Short: "SHA-256",
 	Long:  `Generate SHA-256`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		h := sha256.New()
@@ -42,7 +42,7 @@ var sha384Cmd = &cobra.Command{
 	Short: "SHA-384",
 	Long:  `Generate SHA-384`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		h := sha512.New384()
@@ -57,7 +57,7 @@ var sha512Cmd = &cobra.Command{
 	Short: "SHA-512",
 	Long:  `Generate SHA-512`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		h := sha512.New()

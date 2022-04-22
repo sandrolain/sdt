@@ -45,7 +45,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] RegExp replace
 - [ ] Query string to JSON and reverse
 - [ ] JSON to YAML and reverse
-- [ ] Global --inputfile parameter
+- [x] Global --input (file) flag
 - [ ] Templating with mustache: https://github.com/cbroglie/mustache
 - [ ] WASM
 - [ ] Data faker

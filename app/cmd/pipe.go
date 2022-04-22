@@ -11,7 +11,7 @@ import (
 var andCmd = &cobra.Command{
 	Use:   "pipe",
 	Short: "run multiple <sdt> commands separated by -",
-	Run: func(cobraCmd *cobra.Command, args []string) {
+	Run: func(cmd *cobra.Command, args []string) {
 		var cmdParts []string
 		var cmdList [][]string
 		for _, arg := range args {
@@ -29,7 +29,7 @@ var andCmd = &cobra.Command{
 		cmdPath, err := os.Executable()
 		exitWithError(err)
 
-		data, err := getInputBytes([]string{})
+		data, err := getInputBytes(cmd, []string{})
 		exitWithError(err)
 
 		var out []byte

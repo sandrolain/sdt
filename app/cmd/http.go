@@ -16,7 +16,7 @@ var httpCmd = &cobra.Command{
 	Short: "QR code",
 	Long:  `Generate QR code`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		method := getStringFlag(cmd, "method")

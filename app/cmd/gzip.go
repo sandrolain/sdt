@@ -15,7 +15,7 @@ var gzipCmd = &cobra.Command{
 	Short:   "Gzip",
 	Long:    `Gzip`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		var b bytes.Buffer
@@ -41,7 +41,7 @@ var gunzipCmd = &cobra.Command{
 	Short:   "Gunzip",
 	Long:    `Gunzip`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(args)
+		byt, err := getInputBytes(cmd, args)
 		exitWithError(err)
 
 		b := bytes.NewBuffer(byt)

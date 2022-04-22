@@ -16,6 +16,10 @@ var rootCmd = &cobra.Command{
 	Long:  `Smart Developer Tools is a collection of CLI utilities for developers`,
 }
 
+func init() {
+	rootCmd.PersistentFlags().StringP("input", "i", "", "Input File")
+}
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -23,7 +27,23 @@ func Execute() {
 	}
 }
 
-func getInputString(args []string) (string, error) {
+func getInputString(cmd *cobra.Command, args []string) (string, error) {
+	file, err := cmd.InheritedFlags().GetString("input")
+	exitWithError(err)
+
+	if file != "" {
+		exist, err := fileExists(file)
+		exitWithError(err)
+		if !exist {
+			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
+		}
+
+		content, err := ioutil.ReadFile(file)
+		exitWithError(err)
+
+		return string(content), nil
+	}
+
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		panic(err)
@@ -46,7 +66,23 @@ func getInputString(args []string) (string, error) {
 	return "", nil
 }
 
-func getInputBytes(args []string) ([]byte, error) {
+func getInputBytes(cmd *cobra.Command, args []string) ([]byte, error) {
+	file, err := cmd.InheritedFlags().GetString("input")
+	exitWithError(err)
+
+	if file != "" {
+		exist, err := fileExists(file)
+		exitWithError(err)
+		if !exist {
+			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
+		}
+
+		content, err := ioutil.ReadFile(file)
+		exitWithError(err)
+
+		return content, nil
+	}
+
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		panic(err)
@@ -69,8 +105,8 @@ func getInputBytes(args []string) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func getInputBytesRequired(args []string) ([]byte, error) {
-	res, err := getInputBytes(args)
+func getInputBytesRequired(cmd *cobra.Command, args []string) ([]byte, error) {
+	res, err := getInputBytes(cmd, args)
 	if err != nil {
 		return res, err
 	}
