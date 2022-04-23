@@ -5,8 +5,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -22,6 +24,17 @@ func init() {
 }
 
 func Execute() {
+	viper.SetConfigName("sdt")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+	if err := viper.ReadInConfig(); err != nil {
+		fmt.Printf("err: %v\n", err)
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// Config file was found but another error was produced
+			exitWithError(err)
+		}
+	}
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -168,9 +181,32 @@ func getBoolFlag(cmd *cobra.Command, name string) bool {
 }
 
 func getStringFlag(cmd *cobra.Command, name string) string {
-	val, err := cmd.Flags().GetString(name)
-	exitWithError(err)
+	var val string
+	var err error
+	if cmd.Flags().Changed(name) {
+		val, err = cmd.Flags().GetString(name)
+		exitWithError(err)
+	} else {
+		key := getUsePath(cmd, name)
+		if viper.IsSet(key) {
+			val = viper.GetString(key)
+		}
+	}
 	return val
+}
+
+func getUsePath(cmd *cobra.Command, name string) string {
+	uses := []string{name}
+
+	for true {
+		uses = append([]string{cmd.Use}, uses...)
+		cmd = cmd.Parent()
+		if cmd == nil || cmd.Use == "sdt" {
+			break
+		}
+	}
+
+	return strings.Join(uses, ".")
 }
 
 func getStringArrayFlag(cmd *cobra.Command, name string) []string {
