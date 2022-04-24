@@ -16,14 +16,13 @@ var httpCmd = &cobra.Command{
 	Short: "QR code",
 	Long:  `Generate QR code`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(cmd, args)
-		exitWithError(err)
+		byt := getInputBytes(cmd, args)
 
-		method := getStringFlag(cmd, "method")
-		url := getStringFlag(cmd, "url")
-		typ := getStringFlag(cmd, "type")
-		to := getIntFlag(cmd, "timeout")
-		header := getStringArrayFlag(cmd, "header")
+		method := getStringFlag(cmd, "method", false)
+		url := getStringFlag(cmd, "url", true)
+		typ := getStringFlag(cmd, "type", false)
+		to := getIntFlag(cmd, "timeout", false)
+		header := getStringArrayFlag(cmd, "header", false)
 
 		client := http.Client{
 			Timeout: time.Duration(to) * time.Second,
@@ -32,6 +31,7 @@ var httpCmd = &cobra.Command{
 		method = strings.ToUpper(method)
 
 		var req *http.Request
+		var err error
 		if method == "POST" || method == "PUT" {
 			reader := bytes.NewReader(byt)
 			req, err = http.NewRequest(method, url, reader)
@@ -80,7 +80,6 @@ func init() {
 	pf.StringP("url", "u", "", "URL")
 	pf.StringP("type", "y", "", "Request Content-Type")
 	pf.StringArrayP("header", "e", []string{}, "Header")
-	httpCmd.MarkPersistentFlagRequired("url")
 
 	rootCmd.AddCommand(httpCmd)
 }

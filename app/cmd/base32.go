@@ -12,8 +12,7 @@ var b32Cmd = &cobra.Command{
 	Short: "B32 Encode",
 	Long:  `Base 32 Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(cmd, args)
-		exitWithError(err)
+		byt := getInputBytes(cmd, args)
 
 		fmt.Print(utils.Base32Encode(byt))
 	},
@@ -24,8 +23,7 @@ var b32DecCmd = &cobra.Command{
 	Short: "B32 Decode",
 	Long:  `Base 32 Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
+		str := getInputString(cmd, args)
 
 		byt, err := utils.Base32Decode(str)
 		exitWithError(err)

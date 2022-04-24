@@ -15,13 +15,12 @@ var gzipCmd = &cobra.Command{
 	Short:   "Gzip",
 	Long:    `Gzip`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(cmd, args)
-		exitWithError(err)
+		byt := getInputBytes(cmd, args)
 
 		var b bytes.Buffer
 		gz := gzip.NewWriter(&b)
 
-		_, err = gz.Write(byt)
+		_, err := gz.Write(byt)
 		exitWithError(err)
 
 		err = gz.Flush()
@@ -41,13 +40,12 @@ var gunzipCmd = &cobra.Command{
 	Short:   "Gunzip",
 	Long:    `Gunzip`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(cmd, args)
-		exitWithError(err)
+		byt := getInputBytes(cmd, args)
 
 		b := bytes.NewBuffer(byt)
 
 		var r io.Reader
-		r, err = gzip.NewReader(b)
+		r, err := gzip.NewReader(b)
 		exitWithError(err)
 
 		var resB bytes.Buffer

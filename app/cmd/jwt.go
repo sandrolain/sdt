@@ -19,8 +19,7 @@ var jwtParseCmd = &cobra.Command{
 	Short: "Parse JWT",
 	Long:  `Parse JWT and return JWT parts`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
+		str := getInputString(cmd, args)
 
 		pretty, err := cmd.Flags().GetBool("pretty")
 		exitWithError(err)
@@ -59,8 +58,7 @@ var jwtClaimsCmd = &cobra.Command{
 	Short: "Get JWT claims",
 	Long:  `Parse JWT and return JWT claims`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
+		str := getInputString(cmd, args)
 
 		pretty, err := cmd.Flags().GetBool("pretty")
 		exitWithError(err)
@@ -85,20 +83,17 @@ var jwtValidCmd = &cobra.Command{
 	Short: "Validate JWT",
 	Long:  `Validare JWT`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
+		str := getInputString(cmd, args)
 
-		secret, err := cmd.Flags().GetBytesBase64("secret")
-		exitWithError(err)
-		issuer, err := cmd.Flags().GetString("issuer")
-		exitWithError(err)
+		secret := getBytesBase64Flag(cmd, "secret", true)
+		issuer := getStringFlag(cmd, "issuer", false)
 
 		parts := strings.Split(str, ".")
 		if len(parts) != 3 {
 			exitWithError(fmt.Errorf("invalid JWT parts number: %v", len(parts)))
 		}
 
-		err = utils.ValidateJWT(str, issuer, secret)
+		err := utils.ValidateJWT(str, issuer, secret)
 		exitWithError(err)
 	},
 }
@@ -108,7 +103,6 @@ func init() {
 
 	jwtValidCmd.PersistentFlags().BytesBase64P("secret", "s", nil, "Signature secret for JWT validation")
 	jwtValidCmd.PersistentFlags().StringP("issuer", "r", "", "Issuer for JWT validation")
-	jwtValidCmd.MarkPersistentFlagRequired("secret")
 
 	jwtCmd.AddCommand(jwtParseCmd)
 	jwtCmd.AddCommand(jwtClaimsCmd)

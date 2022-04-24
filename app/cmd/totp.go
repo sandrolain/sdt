@@ -50,12 +50,12 @@ var totpUriCmd = &cobra.Command{
 	Short: "Generate URI",
 	Long:  `Generate URI`,
 	Run: func(cmd *cobra.Command, args []string) {
-		secret := getStringFlag(cmd, "secret")
-		issuer := getStringFlag(cmd, "issuer")
-		account := getStringFlag(cmd, "account")
-		algorithm := getStringFlag(cmd, "algorithm")
-		period := getUintFlag(cmd, "period")
-		digits := getIntFlag(cmd, "digits")
+		secret := getStringFlag(cmd, "secret", true)
+		issuer := getStringFlag(cmd, "issuer", true)
+		account := getStringFlag(cmd, "account", true)
+		algorithm := getStringFlag(cmd, "algorithm", false)
+		period := getUintFlag(cmd, "period", false)
+		digits := getIntFlag(cmd, "digits", false)
 
 		secretBytes, err := base32.StdEncoding.DecodeString(secret)
 		exitWithError(err)
@@ -82,12 +82,12 @@ var totpImageCmd = &cobra.Command{
 	Short: "Generate QR code Image",
 	Long:  `Generate QR code Image`,
 	Run: func(cmd *cobra.Command, args []string) {
-		secret := getStringFlag(cmd, "secret")
-		issuer := getStringFlag(cmd, "issuer")
-		account := getStringFlag(cmd, "account")
-		algorithm := getStringFlag(cmd, "algorithm")
-		period := getUintFlag(cmd, "period")
-		digits := getIntFlag(cmd, "digits")
+		secret := getStringFlag(cmd, "secret", true)
+		issuer := getStringFlag(cmd, "issuer", true)
+		account := getStringFlag(cmd, "account", true)
+		algorithm := getStringFlag(cmd, "algorithm", false)
+		period := getUintFlag(cmd, "period", false)
+		digits := getIntFlag(cmd, "digits", false)
 
 		secretBytes, err := base32.StdEncoding.DecodeString(secret)
 		exitWithError(err)
@@ -119,10 +119,10 @@ var totpCodeCmd = &cobra.Command{
 	Short: "Generate Code",
 	Long:  `Generate Code`,
 	Run: func(cmd *cobra.Command, args []string) {
-		secret := getStringFlag(cmd, "secret")
-		algorithm := getStringFlag(cmd, "algorithm")
-		period := getUintFlag(cmd, "period")
-		digits := getIntFlag(cmd, "digits")
+		secret := getStringFlag(cmd, "secret", true)
+		algorithm := getStringFlag(cmd, "algorithm", false)
+		period := getUintFlag(cmd, "period", false)
+		digits := getIntFlag(cmd, "digits", false)
 
 		alg := getAlgorithm(algorithm)
 		dig := getDigits(digits)
@@ -144,8 +144,8 @@ var totpVerifyCmd = &cobra.Command{
 	Short: "Verify Code",
 	Long:  `Verify Code`,
 	Run: func(cmd *cobra.Command, args []string) {
-		secret := getStringFlag(cmd, "secret")
-		code := getStringFlag(cmd, "code")
+		secret := getStringFlag(cmd, "secret", true)
+		code := getStringFlag(cmd, "code", true)
 
 		valid := totp.Validate(code, secret)
 		if !valid {
@@ -163,19 +163,6 @@ func init() {
 	pf.UintP("period", "p", 30, "TOTP Period")
 	pf.IntP("digits", "d", 6, "TOTP digits (6, 8)")
 	pf.StringP("algorithm", "l", "SHA1", "TOTP algorithm (SHA1, SHA256, SHA512, MD5)")
-
-	totpCodeCmd.MarkPersistentFlagRequired("secret")
-
-	totpVerifyCmd.MarkPersistentFlagRequired("secret")
-	totpVerifyCmd.MarkPersistentFlagRequired("code")
-
-	totpUriCmd.MarkPersistentFlagRequired("secret")
-	totpUriCmd.MarkPersistentFlagRequired("issuer")
-	totpUriCmd.MarkPersistentFlagRequired("account")
-
-	totpImageCmd.MarkPersistentFlagRequired("secret")
-	totpImageCmd.MarkPersistentFlagRequired("issuer")
-	totpImageCmd.MarkPersistentFlagRequired("account")
 
 	totpCmd.AddCommand(totpCodeCmd)
 	totpCmd.AddCommand(totpVerifyCmd)

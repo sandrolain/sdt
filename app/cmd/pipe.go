@@ -29,8 +29,7 @@ var andCmd = &cobra.Command{
 		cmdPath, err := os.Executable()
 		exitWithError(err)
 
-		data, err := getInputBytes(cmd, []string{})
-		exitWithError(err)
+		data := getInputBytes(cmd, []string{})
 
 		var out []byte
 

@@ -7,7 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -41,7 +43,7 @@ func Execute() {
 	}
 }
 
-func getInputString(cmd *cobra.Command, args []string) (string, error) {
+func getInputString(cmd *cobra.Command, args []string) string {
 	file, err := cmd.InheritedFlags().GetString("file")
 	exitWithError(err)
 
@@ -55,7 +57,7 @@ func getInputString(cmd *cobra.Command, args []string) (string, error) {
 		content, err := ioutil.ReadFile(file)
 		exitWithError(err)
 
-		return string(content), nil
+		return string(content)
 	}
 
 	input, err := cmd.InheritedFlags().GetBool("input")
@@ -63,37 +65,33 @@ func getInputString(cmd *cobra.Command, args []string) (string, error) {
 
 	if input {
 		byt, err := ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			return "", err
-		}
+		exitWithError(err)
 		if len(byt) > 0 {
-			return string(byt), nil
+			return string(byt)
 		}
 	}
 
 	fi, err := os.Stdin.Stat()
-	if err != nil {
-		panic(err)
-	}
+	exitWithError(err)
 
 	if fi.Mode()&os.ModeNamedPipe != 0 {
 		byt, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
-			return "", err
+			return ""
 		}
 		if len(byt) > 0 {
-			return string(byt), nil
+			return string(byt)
 		}
 	}
 
 	if len(args) > 0 {
-		return args[0], nil
+		return args[0]
 	}
 
-	return "", nil
+	return ""
 }
 
-func getInputBytes(cmd *cobra.Command, args []string) ([]byte, error) {
+func getInputBytes(cmd *cobra.Command, args []string) []byte {
 	file, err := cmd.InheritedFlags().GetString("file")
 	exitWithError(err)
 
@@ -107,14 +105,16 @@ func getInputBytes(cmd *cobra.Command, args []string) ([]byte, error) {
 		content, err := ioutil.ReadFile(file)
 		exitWithError(err)
 
-		return content, nil
+		return content
 	}
 
 	input, err := cmd.InheritedFlags().GetBool("input")
 	exitWithError(err)
 
 	if input {
-		return ioutil.ReadAll(os.Stdin)
+		res, err := ioutil.ReadAll(os.Stdin)
+		exitWithError(err)
+		return res
 	}
 
 	fi, err := os.Stdin.Stat()
@@ -124,30 +124,26 @@ func getInputBytes(cmd *cobra.Command, args []string) ([]byte, error) {
 
 	if fi.Mode()&os.ModeNamedPipe != 0 {
 		byt, err := ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			return byt, err
-		}
+		exitWithError(err)
+
 		if len(byt) > 0 {
-			return byt, nil
+			return byt
 		}
 	}
 
 	if len(args) > 0 {
-		return []byte(args[0]), nil
+		return []byte(args[0])
 	}
 
-	return []byte{}, nil
+	return []byte{}
 }
 
-func getInputBytesRequired(cmd *cobra.Command, args []string) ([]byte, error) {
-	res, err := getInputBytes(cmd, args)
-	if err != nil {
-		return res, err
-	}
+func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {
+	res := getInputBytes(cmd, args)
 	if len(res) == 0 {
-		return res, fmt.Errorf("primary command input should not be empty")
+		exitWithError(fmt.Errorf("primary command input should not be empty"))
 	}
-	return res, err
+	return res
 }
 
 func exitWithError(err error) {
@@ -162,42 +158,80 @@ func exitWithErrorF(f string, err error) {
 	}
 }
 
-func getIntFlag(cmd *cobra.Command, name string) int {
-	val, err := cmd.Flags().GetInt(name)
-	exitWithError(err)
-	return val
-}
-
-func getUintFlag(cmd *cobra.Command, name string) uint {
-	val, err := cmd.Flags().GetUint(name)
-	exitWithError(err)
-	return val
-}
-
-func getBoolFlag(cmd *cobra.Command, name string) bool {
-	val, err := cmd.Flags().GetBool(name)
-	exitWithError(err)
-	return val
-}
-
-func getStringFlag(cmd *cobra.Command, name string) string {
-	var val string
+func getFlag[T any](cmd *cobra.Command, name string, required bool, fFlags func(flags *pflag.FlagSet) (T, error), fFile func() T) T {
+	var val T
 	var err error
-	if cmd.Flags().Changed(name) {
-		val, err = cmd.Flags().GetString(name)
+	found := false
+	flags := cmd.Flags()
+	if flags.Changed(name) {
+		val, err = fFlags(flags)
 		exitWithError(err)
+		found = true
 	} else {
 		key := getUsePath(cmd, name)
 		if viper.IsSet(key) {
-			val = viper.GetString(key)
+			val = fFile()
+			found = true
 		}
+	}
+	if required && !found {
+		exitWithError(fmt.Errorf("the flag \"%s\" is required", name))
 	}
 	return val
 }
 
+func getIntFlag(cmd *cobra.Command, name string, required bool) int {
+	return getFlag(cmd, name, required, func(flags *pflag.FlagSet) (int, error) {
+		return flags.GetInt(name)
+	}, func() int {
+		return viper.GetInt(name)
+	})
+}
+
+func getUintFlag(cmd *cobra.Command, name string, required bool) uint {
+	return getFlag(cmd, name, required, func(flags *pflag.FlagSet) (uint, error) {
+		return flags.GetUint(name)
+	}, func() uint {
+		return viper.GetUint(name)
+	})
+}
+
+func getBoolFlag(cmd *cobra.Command, name string, required bool) bool {
+	return getFlag(cmd, name, required, func(flags *pflag.FlagSet) (bool, error) {
+		return flags.GetBool(name)
+	}, func() bool {
+		return viper.GetBool(name)
+	})
+}
+
+func getStringFlag(cmd *cobra.Command, name string, required bool) string {
+	return getFlag(cmd, name, required, func(flags *pflag.FlagSet) (string, error) {
+		return flags.GetString(name)
+	}, func() string {
+		return viper.GetString(name)
+	})
+}
+
+func getBytesBase64Flag(cmd *cobra.Command, name string, required bool) []byte {
+	return getFlag(cmd, name, required, func(flags *pflag.FlagSet) ([]byte, error) {
+		return flags.GetBytesBase64(name)
+	}, func() []byte {
+		byt, err := utils.Base64Decode(viper.GetString(name))
+		exitWithError(err)
+		return byt
+	})
+}
+
+func getStringArrayFlag(cmd *cobra.Command, name string, required bool) []string {
+	return getFlag(cmd, name, required, func(flags *pflag.FlagSet) ([]string, error) {
+		return flags.GetStringSlice(name)
+	}, func() []string {
+		return viper.GetStringSlice(name)
+	})
+}
+
 func getUsePath(cmd *cobra.Command, name string) string {
 	uses := []string{name}
-
 	for true {
 		uses = append([]string{cmd.Use}, uses...)
 		cmd = cmd.Parent()
@@ -205,12 +239,5 @@ func getUsePath(cmd *cobra.Command, name string) string {
 			break
 		}
 	}
-
 	return strings.Join(uses, ".")
-}
-
-func getStringArrayFlag(cmd *cobra.Command, name string) []string {
-	val, err := cmd.Flags().GetStringArray(name)
-	exitWithError(err)
-	return val
 }

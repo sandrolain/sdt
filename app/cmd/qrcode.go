@@ -13,8 +13,7 @@ var qrcodeCmd = &cobra.Command{
 	Short: "QR code",
 	Long:  `Generate QR code`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
+		str := getInputString(cmd, args)
 
 		size, err := cmd.Flags().GetInt("size")
 		exitWithError(err)

@@ -18,12 +18,9 @@ var jsonPrettyCmd = &cobra.Command{
 	Short: "Prettify JSON",
 	Long:  `Prettify JSON`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
-
+		str := getInputString(cmd, args)
 		byt, err := utils.PrettifyJSON(str)
 		exitWithError(err)
-
 		fmt.Print(string(byt))
 	},
 }
@@ -33,12 +30,9 @@ var jsonMinifyCmd = &cobra.Command{
 	Short: "Minify JSON",
 	Long:  `Minify JSON`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
-
+		str := getInputString(cmd, args)
 		byt, err := utils.MinifyJSON(str)
 		exitWithError(err)
-
 		fmt.Print(string(byt))
 	},
 }
@@ -48,10 +42,8 @@ var jsonValidCmd = &cobra.Command{
 	Short: "Validate JSON",
 	Long:  `Validare JSON`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
-
-		err = utils.ValidJSON(str)
+		str := getInputString(cmd, args)
+		err := utils.ValidJSON(str)
 		exitWithError(err)
 	},
 }
@@ -60,6 +52,5 @@ func init() {
 	jsonCmd.AddCommand(jsonPrettyCmd)
 	jsonCmd.AddCommand(jsonMinifyCmd)
 	jsonCmd.AddCommand(jsonValidCmd)
-
 	rootCmd.AddCommand(jsonCmd)
 }

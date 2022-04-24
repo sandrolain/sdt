@@ -12,12 +12,12 @@ var passwordCmd = &cobra.Command{
 	Short: "Generate password",
 	Long:  `Generate password`,
 	Run: func(cmd *cobra.Command, args []string) {
-		num := getIntFlag(cmd, "number")
-		len := getIntFlag(cmd, "length")
-		dig := getIntFlag(cmd, "digits")
-		sim := getIntFlag(cmd, "symbols")
-		unt := getBoolFlag(cmd, "untyped")
-		rep := getBoolFlag(cmd, "repeat")
+		num := getIntFlag(cmd, "number", false)
+		len := getIntFlag(cmd, "length", false)
+		dig := getIntFlag(cmd, "digits", false)
+		sim := getIntFlag(cmd, "symbols", false)
+		unt := getBoolFlag(cmd, "untyped", false)
+		rep := getBoolFlag(cmd, "repeat", false)
 
 		for i := 0; i < num; i++ {
 			if i > 0 {
@@ -31,12 +31,12 @@ var passwordCmd = &cobra.Command{
 }
 
 func init() {
-	passwordCmd.PersistentFlags().IntP("number", "n", 1, "Number of passwords")
-	passwordCmd.PersistentFlags().IntP("length", "l", 32, "Password length")
-	passwordCmd.PersistentFlags().IntP("digits", "d", 8, "Digits number")
-	passwordCmd.PersistentFlags().IntP("symbols", "s", 8, "Symbols number")
-	passwordCmd.PersistentFlags().BoolP("untyped", "u", false, "Only lowercase characters")
-	passwordCmd.PersistentFlags().BoolP("repeat", "r", false, "Allow repeated characters")
-
+	fg := passwordCmd.PersistentFlags()
+	fg.IntP("number", "n", 1, "Number of passwords")
+	fg.IntP("length", "l", 32, "Password length")
+	fg.IntP("digits", "d", 8, "Digits number")
+	fg.IntP("symbols", "s", 8, "Symbols number")
+	fg.BoolP("untyped", "u", false, "Only lowercase characters")
+	fg.BoolP("repeat", "r", false, "Allow repeated characters")
 	rootCmd.AddCommand(passwordCmd)
 }

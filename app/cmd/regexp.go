@@ -13,8 +13,7 @@ var regeCmd = &cobra.Command{
 	Short:   "RegExp matching",
 	Long:    `Regular Expression matching`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(cmd, args)
-		exitWithError(err)
+		byt := getInputBytes(cmd, args)
 
 		exp, err := cmd.Flags().GetString("expression")
 		exitWithError(err)

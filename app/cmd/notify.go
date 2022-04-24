@@ -10,8 +10,7 @@ var notifyCmd = &cobra.Command{
 	Short: "Notification",
 	Long:  `Desktop notification`,
 	Run: func(cmd *cobra.Command, args []string) {
-		str, err := getInputString(cmd, args)
-		exitWithError(err)
+		str := getInputString(cmd, args)
 
 		title, err := cmd.Flags().GetString("title")
 		exitWithError(err)

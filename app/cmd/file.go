@@ -29,8 +29,7 @@ var fileReadCmd = &cobra.Command{
 	Short: "Read File",
 	Long:  `Read File`,
 	Run: func(cmd *cobra.Command, args []string) {
-		file, err := cmd.Flags().GetString("file")
-		exitWithError(err)
+		file := getStringFlag(cmd, "file", true)
 
 		exist, err := fileExists(file)
 		exitWithError(err)
@@ -50,15 +49,12 @@ var fileWriteCmd = &cobra.Command{
 	Short: "File Write",
 	Long:  `File Write`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt, err := getInputBytes(cmd, args)
-		exitWithError(err)
+		byt := getInputBytes(cmd, args)
 
-		file, err := cmd.Flags().GetString("file")
-		exitWithError(err)
-		overwrite, err := cmd.Flags().GetBool("overwrite")
-		exitWithError(err)
+		file := getStringFlag(cmd, "file", true)
+		overwrite := getBoolFlag(cmd, "overwrite", false)
 
-		file, err = filepath.Abs(file)
+		file, err := filepath.Abs(file)
 		exitWithError(err)
 
 		exist, err := fileExists(file)
@@ -76,10 +72,8 @@ var fileWriteCmd = &cobra.Command{
 
 func init() {
 	fileReadCmd.PersistentFlags().StringP("file", "p", "", "File path")
-	fileReadCmd.MarkPersistentFlagRequired("file")
 	fileWriteCmd.PersistentFlags().StringP("file", "p", "", "File path")
 	fileWriteCmd.PersistentFlags().BoolP("overwrite", "o", false, "Overwrite if already exist")
-	fileWriteCmd.MarkPersistentFlagRequired("file")
 
 	rootCmd.AddCommand(fileReadCmd)
 	rootCmd.AddCommand(fileWriteCmd)
