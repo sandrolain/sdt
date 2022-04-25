@@ -39,18 +39,25 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 
 ## Wishlist
 
-- [x] Request input from CLI
+### DevOps 
+
+- [ ] Unit Tests!!!
+- [ ] Use [UPX](https://upx.github.io/)
+
+### Features Wishlist
+
 - [ ] Color conversion
 - [ ] RegExp all matches
 - [ ] RegExp replace
 - [ ] Query string to JSON and reverse
 - [ ] JSON to YAML and reverse
-- [x] Global --input (file) flag
 - [ ] Templating with mustache: https://github.com/cbroglie/mustache
 - [ ] WASM
 - [ ] Data faker
+- [x] Edit config file
+- [x] Request input from CLI
+- [x] Global --input (file) flag
 - [x] Base 32 encode/decode
-- [ ] Unit Tests!!!
 - [x] HTTP request
 - [x] RegEx match
 - [x] Lorem Ipsum

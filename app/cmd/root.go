@@ -91,6 +91,14 @@ func getInputString(cmd *cobra.Command, args []string) string {
 	return ""
 }
 
+func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, required bool) string {
+	val := getInputString(cmd, args)
+	if len(val) == 0 {
+		val = getStringFlag(cmd, flag, required)
+	}
+	return val
+}
+
 func getInputBytes(cmd *cobra.Command, args []string) []byte {
 	file, err := cmd.InheritedFlags().GetString("file")
 	exitWithError(err)
