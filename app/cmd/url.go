@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/sandrolain/sdt/app/utils"
@@ -22,7 +21,7 @@ var urlEncCmd = &cobra.Command{
 		str := getInputString(cmd, args)
 		res := utils.URLEncode(str)
 		res = strings.ReplaceAll(res, "+", "%20")
-		fmt.Print(res)
+		cmd.OutOrStdout().Write([]byte(res))
 	},
 }
 
@@ -33,7 +32,7 @@ var urlEncFormCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		res := utils.URLEncode(str)
-		fmt.Print(res)
+		cmd.OutOrStdout().Write([]byte(res))
 	},
 }
 
@@ -45,7 +44,7 @@ var urlDecCmd = &cobra.Command{
 		str := getInputString(cmd, args)
 		str, err := utils.URLDecode(str)
 		exitWithError(err)
-		fmt.Println(str)
+		cmd.OutOrStdout().Write([]byte(str))
 	},
 }
 

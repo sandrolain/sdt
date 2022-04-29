@@ -239,7 +239,13 @@ func getStringArrayFlag(cmd *cobra.Command, name string, required bool) []string
 }
 
 func getUsePath(cmd *cobra.Command, name string) string {
-	uses := []string{name}
+	uses := getUseArray(cmd)
+	uses = append(uses, name)
+	return strings.Join(uses, ".")
+}
+
+func getUseArray(cmd *cobra.Command) []string {
+	uses := []string{}
 	for true {
 		uses = append([]string{cmd.Use}, uses...)
 		cmd = cmd.Parent()
@@ -247,5 +253,5 @@ func getUsePath(cmd *cobra.Command, name string) string {
 			break
 		}
 	}
-	return strings.Join(uses, ".")
+	return uses
 }

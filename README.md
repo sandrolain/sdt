@@ -39,7 +39,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 
 ## Wishlist
 
-### DevOps 
+### DevOps Wishlist
 
 - [ ] Unit Tests!!!
 - [ ] Use [UPX](https://upx.github.io/)
