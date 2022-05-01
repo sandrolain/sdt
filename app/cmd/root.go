@@ -182,8 +182,14 @@ func getFlag[T any](cmd *cobra.Command, name string, required bool, fFlags func(
 			found = true
 		}
 	}
-	if required && !found {
-		exitWithError(fmt.Errorf("the flag \"%s\" is required", name))
+
+	if !found {
+		if required {
+			exitWithError(fmt.Errorf("the flag \"%s\" is required", name))
+		} else {
+			val, err = fFlags(flags)
+			exitWithError(err)
+		}
 	}
 	return val
 }
@@ -254,4 +260,12 @@ func getUseArray(cmd *cobra.Command) []string {
 		}
 	}
 	return uses
+}
+
+func outputBytes(cmd *cobra.Command, byt []byte) {
+	cmd.OutOrStdout().Write(byt)
+}
+
+func outputString(cmd *cobra.Command, str string) {
+	cmd.OutOrStdout().Write([]byte(str))
 }

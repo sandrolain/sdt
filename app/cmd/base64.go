@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
 )
@@ -13,8 +11,7 @@ var b64Cmd = &cobra.Command{
 	Long:  `Base 64 Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
-
-		fmt.Print(utils.Base64Encode(byt))
+		outputString(cmd, utils.Base64Encode(byt))
 	},
 }
 
@@ -24,11 +21,9 @@ var b64DecCmd = &cobra.Command{
 	Long:  `Base 64 Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-
 		byt, err := utils.Base64Decode(str)
 		exitWithError(err)
-
-		fmt.Print(string(byt))
+		outputBytes(cmd, byt)
 	},
 }
 
@@ -38,8 +33,7 @@ var b64UrlCmd = &cobra.Command{
 	Long:  `Base 64 URL Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
-
-		fmt.Print(utils.Base64URLEncode(byt))
+		outputString(cmd, utils.Base64URLEncode(byt))
 	},
 }
 
@@ -49,11 +43,9 @@ var b64UrlDecCmd = &cobra.Command{
 	Long:  `Base 64 URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-
 		byt, err := utils.Base64URLDecode(str)
 		exitWithError(err)
-
-		fmt.Print(string(byt))
+		outputBytes(cmd, byt)
 	},
 }
 

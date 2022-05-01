@@ -40,7 +40,7 @@ var loremCmd = &cobra.Command{
 }
 
 func init() {
-	loremCmd.PersistentFlags().StringP("type", "t", "paragraph", "Image size")
+	loremCmd.PersistentFlags().StringP("type", "t", "paragraph", "Sequence type")
 	loremCmd.PersistentFlags().IntP("min", "n", 1, "Min")
 	loremCmd.PersistentFlags().IntP("max", "m", 10, "Max")
 

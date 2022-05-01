@@ -49,9 +49,13 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] Color conversion
 - [ ] RegExp all matches
 - [ ] RegExp replace
-- [ ] Query string to JSON and reverse
-- [ ] JSON to YAML and reverse
-- [ ] Templating with mustache: https://github.com/cbroglie/mustache
+- [ ] Data conversion between:
+  - [ ] [Query string](https://github.com/hetiansu5/urlquery)
+  - [ ] JSON
+  - [ ] [YAML](https://github.com/go-yaml/yaml)
+  - [ ] [TOML](https://github.com/pelletier/go-toml)
+  - [ ] CSV
+- [ ] Template with mustache: https://github.com/cbroglie/mustache
 - [ ] WASM
 - [ ] Data faker
 - [x] Edit config file

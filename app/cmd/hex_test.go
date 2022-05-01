@@ -12,7 +12,7 @@ func TestHexEncode(t *testing.T) {
 	}
 	exp := "010203"
 	if string(out) != exp {
-		t.Fatalf("expected \"%s\" got \"%s\"", exp, string(out))
+		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
 	}
 }
 
@@ -23,6 +23,6 @@ func TestHexDecode(t *testing.T) {
 	}
 	exp := []byte{0x01, 0x02, 0x03}
 	if !bytes.Equal(out, exp) {
-		t.Fatalf("expected \"%v\" got \"%v\"", exp, out)
+		t.Fatalf("expecting \"%v\", got \"%v\"", exp, out)
 	}
 }

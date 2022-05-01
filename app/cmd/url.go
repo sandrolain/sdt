@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"net/url"
 	"strings"
 
-	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ var urlEncCmd = &cobra.Command{
 	Long:  `URL Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		res := utils.URLEncode(str)
+		res := url.QueryEscape(str)
 		res = strings.ReplaceAll(res, "+", "%20")
 		cmd.OutOrStdout().Write([]byte(res))
 	},
@@ -31,7 +31,7 @@ var urlEncFormCmd = &cobra.Command{
 	Long:  `Form URL Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		res := utils.URLEncode(str)
+		res := url.QueryEscape(str)
 		cmd.OutOrStdout().Write([]byte(res))
 	},
 }
@@ -42,7 +42,7 @@ var urlDecCmd = &cobra.Command{
 	Long:  `URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		str, err := utils.URLDecode(str)
+		str, err := url.QueryUnescape(str)
 		exitWithError(err)
 		cmd.OutOrStdout().Write([]byte(str))
 	},

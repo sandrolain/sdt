@@ -8,11 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/base32"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/url"
 	"time"
 
 	"github.com/TylerBrock/colorjson"
@@ -201,22 +199,6 @@ func Base32Decode(value string) ([]byte, error) {
 
 func Base32NoPaddingDecode(value string) ([]byte, error) {
 	return base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(value)
-}
-
-func HexEncode(value []byte) string {
-	return hex.EncodeToString(value)
-}
-
-func HexDecode(value string) ([]byte, error) {
-	return hex.DecodeString(value)
-}
-
-func URLEncode(value string) string {
-	return url.QueryEscape(value)
-}
-
-func URLDecode(value string) (string, error) {
-	return url.QueryUnescape(value)
 }
 
 func ValidJSON(str string) error {

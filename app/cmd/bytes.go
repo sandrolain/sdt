@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
+	"strings"
 
 	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
@@ -13,31 +13,36 @@ var bytesCmd = &cobra.Command{
 	Short: "Random Bytes",
 	Long:  `Generate Random Bytes`,
 	Run: func(cmd *cobra.Command, args []string) {
-		size, err := cmd.Flags().GetInt("size")
-		exitWithError(err)
-
-		bytes := utils.RandomBytes(size)
-		os.Stdout.Write(bytes)
+		size := getIntFlag(cmd, "size", false)
+		byt := utils.RandomBytes(size)
+		outputBytes(cmd, byt)
 	},
 }
 
-var bytesDecCmd = &cobra.Command{
+var decCmd = &cobra.Command{
 	Use:   "dec",
-	Short: "Dec Encoding",
+	Short: "Decimal Encoding",
 	Long:  `Decimal Encoding`,
 	Run: func(cmd *cobra.Command, args []string) {
-		size, err := cmd.Flags().GetInt("size")
-		exitWithError(err)
-
-		bytes := utils.RandomBytes(size)
-		for _, i := range bytes {
-			fmt.Printf("%v ", i)
+		byt := getInputBytes(cmd, args)
+		sep := getStringFlag(cmd, "separator", false)
+		res := make([]string, len(byt))
+		if sep == "" {
+			for i, b := range byt {
+				res[i] = fmt.Sprintf("%03d", b)
+			}
+		} else {
+			for i, b := range byt {
+				res[i] = fmt.Sprint(b)
+			}
 		}
+		outputString(cmd, strings.Join(res, sep))
 	},
 }
 
 func init() {
 	bytesCmd.PersistentFlags().IntP("size", "s", 32, "Size of random bytes sequence")
-	bytesCmd.AddCommand(bytesDecCmd)
 	rootCmd.AddCommand(bytesCmd)
+	decCmd.PersistentFlags().StringP("separator", "s", " ", "Separator string")
+	rootCmd.AddCommand(decCmd)
 }

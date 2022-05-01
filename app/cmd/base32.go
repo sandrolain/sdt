@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
 )
@@ -13,8 +11,7 @@ var b32Cmd = &cobra.Command{
 	Long:  `Base 32 Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
-
-		fmt.Print(utils.Base32Encode(byt))
+		outputString(cmd, utils.Base32Encode(byt))
 	},
 }
 
@@ -24,11 +21,9 @@ var b32DecCmd = &cobra.Command{
 	Long:  `Base 32 Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-
 		byt, err := utils.Base32Decode(str)
 		exitWithError(err)
-
-		fmt.Print(string(byt))
+		outputBytes(cmd, byt)
 	},
 }
 

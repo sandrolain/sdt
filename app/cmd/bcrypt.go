@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -17,7 +15,7 @@ var bcryptCmd = &cobra.Command{
 		exitWithError(err)
 		bcrypt, err := bcrypt.GenerateFromPassword(value, cost)
 		exitWithError(err)
-		fmt.Print(string(bcrypt))
+		outputBytes(cmd, bcrypt)
 	},
 }
 
@@ -37,9 +35,6 @@ var bcryptVerifyCmd = &cobra.Command{
 func init() {
 	bcryptCmd.PersistentFlags().IntP("cost", "c", 14, "Bcrypt generation cost")
 	bcryptVerifyCmd.PersistentFlags().StringP("password", "p", "", "Password to verify")
-	bcryptVerifyCmd.MarkPersistentFlagRequired("password")
-
 	bcryptCmd.AddCommand(bcryptVerifyCmd)
-
 	rootCmd.AddCommand(bcryptCmd)
 }

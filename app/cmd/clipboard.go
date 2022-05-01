@@ -1,8 +1,8 @@
+//go:build !wasm
+
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +22,7 @@ var clipboardReadCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		value, err := clipboard.ReadAll()
 		exitWithError(err)
-		fmt.Print(value)
+		outputString(cmd, value)
 	},
 }
 
@@ -41,6 +41,5 @@ var clipboardWriteCmd = &cobra.Command{
 func init() {
 	clipboardCmd.AddCommand(clipboardReadCmd)
 	clipboardCmd.AddCommand(clipboardWriteCmd)
-
 	rootCmd.AddCommand(clipboardCmd)
 }

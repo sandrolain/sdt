@@ -11,7 +11,7 @@ func TestUrlEncode(t *testing.T) {
 	}
 	exp := "hello%20world"
 	if string(out) != exp {
-		t.Fatalf("expected \"%s\" got \"%s\"", exp, string(out))
+		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
 	}
 }
 
@@ -22,7 +22,7 @@ func TestUrlEncodeForm(t *testing.T) {
 	}
 	exp := "hello+world"
 	if string(out) != exp {
-		t.Fatalf("expected \"%s\" got \"%s\"", exp, string(out))
+		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
 	}
 }
 
@@ -33,6 +33,6 @@ func TestUrlDecode(t *testing.T) {
 	}
 	exp := "hello world"
 	if string(out) != exp {
-		t.Fatalf("expected \"%s\" got \"%s\"", exp, string(out))
+		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
 	}
 }

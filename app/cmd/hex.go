@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"fmt"
+	"encoding/hex"
 
-	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -13,8 +12,7 @@ var hexCmd = &cobra.Command{
 	Long:  `Hexadecimal Encoding`,
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
-		fmt.Printf("byt: %v\n", byt)
-		str := utils.HexEncode(byt)
+		str := hex.EncodeToString(byt)
 		cmd.OutOrStdout().Write([]byte(str))
 	},
 }
@@ -25,7 +23,7 @@ var hexDecCmd = &cobra.Command{
 	Long:  `Hexadecimal Decoding`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		byt, err := utils.HexDecode(str)
+		byt, err := hex.DecodeString(str)
 		exitWithError(err)
 		cmd.OutOrStdout().Write(byt)
 	},
