@@ -17,6 +17,9 @@ func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) ([]byte,
 	rc := c.Root()
 
 	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
 
 	origIn := os.Stdin
 	os.Stdin = r

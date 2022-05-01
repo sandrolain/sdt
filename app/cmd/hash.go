@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -16,7 +16,7 @@ var sha1Cmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
 		res := sha1.Sum(byt)
-		os.Stdout.Write(res[:])
+		outputBytes(cmd, res[:])
 	},
 }
 
@@ -29,7 +29,7 @@ var sha256Cmd = &cobra.Command{
 		h := sha256.New()
 		h.Write(byt)
 		res := h.Sum(nil)
-		os.Stdout.Write(res)
+		outputBytes(cmd, res)
 	},
 }
 
@@ -42,7 +42,7 @@ var sha384Cmd = &cobra.Command{
 		h := sha512.New384()
 		h.Write(byt)
 		res := h.Sum(nil)
-		os.Stdout.Write(res)
+		outputBytes(cmd, res)
 	},
 }
 
@@ -55,7 +55,18 @@ var sha512Cmd = &cobra.Command{
 		h := sha512.New()
 		h.Write(byt)
 		res := h.Sum(nil)
-		os.Stdout.Write(res)
+		outputBytes(cmd, res)
+	},
+}
+
+var md5Cmd = &cobra.Command{
+	Use:   "md5",
+	Short: "MD5",
+	Long:  `Generate MD5`,
+	Run: func(cmd *cobra.Command, args []string) {
+		byt := getInputBytes(cmd, args)
+		res := md5.Sum(byt)
+		outputBytes(cmd, res[:])
 	},
 }
 
@@ -64,4 +75,5 @@ func init() {
 	rootCmd.AddCommand(sha256Cmd)
 	rootCmd.AddCommand(sha384Cmd)
 	rootCmd.AddCommand(sha512Cmd)
+	rootCmd.AddCommand(md5Cmd)
 }

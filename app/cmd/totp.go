@@ -149,7 +149,7 @@ var totpVerifyCmd = &cobra.Command{
 
 		valid := totp.Validate(code, secret)
 		if !valid {
-			exitWithError(fmt.Errorf("Invalid code"))
+			exitWithError(fmt.Errorf("invalid code"))
 		}
 	},
 }

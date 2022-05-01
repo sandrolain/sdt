@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	goVersion "go.hein.dev/go-version"
 )
@@ -23,11 +21,9 @@ var (
 		Use:   "version",
 		Short: "Version will output the current build information",
 		Long:  ``,
-		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Printf("shortened: %v\n", shortened)
-			resp := goVersion.FuncWithOutput(shortened, version, commit, date, output)
-			fmt.Print(resp)
-			return
+		Run: func(cmd *cobra.Command, _ []string) {
+			res := goVersion.FuncWithOutput(shortened, version, commit, date, output)
+			outputString(cmd, res)
 		},
 	}
 )

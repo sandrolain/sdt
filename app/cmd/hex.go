@@ -13,7 +13,7 @@ var hexCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
 		str := hex.EncodeToString(byt)
-		cmd.OutOrStdout().Write([]byte(str))
+		outputString(cmd, str)
 	},
 }
 
@@ -25,7 +25,7 @@ var hexDecCmd = &cobra.Command{
 		str := getInputString(cmd, args)
 		byt, err := hex.DecodeString(str)
 		exitWithError(err)
-		cmd.OutOrStdout().Write(byt)
+		outputBytes(cmd, byt)
 	},
 }
 
