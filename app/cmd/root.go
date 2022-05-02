@@ -269,3 +269,10 @@ func outputBytes(cmd *cobra.Command, byt []byte) {
 func outputString(cmd *cobra.Command, str string) {
 	cmd.OutOrStdout().Write([]byte(str))
 }
+
+func must[T any](val T, err error) T {
+	if err != nil {
+		exitWithError(err)
+	}
+	return val
+}

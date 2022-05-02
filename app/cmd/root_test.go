@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) ([]byte, error) {
+func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) []byte {
 	t.Helper()
 
 	uses := getUseArray(c)
@@ -18,7 +18,7 @@ func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) ([]byte,
 
 	r, w, err := os.Pipe()
 	if err != nil {
-		return nil, err
+		t.Fatal(err)
 	}
 
 	origIn := os.Stdin
@@ -33,5 +33,9 @@ func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) ([]byte,
 	err = rc.Execute()
 	os.Stdin = origIn
 
-	return buf.Bytes(), err
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return buf.Bytes()
 }

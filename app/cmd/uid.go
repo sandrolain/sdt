@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/segmentio/ksuid"
@@ -11,8 +9,8 @@ import (
 
 var uidCmd = &cobra.Command{
 	Use:   "uid",
-	Short: "Unique ID Tools",
-	Long:  `Unique ID Tools`,
+	Short: "Unique ID",
+	Long:  `Unique Identifier`,
 }
 
 var uidV4Cmd = &cobra.Command{
@@ -20,8 +18,8 @@ var uidV4Cmd = &cobra.Command{
 	Short: "UUID v4",
 	Long:  `Generate UUID v4`,
 	Run: func(cmd *cobra.Command, args []string) {
-		id := uuid.New()
-		fmt.Print(id)
+		id := must(uuid.NewRandom())
+		outputString(cmd, id.String())
 	},
 }
 
@@ -30,9 +28,8 @@ var uidNanoCmd = &cobra.Command{
 	Short: "Nano UID",
 	Long:  `Generate Nano UID`,
 	Run: func(cmd *cobra.Command, args []string) {
-		id, err := gonanoid.New()
-		exitWithError(err)
-		fmt.Print(id)
+		id := must(gonanoid.New())
+		outputString(cmd, id)
 	},
 }
 
@@ -43,7 +40,7 @@ var uidKsCmd = &cobra.Command{
 	Long:    `Generate K-Sortable UID`,
 	Run: func(cmd *cobra.Command, args []string) {
 		id := ksuid.New().String()
-		fmt.Print(id)
+		outputString(cmd, id)
 	},
 }
 
@@ -51,6 +48,5 @@ func init() {
 	uidCmd.AddCommand(uidV4Cmd)
 	uidCmd.AddCommand(uidNanoCmd)
 	uidCmd.AddCommand(uidKsCmd)
-
 	rootCmd.AddCommand(uidCmd)
 }

@@ -5,10 +5,7 @@ import (
 )
 
 func TestUrlEncode(t *testing.T) {
-	out, err := execute(t, urlEncCmd, []byte{}, "hello world")
-	if err != nil {
-		t.Fatal(err)
-	}
+	out := execute(t, urlEncCmd, []byte{}, "hello world")
 	exp := "hello%20world"
 	if string(out) != exp {
 		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
@@ -16,10 +13,7 @@ func TestUrlEncode(t *testing.T) {
 }
 
 func TestUrlEncodeForm(t *testing.T) {
-	out, err := execute(t, urlEncFormCmd, []byte{}, "hello world")
-	if err != nil {
-		t.Fatal(err)
-	}
+	out := execute(t, urlEncFormCmd, []byte{}, "hello world")
 	exp := "hello+world"
 	if string(out) != exp {
 		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
@@ -27,10 +21,7 @@ func TestUrlEncodeForm(t *testing.T) {
 }
 
 func TestUrlDecode(t *testing.T) {
-	out, err := execute(t, urlDecCmd, []byte{}, "hello%20world")
-	if err != nil {
-		t.Fatal(err)
-	}
+	out := execute(t, urlDecCmd, []byte{}, "hello%20world")
 	exp := "hello world"
 	if string(out) != exp {
 		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
