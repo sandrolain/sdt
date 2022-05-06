@@ -61,8 +61,8 @@ var timeIsoCmd = &cobra.Command{
 var timeHttpCmd = &cobra.Command{
 	Use:     "http",
 	Aliases: []string{"gmt", "utc", "header"},
-	Short:   "ISO 8601 time",
-	Long:    `Format ISO 8601 time`,
+	Short:   "HTTP time",
+	Long:    `Format HTTP time`,
 	Run: func(cmd *cobra.Command, args []string) {
 		tm := getTime(cmd)
 		fmt.Print(tm.Format(http.TimeFormat))

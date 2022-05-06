@@ -14,12 +14,9 @@ var regeCmd = &cobra.Command{
 	Long:    `Regular Expression matching`,
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
+		exp := getStringFlag(cmd, "expression", true)
 
-		exp, err := cmd.Flags().GetString("expression")
-		exitWithError(err)
-
-		re, err := regexp.Compile(exp)
-		exitWithError(err)
+		re := must(regexp.Compile(exp))
 
 		if !re.Match(byt) {
 			exitWithError(fmt.Errorf(`input not match "%s"`, exp))
@@ -29,7 +26,6 @@ var regeCmd = &cobra.Command{
 
 func init() {
 	regeCmd.PersistentFlags().StringP("expression", "e", "", "Expression")
-	regeCmd.MarkPersistentFlagRequired("expression")
 
 	rootCmd.AddCommand(regeCmd)
 }
