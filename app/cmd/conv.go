@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -62,6 +63,49 @@ func parseCsv(cmd *cobra.Command, str string) interface{} {
 	return res
 }
 
+func buildCsv(data any) ([]byte, error) {
+
+	badDataErr := "input data must be an array of strings' arrays for conversion to CSV (%v)"
+
+	dataArr, ok := data.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf(badDataErr, 1)
+	}
+	arr := make([][]string, len(dataArr))
+	rowLen := -1
+	for i, val := range dataArr {
+		valArr, ok := val.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf(badDataErr, 2)
+		}
+		actLen := len(valArr)
+		if rowLen < 0 {
+			rowLen = actLen
+		}
+
+		if actLen != rowLen {
+			return nil, fmt.Errorf("all rows must have same items number for conversion to CSV (row %v is %v != %v)", i, actLen, rowLen)
+		}
+
+		arr[i] = make([]string, actLen)
+		for j, str := range valArr {
+			v, ok := str.(string)
+			if !ok {
+				return nil, fmt.Errorf(badDataErr, 3)
+			}
+			arr[i][j] = v
+		}
+	}
+
+	b := new(bytes.Buffer)
+	w := csv.NewWriter(b)
+	w.WriteAll(arr)
+	if err := w.Error(); err != nil {
+		exitWithError(err)
+	}
+	return b.Bytes(), nil
+}
+
 var convCmd = &cobra.Command{
 	Use:   "conv",
 	Short: "Conversion Tools",
@@ -96,6 +140,9 @@ var convCmd = &cobra.Command{
 			out = must(json.Marshal(&data))
 		case "yaml":
 			out = must(yaml.Marshal(&data))
+		case "csv":
+			fmt.Printf("data: %v\n", data)
+			out = must(buildCsv(data))
 		}
 
 		outputBytes(cmd, out)
