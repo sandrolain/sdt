@@ -1,19 +1,19 @@
-## sdt escape
+## sdt md5
 
-Escape string
+MD5
 
 ### Synopsis
 
-Escape string
+Generate MD5
 
 ```
-sdt escape [flags]
+sdt md5 [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for escape
+  -h, --help   help for md5
 ```
 
 ### Options inherited from parent commands

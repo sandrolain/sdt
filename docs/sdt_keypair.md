@@ -1,19 +1,19 @@
-## sdt escape
+## sdt keypair
 
-Escape string
+Key pair PEMs
 
 ### Synopsis
 
-Escape string
+Generate key pair PEMs
 
 ```
-sdt escape [flags]
+sdt keypair [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for escape
+  -h, --help   help for keypair
 ```
 
 ### Options inherited from parent commands

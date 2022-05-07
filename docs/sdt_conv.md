@@ -1,19 +1,22 @@
-## sdt escape
+## sdt conv
 
-Escape string
+Conversion Tools
 
 ### Synopsis
 
-Escape string
+Conversion Tools
 
 ```
-sdt escape [flags]
+sdt conv [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for escape
+  -h, --help         help for conv
+  -a, --in string    Input format (json, yaml, toml, csv)
+  -o, --object       Rows as objects
+  -b, --out string   Output format (json, yaml, toml, csv)
 ```
 
 ### Options inherited from parent commands

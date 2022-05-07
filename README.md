@@ -51,13 +51,14 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] RegExp replace
 - [ ] Data conversion between:
   - [ ] [Query string](https://github.com/hetiansu5/urlquery)
-  - [ ] JSON
-  - [ ] [YAML](https://github.com/go-yaml/yaml)
+  - [x] JSON
+  - [x] [YAML](https://github.com/go-yaml/yaml)
   - [ ] [TOML](https://github.com/pelletier/go-toml)
-  - [ ] CSV
+  - [x] CSV
 - [ ] Template with mustache: https://github.com/cbroglie/mustache
 - [ ] WASM
 - [ ] Data faker
+- [ ] Save []string to multiple files
 - [x] Edit config file
 - [x] Request input from CLI
 - [x] Global --input (file) flag

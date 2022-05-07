@@ -1,19 +1,20 @@
-## sdt escape
+## sdt dec
 
-Escape string
+Decimal Encoding
 
 ### Synopsis
 
-Escape string
+Decimal Encoding
 
 ```
-sdt escape [flags]
+sdt dec [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for escape
+  -h, --help               help for dec
+  -s, --separator string   Separator string (default " ")
 ```
 
 ### Options inherited from parent commands
