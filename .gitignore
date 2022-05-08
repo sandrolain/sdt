@@ -3,6 +3,6 @@
 /vendor
 .DS_Store
 /foo
-
+/cover.out
 dist/
 sdt.yaml
