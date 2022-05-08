@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
+	"github.com/hetiansu5/urlquery"
 	"github.com/spf13/cobra"
 )
 
@@ -129,6 +130,8 @@ var convCmd = &cobra.Command{
 			exitWithError(json.Unmarshal(in, &data))
 		case "yaml":
 			exitWithError(yaml.Unmarshal(in, &data))
+		case "query":
+			exitWithError(urlquery.Unmarshal(in, &data))
 		case "csv":
 			data = parseCsv(cmd, string(in))
 		}
@@ -140,8 +143,9 @@ var convCmd = &cobra.Command{
 			out = must(json.Marshal(&data))
 		case "yaml":
 			out = must(yaml.Marshal(&data))
+		case "query":
+			out = must(urlquery.Marshal(data))
 		case "csv":
-			fmt.Printf("data: %v\n", data)
 			out = must(buildCsv(data))
 		}
 
