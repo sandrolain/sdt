@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 
+	"github.com/gookit/color"
 	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -30,17 +30,13 @@ func Execute() {
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 	if err := viper.ReadInConfig(); err != nil {
-		fmt.Printf("err: %v\n", err)
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			// Config file was found but another error was produced
 			exitWithError(err)
 		}
 	}
 
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	exitWithError(rootCmd.Execute())
 }
 
 func getInputString(cmd *cobra.Command, args []string) string {
@@ -156,13 +152,15 @@ func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {
 
 func exitWithError(err error) {
 	if err != nil {
-		log.Fatal(err)
+		color.Error.Println(err)
+		os.Exit(1)
 	}
 }
 
 func exitWithErrorF(f string, err error) {
 	if err != nil {
-		log.Fatalf(f, err)
+		color.Error.Printf(f, err)
+		os.Exit(1)
 	}
 }
 
@@ -199,6 +197,14 @@ func getIntFlag(cmd *cobra.Command, name string, required bool) int {
 		return flags.GetInt(name)
 	}, func() int {
 		return viper.GetInt(name)
+	})
+}
+
+func getInt64Flag(cmd *cobra.Command, name string, required bool) int64 {
+	return getFlag(cmd, name, required, func(flags *pflag.FlagSet) (int64, error) {
+		return flags.GetInt64(name)
+	}, func() int64 {
+		return viper.GetInt64(name)
 	})
 }
 

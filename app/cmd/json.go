@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
 )
@@ -19,9 +17,8 @@ var jsonPrettyCmd = &cobra.Command{
 	Long:  `Prettify JSON`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		byt, err := utils.PrettifyJSON(str)
-		exitWithError(err)
-		fmt.Print(string(byt))
+		byt := must(utils.PrettifyJSON(str))
+		outputBytes(cmd, byt)
 	},
 }
 
@@ -31,9 +28,8 @@ var jsonMinifyCmd = &cobra.Command{
 	Long:  `Minify JSON`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		byt, err := utils.MinifyJSON(str)
-		exitWithError(err)
-		fmt.Print(string(byt))
+		byt := must(utils.MinifyJSON(str))
+		outputBytes(cmd, byt)
 	},
 }
 

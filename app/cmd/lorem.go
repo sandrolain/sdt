@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	lorem "github.com/drhodes/golorem"
@@ -13,12 +11,9 @@ var loremCmd = &cobra.Command{
 	Short: "Lorem Ipsum",
 	Long:  `Generate Lorem Ipsum`,
 	Run: func(cmd *cobra.Command, args []string) {
-		typ, err := cmd.Flags().GetString("type")
-		exitWithError(err)
-		min, err := cmd.Flags().GetInt("min")
-		exitWithError(err)
-		max, err := cmd.Flags().GetInt("max")
-		exitWithError(err)
+		typ := getStringFlag(cmd, "type", false)
+		min := getIntFlag(cmd, "min", false)
+		max := getIntFlag(cmd, "max", false)
 
 		var res string
 
@@ -32,14 +27,15 @@ var loremCmd = &cobra.Command{
 			res = lorem.Paragraph(min, max)
 		}
 
-		fmt.Print(res)
+		outputString(cmd, res)
 	},
 }
 
 func init() {
-	loremCmd.PersistentFlags().StringP("type", "t", "paragraph", "Sequence type")
-	loremCmd.PersistentFlags().IntP("min", "n", 1, "Min")
-	loremCmd.PersistentFlags().IntP("max", "m", 10, "Max")
+	pf := loremCmd.PersistentFlags()
+	pf.StringP("type", "t", "paragraph", "Sequence type")
+	pf.IntP("min", "n", 1, "Min")
+	pf.IntP("max", "m", 10, "Max")
 
 	rootCmd.AddCommand(loremCmd)
 }

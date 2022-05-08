@@ -23,8 +23,7 @@ var hexDecCmd = &cobra.Command{
 	Long:  `Hexadecimal Decoding`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		byt, err := hex.DecodeString(str)
-		exitWithError(err)
+		byt := must(hex.DecodeString(str))
 		outputBytes(cmd, byt)
 	},
 }

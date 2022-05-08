@@ -21,7 +21,7 @@ var urlEncCmd = &cobra.Command{
 		str := getInputString(cmd, args)
 		res := url.QueryEscape(str)
 		res = strings.ReplaceAll(res, "+", "%20")
-		cmd.OutOrStdout().Write([]byte(res))
+		outputString(cmd, res)
 	},
 }
 
@@ -32,7 +32,7 @@ var urlEncFormCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		res := url.QueryEscape(str)
-		cmd.OutOrStdout().Write([]byte(res))
+		outputString(cmd, res)
 	},
 }
 
@@ -42,9 +42,8 @@ var urlDecCmd = &cobra.Command{
 	Long:  `URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		str, err := url.QueryUnescape(str)
-		exitWithError(err)
-		cmd.OutOrStdout().Write([]byte(str))
+		str = must(url.QueryUnescape(str))
+		outputString(cmd, str)
 	},
 }
 

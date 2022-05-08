@@ -16,11 +16,8 @@ var timeCmd = &cobra.Command{
 }
 
 func getTime(cmd *cobra.Command) time.Time {
-	t, err := cmd.Flags().GetInt64("time")
-	exitWithError(err)
-
-	d, err := cmd.Flags().GetString("diff")
-	exitWithError(err)
+	t := getInt64Flag(cmd, "time", false)
+	d := getStringFlag(cmd, "diff", false)
 
 	var tm time.Time
 	if t > 0 {
@@ -30,8 +27,7 @@ func getTime(cmd *cobra.Command) time.Time {
 	}
 
 	if d != "" {
-		diff, err := time.ParseDuration(d)
-		exitWithError(err)
+		diff := must(time.ParseDuration(d))
 		tm = tm.Add(diff)
 	}
 
@@ -44,7 +40,7 @@ var timeUnixCmd = &cobra.Command{
 	Long:  `Format Unix time`,
 	Run: func(cmd *cobra.Command, args []string) {
 		tm := getTime(cmd)
-		fmt.Print(tm.Unix())
+		outputString(cmd, fmt.Sprint(tm.Unix()))
 	},
 }
 
@@ -54,7 +50,7 @@ var timeIsoCmd = &cobra.Command{
 	Long:  `Format ISO 8601 time`,
 	Run: func(cmd *cobra.Command, args []string) {
 		tm := getTime(cmd)
-		fmt.Print(tm.Format(time.RFC3339))
+		outputString(cmd, tm.Format(time.RFC3339))
 	},
 }
 
@@ -65,7 +61,7 @@ var timeHttpCmd = &cobra.Command{
 	Long:    `Format HTTP time`,
 	Run: func(cmd *cobra.Command, args []string) {
 		tm := getTime(cmd)
-		fmt.Print(tm.Format(http.TimeFormat))
+		outputString(cmd, tm.Format(http.TimeFormat))
 	},
 }
 

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -25,21 +24,19 @@ var configSetCmd = &cobra.Command{
 		flag := getStringFlag(cmd, "key", true)
 		typ := getStringFlag(cmd, "type", false)
 		var val any
-		var err error
 		switch typ {
 		default:
 			val = str
 		case "int":
 		case "i":
-			val, err = strconv.ParseInt(str, 10, 64)
+			val = must(strconv.ParseInt(str, 10, 64))
 		case "float":
 		case "f":
-			val, err = strconv.ParseFloat(str, 64)
+			val = must(strconv.ParseFloat(str, 64))
 		case "json":
 		case "j":
-			err = json.Unmarshal([]byte(str), &val)
+			exitWithError(json.Unmarshal([]byte(str), &val))
 		}
-		exitWithError(err)
 
 		viper.Set(flag, val)
 		viper.WriteConfig()
@@ -53,9 +50,8 @@ var configGetCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		flag := getInputStringOrFlag(cmd, args, "key", true)
 		val := viper.Get(flag)
-		byt, err := json.Marshal(val)
-		exitWithError(err)
-		fmt.Print(string(byt))
+		byt := must(json.Marshal(val))
+		outputBytes(cmd, byt)
 	},
 }
 

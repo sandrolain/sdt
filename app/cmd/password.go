@@ -1,16 +1,17 @@
 package cmd
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/sethvargo/go-password/password"
 	"github.com/spf13/cobra"
 )
 
 var passwordCmd = &cobra.Command{
-	Use:   "password",
-	Short: "Generate password",
-	Long:  `Generate password`,
+	Use:     "password",
+	Aliases: []string{"pwd"},
+	Short:   "Generate password",
+	Long:    `Generate password`,
 	Run: func(cmd *cobra.Command, args []string) {
 		num := getIntFlag(cmd, "number", false)
 		len := getIntFlag(cmd, "length", false)
@@ -19,14 +20,13 @@ var passwordCmd = &cobra.Command{
 		unt := getBoolFlag(cmd, "untyped", false)
 		rep := getBoolFlag(cmd, "repeat", false)
 
+		out := make([]string, num)
+
 		for i := 0; i < num; i++ {
-			if i > 0 {
-				fmt.Print("\n")
-			}
-			res, err := password.Generate(len, dig, sim, unt, rep)
-			exitWithError(err)
-			fmt.Print(res)
+			res := must(password.Generate(len, dig, sim, unt, rep))
+			out[i] = res
 		}
+		outputString(cmd, strings.Join(out, "\n"))
 	},
 }
 

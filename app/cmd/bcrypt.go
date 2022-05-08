@@ -11,10 +11,8 @@ var bcryptCmd = &cobra.Command{
 	Long:  `Generate Bcrypt hash for password`,
 	Run: func(cmd *cobra.Command, args []string) {
 		value := getInputBytesRequired(cmd, args)
-		cost, err := cmd.Flags().GetInt("cost")
-		exitWithError(err)
-		bcrypt, err := bcrypt.GenerateFromPassword(value, cost)
-		exitWithError(err)
+		cost := getIntFlag(cmd, "cost", false)
+		bcrypt := must(bcrypt.GenerateFromPassword(value, cost))
 		outputBytes(cmd, bcrypt)
 	},
 }

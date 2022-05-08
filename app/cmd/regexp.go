@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -13,19 +14,22 @@ var regeCmd = &cobra.Command{
 	Short:   "RegExp matching",
 	Long:    `Regular Expression matching`,
 	Run: func(cmd *cobra.Command, args []string) {
-		byt := getInputBytes(cmd, args)
+		str := getInputString(cmd, args)
 		exp := getStringFlag(cmd, "expression", true)
 
 		re := must(regexp.Compile(exp))
 
-		if !re.Match(byt) {
+		res := re.FindAllString(str, -1)
+		if res == nil {
 			exitWithError(fmt.Errorf(`input not match "%s"`, exp))
 		}
+
+		out := must(json.Marshal(res))
+		outputBytes(cmd, out)
 	},
 }
 
 func init() {
 	regeCmd.PersistentFlags().StringP("expression", "e", "", "Expression")
-
 	rootCmd.AddCommand(regeCmd)
 }

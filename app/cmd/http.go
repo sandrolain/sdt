@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -31,14 +30,12 @@ var httpCmd = &cobra.Command{
 		method = strings.ToUpper(method)
 
 		var req *http.Request
-		var err error
 		if method == "POST" || method == "PUT" {
 			reader := bytes.NewReader(byt)
-			req, err = http.NewRequest(method, url, reader)
+			req = must(http.NewRequest(method, url, reader))
 		} else {
-			req, err = http.NewRequest(method, url, nil)
+			req = must(http.NewRequest(method, url, nil))
 		}
-		exitWithError(err)
 
 		ua := req.UserAgent()
 
@@ -61,15 +58,12 @@ var httpCmd = &cobra.Command{
 			req.Header.Set("Content-Type", typ)
 		}
 
-		res, err := client.Do(req)
-
-		exitWithError(err)
+		res := must(client.Do(req))
 
 		defer res.Body.Close()
-		body, err := ioutil.ReadAll(res.Body)
-		exitWithError(err)
+		body := must(ioutil.ReadAll(res.Body))
 
-		fmt.Print(string(body))
+		outputBytes(cmd, body)
 	},
 }
 

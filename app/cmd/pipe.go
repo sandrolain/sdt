@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 
@@ -26,8 +25,7 @@ var andCmd = &cobra.Command{
 		}
 		cmdList = append(cmdList, cmdParts)
 
-		cmdPath, err := os.Executable()
-		exitWithError(err)
+		cmdPath := must(os.Executable())
 
 		data := getInputBytes(cmd, []string{})
 
@@ -47,7 +45,7 @@ var andCmd = &cobra.Command{
 
 			data = out
 		}
-		fmt.Print(string(out))
+		outputBytes(cmd, out)
 	},
 }
 

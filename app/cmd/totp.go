@@ -57,23 +57,21 @@ var totpUriCmd = &cobra.Command{
 		period := getUintFlag(cmd, "period", false)
 		digits := getIntFlag(cmd, "digits", false)
 
-		secretBytes, err := base32.StdEncoding.DecodeString(secret)
-		exitWithError(err)
+		secretBytes := must(base32.StdEncoding.DecodeString(secret))
 
 		alg := getAlgorithm(algorithm)
 		dig := getDigits(digits)
 
-		key, err := totp.Generate(totp.GenerateOpts{
+		key := must(totp.Generate(totp.GenerateOpts{
 			Issuer:      issuer,
 			AccountName: account,
 			Secret:      secretBytes,
 			Algorithm:   alg,
 			Period:      period,
 			Digits:      dig,
-		})
-		exitWithError(err)
+		}))
 
-		fmt.Print(key.URL())
+		outputString(cmd, key.URL())
 	},
 }
 
@@ -89,28 +87,25 @@ var totpImageCmd = &cobra.Command{
 		period := getUintFlag(cmd, "period", false)
 		digits := getIntFlag(cmd, "digits", false)
 
-		secretBytes, err := base32.StdEncoding.DecodeString(secret)
-		exitWithError(err)
+		secretBytes := must(base32.StdEncoding.DecodeString(secret))
 
 		alg := getAlgorithm(algorithm)
 		dig := getDigits(digits)
 
-		key, err := totp.Generate(totp.GenerateOpts{
+		key := must(totp.Generate(totp.GenerateOpts{
 			Issuer:      issuer,
 			AccountName: account,
 			Secret:      secretBytes,
 			Algorithm:   alg,
 			Period:      period,
 			Digits:      dig,
-		})
-		exitWithError(err)
+		}))
 
 		// Convert TOTP key into a PNG
 		var buf bytes.Buffer
-		img, err := key.Image(200, 200)
-		exitWithError(err)
+		img := must(key.Image(200, 200))
 		png.Encode(&buf, img)
-		fmt.Print(buf.String())
+		outputBytes(cmd, buf.Bytes())
 	},
 }
 
@@ -127,15 +122,14 @@ var totpCodeCmd = &cobra.Command{
 		alg := getAlgorithm(algorithm)
 		dig := getDigits(digits)
 
-		passcode, err := totp.GenerateCodeCustom(secret, time.Now(), totp.ValidateOpts{
+		passcode := must(totp.GenerateCodeCustom(secret, time.Now(), totp.ValidateOpts{
 			Period:    period,
 			Skew:      1,
 			Digits:    dig,
 			Algorithm: alg,
-		})
-		exitWithError(err)
+		}))
 
-		fmt.Print(passcode)
+		outputString(cmd, passcode)
 	},
 }
 

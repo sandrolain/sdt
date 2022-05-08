@@ -21,8 +21,7 @@ var b32DecCmd = &cobra.Command{
 	Long:  `Base 32 Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		byt, err := utils.Base32Decode(str)
-		exitWithError(err)
+		byt := must(utils.Base32Decode(str))
 		outputBytes(cmd, byt)
 	},
 }

@@ -19,12 +19,8 @@ func parseCsv(cmd *cobra.Command, str string) interface{} {
 	r := csv.NewReader(strings.NewReader(str))
 
 	if obj {
-
 		res := make([]map[string]string, 0)
-
-		head, err := r.Read()
-		exitWithError(err)
-
+		head := must(r.Read())
 		size := len(head)
 
 		for {

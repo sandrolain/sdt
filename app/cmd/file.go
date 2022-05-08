@@ -34,16 +34,13 @@ var fileReadCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		file := getStringFlag(cmd, "file", true)
 
-		exist, err := fileExists(file)
-		exitWithError(err)
+		exist := must(fileExists(file))
 		if !exist {
 			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
 		}
 
-		content, err := ioutil.ReadFile(file)
-		exitWithError(err)
-
-		fmt.Print(string(content))
+		content := must(ioutil.ReadFile(file))
+		outputBytes(cmd, content)
 	},
 }
 

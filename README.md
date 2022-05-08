@@ -49,6 +49,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] Color conversion
 - [ ] RegExp all matches
 - [ ] RegExp replace
+- [ ] [JQ integration](https://github.com/itchyny/gojq)
 - [ ] Data conversion between:
   - [ ] [Query string](https://github.com/hetiansu5/urlquery)
   - [x] JSON

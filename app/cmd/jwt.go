@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
+	"github.com/gookit/color"
 	"github.com/sandrolain/sdt/app/utils"
 	"github.com/spf13/cobra"
 )
@@ -20,36 +22,33 @@ var jwtParseCmd = &cobra.Command{
 	Long:  `Parse JWT and return JWT parts`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-
-		pretty, err := cmd.Flags().GetBool("pretty")
-		exitWithError(err)
+		pretty := getBoolFlag(cmd, "pretty", false)
 
 		parts := strings.Split(str, ".")
 		if len(parts) != 3 {
 			exitWithError(fmt.Errorf("invalid JWT parts number: %v", len(parts)))
 		}
 
-		fmt.Println("HEAD:")
-		byt, err := utils.Base64URLNoPaddingDecode(parts[0])
-		exitWithError(err)
+		out := make([][]byte, 6)
+
+		out[0] = []byte(color.Info.Render("HEAD:\n\n"))
+		byt := must(utils.Base64URLNoPaddingDecode(parts[0]))
 		if pretty {
-			byt, err = utils.PrettifyJSON(string(byt))
-			exitWithError(err)
+			byt = must(utils.PrettifyJSON(string(byt)))
 		}
-		fmt.Println(string(byt))
+		out[1] = byt
 
-		fmt.Println("\nCLAIMS:")
-		byt, err = utils.Base64URLNoPaddingDecode(parts[1])
-		exitWithError(err)
+		out[2] = []byte(color.Info.Render("\n\nCLAIMS:\n\n"))
+		byt = must(utils.Base64URLNoPaddingDecode(parts[1]))
 		if pretty {
-			byt, err = utils.PrettifyJSON(string(byt))
-			exitWithError(err)
+			byt = must(utils.PrettifyJSON(string(byt)))
 		}
-		fmt.Println(string(byt))
+		out[3] = byt
 
-		fmt.Println("\nSIGNATURE:")
-		fmt.Println(parts[2])
+		out[4] = []byte(color.Info.Render("\n\nSIGNATURE:\n\n"))
+		out[5] = []byte(parts[2])
 
+		outputBytes(cmd, bytes.Join(out, []byte{}))
 	},
 }
 
@@ -59,22 +58,18 @@ var jwtClaimsCmd = &cobra.Command{
 	Long:  `Parse JWT and return JWT claims`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-
-		pretty, err := cmd.Flags().GetBool("pretty")
-		exitWithError(err)
+		pretty := getBoolFlag(cmd, "pretty", false)
 
 		parts := strings.Split(str, ".")
 		if len(parts) != 3 {
 			exitWithError(fmt.Errorf("invalid JWT parts number: %v", len(parts)))
 		}
 
-		byt, err := utils.Base64URLNoPaddingDecode(parts[1])
-		exitWithError(err)
+		byt := must(utils.Base64URLNoPaddingDecode(parts[1]))
 		if pretty {
-			byt, err = utils.PrettifyJSON(string(byt))
-			exitWithError(err)
+			byt = must(utils.PrettifyJSON(string(byt)))
 		}
-		fmt.Println(string(byt))
+		outputBytes(cmd, byt)
 	},
 }
 

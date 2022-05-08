@@ -12,18 +12,13 @@ var docCmd = &cobra.Command{
 	Short: "Generate CLI docs",
 	Long:  `Generate CLI documentation`,
 	Run: func(cmd *cobra.Command, args []string) {
-		out, err := cmd.Flags().GetString("out")
-		exitWithError(err)
-
-		os.MkdirAll(out, os.ModePerm)
-
-		err = doc.GenMarkdownTree(rootCmd, out)
-		exitWithError(err)
+		out := getStringFlag(cmd, "out", false)
+		exitWithError(os.MkdirAll(out, os.ModePerm))
+		exitWithError(doc.GenMarkdownTree(rootCmd, out))
 	},
 }
 
 func init() {
 	docCmd.PersistentFlags().StringP("out", "o", "./docs/", "Output directory")
-
 	rootCmd.AddCommand(docCmd)
 }
