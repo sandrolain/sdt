@@ -11,13 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type KeyPair struct {
-	PrivateKey string `json:"private"`
-	PublicKey  string `json:"public"`
-}
-
-func generateKeyPair() (*KeyPair, error) {
-	pair := KeyPair{}
+func generateKeyPair() (*[]string, error) {
+	pair := make([]string, 2)
 	// generate key
 	privatekey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -52,8 +47,8 @@ func generateKeyPair() (*KeyPair, error) {
 		return nil, err
 	}
 
-	pair.PrivateKey = privateB.String()
-	pair.PublicKey = publicB.String()
+	pair[0] = privateB.String()
+	pair[1] = publicB.String()
 
 	return &pair, nil
 }
@@ -62,7 +57,7 @@ var keypairCmd = &cobra.Command{
 	Use:     "keypair",
 	Aliases: []string{"kp"},
 	Short:   "Key pair PEMs",
-	Long:    `Generate key pair PEMs`,
+	Long:    `Generate key pair PEMs (x509 PKCS1/PKIX)`,
 	Run: func(cmd *cobra.Command, args []string) {
 		pair := must(generateKeyPair())
 		res := must(json.Marshal(pair))

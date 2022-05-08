@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -51,29 +54,63 @@ var fileWriteCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
 
-		file := getStringFlag(cmd, "file", true)
+		files := getStringFlag(cmd, "file", true)
 		overwrite := getBoolFlag(cmd, "overwrite", false)
+		multi := getBoolFlag(cmd, "multi", false)
+		binary := getBoolFlag(cmd, "binary", false)
 
-		file, err := filepath.Abs(file)
-		exitWithError(err)
+		var contents [][]byte
 
-		exist, err := fileExists(file)
-		exitWithError(err)
-		if exist && !overwrite {
-			exitWithError(fmt.Errorf(`file "%s" already exist`, file))
+		if multi {
+			var data []string
+			exitWithError(json.Unmarshal(byt, &data))
+			contents = make([][]byte, len(data))
+			for i, str := range data {
+				if binary {
+					contents[i] = must(base64.StdEncoding.DecodeString(str))
+				} else {
+					contents[i] = []byte(str)
+				}
+			}
+		} else {
+			contents = make([][]byte, 1)
+			if binary {
+				contents[0] = must(base64.StdEncoding.DecodeString(string(byt)))
+			} else {
+				contents[0] = byt
+			}
 		}
 
-		err = ioutil.WriteFile(file, byt, 0666)
-		exitWithError(err)
+		paths := strings.Split(files, ",")
 
-		fmt.Print(file)
+		res := make([]string, len(paths))
+
+		for i, path := range paths {
+			path := must(filepath.Abs(path))
+			exist := must(fileExists(path))
+			if exist && !overwrite {
+				exitWithError(fmt.Errorf(`file "%s" already exist`, path))
+			}
+
+			byt := contents[i]
+			exitWithError(ioutil.WriteFile(path, byt, 0666))
+
+			res[i] = path
+		}
+
+		outputString(cmd, strings.Join(res, "\n"))
 	},
 }
 
 func init() {
-	fileReadCmd.PersistentFlags().StringP("file", "p", "", "File path")
-	fileWriteCmd.PersistentFlags().StringP("file", "p", "", "File path")
-	fileWriteCmd.PersistentFlags().BoolP("overwrite", "o", false, "Overwrite if already exist")
+	pf := fileReadCmd.PersistentFlags()
+	pf.StringP("file", "p", "", "File path")
+
+	pf = fileWriteCmd.PersistentFlags()
+	pf.StringP("file", "p", "", "File path")
+	pf.BoolP("multi", "m", false, "Input as JSON array with multiple contents")
+	pf.BoolP("overwrite", "o", false, "Overwrite if already exist")
+	pf.BoolP("binary", "b", false, "Input as Base64 encoded content")
 
 	rootCmd.AddCommand(fileReadCmd)
 	rootCmd.AddCommand(fileWriteCmd)
