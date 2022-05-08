@@ -14,6 +14,7 @@ var docCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		out := getStringFlag(cmd, "out", false)
 		exitWithError(os.MkdirAll(out, os.ModePerm))
+		rootCmd.DisableAutoGenTag = true
 		exitWithError(doc.GenMarkdownTree(rootCmd, out))
 	},
 }
