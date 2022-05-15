@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -26,65 +25,8 @@ func init() {
 }
 
 func Execute() {
-	viper.SetConfigName("sdt")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			// Config file was found but another error was produced
-			exitWithError(err)
-		}
-	}
-
+	loadFileConfig()
 	exitWithError(rootCmd.Execute())
-}
-
-func getInputString(cmd *cobra.Command, args []string) string {
-	file, err := cmd.InheritedFlags().GetString("file")
-	exitWithError(err)
-
-	if file != "" {
-		exist, err := fileExists(file)
-		exitWithError(err)
-		if !exist {
-			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
-		}
-
-		content, err := ioutil.ReadFile(file)
-		exitWithError(err)
-
-		return string(content)
-	}
-
-	input, err := cmd.InheritedFlags().GetBool("input")
-	exitWithError(err)
-
-	if input {
-		byt, err := ioutil.ReadAll(os.Stdin)
-		exitWithError(err)
-		if len(byt) > 0 {
-			return string(byt)
-		}
-	}
-
-	fi, err := os.Stdin.Stat()
-	exitWithError(err)
-
-	if fi.Mode()&os.ModeNamedPipe != 0 {
-		byt, err := ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			return ""
-		}
-		if len(byt) > 0 {
-			return string(byt)
-		}
-	}
-
-	if len(args) > 0 {
-		return args[0]
-	}
-
-	return ""
 }
 
 func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, required bool) string {
@@ -93,53 +35,6 @@ func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, requir
 		val = getStringFlag(cmd, flag, required)
 	}
 	return val
-}
-
-func getInputBytes(cmd *cobra.Command, args []string) []byte {
-	file, err := cmd.InheritedFlags().GetString("file")
-	exitWithError(err)
-
-	if file != "" {
-		exist, err := fileExists(file)
-		exitWithError(err)
-		if !exist {
-			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
-		}
-
-		content, err := ioutil.ReadFile(file)
-		exitWithError(err)
-
-		return content
-	}
-
-	input, err := cmd.InheritedFlags().GetBool("input")
-	exitWithError(err)
-
-	if input {
-		res, err := ioutil.ReadAll(os.Stdin)
-		exitWithError(err)
-		return res
-	}
-
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		panic(err)
-	}
-
-	if fi.Mode()&os.ModeNamedPipe != 0 {
-		byt, err := ioutil.ReadAll(os.Stdin)
-		exitWithError(err)
-
-		if len(byt) > 0 {
-			return byt
-		}
-	}
-
-	if len(args) > 0 {
-		return []byte(args[0])
-	}
-
-	return []byte{}
 }
 
 func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {

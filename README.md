@@ -59,7 +59,19 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] Template with mustache: https://github.com/cbroglie/mustache
 - [ ] WASM
 - [ ] Data faker
-- [ ] Save []string to multiple files
+- [x] Save []string to multiple files
+- [ ] WASM web app:
+  - [ ] Commands selection
+  - [ ] Input from textearea
+  - [ ] Input from file
+  - [ ] Output to textarea
+  - [ ] Output to file
+- [ ] GUI app:
+  - [ ] Commands selection
+  - [ ] Input from textearea
+  - [ ] Input from file
+  - [ ] Output to textarea
+  - [ ] Output to file
 - [x] Edit config file
 - [x] Request input from CLI
 - [x] Global --input (file) flag
