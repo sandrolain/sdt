@@ -1,3 +1,3 @@
 #!/bin/sh
 
-go build -o "./bin/sdt" "./app"
+go build -o "./bin/sdt" "./cli"

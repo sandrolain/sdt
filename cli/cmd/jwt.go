@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/gookit/color"
-	"github.com/sandrolain/sdt/app/utils"
+	"github.com/sandrolain/sdt/cli/utils"
 	"github.com/spf13/cobra"
 )
 

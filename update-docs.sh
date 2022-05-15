@@ -1,3 +1,3 @@
 #!/bin/sh
 
-go run ./app docs
+go run ./cli docs

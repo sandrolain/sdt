@@ -1,3 +1,3 @@
 #!/bin/sh
 
-go test ./app/cmd -v
+go test ./cli/cmd -v

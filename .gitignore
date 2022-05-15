@@ -6,3 +6,5 @@
 /cover.out
 dist/
 sdt.yaml
+/web/sdt.wasm
+/web/wasm_exec.js

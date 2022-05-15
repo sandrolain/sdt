@@ -1,6 +1,6 @@
 package main
 
-import "github.com/sandrolain/sdt/app/cmd"
+import "github.com/sandrolain/sdt/cli/cmd"
 
 var (
 	version = "dev"

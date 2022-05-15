@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/sandrolain/sdt/app/utils"
+	"github.com/sandrolain/sdt/cli/utils"
 	"github.com/spf13/cobra"
 )
 
