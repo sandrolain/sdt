@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -95,4 +96,25 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 	}
 
 	return []byte{}
+}
+
+func executeByArgs(args []string, in []byte) []byte {
+	r, w, err := os.Pipe()
+	exitWithError(err)
+
+	origIn := os.Stdin
+	os.Stdin = r
+	w.Write(in)
+	w.Close()
+
+	buf := new(bytes.Buffer)
+	rootCmd.SetOutput(buf)
+	rootCmd.SetArgs(args)
+
+	err = rootCmd.Execute()
+	os.Stdin = origIn
+	rootCmd.SetOutput(os.Stdout)
+	exitWithError(err)
+
+	return buf.Bytes()
 }

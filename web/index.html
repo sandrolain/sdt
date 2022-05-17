@@ -23,7 +23,7 @@
         };
 
         WebAssembly.instantiateStreaming(fetch("./sdt.wasm"), go.importObject).then((result) => {
-          go.argv = ["sdt", "b64", "hello"];
+          go.argv = ["sdt", "pipe", "-", "bytes", "-", "b64"];
           go.run(result.instance);
         });
     </script>
