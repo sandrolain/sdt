@@ -1,31 +1,13 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/src/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Developer Tools</title>
+    <script type="module" src="/src/sdt-app.ts"></script>
   </head>
   <body>
-    <div id="root">
-      <pre id="output"></pre>
-    </div>
-    <script src="./wasm_exec.js"></script>
-    <script>
-        const $output = document.getElementById("output");
-
-        const go = new Go();
-
-        // Write stdout to terminal.
-        let outputBuf = '';
-        const decoder = new TextDecoder("utf-8");
-        globalThis.fs.writeSync = function(fd, buf) {
-            outputBuf += decoder.decode(buf);
-            $output.innerText = outputBuf;
-            return buf.length;
-        };
-
-        WebAssembly.instantiateStreaming(fetch("./sdt.wasm"), go.importObject).then((result) => {
-          go.argv = ["sdt", "pipe", "-", "bytes", "-", "b64"];
-          go.run(result.instance);
-        });
-    </script>
+    <sdt-app></sdt-app>
   </body>
 </html>
