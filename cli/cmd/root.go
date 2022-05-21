@@ -12,11 +12,32 @@ import (
 	"github.com/spf13/viper"
 )
 
+const logo = `
+                             dddddddd
+                             d::::::d        tttt
+                             d::::::d     ttt:::t
+                             d::::::d     t:::::t
+                             d:::::d      t:::::t
+    ssssssssss       ddddddddd:::::dttttttt:::::ttttttt
+  ss::::::::::s    dd::::::::::::::dt:::::::::::::::::t
+ss:::::::::::::s  d::::::::::::::::dt:::::::::::::::::t
+s::::::ssss:::::sd:::::::ddddd:::::dtttttt:::::::tttttt
+ s:::::s  ssssss d::::::d    d:::::d      t:::::t
+   s::::::s      d:::::d     d:::::d      t:::::t
+      s::::::s   d:::::d     d:::::d      t:::::t
+ssssss   s:::::s d:::::d     d:::::d      t:::::t    tttttt
+s:::::ssss::::::sd::::::ddddd::::::dd     t::::::tttt:::::t
+s::::::::::::::s  d:::::::::::::::::d     tt::::::::::::::t
+ s:::::::::::ss    d:::::::::ddd::::d       tt:::::::::::tt
+  sssssssssss       ddddddddd   ddddd         ttttttttttt
+
+`
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "sdt",
 	Short: "Smart Developer Tools",
-	Long:  `Smart Developer Tools is a collection of CLI utilities for developers`,
+	Long:  logo + `Smart Developer Tools is a collection of CLI utilities for developers`,
 }
 
 func init() {
