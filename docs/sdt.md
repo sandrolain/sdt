@@ -4,6 +4,26 @@ Smart Developer Tools
 
 ### Synopsis
 
+```
+                             dddddddd
+                             d::::::d        tttt
+                             d::::::d     ttt:::t
+                             d::::::d     t:::::t
+                             d:::::d      t:::::t
+    ssssssssss       ddddddddd:::::dttttttt:::::ttttttt
+  ss::::::::::s    dd::::::::::::::dt:::::::::::::::::t
+ss:::::::::::::s  d::::::::::::::::dt:::::::::::::::::t
+s::::::ssss:::::sd:::::::ddddd:::::dtttttt:::::::tttttt
+ s:::::s  ssssss d::::::d    d:::::d      t:::::t
+   s::::::s      d:::::d     d:::::d      t:::::t
+      s::::::s   d:::::d     d:::::d      t:::::t
+ssssss   s:::::s d:::::d     d:::::d      t:::::t    tttttt
+s:::::ssss::::::sd::::::ddddd::::::dd     t::::::tttt:::::t
+s::::::::::::::s  d:::::::::::::::::d     tt::::::::::::::t
+ s:::::::::::ss    d:::::::::ddd::::d       tt:::::::::::tt
+  sssssssssss       ddddddddd   ddddd         ttttttttttt
+```
+
 Smart Developer Tools is a collection of CLI utilities for developers
 
 ### Options
@@ -25,6 +45,7 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt completion](sdt_completion.md)	 - Generate the autocompletion script for the specified shell
 * [sdt config](sdt_config.md)	 - Configuration Tools
 * [sdt conv](sdt_conv.md)	 - Conversion Tools
+* [sdt cthulhu](sdt_cthulhu.md)	 - cthulhu
 * [sdt dec](sdt_dec.md)	 - Decimal Encoding
 * [sdt docs](sdt_docs.md)	 - Generate CLI docs
 * [sdt escape](sdt_escape.md)	 - Escape string
