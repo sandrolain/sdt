@@ -14,6 +14,11 @@ builds:
       - linux
       - windows
       - darwin
+    hooks:
+      post: upx "{{ .Path }}"
+    ignore:
+      - goos: windows
+        goarch: arm64
 archives:
   - replacements:
       darwin: Darwin

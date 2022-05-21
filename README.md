@@ -42,7 +42,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 ### DevOps Wishlist
 
 - [ ] Unit Tests!!!
-- [ ] Use [UPX](https://upx.github.io/)
+- [x] Use [UPX](https://upx.github.io/)
 
 ### Features Wishlist
 
@@ -51,24 +51,23 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] RegExp replace
 - [ ] [JQ integration](https://github.com/itchyny/gojq)
 - [ ] Data conversion between:
-  - [ ] [Query string](https://github.com/hetiansu5/urlquery)
+  - [x] [Query string](https://github.com/hetiansu5/urlquery)
   - [x] JSON
   - [x] [YAML](https://github.com/go-yaml/yaml)
   - [ ] [TOML](https://github.com/pelletier/go-toml)
   - [x] CSV
-- [ ] Template with mustache: https://github.com/cbroglie/mustache
-- [ ] WASM
+- [ ] Template with [mustache](https://github.com/cbroglie/mustache)
 - [ ] Data faker
 - [x] Save []string to multiple files
 - [ ] WASM web app:
   - [ ] Commands selection
-  - [ ] Input from textearea
+  - [x] Input from textarea
   - [ ] Input from file
-  - [ ] Output to textarea
+  - [x] Output to textarea
   - [ ] Output to file
 - [ ] GUI app:
   - [ ] Commands selection
-  - [ ] Input from textearea
+  - [ ] Input from textarea
   - [ ] Input from file
   - [ ] Output to textarea
   - [ ] Output to file
