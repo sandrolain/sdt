@@ -1,0 +1,16 @@
+:root {
+  --bg-color: #111111;
+  --tx-color: #99CC99;
+}
+
+html, body {
+  padding: 0;
+  margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+  background: var(--bg-color);
+  color: var(--tx-color);
+}
+html, body {
+  width: 100%;
+  height: 100%;
+}
