@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "dev": "npx vite",
-    "build": "npx tsc && npx vite build"
+    "build": "sh ./build-wasm.sh && npx tsc && npx vite build"
   },
   "dependencies": {
     "lit": "^2.0.2"
