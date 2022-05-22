@@ -1,5 +1,7 @@
 #!/bin/sh
 
-GOOS=js GOARCH=wasm go build -o "./web/sdt.wasm" "./cli"
+#tinygo build -o "./web/sdt.wasm" -target wasm "./cli/main.go"
 
-cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" "./web/"
+GOOS=js GOARCH=wasm go build -o "./web/src/sdt.wasm" "./cli"
+
+cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" "./web/src/"
