@@ -12,8 +12,8 @@
     "types"
   ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build"
+    "dev": "npx vite",
+    "build": "npx tsc && npx vite build"
   },
   "dependencies": {
     "lit": "^2.0.2"

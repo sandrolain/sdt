@@ -158,10 +158,10 @@ export class SdtApp extends LitElement {
     this.wasm = await (await fetch(wasm)).arrayBuffer();
     this.Go = new Go();
     const decoder = new TextDecoder("utf-8");
-    (window as any).fs.writeSync = (fd, buf) => {
+    (window as any).fs.writeSync = (_: number, buf: BufferSource) => {
       this.outputBuf += decoder.decode(buf);
       this.applyOutput();
-      return buf.length;
+      return (buf as any).length;
     };
   }
 
