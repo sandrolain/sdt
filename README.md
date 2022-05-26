@@ -47,8 +47,8 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 ### Features Wishlist
 
 - [ ] Color conversion
-- [ ] RegExp all matches
-- [ ] RegExp replace
+- [x] RegExp all matches
+- [x] RegExp replace
 - [ ] [JQ integration](https://github.com/itchyny/gojq)
 - [ ] Data conversion between:
   - [x] [Query string](https://github.com/hetiansu5/urlquery)

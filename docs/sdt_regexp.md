@@ -27,4 +27,5 @@ sdt regexp [flags]
 ### SEE ALSO
 
 * [sdt](sdt.md)	 - Smart Developer Tools
+* [sdt regexp replace](sdt_regexp_replace.md)	 - RegExp replace
 

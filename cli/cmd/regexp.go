@@ -10,7 +10,7 @@ import (
 
 var regeCmd = &cobra.Command{
 	Use:     "regexp",
-	Aliases: []string{"ereg", "exp"},
+	Aliases: []string{"re"},
 	Short:   "RegExp matching",
 	Long:    `Regular Expression matching`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -29,7 +29,26 @@ var regeCmd = &cobra.Command{
 	},
 }
 
+var regeReplaceCmd = &cobra.Command{
+	Use:   "replace",
+	Short: "RegExp replace",
+	Long:  `Regular Expression replace`,
+	Run: func(cmd *cobra.Command, args []string) {
+		str := getInputString(cmd, args)
+		exp := getStringFlag(cmd, "expression", true)
+		rep := getStringFlag(cmd, "replace", true)
+
+		re := must(regexp.Compile(exp))
+
+		out := re.ReplaceAllString(str, rep)
+
+		outputString(cmd, out)
+	},
+}
+
 func init() {
 	regeCmd.PersistentFlags().StringP("expression", "e", "", "Expression")
+	regeReplaceCmd.PersistentFlags().StringP("replace", "r", "", "Replace")
+	regeCmd.AddCommand(regeReplaceCmd)
 	rootCmd.AddCommand(regeCmd)
 }
