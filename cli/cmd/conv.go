@@ -10,6 +10,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/hetiansu5/urlquery"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -126,6 +127,8 @@ var convCmd = &cobra.Command{
 			exitWithError(json.Unmarshal(in, &data))
 		case "yaml":
 			exitWithError(yaml.Unmarshal(in, &data))
+		case "toml":
+			exitWithError(toml.Unmarshal(in, &data))
 		case "query":
 			exitWithError(urlquery.Unmarshal(in, &data))
 		case "csv":
@@ -139,6 +142,8 @@ var convCmd = &cobra.Command{
 			out = must(json.Marshal(&data))
 		case "yaml":
 			out = must(yaml.Marshal(&data))
+		case "toml":
+			out = must(toml.Marshal(&data))
 		case "query":
 			out = must(urlquery.Marshal(data))
 		case "csv":
@@ -151,8 +156,8 @@ var convCmd = &cobra.Command{
 
 func init() {
 	pf := convCmd.PersistentFlags()
-	pf.StringP("in", "a", "", "Input format (json, yaml, toml, csv)")
-	pf.StringP("out", "b", "", "Output format (json, yaml, toml, csv)")
+	pf.StringP("in", "a", "", "Input format (json, yaml, toml, query, csv)")
+	pf.StringP("out", "b", "", "Output format (json, yaml, toml, query, csv)")
 	pf.BoolP("object", "o", false, "Rows as objects")
 
 	rootCmd.AddCommand(convCmd)

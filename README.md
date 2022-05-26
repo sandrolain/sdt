@@ -54,7 +54,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
   - [x] [Query string](https://github.com/hetiansu5/urlquery)
   - [x] JSON
   - [x] [YAML](https://github.com/go-yaml/yaml)
-  - [ ] [TOML](https://github.com/pelletier/go-toml)
+  - [x] [TOML](https://github.com/pelletier/go-toml)
   - [x] CSV
 - [ ] Template with [mustache](https://github.com/cbroglie/mustache)
 - [ ] Data faker
