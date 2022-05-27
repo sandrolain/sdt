@@ -30,7 +30,7 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 	return []byte{}
 }
 
-func executeByArgs(args []string, in []byte) []byte {
+func ExecuteByArgs(args []string, in []byte) ([]byte, error) {
 	stdIn = in
 	buf := new(bytes.Buffer)
 	rootCmd.SetOutput(buf)
@@ -39,7 +39,9 @@ func executeByArgs(args []string, in []byte) []byte {
 	err := rootCmd.Execute()
 	stdIn = []byte{}
 	rootCmd.SetOutput(os.Stdout)
-	exitWithError(err)
+	if err != nil {
+		return nil, err
+	}
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }

@@ -59,8 +59,12 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] Template with [mustache](https://github.com/cbroglie/mustache)
 - [ ] Data faker
 - [x] Save []string to multiple files
+- [ ] Static file server
 - [ ] WASM web app:
   - [ ] Commands selection
+    - [ ] Various types of conversion
+    - [ ] Bytes b64
+    - [ ] Bytes hex
   - [x] Input from textarea
   - [ ] Input from file
   - [x] Output to textarea
@@ -71,6 +75,11 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
   - [ ] Input from file
   - [ ] Output to textarea
   - [ ] Output to file
+- [ ] Docker images
+  - [ ] WASM webapp
+  - [ ] CLI as Docker image ???
+- [ ] HTTP service
+  - [ ] commands as http APIs
 - [x] Edit config file
 - [x] Request input from CLI
 - [x] Global --input (file) flag

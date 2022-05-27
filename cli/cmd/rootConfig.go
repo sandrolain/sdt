@@ -98,9 +98,11 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 	return []byte{}
 }
 
-func executeByArgs(args []string, in []byte) []byte {
+func ExecuteByArgs(args []string, in []byte) ([]byte, error) {
 	r, w, err := os.Pipe()
-	exitWithError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	origIn := os.Stdin
 	os.Stdin = r
@@ -114,7 +116,9 @@ func executeByArgs(args []string, in []byte) []byte {
 	err = rootCmd.Execute()
 	os.Stdin = origIn
 	rootCmd.SetOutput(os.Stdout)
-	exitWithError(err)
+	if err != nil {
+		return nil, err
+	}
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }

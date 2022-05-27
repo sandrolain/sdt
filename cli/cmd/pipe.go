@@ -27,7 +27,9 @@ var andCmd = &cobra.Command{
 		var out []byte
 
 		for _, cmdParts := range cmdList {
-			out = executeByArgs(cmdParts, in)
+			var err error
+			out, err = ExecuteByArgs(cmdParts, in)
+			exitWithError(err)
 			in = out
 		}
 
