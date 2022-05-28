@@ -109,13 +109,15 @@ func ExecuteByArgs(args []string, in []byte) ([]byte, error) {
 	w.Write(in)
 	w.Close()
 
+	origOut := rootCmd.OutOrStdout()
+
 	buf := new(bytes.Buffer)
 	rootCmd.SetOutput(buf)
 	rootCmd.SetArgs(args)
 
 	err = rootCmd.Execute()
 	os.Stdin = origIn
-	rootCmd.SetOutput(os.Stdout)
+	rootCmd.SetOutput(origOut)
 	if err != nil {
 		return nil, err
 	}

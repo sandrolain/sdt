@@ -50,7 +50,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [x] RegExp all matches
 - [x] RegExp replace
 - [ ] [JQ integration](https://github.com/itchyny/gojq)
-- [ ] Data conversion between:
+- [x] Data conversion between:
   - [x] [Query string](https://github.com/hetiansu5/urlquery)
   - [x] JSON
   - [x] [YAML](https://github.com/go-yaml/yaml)
@@ -63,8 +63,8 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [ ] WASM web app:
   - [ ] Commands selection
     - [ ] Various types of conversion
-    - [ ] Bytes b64
-    - [ ] Bytes hex
+    - [x] Bytes b64
+    - [x] Bytes hex
   - [x] Input from textarea
   - [ ] Input from file
   - [x] Output to textarea
@@ -76,7 +76,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
   - [ ] Output to textarea
   - [ ] Output to file
 - [ ] Docker images
-  - [ ] WASM webapp
+  - [x] WASM webapp
   - [ ] CLI as Docker image ???
 - [ ] HTTP service
   - [ ] commands as http APIs

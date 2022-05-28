@@ -32,13 +32,14 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 
 func ExecuteByArgs(args []string, in []byte) ([]byte, error) {
 	stdIn = in
+	origOut := rootCmd.OutOrStdout()
 	buf := new(bytes.Buffer)
 	rootCmd.SetOutput(buf)
 	rootCmd.SetArgs(args)
 
 	err := rootCmd.Execute()
 	stdIn = []byte{}
-	rootCmd.SetOutput(os.Stdout)
+	rootCmd.SetOutput(origOut)
 	if err != nil {
 		return nil, err
 	}

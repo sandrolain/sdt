@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mattn/go-shellwords"
 	"github.com/sandrolain/sdt/cli/cmd"
 )
 
@@ -14,14 +15,19 @@ func endWithError(w http.ResponseWriter, err error) {
 }
 
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := strings.Trim(r.URL.Path, "/")
-		args := strings.Split(path, "/")
+	http.HandleFunc("/sdt/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path[5:]
+		path = strings.Trim(path, "/")
+
+		args, err := shellwords.Parse(path)
+		if err != nil {
+			endWithError(w, err)
+			return
+		}
 
 		query := r.URL.Query()
 
 		var in []byte
-		var err error
 		if r.Method == http.MethodPost {
 			in, err = io.ReadAll(r.Body)
 			if err != nil {

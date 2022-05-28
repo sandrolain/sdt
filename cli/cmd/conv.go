@@ -106,8 +106,8 @@ func buildCsv(data any) ([]byte, error) {
 
 var convCmd = &cobra.Command{
 	Use:   "conv",
-	Short: "Conversion Tools",
-	Long:  `Conversion Tools`,
+	Short: "Data Conversion",
+	Long:  `Data Conversion`,
 	Run: func(cmd *cobra.Command, args []string) {
 		in := getInputBytes(cmd, args)
 		from := getStringFlag(cmd, "in", true)
@@ -122,7 +122,7 @@ var convCmd = &cobra.Command{
 
 		switch from {
 		default:
-			exitWithError(fmt.Errorf(`invalid "from" flag value "%v"`, from))
+			exitWithError(fmt.Errorf(`invalid "in" flag value "%v"`, from))
 		case "json":
 			exitWithError(json.Unmarshal(in, &data))
 		case "yaml":
@@ -137,7 +137,7 @@ var convCmd = &cobra.Command{
 
 		switch to {
 		default:
-			exitWithError(fmt.Errorf(`invalid "from" flag value "%v"`, from))
+			exitWithError(fmt.Errorf(`invalid "out" flag value "%v"`, to))
 		case "json":
 			out = must(json.Marshal(&data))
 		case "yaml":
@@ -158,7 +158,7 @@ func init() {
 	pf := convCmd.PersistentFlags()
 	pf.StringP("in", "a", "", "Input format (json, yaml, toml, query, csv)")
 	pf.StringP("out", "b", "", "Output format (json, yaml, toml, query, csv)")
-	pf.BoolP("object", "o", false, "Rows as objects")
+	pf.BoolP("object", "o", false, "CSV rows as objects")
 
 	rootCmd.AddCommand(convCmd)
 }
