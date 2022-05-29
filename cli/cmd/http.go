@@ -11,9 +11,10 @@ import (
 )
 
 var httpCmd = &cobra.Command{
-	Use:   "http",
-	Short: "QR code",
-	Long:  `Generate QR code`,
+	Use:     "http",
+	Aliases: []string{"request", "req"},
+	Short:   "HTTP client",
+	Long:    `Make an HTTP request`,
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
 

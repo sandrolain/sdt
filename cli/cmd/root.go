@@ -160,7 +160,7 @@ func getBytesBase64Flag(cmd *cobra.Command, name string, required bool) []byte {
 
 func getStringArrayFlag(cmd *cobra.Command, name string, required bool) []string {
 	return getFlag(cmd, name, required, func(flags *pflag.FlagSet) ([]string, error) {
-		return flags.GetStringSlice(name)
+		return flags.GetStringArray(name)
 	}, func() []string {
 		return viper.GetStringSlice(name)
 	})
