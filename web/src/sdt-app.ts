@@ -1,36 +1,10 @@
 import { html, css, LitElement } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
+import { classMap } from 'lit/directives/class-map.js'
 import "./wasm_exec.js"
 import wasm from "./sdt.wasm?url";
 import "./main.css";
-
-interface Preset {
-  name: string;
-  command: string;
-  input: boolean;
-}
-
-const presets: Preset[] = [{
-  name: "Custom",
-  command: "",
-  input: true
-}, {
-  name: "Random bytes Base64",
-  command: "sdt pipe - bytes - b64",
-  input: false
-}, {
-  name: "Random bytes Hexadecimal",
-  command: "sdt pipe - bytes - hex",
-  input: false
-}, {
-  name: "Base64 Encode",
-  command: "sdt b64",
-  input: true
-}, {
-  name: "Cthulhu",
-  command: "sdt cthulhu",
-  input: false
-}];
+import { presets } from './presets';
 
 @customElement('sdt-app')
 export class SdtApp extends LitElement {
@@ -69,8 +43,8 @@ export class SdtApp extends LitElement {
     select, input, textarea, button {
       font-family: 'Courier New', Courier, monospace !important;
       background: var(--bg-color);
-      color: var(--tx-color);
-      border: 1px solid var(--tx-color);
+      color: inherit;
+      border: 1px solid currentColor;
       padding: 8px;
       font-size: 16px;
       height: 34px;
@@ -94,11 +68,23 @@ export class SdtApp extends LitElement {
       display: flex;
       gap: 16px;
       flex: 1;
+      color: var(--tx-color);
     }
     #bottom > div {
       flex: 1;
       display: flex;
       flex-direction: column;
+    }
+    #bottom.error #output-wrp {
+      color: var(--er-color);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
     }
 
   `;
@@ -118,10 +104,13 @@ export class SdtApp extends LitElement {
   @state()
   private hideInput: boolean = false;
 
+  @state()
+  private error: boolean = false;
+
   render() {
     return html`
       <div id="top">
-        <h1>Smart Developer Tools ^(;,;)^</h1>
+        <h1><a href="https://github.com/sandrolain/sdt">Smart Developer Tools ^(;,;)^</a></h1>
         <div>
           <label for="preset">Preset</label>
           <select id="preset" @change=${this.onPresetChange}>${presets.map((p) => html`<option value=${p.command}>${p.name}</option>`)}</select>
@@ -135,7 +124,7 @@ export class SdtApp extends LitElement {
           <button type="button" id="execute" @click=${this.onExecute}>Execute</button>
         </div>
       </div>
-      <div id="bottom">
+      <div id="bottom" class=${classMap({"error": this.error})}>
         ${this.hideInput ? null : html`
         <div id="input-wrp">
           <label for="input">Input</label>
@@ -157,6 +146,11 @@ export class SdtApp extends LitElement {
   protected async firstUpdated(): Promise<void> {
     this.wasm = await (await fetch(wasm)).arrayBuffer();
     this.Go = new Go();
+    this.Go.exit = (code) => {
+      if(code > 0) {
+        this.error = true;
+      }
+    };
     const decoder = new TextDecoder("utf-8");
     (window as any).fs.writeSync = (_: number, buf: BufferSource) => {
       this.outputBuf += decoder.decode(buf);
@@ -180,6 +174,7 @@ export class SdtApp extends LitElement {
 
   private async onExecute() {
     this.outputBuf = "";
+    this.error = false;
     const wa = await WebAssembly.instantiate(this.wasm, this.Go.importObject);
     const input = this.$input?.value ?? "";
     const args = this.$command.value.split(/\s+/);
