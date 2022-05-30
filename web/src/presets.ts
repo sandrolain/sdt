@@ -12,6 +12,10 @@ export const presets: Preset[] = [{
   command: "",
   input: true
 }, {
+  name: "Help",
+  command: "sdt help",
+  input: false
+}, {
   name: "Random bytes Base64",
   command: "sdt pipe - bytes - b64",
   input: false
@@ -20,8 +24,32 @@ export const presets: Preset[] = [{
   command: "sdt pipe - bytes - hex",
   input: false
 }, {
-  name: "Base64 Encode",
+  name: "Base 32 Encode",
+  command: "sdt b32",
+  input: true
+}, {
+  name: "Base 64 Encode",
   command: "sdt b64",
+  input: true
+}, {
+  name: "Base 64 URL-Encode",
+  command: "sdt b64url",
+  input: true
+}, {
+  name: "Base 64 Decode",
+  command: "sdt b64 dec",
+  input: true
+}, {
+  name: "URL Encode",
+  command: "sdt url enc",
+  input: true
+}, {
+  name: "URL Form-Encode",
+  command: "sdt url encform",
+  input: true
+}, {
+  name: "URL Decode",
+  command: "sdt url dec",
   input: true
 }, {
   name: "Cthulhu",
@@ -59,4 +87,8 @@ export const presets: Preset[] = [{
   name: "YAML => CSV",
   command: "sdt conv -a yaml -b csv",
   input: true
+}, {
+  name: "RSA Key pair",
+  command: "sdt keypair",
+  input: false
 }];

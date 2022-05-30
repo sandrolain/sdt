@@ -5,6 +5,7 @@ import "./wasm_exec.js"
 import wasm from "./sdt.wasm?url";
 import "./main.css";
 import { presets } from './presets';
+import copy from "copy-to-clipboard";
 
 @customElement('sdt-app')
 export class SdtApp extends LitElement {
@@ -15,7 +16,7 @@ export class SdtApp extends LitElement {
       height: 100%;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 8px;
       padding: 16px;
       font-family: 'Courier New', Courier, monospace !important;
     }
@@ -30,7 +31,7 @@ export class SdtApp extends LitElement {
 
     #top {
       display: flex;
-      gap: 16px;
+      gap: 8px;
     }
     #top > div {
       display: flex;
@@ -50,11 +51,19 @@ export class SdtApp extends LitElement {
       height: 34px;
       line-height: 1em;
       box-sizing: border-box;
+      border-radius: var(--radius);
     }
     button {
       background: var(--tx-color);
       color: var(--bg-color);
       cursor: pointer;
+      border-radius: var(--radius);
+      border: 1px solid var(--tx-color);
+      box-sizing: border-box;
+    }
+    button:hover {
+      background: var(--tx-color-2);
+      border-color: var(--tx-color-2);
     }
 
     textarea {
@@ -66,7 +75,7 @@ export class SdtApp extends LitElement {
     #bottom {
       width: 100%;
       display: flex;
-      gap: 16px;
+      gap: 8px;
       flex: 1;
       color: var(--tx-color);
     }
@@ -74,6 +83,11 @@ export class SdtApp extends LitElement {
       flex: 1;
       display: flex;
       flex-direction: column;
+    }
+    #bottom > div > div {
+      flex: 1;
+      display: flex;
+      gap: 8px;
     }
     #bottom.error #output-wrp {
       color: var(--er-color);
@@ -117,7 +131,11 @@ export class SdtApp extends LitElement {
         </div>
         <div>
           <label for="command">Command</label>
-          <input type="text" id="command" autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <input type="text" id="command" autocomplete="off" autocapitalize="off" spellcheck="false" @keydown=${(event: KeyboardEvent) => {
+            if(event.code === "Enter") {
+              this.onExecute();
+            }
+          }}  />
         </div>
         <div>
           <label for="execute">&nbsp;</label>
@@ -133,7 +151,12 @@ export class SdtApp extends LitElement {
         `}
         <div id="output-wrp">
           <label for="output">Output</label>
-          <textarea id="output" readonly></textarea>
+          <div id="output-cnt">
+            <textarea id="output" readonly></textarea>
+            <button id="copy" @click=${() => {
+              copy(this.$output.value);
+            }}>Copy</button>
+          </div>
         </div>
       </div>
     `;
