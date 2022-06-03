@@ -25,19 +25,15 @@ var configSetCmd = &cobra.Command{
 		typ := getStringFlag(cmd, "type", false)
 		var val any
 		switch typ {
-		default:
+		case "s", "string":
 			val = str
-		case "int":
-		case "i":
+		case "i", "int":
 			val = must(strconv.ParseInt(str, 10, 64))
-		case "float":
-		case "f":
+		case "f", "float":
 			val = must(strconv.ParseFloat(str, 64))
-		case "json":
-		case "j":
+		case "j", "json":
 			exitWithError(json.Unmarshal([]byte(str), &val))
 		}
-
 		viper.Set(flag, val)
 		viper.WriteConfig()
 	},
@@ -58,7 +54,7 @@ var configGetCmd = &cobra.Command{
 func init() {
 	pf := configCmd.PersistentFlags()
 	pf.StringP("key", "k", "", "Flag Key Path")
-	pf.StringP("type", "t", "string", "Value Type (string, int, float, json)")
+	pf.StringP("type", "t", "json", "Value Type (s[tring], i[nt], f[loat], j[son])")
 	configCmd.AddCommand(configSetCmd)
 	configCmd.AddCommand(configGetCmd)
 	rootCmd.AddCommand(configCmd)
