@@ -18,7 +18,6 @@ var loremCmd = &cobra.Command{
 		var res string
 
 		switch typ {
-		default:
 		case "sentence":
 			res = lorem.Sentence(min, max)
 		case "word":
@@ -33,7 +32,7 @@ var loremCmd = &cobra.Command{
 
 func init() {
 	pf := loremCmd.PersistentFlags()
-	pf.StringP("type", "t", "paragraph", "Sequence type")
+	pf.StringP("type", "t", "sentence", "Sequence type (sentence, word, paragraph)")
 	pf.IntP("min", "n", 1, "Min")
 	pf.IntP("max", "m", 10, "Max")
 
