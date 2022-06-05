@@ -111,6 +111,35 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [x] JWT validate
 - [x] JWT claims
 - [x] Gzip / Gunzip
+- [ ] My IP (https://ipapi.co/)
+- [ ] IP Lookup (https://ipapi.co/)
+- [ ] WHOIS lookup
+- [ ] QR code reader
+- [ ] Base 36
+- [ ] HMAC generator
+- [ ] Validator
+  - [ ] JSON
+  - [ ] YAML
+  - [ ] TOML
+  - [ ] CSV
+- [ ] String
+  - [ ] Character count
+  - [ ] Word count
+  - [ ] Line count
+  - [ ] UPPER CASE
+  - [ ] lower case
+  - [ ] camelCase
+  - [ ] Capital Case
+  - [ ] CONSTANT_CASE (Upper case + Replace spaces with character)
+  - [ ] dot.case (Replace spaces with character)
+  - [ ] Header-Case (Capital case + Replace spaces with character)
+  - [ ] param-case (Replace spaces with character)
+  - [ ] snake_case (Replace spaces with character)
+  - [ ] SLug generator
+  - [ ] html encode, html decode
+  - [ ] Sort Lines (reverse, shuffle) (by content, by length)
+  - [ ] 
+
 
 ## External libraries used
 - [cobra](https://github.com/spf13/cobra)
