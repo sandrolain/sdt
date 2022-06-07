@@ -14,9 +14,10 @@ var urlCmd = &cobra.Command{
 }
 
 var urlEncCmd = &cobra.Command{
-	Use:   "enc",
-	Short: "URL Encode",
-	Long:  `URL Encode`,
+	Use:     "encode",
+	Aliases: []string{"enc"},
+	Short:   "URL Encode",
+	Long:    `URL Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		res := url.QueryEscape(str)
@@ -26,9 +27,10 @@ var urlEncCmd = &cobra.Command{
 }
 
 var urlEncFormCmd = &cobra.Command{
-	Use:   "encform",
-	Short: "Form URL Encode",
-	Long:  `Form URL Encode`,
+	Use:     "formencode",
+	Aliases: []string{"formenc"},
+	Short:   "Form URL Encode",
+	Long:    `Form URL Encode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		res := url.QueryEscape(str)
@@ -37,9 +39,10 @@ var urlEncFormCmd = &cobra.Command{
 }
 
 var urlDecCmd = &cobra.Command{
-	Use:   "dec",
-	Short: "URL Decode",
-	Long:  `URL Decode`,
+	Use:     "decode",
+	Aliases: []string{"dec"},
+	Short:   "URL Decode",
+	Long:    `URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		str = must(url.QueryUnescape(str))
