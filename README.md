@@ -111,9 +111,9 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [x] JWT validate
 - [x] JWT claims
 - [x] Gzip / Gunzip
-- [ ] My IP (https://ipapi.co/)
-- [ ] IP Lookup (https://ipapi.co/)
-- [ ] WHOIS lookup
+- [x] My IP (https://ipapi.co/)
+- [x] IP Lookup (https://ipapi.co/)
+- [x] NS lookup
 - [ ] QR code reader
 - [ ] Base 36
 - [ ] HMAC generator
@@ -123,22 +123,21 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
   - [ ] TOML
   - [ ] CSV
 - [ ] String
-  - [ ] Character count
-  - [ ] Word count
-  - [ ] Line count
-  - [ ] UPPER CASE
-  - [ ] lower case
+  - [x] Character count
+  - [x] Word count
+  - [x] Line count
+  - [x] UPPER CASE
+  - [x] lower case
   - [ ] camelCase
-  - [ ] Capital Case
-  - [ ] CONSTANT_CASE (Upper case + Replace spaces with character)
-  - [ ] dot.case (Replace spaces with character)
-  - [ ] Header-Case (Capital case + Replace spaces with character)
-  - [ ] param-case (Replace spaces with character)
-  - [ ] snake_case (Replace spaces with character)
-  - [ ] SLug generator
+  - [x] Capital Case
+  - [x] CONSTANT_CASE (Upper case + Replace spaces with character)
+  - [x] dot.case (Replace spaces with character)
+  - [x] Header-Case (Capital case + Replace spaces with character)
+  - [x] param-case (Replace spaces with character)
+  - [x] snake_case (Replace spaces with character)
+  - [ ] Slug generator
   - [ ] html encode, html decode
   - [ ] Sort Lines (reverse, shuffle) (by content, by length)
-  - [ ] 
 
 
 ## External libraries used

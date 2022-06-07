@@ -3,12 +3,22 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
-var uppercaseCmd = &cobra.Command{
+var stringCmd = &cobra.Command{
+	Use:     "string",
+	Aliases: []string{"str"},
+	Short:   "String Tools",
+	Long:    `String Tools`,
+}
+
+var upperCaseCmd = &cobra.Command{
 	Use:     "uppercase",
 	Aliases: []string{"uc"},
 	Short:   "Uppercase string",
@@ -20,7 +30,7 @@ var uppercaseCmd = &cobra.Command{
 	},
 }
 
-var lowercaseCmd = &cobra.Command{
+var lowerCaseCmd = &cobra.Command{
 	Use:     "lowercase",
 	Aliases: []string{"lc"},
 	Short:   "Lowercase string",
@@ -29,6 +39,19 @@ var lowercaseCmd = &cobra.Command{
 		str := getInputString(cmd, args)
 		res := strings.ToLower(str)
 		outputString(cmd, res)
+	},
+}
+
+var titleCaseCmd = &cobra.Command{
+	Use:     "titlecase",
+	Aliases: []string{"tc"},
+	Short:   "Titlecase string",
+	Long:    `Titlecase string`,
+	Run: func(cmd *cobra.Command, args []string) {
+		str := getInputString(cmd, args)
+		c := cases.Title(language.Und)
+		out := c.String(str)
+		outputString(cmd, out)
 	},
 }
 
@@ -59,9 +82,57 @@ var unescapeCmd = &cobra.Command{
 	},
 }
 
+func replaceSpaces(str string, sub string) string {
+	return must(regexp.Compile(`\s+`)).ReplaceAllString(str, sub)
+}
+
+var replaceSpaceCmd = &cobra.Command{
+	Use:     "replacespace",
+	Aliases: []string{"rsp"},
+	Short:   "Replace Spaces",
+	Long:    `Replace Spaces`,
+	Run: func(cmd *cobra.Command, args []string) {
+		str := getInputString(cmd, args)
+		sub := getStringFlag(cmd, "replace", false)
+		out := replaceSpaces(str, sub)
+		outputString(cmd, out)
+	},
+}
+
+var countCmd = &cobra.Command{
+	Use:     "count",
+	Aliases: []string{"cnt"},
+	Short:   "Count text elements",
+	Long:    `Count text elements`,
+	Run: func(cmd *cobra.Command, args []string) {
+		str := getInputString(cmd, args)
+
+		lines := len(strings.Split(str, "\n"))
+		words := len(strings.Fields(str))
+		chars := len(str)
+
+		res := map[string]int{
+			"lines":      lines,
+			"words":      words,
+			"characters": chars,
+		}
+		out := must(json.Marshal(res))
+
+		outputBytes(cmd, out)
+	},
+}
+
 func init() {
-	rootCmd.AddCommand(uppercaseCmd)
-	rootCmd.AddCommand(lowercaseCmd)
-	rootCmd.AddCommand(escapeCmd)
-	rootCmd.AddCommand(unescapeCmd)
+	stringCmd.AddCommand(upperCaseCmd)
+	stringCmd.AddCommand(lowerCaseCmd)
+	stringCmd.AddCommand(titleCaseCmd)
+	stringCmd.AddCommand(escapeCmd)
+	stringCmd.AddCommand(unescapeCmd)
+	stringCmd.AddCommand(countCmd)
+
+	pf := replaceSpaceCmd.PersistentFlags()
+	pf.StringP("replace", "r", "", "String for replace")
+	stringCmd.AddCommand(replaceSpaceCmd)
+
+	rootCmd.AddCommand(stringCmd)
 }
