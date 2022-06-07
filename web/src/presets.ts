@@ -17,11 +17,11 @@ export const presets: Preset[] = [{
   input: false
 }, {
   name: "Random bytes Base64",
-  command: "sdt pipe - bytes - b64",
+  command: "sdt : bytes : b64",
   input: false
 }, {
   name: "Random bytes Hexadecimal",
-  command: "sdt pipe - bytes - hex",
+  command: "sdt : bytes : hex",
   input: false
 }, {
   name: "Base 32 Encode",
@@ -38,6 +38,22 @@ export const presets: Preset[] = [{
 }, {
   name: "Base 64 Decode",
   command: "sdt b64 dec",
+  input: true
+}, {
+  name: "URL encode",
+  command: "sdt url encode",
+  input: true
+}, {
+  name: "URL decode",
+  command: "sdt url decode",
+  input: true
+}, {
+  name: "HTML encode",
+  command: "sdt html encode",
+  input: true
+}, {
+  name: "HTML decode",
+  command: "sdt html decode",
   input: true
 }, {
   name: "URL Encode",
