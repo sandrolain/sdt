@@ -5,13 +5,14 @@ import (
 )
 
 var andCmd = &cobra.Command{
-	Use:   "pipe",
-	Short: "run multiple <sdt> commands separated by -",
+	Use:     "pipe",
+	Aliases: []string{":"},
+	Short:   "run multiple <sdt> commands separated by -",
 	Run: func(cmd *cobra.Command, args []string) {
 		var cmdParts []string
 		var cmdList [][]string
 		for _, arg := range args {
-			if arg == "-" {
+			if arg == "-" || arg == ":" {
 				if len(cmdParts) > 0 {
 					cmdList = append(cmdList, cmdParts)
 					cmdParts = []string{}
