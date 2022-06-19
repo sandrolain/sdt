@@ -44,9 +44,9 @@ var lowerCaseCmd = &cobra.Command{
 
 var titleCaseCmd = &cobra.Command{
 	Use:     "titlecase",
-	Aliases: []string{"tc"},
-	Short:   "Titlecase string",
-	Long:    `Titlecase string`,
+	Aliases: []string{"tc", "capital case", "cc"},
+	Short:   "Title Case string",
+	Long:    `Title Case string`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		c := cases.Title(language.Und)
