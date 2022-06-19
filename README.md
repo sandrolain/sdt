@@ -61,12 +61,15 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [x] Save []string to multiple files
 - [ ] Static file server
 - [ ] WASM web app:
+  - [ ] Commands without `sdt`
+  - [ ] Button for quick help
   - [ ] Commands selection
     - [ ] Various types of conversion
     - [x] Bytes b64
     - [x] Bytes hex
   - [x] Input from textarea
   - [ ] Input from file
+  - [ ] Flag for inputs as B64
   - [x] Output to textarea
   - [ ] Output to file
 - [ ] GUI app:
@@ -88,7 +91,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [x] RegEx match
 - [x] Lorem Ipsum
 - [x] QR code generation
-- [x] TOTP 
+- [x] TOTP
 - [x] CSV to JSON
 - [x] Backslash escape/unsescape
 - [x] String case converter
