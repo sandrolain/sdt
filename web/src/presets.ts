@@ -107,4 +107,20 @@ export const presets: Preset[] = [{
   name: "RSA Key pair",
   command: "sdt keypair",
   input: false
+}, {
+  name: "String: UPPER CASE",
+  command: "sdt string uppercase",
+  input: true
+}, {
+  name: "String: lower case",
+  command: "sdt string lowercase",
+  input: true
+}, {
+  name: "String: Title Case",
+  command: "sdt string titlecase",
+  input: true
+}, {
+  name: "String: Header-Case",
+  command: "sdt : string titlecase : string replacespace -r '-'",
+  input: true
 }];
