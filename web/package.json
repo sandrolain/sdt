@@ -17,12 +17,13 @@
   },
   "dependencies": {
     "copy-to-clipboard": "^3.3.1",
-    "lit": "^2.2.5"
+    "lit": "^2.2.6",
+    "shellwords": "^1.0.1"
   },
   "devDependencies": {
     "@types/golang-wasm-exec": "^1.15.0",
-    "@types/node": "^17.0.35",
-    "typescript": "^4.7.2",
-    "vite": "^2.9.9"
+    "@types/node": "^18.0.0",
+    "typescript": "^4.7.4",
+    "vite": "^2.9.12"
   }
 }

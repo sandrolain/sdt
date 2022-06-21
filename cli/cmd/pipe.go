@@ -9,21 +9,28 @@ var andCmd = &cobra.Command{
 	Aliases: []string{":"},
 	Short:   "run multiple <sdt> commands separated by -",
 	Run: func(cmd *cobra.Command, args []string) {
+		areInputArgs := true
+		var inputArgs []string
 		var cmdParts []string
 		var cmdList [][]string
 		for _, arg := range args {
 			if arg == "-" || arg == ":" {
 				if len(cmdParts) > 0 {
-					cmdList = append(cmdList, cmdParts)
+					if areInputArgs {
+						inputArgs = cmdParts
+					} else {
+						cmdList = append(cmdList, cmdParts)
+					}
 					cmdParts = []string{}
 				}
+				areInputArgs = false
 			} else {
 				cmdParts = append(cmdParts, arg)
 			}
 		}
 		cmdList = append(cmdList, cmdParts)
 
-		in := getInputBytes(cmd, []string{})
+		in := getInputBytes(cmd, inputArgs)
 
 		var out []byte
 

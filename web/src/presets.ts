@@ -121,6 +121,14 @@ export const presets: Preset[] = [{
   input: true
 }, {
   name: "String: Header-Case",
-  command: "sdt : string titlecase : string replacespace -r '-'",
+  command: "sdt : string titlecase : string replacespace -r=-",
+  input: true
+}, {
+  name: "String: param-case",
+  command: "sdt : string lowercase : string replacespace -r=-",
+  input: true
+}, {
+  name: "String: snake_case",
+  command: "sdt : string lowercase : string replacespace -r=_",
   input: true
 }];

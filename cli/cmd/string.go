@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 
@@ -10,6 +11,50 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
+
+// From https://stackoverflow.com/a/56129336
+func substr(input string, start int, end int) string {
+	asRunes := []rune(input)
+
+	var length int
+
+	if start < 0 {
+		start = len(asRunes) + start
+	}
+
+	if end < 0 {
+		end = len(asRunes) + end
+	}
+
+	if end < start {
+		end = start
+	}
+
+	length = end - start
+
+	if start >= len(asRunes) {
+		return ""
+	}
+
+	if start+length > len(asRunes) {
+		length = len(asRunes) - start
+	}
+
+	return string(asRunes[start : start+length])
+}
+
+func splitStringParts(cmd *cobra.Command, str string) (string, string, string) {
+	start := getIntFlag(cmd, "start", false)
+	end := getIntFlag(cmd, "end", false)
+	var a, b, c string
+	a = substr(str, 0, start)
+	b = substr(str, start, end)
+	if end == 0 {
+		end = len(str)
+	}
+	c = substr(str, end, len(str))
+	return a, b, c
+}
 
 var stringCmd = &cobra.Command{
 	Use:     "string",
@@ -25,8 +70,9 @@ var upperCaseCmd = &cobra.Command{
 	Long:    `Uppercase string`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		res := strings.ToUpper(str)
-		outputString(cmd, res)
+		a, b, c := splitStringParts(cmd, str)
+		out := a + strings.ToUpper(b) + c
+		outputString(cmd, out)
 	},
 }
 
@@ -49,8 +95,8 @@ var titleCaseCmd = &cobra.Command{
 	Long:    `Title Case string`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		c := cases.Title(language.Und)
-		out := c.String(str)
+		a, b, c := splitStringParts(cmd, str)
+		out := a + cases.Title(language.Und).String(b) + c
 		outputString(cmd, out)
 	},
 }
@@ -123,6 +169,10 @@ var countCmd = &cobra.Command{
 }
 
 func init() {
+	pf := stringCmd.PersistentFlags()
+	pf.IntP("start", "s", 0, "Start index")
+	pf.IntP("end", "e", math.MaxInt, "End index")
+
 	stringCmd.AddCommand(upperCaseCmd)
 	stringCmd.AddCommand(lowerCaseCmd)
 	stringCmd.AddCommand(titleCaseCmd)
@@ -130,7 +180,7 @@ func init() {
 	stringCmd.AddCommand(unescapeCmd)
 	stringCmd.AddCommand(countCmd)
 
-	pf := replaceSpaceCmd.PersistentFlags()
+	pf = replaceSpaceCmd.PersistentFlags()
 	pf.StringP("replace", "r", "", "String for replace")
 	stringCmd.AddCommand(replaceSpaceCmd)
 

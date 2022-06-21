@@ -6,6 +6,7 @@ import wasm from "./sdt.wasm?url";
 import "./main.css";
 import { presets } from './presets';
 import copy from "copy-to-clipboard";
+import { split, escape } from "shellwords";
 
 @customElement('sdt-app')
 export class SdtApp extends LitElement {
@@ -183,6 +184,7 @@ export class SdtApp extends LitElement {
   }
 
   private applyOutput(): void {
+    console.log(this.outputBuf)
     this.$output.value = this.outputBuf;
   }
 
@@ -199,10 +201,21 @@ export class SdtApp extends LitElement {
     this.outputBuf = "";
     this.error = false;
     const wa = await WebAssembly.instantiate(this.wasm, this.Go.importObject);
-    const input = this.$input?.value ?? "";
-    const args = this.$command.value.split(/\s+/);
+    const input = (this.$input?.value ?? "").trim();
+    const cmdString = this.$command.value;
+    const args = split(cmdString);
+    if(args[0] !== "sdt") {
+      args.unshift("sdt")
+    }
+    if(args[1] === ":") {
+      args.splice(1, 0, "pipe")
+    }
     if(input) {
-      args.push(input);
+      if(args[1] === "pipe") {
+        args.splice(2, 0, input)
+      } else {
+        args.push(input);
+      }
     }
     this.Go.argv = args;
     this.Go.run(wa.instance);

@@ -10,14 +10,17 @@ func loadFileConfig() {
 	return
 }
 
+var stdIn []byte
+
 func getInputString(cmd *cobra.Command, args []string) string {
+	if len(stdIn) > 0 {
+		return string(stdIn)
+	}
 	if len(args) > 0 {
 		return args[0]
 	}
 	return ""
 }
-
-var stdIn []byte
 
 func getInputBytes(cmd *cobra.Command, args []string) []byte {
 	if len(stdIn) > 0 {
