@@ -83,8 +83,9 @@ var lowerCaseCmd = &cobra.Command{
 	Long:    `Lowercase string`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		res := strings.ToLower(str)
-		outputString(cmd, res)
+		a, b, c := splitStringParts(cmd, str)
+		out := a + strings.ToLower(b) + c
+		outputString(cmd, out)
 	},
 }
 
@@ -108,9 +109,10 @@ var escapeCmd = &cobra.Command{
 	Long:    `Escape string`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		j := must(json.Marshal(str))
-		str = string(j[1 : len(j)-1])
-		outputString(cmd, str)
+		a, b, c := splitStringParts(cmd, str)
+		byt := must(json.Marshal(b))
+		out := a + string(byt[1:len(byt)-1]) + c
+		outputString(cmd, out)
 	},
 }
 
@@ -121,10 +123,12 @@ var unescapeCmd = &cobra.Command{
 	Long:    `Unescape string`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		str = fmt.Sprintf(`"%s"`, str)
+		a, b, c := splitStringParts(cmd, str)
+		b = fmt.Sprintf(`"%s"`, b)
 		var res string
-		exitWithError(json.Unmarshal([]byte(str), &res))
-		outputString(cmd, res)
+		exitWithError(json.Unmarshal([]byte(b), &res))
+		out := a + res + c
+		outputString(cmd, out)
 	},
 }
 
@@ -140,7 +144,8 @@ var replaceSpaceCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		sub := getStringFlag(cmd, "replace", false)
-		out := replaceSpaces(str, sub)
+		a, b, c := splitStringParts(cmd, str)
+		out := a + replaceSpaces(b, sub) + c
 		outputString(cmd, out)
 	},
 }
