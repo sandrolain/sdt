@@ -28,16 +28,24 @@ export const presets: Preset[] = [{
   command: "sdt b32",
   input: true
 }, {
+  name: "Base 32 Decode",
+  command: "sdt b32 dec",
+  input: true
+}, {
   name: "Base 64 Encode",
   command: "sdt b64",
+  input: true
+}, {
+  name: "Base 64 Decode",
+  command: "sdt b64 dec",
   input: true
 }, {
   name: "Base 64 URL-Encode",
   command: "sdt b64url",
   input: true
 }, {
-  name: "Base 64 Decode",
-  command: "sdt b64 dec",
+  name: "Base 64 URL-Decode",
+  command: "sdt : url decode : b64url decode",
   input: true
 }, {
   name: "URL encode",

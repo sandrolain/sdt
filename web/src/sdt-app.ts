@@ -184,7 +184,6 @@ export class SdtApp extends LitElement {
   }
 
   private applyOutput(): void {
-    console.log(this.outputBuf)
     this.$output.value = this.outputBuf;
   }
 
