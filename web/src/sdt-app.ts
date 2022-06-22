@@ -6,7 +6,7 @@ import wasm from "./sdt.wasm?url";
 import "./main.css";
 import { presets } from './presets';
 import copy from "copy-to-clipboard";
-import { split, escape } from "shellwords";
+import { split } from "shellwords";
 
 @customElement('sdt-app')
 export class SdtApp extends LitElement {
