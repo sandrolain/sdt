@@ -139,4 +139,8 @@ export const presets: Preset[] = [{
   name: "String: snake_case",
   command: "sdt : string lowercase : string replacespace -r=_",
   input: true
+}, {
+  name: "Strint: camelCase",
+  command: "sdt : string titlecase : string replacespace : string lowercase -e 1",
+  input: true
 }];
