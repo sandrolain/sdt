@@ -20,6 +20,14 @@ var passwordCmd = &cobra.Command{
 		unt := getBoolFlag(cmd, "untyped", false)
 		rep := getBoolFlag(cmd, "repeat", false)
 
+		if dig < 0 {
+			dig = len / 4
+		}
+
+		if sim < 0 {
+			sim = len / 4
+		}
+
 		out := make([]string, num)
 
 		for i := 0; i < num; i++ {
@@ -33,9 +41,9 @@ var passwordCmd = &cobra.Command{
 func init() {
 	fg := passwordCmd.PersistentFlags()
 	fg.IntP("number", "n", 1, "Number of passwords")
-	fg.IntP("length", "l", 32, "Password length")
-	fg.IntP("digits", "d", 8, "Digits number")
-	fg.IntP("symbols", "s", 8, "Symbols number")
+	fg.IntP("length", "l", 16, "Password length")
+	fg.IntP("digits", "d", -1, "Digits number")
+	fg.IntP("symbols", "s", -1, "Symbols number")
 	fg.BoolP("untyped", "u", false, "Only lowercase characters")
 	fg.BoolP("repeat", "r", false, "Allow repeated characters")
 	rootCmd.AddCommand(passwordCmd)
