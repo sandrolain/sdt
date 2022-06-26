@@ -17,11 +17,16 @@ var timeCmd = &cobra.Command{
 
 func getTime(cmd *cobra.Command) time.Time {
 	t := getInt64Flag(cmd, "time", false)
+	m := getBoolFlag(cmd, "millis", false)
 	d := getStringFlag(cmd, "diff", false)
 
 	var tm time.Time
 	if t > 0 {
-		tm = time.Unix(t, 0)
+		if m {
+			tm = time.UnixMilli(t)
+		} else {
+			tm = time.Unix(t, 0)
+		}
 	} else {
 		tm = time.Now()
 	}
@@ -50,6 +55,7 @@ var timeIsoCmd = &cobra.Command{
 	Long:  `Format ISO 8601 time`,
 	Run: func(cmd *cobra.Command, args []string) {
 		tm := getTime(cmd)
+		tm = tm.UTC()
 		outputString(cmd, tm.Format(time.RFC3339))
 	},
 }
@@ -61,13 +67,16 @@ var timeHttpCmd = &cobra.Command{
 	Long:    `Format HTTP time`,
 	Run: func(cmd *cobra.Command, args []string) {
 		tm := getTime(cmd)
+		tm = tm.UTC()
 		outputString(cmd, tm.Format(http.TimeFormat))
 	},
 }
 
 func init() {
-	timeCmd.PersistentFlags().Int64P("time", "t", 0, "Unix time to format")
-	timeCmd.PersistentFlags().StringP("diff", "d", "", "Difference to apply")
+	pf := timeCmd.PersistentFlags()
+	pf.Int64P("time", "t", 0, "Unix time to format")
+	pf.BoolP("millis", "m", false, "Unix time with milliseconds")
+	pf.StringP("diff", "d", "", "Difference to apply")
 
 	timeCmd.AddCommand(timeUnixCmd)
 	timeCmd.AddCommand(timeIsoCmd)
