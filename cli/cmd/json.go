@@ -39,8 +39,8 @@ var jsonValidCmd = &cobra.Command{
 	Long:  `Validare JSON`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		err := utils.ValidJSON(str)
-		exitWithError(err)
+		exitWithError(utils.ValidJSON(str))
+		outputString(cmd, str)
 	},
 }
 

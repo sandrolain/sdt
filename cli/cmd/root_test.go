@@ -39,3 +39,16 @@ func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) []byte {
 
 	return buf.Bytes()
 }
+
+func shouldExitWithCode(t *testing.T, code int, fn func() string) {
+	exited := -1
+	origExit := exit
+	exit = func(exitCode int) {
+		exited = exitCode
+	}
+	fn()
+	exit = origExit
+	if code != exited {
+		t.Fatalf("expected exit code %v, got %v", code, exited)
+	}
+}

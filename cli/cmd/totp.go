@@ -145,6 +145,8 @@ var totpVerifyCmd = &cobra.Command{
 		if !valid {
 			exitWithError(fmt.Errorf("invalid code"))
 		}
+
+		outputString(cmd, code)
 	},
 }
 

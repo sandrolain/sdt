@@ -66,17 +66,19 @@ func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {
 	return res
 }
 
+var exit func(code int) = os.Exit
+
 func exitWithError(err error) {
 	if err != nil {
 		color.Error.Println(err)
-		os.Exit(1)
+		exit(1)
 	}
 }
 
 func exitWithErrorF(f string, err error) {
 	if err != nil {
 		color.Error.Printf(f, err)
-		os.Exit(1)
+		exit(1)
 	}
 }
 

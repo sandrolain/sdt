@@ -18,10 +18,10 @@ var loremCmd = &cobra.Command{
 		var res string
 
 		switch typ {
-		case "sentence":
-			res = lorem.Sentence(min, max)
 		case "word":
 			res = lorem.Word(min, max)
+		case "sentence":
+			res = lorem.Sentence(min, max)
 		case "paragraph":
 			res = lorem.Paragraph(min, max)
 		}
