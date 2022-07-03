@@ -40,7 +40,7 @@ func TestTimeISO(t *testing.T) {
 func TestTimeHTTP(t *testing.T) {
 	in := "1656246748123"
 	out := execute(t, timeHttpCmd, []byte{}, "-m", "-t", in)
-	exp := "Sun, 26 Jun 2022 14:32:28 GMT"
+	exp := "Sun, 26 Jun 2022 12:32:28 GMT"
 	if string(out) != exp {
 		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
 	}
