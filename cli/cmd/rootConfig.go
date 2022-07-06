@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -36,32 +35,12 @@ func getInputString(cmd *cobra.Command, args []string) string {
 		return string(must(ioutil.ReadFile(file)))
 	}
 
-	input := getBoolFlag(cmd, "input", false)
-
-	if input {
-		byt := must(ioutil.ReadAll(os.Stdin))
-		if len(byt) > 0 {
-			return string(byt)
-		}
-	}
-
-	fi := must(os.Stdin.Stat())
-
-	if fi.Mode()&os.ModeNamedPipe != 0 {
-		byt, err := ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			return ""
-		}
-		if len(byt) > 0 {
-			return string(byt)
-		}
-	}
-
 	if len(args) > 0 {
 		return args[0]
 	}
 
-	return ""
+	byt := must(ioutil.ReadAll(cmd.InOrStdin()))
+	return string(byt)
 }
 
 func getInputBytes(cmd *cobra.Command, args []string) []byte {
@@ -75,39 +54,17 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 		return must(ioutil.ReadFile(file))
 	}
 
-	input := getBoolFlag(cmd, "input", false)
-
-	if input {
-		return must(ioutil.ReadAll(os.Stdin))
-	}
-
-	fi := must(os.Stdin.Stat())
-
-	if fi.Mode()&os.ModeNamedPipe != 0 {
-		byt := must(ioutil.ReadAll(os.Stdin))
-
-		if len(byt) > 0 {
-			return byt
-		}
-	}
-
 	if len(args) > 0 {
 		return []byte(args[0])
 	}
 
-	return []byte{}
+	byt := must(ioutil.ReadAll(cmd.InOrStdin()))
+	return byt
 }
 
 func ExecuteByArgs(args []string, in []byte) ([]byte, error) {
-	r, w, err := os.Pipe()
-	if err != nil {
-		return nil, err
-	}
-
-	origIn := os.Stdin
-	os.Stdin = r
-	w.Write(in)
-	w.Close()
+	inr := bytes.NewReader(in)
+	rootCmd.SetIn(inr)
 
 	origOut := rootCmd.OutOrStdout()
 
@@ -115,8 +72,8 @@ func ExecuteByArgs(args []string, in []byte) ([]byte, error) {
 	rootCmd.SetOutput(buf)
 	rootCmd.SetArgs(args)
 
-	err = rootCmd.Execute()
-	os.Stdin = origIn
+	err := rootCmd.Execute()
+	rootCmd.SetIn(nil)
 	rootCmd.SetOutput(origOut)
 	if err != nil {
 		return nil, err

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -16,22 +15,18 @@ func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) []byte {
 
 	rc := c.Root()
 
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	inr := bytes.NewReader(in)
+	rc.SetIn(inr)
 
-	origIn := os.Stdin
-	os.Stdin = r
-	w.Write(in)
-	w.Close()
+	origOut := rootCmd.OutOrStdout()
 
 	buf := new(bytes.Buffer)
 	rc.SetOutput(buf)
 	rc.SetArgs(args)
 
-	err = rc.Execute()
-	os.Stdin = origIn
+	err := rc.Execute()
+	rc.SetIn(nil)
+	rootCmd.SetOutput(origOut)
 
 	if err != nil {
 		t.Fatal(err)
