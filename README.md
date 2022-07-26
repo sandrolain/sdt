@@ -47,19 +47,21 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 ### Features Wishlist
 
 - [ ] Color conversion
+- [ ] [JQ integration](https://github.com/itchyny/gojq)
+- [ ] Template with [mustache](https://github.com/cbroglie/mustache)
+- [ ] Data faker
+- [x] File change watcher with command execution
+- [ ] Interval watcher with command execution
 - [x] RegExp all matches
 - [x] RegExp replace
-- [ ] [JQ integration](https://github.com/itchyny/gojq)
 - [x] Data conversion between:
   - [x] [Query string](https://github.com/hetiansu5/urlquery)
   - [x] JSON
   - [x] [YAML](https://github.com/go-yaml/yaml)
   - [x] [TOML](https://github.com/pelletier/go-toml)
   - [x] CSV
-- [ ] Template with [mustache](https://github.com/cbroglie/mustache)
-- [ ] Data faker
 - [x] Save []string to multiple files
-- [ ] Static file server
+- [x] Static file server
 - [ ] WASM web app:
   - [ ] Commands without `sdt`
   - [ ] Button for quick help
@@ -139,7 +141,7 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
   - [x] param-case (Replace spaces with character)
   - [x] snake_case (Replace spaces with character)
   - [ ] Slug generator
-  - [ ] html encode, html decode
+  - [x] html encode, html decode
   - [ ] Sort Lines (reverse, shuffle) (by content, by length)
 
 

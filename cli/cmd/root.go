@@ -58,6 +58,14 @@ func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, requir
 	return val
 }
 
+func getInputStringRequired(cmd *cobra.Command, args []string) string {
+	res := getInputString(cmd, args)
+	if len(res) == 0 {
+		exitWithError(fmt.Errorf("primary command input should not be empty"))
+	}
+	return res
+}
+
 func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {
 	res := getInputBytes(cmd, args)
 	if len(res) == 0 {
