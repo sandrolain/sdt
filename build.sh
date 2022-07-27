@@ -1,3 +1,7 @@
 #!/bin/sh
 
-go build -o "./bin/sdt" "./cli"
+DEST="./bin/sdt"
+
+go build -o $DEST "./cli"
+
+upx $DEST
