@@ -15,6 +15,39 @@ import (
 	"golang.org/x/time/rate"
 )
 
+func runCommand(cmd *cobra.Command, cmdStr string) error {
+	args, err := shellwords.Parse(cmdStr)
+	if err != nil {
+		return err
+	}
+
+	c := exec.Command(args[0], args[1:]...)
+
+	stdout, err := c.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	err = c.Start()
+	if err != nil {
+		return err
+	}
+
+	data, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		return err
+	}
+
+	err = c.Wait()
+	if err != nil {
+		return err
+	}
+
+	outputBytes(cmd, data)
+
+	return nil
+}
+
 var fsWatchCmd = &cobra.Command{
 	Use:     "fswatch",
 	Aliases: []string{"fsw"},
@@ -45,39 +78,10 @@ var fsWatchCmd = &cobra.Command{
 					}
 					if limiter.Allow() {
 						if ok, err := filepath.Match(ptn, event.Name); err == nil && ok {
-							args, err := shellwords.Parse(cmdStr)
+							err := runCommand(cmd, cmdStr)
 							if err != nil {
 								log.Println(err)
-								continue
 							}
-
-							c := exec.Command(args[0], args[1:]...)
-
-							stdout, err := c.StdoutPipe()
-							if err != nil {
-								log.Println(err)
-								continue
-							}
-
-							err = c.Start()
-							if err != nil {
-								log.Println(err)
-								continue
-							}
-
-							data, err := ioutil.ReadAll(stdout)
-							if err != nil {
-								log.Println(err)
-								continue
-							}
-
-							err = c.Wait()
-							if err != nil {
-								log.Println(err)
-								continue
-							}
-
-							outputBytes(cmd, data)
 						}
 					}
 				case err, ok := <-watcher.Errors:
@@ -104,14 +108,39 @@ var itvWatchCmd = &cobra.Command{
 	Short:   "Interval Watcher",
 	Long:    `Interval Watcher`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO
+		cmdStr := getStringFlag(cmd, "cmd", true)
+		itv := getIntFlag(cmd, "time", false)
+
+		ticker := time.NewTicker(time.Millisecond * time.Duration(itv))
+		quit := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
+					err := runCommand(cmd, cmdStr)
+					if err != nil {
+						log.Println(err)
+					}
+				case <-quit:
+					ticker.Stop()
+					return
+				}
+			}
+		}()
+		<-quit
 	},
 }
 
 func init() {
-	fsWatchCmd.PersistentFlags().StringP("dir", "d", ".", "Directory to Watch")
-	fsWatchCmd.PersistentFlags().StringP("pattern", "p", "*", "File Pattern")
-	fsWatchCmd.PersistentFlags().StringP("cmd", "c", "", "Command")
+	pf := fsWatchCmd.PersistentFlags()
+	pf.StringP("dir", "d", ".", "Directory to Watch")
+	pf.StringP("pattern", "p", "*", "File Pattern")
+	pf.StringP("cmd", "c", "", "Command")
+
+	pf = itvWatchCmd.PersistentFlags()
+	pf.IntP("time", "t", 1000, "Interval (milliseconds)")
+	pf.StringP("cmd", "c", "", "Command")
+
 	rootCmd.AddCommand(fsWatchCmd)
 	rootCmd.AddCommand(itvWatchCmd)
 }
