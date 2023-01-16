@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	//#nosec G501 -- implementation of generic utility
 	"crypto/md5"
+	//#nosec G505 -- implementation of generic utility
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -15,6 +17,7 @@ var sha1Cmd = &cobra.Command{
 	Long:  `Generate SHA-1`,
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
+		//#nosec G401 -- implementation of generic utility
 		res := sha1.Sum(byt)
 		outputBytes(cmd, res[:])
 	},
@@ -65,6 +68,7 @@ var md5Cmd = &cobra.Command{
 	Long:  `Generate MD5`,
 	Run: func(cmd *cobra.Command, args []string) {
 		byt := getInputBytes(cmd, args)
+		//#nosec G401 -- implementation of generic utility
 		res := md5.Sum(byt)
 		outputBytes(cmd, res[:])
 	},

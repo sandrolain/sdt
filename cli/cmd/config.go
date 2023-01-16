@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -35,7 +36,10 @@ var configSetCmd = &cobra.Command{
 			exitWithError(json.Unmarshal([]byte(str), &val))
 		}
 		viper.Set(flag, val)
-		viper.WriteConfig()
+		err := viper.WriteConfig()
+		if err != nil {
+			fmt.Println(err)
+		}
 	},
 }
 

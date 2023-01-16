@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +40,8 @@ var fileReadCmd = &cobra.Command{
 			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
 		}
 
-		content := must(ioutil.ReadFile(file))
+		//#nosec G304 -- implementation of generic utility
+		content := must(os.ReadFile(file))
 		outputBytes(cmd, content)
 	},
 }
@@ -92,7 +92,7 @@ var fileWriteCmd = &cobra.Command{
 			}
 
 			byt := contents[i]
-			exitWithError(ioutil.WriteFile(path, byt, 0666))
+			exitWithError(os.WriteFile(path, byt, 0600))
 
 			res[i] = path
 		}

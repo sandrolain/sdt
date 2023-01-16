@@ -5,7 +5,8 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -32,14 +33,15 @@ func getInputString(cmd *cobra.Command, args []string) string {
 			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
 		}
 
-		return string(must(ioutil.ReadFile(file)))
+		//#nosec G304 -- implementation of generic utility
+		return string(must(os.ReadFile(file)))
 	}
 
 	if len(args) > 0 {
 		return args[0]
 	}
 
-	byt := must(ioutil.ReadAll(cmd.InOrStdin()))
+	byt := must(io.ReadAll(cmd.InOrStdin()))
 	return string(byt)
 }
 
@@ -51,14 +53,15 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 		if !exist {
 			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
 		}
-		return must(ioutil.ReadFile(file))
+		//#nosec G304 -- implementation of generic utility
+		return must(os.ReadFile(file))
 	}
 
 	if len(args) > 0 {
 		return []byte(args[0])
 	}
 
-	byt := must(ioutil.ReadAll(cmd.InOrStdin()))
+	byt := must(io.ReadAll(cmd.InOrStdin()))
 	return byt
 }
 

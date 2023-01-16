@@ -104,7 +104,7 @@ var totpImageCmd = &cobra.Command{
 		// Convert TOTP key into a PNG
 		var buf bytes.Buffer
 		img := must(key.Image(200, 200))
-		png.Encode(&buf, img)
+		exitWithError(png.Encode(&buf, img))
 		outputBytes(cmd, buf.Bytes())
 	},
 }

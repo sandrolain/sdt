@@ -97,10 +97,8 @@ func buildCsv(data any) ([]byte, error) {
 
 	b := new(bytes.Buffer)
 	w := csv.NewWriter(b)
-	w.WriteAll(arr)
-	if err := w.Error(); err != nil {
-		exitWithError(err)
-	}
+	exitWithError(w.WriteAll(arr))
+	exitWithError(w.Error())
 	return b.Bytes(), nil
 }
 

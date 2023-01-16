@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/sandrolain/sdt/cli/utils"
@@ -22,7 +22,7 @@ func TestQrCodeGenerate(t *testing.T) {
 }
 
 func TestQrCodeRead(t *testing.T) {
-	image, err := ioutil.ReadFile("../../test/testqrcode.png")
+	image, err := os.ReadFile("../../test/testqrcode.png")
 	if err != nil {
 		t.Fatalf("error reading generate qrcode: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestQrCodeRead(t *testing.T) {
 		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
 	}
 
-	image, err = ioutil.ReadFile("../../test/testqrcode.jpg")
+	image, err = os.ReadFile("../../test/testqrcode.jpg")
 	if err != nil {
 		t.Fatalf("error reading generate qrcode: %v", err)
 	}

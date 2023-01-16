@@ -2,8 +2,10 @@ package main
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/mattn/go-shellwords"
 	"github.com/sandrolain/sdt/cli/cmd"
@@ -11,7 +13,10 @@ import (
 
 func endWithError(w http.ResponseWriter, err error) {
 	w.WriteHeader(400)
-	w.Write([]byte(err.Error()))
+	_, e := w.Write([]byte(err.Error()))
+	if e != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
@@ -59,7 +64,20 @@ func main() {
 
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write(out)
+		_, err = w.Write(out)
+		if err != nil {
+			log.Fatal(err)
+		}
 	})
-	http.ListenAndServe(":8090", nil)
+
+	server := &http.Server{
+		Addr:              ":8090",
+		ReadHeaderTimeout: 3 * time.Second,
+	}
+
+	err := server.ListenAndServe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 }

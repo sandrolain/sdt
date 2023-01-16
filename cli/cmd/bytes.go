@@ -14,7 +14,7 @@ var bytesCmd = &cobra.Command{
 	Long:  `Generate Random Bytes`,
 	Run: func(cmd *cobra.Command, args []string) {
 		size := getIntFlag(cmd, "size", false)
-		byt := utils.RandomBytes(size)
+		byt := must(utils.RandomBytes(size))
 		outputBytes(cmd, byt)
 	},
 }

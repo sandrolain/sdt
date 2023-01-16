@@ -72,6 +72,7 @@ func callCommand(command string, in string) (string, error) {
 		return "", fmt.Errorf("invalid command")
 	}
 
+	//#nosec G204 -- implementation of generic utility
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdin = strings.NewReader(in)
 	var out bytes.Buffer

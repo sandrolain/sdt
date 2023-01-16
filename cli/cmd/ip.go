@@ -3,7 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -45,7 +45,7 @@ var ipInfoCmd = &cobra.Command{
 		res := must(client.Do(req))
 
 		defer res.Body.Close()
-		body := must(ioutil.ReadAll(res.Body))
+		body := must(io.ReadAll(res.Body))
 
 		if asJson {
 			outputBytes(cmd, body)

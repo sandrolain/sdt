@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -62,7 +62,7 @@ var httpCmd = &cobra.Command{
 		res := must(client.Do(req))
 
 		defer res.Body.Close()
-		body := must(ioutil.ReadAll(res.Body))
+		body := must(io.ReadAll(res.Body))
 
 		outputBytes(cmd, body)
 	},

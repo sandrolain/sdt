@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -48,8 +49,15 @@ var serveCmd = &cobra.Command{
 		port := getIntFlag(cmd, "port", false)
 		spa := getStringFlag(cmd, "spa", false)
 		outputString(cmd, fmt.Sprintf("Listening on :%v...", port))
-		err := http.ListenAndServe(fmt.Sprintf(":%v", port), customNotFound(http.Dir(path), spa))
-		exitWithError(err)
+
+		server := &http.Server{
+			Addr:              fmt.Sprintf(":%v", port),
+			ReadHeaderTimeout: 3 * time.Second,
+		}
+
+		server.Handler = customNotFound(http.Dir(path), spa)
+
+		exitWithError(server.ListenAndServe())
 	},
 }
 

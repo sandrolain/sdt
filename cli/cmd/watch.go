@@ -3,7 +3,7 @@
 package cmd
 
 import (
-	"io/ioutil"
+	"io"
 	"log"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +21,7 @@ func runCommand(cmd *cobra.Command, cmdStr string) error {
 		return err
 	}
 
+	//#nosec G204 -- implementation of generic utility
 	c := exec.Command(args[0], args[1:]...)
 
 	stdout, err := c.StdoutPipe()
@@ -33,7 +34,7 @@ func runCommand(cmd *cobra.Command, cmdStr string) error {
 		return err
 	}
 
-	data, err := ioutil.ReadAll(stdout)
+	data, err := io.ReadAll(stdout)
 	if err != nil {
 		return err
 	}
@@ -64,7 +65,7 @@ var fsWatchCmd = &cobra.Command{
 
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
-			log.Fatal(err)
+			exitWithError(err)
 		}
 		defer watcher.Close()
 
@@ -95,7 +96,7 @@ var fsWatchCmd = &cobra.Command{
 
 		err = watcher.Add(dir)
 		if err != nil {
-			log.Fatal(err)
+			exitWithError(err)
 		}
 		<-done
 

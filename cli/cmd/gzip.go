@@ -24,7 +24,7 @@ var gzipCmd = &cobra.Command{
 		exitWithError(gz.Close())
 
 		res := b.Bytes()
-		os.Stdout.Write(res)
+		must(os.Stdout.Write(res))
 	},
 }
 
@@ -43,7 +43,8 @@ var gunzipCmd = &cobra.Command{
 		must(resB.ReadFrom(r))
 
 		res := resB.Bytes()
-		os.Stdout.Write(res)
+
+		must(os.Stdout.Write(res))
 	},
 }
 

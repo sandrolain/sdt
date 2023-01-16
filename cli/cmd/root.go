@@ -58,13 +58,13 @@ func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, requir
 	return val
 }
 
-func getInputStringRequired(cmd *cobra.Command, args []string) string {
-	res := getInputString(cmd, args)
-	if len(res) == 0 {
-		exitWithError(fmt.Errorf("primary command input should not be empty"))
-	}
-	return res
-}
+// func getInputStringRequired(cmd *cobra.Command, args []string) string {
+// 	res := getInputString(cmd, args)
+// 	if len(res) == 0 {
+// 		exitWithError(fmt.Errorf("primary command input should not be empty"))
+// 	}
+// 	return res
+// }
 
 func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {
 	res := getInputBytes(cmd, args)
@@ -79,13 +79,6 @@ var exit func(code int) = os.Exit
 func exitWithError(err error) {
 	if err != nil {
 		color.Error.Println(err)
-		exit(1)
-	}
-}
-
-func exitWithErrorF(f string, err error) {
-	if err != nil {
-		color.Error.Printf(f, err)
 		exit(1)
 	}
 }
@@ -195,11 +188,11 @@ func getUseArray(cmd *cobra.Command) []string {
 }
 
 func outputBytes(cmd *cobra.Command, byt []byte) {
-	cmd.OutOrStdout().Write(byt)
+	must(cmd.OutOrStdout().Write(byt))
 }
 
 func outputString(cmd *cobra.Command, str string) {
-	cmd.OutOrStdout().Write([]byte(str))
+	must(cmd.OutOrStdout().Write([]byte(str)))
 }
 
 func must[T any](val T, err error) T {
