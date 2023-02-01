@@ -11,7 +11,7 @@ Configuration Tools
 ```
   -h, --help          help for config
   -k, --key string    Flag Key Path
-  -t, --type string   Value Type (string, int, float, json) (default "string")
+  -t, --type string   Value Type (s[tring], i[nt], f[loat], j[son]) (default "json")
 ```
 
 ### Options inherited from parent commands

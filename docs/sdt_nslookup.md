@@ -1,20 +1,21 @@
-## sdt qrcode
+## sdt nslookup
 
-QR code
+NS lookup
 
 ### Synopsis
 
-Generate QR code
+NS location IP
 
 ```
-sdt qrcode [flags]
+sdt nslookup [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help       help for qrcode
-  -s, --size int   Image size (default 256)
+  -h, --help        help for nslookup
+  -j, --json        As JSON output
+  -t, --ns string   Target namespace
 ```
 
 ### Options inherited from parent commands
@@ -27,5 +28,4 @@ sdt qrcode [flags]
 ### SEE ALSO
 
 * [sdt](sdt.md)	 - Smart Developer Tools
-* [sdt qrcode read](sdt_qrcode_read.md)	 - QR code read
 

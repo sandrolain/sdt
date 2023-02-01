@@ -1,10 +1,10 @@
 ## sdt http
 
-QR code
+HTTP client
 
 ### Synopsis
 
-Generate QR code
+Make an HTTP request
 
 ```
 sdt http [flags]

@@ -11,6 +11,7 @@ Time Tools
 ```
   -d, --diff string   Difference to apply
   -h, --help          help for time
+  -m, --millis        Unix time with milliseconds
   -t, --time int      Unix time to format
 ```
 

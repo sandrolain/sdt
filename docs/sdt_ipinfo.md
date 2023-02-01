@@ -1,20 +1,21 @@
-## sdt qrcode
+## sdt ipinfo
 
-QR code
+IP location
 
 ### Synopsis
 
-Generate QR code
+IP location info
 
 ```
-sdt qrcode [flags]
+sdt ipinfo [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help       help for qrcode
-  -s, --size int   Image size (default 256)
+  -h, --help        help for ipinfo
+  -t, --ip string   Target IP (default: client IP)
+  -j, --json        As JSON output
 ```
 
 ### Options inherited from parent commands
@@ -27,5 +28,4 @@ sdt qrcode [flags]
 ### SEE ALSO
 
 * [sdt](sdt.md)	 - Smart Developer Tools
-* [sdt qrcode read](sdt_qrcode_read.md)	 - QR code read
 

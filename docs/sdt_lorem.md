@@ -16,7 +16,7 @@ sdt lorem [flags]
   -h, --help          help for lorem
   -m, --max int       Max (default 10)
   -n, --min int       Min (default 1)
-  -t, --type string   Sequence type (default "paragraph")
+  -t, --type string   Sequence type (sentence, word, paragraph) (default "sentence")
 ```
 
 ### Options inherited from parent commands

@@ -22,6 +22,7 @@ sdt time iso [flags]
   -d, --diff string   Difference to apply
   -f, --file string   Input File
   -i, --input         Input Prompt
+  -m, --millis        Unix time with milliseconds
   -t, --time int      Unix time to format
 ```
 

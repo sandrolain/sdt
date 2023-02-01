@@ -1,0 +1,7 @@
+FROM alpine:latest
+ARG TARGETOS
+ARG TARGETARCH
+ADD /${TARGETOS}/${TARGETARCH} /
+ADD /dist /dist
+EXPOSE 8080/tcp
+ENTRYPOINT ["/sdtserve"]

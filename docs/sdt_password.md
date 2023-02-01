@@ -13,12 +13,12 @@ sdt password [flags]
 ### Options
 
 ```
-  -d, --digits int    Digits number (default 8)
+  -d, --digits int    Digits number (default -1)
   -h, --help          help for password
-  -l, --length int    Password length (default 32)
+  -l, --length int    Password length (default 16)
   -n, --number int    Number of passwords (default 1)
   -r, --repeat        Allow repeated characters
-  -s, --symbols int   Symbols number (default 8)
+  -s, --symbols int   Symbols number (default -1)
   -u, --untyped       Only lowercase characters
 ```
 

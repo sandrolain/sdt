@@ -22,7 +22,7 @@ URL Tools
 ### SEE ALSO
 
 * [sdt](sdt.md)	 - Smart Developer Tools
-* [sdt url dec](sdt_url_dec.md)	 - URL Decode
-* [sdt url enc](sdt_url_enc.md)	 - URL Encode
-* [sdt url encform](sdt_url_encform.md)	 - Form URL Encode
+* [sdt url decode](sdt_url_decode.md)	 - URL Decode
+* [sdt url encode](sdt_url_encode.md)	 - URL Encode
+* [sdt url formencode](sdt_url_formencode.md)	 - Form URL Encode
 

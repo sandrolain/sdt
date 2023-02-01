@@ -1,10 +1,10 @@
 ## sdt conv
 
-Conversion Tools
+Data Conversion
 
 ### Synopsis
 
-Conversion Tools
+Data Conversion
 
 ```
 sdt conv [flags]
@@ -14,9 +14,9 @@ sdt conv [flags]
 
 ```
   -h, --help         help for conv
-  -a, --in string    Input format (json, yaml, toml, csv)
-  -o, --object       Rows as objects
-  -b, --out string   Output format (json, yaml, toml, csv)
+  -a, --in string    Input format (json, yaml, toml, query, csv)
+  -o, --object       CSV rows as objects
+  -b, --out string   Output format (json, yaml, toml, query, csv)
 ```
 
 ### Options inherited from parent commands

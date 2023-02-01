@@ -1,20 +1,15 @@
-## sdt qrcode
+## sdt html
 
-QR code
+HTML Tools
 
 ### Synopsis
 
-Generate QR code
-
-```
-sdt qrcode [flags]
-```
+HTML Tools
 
 ### Options
 
 ```
-  -h, --help       help for qrcode
-  -s, --size int   Image size (default 256)
+  -h, --help   help for html
 ```
 
 ### Options inherited from parent commands
@@ -27,5 +22,6 @@ sdt qrcode [flags]
 ### SEE ALSO
 
 * [sdt](sdt.md)	 - Smart Developer Tools
-* [sdt qrcode read](sdt_qrcode_read.md)	 - QR code read
+* [sdt html decode](sdt_html_decode.md)	 - HTML Decode
+* [sdt html encode](sdt_html_encode.md)	 - HTML Encode
 

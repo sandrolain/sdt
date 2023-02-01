@@ -1,20 +1,21 @@
-## sdt qrcode
+## sdt watch
 
-QR code
+Interval Watcher
 
 ### Synopsis
 
-Generate QR code
+Interval Watcher
 
 ```
-sdt qrcode [flags]
+sdt watch [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help       help for qrcode
-  -s, --size int   Image size (default 256)
+  -c, --cmd string   Command
+  -h, --help         help for watch
+  -t, --time int     Interval (milliseconds) (default 1000)
 ```
 
 ### Options inherited from parent commands
@@ -27,5 +28,4 @@ sdt qrcode [flags]
 ### SEE ALSO
 
 * [sdt](sdt.md)	 - Smart Developer Tools
-* [sdt qrcode read](sdt_qrcode_read.md)	 - QR code read
 

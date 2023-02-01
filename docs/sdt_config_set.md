@@ -22,7 +22,7 @@ sdt config set [flags]
   -f, --file string   Input File
   -i, --input         Input Prompt
   -k, --key string    Flag Key Path
-  -t, --type string   Value Type (string, int, float, json) (default "string")
+  -t, --type string   Value Type (s[tring], i[nt], f[loat], j[son]) (default "json")
 ```
 
 ### SEE ALSO
