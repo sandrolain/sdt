@@ -12,8 +12,9 @@
     "types"
   ],
   "scripts": {
-    "dev": "npx vite",
-    "build": "sh ./build-wasm.sh && npx tsc && npx vite build"
+    "wasm": "sh ./build-wasm.sh",
+    "dev": "npm run wasm && npx vite",
+    "build": "npm run wasm && npx tsc && npx vite build"
   },
   "dependencies": {
     "copy-to-clipboard": "^3.3.3",

@@ -3,4 +3,4 @@ services:
   sdt:
     image: sandrolain/sdt:latest
     ports:
-      - "8080:3000"
+      - "80:8080"

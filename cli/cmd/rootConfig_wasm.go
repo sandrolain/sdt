@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"bytes"
+	"strings"
 )
 
 func loadFileConfig() {
@@ -13,22 +14,46 @@ func loadFileConfig() {
 var stdIn []byte
 
 func getInputString(cmd *cobra.Command, args []string) string {
+	flags := cmd.Flags()
+
+	if flags.Lookup("input").Changed {
+		return getStringFlag(cmd, "input", true)
+	}
+
+	if flags.Lookup("inb64").Changed {
+		return string(getBytesBase64Flag(cmd, "inb64", true))
+	}
+
+	if len(args) > 0 {
+		return strings.Join(args[:], "")
+	}
+
 	if len(stdIn) > 0 {
 		return string(stdIn)
 	}
-	if len(args) > 0 {
-		return args[0]
-	}
+
 	return ""
 }
 
 func getInputBytes(cmd *cobra.Command, args []string) []byte {
+	flags := cmd.Flags()
+
+	if flags.Lookup("input").Changed {
+		return []byte(getStringFlag(cmd, "input", true))
+	}
+
+	if flags.Lookup("inb64").Changed {
+		return getBytesBase64Flag(cmd, "inb64", true)
+	}
+
+	if len(args) > 0 {
+		return []byte(strings.Join(args[:], ""))
+	}
+
 	if len(stdIn) > 0 {
 		return stdIn
 	}
-	if len(args) > 0 {
-		return []byte(args[0])
-	}
+
 	return []byte{}
 }
 

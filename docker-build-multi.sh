@@ -1,5 +1,7 @@
 #!/bin/sh
 
+tag=`git tag --sort=-version:refname | head -n 1`
+
 cd ./web
 npm run build
 
@@ -14,4 +16,4 @@ upx --best --lzma linux/amd64/sdtserve
 upx --best --lzma linux/arm64/sdtserve
 
 docker rmi -f sandrolain/sdt:latest
-docker buildx build -t sandrolain/sdt:latest --platform=linux/amd64,linux/arm64 . --push
+docker buildx build -t sandrolain/sdt:$tag -t sandrolain/sdt:latest --platform=linux/amd64,linux/arm64 . --push

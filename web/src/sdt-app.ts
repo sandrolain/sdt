@@ -42,7 +42,8 @@ export class SdtApp extends LitElement {
       flex: 1;
     }
 
-    select, input, textarea, button {
+    select, input:not([type="file"], [type="checkbox"]), textarea, button,
+    input::-webkit-file-upload-button {
       font-family: 'Courier New', Courier, monospace !important;
       background: var(--bg-color);
       color: inherit;
@@ -54,7 +55,8 @@ export class SdtApp extends LitElement {
       box-sizing: border-box;
       border-radius: var(--radius);
     }
-    button {
+    button,
+    input::-webkit-file-upload-button {
       background: var(--tx-color);
       color: var(--bg-color);
       cursor: pointer;
@@ -62,9 +64,19 @@ export class SdtApp extends LitElement {
       border: 1px solid var(--tx-color);
       box-sizing: border-box;
     }
-    button:hover {
+    button:hover,
+    input::-webkit-file-upload-button:hover {
       background: var(--tx-color-2);
       border-color: var(--tx-color-2);
+    }
+    input[type="file"] {
+      font-family: inherit;
+    }
+    input::-webkit-file-upload-button {
+      height: 18px;
+      line-height: 18px;
+      font-size: 14px;
+      padding: 0px 2px;
     }
 
     textarea {
@@ -84,6 +96,7 @@ export class SdtApp extends LitElement {
       flex: 1;
       display: flex;
       flex-direction: column;
+      gap: 4px;
     }
     #bottom > div > div {
       flex: 1;
@@ -92,6 +105,12 @@ export class SdtApp extends LitElement {
     }
     #bottom.error #output-wrp {
       color: var(--er-color);
+    }
+    #input-head {
+      display: flex;
+    }
+    #input-head > * {
+      flex: 1;
     }
 
     a {
@@ -106,6 +125,12 @@ export class SdtApp extends LitElement {
 
   @query("#input")
   private $input!: HTMLTextAreaElement;
+
+  @query("#file")
+  private $file!: HTMLInputElement;
+
+  @query("#b64")
+  private $b64!: HTMLInputElement;
 
   @query("#preset")
   private $preset!: HTMLSelectElement;
@@ -146,7 +171,11 @@ export class SdtApp extends LitElement {
       <div id="bottom" class=${classMap({"error": this.error})}>
         ${this.hideInput ? null : html`
         <div id="input-wrp">
-          <label for="input">Input</label>
+          <div id="input-head">
+            <label for="input">Input</label>
+            <input type="file" id="file" @change=${this.onFileSelect} />
+            <input type="checkbox" id="b64" />
+          </div>
           <textarea id="input" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
         </div>
         `}
@@ -174,50 +203,111 @@ export class SdtApp extends LitElement {
       if(code > 0) {
         this.error = true;
       }
+      this.applyOutput();
     };
     const decoder = new TextDecoder("utf-8");
     (window as any).fs.writeSync = (_: number, buf: BufferSource) => {
       this.outputBuf += decoder.decode(buf);
-      this.applyOutput();
       return (buf as any).length;
     };
   }
 
+  private callback!: ((out: string) => void) | undefined;
+
+  private async execute(argv: string[], callback?: (out: string) => void): Promise<void> {
+    this.callback = callback;
+    const wa = await WebAssembly.instantiate(this.wasm, this.Go.importObject);
+    this.Go.argv = argv;
+    this.Go.run(wa.instance);
+  }
+
   private applyOutput(): void {
-    this.$output.value = this.outputBuf;
+    if(this.callback) {
+      this.callback(this.outputBuf);
+      this.callback = undefined;
+    } else {
+      this.$output.value = this.outputBuf;
+    }
   }
 
   private onPresetChange() {
-    const value = this.$preset.value;
-    this.$command.value = value;
-    const preset = presets.find((p) => (p.command === value));
-    this.hideInput = !preset?.input;
-    this.outputBuf = "";
+    const command = this.$preset.value;
+    const preset  = presets.find((p) => (p.command === command));
+    this.$command.value = command;
+    this.hideInput      = !preset?.input;
+    this.reset();
+  }
+
+  private reset() {
+    this.outputBuf   = "";
+    this.error       = false;
+    this.$file.value = "";
     this.applyOutput();
   }
 
   private async onExecute() {
     this.outputBuf = "";
     this.error = false;
-    const wa = await WebAssembly.instantiate(this.wasm, this.Go.importObject);
-    const input = (this.$input?.value ?? "").trim();
+
+    const input     = (this.$input?.value ?? "").trim();
+    const b64       = this.$b64?.checked;
     const cmdString = this.$command.value;
-    const args = split(cmdString);
-    if(args[0] !== "sdt") {
-      args.unshift("sdt")
-    }
-    if(args[1] === ":") {
-      args.splice(1, 0, "pipe")
+    const args      = split(cmdString);
+    if(args[0] === "sdt") {
+      args.splice(0, 1)
     }
     if(input) {
-      if(args[1] === "pipe") {
-        args.splice(2, 0, input)
+      if(args[0] === ":") {
+        if(b64) {
+          args.splice(0, 0, ":", "--inb64", input)
+        } else {
+          args.splice(0, 0, ":", "--input", input)
+        }
       } else {
-        args.push(input);
+        if(b64) {
+          args.push("--inb64", input)
+        } else {
+          args.push("--input", input)
+        }
       }
     }
-    this.Go.argv = args;
-    this.Go.run(wa.instance);
+    args.unshift("sdt")
+    await this.execute(args);
+  }
+
+  private MAX_FILE_SIZE = (4096 + 8192) / 2;
+
+  private onFileSelect() {
+    const files = Array.from(this.$file?.files ?? []);
+    const file = files[0];
+
+    if(!file) {
+      return;
+    }
+
+    if (file.size > this.MAX_FILE_SIZE) {
+      this.error = true;
+      this.outputBuf =
+        `File size too large: ${file.size} bytes\n` +
+        `Max file size:       ${this.MAX_FILE_SIZE} bytes`;
+      this.applyOutput();
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const uri = reader.result as string;
+      const b64 = uri.substring(uri.indexOf(",") + 1);
+      this.$input.value = b64;
+      this.$b64.checked = true;
+    };
+
+    reader.onerror = () =>  {
+      this.error = true;
+    };
+
+    reader.readAsDataURL(file);
   }
 }
 

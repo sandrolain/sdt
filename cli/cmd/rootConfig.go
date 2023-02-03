@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -25,9 +26,11 @@ func loadFileConfig() {
 }
 
 func getInputString(cmd *cobra.Command, args []string) string {
-	file := getStringFlag(cmd, "file", false)
+	flags := cmd.Flags()
 
-	if file != "" {
+	if flags.Lookup("file").Changed {
+		file := getStringFlag(cmd, "file", false)
+
 		exist := must(fileExists(file))
 		if !exist {
 			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
@@ -37,18 +40,27 @@ func getInputString(cmd *cobra.Command, args []string) string {
 		return string(must(os.ReadFile(file)))
 	}
 
-	if len(args) > 0 {
-		return args[0]
+	if flags.Lookup("input").Changed {
+		return getStringFlag(cmd, "input", true)
 	}
 
-	byt := must(io.ReadAll(cmd.InOrStdin()))
-	return string(byt)
+	if flags.Lookup("inb64").Changed {
+		return string(getBytesBase64Flag(cmd, "inb64", true))
+	}
+
+	if len(args) > 0 {
+		return strings.Join(args[:], "")
+	}
+
+	return string(must(io.ReadAll(cmd.InOrStdin())))
 }
 
 func getInputBytes(cmd *cobra.Command, args []string) []byte {
-	file := getStringFlag(cmd, "file", false)
+	flags := cmd.Flags()
 
-	if file != "" {
+	if flags.Lookup("file").Changed {
+		file := getStringFlag(cmd, "file", false)
+
 		exist := must(fileExists(file))
 		if !exist {
 			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
@@ -57,12 +69,19 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 		return must(os.ReadFile(file))
 	}
 
-	if len(args) > 0 {
-		return []byte(args[0])
+	if flags.Lookup("input").Changed {
+		return []byte(getStringFlag(cmd, "input", true))
 	}
 
-	byt := must(io.ReadAll(cmd.InOrStdin()))
-	return byt
+	if flags.Lookup("inb64").Changed {
+		return getBytesBase64Flag(cmd, "inb64", true)
+	}
+
+	if len(args) > 0 {
+		return []byte(strings.Join(args[:], ""))
+	}
+
+	return must(io.ReadAll(cmd.InOrStdin()))
 }
 
 func ExecuteByArgs(args []string, in []byte) ([]byte, error) {
