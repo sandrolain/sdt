@@ -11,6 +11,10 @@ to enable it.  You can execute the following once:
 
 	echo "autoload -U compinit; compinit" >> ~/.zshrc
 
+To load completions in your current shell session:
+
+	source <(sdt completion zsh); compdef _sdt sdt
+
 To load completions for every new session, execute once:
 
 #### Linux:
@@ -19,7 +23,7 @@ To load completions for every new session, execute once:
 
 #### macOS:
 
-	sdt completion zsh > /usr/local/share/zsh/site-functions/_sdt
+	sdt completion zsh > $(brew --prefix)/share/zsh/site-functions/_sdt
 
 You will need to start a new shell for this setup to take effect.
 
@@ -38,8 +42,9 @@ sdt completion zsh [flags]
 ### Options inherited from parent commands
 
 ```
-  -f, --file string   Input File
-  -i, --input         Input Prompt
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
 ```
 
 ### SEE ALSO

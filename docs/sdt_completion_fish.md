@@ -31,8 +31,9 @@ sdt completion fish [flags]
 ### Options inherited from parent commands
 
 ```
-  -f, --file string   Input File
-  -i, --input         Input Prompt
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
 ```
 
 ### SEE ALSO

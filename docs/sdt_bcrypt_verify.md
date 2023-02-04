@@ -20,9 +20,10 @@ sdt bcrypt verify [flags]
 ### Options inherited from parent commands
 
 ```
-  -c, --cost int      Bcrypt generation cost (default 14)
-  -f, --file string   Input File
-  -i, --input         Input Prompt
+  -c, --cost int            Bcrypt generation cost (default 14)
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
 ```
 
 ### SEE ALSO

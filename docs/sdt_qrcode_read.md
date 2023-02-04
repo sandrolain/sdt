@@ -19,9 +19,10 @@ sdt qrcode read [flags]
 ### Options inherited from parent commands
 
 ```
-  -f, --file string   Input File
-  -i, --input         Input Prompt
-  -s, --size int      Image size (default 256)
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
+  -s, --size int            Image size (default 256)
 ```
 
 ### SEE ALSO

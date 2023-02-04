@@ -19,10 +19,11 @@ sdt config get [flags]
 ### Options inherited from parent commands
 
 ```
-  -f, --file string   Input File
-  -i, --input         Input Prompt
-  -k, --key string    Flag Key Path
-  -t, --type string   Value Type (s[tring], i[nt], f[loat], j[son]) (default "json")
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
+  -k, --key string          Flag Key Path
+  -t, --type string         Value Type (s[tring], i[nt], f[loat], j[son]) (default "json")
 ```
 
 ### SEE ALSO

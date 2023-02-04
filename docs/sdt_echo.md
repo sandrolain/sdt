@@ -1,19 +1,19 @@
-## sdt b64url dec
+## sdt echo
 
-B64 URL Decode
+Echo
 
 ### Synopsis
 
-Base 64 URL Decode
+Output the Input
 
 ```
-sdt b64url dec [flags]
+sdt echo [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for dec
+  -h, --help   help for echo
 ```
 
 ### Options inherited from parent commands
@@ -26,5 +26,5 @@ sdt b64url dec [flags]
 
 ### SEE ALSO
 
-* [sdt b64url](sdt_b64url.md)	 - B64 URL Encode
+* [sdt](sdt.md)	 - Smart Developer Tools
 

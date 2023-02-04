@@ -19,9 +19,10 @@ sdt jwt parse [flags]
 ### Options inherited from parent commands
 
 ```
-  -f, --file string   Input File
-  -i, --input         Input Prompt
-  -p, --pretty        Pretty print JSON structures
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
+  -p, --pretty              Pretty print JSON structures
 ```
 
 ### SEE ALSO

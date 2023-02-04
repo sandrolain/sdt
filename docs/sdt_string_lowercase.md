@@ -19,10 +19,11 @@ sdt string lowercase [flags]
 ### Options inherited from parent commands
 
 ```
-  -e, --end int       End index (default 9223372036854775807)
-  -f, --file string   Input File
-  -i, --input         Input Prompt
-  -s, --start int     Start index
+  -e, --end int             End index (default 9223372036854775807)
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
+  -s, --start int           Start index
 ```
 
 ### SEE ALSO

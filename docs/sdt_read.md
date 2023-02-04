@@ -13,14 +13,15 @@ sdt read [flags]
 ### Options
 
 ```
-  -h, --help   help for read
+  -p, --file string   File path
+  -h, --help          help for read
 ```
 
 ### Options inherited from parent commands
 
 ```
-  -f, --file string   Input File
-  -i, --input         Input Prompt
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
 ```
 
 ### SEE ALSO

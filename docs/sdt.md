@@ -28,9 +28,10 @@ Smart Developer Tools is a collection of CLI utilities for developers
 ### Options
 
 ```
-  -f, --file string   Input File
-  -h, --help          help for sdt
-  -i, --input         Input Prompt
+      --file string         Input File
+  -h, --help                help for sdt
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
 ```
 
 ### SEE ALSO
@@ -47,6 +48,7 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt cthulhu](sdt_cthulhu.md)	 - cthulhu
 * [sdt dec](sdt_dec.md)	 - Decimal Encoding
 * [sdt docs](sdt_docs.md)	 - Generate CLI docs
+* [sdt echo](sdt_echo.md)	 - Echo
 * [sdt fswatch](sdt_fswatch.md)	 - File System Watcher
 * [sdt gunzip](sdt_gunzip.md)	 - Gunzip
 * [sdt gzip](sdt_gzip.md)	 - Gzip

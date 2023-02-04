@@ -19,11 +19,12 @@ sdt time unix [flags]
 ### Options inherited from parent commands
 
 ```
-  -d, --diff string   Difference to apply
-  -f, --file string   Input File
-  -i, --input         Input Prompt
-  -m, --millis        Unix time with milliseconds
-  -t, --time int      Unix time to format
+  -d, --diff string         Difference to apply
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
+  -m, --millis              Unix time with milliseconds
+  -t, --time int            Unix time to format
 ```
 
 ### SEE ALSO

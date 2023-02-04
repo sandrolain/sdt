@@ -21,7 +21,7 @@ To load completions for every new session, execute once:
 
 #### macOS:
 
-	sdt completion bash > /usr/local/etc/bash_completion.d/sdt
+	sdt completion bash > $(brew --prefix)/etc/bash_completion.d/sdt
 
 You will need to start a new shell for this setup to take effect.
 
@@ -40,8 +40,9 @@ sdt completion bash
 ### Options inherited from parent commands
 
 ```
-  -f, --file string   Input File
-  -i, --input         Input Prompt
+      --file string         Input File
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
 ```
 
 ### SEE ALSO
