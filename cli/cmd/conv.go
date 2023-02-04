@@ -16,8 +16,10 @@ import (
 
 func parseCsv(cmd *cobra.Command, str string) interface{} {
 	obj := getBoolFlag(cmd, "object", false)
+	sep := getStringFlag(cmd, "separator", false)
 
 	r := csv.NewReader(strings.NewReader(str))
+	r.Comma = rune(sep[0])
 
 	if obj {
 		res := make([]map[string]string, 0)
@@ -61,7 +63,8 @@ func parseCsv(cmd *cobra.Command, str string) interface{} {
 	return res
 }
 
-func buildCsv(data any) ([]byte, error) {
+func buildCsv(cmd *cobra.Command, data any) ([]byte, error) {
+	sep := getStringFlag(cmd, "separator", false)
 
 	badDataErr := "input data must be an array of strings' arrays for conversion to CSV (%v)"
 
@@ -97,6 +100,7 @@ func buildCsv(data any) ([]byte, error) {
 
 	b := new(bytes.Buffer)
 	w := csv.NewWriter(b)
+	w.Comma = rune(sep[0])
 	exitWithError(w.WriteAll(arr))
 	exitWithError(w.Error())
 	return b.Bytes(), nil
@@ -145,7 +149,7 @@ var convCmd = &cobra.Command{
 		case "query":
 			out = must(urlquery.Marshal(data))
 		case "csv":
-			out = must(buildCsv(data))
+			out = must(buildCsv(cmd, data))
 		}
 
 		outputBytes(cmd, out)
@@ -157,6 +161,7 @@ func init() {
 	pf.StringP("in", "a", "", "Input format (json, yaml, toml, query, csv)")
 	pf.StringP("out", "b", "", "Output format (json, yaml, toml, query, csv)")
 	pf.BoolP("object", "o", false, "CSV rows as objects")
+	pf.StringP("separator", "s", ",", "CSV separator")
 
 	rootCmd.AddCommand(convCmd)
 }
