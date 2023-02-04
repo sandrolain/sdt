@@ -93,6 +93,7 @@ func TestConvJSONtoTOML(t *testing.T) {
 }}`
 	exp := `[widget]
 debug = 'on'
+
 [widget.image]
 alignment = 'center'
 hOffset = 250.0
@@ -115,8 +116,6 @@ height = 500.0
 name = 'main_window'
 title = 'Sample Konfabulator Widget'
 width = 500.0
-
-
 `
 	out := execute(t, convCmd, []byte(in), "-a", "json", "-b", "toml")
 	if string(out) != exp {
