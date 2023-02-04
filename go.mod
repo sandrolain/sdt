@@ -25,7 +25,7 @@ require (
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/viper v1.11.0
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
-	golang.org/x/text v0.3.7
+	golang.org/x/text v0.6.0
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9
 )
 
@@ -52,10 +52,10 @@ require (
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	github.com/yuin/goldmark v1.3.8 // indirect
 	golang.org/x/image v0.0.0-20200430140353-33d19683fad8 // indirect
-	golang.org/x/net v0.0.0-20220412020605-290c469a71a5 // indirect
+	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
 
@@ -73,6 +73,6 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	go.hein.dev/go-version v0.1.0
-	golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6 // indirect
+	golang.org/x/sys v0.4.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
