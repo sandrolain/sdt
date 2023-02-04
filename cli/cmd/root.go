@@ -42,9 +42,9 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	pf := rootCmd.PersistentFlags()
-	pf.StringP("input", "i", "", "Input String")
-	pf.BytesBase64P("inb64", "y", []byte{}, "Input Base 64")
-	pf.StringP("file", "f", "", "Input File")
+	pf.String("input", "", "Input String")
+	pf.BytesBase64("inb64", []byte{}, "Input Base 64")
+	pf.String("file", "", "Input File")
 }
 
 func Execute() {
