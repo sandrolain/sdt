@@ -1,3 +1,3 @@
 #!/bin/bash
 
-goreleaser
+goreleaser --clean
