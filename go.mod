@@ -13,6 +13,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/gookit/color v1.5.2
+	github.com/hashicorp/go-version v1.6.0
 	github.com/hetiansu5/urlquery v1.2.7
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/matoous/go-nanoid/v2 v2.0.0
