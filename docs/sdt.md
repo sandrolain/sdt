@@ -79,6 +79,7 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt uid](sdt_uid.md)	 - Unique ID
 * [sdt url](sdt_url.md)	 - URL Tools
 * [sdt version](sdt_version.md)	 - Version will output the current build information
+* [sdt vman](sdt_vman.md)	 - Version Manager
 * [sdt watch](sdt_watch.md)	 - Interval Watcher
 * [sdt write](sdt_write.md)	 - File Write
 
