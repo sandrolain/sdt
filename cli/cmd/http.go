@@ -61,8 +61,8 @@ var httpCmd = &cobra.Command{
 
 		res := must(client.Do(req))
 
-		defer res.Body.Close()
 		body := must(io.ReadAll(res.Body))
+		exitWithError(res.Body.Close())
 
 		outputBytes(cmd, body)
 	},

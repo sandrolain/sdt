@@ -44,8 +44,8 @@ var ipInfoCmd = &cobra.Command{
 		req.Header.Set("User-Agent", "sdt/"+version)
 		res := must(client.Do(req))
 
-		defer res.Body.Close()
 		body := must(io.ReadAll(res.Body))
+		exitWithError(res.Body.Close())
 
 		if asJson {
 			outputBytes(cmd, body)
