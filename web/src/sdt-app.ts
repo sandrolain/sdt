@@ -18,7 +18,7 @@ export class SdtApp extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      padding: 16px;
+      padding: 8px;
       font-family: 'Courier New', Courier, monospace !important;
     }
 
@@ -108,9 +108,11 @@ export class SdtApp extends LitElement {
     }
     #input-head {
       display: flex;
+      justify-content: space-between;
     }
-    #input-head > * {
-      flex: 1;
+    #input-head-b64 {
+      display: flex;
+      justify-content: flex-end;
     }
 
     a {
@@ -119,6 +121,32 @@ export class SdtApp extends LitElement {
     }
     a:hover {
       text-decoration: underline;
+    }
+
+    #output-cnt {
+
+    }
+    #output-cnt-side {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    input[type="checkbox"] {
+      appearance: none;
+      display: inline-block;
+      border: 1px solid var(--tx-color-2);
+      border-radius: 2px;
+      width: 1em;
+      height: 1em;
+      line-height: calc(1em - 2px);
+      text-align: center;
+    }
+    input[type="checkbox"]:checked {
+      background: var(--tx-color-2);
+    }
+    input[type="checkbox"]::after {
+      content: "x";
     }
 
   `;
@@ -173,8 +201,8 @@ export class SdtApp extends LitElement {
         <div id="input-wrp">
           <div id="input-head">
             <label for="input">Input</label>
+            <label id="input-head-b64"><input type="checkbox" id="b64" /> Input as Base64</label>
             <input type="file" id="file" @change=${this.onFileSelect} />
-            <input type="checkbox" id="b64" />
           </div>
           <textarea id="input" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
         </div>
@@ -183,9 +211,10 @@ export class SdtApp extends LitElement {
           <label for="output">Output</label>
           <div id="output-cnt">
             <textarea id="output" readonly></textarea>
-            <button id="copy" @click=${() => {
-              copy(this.$output.value);
-            }}>Copy</button>
+            <div id="output-cnt-side">
+              <button id="copy" @click=${() => copy(this.$output.value)}>Copy</button>
+              <button id="help" @click=${this.help}>Help</button>
+            </div>
           </div>
         </div>
       </div>
@@ -308,6 +337,10 @@ export class SdtApp extends LitElement {
     };
 
     reader.readAsDataURL(file);
+  }
+
+  private help() {
+    this.execute(["sdt", "help"])
   }
 }
 

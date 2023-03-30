@@ -63,15 +63,15 @@ Auto-generated CLI documentation is available [here](./docs/sdt.md).
 - [x] Save []string to multiple files
 - [x] Static file server
 - [ ] WASM web app:
-  - [ ] Commands without `sdt`
-  - [ ] Button for quick help
+  - [x] Commands without `sdt`
+  - [x] Button for quick help
   - [ ] Commands selection
     - [ ] Various types of conversion
     - [x] Bytes b64
     - [x] Bytes hex
   - [x] Input from textarea
-  - [ ] Input from file
-  - [ ] Flag for inputs as B64
+  - [x] Input from file
+  - [x] Flag for inputs as B64
   - [x] Output to textarea
   - [ ] Output to file
 - [ ] GUI app:
