@@ -1,6 +1,6 @@
 module github.com/sandrolain/sdt
 
-go 1.18
+go 1.21.4
 
 require (
 	fyne.io/fyne/v2 v2.3.1
@@ -25,6 +25,7 @@ require (
 	github.com/sethvargo/go-password v0.2.0
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/viper v1.15.0
+	github.com/vmihailenco/msgpack/v5 v5.4.1
 	golang.org/x/crypto v0.6.0
 	golang.org/x/text v0.7.0
 	golang.org/x/time v0.3.0
@@ -59,6 +60,7 @@ require (
 	github.com/stretchr/testify v1.8.2 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/tevino/abool v1.2.0 // indirect
+	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yuin/goldmark v1.5.4 // indirect
 	golang.org/x/image v0.5.0 // indirect

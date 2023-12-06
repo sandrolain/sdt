@@ -12,6 +12,7 @@ import (
 	"github.com/hetiansu5/urlquery"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func parseCsv(cmd *cobra.Command, str string) interface{} {
@@ -133,6 +134,8 @@ var convCmd = &cobra.Command{
 			exitWithError(toml.Unmarshal(in, &data))
 		case "query":
 			exitWithError(urlquery.Unmarshal(in, &data))
+		case "msgpack":
+			exitWithError(msgpack.Unmarshal(in, &data))
 		case "csv":
 			data = parseCsv(cmd, string(in))
 		}
@@ -148,6 +151,8 @@ var convCmd = &cobra.Command{
 			out = must(toml.Marshal(&data))
 		case "query":
 			out = must(urlquery.Marshal(data))
+		case "msgpack":
+			out = must(msgpack.Marshal(data))
 		case "csv":
 			out = must(buildCsv(cmd, data))
 		}
@@ -158,8 +163,8 @@ var convCmd = &cobra.Command{
 
 func init() {
 	pf := convCmd.PersistentFlags()
-	pf.StringP("in", "a", "", "Input format (json, yaml, toml, query, csv)")
-	pf.StringP("out", "b", "", "Output format (json, yaml, toml, query, csv)")
+	pf.StringP("in", "a", "", "Input format (json, yaml, toml, query, csv, msgpack)")
+	pf.StringP("out", "b", "", "Output format (json, yaml, toml, query, csv, msgpack)")
 	pf.BoolP("object", "o", false, "CSV rows as objects")
 	pf.StringP("separator", "s", ",", "CSV separator")
 
