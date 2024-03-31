@@ -34,7 +34,7 @@ func TestConvJSONtoYAML(t *testing.T) {
   }
 }}`
 	exp := `widget:
-  debug: on
+  debug: "on"
   image:
     alignment: center
     hOffset: 250.0
