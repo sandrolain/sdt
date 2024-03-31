@@ -1,3 +1,2 @@
-[build.environment]
-NODE_VERSION = "20"
-GO_VERSION = "1.22"
+[context.production]
+environment = { NODE_VERSION = "20", GO_VERSION = "1.22" }
