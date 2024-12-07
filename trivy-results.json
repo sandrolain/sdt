@@ -1,0 +1,30 @@
+{
+  "SchemaVersion": 2,
+  "CreatedAt": "2024-12-07T11:17:02.733961+01:00",
+  "ArtifactName": ".",
+  "ArtifactType": "filesystem",
+  "Metadata": {
+    "ImageConfig": {
+      "architecture": "",
+      "created": "0001-01-01T00:00:00Z",
+      "os": "",
+      "rootfs": {
+        "type": "",
+        "diff_ids": null
+      },
+      "config": {}
+    }
+  },
+  "Results": [
+    {
+      "Target": "go.mod",
+      "Class": "lang-pkgs",
+      "Type": "gomod"
+    },
+    {
+      "Target": "web/package-lock.json",
+      "Class": "lang-pkgs",
+      "Type": "npm"
+    }
+  ]
+}

@@ -19,7 +19,8 @@ var nsLookupCmd = &cobra.Command{
 		ns := getInputStringOrFlag(cmd, args, "ns", false)
 		asJson := getBoolFlag(cmd, "json", false)
 
-		ips := must(net.LookupIP(ns))
+		ips, err := net.LookupIP(ns)
+		exitWithError(cmd, err)
 
 		res := make([]string, len(ips))
 		for i, ip := range ips {
@@ -28,7 +29,9 @@ var nsLookupCmd = &cobra.Command{
 		}
 
 		if asJson {
-			outputBytes(cmd, must(json.Marshal(res)))
+			res, err := json.Marshal(res)
+			exitWithError(cmd, err)
+			outputBytes(cmd, res)
 			return
 		}
 

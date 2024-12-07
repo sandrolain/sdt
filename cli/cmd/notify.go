@@ -14,7 +14,7 @@ var notifyCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		title := getStringFlag(cmd, "title", false)
-		exitWithError(beeep.Notify(title, str, ""))
+		exitWithError(cmd, beeep.Notify(title, str, ""))
 	},
 }
 

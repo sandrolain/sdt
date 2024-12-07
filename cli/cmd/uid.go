@@ -18,7 +18,8 @@ var uidV4Cmd = &cobra.Command{
 	Short: "UUID v4",
 	Long:  `Generate UUID v4`,
 	Run: func(cmd *cobra.Command, args []string) {
-		id := must(uuid.NewRandom())
+		id, err := uuid.NewRandom()
+		exitWithError(cmd, err)
 		outputString(cmd, id.String())
 	},
 }
@@ -28,7 +29,8 @@ var uidNanoCmd = &cobra.Command{
 	Short: "Nano UID",
 	Long:  `Generate Nano UID`,
 	Run: func(cmd *cobra.Command, args []string) {
-		id := must(gonanoid.New())
+		id, err := gonanoid.New()
+		exitWithError(cmd, err)
 		outputString(cmd, id)
 	},
 }

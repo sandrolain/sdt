@@ -12,7 +12,8 @@ var bcryptCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		value := getInputBytesRequired(cmd, args)
 		cost := getIntFlag(cmd, "cost", false)
-		bcrypt := must(bcrypt.GenerateFromPassword(value, cost))
+		bcrypt, err := bcrypt.GenerateFromPassword(value, cost)
+		exitWithError(cmd, err)
 		outputBytes(cmd, bcrypt)
 	},
 }
@@ -26,7 +27,7 @@ var bcryptVerifyCmd = &cobra.Command{
 		value := getInputBytesRequired(cmd, args)
 		pwd := getStringFlag(cmd, "password", true)
 		err := bcrypt.CompareHashAndPassword(value, []byte(pwd))
-		exitWithError(err)
+		exitWithError(cmd, err)
 	},
 }
 

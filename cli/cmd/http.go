@@ -31,12 +31,14 @@ var httpCmd = &cobra.Command{
 		method = strings.ToUpper(method)
 
 		var req *http.Request
+		var err error
 		if method == "POST" || method == "PUT" {
 			reader := bytes.NewReader(byt)
-			req = must(http.NewRequest(method, url, reader))
+			req, err = http.NewRequest(method, url, reader)
 		} else {
-			req = must(http.NewRequest(method, url, nil))
+			req, err = http.NewRequest(method, url, nil)
 		}
+		exitWithError(cmd, err)
 
 		ua := req.UserAgent()
 
@@ -59,10 +61,14 @@ var httpCmd = &cobra.Command{
 			req.Header.Set("Content-Type", typ)
 		}
 
-		res := must(client.Do(req))
+		res, err := client.Do(req)
+		exitWithError(cmd, err)
 
-		body := must(io.ReadAll(res.Body))
-		exitWithError(res.Body.Close())
+		body, err := io.ReadAll(res.Body)
+		exitWithError(cmd, err)
+
+		err = res.Body.Close()
+		exitWithError(cmd, err)
 
 		outputBytes(cmd, body)
 	},

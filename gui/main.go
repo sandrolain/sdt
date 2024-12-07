@@ -62,8 +62,8 @@ func main() {
 type CommandFunc func(in string) (*exec.Cmd, error)
 
 var commandsMap = map[string][]string{
-	"Base 64 Encode": []string{"sdt", "b64"},
-	"Base 64 Decode": []string{"sdt", "b64", "dec"},
+	"Base 64 Encode": {"sdt", "b64"},
+	"Base 64 Decode": {"sdt", "b64", "dec"},
 }
 
 func callCommand(command string, in string) (string, error) {

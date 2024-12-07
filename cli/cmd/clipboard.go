@@ -20,7 +20,8 @@ var clipboardReadCmd = &cobra.Command{
 	Short:   "Read clipboard",
 	Long:    `Read clipbaord value`,
 	Run: func(cmd *cobra.Command, args []string) {
-		value := must(clipboard.ReadAll())
+		value, err := clipboard.ReadAll()
+		exitWithError(cmd, err)
 		outputString(cmd, value)
 	},
 }
@@ -32,7 +33,7 @@ var clipboardWriteCmd = &cobra.Command{
 	Long:    `Read clipbaord value`,
 	Run: func(cmd *cobra.Command, args []string) {
 		value := getInputString(cmd, args)
-		exitWithError(clipboard.WriteAll(value))
+		exitWithError(cmd, clipboard.WriteAll(value))
 	},
 }
 

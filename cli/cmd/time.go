@@ -32,7 +32,8 @@ func getTime(cmd *cobra.Command) time.Time {
 	}
 
 	if d != "" {
-		diff := must(time.ParseDuration(d))
+		diff, err := time.ParseDuration(d)
+		exitWithError(cmd, err)
 		tm = tm.Add(diff)
 	}
 

@@ -35,13 +35,15 @@ var fileReadCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		file := getStringFlag(cmd, "file", true)
 
-		exist := must(fileExists(file))
+		exist, err := fileExists(file)
+		exitWithError(cmd, err)
 		if !exist {
-			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
+			exitWithError(cmd, fmt.Errorf(`file "%s" not exist`, file))
 		}
 
-		//#nosec G304 -- implementation of generic utility
-		content := must(os.ReadFile(file))
+		// #nosec G304 -- implementation of generic utility to read file from CLI flag
+		content, err := os.ReadFile(file)
+		exitWithError(cmd, err)
 		outputBytes(cmd, content)
 	},
 }
@@ -62,11 +64,13 @@ var fileWriteCmd = &cobra.Command{
 
 		if multi {
 			var data []string
-			exitWithError(json.Unmarshal(byt, &data))
+			exitWithError(cmd, json.Unmarshal(byt, &data))
 			contents = make([][]byte, len(data))
 			for i, str := range data {
 				if binary {
-					contents[i] = must(base64.StdEncoding.DecodeString(str))
+					content, err := base64.StdEncoding.DecodeString(str)
+					exitWithError(cmd, err)
+					contents[i] = content
 				} else {
 					contents[i] = []byte(str)
 				}
@@ -74,7 +78,9 @@ var fileWriteCmd = &cobra.Command{
 		} else {
 			contents = make([][]byte, 1)
 			if binary {
-				contents[0] = must(base64.StdEncoding.DecodeString(string(byt)))
+				cnt, err := base64.StdEncoding.DecodeString(string(byt))
+				exitWithError(cmd, err)
+				contents[0] = cnt
 			} else {
 				contents[0] = byt
 			}
@@ -85,14 +91,16 @@ var fileWriteCmd = &cobra.Command{
 		res := make([]string, len(paths))
 
 		for i, path := range paths {
-			path := must(filepath.Abs(path))
-			exist := must(fileExists(path))
+			path, err := filepath.Abs(path)
+			exitWithError(cmd, err)
+			exist, err := fileExists(path)
+			exitWithError(cmd, err)
 			if exist && !overwrite {
-				exitWithError(fmt.Errorf(`file "%s" already exist`, path))
+				exitWithError(cmd, fmt.Errorf(`file "%s" already exist`, path))
 			}
 
 			byt := contents[i]
-			exitWithError(os.WriteFile(path, byt, 0600))
+			exitWithError(cmd, os.WriteFile(path, byt, 0600))
 
 			res[i] = path
 		}

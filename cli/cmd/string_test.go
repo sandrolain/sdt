@@ -70,7 +70,10 @@ func TestStringCount(t *testing.T) {
 		Words int `json:"words"`
 		Chars int `json:"characters"`
 	}
-	json.Unmarshal(out, &res)
+	err := json.Unmarshal(out, &res)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if res.Lines != 3 {
 		t.Fatalf("expecting %v lines, got %v", 3, res.Lines)

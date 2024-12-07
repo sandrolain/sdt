@@ -57,7 +57,7 @@ var serveCmd = &cobra.Command{
 
 		server.Handler = customNotFound(http.Dir(path), spa)
 
-		exitWithError(server.ListenAndServe())
+		exitWithError(cmd, server.ListenAndServe())
 	},
 }
 

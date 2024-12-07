@@ -37,7 +37,7 @@ var andCmd = &cobra.Command{
 		for _, cmdParts := range cmdList {
 			var err error
 			out, err = ExecuteByArgs(cmdParts, in)
-			exitWithError(err)
+			exitWithError(cmd, err)
 			in = out
 		}
 

@@ -45,7 +45,8 @@ var urlDecCmd = &cobra.Command{
 	Long:    `URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		str = must(url.QueryUnescape(str))
+		str, err := url.QueryUnescape(str)
+		exitWithError(cmd, err)
 		outputString(cmd, str)
 	},
 }

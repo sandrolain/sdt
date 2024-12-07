@@ -25,7 +25,10 @@ func TestTotpImage(t *testing.T) {
 	issuer := "sdt.test"
 	account := "user@sdt"
 	outBytes := execute(t, totpImageCmd, []byte{}, "--secret", secret, "--issuer", issuer, "--account", account)
-	out := must(utils.ReadQRCodeImage(outBytes))
+	out, err := utils.ReadQRCodeImage(outBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
 	exp := "otpauth://totp/sdt.test:user@sdt?algorithm=SHA1&digits=6&issuer=sdt.test&period=30&secret=NBSWY3DPF53W64TMMQ"
 	if string(out) != exp {
 		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
@@ -35,7 +38,10 @@ func TestTotpImage(t *testing.T) {
 func TestTotpCode(t *testing.T) {
 	secret := base32.StdEncoding.EncodeToString([]byte("hello/world"))
 	out := execute(t, totpCodeCmd, []byte{}, "--secret", secret)
-	exp := must(totp.GenerateCode(secret, time.Now()))
+	exp, err := totp.GenerateCode(secret, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if string(out) != exp {
 		t.Fatalf("expecting \"%s\", got \"%s\"", exp, string(out))
 	}
@@ -43,7 +49,10 @@ func TestTotpCode(t *testing.T) {
 
 func TestTotpVerify(t *testing.T) {
 	secret := base32.StdEncoding.EncodeToString([]byte("hello/world"))
-	code := must(totp.GenerateCode(secret, time.Now()))
+	code, err := totp.GenerateCode(secret, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
 	out := execute(t, totpVerifyCmd, []byte{}, "--secret", secret, "--code", code)
 	if string(out) != code {
 		t.Fatalf("expecting \"%s\", got \"%s\"", code, string(out))

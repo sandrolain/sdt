@@ -31,7 +31,8 @@ var passwordCmd = &cobra.Command{
 		out := make([]string, num)
 
 		for i := 0; i < num; i++ {
-			res := must(password.Generate(len, dig, sim, unt, rep))
+			res, err := password.Generate(len, dig, sim, unt, rep)
+			exitWithError(cmd, err)
 			out[i] = res
 		}
 		outputString(cmd, strings.Join(out, "\n"))

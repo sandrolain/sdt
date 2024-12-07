@@ -1,7 +1,9 @@
 # ref. https://lipanski.com/posts/smallest-docker-image-static-website
 
-FROM lipanski/docker-static-website:latest
+FROM lipanski/docker-static-website:2.4.0
 
 COPY ./web/dist .
 
-CMD ["/thttpd", "-D", "-h", "0.0.0.0", "-p", "3000", "-d", "/home/static", "-u", "static", "-l", "-", "-M", "60"]
+USER appuser
+
+CMD ["/busybox-httpd", "-f", "-v", "-p", "3000", "-c", "httpd.conf"]

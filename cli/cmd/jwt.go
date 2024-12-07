@@ -26,22 +26,26 @@ var jwtParseCmd = &cobra.Command{
 
 		parts := strings.Split(str, ".")
 		if len(parts) != 3 {
-			exitWithError(fmt.Errorf("invalid JWT parts number: %v", len(parts)))
+			exitWithError(cmd, fmt.Errorf("invalid JWT parts number: %v", len(parts)))
 		}
 
 		out := make([][]byte, 6)
 
 		out[0] = []byte(color.Info.Render("HEAD:\n\n"))
-		byt := must(utils.Base64URLNoPaddingDecode(parts[0]))
+		byt, err := utils.Base64URLNoPaddingDecode(parts[0])
+		exitWithError(cmd, err)
 		if pretty {
-			byt = must(utils.PrettifyJSON(string(byt)))
+			byt, err = utils.PrettifyJSON(string(byt))
+			exitWithError(cmd, err)
 		}
 		out[1] = byt
 
 		out[2] = []byte(color.Info.Render("\n\nCLAIMS:\n\n"))
-		byt = must(utils.Base64URLNoPaddingDecode(parts[1]))
+		byt, err = utils.Base64URLNoPaddingDecode(parts[1])
+		exitWithError(cmd, err)
 		if pretty {
-			byt = must(utils.PrettifyJSON(string(byt)))
+			byt, err = utils.PrettifyJSON(string(byt))
+			exitWithError(cmd, err)
 		}
 		out[3] = byt
 
@@ -62,12 +66,14 @@ var jwtClaimsCmd = &cobra.Command{
 
 		parts := strings.Split(str, ".")
 		if len(parts) != 3 {
-			exitWithError(fmt.Errorf("invalid JWT parts number: %v", len(parts)))
+			exitWithError(cmd, fmt.Errorf("invalid JWT parts number: %v", len(parts)))
 		}
 
-		byt := must(utils.Base64URLNoPaddingDecode(parts[1]))
+		byt, err := utils.Base64URLNoPaddingDecode(parts[1])
+		exitWithError(cmd, err)
 		if pretty {
-			byt = must(utils.PrettifyJSON(string(byt)))
+			byt, err = utils.PrettifyJSON(string(byt))
+			exitWithError(cmd, err)
 		}
 		outputBytes(cmd, byt)
 	},
@@ -85,11 +91,11 @@ var jwtValidCmd = &cobra.Command{
 
 		parts := strings.Split(str, ".")
 		if len(parts) != 3 {
-			exitWithError(fmt.Errorf("invalid JWT parts number: %v", len(parts)))
+			exitWithError(cmd, fmt.Errorf("invalid JWT parts number: %v", len(parts)))
 		}
 
 		err := utils.ValidateJWT(str, issuer, secret)
-		exitWithError(err)
+		exitWithError(cmd, err)
 	},
 }
 

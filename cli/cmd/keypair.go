@@ -11,10 +11,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func generateKeyPair() *[]string {
+func generateKeyPair(cmd *cobra.Command) *[]string {
 	pair := make([]string, 2)
 	// generate key
-	privatekey := must(rsa.GenerateKey(rand.Reader, 2048))
+	privatekey, err := rsa.GenerateKey(rand.Reader, 2048)
+	exitWithError(cmd, err)
 	publickey := &privatekey.PublicKey
 
 	// dump private key to file
@@ -24,16 +25,17 @@ func generateKeyPair() *[]string {
 		Bytes: privateKeyBytes,
 	}
 	privateB := new(bytes.Buffer)
-	exitWithError(pem.Encode(privateB, privateKeyBlock))
+	exitWithError(cmd, pem.Encode(privateB, privateKeyBlock))
 
 	// dump public key to file
-	publicKeyBytes := must(x509.MarshalPKIXPublicKey(publickey))
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publickey)
+	exitWithError(cmd, err)
 	publicKeyBlock := &pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: publicKeyBytes,
 	}
 	publicB := new(bytes.Buffer)
-	exitWithError(pem.Encode(publicB, publicKeyBlock))
+	exitWithError(cmd, pem.Encode(publicB, publicKeyBlock))
 
 	pair[0] = privateB.String()
 	pair[1] = publicB.String()
@@ -47,8 +49,9 @@ var keypairCmd = &cobra.Command{
 	Short:   "Key pair PEMs",
 	Long:    `Generate key pair PEMs (x509 PKCS1/PKIX)`,
 	Run: func(cmd *cobra.Command, args []string) {
-		pair := generateKeyPair()
-		res := must(json.Marshal(pair))
+		pair := generateKeyPair(cmd)
+		res, err := json.Marshal(pair)
+		exitWithError(cmd, err)
 		outputBytes(cmd, res)
 	},
 }

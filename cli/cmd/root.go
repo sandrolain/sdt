@@ -49,7 +49,7 @@ func init() {
 
 func Execute() {
 	loadFileConfig()
-	exitWithError(rootCmd.Execute())
+	exitWithError(nil, rootCmd.Execute())
 }
 
 func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, required bool) string {
@@ -63,7 +63,7 @@ func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, requir
 // func getInputStringRequired(cmd *cobra.Command, args []string) string {
 // 	res := getInputString(cmd, args)
 // 	if len(res) == 0 {
-// 		exitWithError(fmt.Errorf("primary command input should not be empty"))
+// 		exitWithError(cmd, fmt.Errorf("primary command input should not be empty"))
 // 	}
 // 	return res
 // }
@@ -71,15 +71,18 @@ func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, requir
 func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {
 	res := getInputBytes(cmd, args)
 	if len(res) == 0 {
-		exitWithError(fmt.Errorf("primary command input should not be empty"))
+		exitWithError(cmd, fmt.Errorf("primary command input should not be empty"))
 	}
 	return res
 }
 
 var exit func(code int) = os.Exit
 
-func exitWithError(err error) {
+func exitWithError(cmd *cobra.Command, err error) {
 	if err != nil {
+		if cmd != nil {
+			color.SetOutput(cmd.ErrOrStderr())
+		}
 		color.Error.Println(err)
 		exit(1)
 	}
@@ -92,7 +95,7 @@ func getFlag[T any](cmd *cobra.Command, name string, required bool, fFlags func(
 	flags := cmd.Flags()
 	if flags.Changed(name) {
 		val, err = fFlags(flags)
-		exitWithError(err)
+		exitWithError(cmd, err)
 		found = true
 	} else {
 		key := getUsePath(cmd, name)
@@ -104,10 +107,10 @@ func getFlag[T any](cmd *cobra.Command, name string, required bool, fFlags func(
 
 	if !found {
 		if required {
-			exitWithError(fmt.Errorf("the flag \"%s\" is required", name))
+			exitWithError(cmd, fmt.Errorf("the flag \"%s\" is required", name))
 		} else {
 			val, err = fFlags(flags)
-			exitWithError(err)
+			exitWithError(cmd, err)
 		}
 	}
 	return val
@@ -158,7 +161,7 @@ func getBytesBase64Flag(cmd *cobra.Command, name string, required bool) []byte {
 		return flags.GetBytesBase64(name)
 	}, func() []byte {
 		byt, err := utils.Base64Decode(viper.GetString(name))
-		exitWithError(err)
+		exitWithError(cmd, err)
 		return byt
 	})
 }
@@ -190,16 +193,11 @@ func getUseArray(cmd *cobra.Command) []string {
 }
 
 func outputBytes(cmd *cobra.Command, byt []byte) {
-	must(cmd.OutOrStdout().Write(byt))
+	_, e := cmd.OutOrStdout().Write(byt)
+	exitWithError(cmd, e)
 }
 
 func outputString(cmd *cobra.Command, str string) {
-	must(cmd.OutOrStdout().Write([]byte(str)))
-}
-
-func must[T any](val T, err error) T {
-	if err != nil {
-		exitWithError(err)
-	}
-	return val
+	_, e := cmd.OutOrStdout().Write([]byte(str))
+	exitWithError(cmd, e)
 }

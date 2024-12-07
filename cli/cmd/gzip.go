@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"compress/gzip"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -19,12 +18,13 @@ var gzipCmd = &cobra.Command{
 		var b bytes.Buffer
 		gz := gzip.NewWriter(&b)
 
-		must(gz.Write(byt))
-		exitWithError(gz.Flush())
-		exitWithError(gz.Close())
+		_, err := gz.Write(byt)
+		exitWithError(cmd, err)
+		exitWithError(cmd, gz.Flush())
+		exitWithError(cmd, gz.Close())
 
 		res := b.Bytes()
-		must(os.Stdout.Write(res))
+		outputBytes(cmd, res)
 	},
 }
 
@@ -37,14 +37,16 @@ var gunzipCmd = &cobra.Command{
 		byt := getInputBytes(cmd, args)
 
 		b := bytes.NewBuffer(byt)
-		r := must(gzip.NewReader(b))
+		r, err := gzip.NewReader(b)
+		exitWithError(cmd, err)
 
 		var resB bytes.Buffer
-		must(resB.ReadFrom(r))
+		_, err = resB.ReadFrom(r)
+		exitWithError(cmd, err)
 
 		res := resB.Bytes()
 
-		must(os.Stdout.Write(res))
+		outputBytes(cmd, res)
 	},
 }
 

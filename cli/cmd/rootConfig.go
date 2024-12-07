@@ -20,7 +20,7 @@ func loadFileConfig() {
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			// Config file was found but another error was produced
-			exitWithError(err)
+			exitWithError(nil, err)
 		}
 	}
 }
@@ -31,13 +31,16 @@ func getInputString(cmd *cobra.Command, args []string) string {
 	if flags.Lookup("file").Changed {
 		file := getStringFlag(cmd, "file", false)
 
-		exist := must(fileExists(file))
+		exist, err := fileExists(file)
+		exitWithError(cmd, err)
 		if !exist {
-			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
+			exitWithError(cmd, fmt.Errorf(`file "%s" not exist`, file))
 		}
 
 		//#nosec G304 -- implementation of generic utility
-		return string(must(os.ReadFile(file)))
+		res, err := os.ReadFile(file)
+		exitWithError(cmd, err)
+		return string(res)
 	}
 
 	if flags.Lookup("input").Changed {
@@ -51,8 +54,9 @@ func getInputString(cmd *cobra.Command, args []string) string {
 	if len(args) > 0 {
 		return strings.Join(args[:], "")
 	}
-
-	return string(must(io.ReadAll(cmd.InOrStdin())))
+	res, err := io.ReadAll(cmd.InOrStdin())
+	exitWithError(cmd, err)
+	return string(res)
 }
 
 func getInputBytes(cmd *cobra.Command, args []string) []byte {
@@ -61,12 +65,15 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 	if flags.Lookup("file").Changed {
 		file := getStringFlag(cmd, "file", false)
 
-		exist := must(fileExists(file))
+		exist, err := fileExists(file)
+		exitWithError(cmd, err)
 		if !exist {
-			exitWithError(fmt.Errorf(`file "%s" not exist`, file))
+			exitWithError(cmd, fmt.Errorf(`file "%s" not exist`, file))
 		}
 		//#nosec G304 -- implementation of generic utility
-		return must(os.ReadFile(file))
+		res, err := os.ReadFile(file)
+		exitWithError(cmd, err)
+		return res
 	}
 
 	if flags.Lookup("input").Changed {
@@ -81,7 +88,9 @@ func getInputBytes(cmd *cobra.Command, args []string) []byte {
 		return []byte(strings.Join(args[:], ""))
 	}
 
-	return must(io.ReadAll(cmd.InOrStdin()))
+	res, err := io.ReadAll(cmd.InOrStdin())
+	exitWithError(cmd, err)
+	return res
 }
 
 func ExecuteByArgs(args []string, in []byte) ([]byte, error) {

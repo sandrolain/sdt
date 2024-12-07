@@ -57,17 +57,35 @@ func EncryptWithHash(value []byte, passPhrase []byte) ([]byte, []byte, error) {
 }
 
 func Decrypt(value []byte, passPhrase []byte) ([]byte, error) {
+	if len(value) == 0 || len(passPhrase) == 0 {
+		return nil, fmt.Errorf("invalid input: empty value or passphrase")
+	}
+
 	block, err := aes.NewCipher(passPhrase)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
+
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
+
 	nonceSize := aesGCM.NonceSize()
-	nonce, secValue := value[:nonceSize], value[nonceSize:]
-	return aesGCM.Open(nil, nonce, secValue, nil)
+	if len(value) < nonceSize {
+		return nil, fmt.Errorf("invalid ciphertext: too short")
+	}
+
+	nonce, ciphertext := value[:nonceSize], value[nonceSize:]
+	nonceCopy := make([]byte, nonceSize)
+	copy(nonceCopy, nonce)
+
+	plaintext, err := aesGCM.Open(nil, nonceCopy, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("decryption failed: %w", err)
+	}
+
+	return plaintext, nil
 }
 
 func DecryptAndVerify(value []byte, passPhrase []byte, hash []byte) ([]byte, error) {

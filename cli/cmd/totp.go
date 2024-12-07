@@ -57,19 +57,21 @@ var totpUriCmd = &cobra.Command{
 		period := getUintFlag(cmd, "period", false)
 		digits := getIntFlag(cmd, "digits", false)
 
-		secretBytes := must(base32.StdEncoding.DecodeString(secret))
+		secretBytes, err := base32.StdEncoding.DecodeString(secret)
+		exitWithError(cmd, err)
 
 		alg := getAlgorithm(algorithm)
 		dig := getDigits(digits)
 
-		key := must(totp.Generate(totp.GenerateOpts{
+		key, err := totp.Generate(totp.GenerateOpts{
 			Issuer:      issuer,
 			AccountName: account,
 			Secret:      secretBytes,
 			Algorithm:   alg,
 			Period:      period,
 			Digits:      dig,
-		}))
+		})
+		exitWithError(cmd, err)
 
 		outputString(cmd, key.URL())
 	},
@@ -87,24 +89,28 @@ var totpImageCmd = &cobra.Command{
 		period := getUintFlag(cmd, "period", false)
 		digits := getIntFlag(cmd, "digits", false)
 
-		secretBytes := must(base32.StdEncoding.DecodeString(secret))
+		secretBytes, err := base32.StdEncoding.DecodeString(secret)
+		exitWithError(cmd, err)
 
 		alg := getAlgorithm(algorithm)
 		dig := getDigits(digits)
 
-		key := must(totp.Generate(totp.GenerateOpts{
+		key, err := totp.Generate(totp.GenerateOpts{
 			Issuer:      issuer,
 			AccountName: account,
 			Secret:      secretBytes,
 			Algorithm:   alg,
 			Period:      period,
 			Digits:      dig,
-		}))
+		})
+		exitWithError(cmd, err)
 
 		// Convert TOTP key into a PNG
 		var buf bytes.Buffer
-		img := must(key.Image(200, 200))
-		exitWithError(png.Encode(&buf, img))
+		img, err := key.Image(200, 200)
+		exitWithError(cmd, err)
+
+		exitWithError(cmd, png.Encode(&buf, img))
 		outputBytes(cmd, buf.Bytes())
 	},
 }
@@ -122,12 +128,13 @@ var totpCodeCmd = &cobra.Command{
 		alg := getAlgorithm(algorithm)
 		dig := getDigits(digits)
 
-		passcode := must(totp.GenerateCodeCustom(secret, time.Now(), totp.ValidateOpts{
+		passcode, err := totp.GenerateCodeCustom(secret, time.Now(), totp.ValidateOpts{
 			Period:    period,
 			Skew:      1,
 			Digits:    dig,
 			Algorithm: alg,
-		}))
+		})
+		exitWithError(cmd, err)
 
 		outputString(cmd, passcode)
 	},
@@ -143,7 +150,7 @@ var totpVerifyCmd = &cobra.Command{
 
 		valid := totp.Validate(code, secret)
 		if !valid {
-			exitWithError(fmt.Errorf("invalid code"))
+			exitWithError(cmd, fmt.Errorf("invalid code"))
 		}
 
 		outputString(cmd, code)

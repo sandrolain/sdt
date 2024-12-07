@@ -17,14 +17,16 @@ var regeCmd = &cobra.Command{
 		str := getInputString(cmd, args)
 		exp := getStringFlag(cmd, "expression", true)
 
-		re := must(regexp.Compile(exp))
+		re, err := regexp.Compile(exp)
+		exitWithError(cmd, err)
 
 		res := re.FindAllString(str, -1)
 		if res == nil {
-			exitWithError(fmt.Errorf(`input not match "%s"`, exp))
+			exitWithError(cmd, fmt.Errorf(`input not match "%s"`, exp))
 		}
 
-		out := must(json.Marshal(res))
+		out, err := json.Marshal(res)
+		exitWithError(cmd, err)
 		outputBytes(cmd, out)
 	},
 }
@@ -38,10 +40,10 @@ var regeReplaceCmd = &cobra.Command{
 		exp := getStringFlag(cmd, "expression", true)
 		rep := getStringFlag(cmd, "replace", true)
 
-		re := must(regexp.Compile(exp))
+		re, err := regexp.Compile(exp)
+		exitWithError(cmd, err)
 
 		out := re.ReplaceAllString(str, rep)
-
 		outputString(cmd, out)
 	},
 }

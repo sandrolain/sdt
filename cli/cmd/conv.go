@@ -24,7 +24,8 @@ func parseCsv(cmd *cobra.Command, str string) interface{} {
 
 	if obj {
 		res := make([]map[string]string, 0)
-		head := must(r.Read())
+		head, err := r.Read()
+		exitWithError(cmd, err)
 		size := len(head)
 
 		for {
@@ -34,7 +35,7 @@ func parseCsv(cmd *cobra.Command, str string) interface{} {
 				if err == io.EOF {
 					break
 				}
-				exitWithError(err)
+				exitWithError(cmd, err)
 			}
 
 			row := make(map[string]string)
@@ -57,7 +58,7 @@ func parseCsv(cmd *cobra.Command, str string) interface{} {
 			if err == io.EOF {
 				break
 			}
-			exitWithError(err)
+			exitWithError(cmd, err)
 		}
 		res = append(res, record)
 	}
@@ -102,8 +103,8 @@ func buildCsv(cmd *cobra.Command, data any) ([]byte, error) {
 	b := new(bytes.Buffer)
 	w := csv.NewWriter(b)
 	w.Comma = rune(sep[0])
-	exitWithError(w.WriteAll(arr))
-	exitWithError(w.Error())
+	exitWithError(cmd, w.WriteAll(arr))
+	exitWithError(cmd, w.Error())
 	return b.Bytes(), nil
 }
 
@@ -117,7 +118,7 @@ var convCmd = &cobra.Command{
 		to := getStringFlag(cmd, "out", true)
 
 		if from == to {
-			exitWithError(fmt.Errorf(`input and output formats whould be different`))
+			exitWithError(cmd, fmt.Errorf(`input and output formats whould be different`))
 		}
 
 		var data any
@@ -125,37 +126,40 @@ var convCmd = &cobra.Command{
 
 		switch from {
 		default:
-			exitWithError(fmt.Errorf(`invalid "in" flag value "%v"`, from))
+			exitWithError(cmd, fmt.Errorf(`invalid "in" flag value "%v"`, from))
 		case "json":
-			exitWithError(json.Unmarshal(in, &data))
+			exitWithError(cmd, json.Unmarshal(in, &data))
 		case "yaml":
-			exitWithError(yaml.Unmarshal(in, &data))
+			exitWithError(cmd, yaml.Unmarshal(in, &data))
 		case "toml":
-			exitWithError(toml.Unmarshal(in, &data))
+			exitWithError(cmd, toml.Unmarshal(in, &data))
 		case "query":
-			exitWithError(urlquery.Unmarshal(in, &data))
+			exitWithError(cmd, urlquery.Unmarshal(in, &data))
 		case "msgpack":
-			exitWithError(msgpack.Unmarshal(in, &data))
+			exitWithError(cmd, msgpack.Unmarshal(in, &data))
 		case "csv":
 			data = parseCsv(cmd, string(in))
 		}
 
+		var err error
+
 		switch to {
 		default:
-			exitWithError(fmt.Errorf(`invalid "out" flag value "%v"`, to))
+			err = fmt.Errorf(`invalid "out" flag value "%v"`, to)
 		case "json":
-			out = must(json.Marshal(&data))
+			out, err = json.Marshal(&data)
 		case "yaml":
-			out = must(yaml.Marshal(&data))
+			out, err = yaml.Marshal(&data)
 		case "toml":
-			out = must(toml.Marshal(&data))
+			out, err = toml.Marshal(&data)
 		case "query":
-			out = must(urlquery.Marshal(data))
+			out, err = urlquery.Marshal(data)
 		case "msgpack":
-			out = must(msgpack.Marshal(data))
+			out, err = msgpack.Marshal(data)
 		case "csv":
-			out = must(buildCsv(cmd, data))
+			out, err = buildCsv(cmd, data)
 		}
+		exitWithError(cmd, err)
 
 		outputBytes(cmd, out)
 	},

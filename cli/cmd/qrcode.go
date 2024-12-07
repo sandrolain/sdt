@@ -13,7 +13,8 @@ var qrcodeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		size := getIntFlag(cmd, "size", false)
-		png := must(utils.GenerateQRCodeImage(str, size))
+		png, err := utils.GenerateQRCodeImage(str, size)
+		exitWithError(cmd, err)
 		outputBytes(cmd, png)
 	},
 }
@@ -24,7 +25,8 @@ var qrcodeReadCmd = &cobra.Command{
 	Long:  `Read QR code`,
 	Run: func(cmd *cobra.Command, args []string) {
 		in := getInputBytes(cmd, args)
-		out := must(utils.ReadQRCodeImage(in))
+		out, err := utils.ReadQRCodeImage(in)
+		exitWithError(cmd, err)
 		outputString(cmd, out)
 	},
 }

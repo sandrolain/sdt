@@ -19,7 +19,9 @@ func verOut(cmd *cobra.Command, args []string, i int) {
 	str := getInputString(cmd, args)
 	act := getStringFlag(cmd, "action", false)
 
-	v := must(gover.NewSemver(str))
+	v, err := gover.NewSemver(str)
+	exitWithError(cmd, err)
+
 	s := v.Segments()
 
 	if act == "" {
@@ -88,7 +90,8 @@ var vpreCmd = &cobra.Command{
 		str := getInputString(cmd, args)
 		act := getStringFlag(cmd, "action", false)
 
-		v := must(gover.NewSemver(str))
+		v, err := gover.NewSemver(str)
+		exitWithError(cmd, err)
 		s := v.Segments()
 		p := v.Prerelease()
 		m := v.Metadata()
@@ -126,7 +129,8 @@ var vmetCmd = &cobra.Command{
 		str := getInputString(cmd, args)
 		act := getStringFlag(cmd, "action", false)
 
-		v := must(gover.NewSemver(str))
+		v, err := gover.NewSemver(str)
+		exitWithError(cmd, err)
 		s := v.Segments()
 		m := v.Metadata()
 		p := v.Prerelease()

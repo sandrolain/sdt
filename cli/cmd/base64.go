@@ -21,7 +21,8 @@ var b64DecCmd = &cobra.Command{
 	Long:  `Base 64 Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		byt := must(utils.Base64Decode(str))
+		byt, err := utils.Base64Decode(str)
+		exitWithError(cmd, err)
 		outputBytes(cmd, byt)
 	},
 }
@@ -42,7 +43,8 @@ var b64UrlDecCmd = &cobra.Command{
 	Long:  `Base 64 URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		byt := must(utils.Base64URLDecode(str))
+		byt, err := utils.Base64URLDecode(str)
+		exitWithError(cmd, err)
 		outputBytes(cmd, byt)
 	},
 }

@@ -65,7 +65,7 @@ var fsWatchCmd = &cobra.Command{
 
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
-			exitWithError(err)
+			exitWithError(cmd, err)
 		}
 		defer watcher.Close()
 
@@ -96,7 +96,7 @@ var fsWatchCmd = &cobra.Command{
 
 		err = watcher.Add(dir)
 		if err != nil {
-			exitWithError(err)
+			exitWithError(cmd, err)
 		}
 		<-done
 

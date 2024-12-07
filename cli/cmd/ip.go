@@ -31,7 +31,8 @@ var ipInfoCmd = &cobra.Command{
 		url := "https://ipapi.co/json"
 		if ip != "" {
 			if !validIP4(ip) {
-				ips := must(net.LookupIP(ip))
+				ips, err := net.LookupIP(ip)
+				exitWithError(cmd, err)
 				ip = ips[0].To4().String()
 			}
 			url = fmt.Sprintf("https://ipapi.co/%s/json", ip)
@@ -40,12 +41,18 @@ var ipInfoCmd = &cobra.Command{
 		client := http.Client{
 			Timeout: time.Duration(5) * time.Second,
 		}
-		req := must(http.NewRequest("GET", url, nil))
-		req.Header.Set("User-Agent", "sdt/"+version)
-		res := must(client.Do(req))
+		req, err := http.NewRequest("GET", url, nil)
+		exitWithError(cmd, err)
 
-		body := must(io.ReadAll(res.Body))
-		exitWithError(res.Body.Close())
+		req.Header.Set("User-Agent", "sdt/"+version)
+		res, err := client.Do(req)
+		exitWithError(cmd, err)
+
+		body, err := io.ReadAll(res.Body)
+		exitWithError(cmd, err)
+
+		err = res.Body.Close()
+		exitWithError(cmd, err)
 
 		if asJson {
 			outputBytes(cmd, body)
@@ -53,7 +60,7 @@ var ipInfoCmd = &cobra.Command{
 		}
 
 		var data map[string]interface{}
-		exitWithError(json.Unmarshal(body, &data))
+		exitWithError(cmd, json.Unmarshal(body, &data))
 
 		tableString := &strings.Builder{}
 		table := tablewriter.NewWriter(tableString)

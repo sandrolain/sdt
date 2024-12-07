@@ -110,7 +110,8 @@ var escapeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		a, b, c := splitStringParts(cmd, str)
-		byt := must(json.Marshal(b))
+		byt, err := json.Marshal(b)
+		exitWithError(cmd, err)
 		out := a + string(byt[1:len(byt)-1]) + c
 		outputString(cmd, out)
 	},
@@ -126,14 +127,16 @@ var unescapeCmd = &cobra.Command{
 		a, b, c := splitStringParts(cmd, str)
 		b = fmt.Sprintf(`"%s"`, b)
 		var res string
-		exitWithError(json.Unmarshal([]byte(b), &res))
+		exitWithError(cmd, json.Unmarshal([]byte(b), &res))
 		out := a + res + c
 		outputString(cmd, out)
 	},
 }
 
 func replaceSpaces(str string, sub string) string {
-	return must(regexp.Compile(`\s+`)).ReplaceAllString(str, sub)
+	re, err := regexp.Compile(`\s+`)
+	exitWithError(nil, err)
+	return re.ReplaceAllString(str, sub)
 }
 
 var replaceSpaceCmd = &cobra.Command{
@@ -167,7 +170,8 @@ var countCmd = &cobra.Command{
 			"words":      words,
 			"characters": chars,
 		}
-		out := must(json.Marshal(res))
+		out, err := json.Marshal(res)
+		exitWithError(cmd, err)
 
 		outputBytes(cmd, out)
 	},

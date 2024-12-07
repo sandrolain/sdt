@@ -13,9 +13,9 @@ var docCmd = &cobra.Command{
 	Long:  `Generate CLI documentation`,
 	Run: func(cmd *cobra.Command, args []string) {
 		out := getStringFlag(cmd, "out", false)
-		exitWithError(os.MkdirAll(out, os.ModePerm))
+		exitWithError(cmd, os.MkdirAll(out, 0750))
 		rootCmd.DisableAutoGenTag = true
-		exitWithError(doc.GenMarkdownTree(rootCmd, out))
+		exitWithError(cmd, doc.GenMarkdownTree(rootCmd, out))
 	},
 }
 
