@@ -202,3 +202,8 @@ tasks:
     desc: Run go vet for static analysis
     cmds:
       - go vet ./cli/...
+
+  copy:wasmjs:
+    desc: Copy wasm_exec.js
+    cmds:
+      - cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" "./web/src/"

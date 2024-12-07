@@ -7,5 +7,4 @@
 dist/
 sdt.yaml
 /web/src/sdt.wasm
-/web/src/wasm_exec.js
 web-server/linux
