@@ -106,7 +106,7 @@ jobs:
         run: ./bin/sdt --version
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: sdt-binary-${{ runner.os }}
           path: bin/sdt
