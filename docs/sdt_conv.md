@@ -14,9 +14,9 @@ sdt conv [flags]
 
 ```
   -h, --help               help for conv
-  -a, --in string          Input format (json, yaml, toml, query, csv)
+  -a, --in string          Input format (json, yaml, toml, query, csv, msgpack)
   -o, --object             CSV rows as objects
-  -b, --out string         Output format (json, yaml, toml, query, csv)
+  -b, --out string         Output format (json, yaml, toml, query, csv, msgpack)
   -s, --separator string   CSV separator (default ",")
 ```
 
