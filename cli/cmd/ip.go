@@ -64,7 +64,7 @@ var ipInfoCmd = &cobra.Command{
 
 		tableString := &strings.Builder{}
 		table := tablewriter.NewWriter(tableString)
-		table.SetHeader([]string{"Property", "Value"})
+		table.Header([]string{"Property", "Value"})
 
 		for k, v := range data {
 			k = strings.ReplaceAll(k, "_", " ")
