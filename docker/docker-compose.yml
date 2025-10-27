@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  sdt-web:
+    image: sandrolain/sdt:latest
+    container_name: sdt-web
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    labels:
+      - "com.example.description=SDT Web Interface"
+      - "com.example.version=latest"
+
+  # Example: Run SDT web interface with custom port
+  sdt-web-custom:
+    image: sandrolain/sdt:latest
+    container_name: sdt-web-custom
+    ports:
+      - "8080:3000"
+    restart: unless-stopped
+    profiles:
+      - custom
