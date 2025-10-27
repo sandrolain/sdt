@@ -8,3 +8,4 @@ dist/
 sdt.yaml
 /web/src/sdt.wasm
 web-server/linux
+/context
