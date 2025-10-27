@@ -4,206 +4,272 @@ vars:
   BINARY_NAME: sdt
   BINARY_PATH: ./bin/{{.BINARY_NAME}}
   DOCKER_IMAGE: sandrolain/sdt
+  VERSION:
+    sh: git tag --sort=-version:refname | head -n 1 || echo "v0.0.0"
+  COMMIT:
+    sh: git rev-parse HEAD
+  BUILD_DATE:
+    sh: date +"%Y-%m-%dT%H:%M:%S%z"
 
 tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # Build tasks
   build:
     desc: Build the CLI binary
+    sources:
+      - "cli/**/*.go"
+      - "go.mod"
+      - "go.sum"
+    generates:
+      - "{{.BINARY_PATH}}"
     cmds:
-      - go build -o {{.BINARY_PATH}} "./cli"
+      - go build -ldflags="-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.date={{.BUILD_DATE}}" -o {{.BINARY_PATH}} "./cli"
 
-  build:compress:
-    desc: Build and compress the binary
+  build-compress:
+    desc: Build and compress the binary with UPX
+    deps: [build]
+    cmds:
+      - upx --best --lzma {{.BINARY_PATH}}
+
+  build-all:
+    desc: Build all variants (CLI, web, WASM)
     cmds:
       - task: build
-      - upx {{.BINARY_PATH}}
+      - task: build-web
+      - task: wasm-build
 
-  test:
-    desc: Run tests
+  install:
+    desc: Install the binary to GOPATH/bin
+    deps: [build]
     cmds:
-      - go test ./cli/cmd -v
+      - cp {{.BINARY_PATH}} $(go env GOPATH)/bin/{{.BINARY_NAME}}
 
-  test:race:
+  # Test tasks
+  test:
+    desc: Run unit tests
+    cmds:
+      - go test -coverprofile=coverage.out ./cli/...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  test-race:
     desc: Run tests with race detector
     cmds:
-      - go test -race ./cli/cmd -v
+      - go test -race -v ./cli/...
 
-  test:bench:
+  test-bench:
     desc: Run benchmarks
     cmds:
-      - go test -bench=. -benchmem ./cli/cmd
+      - go test -bench=. -benchmem ./cli/...
 
-  test:coverage:
-    desc: Run tests with coverage
-    cmds:
-      - go test -coverprofile=coverage.out ./...
-      - go tool cover -html=coverage.out -o coverage.html
-
-  test:all:
+  test-all:
     desc: Run all tests (unit, race, benchmarks)
     cmds:
       - task: test
-      - task: test:race
-      - task: test:bench
+      - task: test-race
+      - task: test-bench
 
-  docker:build:
-    desc: Build Docker image
-    cmds:
-      - |
-        cd ./web-server && \
-        tag=$(git tag --sort=-version:refname | head -n 1) && \
-        docker build -t {{.DOCKER_IMAGE}}:$tag -t {{.DOCKER_IMAGE}}:latest .
-
-  docker:build:multi:
-    desc: Build multi-arch Docker image
-    cmds:
-      - task: build:web
-      - |
-        cd ./web-server && \
-        tag=$(git tag --sort=-version:refname | head -n 1) && \
-        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o linux/amd64/sdtserve && \
-        GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o linux/arm64/sdtserve && \
-        upx --best --lzma linux/amd64/sdtserve && \
-        upx --best --lzma linux/arm64/sdtserve && \
-        docker buildx build -t {{.DOCKER_IMAGE}}:$tag -t {{.DOCKER_IMAGE}}:latest --platform=linux/amd64,linux/arm64 . --push
-
-  build:web:
-    desc: Build web frontend
-    dir: web
-    cmds:
-      - npm run build
-      - cp -R ./dist ../web-server/dist
-
-  docker:push:
-    desc: Push Docker images to registry
-    deps: [docker:build]
-    cmds:
-      - docker push {{.DOCKER_IMAGE}}:$(git tag --sort=-version:refname | head -n 1)
-      - docker push {{.DOCKER_IMAGE}}:latest
-
-  release:snapshot:
-    desc: Create a snapshot release
-    cmds:
-      - goreleaser release --snapshot --rm-dist
-
-  release:
-    desc: Create and publish a new release
-    cmds:
-      - goreleaser --clean
-
-  tidy:
-    desc: Tidy and verify go modules
-    cmds:
-      - go mod tidy
-      - go mod verify
-
-  update:deps:
-    desc: Update dependencies
-    cmds:
-      - go get -u ./...
-      - task: tidy
-
-  update:docs:
-    desc: Update documentation
-    cmds:
-      - go run ./cli docs
-
-  version:major:
-    desc: Increase major version
-    cmds:
-      - |
-        CURRENT_VERSION=$(git describe --abbrev=0 --tags 2>/dev/null || echo "1.0.0")
-        IFS='.' read -r VNUM1 VNUM2 VNUM3 <<< "$CURRENT_VERSION"
-        NEW_TAG="$((VNUM1+1)).0.0"
-        git tag $NEW_TAG
-        git push origin $NEW_TAG
-
-  version:minor:
-    desc: Increase minor version
-    cmds:
-      - |
-        CURRENT_VERSION=$(git describe --abbrev=0 --tags 2>/dev/null || echo "1.0.0")
-        IFS='.' read -r VNUM1 VNUM2 VNUM3 <<< "$CURRENT_VERSION"
-        NEW_TAG="$VNUM1.$((VNUM2+1)).0"
-        git tag $NEW_TAG
-        git push origin $NEW_TAG
-
-  version:patch:
-    desc: Increase patch version
-    cmds:
-      - |
-        CURRENT_VERSION=$(git describe --abbrev=0 --tags 2>/dev/null || echo "1.0.0")
-        IFS='.' read -r VNUM1 VNUM2 VNUM3 <<< "$CURRENT_VERSION"
-        NEW_TAG="$VNUM1.$VNUM2.$((VNUM3+1))"
-        git tag $NEW_TAG
-        git push origin $NEW_TAG
-
-  wasm:build:
-    desc: Build WASM version
-    dir: web
-    cmds:
-      - GOOS=js GOARCH=wasm go build -o "./web/src/sdt.wasm" "./cli"
-      - cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" "./web/src/"
-
-  default:
-    desc: Default task
-    cmds:
-      - task: build
-
-  check:
-    desc: Run all checks (fmt, lint, vet, test, security, trivy)
-    cmds:
-      - task: fmt
-      - task: lint
-      - task: vet
-      - task: test
-      - task: gosec
-      - task: trivy
-
-  gosec:
-    desc: Run security checks with gosec
-    vars:
-      GOSEC_INSTALLED:
-        sh: command -v gosec || echo "not_found"
-    cmds:
-      - |
-        if [ "{{.GOSEC_INSTALLED}}" = "not_found" ]; then
-          echo "gosec is not installed. Installing..."
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-        fi
-      - echo "Running gosec security scanner..."
-      - gosec -fmt=json -out=security-report.json ./cli/...
-
-  trivy:
-    desc: Run Trivy vulnerability scanner
-    vars:
-      TRIVY_INSTALLED:
-        sh: command -v trivy || echo "not_found"
-    cmds:
-      - |
-        if [ "{{.TRIVY_INSTALLED}}" = "not_found" ]; then
-          echo "Trivy is not installed. Installing..."
-          brew install aquasecurity/trivy/trivy
-        fi
-      - echo "Running Trivy vulnerability scanner..."
-      - trivy fs --scanners vuln,secret,misconfig .
-      - trivy fs --format json --output trivy-results.json .
-
+  # Code quality tasks
   fmt:
     desc: Format Go code with simplification
     cmds:
       - gofmt -s -l -w .
 
   lint:
-    desc: Run linters
+    desc: Run golangci-lint
     cmds:
-      - golangci-lint run
+      - golangci-lint run ./cli/...
 
   vet:
     desc: Run go vet for static analysis
     cmds:
       - go vet ./cli/...
 
-  copy:wasmjs:
-    desc: Copy wasm_exec.js
+  check:
+    desc: Run all checks (fmt, lint, vet, test, security)
     cmds:
-      - cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" "./web/src/"
+      - task: fmt
+      - task: lint
+      - task: vet
+      - task: test
+      - task: gosec
+      - task: govulncheck
+
+  # Security tasks
+  gosec:
+    desc: Run security checks with gosec
+    cmds:
+      - |
+        if ! command -v gosec &> /dev/null; then
+          echo "Installing gosec..."
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+        fi
+        gosec -fmt=json -out=security-report.json ./cli/...
+
+  govulncheck:
+    desc: Run vulnerability scanner
+    cmds:
+      - |
+        if ! command -v govulncheck &> /dev/null; then
+          echo "Installing govulncheck..."
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+        fi
+        govulncheck ./cli/...
+
+  trivy:
+    desc: Run Trivy vulnerability scanner
+    cmds:
+      - |
+        if ! command -v trivy &> /dev/null; then
+          echo "Trivy is not installed. Installing..."
+          brew install aquasecurity/trivy/trivy || echo "Please install Trivy manually"
+        fi
+        trivy fs --scanners vuln,secret,misconfig .
+        trivy fs --format json --output trivy-results.json .
+
+  # Docker tasks
+  docker-build:
+    desc: Build Docker image
+    cmds:
+      - task: build-web
+      - |
+        cd ./docker && \
+        docker build -t {{.DOCKER_IMAGE}}:{{.VERSION}} -t {{.DOCKER_IMAGE}}:latest .
+
+  docker-build-multi:
+    desc: Build multi-arch Docker image and push
+    cmds:
+      - task: build-web
+      - |
+        cd ./docker && \
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          -t {{.DOCKER_IMAGE}}:{{.VERSION}} \
+          -t {{.DOCKER_IMAGE}}:latest \
+          --push .
+
+  docker-push:
+    desc: Push Docker images to registry
+    deps: [docker-build]
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.VERSION}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  # Release tasks
+  release-snapshot:
+    desc: Create a snapshot release with GoReleaser
+    cmds:
+      - goreleaser release --snapshot --clean
+
+  release:
+    desc: Create and publish a new release with GoReleaser
+    cmds:
+      - goreleaser release --clean
+
+  # Version management tasks
+  version-major:
+    desc: Increment major version (x.0.0)
+    cmds:
+      - |
+        CURRENT=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v0.0.0")
+        CURRENT=${CURRENT#v}
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+        NEW_VERSION="v$((MAJOR+1)).0.0"
+        git tag $NEW_VERSION
+        git push origin $NEW_VERSION
+        echo "Created and pushed tag: $NEW_VERSION"
+
+  version-minor:
+    desc: Increment minor version (x.y.0)
+    cmds:
+      - |
+        CURRENT=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v0.0.0")
+        CURRENT=${CURRENT#v}
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+        NEW_VERSION="v$MAJOR.$((MINOR+1)).0"
+        git tag $NEW_VERSION
+        git push origin $NEW_VERSION
+        echo "Created and pushed tag: $NEW_VERSION"
+
+  version-patch:
+    desc: Increment patch version (x.y.z)
+    cmds:
+      - |
+        CURRENT=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v0.0.0")
+        CURRENT=${CURRENT#v}
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+        NEW_VERSION="v$MAJOR.$MINOR.$((PATCH+1))"
+        git tag $NEW_VERSION
+        git push origin $NEW_VERSION
+        echo "Created and pushed tag: $NEW_VERSION"
+
+  # Web tasks
+  build-web:
+    desc: Build web frontend
+    dir: web
+    cmds:
+      - npm install
+      - npm run build
+      - mkdir -p ../docker/dist
+      - cp -R ./dist/* ../docker/dist/
+
+  wasm-build:
+    desc: Build WASM version
+    cmds:
+      - mkdir -p web/src
+      - GOOS=js GOARCH=wasm go build -o web/src/sdt.wasm ./cli
+      - cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" web/src/
+
+  serve-web:
+    desc: Serve web interface locally
+    deps: [build-web]
+    cmds:
+      - cd docker/dist && python3 -m http.server 3000
+
+  # Dependencies tasks
+  tidy:
+    desc: Tidy and verify go modules
+    cmds:
+      - go mod tidy
+      - go mod verify
+
+  vendor:
+    desc: Vendor dependencies
+    cmds:
+      - go mod vendor
+
+  update-deps:
+    desc: Update all dependencies
+    cmds:
+      - go get -u ./...
+      - task: tidy
+
+  # Documentation tasks
+  update-docs:
+    desc: Generate CLI documentation
+    cmds:
+      - go run ./cli docs
+      - echo "Documentation updated in ./docs/"
+
+  # Clean tasks
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin/
+      - rm -rf dist/
+      - rm -rf vendor/
+      - rm -rf coverage.out coverage.html
+      - rm -rf security-report.json
+      - rm -rf trivy-results.json
+      - rm -rf docker/dist/
+
+  clean-all:
+    desc: Clean all generated files including dependencies
+    cmds:
+      - task: clean
+      - rm -rf web/node_modules/
+      - rm -rf web/dist/
