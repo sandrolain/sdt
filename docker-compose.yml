@@ -1,6 +1,0 @@
-version: "3.9"
-services:
-  sdt:
-    image: sandrolain/sdt:latest
-    ports:
-      - "80:8080"
