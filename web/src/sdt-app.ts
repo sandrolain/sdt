@@ -1,14 +1,14 @@
-import { html, css, LitElement } from 'lit'
-import { customElement, query, state } from 'lit/decorators.js'
-import { classMap } from 'lit/directives/class-map.js'
-import "./wasm_exec.js"
+import { html, css, LitElement } from "lit";
+import { customElement, query, state } from "lit/decorators.js";
+import { classMap } from "lit/directives/class-map.js";
+import "./wasm_exec.js";
 import wasm from "./sdt.wasm?url";
 import "./main.css";
-import { presets } from './presets';
+import { presets } from "./presets";
 import copy from "copy-to-clipboard";
 import { split } from "shellwords";
 
-@customElement('sdt-app')
+@customElement("sdt-app")
 export class SdtApp extends LitElement {
   static styles = css`
     :host {
@@ -19,15 +19,21 @@ export class SdtApp extends LitElement {
       flex-direction: column;
       gap: 8px;
       padding: 8px;
-      font-family: 'Courier New', Courier, monospace !important;
+      font-family: "Courier New", Courier, monospace !important;
     }
 
     h1 {
       font-size: 1em;
       margin: 0;
       text-align: center;
-      line-height: 34px;
+      line-height: 16px;
       padding-top: 16px;
+
+      span {
+        font-size: 0.8em;
+        font-style: italic;
+        font-weight: normal;
+      }
     }
 
     #top {
@@ -42,9 +48,12 @@ export class SdtApp extends LitElement {
       flex: 1;
     }
 
-    select, input:not([type="file"], [type="checkbox"]), textarea, button,
+    select,
+    input:not([type="file"], [type="checkbox"]),
+    textarea,
+    button,
     input::-webkit-file-upload-button {
-      font-family: 'Courier New', Courier, monospace !important;
+      font-family: "Courier New", Courier, monospace !important;
       background: var(--bg-color);
       color: inherit;
       border: 1px solid currentColor;
@@ -124,7 +133,6 @@ export class SdtApp extends LitElement {
     }
 
     #output-cnt {
-
     }
     #output-cnt-side {
       display: flex;
@@ -148,7 +156,6 @@ export class SdtApp extends LitElement {
     input[type="checkbox"]::after {
       content: "x";
     }
-
   `;
 
   @query("#input")
@@ -178,41 +185,71 @@ export class SdtApp extends LitElement {
   render() {
     return html`
       <div id="top">
-        <h1><a href="https://github.com/sandrolain/sdt">Smart Developer Tools ^(;,;)^</a></h1>
+        <h1>
+          <a href="https://github.com/sandrolain/sdt"
+            >Smart Developer Tools ^(;,;)^<br /><span
+              >Go to GitHub Repository</span
+            >
+          </a>
+        </h1>
         <div>
           <label for="preset">Preset</label>
-          <select id="preset" @change=${this.onPresetChange}>${presets.map((p) => html`<option value=${p.command}>${p.name}</option>`)}</select>
+          <select id="preset" @change=${this.onPresetChange}>
+            ${presets.map(
+              (p) => html`<option value=${p.command}>${p.name}</option>`
+            )}
+          </select>
         </div>
         <div>
           <label for="command">Command</label>
-          <input type="text" id="command" autocomplete="off" autocapitalize="off" spellcheck="false" @keydown=${(event: KeyboardEvent) => {
-            if(event.code === "Enter") {
-              this.onExecute();
-            }
-          }}  />
+          <input
+            type="text"
+            id="command"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            @keydown=${(event: KeyboardEvent) => {
+              if (event.code === "Enter") {
+                this.onExecute();
+              }
+            }}
+          />
         </div>
         <div>
           <label for="execute">&nbsp;</label>
-          <button type="button" id="execute" @click=${this.onExecute}>Execute</button>
+          <button type="button" id="execute" @click=${this.onExecute}>
+            Execute
+          </button>
         </div>
       </div>
-      <div id="bottom" class=${classMap({"error": this.error})}>
-        ${this.hideInput ? null : html`
-        <div id="input-wrp">
-          <div id="input-head">
-            <label for="input">Input</label>
-            <label id="input-head-b64"><input type="checkbox" id="b64" /> Input as Base64</label>
-            <input type="file" id="file" @change=${this.onFileSelect} />
-          </div>
-          <textarea id="input" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
-        </div>
-        `}
+      <div id="bottom" class=${classMap({ error: this.error })}>
+        ${this.hideInput
+          ? null
+          : html`
+              <div id="input-wrp">
+                <div id="input-head">
+                  <label for="input">Input</label>
+                  <label id="input-head-b64"
+                    ><input type="checkbox" id="b64" /> Input as Base64</label
+                  >
+                  <input type="file" id="file" @change=${this.onFileSelect} />
+                </div>
+                <textarea
+                  id="input"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                ></textarea>
+              </div>
+            `}
         <div id="output-wrp">
           <label for="output">Output</label>
           <div id="output-cnt">
             <textarea id="output" readonly></textarea>
             <div id="output-cnt-side">
-              <button id="copy" @click=${() => copy(this.$output.value)}>Copy</button>
+              <button id="copy" @click=${() => copy(this.$output.value)}>
+                Copy
+              </button>
               <button id="help" @click=${this.help}>Help</button>
             </div>
           </div>
@@ -222,14 +259,14 @@ export class SdtApp extends LitElement {
   }
 
   private Go!: Go;
-  private outputBuf: string = '';
+  private outputBuf: string = "";
   private wasm!: ArrayBuffer;
 
   protected async firstUpdated(): Promise<void> {
     this.wasm = await (await fetch(wasm)).arrayBuffer();
     this.Go = new Go();
     this.Go.exit = (code) => {
-      if(code > 0) {
+      if (code > 0) {
         this.error = true;
       }
       this.applyOutput();
@@ -243,7 +280,10 @@ export class SdtApp extends LitElement {
 
   private callback!: ((out: string) => void) | undefined;
 
-  private async execute(argv: string[], callback?: (out: string) => void): Promise<void> {
+  private async execute(
+    argv: string[],
+    callback?: (out: string) => void
+  ): Promise<void> {
     this.callback = callback;
     const wa = await WebAssembly.instantiate(this.wasm, this.Go.importObject);
     this.Go.argv = argv;
@@ -251,7 +291,7 @@ export class SdtApp extends LitElement {
   }
 
   private applyOutput(): void {
-    if(this.callback) {
+    if (this.callback) {
       this.callback(this.outputBuf);
       this.callback = undefined;
     } else {
@@ -261,15 +301,15 @@ export class SdtApp extends LitElement {
 
   private onPresetChange() {
     const command = this.$preset.value;
-    const preset  = presets.find((p) => (p.command === command));
+    const preset = presets.find((p) => p.command === command);
     this.$command.value = command;
-    this.hideInput      = !preset?.input;
+    this.hideInput = !preset?.input;
     this.reset();
   }
 
   private reset() {
-    this.outputBuf   = "";
-    this.error       = false;
+    this.outputBuf = "";
+    this.error = false;
     this.$file.value = "";
     this.applyOutput();
   }
@@ -278,29 +318,29 @@ export class SdtApp extends LitElement {
     this.outputBuf = "";
     this.error = false;
 
-    const input     = (this.$input?.value ?? "").trim();
-    const b64       = this.$b64?.checked;
+    const input = (this.$input?.value ?? "").trim();
+    const b64 = this.$b64?.checked;
     const cmdString = this.$command.value;
-    const args      = split(cmdString);
-    if(args[0] === "sdt") {
-      args.splice(0, 1)
+    const args = split(cmdString);
+    if (args[0] === "sdt") {
+      args.splice(0, 1);
     }
-    if(input) {
-      if(args[0] === ":") {
-        if(b64) {
-          args.splice(0, 0, ":", "--inb64", input)
+    if (input) {
+      if (args[0] === ":") {
+        if (b64) {
+          args.splice(0, 0, ":", "--inb64", input);
         } else {
-          args.splice(0, 0, ":", "--input", input)
+          args.splice(0, 0, ":", "--input", input);
         }
       } else {
-        if(b64) {
-          args.push("--inb64", input)
+        if (b64) {
+          args.push("--inb64", input);
         } else {
-          args.push("--input", input)
+          args.push("--input", input);
         }
       }
     }
-    args.unshift("sdt")
+    args.unshift("sdt");
     await this.execute(args);
   }
 
@@ -310,7 +350,7 @@ export class SdtApp extends LitElement {
     const files = Array.from(this.$file?.files ?? []);
     const file = files[0];
 
-    if(!file) {
+    if (!file) {
       return;
     }
 
@@ -332,7 +372,7 @@ export class SdtApp extends LitElement {
       this.$b64.checked = true;
     };
 
-    reader.onerror = () =>  {
+    reader.onerror = () => {
       this.error = true;
     };
 
@@ -340,12 +380,12 @@ export class SdtApp extends LitElement {
   }
 
   private help() {
-    this.execute(["sdt", "help"])
+    this.execute(["sdt", "help"]);
   }
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    'sdt-app': SdtApp
+    "sdt-app": SdtApp;
   }
 }
