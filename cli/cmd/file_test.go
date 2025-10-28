@@ -21,7 +21,7 @@ func TestFileExists(t *testing.T) {
 
 	// Create a temporary file
 	tmpFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(tmpFile, []byte("test content"), 0644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte("test content"), 0600); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 
@@ -82,7 +82,7 @@ func TestFileReadCmd(t *testing.T) {
 	// Create a test file with content
 	testContent := "test file content"
 	tmpFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(tmpFile, []byte(testContent), 0644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(testContent), 0600); err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 

@@ -19,17 +19,20 @@ func customNotFound(fs http.FileSystem, file string) http.Handler {
 				index, err := fs.Open(file)
 				if err != nil {
 					w.WriteHeader(http.StatusNotFound)
-					fmt.Fprintf(w, "%s not found", file)
+					if _, err := fmt.Fprintf(w, "%s not found", file); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
 					return
 				}
 
 				fi, err := index.Stat()
 				if err != nil {
 					w.WriteHeader(http.StatusNotFound)
-					fmt.Fprintf(w, "%s not found", file)
+					if _, err := fmt.Fprintf(w, "%s not found", file); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
 					return
 				}
-
 				http.ServeContent(w, r, fi.Name(), fi.ModTime(), index)
 				return
 			}

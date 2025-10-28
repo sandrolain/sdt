@@ -2,11 +2,15 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+)
+
+const (
+	typeJSON = "json"
 )
 
 var configCmd = &cobra.Command{
@@ -35,13 +39,13 @@ var configSetCmd = &cobra.Command{
 		case "f", "float":
 			val, err = strconv.ParseFloat(str, 64)
 			exitWithError(cmd, err)
-		case "j", "json":
+		case "j", typeJSON:
 			exitWithError(cmd, json.Unmarshal([]byte(str), &val))
 		}
 		viper.Set(flag, val)
 		err = viper.WriteConfig()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	},
 }

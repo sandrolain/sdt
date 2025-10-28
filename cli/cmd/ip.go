@@ -16,7 +16,7 @@ import (
 
 func validIP4(ipAddress string) bool {
 	ipAddress = strings.Trim(ipAddress, " ")
-	re, _ := regexp.Compile(`^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$`)
+	re := regexp.MustCompile(`^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$`)
 	return re.MatchString(ipAddress)
 }
 
@@ -64,13 +64,13 @@ var ipInfoCmd = &cobra.Command{
 
 		tableString := &strings.Builder{}
 		table := tablewriter.NewWriter(tableString)
-		table.Header([]string{"Property", "Value"})
+		table.Header("Property", "Value")
 
 		for k, v := range data {
 			k = strings.ReplaceAll(k, "_", " ")
-			table.Append([]string{k, fmt.Sprintf("%v", v)})
+			exitWithError(cmd, table.Append(k, fmt.Sprintf("%v", v)))
 		}
-		table.Render()
+		exitWithError(cmd, table.Render())
 
 		outputBytes(cmd, []byte(tableString.String()))
 	},

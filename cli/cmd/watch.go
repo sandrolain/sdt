@@ -67,7 +67,11 @@ var fsWatchCmd = &cobra.Command{
 		if err != nil {
 			exitWithError(cmd, err)
 		}
-		defer watcher.Close()
+		defer func() {
+			if err := watcher.Close(); err != nil {
+				log.Println("Error closing watcher:", err)
+			}
+		}()
 
 		done := make(chan bool)
 		go func() {

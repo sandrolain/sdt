@@ -100,12 +100,12 @@ func ExecuteByArgs(args []string, in []byte) ([]byte, error) {
 	origOut := rootCmd.OutOrStdout()
 
 	buf := new(bytes.Buffer)
-	rootCmd.SetOutput(buf)
+	rootCmd.SetOut(buf)
 	rootCmd.SetArgs(args)
 
 	err := rootCmd.Execute()
 	rootCmd.SetIn(nil)
-	rootCmd.SetOutput(origOut)
+	rootCmd.SetOut(origOut)
 	if err != nil {
 		return nil, err
 	}

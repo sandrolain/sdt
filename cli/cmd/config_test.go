@@ -30,7 +30,7 @@ func TestConfigSet(t *testing.T) {
 
 	execute(t, configSetCmd, []byte("123.456"), "-k", "num", "-t", "float")
 	val = viper.Get("num")
-	var expF float64 = 123.456
+	expF := 123.456
 	if val != expF {
 		t.Fatalf("expecting \"%v\", got \"%v\"", expF, val)
 	}

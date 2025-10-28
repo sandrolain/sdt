@@ -21,12 +21,12 @@ func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) []byte {
 	origOut := rootCmd.OutOrStdout()
 
 	buf := new(bytes.Buffer)
-	rc.SetOutput(buf)
+	rc.SetOut(buf)
 	rc.SetArgs(args)
 
 	err := rc.Execute()
 	rc.SetIn(nil)
-	rootCmd.SetOutput(origOut)
+	rootCmd.SetOut(origOut)
 
 	if err != nil {
 		t.Fatal(err)

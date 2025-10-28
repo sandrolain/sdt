@@ -18,20 +18,29 @@ func ReadQRCodeImage(data []byte) (string, error) {
 	}
 
 	// prepare BinaryBitmap
-	bmp, _ := gozxing.NewBinaryBitmapFromImage(img)
+	bmp, err := gozxing.NewBinaryBitmapFromImage(img)
+	if err != nil {
+		return "", err
+	}
 
 	// decode image
 	qrReader := qrcode.NewQRCodeReader()
-	result, _ := qrReader.Decode(bmp, nil)
+	result, err := qrReader.Decode(bmp, nil)
+	if err != nil {
+		return "", err
+	}
 
 	return result.String(), nil
 }
 
 func GenerateQRCodeImage(data string, size int) ([]byte, error) {
 	enc := qrcode.NewQRCodeWriter()
-	img, _ := enc.EncodeWithoutHint(data, gozxing.BarcodeFormat_QR_CODE, size, size)
+	img, err := enc.EncodeWithoutHint(data, gozxing.BarcodeFormat_QR_CODE, size, size)
+	if err != nil {
+		return nil, err
+	}
 	out := new(bytes.Buffer)
-	err := png.Encode(out, img)
+	err = png.Encode(out, img)
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/TylerBrock/colorjson"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func RandomBytes(length int) ([]byte, error) {
@@ -94,7 +94,7 @@ func DecryptAndVerify(value []byte, passPhrase []byte, hash []byte) ([]byte, err
 		return nil, err
 	}
 	if !Sha256Compare(dec, hash) {
-		return nil, fmt.Errorf("Decrypted value not match hash")
+		return nil, fmt.Errorf("decrypted value not match hash")
 	}
 	return dec, nil
 }
@@ -115,9 +115,9 @@ type JWTInfo struct {
 }
 
 func CreateJWT(params JWTParams) (string, error) {
-	claims := jwt.StandardClaims{
-		ExpiresAt: params.ExpiresAt.Unix(),
-		IssuedAt:  time.Now().Unix(),
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(params.ExpiresAt),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		Issuer:    params.Issuer,
 		Subject:   params.Subject,
 	}
@@ -126,18 +126,18 @@ func CreateJWT(params JWTParams) (string, error) {
 }
 
 func ValidateJWT(jwtString string, issuer string, secret []byte) error {
-	token, err := jwt.ParseWithClaims(jwtString, &jwt.StandardClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(jwtString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return secret, nil
 	})
 	if err != nil {
 		return err
 	}
 	if !token.Valid {
-		return fmt.Errorf("Invalid JWT")
+		return fmt.Errorf("invalid JWT")
 	}
-	claims, ok := token.Claims.(*jwt.StandardClaims)
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok {
-		return fmt.Errorf("Cannot obtain JWT claims")
+		return fmt.Errorf("cannot obtain JWT claims")
 	}
 	if issuer != "" && claims.Issuer != issuer {
 		return fmt.Errorf(`JWT issuer "%s" not match "%s"`, claims.Issuer, issuer)
@@ -145,31 +145,31 @@ func ValidateJWT(jwtString string, issuer string, secret []byte) error {
 	return nil
 }
 
-func ParseJWT(jwtString string, params JWTParams) (*jwt.StandardClaims, error) {
-	token, err := jwt.ParseWithClaims(jwtString, &jwt.StandardClaims{}, func(token *jwt.Token) (interface{}, error) {
+func ParseJWT(jwtString string, params JWTParams) (*jwt.RegisteredClaims, error) {
+	token, err := jwt.ParseWithClaims(jwtString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return params.Secret, nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	if !token.Valid {
-		return nil, fmt.Errorf("Invalid JWT")
+		return nil, fmt.Errorf("invalid JWT")
 	}
-	claims, ok := token.Claims.(*jwt.StandardClaims)
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok {
-		return nil, fmt.Errorf("Cannot obtain JWT claims")
+		return nil, fmt.Errorf("cannot obtain JWT claims")
 	}
 	return claims, err
 }
 
-func ExtractInfoFromJWT(jwtString string) (*jwt.StandardClaims, error) {
-	token, _, err := new(jwt.Parser).ParseUnverified(jwtString, &jwt.StandardClaims{})
+func ExtractInfoFromJWT(jwtString string) (*jwt.RegisteredClaims, error) {
+	token, _, err := new(jwt.Parser).ParseUnverified(jwtString, &jwt.RegisteredClaims{})
 	if err != nil {
 		return nil, err
 	}
-	claims, ok := token.Claims.(*jwt.StandardClaims)
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok {
-		return nil, fmt.Errorf("Cannot obtain JWT claims")
+		return nil, fmt.Errorf("cannot obtain JWT claims")
 	}
 	return claims, nil
 }

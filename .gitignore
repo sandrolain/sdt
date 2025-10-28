@@ -10,3 +10,4 @@ sdt.yaml
 web-server/linux
 /context
 trivi-results.json
+/coverage.*
