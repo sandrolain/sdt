@@ -23,7 +23,7 @@
 ### Installation
 
 ```bash
-go install github.com/sandrolain/sdt/cli@latest
+go install github.com/sandrolain/sdt@latest
 ```
 
 ```bash
