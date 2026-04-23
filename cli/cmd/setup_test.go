@@ -52,7 +52,7 @@ func TestSetupSDTYAMLContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir, _ := os.Getwd()
-	data, readErr := os.ReadFile(filepath.Join(dir, ".sdt.yaml"))
+	data, readErr := os.ReadFile(filepath.Join(dir, ".sdt.yaml")) //#nosec G304 -- test temp directory path
 	if readErr != nil {
 		t.Fatal(readErr)
 	}
@@ -185,7 +185,7 @@ func TestSetupSkillAgent(t *testing.T) {
 	_ = out
 
 	skillPath := filepath.Join(dir, ".agents", "skills", "sdt", "SKILL.md")
-	data, err := os.ReadFile(skillPath)
+	data, err := os.ReadFile(skillPath) //#nosec G304 -- test temp directory path
 	if err != nil {
 		t.Fatalf("expected .agents/skills/sdt/SKILL.md to be created: %v", err)
 	}

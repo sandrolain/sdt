@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/goccy/go-yaml"
@@ -21,7 +22,7 @@ type PortResult struct {
 
 // checkPort attempts a TCP connection to host:port with the given timeout.
 func checkPort(host string, port int, timeout time.Duration) PortResult {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	start := time.Now()
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	elapsed := time.Since(start)
@@ -36,7 +37,11 @@ func checkPort(host string, port int, timeout time.Duration) PortResult {
 		result.Open = false
 		result.Error = err.Error()
 	} else {
-		conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			result.Open = false
+			result.Error = closeErr.Error()
+			return result
+		}
 		result.Open = true
 	}
 	return result

@@ -112,10 +112,7 @@ Examples:
 			for _, a := range strings.Split(agent, ",") {
 				a = strings.TrimSpace(a)
 				if _, ok := setupAgentFile[a]; !ok {
-					var supported []string
-					for _, k := range setupAgentAll {
-						supported = append(supported, k)
-					}
+					supported := append([]string(nil), setupAgentAll...)
 					exitWithError(cmd, fmt.Errorf(
 						"unknown agent %q; supported: %s, all", a, strings.Join(supported, ", "),
 					))

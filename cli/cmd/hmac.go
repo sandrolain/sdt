@@ -20,18 +20,24 @@ type HMACResult struct {
 	Key       string `json:"key"       yaml:"key"`
 }
 
+const (
+	hmacAlgoSHA256 = "sha256"
+	hmacAlgoSHA512 = "sha512"
+	hmacAlgoSHA384 = "sha384"
+)
+
 // computeHMAC computes an HMAC with the given algorithm over data using key.
 func computeHMAC(data []byte, key []byte, algo string) ([]byte, error) {
 	var h func() hash.Hash
 	switch algo {
-	case "sha256":
+	case hmacAlgoSHA256:
 		h = sha256.New
-	case "sha512":
+	case hmacAlgoSHA512:
 		h = sha512.New
-	case "sha384":
+	case hmacAlgoSHA384:
 		h = sha512.New384
 	default:
-		return nil, fmt.Errorf("unsupported algorithm %q; supported: sha256, sha512, sha384", algo)
+		return nil, fmt.Errorf("unsupported algorithm %q; supported: %s, %s, %s", algo, hmacAlgoSHA256, hmacAlgoSHA512, hmacAlgoSHA384)
 	}
 	mac := hmac.New(h, key)
 	mac.Write(data)
@@ -56,7 +62,7 @@ Examples:
 		key := getStringFlag(cmd, "key", true)
 		algo := getStringFlag(cmd, "algo", false)
 		if algo == "" {
-			algo = "sha256"
+			algo = hmacAlgoSHA256
 		}
 		format := getFormat(cmd)
 
@@ -85,6 +91,6 @@ Examples:
 
 func init() {
 	hmacCmd.Flags().String("key", "", "Secret key for HMAC (required)")
-	hmacCmd.Flags().String("algo", "sha256", "Hash algorithm: sha256|sha512|sha384")
+	hmacCmd.Flags().String("algo", hmacAlgoSHA256, "Hash algorithm: sha256|sha512|sha384")
 	rootCmd.AddCommand(hmacCmd)
 }

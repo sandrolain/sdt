@@ -19,6 +19,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	signAlgoRSASHA256   = "rsa-sha256"
+	signAlgoRSASHA512   = "rsa-sha512"
+	signAlgoECDSASHA256 = "ecdsa-sha256"
+	signAlgoECDSASHA512 = "ecdsa-sha512"
+	signAlgoED25519     = "ed25519"
+)
+
 // loadPrivateKey parses a PEM-encoded private key.
 func loadPrivateKey(path string) (crypto.Signer, error) {
 	data, err := os.ReadFile(path) //#nosec G304 -- user-controlled key file
@@ -72,13 +80,13 @@ func loadPublicKey(path string) (crypto.PublicKey, error) {
 // hashForAlgo returns a digest and hash.Hash identifier for the given algo.
 func hashForAlgo(algo string, data []byte) ([]byte, crypto.Hash, error) {
 	switch algo {
-	case "rsa-sha256", "ecdsa-sha256":
+	case signAlgoRSASHA256, signAlgoECDSASHA256:
 		d := sha256.Sum256(data)
 		return d[:], crypto.SHA256, nil
-	case "rsa-sha512", "ecdsa-sha512":
+	case signAlgoRSASHA512, signAlgoECDSASHA512:
 		d := sha512.Sum512(data)
 		return d[:], crypto.SHA512, nil
-	case "ed25519":
+	case signAlgoED25519:
 		// Ed25519 hashes internally
 		return data, 0, nil
 	default:
@@ -89,13 +97,13 @@ func hashForAlgo(algo string, data []byte) ([]byte, crypto.Hash, error) {
 // signData signs data with the given private key and algorithm.
 func signData(data []byte, signer crypto.Signer, algo string) ([]byte, error) {
 	switch algo {
-	case "ed25519":
+	case signAlgoED25519:
 		ed25519Key, ok := signer.(ed25519.PrivateKey)
 		if !ok {
 			return nil, fmt.Errorf("key is not Ed25519")
 		}
 		return ed25519.Sign(ed25519Key, data), nil
-	case "rsa-sha256", "rsa-sha512":
+	case signAlgoRSASHA256, signAlgoRSASHA512:
 		digest, hashID, err := hashForAlgo(algo, data)
 		if err != nil {
 			return nil, err
@@ -105,7 +113,7 @@ func signData(data []byte, signer crypto.Signer, algo string) ([]byte, error) {
 			return nil, fmt.Errorf("key is not RSA")
 		}
 		return rsa.SignPKCS1v15(rand.Reader, rsaKey, hashID, digest)
-	case "ecdsa-sha256", "ecdsa-sha512":
+	case signAlgoECDSASHA256, signAlgoECDSASHA512:
 		digest, _, err := hashForAlgo(algo, data)
 		if err != nil {
 			return nil, err
@@ -123,7 +131,7 @@ func signData(data []byte, signer crypto.Signer, algo string) ([]byte, error) {
 // verifyData verifies a signature against data.
 func verifyData(data []byte, sig []byte, pub crypto.PublicKey, algo string) error {
 	switch algo {
-	case "ed25519":
+	case signAlgoED25519:
 		edPub, ok := pub.(ed25519.PublicKey)
 		if !ok {
 			return fmt.Errorf("key is not Ed25519")
@@ -132,7 +140,7 @@ func verifyData(data []byte, sig []byte, pub crypto.PublicKey, algo string) erro
 			return fmt.Errorf("signature verification failed")
 		}
 		return nil
-	case "rsa-sha256", "rsa-sha512":
+	case signAlgoRSASHA256, signAlgoRSASHA512:
 		digest, hashID, err := hashForAlgo(algo, data)
 		if err != nil {
 			return err
@@ -142,7 +150,7 @@ func verifyData(data []byte, sig []byte, pub crypto.PublicKey, algo string) erro
 			return fmt.Errorf("key is not RSA")
 		}
 		return rsa.VerifyPKCS1v15(rsaPub, hashID, digest, sig)
-	case "ecdsa-sha256", "ecdsa-sha512":
+	case signAlgoECDSASHA256, signAlgoECDSASHA512:
 		digest, _, err := hashForAlgo(algo, data)
 		if err != nil {
 			return err
@@ -182,7 +190,7 @@ Examples:
 		format := getFormat(cmd)
 
 		if algo == "" {
-			algo = "rsa-sha256"
+			algo = signAlgoRSASHA256
 		}
 
 		data := getInputBytes(cmd, args)

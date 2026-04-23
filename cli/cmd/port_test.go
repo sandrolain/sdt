@@ -55,12 +55,6 @@ func TestPortCmd_json_open(t *testing.T) {
 	port := startEchoServer(t)
 	out := execute(t, portCmd, nil,
 		"--host", "127.0.0.1",
-		"--port", "0",
-		"--format", "json",
-	)
-	// Rebuild with actual port
-	out = execute(t, portCmd, nil,
-		"--host", "127.0.0.1",
 		"--port", strings.TrimSpace(string([]byte(fmt.Sprintf("%d", port)))),
 		"--format", "json",
 	)

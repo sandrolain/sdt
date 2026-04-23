@@ -72,7 +72,12 @@ func fetchTLSCerts(host string, insecure bool) ([]*x509.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			// Ignore close errors: connection state is already captured below.
+			_ = closeErr
+		}
+	}()
 	return conn.ConnectionState().PeerCertificates, nil
 }
 
