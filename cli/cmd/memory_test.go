@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -176,5 +177,34 @@ func TestMemoryExportJSON(t *testing.T) {
 	var entries []MemoryEntry
 	if err := json.Unmarshal(out, &entries); err != nil {
 		t.Fatalf("export JSON invalid: %v", err)
+	}
+}
+
+func TestOutputEntries_json(t *testing.T) {
+	resetMemoryDB(t)
+	_ = memorySet("p", "g", "k", "v", "tag1")
+	out := execute(t, memoryListCmd, nil, "--project", "p", "--format", "json")
+	var entries []MemoryEntry
+	if err := json.Unmarshal(out, &entries); err != nil {
+		t.Fatalf("expected valid JSON from memory list: %v\nout: %s", err, out)
+	}
+}
+
+func TestOutputEntries_text(t *testing.T) {
+	resetMemoryDB(t)
+	_ = memorySet("p", "g", "mykey", "myvalue", "tagA")
+	out := execute(t, memoryListCmd, nil, "--project", "p")
+	s := string(out)
+	if !strings.Contains(s, "mykey") {
+		t.Errorf("expected key in text output, got: %s", s)
+	}
+}
+
+func TestOutputEntries_yaml(t *testing.T) {
+	resetMemoryDB(t)
+	_ = memorySet("p", "", "k", "v", "")
+	out := execute(t, memoryListCmd, nil, "--project", "p", "--format", "yaml")
+	if !strings.Contains(string(out), "key") {
+		t.Errorf("expected 'key' in yaml output, got: %s", out)
 	}
 }

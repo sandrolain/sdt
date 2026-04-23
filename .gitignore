@@ -11,3 +11,4 @@ web-server/linux
 /context
 trivi-results.json
 /coverage.*
+/.github/copilot*.md
