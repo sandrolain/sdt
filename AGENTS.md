@@ -48,8 +48,6 @@ context/
   changes.md      — changelog (append on every change)
   analysis-ai-agent-tooling.md — roadmap document
 docs/             — auto-generated cobra documentation (sdt docs)
-web/              — WASM web application source
-web-server/       — static file server for the web interface
 ```
 
 ---

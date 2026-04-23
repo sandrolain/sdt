@@ -7,7 +7,7 @@
 
 **Smart Developer Tools** — A composable CLI toolset for AI agents and developers.
 
-> ⚠️ **Work in Progress**: Active development. See [AGENTS.md](./AGENTS.md) for agent-oriented instructions.
+<img src="./sdt-gopher.png" height="480" />
 
 ## Features
 
