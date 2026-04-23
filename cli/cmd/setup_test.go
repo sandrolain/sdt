@@ -34,14 +34,23 @@ func TestSetupAllAgents(t *testing.T) {
 	}
 
 	dir, _ := os.Getwd()
+	// --agent all (default) creates only AGENTS.md and skill file
 	for _, path := range []string{
 		".sdt.yaml",
-		".github/copilot-instructions.md",
-		"CLAUDE.md",
 		"AGENTS.md",
+		".agents/skills/sdt/SKILL.md",
 	} {
 		if _, err := os.Stat(filepath.Join(dir, path)); os.IsNotExist(err) {
 			t.Errorf("expected file %s to be created", path)
+		}
+	}
+	// copilot and claude are NOT created by default
+	for _, path := range []string{
+		".github/copilot-instructions.md",
+		"CLAUDE.md",
+	} {
+		if _, err := os.Stat(filepath.Join(dir, path)); !os.IsNotExist(err) {
+			t.Errorf("expected %s NOT to be created by default", path)
 		}
 	}
 }
@@ -147,7 +156,7 @@ func TestSetupDryRun(t *testing.T) {
 		t.Errorf("expected dry-run in output, got: %s", out)
 	}
 	// no files should exist
-	for _, path := range []string{".sdt.yaml", "AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md"} {
+	for _, path := range []string{".sdt.yaml", "AGENTS.md", ".agents/skills/sdt/SKILL.md", "CLAUDE.md", ".github/copilot-instructions.md"} {
 		if _, err := os.Stat(filepath.Join(dir, path)); !os.IsNotExist(err) {
 			t.Errorf("dry-run: file %s should not have been created", path)
 		}
@@ -210,8 +219,6 @@ func TestSetupAllIncludesSkill(t *testing.T) {
 
 	for _, path := range []string{
 		".sdt.yaml",
-		".github/copilot-instructions.md",
-		"CLAUDE.md",
 		"AGENTS.md",
 		".agents/skills/sdt/SKILL.md",
 	} {

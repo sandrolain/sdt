@@ -67,10 +67,11 @@ sdt extract --type code-blocks --file llm_output.md
 
 ### Encoding & Hashing
 ` + "```" + `bash
-echo "hello" | sdt base64
-echo "aGVsbG8=" | sdt base64 dec
+echo "hello" | sdt b64
+echo "aGVsbG8=" | sdt b64 dec
 echo "hello" | sdt sha256
 echo "hello" | sdt hex
+echo "hello" | sdt hmac --key secret
 ` + "```" + `
 
 ### JSON / YAML / Conversion
@@ -103,7 +104,7 @@ Create ` + "`.sdt.yaml`" + ` in your project root:
 project: myapp
 group: my-org
 ` + "```" + `
-Or run: ` + "`sdt memory init --project myapp --group my-org`" + `
+Or run: ` + "`sdt setup --project myapp`" + `
 `,
 
 	"claude": `<tool_instructions>
@@ -138,8 +139,9 @@ Errors: non-zero exit code + message to stderr
 - sdt template --tmpl "{{.key}}" --data '{"key":"val"}'
 - sdt manifest --format json  (discover all commands)
 - sdt schema --command "CMD"  (JSON Schema for a command)
-- sdt base64 / sdt base64 dec
+- sdt b64 / sdt b64 dec
 - sdt sha256 / sdt sha512 / sdt md5
+- sdt hmac --key secret < data
 - sdt json pretty / sdt json valid
 - sdt conv --from json --to yaml
 - sdt jwt parse / sdt jwt claims
@@ -153,78 +155,361 @@ group: my-org
 	"generic": `# SDT — Smart Developer Tools Agent Instructions
 
 SDT provides composable CLI utilities for AI agents. Install with:
-  go install github.com/sandrolain/sdt/cli@latest
+  go install github.com/sandrolain/sdt@latest
 
 ## Quick Reference
 
 | Goal | Command |
 |---|---|
-| Count tokens | ` + "`echo text | sdt tokens --model gpt-4`" + ` |
+| Count LLM tokens | ` + "`sdt tokens --model gpt-4 --input TEXT`" + ` |
 | Render prompt template | ` + "`sdt prompt render --template \"...\" --vars '{}'`" + ` |
 | Validate prompt budget | ` + "`sdt prompt validate --file p.txt --max-tokens 4096`" + ` |
-| Truncate to token limit | ` + "`cat doc | sdt truncate --max-tokens 2000`" + ` |
+| Truncate to token limit | ` + "`sdt truncate --max-tokens 2000 --file doc.txt`" + ` |
 | Save memory | ` + "`sdt memory set key value --project proj`" + ` |
 | Search memory | ` + "`sdt memory search query --project proj --format json`" + ` |
-| Extract URLs | ` + "`echo text | sdt extract --type urls`" + ` |
-| Extract code blocks | ` + "`cat response.md | sdt extract --type code-blocks`" + ` |
+| Extract URLs | ` + "`sdt extract --type urls --file text.txt`" + ` |
+| Extract code blocks | ` + "`sdt extract --type code-blocks --file response.md`" + ` |
 | Discover commands | ` + "`sdt manifest --format json`" + ` |
 | Command JSON Schema | ` + "`sdt schema --command \"jwt parse\"`" + ` |
-| Encode base64 | ` + "`echo data | sdt base64`" + ` |
-| Hash SHA-256 | ` + "`echo data | sdt sha256`" + ` |
-| Convert JSON→YAML | ` + "`cat f.json | sdt conv --from json --to yaml`" + ` |
+| Encode base64 | ` + "`sdt b64 --input data`" + ` |
+| Hash SHA-256 | ` + "`sdt sha256 --input data`" + ` |
+| Convert JSON to YAML | ` + "`sdt conv --from json --to yaml --file f.json`" + ` |
 
-All commands: --format json|yaml|text, --quiet, --no-color
-Input: stdin | --input STRING | --file PATH
+All commands: --format json\|yaml\|text, --quiet, --no-color
+Input: stdin \| --input STRING \| --file PATH
 `,
 
 	// "skill" produces a SKILL.md with YAML frontmatter for the open agent skills ecosystem
 	// (npx skills add / .agents/skills/sdt/SKILL.md)
 	"skill": `---
 name: sdt
-description: Smart Developer Tools — composable CLI for AI agents. Provides deterministic commands for encoding, hashing, cryptography, JWT, templating, persistent memory (SQLite FTS5), token counting, prompt rendering, data extraction, and network utilities. All output is machine-readable (--format json|yaml).
+description: SDT (Smart Developer Tools) is a CLI toolset for AI agents and developers. Provides deterministic, composable commands for encoding, hashing, cryptography (HMAC, sign/verify, TLS certs), JWT, data conversion, templating, persistent memory (SQLite FTS5), LLM token counting, prompt rendering/validation, text truncation, data extraction, network utilities (DNS, port check), and more. All output is machine-readable (--format json|yaml). Pure-Go, no CGO, cross-platform.
 ---
 
 # SDT — Smart Developer Tools
 
-SDT is a CLI toolset for AI agents and developers.
-Install: ` + "`go install github.com/sandrolain/sdt/cli@latest`" + `
+Install: ` + "`go install github.com/sandrolain/sdt@latest`" + `
 
-## Core Patterns
+## Core Input/Output Patterns
+
 ` + "```" + `bash
-# Input: stdin | --input STRING | --file PATH
-# Output: --format text|json|yaml (default: text)
-sdt <command> [subcommand] [flags]
+# Input sources (interchangeable on all commands)
+echo "data" | sdt <cmd>                # stdin
+sdt <cmd> --input "data"               # inline string
+sdt <cmd> --file path/to/file          # file path
+
+# Output format (all commands)
+sdt <cmd> --format text                # default
+sdt <cmd> --format json
+sdt <cmd> --format yaml
+sdt <cmd> --quiet                      # suppress info, only result
+sdt <cmd> --no-color                   # disable ANSI
 ` + "```" + `
 
-## Key Commands
+## Encoding
 
-| Goal | Command |
-|---|---|
-| Count LLM tokens | ` + "`echo text | sdt tokens --model gpt-4`" + ` |
-| Render prompt template | ` + "`sdt prompt render --template \"...\" --vars '{}'`" + ` |
-| Validate token budget | ` + "`sdt prompt validate --file p.txt --max-tokens 4096`" + ` |
-| Truncate to token limit | ` + "`cat doc | sdt truncate --max-tokens 2000`" + ` |
-| Save to memory | ` + "`sdt memory set key value --project proj`" + ` |
-| Search memory (FTS5) | ` + "`sdt memory search query --project proj --format json`" + ` |
-| Extract URLs/emails/code | ` + "`echo text | sdt extract --type urls`" + ` |
-| Render Go template | ` + "`sdt template --tmpl \"{{.name}}\" --data '{\"name\":\"x\"}'`" + ` |
-| Discover all commands | ` + "`sdt manifest --format json`" + ` |
-| JSON Schema for command | ` + "`sdt schema --command \"jwt parse\"`" + ` |
-| Encode base64 | ` + "`echo data | sdt base64`" + ` |
-| Hash SHA-256 | ` + "`echo data | sdt sha256`" + ` |
-| HMAC-SHA256 | ` + "`echo data | sdt hmac --key secret`" + ` |
-| Inspect TLS cert | ` + "`sdt cert inspect --host example.com`" + ` |
-| DNS lookup | ` + "`sdt dns --host example.com --type A`" + ` |
-| TCP port check | ` + "`sdt port --host example.com --port 443`" + ` |
-| Convert JSON→YAML | ` + "`cat f.json | sdt conv --from json --to yaml`" + ` |
-| Parse/validate JWT | ` + "`echo TOKEN | sdt jwt parse`" + ` |
+` + "```" + `bash
+# Base64
+echo "hello" | sdt b64                        # encode
+echo "aGVsbG8=" | sdt b64 dec                 # decode
+echo "hello" | sdt b64url                     # URL-safe encode
+echo "aGVsbG8=" | sdt b64url dec              # URL-safe decode
 
-## Project Config
-Create ` + "`.sdt.yaml`" + ` (or run ` + "`sdt setup --project myapp`" + `):
+# Base32
+echo "hello" | sdt b32
+echo "NBSWY3DPEB3W64TMMQ======" | sdt b32 dec
+
+# Hex
+echo "hello" | sdt hex
+echo "68656c6c6f" | sdt hex dec
+
+# URL encoding
+echo "hello world" | sdt url enc
+echo "hello+world" | sdt url dec
+echo "a=1&b=2" | sdt url encform
+
+# HTML encoding
+echo "<b>hi</b>" | sdt html encode
+echo "&lt;b&gt;hi&lt;/b&gt;" | sdt html decode
+` + "```" + `
+
+## Hashing & HMAC
+
+` + "```" + `bash
+echo "hello" | sdt md5
+echo "hello" | sdt sha1
+echo "hello" | sdt sha256
+echo "hello" | sdt sha384
+echo "hello" | sdt sha512
+
+# HMAC (webhook signature verification, message authentication)
+echo "payload" | sdt hmac --key "secret"
+echo "payload" | sdt hmac --key "secret" --algo sha512
+echo "payload" | sdt hmac --key "secret" --format json
+# algo: sha256 (default), sha512, sha384
+` + "```" + `
+
+## Cryptography — Sign & Verify
+
+` + "```" + `bash
+# Sign data with private key (PEM)
+echo "payload" | sdt sign --key private.pem
+echo "payload" | sdt sign --key private.pem --algo rsa-sha512
+echo "payload" | sdt sign --key ed25519.pem --algo ed25519 --format json
+# algo: rsa-sha256 (default), rsa-sha512, ecdsa-sha256, ecdsa-sha512, ed25519
+
+# Verify signature
+echo "payload" | sdt verify --key public.pem --sig <base64sig>
+echo "payload" | sdt verify --key public.pem --sig <base64sig> --algo ecdsa-sha256
+
+# Generate RSA/ECDSA/Ed25519 key pairs
+sdt keypair --algo rsa --bits 4096
+sdt keypair --algo ecdsa --curve P-256
+sdt keypair --algo ed25519
+` + "```" + `
+
+## TLS Certificates
+
+` + "```" + `bash
+# Inspect certificate from live host
+sdt cert inspect --host example.com
+sdt cert inspect --host example.com:8443 --format json
+
+# Inspect local PEM file
+sdt cert inspect --file cert.pem --format yaml
+
+# Check expiry only
+sdt cert expiry --host example.com
+sdt cert expiry --file cert.pem --format json
+` + "```" + `
+
+## JWT
+
+` + "```" + `bash
+# Parse JWT (no verification)
+echo "$TOKEN" | sdt jwt parse
+echo "$TOKEN" | sdt jwt parse --format json
+
+# Extract claims
+echo "$TOKEN" | sdt jwt claims
+echo "$TOKEN" | sdt jwt claims --format json
+
+# Validate JWT (verify signature + expiry)
+echo "$TOKEN" | sdt jwt valid --key public.pem
+` + "```" + `
+
+## Data Conversion
+
+` + "```" + `bash
+# Convert between formats: json, yaml, toml, msgpack, csv
+sdt conv --from json --to yaml --file data.json
+sdt conv --from yaml --to toml --file config.yaml
+echo '{"a":1}' | sdt conv --from json --to msgpack
+
+# Diff two files
+sdt diff --file-a before.json --file-b after.json
+sdt diff --file-a old.yaml --file-b new.yaml --format json
+` + "```" + `
+
+## JSON Tools
+
+` + "```" + `bash
+cat data.json | sdt json pretty
+cat data.json | sdt json minify
+echo '{"a":1}' | sdt json valid
+` + "```" + `
+
+## Template Rendering
+
+` + "```" + `bash
+# Go text/template with JSON data
+echo '{"name":"World"}' | sdt template --tmpl "Hello, {{.name}}!"
+sdt template --data '{"env":"prod"}' --file deploy.tmpl --format text
+
+# .env files
+sdt env parse --file .env --format json
+sdt env get KEY --file .env
+sdt env set KEY VALUE --file .env
+sdt env merge --file .env --file .env.local --format json
+` + "```" + `
+
+## LLM — Token Counting, Prompt, Truncation
+
+` + "```" + `bash
+# Count approximate tokens (no API needed)
+echo "your text" | sdt tokens
+echo "your text" | sdt tokens --model gpt-4
+sdt tokens --model claude --file prompt.txt --format json
+# models: gpt-4, gpt-2, claude, llama (default: gpt-2)
+
+# Render a prompt template
+sdt prompt render --template "You are {{.role}}." --vars '{"role":"assistant"}'
+sdt prompt render --file system.txt --vars-file ctx.json --show-tokens
+
+# Validate prompt fits within token budget
+sdt prompt validate --file prompt.txt --max-tokens 4096 --model gpt-4
+sdt prompt validate --file prompt.txt --max-tokens 4096 --format json
+
+# Truncate text to fit in token budget
+cat long_doc.md | sdt truncate --max-tokens 4000
+sdt truncate --max-tokens 2000 --strategy sentences --file essay.txt
+sdt truncate --max-tokens 1000 --strategy sections --model claude
+# strategy: chars (default), sentences, sections
+` + "```" + `
+
+## Persistent Memory (offline, SQLite FTS5)
+
+Stores key-value entries per project, with full-text search.
+
+` + "```" + `bash
+# Initialize project config
+sdt memory init --project myapp --group my-org
+
+# Store and retrieve
+sdt memory set "key" "value" --project myapp
+sdt memory set "key" "value" --project myapp --tags "tag1,tag2"
+sdt memory get "key" --project myapp
+sdt memory get "key" --project myapp --format json
+
+# Full-text search (BM25 ranking)
+sdt memory search "query terms" --project myapp
+sdt memory search "query terms" --project myapp --format json
+
+# List and manage
+sdt memory list --project myapp --format json
+sdt memory delete "key" --project myapp
+sdt memory delete --all --project myapp
+
+# Import / export
+sdt memory export --project myapp --format json
+sdt memory import --project myapp --file backup.json
+
+# Discovery
+sdt memory projects
+sdt memory groups
+` + "```" + `
+
+## Data Extraction
+
+Extract structured items from unstructured text:
+
+` + "```" + `bash
+echo "Visit https://example.com or email alice@test.com" | sdt extract --type urls
+echo "Visit https://example.com or email alice@test.com" | sdt extract --type emails
+sdt extract --type ips --file log.txt
+sdt extract --type code-blocks --file llm_output.md
+sdt extract --type json-blocks --file response.txt
+sdt extract --type dates --file document.txt --format json
+` + "```" + `
+
+## Network Utilities
+
+` + "```" + `bash
+# DNS lookup
+sdt dns --host example.com
+sdt dns --host example.com --type MX --format json
+sdt dns --host example.com --type A,AAAA,MX --format json
+
+# TCP port check
+sdt port --host example.com --port 443
+sdt port --host db.internal --port 5432 --timeout 2s --format json
+
+# IP geolocation
+sdt ipinfo --ip 8.8.8.8 --format json
+
+# NS lookup
+sdt nslookup --host example.com
+` + "```" + `
+
+## Unique IDs & Passwords
+
+` + "```" + `bash
+sdt uid v4               # UUID v4
+sdt uid nano             # NanoID
+sdt uid ks               # K-Sortable UID (KSUID)
+
+sdt password             # secure random password
+sdt password --length 32 --symbols
+` + "```" + `
+
+## TOTP (2FA)
+
+` + "```" + `bash
+sdt totp uri --account user@example.com --issuer MyApp --secret BASE32SECRET
+sdt totp code --secret BASE32SECRET
+sdt totp verify --secret BASE32SECRET --code 123456
+sdt totp image --secret BASE32SECRET --output qr.png
+` + "```" + `
+
+## String Tools
+
+` + "```" + `bash
+echo "hello world" | sdt string uppercase
+echo "HELLO WORLD" | sdt string lowercase
+echo "hello world" | sdt string titlecase
+echo "hello world" | sdt string replacespace --replacement _
+echo "hello\nworld" | sdt string count --type lines
+echo "hello\tworld" | sdt string escape
+echo "hello\\tworld" | sdt string unescape
+` + "```" + `
+
+## Time
+
+` + "```" + `bash
+sdt time iso              # current time as ISO 8601
+sdt time unix             # current Unix timestamp
+sdt time http             # current time in HTTP date format
+` + "```" + `
+
+## Version & Manifest
+
+` + "```" + `bash
+sdt version               # build info (version, commit, date)
+sdt version --format json
+
+# Discover all commands (machine-readable)
+sdt manifest --format json
+
+# JSON Schema for a command (useful for LLM tool-calling)
+sdt schema --format json
+sdt schema --command "jwt parse"
+sdt schema --command "memory set"
+` + "```" + `
+
+## Version Manager
+
+` + "```" + `bash
+# Bump semver strings
+echo "1.2.3" | sdt vman major        # 2.0.0
+echo "1.2.3" | sdt vman minor        # 1.3.0
+echo "1.2.3" | sdt vman patch        # 1.2.4
+echo "1.2.3" | sdt vman prerelease --pre alpha  # 1.2.3-alpha
+echo "1.2.3-alpha" | sdt vman metadata --meta build.1  # 1.2.3-alpha+build.1
+` + "```" + `
+
+## Compression & File
+
+` + "```" + `bash
+cat file.txt | sdt gzip > file.txt.gz
+cat file.txt.gz | sdt gunzip
+
+sdt read --file path/to/file
+sdt write --file output.txt --input "content"
+
+sdt bytes --size 32                  # 32 random bytes (base64)
+sdt bytes --size 32 --format hex     # as hex
+` + "```" + `
+
+## Project Config (.sdt.yaml)
+
+Create with ` + "`sdt setup --project myapp`" + ` or manually:
+
 ` + "```" + `yaml
 project: myapp
 group: my-org
 ` + "```" + `
+
+SDT searches for ` + "`.sdt.yaml`" + ` by walking up from the current directory (like ` + "`.git`" + `).
 `,
 }
 
