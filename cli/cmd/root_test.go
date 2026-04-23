@@ -5,7 +5,28 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
+
+// resetCmdFlags recursively resets all flag values to their defaults so that
+// shared cobra.Command instances don't accumulate state between Execute() calls.
+func resetCmdFlags(cmd *cobra.Command) {
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Changed {
+			_ = f.Value.Set(f.DefValue)
+			f.Changed = false
+		}
+	})
+	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Changed {
+			_ = f.Value.Set(f.DefValue)
+			f.Changed = false
+		}
+	})
+	for _, sub := range cmd.Commands() {
+		resetCmdFlags(sub)
+	}
+}
 
 func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) []byte {
 	t.Helper()
@@ -14,6 +35,9 @@ func execute(t *testing.T, c *cobra.Command, in []byte, args ...string) []byte {
 	args = append(uses, args...)
 
 	rc := c.Root()
+
+	// Reset all flag state to avoid accumulation between Execute() calls.
+	resetCmdFlags(rc)
 
 	inr := bytes.NewReader(in)
 	rc.SetIn(inr)

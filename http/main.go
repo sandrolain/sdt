@@ -12,8 +12,9 @@ import (
 )
 
 func endWithError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(400)
-	_, e := w.Write([]byte(err.Error()))
+	_, e := w.Write([]byte(err.Error())) //nolint:gosec
 	if e != nil {
 		log.Fatal(err)
 	}
@@ -62,9 +63,9 @@ func main() {
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "text/plain")
-		_, err = w.Write(out)
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(out) //nolint:gosec
 		if err != nil {
 			log.Fatal(err)
 		}

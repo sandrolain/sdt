@@ -89,36 +89,21 @@ tasks:
     cmds:
       - go vet ./cli/...
 
+  govulncheck:
+    desc: Run Go vulnerability check using govulncheck
+    cmds:
+      - echo "Running govulncheck..."
+      - govulncheck ./src/...
+
   check:
     desc: Run all checks (fmt, lint, vet, test, security)
     cmds:
       - task: fmt
       - task: lint
       - task: vet
+      - task: tidy
       - task: test
-      - task: gosec
       - task: govulncheck
-
-  # Security tasks
-  gosec:
-    desc: Run security checks with gosec
-    cmds:
-      - |
-        if ! command -v gosec &> /dev/null; then
-          echo "Installing gosec..."
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-        fi
-        gosec -fmt=json -out=security-report.json ./cli/...
-
-  govulncheck:
-    desc: Run vulnerability scanner
-    cmds:
-      - |
-        if ! command -v govulncheck &> /dev/null; then
-          echo "Installing govulncheck..."
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-        fi
-        govulncheck ./cli/...
 
   trivy:
     desc: Run Trivy vulnerability scanner

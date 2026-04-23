@@ -204,7 +204,7 @@ func getUsePath(cmd *cobra.Command, name string) string {
 func getUseArray(cmd *cobra.Command) []string {
 	uses := []string{}
 	for {
-		uses = append([]string{cmd.Use}, uses...)
+		uses = append([]string{cmd.Name()}, uses...)
 		cmd = cmd.Parent()
 		if cmd == nil || cmd.Use == "sdt" {
 			break

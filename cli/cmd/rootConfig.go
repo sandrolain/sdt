@@ -7,11 +7,77 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// ProjectConfig holds the project identity declared in .sdt.yaml.
+type ProjectConfig struct {
+	Project string `yaml:"project"`
+	Group   string `yaml:"group"`
+}
+
+// findProjectConfig walks up from the current working directory looking for
+// a .sdt.yaml file. Returns nil, nil when no file is found.
+func findProjectConfig() (*ProjectConfig, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	for {
+		path := filepath.Join(dir, ".sdt.yaml")
+		data, err := os.ReadFile(path) //#nosec G304 -- user-controlled project root
+		if err == nil {
+			var cfg ProjectConfig
+			if uerr := yaml.Unmarshal(data, &cfg); uerr == nil {
+				return &cfg, nil
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return nil, nil
+}
+
+// getProjectAndGroup resolves project and group from (in priority order):
+//  1. --project / --group explicit flags
+//  2. .sdt.yaml found walking up from CWD
+//
+// Returns empty strings when neither source provides a value.
+func getProjectAndGroup(cmd *cobra.Command) (project, group string) {
+	if f := cmd.Flags().Lookup("project"); f != nil && f.Changed {
+		if v, err := cmd.Flags().GetString("project"); err == nil {
+			project = v
+		}
+	}
+	if f := cmd.Flags().Lookup("group"); f != nil && f.Changed {
+		if v, err := cmd.Flags().GetString("group"); err == nil {
+			group = v
+		}
+	}
+	if project == "" || group == "" {
+		cfg, err := findProjectConfig()
+		if err != nil {
+			cfg = nil
+		}
+		if cfg != nil {
+			if project == "" {
+				project = cfg.Project
+			}
+			if group == "" {
+				group = cfg.Group
+			}
+		}
+	}
+	return
+}
 
 func loadFileConfig() {
 	viper.SetConfigName("sdt")
