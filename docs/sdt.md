@@ -29,9 +29,12 @@ Smart Developer Tools is a collection of CLI utilities for developers
 
 ```
       --file string         Input File
+      --format string       Output format: text|json|yaml (default "text")
   -h, --help                help for sdt
       --inb64 bytesBase64   Input Base 64
       --input string        Input String
+      --no-color            Disable ANSI color codes
+      --quiet               Suppress informational messages, only output result
 ```
 
 ### SEE ALSO
@@ -41,45 +44,53 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt b64url](sdt_b64url.md)	 - B64 URL Encode
 * [sdt bcrypt](sdt_bcrypt.md)	 - Bcrypt password
 * [sdt bytes](sdt_bytes.md)	 - Random Bytes
-* [sdt clipboard](sdt_clipboard.md)	 - Clipboard Tools
+* [sdt cert](sdt_cert.md)	 - Inspect TLS/X.509 certificates
 * [sdt completion](sdt_completion.md)	 - Generate the autocompletion script for the specified shell
 * [sdt config](sdt_config.md)	 - Configuration Tools
 * [sdt conv](sdt_conv.md)	 - Data Conversion
-* [sdt cthulhu](sdt_cthulhu.md)	 - cthulhu
-* [sdt dec](sdt_dec.md)	 - Decimal Encoding
+* [sdt diff](sdt_diff.md)	 - Compare two files and output differences
+* [sdt dns](sdt_dns.md)	 - DNS lookup for a host
 * [sdt docs](sdt_docs.md)	 - Generate CLI docs
-* [sdt echo](sdt_echo.md)	 - Echo
-* [sdt fswatch](sdt_fswatch.md)	 - File System Watcher
+* [sdt env](sdt_env.md)	 - Parse and manipulate .env files
+* [sdt extract](sdt_extract.md)	 - Extract structured items from text input
 * [sdt gunzip](sdt_gunzip.md)	 - Gunzip
 * [sdt gzip](sdt_gzip.md)	 - Gzip
 * [sdt hex](sdt_hex.md)	 - Hex Encoding
+* [sdt hmac](sdt_hmac.md)	 - Compute HMAC of input using a secret key
 * [sdt html](sdt_html.md)	 - HTML Tools
 * [sdt http](sdt_http.md)	 - HTTP client
 * [sdt ipinfo](sdt_ipinfo.md)	 - IP location
 * [sdt json](sdt_json.md)	 - JSON Tools
 * [sdt jwt](sdt_jwt.md)	 - JWT Tools
 * [sdt keypair](sdt_keypair.md)	 - Key pair PEMs
-* [sdt lorem](sdt_lorem.md)	 - Lorem Ipsum
+* [sdt manifest](sdt_manifest.md)	 - Emit a machine-readable manifest of all available commands
 * [sdt md5](sdt_md5.md)	 - MD5
-* [sdt notify](sdt_notify.md)	 - Notification
+* [sdt memory](sdt_memory.md)	 - Persistent key-value memory store for AI agents
 * [sdt nslookup](sdt_nslookup.md)	 - NS lookup
 * [sdt password](sdt_password.md)	 - Generate password
-* [sdt pipe](sdt_pipe.md)	 - run multiple <sdt> commands separated by -
+* [sdt port](sdt_port.md)	 - Check if a TCP port is open on a host
+* [sdt prompt](sdt_prompt.md)	 - Manage and render LLM prompt templates
 * [sdt qrcode](sdt_qrcode.md)	 - QR code
 * [sdt read](sdt_read.md)	 - Read File
 * [sdt regexp](sdt_regexp.md)	 - RegExp matching
-* [sdt serve](sdt_serve.md)	 - Static File Server
+* [sdt schema](sdt_schema.md)	 - Generate JSON Schema for SDT commands
+* [sdt setup](sdt_setup.md)	 - Scaffold agent files for the current project
 * [sdt sha1](sdt_sha1.md)	 - SHA-1
 * [sdt sha256](sdt_sha256.md)	 - SHA-256
 * [sdt sha384](sdt_sha384.md)	 - SHA-384
 * [sdt sha512](sdt_sha512.md)	 - SHA-512
+* [sdt sign](sdt_sign.md)	 - Sign data with a private key
+* [sdt skill](sdt_skill.md)	 - Generate agent skill/instruction files for using SDT
 * [sdt string](sdt_string.md)	 - String Tools
+* [sdt template](sdt_template.md)	 - Render a Go text/template with JSON or YAML data
 * [sdt time](sdt_time.md)	 - Time Tools
+* [sdt tokens](sdt_tokens.md)	 - Count approximate LLM tokens for the given text
 * [sdt totp](sdt_totp.md)	 - TOTP
+* [sdt truncate](sdt_truncate.md)	 - Truncate text to a maximum number of LLM tokens
 * [sdt uid](sdt_uid.md)	 - Unique ID
 * [sdt url](sdt_url.md)	 - URL Tools
+* [sdt verify](sdt_verify.md)	 - Verify a signature against data using a public key
 * [sdt version](sdt_version.md)	 - Version will output the current build information
 * [sdt vman](sdt_vman.md)	 - Version Manager
-* [sdt watch](sdt_watch.md)	 - Interval Watcher
 * [sdt write](sdt_write.md)	 - File Write
 

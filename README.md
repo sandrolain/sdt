@@ -78,6 +78,8 @@ SDT searches for `.sdt.yaml` by walking up from the current directory.
 | `memory export` | Export memory as JSON |
 | `memory import` | Import memory from JSON |
 | `memory init` | Create `.sdt.yaml` in the current directory |
+| `setup` | Scaffold `.sdt.yaml` and agent instruction files in the current directory |
+| `skill` | Generate agent instruction templates (`copilot`, `claude`, `generic`, `skill`) |
 | `extract` | Extract URLs, emails, IPs, JSON blocks, code blocks from text |
 | `template` | Render Go templates with JSON/YAML data |
 | `env parse` | Parse `.env` file as JSON |
@@ -106,6 +108,9 @@ SDT searches for `.sdt.yaml` by walking up from the current directory.
 | `md5` / `sha1` / `sha256` / `sha384` / `sha512` | Hash functions |
 | `bcrypt` / `bcrypt verify` | Bcrypt hash and verification |
 | `keypair` | Generate RSA/Ed25519/ECDSA key pairs |
+| `hmac` | Compute HMAC (`sha256`, `sha384`, `sha512`) |
+| `sign` / `verify` | Sign and verify input (RSA, ECDSA, Ed25519) |
+| `cert inspect` / `cert expiry` | Inspect TLS/X.509 certificates and expiration |
 
 ### JWT & Tokens
 
@@ -157,6 +162,8 @@ SDT searches for `.sdt.yaml` by walking up from the current directory.
 | `http` | HTTP client (GET/POST/PUT/…) |
 | `ipinfo` | IP geolocation (JSON output) |
 | `nslookup` | DNS lookup |
+| `dns` | DNS lookup with typed records (`A`, `AAAA`, `MX`, `TXT`, `CNAME`, `NS`, `PTR`) |
+| `port` | TCP port availability and latency check |
 
 ### Other
 
@@ -169,8 +176,6 @@ SDT searches for `.sdt.yaml` by walking up from the current directory.
 | `vman` | Semantic version manipulation |
 | `config get` / `config set` | Read/write `sdt.yaml` config |
 | `version` | Print build version info |
-
-> Deprecated (will be removed in a future release): `pipe`, `fswatch`, `watch`
 
 ---
 

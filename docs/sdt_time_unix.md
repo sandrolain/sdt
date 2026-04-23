@@ -21,9 +21,12 @@ sdt time unix [flags]
 ```
   -d, --diff string         Difference to apply
       --file string         Input File
+      --format string       Output format: text|json|yaml (default "text")
       --inb64 bytesBase64   Input Base 64
       --input string        Input String
   -m, --millis              Unix time with milliseconds
+      --no-color            Disable ANSI color codes
+      --quiet               Suppress informational messages, only output result
   -t, --time int            Unix time to format
 ```
 
