@@ -5,9 +5,10 @@ import (
 )
 
 var andCmd = &cobra.Command{
-	Use:     "pipe",
-	Aliases: []string{":"},
-	Short:   "run multiple <sdt> commands separated by -",
+	Use:        "pipe",
+	Aliases:    []string{":"},
+	Short:      "run multiple <sdt> commands separated by -",
+	Deprecated: "use shell pipes instead (e.g. sdt b64 | sdt sha256). This command will be removed in a future release.",
 	Run: func(cmd *cobra.Command, args []string) {
 		areInputArgs := true
 		var inputArgs []string

@@ -9,10 +9,17 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
-	"github.com/hetiansu5/urlquery"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 	"github.com/vmihailenco/msgpack/v5"
+)
+
+const (
+	fmtJSON    = "json"
+	fmtYAML    = "yaml"
+	fmtTOML    = "toml"
+	fmtMsgpack = "msgpack"
+	fmtCSV     = "csv"
 )
 
 func parseCsv(cmd *cobra.Command, str string) interface{} {
@@ -127,17 +134,15 @@ var convCmd = &cobra.Command{
 		switch from {
 		default:
 			exitWithError(cmd, fmt.Errorf(`invalid "in" flag value "%v"`, from))
-		case "json":
+		case fmtJSON:
 			exitWithError(cmd, json.Unmarshal(in, &data))
-		case "yaml":
+		case fmtYAML:
 			exitWithError(cmd, yaml.Unmarshal(in, &data))
-		case "toml":
+		case fmtTOML:
 			exitWithError(cmd, toml.Unmarshal(in, &data))
-		case "query":
-			exitWithError(cmd, urlquery.Unmarshal(in, &data))
-		case "msgpack":
+		case fmtMsgpack:
 			exitWithError(cmd, msgpack.Unmarshal(in, &data))
-		case "csv":
+		case fmtCSV:
 			data = parseCsv(cmd, string(in))
 		}
 
@@ -146,17 +151,15 @@ var convCmd = &cobra.Command{
 		switch to {
 		default:
 			err = fmt.Errorf(`invalid "out" flag value "%v"`, to)
-		case "json":
+		case fmtJSON:
 			out, err = json.Marshal(&data)
-		case "yaml":
+		case fmtYAML:
 			out, err = yaml.Marshal(&data)
-		case "toml":
+		case fmtTOML:
 			out, err = toml.Marshal(&data)
-		case "query":
-			out, err = urlquery.Marshal(data)
-		case "msgpack":
+		case fmtMsgpack:
 			out, err = msgpack.Marshal(data)
-		case "csv":
+		case fmtCSV:
 			out, err = buildCsv(cmd, data)
 		}
 		exitWithError(cmd, err)
@@ -167,8 +170,8 @@ var convCmd = &cobra.Command{
 
 func init() {
 	pf := convCmd.PersistentFlags()
-	pf.StringP("in", "a", "", "Input format (json, yaml, toml, query, csv, msgpack)")
-	pf.StringP("out", "b", "", "Output format (json, yaml, toml, query, csv, msgpack)")
+	pf.StringP("in", "a", "", "Input format (json, yaml, toml, csv, msgpack)")
+	pf.StringP("out", "b", "", "Output format (json, yaml, toml, csv, msgpack)")
 	pf.BoolP("object", "o", false, "CSV rows as objects")
 	pf.StringP("separator", "s", ",", "CSV separator")
 

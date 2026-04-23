@@ -5,12 +5,24 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gookit/color"
 	"github.com/sandrolain/sdt/cli/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+// getFormat returns the value of the global --format flag (default "text").
+func getFormat(cmd *cobra.Command) string {
+	if cmd != nil {
+		if f := cmd.Root().PersistentFlags().Lookup("format"); f != nil {
+			v, err := cmd.Root().PersistentFlags().GetString("format")
+			if err == nil {
+				return v
+			}
+		}
+	}
+	return "text"
+}
 
 const logo = `
                              dddddddd
@@ -45,6 +57,9 @@ func init() {
 	pf.String("input", "", "Input String")
 	pf.BytesBase64("inb64", []byte{}, "Input Base 64")
 	pf.String("file", "", "Input File")
+	pf.String("format", "text", "Output format: text|json|yaml")
+	pf.Bool("quiet", false, "Suppress informational messages, only output result")
+	pf.Bool("no-color", false, "Disable ANSI color codes")
 }
 
 func Execute() {
@@ -81,9 +96,15 @@ var exit func(code int) = os.Exit
 func exitWithError(cmd *cobra.Command, err error) {
 	if err != nil {
 		if cmd != nil {
-			color.SetOutput(cmd.ErrOrStderr())
+			if _, ferr := fmt.Fprintln(cmd.ErrOrStderr(), "Error:", err); ferr != nil {
+				_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
+			}
+			exit(1)
+			return
 		}
-		color.Error.Println(err)
+		if _, ferr := fmt.Fprintln(os.Stderr, "Error:", err); ferr != nil {
+			_ = ferr // best-effort: nothing more we can do if stderr write fails
+		}
 		exit(1)
 	}
 }

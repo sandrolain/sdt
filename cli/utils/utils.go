@@ -13,7 +13,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/TylerBrock/colorjson"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -243,7 +242,5 @@ func PrettifyJSON(str string) ([]byte, error) {
 }
 
 func GetPrettyJSON(v interface{}) ([]byte, error) {
-	f := colorjson.NewFormatter()
-	f.Indent = 2
-	return f.Marshal(v)
+	return json.MarshalIndent(v, "", "  ")
 }

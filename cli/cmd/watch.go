@@ -50,10 +50,11 @@ func runCommand(cmd *cobra.Command, cmdStr string) error {
 }
 
 var fsWatchCmd = &cobra.Command{
-	Use:     "fswatch",
-	Aliases: []string{"fsw"},
-	Short:   "File System Watcher",
-	Long:    `File System Watcher`,
+	Use:        "fswatch",
+	Aliases:    []string{"fsw"},
+	Short:      "File System Watcher",
+	Long:       `File System Watcher`,
+	Deprecated: "this command executes arbitrary shell commands and will be removed in a future release. Use dedicated file-watching tools instead.",
 	Run: func(cmd *cobra.Command, args []string) {
 		cmdStr := getStringFlag(cmd, "cmd", true)
 		dir := getStringFlag(cmd, "dir", false)
@@ -108,10 +109,11 @@ var fsWatchCmd = &cobra.Command{
 }
 
 var itvWatchCmd = &cobra.Command{
-	Use:     "watch",
-	Aliases: []string{"itw"},
-	Short:   "Interval Watcher",
-	Long:    `Interval Watcher`,
+	Use:        "watch",
+	Aliases:    []string{"itw"},
+	Short:      "Interval Watcher",
+	Long:       `Interval Watcher`,
+	Deprecated: "this command executes arbitrary shell commands and will be removed in a future release. Use dedicated scheduling tools instead.",
 	Run: func(cmd *cobra.Command, args []string) {
 		cmdStr := getStringFlag(cmd, "cmd", true)
 		itv := getIntFlag(cmd, "time", false)

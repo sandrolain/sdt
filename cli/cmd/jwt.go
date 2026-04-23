@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gookit/color"
 	"github.com/sandrolain/sdt/cli/utils"
 	"github.com/spf13/cobra"
 )
@@ -31,7 +30,7 @@ var jwtParseCmd = &cobra.Command{
 
 		out := make([][]byte, 6)
 
-		out[0] = []byte(color.Info.Render("HEAD:\n\n"))
+		out[0] = []byte("HEAD:\n\n")
 		byt, err := utils.Base64URLNoPaddingDecode(parts[0])
 		exitWithError(cmd, err)
 		if pretty {
@@ -40,7 +39,7 @@ var jwtParseCmd = &cobra.Command{
 		}
 		out[1] = byt
 
-		out[2] = []byte(color.Info.Render("\n\nCLAIMS:\n\n"))
+		out[2] = []byte("\n\nCLAIMS:\n\n")
 		byt, err = utils.Base64URLNoPaddingDecode(parts[1])
 		exitWithError(cmd, err)
 		if pretty {
@@ -49,7 +48,7 @@ var jwtParseCmd = &cobra.Command{
 		}
 		out[3] = byt
 
-		out[4] = []byte(color.Info.Render("\n\nSIGNATURE:\n\n"))
+		out[4] = []byte("\n\nSIGNATURE:\n\n")
 		out[5] = []byte(parts[2])
 
 		outputBytes(cmd, bytes.Join(out, []byte{}))

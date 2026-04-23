@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +25,6 @@ var ipInfoCmd = &cobra.Command{
 	Long:    `IP location info`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ip := getInputStringOrFlag(cmd, args, "ip", false)
-		asJson := getBoolFlag(cmd, "json", false)
 		url := "https://ipapi.co/json"
 		if ip != "" {
 			if !validIP4(ip) {
@@ -54,31 +51,12 @@ var ipInfoCmd = &cobra.Command{
 		err = res.Body.Close()
 		exitWithError(cmd, err)
 
-		if asJson {
-			outputBytes(cmd, body)
-			return
-		}
-
-		var data map[string]interface{}
-		exitWithError(cmd, json.Unmarshal(body, &data))
-
-		tableString := &strings.Builder{}
-		table := tablewriter.NewWriter(tableString)
-		table.Header("Property", "Value")
-
-		for k, v := range data {
-			k = strings.ReplaceAll(k, "_", " ")
-			exitWithError(cmd, table.Append(k, fmt.Sprintf("%v", v)))
-		}
-		exitWithError(cmd, table.Render())
-
-		outputBytes(cmd, []byte(tableString.String()))
+		outputBytes(cmd, body)
 	},
 }
 
 func init() {
 	pf := ipInfoCmd.PersistentFlags()
 	pf.StringP("ip", "t", "", "Target IP (default: client IP)")
-	pf.BoolP("json", "j", false, "As JSON output")
 	rootCmd.AddCommand(ipInfoCmd)
 }

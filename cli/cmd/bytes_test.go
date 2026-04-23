@@ -28,13 +28,13 @@ func TestDecimalEncoding(t *testing.T) {
 		t.Fatalf("expecting \"%v\", got \"%v\"", exp, string(out))
 	}
 
-	out = execute(t, decCmd, []byte{0xFF, 0x01, 0x99}, "-s", ",")
+	out = execute(t, decCmd, []byte{0xFF, 0x01, 0x99}, "-p", ",")
 	exp = "255,1,153"
 	if string(out) != exp {
 		t.Fatalf("expecting \"%v\", got \"%v\"", exp, string(out))
 	}
 
-	out = execute(t, decCmd, []byte{0xFF, 0x01, 0x99}, "-s", "")
+	out = execute(t, decCmd, []byte{0xFF, 0x01, 0x99}, "-p", "")
 	exp = "255001153"
 	if string(out) != exp {
 		t.Fatalf("expecting \"%v\", got \"%v\"", exp, string(out))

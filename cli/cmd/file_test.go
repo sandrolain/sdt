@@ -17,7 +17,7 @@ func TestFileExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a temporary file
 	tmpFile := filepath.Join(tmpDir, "test.txt")
@@ -77,7 +77,7 @@ func TestFileReadCmd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a test file with content
 	testContent := "test file content"

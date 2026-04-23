@@ -43,7 +43,7 @@ var decCmd = &cobra.Command{
 
 func init() {
 	bytesCmd.PersistentFlags().IntP("size", "s", 32, "Size of random bytes sequence")
+	decCmd.PersistentFlags().StringP("separator", "p", " ", "Separator string")
+	bytesCmd.AddCommand(decCmd)
 	rootCmd.AddCommand(bytesCmd)
-	decCmd.PersistentFlags().StringP("separator", "s", " ", "Separator string")
-	rootCmd.AddCommand(decCmd)
 }
