@@ -176,6 +176,56 @@ SDT provides composable CLI utilities for AI agents. Install with:
 All commands: --format json|yaml|text, --quiet, --no-color
 Input: stdin | --input STRING | --file PATH
 `,
+
+	// "skill" produces a SKILL.md with YAML frontmatter for the open agent skills ecosystem
+	// (npx skills add / .agents/skills/sdt/SKILL.md)
+	"skill": `---
+name: sdt
+description: Smart Developer Tools — composable CLI for AI agents. Provides deterministic commands for encoding, hashing, cryptography, JWT, templating, persistent memory (SQLite FTS5), token counting, prompt rendering, data extraction, and network utilities. All output is machine-readable (--format json|yaml).
+---
+
+# SDT — Smart Developer Tools
+
+SDT is a CLI toolset for AI agents and developers.
+Install: ` + "`go install github.com/sandrolain/sdt/cli@latest`" + `
+
+## Core Patterns
+` + "```" + `bash
+# Input: stdin | --input STRING | --file PATH
+# Output: --format text|json|yaml (default: text)
+sdt <command> [subcommand] [flags]
+` + "```" + `
+
+## Key Commands
+
+| Goal | Command |
+|---|---|
+| Count LLM tokens | ` + "`echo text | sdt tokens --model gpt-4`" + ` |
+| Render prompt template | ` + "`sdt prompt render --template \"...\" --vars '{}'`" + ` |
+| Validate token budget | ` + "`sdt prompt validate --file p.txt --max-tokens 4096`" + ` |
+| Truncate to token limit | ` + "`cat doc | sdt truncate --max-tokens 2000`" + ` |
+| Save to memory | ` + "`sdt memory set key value --project proj`" + ` |
+| Search memory (FTS5) | ` + "`sdt memory search query --project proj --format json`" + ` |
+| Extract URLs/emails/code | ` + "`echo text | sdt extract --type urls`" + ` |
+| Render Go template | ` + "`sdt template --tmpl \"{{.name}}\" --data '{\"name\":\"x\"}'`" + ` |
+| Discover all commands | ` + "`sdt manifest --format json`" + ` |
+| JSON Schema for command | ` + "`sdt schema --command \"jwt parse\"`" + ` |
+| Encode base64 | ` + "`echo data | sdt base64`" + ` |
+| Hash SHA-256 | ` + "`echo data | sdt sha256`" + ` |
+| HMAC-SHA256 | ` + "`echo data | sdt hmac --key secret`" + ` |
+| Inspect TLS cert | ` + "`sdt cert inspect --host example.com`" + ` |
+| DNS lookup | ` + "`sdt dns --host example.com --type A`" + ` |
+| TCP port check | ` + "`sdt port --host example.com --port 443`" + ` |
+| Convert JSON→YAML | ` + "`cat f.json | sdt conv --from json --to yaml`" + ` |
+| Parse/validate JWT | ` + "`echo TOKEN | sdt jwt parse`" + ` |
+
+## Project Config
+Create ` + "`.sdt.yaml`" + ` (or run ` + "`sdt setup --project myapp`" + `):
+` + "```" + `yaml
+project: myapp
+group: my-org
+` + "```" + `
+`,
 }
 
 var skillCmd = &cobra.Command{
@@ -187,11 +237,13 @@ Supported agents:
   copilot   GitHub Copilot / VS Code agent instructions (Markdown)
   claude    Claude / Anthropic agent tool instructions (XML-tagged Markdown)
   generic   Generic agent-agnostic instructions (Markdown table)
+  skill     SKILL.md with YAML frontmatter (.agents/skills ecosystem)
 
 Examples:
   sdt skill --agent copilot
   sdt skill --agent claude --output claude-instructions.md
-  sdt skill --agent generic --output AGENTS.md`,
+  sdt skill --agent generic --output AGENTS.md
+  sdt skill --agent skill --output .agents/skills/sdt/SKILL.md`,
 	Run: func(cmd *cobra.Command, args []string) {
 		agent := getStringFlag(cmd, "agent", false)
 		if agent == "" {
@@ -219,7 +271,7 @@ Examples:
 }
 
 func init() {
-	skillCmd.Flags().String("agent", "generic", "Target agent: copilot|claude|generic")
+	skillCmd.Flags().String("agent", "generic", "Target agent: copilot|claude|generic|skill")
 	skillCmd.Flags().String("output", "", "Output file path (default: stdout)")
 	rootCmd.AddCommand(skillCmd)
 }
