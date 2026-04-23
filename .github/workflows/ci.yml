@@ -98,7 +98,7 @@ jobs:
           go build -ldflags="-s -w" -o bin/sdt ./cli
 
       - name: Test binary
-        run: ./bin/sdt --version
+        run: ./bin/sdt version
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
