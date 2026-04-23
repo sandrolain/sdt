@@ -1,14 +1,19 @@
 # https://goreleaser.com
 version: 2
+project_name: sdt
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - main: ./cli
+  - id: sdt
+    main: ./cli
+    binary: sdt
     env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X
         main.date={{.Date}}
@@ -22,8 +27,6 @@ builds:
     ignore:
       - goos: windows
         goarch: arm64
-    hooks:
-      post: upx "{{ .Path }}"
 
 archives:
   - formats: [ tar.gz ]
@@ -45,3 +48,13 @@ changelog:
       - "^docs:"
       - "^test:"
       - "^chore:"
+
+upx:
+  - ids:
+      - sdt
+    enabled: true
+    goos:
+      - linux
+      - windows
+    compress: best
+    lzma: true
