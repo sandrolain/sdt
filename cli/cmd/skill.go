@@ -500,6 +500,56 @@ sdt bytes --size 32                  # 32 random bytes (base64)
 sdt bytes --size 32 --format hex     # as hex
 ` + "```" + `
 
+## HTTP, Crawling, Regex, QR
+
+` + "```" + `bash
+# HTTP client (headers, method, body, timeout)
+sdt http --url https://api.example.com
+sdt http --url https://api.example.com --method POST --body '{"ok":true}' --format json
+
+# Crawl site and export markdown pages
+sdt crawldown https://example.com --depth 2 --output ./site-md
+
+# Regular expressions
+echo "a1 b2" | sdt regexp --pattern "[a-z][0-9]"
+echo "foo-123" | sdt regexp replace --pattern "[0-9]+" --replace "X"
+
+# QR code
+sdt qrcode --text "https://example.com" --output qrcode.png
+sdt qrcode read --file qrcode.png
+` + "```" + `
+
+## Password Hashing (bcrypt)
+
+` + "```" + `bash
+echo "my-password" | sdt bcrypt
+sdt bcrypt verify --password "my-password" --hash "$2a$..."
+` + "```" + `
+
+## Project Bootstrap, Config, Docs
+
+` + "```" + `bash
+# Project bootstrap for agents
+sdt setup --project myapp --group my-org --agent all
+sdt setup --project myapp --agent skill --force
+
+# Generate instructions/skills on demand
+sdt skill --agent generic --output AGENTS.md
+sdt skill --agent skill --output .agents/skills/sdt/SKILL.md
+
+# Read/write config values
+sdt config get api.base_url
+sdt config set api.base_url https://example.com
+
+# Generate CLI docs and shell completions
+sdt docs --output ./docs
+sdt completion zsh > ~/.zsh/completions/_sdt
+
+# Command help
+sdt help
+sdt help memory
+` + "```" + `
+
 ## Project Config (.sdt.yaml)
 
 Create with ` + "`sdt setup --project myapp`" + ` or manually:
