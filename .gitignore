@@ -12,3 +12,5 @@ web-server/linux
 trivi-results.json
 /coverage.*
 /.github/copilot*.md
+/.task
+/temp
