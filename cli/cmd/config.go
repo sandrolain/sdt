@@ -31,9 +31,9 @@ var configSetCmd = &cobra.Command{
 		var val any
 		var err error
 		switch typ {
-		case "s", "string":
+		case "s", typeString:
 			val = str
-		case "i", "int":
+		case "i", typeInt:
 			val, err = strconv.ParseInt(str, 10, 64)
 			exitWithError(cmd, err)
 		case "f", "float":

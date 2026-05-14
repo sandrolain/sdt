@@ -16,7 +16,7 @@ var b32Cmd = &cobra.Command{
 }
 
 var b32DecCmd = &cobra.Command{
-	Use:   "dec",
+	Use:   cmdDec,
 	Short: "B32 Decode",
 	Long:  `Base 32 Decode`,
 	Run: func(cmd *cobra.Command, args []string) {

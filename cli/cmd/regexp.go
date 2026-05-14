@@ -32,13 +32,13 @@ var regeCmd = &cobra.Command{
 }
 
 var regeReplaceCmd = &cobra.Command{
-	Use:   "replace",
+	Use:   cmdReplace,
 	Short: "RegExp replace",
 	Long:  `Regular Expression replace`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		exp := getStringFlag(cmd, "expression", true)
-		rep := getStringFlag(cmd, "replace", true)
+		rep := getStringFlag(cmd, cmdReplace, true)
 
 		re, err := regexp.Compile(exp)
 		exitWithError(cmd, err)
@@ -50,7 +50,7 @@ var regeReplaceCmd = &cobra.Command{
 
 func init() {
 	regeCmd.PersistentFlags().StringP("expression", "e", "", "Expression")
-	regeReplaceCmd.PersistentFlags().StringP("replace", "r", "", "Replace")
+	regeReplaceCmd.PersistentFlags().StringP(cmdReplace, "r", "", "Replace")
 	regeCmd.AddCommand(regeReplaceCmd)
 	rootCmd.AddCommand(regeCmd)
 }

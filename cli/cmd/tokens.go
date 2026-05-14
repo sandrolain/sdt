@@ -10,20 +10,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Tokenizer family identifiers used by CountTokens and tokenModels.
+const (
+	familyCL100K = "cl100k"
+	familyP50K   = "p50k"
+	familyLlama  = "llama"
+
+	defaultModel = "gpt-4"
+)
+
 // tokenModels maps model name aliases to their tokenizer family.
 var tokenModels = map[string]string{
-	"gpt-4":        "cl100k",
-	"gpt-4o":       "cl100k",
-	"gpt-3.5":      "cl100k",
-	"gpt-3.5-turbo": "cl100k",
-	"gpt-2":        "p50k",
-	"claude":       "cl100k",
-	"claude-3":     "cl100k",
-	"llama":        "llama",
-	"llama-2":      "llama",
-	"llama-3":      "llama",
-	"gemini":       "cl100k",
-	"mistral":      "cl100k",
+	"gpt-4":         familyCL100K,
+	"gpt-4o":        familyCL100K,
+	"gpt-3.5":       familyCL100K,
+	"gpt-3.5-turbo": familyCL100K,
+	"gpt-2":         familyP50K,
+	agentNameClaude: familyCL100K,
+	"claude-3":      familyCL100K,
+	familyLlama:     familyLlama,
+	"llama-2":       familyLlama,
+	"llama-3":       familyLlama,
+	"gemini":        familyCL100K,
+	"mistral":       familyCL100K,
 }
 
 // cl100kRe approximates the cl100k_base tokenizer regex used by GPT-4 and Claude.
@@ -42,9 +51,9 @@ var p50kRe = regexp.MustCompile(
 // CountTokens returns an approximate token count for the given text and model family.
 func CountTokens(text, family string) int {
 	switch family {
-	case "p50k":
+	case familyP50K:
 		return len(p50kRe.FindAllString(text, -1))
-	case "llama":
+	case familyLlama:
 		// LLaMA uses SentencePiece; approximation: slightly more tokens than cl100k
 		// Apply 1.05x multiplier over the cl100k estimate.
 		base := len(cl100kRe.FindAllString(text, -1))
@@ -60,7 +69,7 @@ func resolveModelFamily(model string) string {
 	if f, ok := tokenModels[model]; ok {
 		return f
 	}
-	return "cl100k"
+	return familyCL100K
 }
 
 // TokensResult is the structured output for the tokens command.
@@ -94,7 +103,7 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		model := getStringFlag(cmd, "model", false)
 		if model == "" {
-			model = "gpt-4"
+			model = defaultModel
 		}
 		family := resolveModelFamily(model)
 		text := getInputString(cmd, args)
@@ -126,6 +135,6 @@ Examples:
 }
 
 func init() {
-	tokensCmd.Flags().String("model", "gpt-4", "Model name to select tokenizer family (gpt-4, gpt-3.5, claude, llama, gpt-2, ...)")
+	tokensCmd.Flags().String("model", defaultModel, "Model name to select tokenizer family (gpt-4, gpt-3.5, claude, llama, gpt-2, ...)")
 	rootCmd.AddCommand(tokensCmd)
 }

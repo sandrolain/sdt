@@ -38,11 +38,11 @@ func loadPrivateKey(path string) (crypto.Signer, error) {
 		return nil, fmt.Errorf("no PEM block found in key file")
 	}
 	switch block.Type {
-	case "RSA PRIVATE KEY":
+	case pemTypeRSAPrivateKey:
 		return x509.ParsePKCS1PrivateKey(block.Bytes)
 	case "EC PRIVATE KEY":
 		return x509.ParseECPrivateKey(block.Bytes)
-	case "PRIVATE KEY": // PKCS#8
+	case pemTypePrivateKey: // PKCS#8
 		key, parseErr := x509.ParsePKCS8PrivateKey(block.Bytes)
 		if parseErr != nil {
 			return nil, parseErr
@@ -70,7 +70,7 @@ func loadPublicKey(path string) (crypto.PublicKey, error) {
 	switch block.Type {
 	case "RSA PUBLIC KEY":
 		return x509.ParsePKCS1PublicKey(block.Bytes)
-	case "PUBLIC KEY":
+	case pemTypePublicKey:
 		return x509.ParsePKIXPublicKey(block.Bytes)
 	default:
 		return nil, fmt.Errorf("unsupported PEM key type: %s", block.Type)
@@ -224,7 +224,7 @@ Examples:
 }
 
 var verifyCmd = &cobra.Command{
-	Use:   "verify",
+	Use:   cmdVerify,
 	Short: "Verify a signature against data using a public key",
 	Long: `Verify that the input data matches the given base64-encoded signature
 using the provided PEM public key.
@@ -258,7 +258,7 @@ Examples:
 		}
 
 		valid := verifyErr == nil
-		msg := "valid"
+		msg := cmdValid
 		if !valid {
 			msg = verifyErr.Error()
 		}

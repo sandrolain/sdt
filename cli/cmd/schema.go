@@ -25,8 +25,8 @@ type JSONSchema struct {
 
 // CommandSchema wraps a command's JSON Schema.
 type CommandSchema struct {
-	Command     string     `json:"command"               yaml:"command"`
-	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Command     string      `json:"command"               yaml:"command"`
+	Description string      `json:"description,omitempty" yaml:"description,omitempty"`
 	Input       *JSONSchema `json:"input"                yaml:"input"`
 	Flags       *JSONSchema `json:"flags"                yaml:"flags"`
 }
@@ -34,16 +34,16 @@ type CommandSchema struct {
 // cobraFlagTypeToJSONType maps pflag type names to JSON Schema types.
 func cobraFlagTypeToJSONType(t string) string {
 	switch t {
-	case "int", "int8", "int16", "int32", "int64",
+	case typeInt, "int8", "int16", "int32", "int64",
 		"uint", "uint8", "uint16", "uint32", "uint64",
 		"float32", "float64":
 		return "number"
 	case "bool":
 		return "boolean"
-	case "stringArray", "stringSlice":
+	case typeStringArray, "stringSlice":
 		return "array"
 	default:
-		return "string"
+		return typeString
 	}
 }
 
@@ -61,8 +61,8 @@ func buildFlagSchema(c *cobra.Command) *JSONSchema {
 		if f.DefValue != "" && f.DefValue != "[]" && f.DefValue != "false" {
 			s.Default = f.DefValue
 		}
-		if f.Value.Type() == "stringArray" || f.Value.Type() == "stringSlice" {
-			s.Items = &JSONSchema{Type: "string"}
+		if f.Value.Type() == typeStringArray || f.Value.Type() == "stringSlice" {
+			s.Items = &JSONSchema{Type: typeString}
 		}
 		props[f.Name] = s
 	})
@@ -79,7 +79,7 @@ func buildCommandSchema(c *cobra.Command) CommandSchema {
 		Description: c.Short,
 		Input: &JSONSchema{
 			Schema:      "http://json-schema.org/draft-07/schema#",
-			Type:        "string",
+			Type:        typeString,
 			Description: "Input text. Provide via stdin, --input, --file, or --inb64.",
 		},
 		Flags: buildFlagSchema(c),

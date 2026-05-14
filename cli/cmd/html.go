@@ -26,7 +26,7 @@ var htmlEncCmd = &cobra.Command{
 
 var htmlDecCmd = &cobra.Command{
 	Use:     "decode",
-	Aliases: []string{"dec"},
+	Aliases: []string{cmdDec},
 	Short:   "HTML Decode",
 	Long:    `HTML Decode`,
 	Run: func(cmd *cobra.Command, args []string) {

@@ -21,7 +21,7 @@ var bytesCmd = &cobra.Command{
 }
 
 var decCmd = &cobra.Command{
-	Use:   "dec",
+	Use:   cmdDec,
 	Short: "Decimal Encoding",
 	Long:  `Decimal Encoding`,
 	Run: func(cmd *cobra.Command, args []string) {

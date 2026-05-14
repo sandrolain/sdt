@@ -79,7 +79,7 @@ var jwtClaimsCmd = &cobra.Command{
 }
 
 var jwtValidCmd = &cobra.Command{
-	Use:   "valid",
+	Use:   cmdValid,
 	Short: "Validate JWT",
 	Long:  `Validare JWT`,
 	Run: func(cmd *cobra.Command, args []string) {

@@ -21,7 +21,7 @@ func generateKeyPair(cmd *cobra.Command) *[]string {
 	// dump private key to file
 	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privatekey)
 	privateKeyBlock := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
+		Type:  pemTypeRSAPrivateKey,
 		Bytes: privateKeyBytes,
 	}
 	privateB := new(bytes.Buffer)
@@ -31,7 +31,7 @@ func generateKeyPair(cmd *cobra.Command) *[]string {
 	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publickey)
 	exitWithError(cmd, err)
 	publicKeyBlock := &pem.Block{
-		Type:  "PUBLIC KEY",
+		Type:  pemTypePublicKey,
 		Bytes: publicKeyBytes,
 	}
 	publicB := new(bytes.Buffer)

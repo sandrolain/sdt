@@ -107,7 +107,7 @@ group: my-org
 Or run: ` + "`sdt setup --project myapp`" + `
 `,
 
-	"claude": `<tool_instructions>
+	agentNameClaude: `<tool_instructions>
 SDT (Smart Developer Tools) is a CLI toolset available as the "sdt" command.
 Use it for data manipulation, encoding, cryptography, templating, persistent
 memory, and LLM utilities. All output can be structured (--format json|yaml).
@@ -152,7 +152,7 @@ group: my-org
 </tool_instructions>
 `,
 
-	"generic": `# SDT — Smart Developer Tools Agent Instructions
+	agentNameGeneric: `# SDT — Smart Developer Tools Agent Instructions
 
 SDT provides composable CLI utilities for AI agents. Install with:
   go install github.com/sandrolain/sdt@latest
@@ -181,7 +181,7 @@ Input: stdin \| --input STRING \| --file PATH
 
 	// "skill" produces a SKILL.md with YAML frontmatter for the open agent skills ecosystem
 	// (npx skills add / .agents/skills/sdt/SKILL.md)
-	"skill": `---
+	agentNameSkill: `---
 name: sdt
 description: SDT (Smart Developer Tools) is a CLI toolset for AI agents and developers. Provides deterministic, composable commands for encoding, hashing, cryptography (HMAC, sign/verify, TLS certs), JWT, data conversion, templating, persistent memory (SQLite FTS5), LLM token counting, prompt rendering/validation, text truncation, data extraction, network utilities (DNS, port check), and more. All output is machine-readable (--format json|yaml). Pure-Go, no CGO, cross-platform.
 ---
@@ -582,7 +582,7 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		agent := getStringFlag(cmd, "agent", false)
 		if agent == "" {
-			agent = "generic"
+			agent = agentNameGeneric
 		}
 		outputPath := getStringFlag(cmd, "output", false)
 
@@ -606,7 +606,7 @@ Examples:
 }
 
 func init() {
-	skillCmd.Flags().String("agent", "generic", "Target agent: copilot|claude|generic|skill")
+	skillCmd.Flags().String("agent", agentNameGeneric, "Target agent: copilot|claude|generic|skill")
 	skillCmd.Flags().String("output", "", "Output file path (default: stdout)")
 	rootCmd.AddCommand(skillCmd)
 }

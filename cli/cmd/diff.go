@@ -210,7 +210,7 @@ func diffJSON(path string, a, b interface{}, ops *[]jsonPatchOp) {
 	case map[string]interface{}:
 		bm, ok := b.(map[string]interface{})
 		if !ok {
-			*ops = append(*ops, jsonPatchOp{Op: "replace", Path: path, Value: b})
+			*ops = append(*ops, jsonPatchOp{Op: cmdReplace, Path: path, Value: b})
 			return
 		}
 		for k, av2 := range av {
@@ -229,7 +229,7 @@ func diffJSON(path string, a, b interface{}, ops *[]jsonPatchOp) {
 	default:
 		if fmt.Sprintf("%v", a) != fmt.Sprintf("%v", b) {
 			p := strings.TrimSuffix(path, "/")
-			*ops = append(*ops, jsonPatchOp{Op: "replace", Path: p, Value: b})
+			*ops = append(*ops, jsonPatchOp{Op: cmdReplace, Path: p, Value: b})
 		}
 	}
 }

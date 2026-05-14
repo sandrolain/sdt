@@ -14,22 +14,22 @@ import (
 // setupAgentFile maps each agent name to the conventional file path it should create.
 // The order of setupAgentAll controls creation order when --agent all is used.
 var setupAgentFile = map[string]string{
-	"copilot": ".github/copilot-instructions.md",
-	"claude":  "CLAUDE.md",
-	"generic": "AGENTS.md",
-	"skill":   ".agents/skills/sdt/SKILL.md",
+	"copilot":        agentFileCopilotMD,
+	agentNameClaude:  agentFileClaudeMD,
+	agentNameGeneric: agentFileAgentsMD,
+	agentNameSkill:   agentFileSkillMD,
 }
 
 // setupAgentAll is the ordered list of agents created by --agent all.
 // Only generic (AGENTS.md) and skill (.agents/skills/sdt/SKILL.md) are included by default.
 // copilot and claude are available via --agent copilot / --agent claude.
-var setupAgentAll = []string{"generic", "skill"}
+var setupAgentAll = []string{agentNameGeneric, agentNameSkill}
 
 // SetupFileResult represents the outcome of creating one file during setup.
 type SetupFileResult struct {
-	Path    string `json:"path"    yaml:"path"`
-	Status  string `json:"status"  yaml:"status"` // "created", "skipped", "dry-run"
-	Reason  string `json:"reason,omitempty" yaml:"reason,omitempty"`
+	Path   string `json:"path"    yaml:"path"`
+	Status string `json:"status"  yaml:"status"` // "created", "skipped", "dry-run"
+	Reason string `json:"reason,omitempty" yaml:"reason,omitempty"`
 }
 
 // SetupResult is the top-level output of the setup command.

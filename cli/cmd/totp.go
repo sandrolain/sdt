@@ -141,7 +141,7 @@ var totpCodeCmd = &cobra.Command{
 }
 
 var totpVerifyCmd = &cobra.Command{
-	Use:   "verify",
+	Use:   cmdVerify,
 	Short: "Verify Code",
 	Long:  `Verify Code`,
 	Run: func(cmd *cobra.Command, args []string) {

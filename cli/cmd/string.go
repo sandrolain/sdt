@@ -57,7 +57,7 @@ func splitStringParts(cmd *cobra.Command, str string) (string, string, string) {
 }
 
 var stringCmd = &cobra.Command{
-	Use:     "string",
+	Use:     typeString,
 	Aliases: []string{"str"},
 	Short:   "String Tools",
 	Long:    `String Tools`,
@@ -146,7 +146,7 @@ var replaceSpaceCmd = &cobra.Command{
 	Long:    `Replace Spaces`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
-		sub := getStringFlag(cmd, "replace", false)
+		sub := getStringFlag(cmd, cmdReplace, false)
 		a, b, c := splitStringParts(cmd, str)
 		out := a + replaceSpaces(b, sub) + c
 		outputString(cmd, out)
@@ -190,7 +190,7 @@ func init() {
 	stringCmd.AddCommand(countCmd)
 
 	pf = replaceSpaceCmd.PersistentFlags()
-	pf.StringP("replace", "r", "", "String for replace")
+	pf.StringP(cmdReplace, "r", "", "String for replace")
 	stringCmd.AddCommand(replaceSpaceCmd)
 
 	rootCmd.AddCommand(stringCmd)

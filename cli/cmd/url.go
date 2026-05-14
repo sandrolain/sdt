@@ -40,7 +40,7 @@ var urlEncFormCmd = &cobra.Command{
 
 var urlDecCmd = &cobra.Command{
 	Use:     "decode",
-	Aliases: []string{"dec"},
+	Aliases: []string{cmdDec},
 	Short:   "URL Decode",
 	Long:    `URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {

@@ -237,4 +237,3 @@ func TestSetupUnknownAgent(t *testing.T) {
 		return string(execute(t, setupCmd, nil, "--agent", "unknown"))
 	})
 }
-

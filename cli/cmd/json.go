@@ -6,7 +6,7 @@ import (
 )
 
 var jsonCmd = &cobra.Command{
-	Use:   "json",
+	Use:   fmtJSON,
 	Short: "JSON Tools",
 	Long:  `JSON Tools`,
 }
@@ -36,7 +36,7 @@ var jsonMinifyCmd = &cobra.Command{
 }
 
 var jsonValidCmd = &cobra.Command{
-	Use:   "valid",
+	Use:   cmdValid,
 	Short: "Validate JSON",
 	Long:  `Validare JSON`,
 	Run: func(cmd *cobra.Command, args []string) {

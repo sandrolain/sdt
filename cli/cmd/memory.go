@@ -165,7 +165,7 @@ var memoryProjectsCmd = &cobra.Command{
 		exitWithError(cmd, err)
 		format := getFormat(cmd)
 		switch format {
-		case "json":
+		case fmtJSON:
 			out, err := json.MarshalIndent(projects, "", "  ")
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
@@ -191,7 +191,7 @@ var memoryGroupsCmd = &cobra.Command{
 		exitWithError(cmd, err)
 		format := getFormat(cmd)
 		switch format {
-		case "json":
+		case fmtJSON:
 			out, err := json.MarshalIndent(groups, "", "  ")
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)

@@ -19,7 +19,7 @@ var bcryptCmd = &cobra.Command{
 }
 
 var bcryptVerifyCmd = &cobra.Command{
-	Use:     "verify",
+	Use:     cmdVerify,
 	Aliases: []string{"check", "compare"},
 	Short:   "Verify Bcrypt",
 	Long:    `Verify password to match Bcrypt hash`,

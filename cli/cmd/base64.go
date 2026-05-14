@@ -16,7 +16,7 @@ var b64Cmd = &cobra.Command{
 }
 
 var b64DecCmd = &cobra.Command{
-	Use:   "dec",
+	Use:   cmdDec,
 	Short: "B64 Decode",
 	Long:  `Base 64 Decode`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -38,7 +38,7 @@ var b64UrlCmd = &cobra.Command{
 }
 
 var b64UrlDecCmd = &cobra.Command{
-	Use:   "dec",
+	Use:   cmdDec,
 	Short: "B64 URL Decode",
 	Long:  `Base 64 URL Decode`,
 	Run: func(cmd *cobra.Command, args []string) {

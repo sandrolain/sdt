@@ -18,7 +18,7 @@ var hexCmd = &cobra.Command{
 }
 
 var hexDecCmd = &cobra.Command{
-	Use:   "dec",
+	Use:   cmdDec,
 	Short: "Hex Decoding",
 	Long:  `Hexadecimal Decoding`,
 	Run: func(cmd *cobra.Command, args []string) {
