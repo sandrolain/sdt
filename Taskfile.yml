@@ -17,6 +17,13 @@ tasks:
     cmds:
       - task --list
 
+  install-deps:
+    desc: Install required tools (golangci-lint, upx, trivy)
+    cmds:
+      - go install golang.org/x/vuln/cmd/govulncheck@latest
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      - asdf reshim
+
   # Build tasks
   build:
     desc: Build the CLI binary
@@ -93,7 +100,7 @@ tasks:
     desc: Run Go vulnerability check using govulncheck
     cmds:
       - echo "Running govulncheck..."
-      - govulncheck ./src/...
+      - govulncheck .
 
   check:
     desc: Run all checks (fmt, lint, vet, test, security)

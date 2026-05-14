@@ -14,3 +14,4 @@ trivi-results.json
 /.github/copilot*.md
 /.task
 /temp
+.agents/skills/sdt/
