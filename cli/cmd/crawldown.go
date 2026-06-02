@@ -39,6 +39,7 @@ as a separate .md file in the output directory.`,
 		userAgent := getStringFlag(cmd, "user-agent", false)
 		ignoreRobotsTxt := getBoolFlag(cmd, "ignore-robots-txt", false)
 		followExternal := getBoolFlag(cmd, "follow-external", false)
+		downloadDocs := getBoolFlag(cmd, "download-docs", false)
 
 		conv, err := converter.NewConverter(converter.Options{
 			BulletListMarker: "-",
@@ -94,6 +95,7 @@ as a separate .md file in the output directory.`,
 			UserAgent:           userAgent,
 			IgnoreRobotsTxt:     ignoreRobotsTxt,
 			FollowExternalLinks: followExternal,
+			DownloadDocuments:   downloadDocs,
 			RequestTimeout:      timeout,
 			RequestDelay:        delay,
 			ExcludedPaths:       excludedPaths,
@@ -101,9 +103,11 @@ as a separate .md file in the output directory.`,
 		exitWithError(cmd, err)
 
 		type pageEntry struct {
-			markdown string
-			filename string
-			pageURL  string
+			markdown   string
+			rawBytes   []byte
+			filename   string
+			pageURL    string
+			isDocument bool
 		}
 
 		urlToFile := make(map[string]string)
@@ -147,6 +151,31 @@ as a separate .md file in the output directory.`,
 			pageDataMutex.Unlock()
 		})
 
+		c.OnDocument(func(doc crawler.Document) {
+			pageCountMutex.Lock()
+			pageCount++
+			currentCount := pageCount
+			pageCountMutex.Unlock()
+
+			writeInfo(cmd.OutOrStdout(), "[%d] Downloading: %s\n", currentCount, doc.URL)
+
+			filename := converter.GenerateAssetFilename(doc.URL)
+			normalizedURL := strings.TrimSuffix(doc.URL, "/")
+
+			urlToFileMutex.Lock()
+			urlToFile[normalizedURL] = filename
+			urlToFileMutex.Unlock()
+
+			pageDataMutex.Lock()
+			pageData[normalizedURL] = pageEntry{
+				rawBytes:   doc.Body,
+				filename:   filename,
+				pageURL:    doc.URL,
+				isDocument: true,
+			}
+			pageDataMutex.Unlock()
+		})
+
 		exitWithError(cmd, c.Start())
 
 		pageCountMutex.Lock()
@@ -176,12 +205,19 @@ as a separate .md file in the output directory.`,
 			}
 			urlToFileMutex.Unlock()
 
-			markdown := converter.ConvertLinksToLocal(data.markdown, data.pageURL, urlToFileCopy)
 			outputPath := filepath.Join(outputDir, data.filename)
 
-			if err := os.WriteFile(outputPath, []byte(markdown), 0o600); err != nil {
-				writeInfo(cmd.ErrOrStderr(), "  Error saving file: %v\n", err)
-				continue
+			if data.isDocument {
+				if err := os.WriteFile(outputPath, data.rawBytes, 0o600); err != nil {
+					writeInfo(cmd.ErrOrStderr(), "  Error saving file: %v\n", err)
+					continue
+				}
+			} else {
+				markdown := converter.ConvertLinksToLocal(data.markdown, data.pageURL, urlToFileCopy)
+				if err := os.WriteFile(outputPath, []byte(markdown), 0o600); err != nil {
+					writeInfo(cmd.ErrOrStderr(), "  Error saving file: %v\n", err)
+					continue
+				}
 			}
 
 			writeInfo(cmd.OutOrStdout(), "  Saved: %s\n", outputPath)
@@ -202,5 +238,6 @@ func init() {
 	pf.String("user-agent", "sdt/1.0", "HTTP user agent for requests")
 	pf.Bool("ignore-robots-txt", false, "Ignore robots.txt restrictions")
 	pf.Bool("follow-external", false, "Follow links to external domains")
+	pf.Bool("download-docs", false, "Download linked documents such as PDF, Word, Office and text files")
 	rootCmd.AddCommand(crawldownCmd)
 }

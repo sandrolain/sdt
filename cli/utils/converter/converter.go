@@ -168,6 +168,47 @@ func GenerateFilename(pageURL string) string {
 	return filename
 }
 
+// GenerateAssetFilename creates a safe file name for downloaded non-HTML resources.
+func GenerateAssetFilename(pageURL string) string {
+	parsedURL, err := url.Parse(pageURL)
+	if err != nil {
+		return "download.bin"
+	}
+
+	path := parsedURL.Path
+	query := parsedURL.RawQuery
+
+	if path == "" || path == "/" {
+		filename := "index"
+		if query != "" {
+			filename += "-" + sanitizeFilename(query)
+		}
+		return filename + ".bin"
+	}
+
+	path = strings.TrimPrefix(path, "/")
+	path = strings.TrimSuffix(path, "/")
+
+	filename := strings.ReplaceAll(path, "/", "-")
+	filename = sanitizeFilename(filename)
+
+	ext := filepath.Ext(filename)
+	if ext == "" {
+		ext = ".bin"
+		if query != "" {
+			filename = filename + "-" + sanitizeFilename(query)
+		}
+		filename += ext
+		return filename
+	}
+
+	if query != "" {
+		filename = strings.TrimSuffix(filename, ext) + "-" + sanitizeFilename(query) + ext
+	}
+
+	return filename
+}
+
 func sanitizeFilename(filename string) string {
 	re := regexp.MustCompile(`[<>:"/\\|?*=&]`)
 	filename = re.ReplaceAllString(filename, "-")

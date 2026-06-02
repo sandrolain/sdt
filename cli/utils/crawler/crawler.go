@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ type Options struct {
 	IgnoreRobotsTxt     bool
 	FollowExternalLinks bool
 	SinglePage          bool
+	DownloadDocuments   bool
 	RequestTimeout      int
 	RequestDelay        int
 	ExcludedPaths       []string
@@ -36,15 +38,26 @@ type Options struct {
 // PageCallback is called when a page is successfully crawled.
 type PageCallback func(page Page)
 
+// Document represents a crawled non-HTML document.
+type Document struct {
+	URL         string
+	ContentType string
+	Body        []byte
+}
+
+// DocumentCallback is called when a downloadable document is successfully crawled.
+type DocumentCallback func(doc Document)
+
 // Crawler handles web crawling operations.
 type Crawler struct {
-	collector    *colly.Collector
-	pages        []Page
-	pagesMutex   sync.Mutex
-	baseURL      *url.URL
-	options      Options
-	pageCallback PageCallback
-	output       io.Writer
+	collector        *colly.Collector
+	pages            []Page
+	pagesMutex       sync.Mutex
+	baseURL          *url.URL
+	options          Options
+	pageCallback     PageCallback
+	documentCallback DocumentCallback
+	output           io.Writer
 }
 
 // NewCrawler creates a new Crawler instance for the given start URL.
@@ -178,10 +191,28 @@ func (c *Crawler) setupCallbacks() {
 				return
 			}
 
+			if isDocumentLink(link) && !c.options.DownloadDocuments {
+				return
+			}
+
 			//nolint:errcheck
 			_ = e.Request.Visit(link)
 		})
 	}
+
+	c.collector.OnResponse(func(r *colly.Response) {
+		if c.options.DownloadDocuments && isDocumentResponse(r) {
+			doc := Document{
+				URL:         normalizeURL(r.Request.URL.String()),
+				ContentType: r.Headers.Get("Content-Type"),
+				Body:        r.Body,
+			}
+
+			if c.documentCallback != nil {
+				c.documentCallback(doc)
+			}
+		}
+	})
 
 	c.collector.OnError(func(r *colly.Response, err error) {
 		if _, ferr := fmt.Fprintf(c.output, "Error crawling %s: %v\n", r.Request.URL, err); ferr != nil {
@@ -256,6 +287,48 @@ func (c *Crawler) isExcludedPath(rawURL string) bool {
 	}
 
 	return false
+}
+
+// OnDocument registers a callback invoked for each downloaded non-HTML document.
+func (c *Crawler) OnDocument(callback DocumentCallback) {
+	c.documentCallback = callback
+}
+
+func isDocumentLink(link string) bool {
+	lower := strings.ToLower(link)
+	ext := strings.ToLower(filepath.Ext(lower))
+
+	switch ext {
+	case ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp", ".rtf", ".txt", ".md", ".markdown", ".csv":
+		return true
+	default:
+		return false
+	}
+}
+
+func isDocumentResponse(r *colly.Response) bool {
+	if isHTMLResponse(r) {
+		return false
+	}
+
+	contentType := strings.ToLower(r.Headers.Get("Content-Type"))
+	if strings.Contains(contentType, "application/pdf") ||
+		strings.Contains(contentType, "application/msword") ||
+		strings.Contains(contentType, "application/vnd.openxmlformats-officedocument") ||
+		strings.Contains(contentType, "application/rtf") ||
+		strings.Contains(contentType, "text/plain") ||
+		strings.Contains(contentType, "text/markdown") ||
+		strings.Contains(contentType, "text/csv") ||
+		strings.Contains(contentType, "application/vnd.oasis.opendocument") {
+		return true
+	}
+
+	return isDocumentLink(r.Request.URL.Path)
+}
+
+func isHTMLResponse(r *colly.Response) bool {
+	contentType := strings.ToLower(r.Headers.Get("Content-Type"))
+	return strings.HasPrefix(contentType, "text/html") || strings.Contains(contentType, "application/xhtml+xml")
 }
 
 func looksLikeEmail(s string) bool {
