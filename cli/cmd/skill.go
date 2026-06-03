@@ -509,6 +509,7 @@ sdt http --url https://api.example.com --method POST --body '{"ok":true}' --form
 
 # Crawl site and export markdown pages
 sdt crawldown https://example.com --depth 2 --output ./site-md
+sdt crawldown https://example.com --output ./sit-md --download-docs
 
 # Regular expressions
 echo "a1 b2" | sdt regexp --pattern "[a-z][0-9]"

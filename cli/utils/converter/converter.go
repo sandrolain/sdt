@@ -177,13 +177,19 @@ func GenerateAssetFilename(pageURL string) string {
 
 	path := parsedURL.Path
 	query := parsedURL.RawQuery
+	docExt := findDocumentExtension(path)
 
 	if path == "" || path == "/" {
 		filename := "index"
 		if query != "" {
 			filename += "-" + sanitizeFilename(query)
 		}
-		return filename + ".bin"
+		if docExt != "" {
+			filename += docExt
+		} else {
+			filename += ".bin"
+		}
+		return filename
 	}
 
 	path = strings.TrimPrefix(path, "/")
@@ -193,10 +199,19 @@ func GenerateAssetFilename(pageURL string) string {
 	filename = sanitizeFilename(filename)
 
 	ext := filepath.Ext(filename)
+	if docExt != "" && ext != docExt {
+		if ext != "" {
+			filename = strings.TrimSuffix(filename, ext)
+		}
+		ext = docExt
+	}
+
 	if ext == "" {
-		ext = ".bin"
 		if query != "" {
 			filename = filename + "-" + sanitizeFilename(query)
+		}
+		if ext == "" {
+			ext = ".bin"
 		}
 		filename += ext
 		return filename
@@ -204,9 +219,40 @@ func GenerateAssetFilename(pageURL string) string {
 
 	if query != "" {
 		filename = strings.TrimSuffix(filename, ext) + "-" + sanitizeFilename(query) + ext
+		return filename
 	}
 
+	filename += ext
 	return filename
+}
+
+func findDocumentExtension(path string) string {
+	extensions := []string{
+		".pdf",
+		".doc",
+		".docx",
+		".xls",
+		".xlsx",
+		".ppt",
+		".pptx",
+		".odt",
+		".ods",
+		".odp",
+		".rtf",
+		".txt",
+		".md",
+		".markdown",
+		".csv",
+	}
+
+	lowerPath := strings.ToLower(path)
+	for _, ext := range extensions {
+		if strings.HasSuffix(lowerPath, ext) || strings.Contains(lowerPath, ext+"/") || strings.Contains(lowerPath, ext+"?") || strings.Contains(lowerPath, ext+"#") {
+			return ext
+		}
+	}
+
+	return ""
 }
 
 func sanitizeFilename(filename string) string {

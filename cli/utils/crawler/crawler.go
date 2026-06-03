@@ -5,9 +5,9 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gocolly/colly"
@@ -50,14 +50,19 @@ type DocumentCallback func(doc Document)
 
 // Crawler handles web crawling operations.
 type Crawler struct {
-	collector        *colly.Collector
-	pages            []Page
-	pagesMutex       sync.Mutex
-	baseURL          *url.URL
-	options          Options
-	pageCallback     PageCallback
-	documentCallback DocumentCallback
-	output           io.Writer
+	collector         *colly.Collector
+	documentCollector *colly.Collector
+	pages             []Page
+	pagesMutex        sync.Mutex
+	baseURL           *url.URL
+	options           Options
+	pageCallback      PageCallback
+	documentCallback  DocumentCallback
+	output            io.Writer
+	requestsTotal     int64
+	responsesTotal    int64
+	errorsTotal       int64
+	inFlight          int64
 }
 
 // NewCrawler creates a new Crawler instance for the given start URL.
@@ -110,8 +115,30 @@ func NewCrawler(startURL string, opts Options) (*Crawler, error) {
 		})
 	}
 
+	docCollector := colly.NewCollector(
+		colly.AllowedDomains(allowedDomains...),
+		colly.UserAgent(opts.UserAgent),
+		colly.Async(true),
+	)
+
+	docCollector.SetRequestTimeout(time.Duration(opts.RequestTimeout) * time.Second)
+	if opts.RequestDelay > 0 {
+		_ = docCollector.Limit(&colly.LimitRule{
+			DomainGlob:  "*",
+			Delay:       time.Duration(opts.RequestDelay) * time.Second,
+			RandomDelay: time.Duration(opts.RequestDelay/2) * time.Second,
+			Parallelism: 2,
+		})
+	} else {
+		_ = docCollector.Limit(&colly.LimitRule{
+			DomainGlob:  "*",
+			Parallelism: 2,
+		})
+	}
+
 	if opts.IgnoreRobotsTxt {
 		c.IgnoreRobotsTxt = true
+		docCollector.IgnoreRobotsTxt = true
 	}
 
 	output := io.Writer(os.Stdout)
@@ -120,11 +147,12 @@ func NewCrawler(startURL string, opts Options) (*Crawler, error) {
 	}
 
 	cr := &Crawler{
-		collector: c,
-		pages:     []Page{},
-		baseURL:   parsedURL,
-		options:   opts,
-		output:    output,
+		collector:         c,
+		documentCollector: docCollector,
+		pages:             []Page{},
+		baseURL:           parsedURL,
+		options:           opts,
+		output:            output,
 	}
 
 	return cr, nil
@@ -139,11 +167,20 @@ func (c *Crawler) OnPage(callback PageCallback) {
 func (c *Crawler) Start() error {
 	c.setupCallbacks()
 
+	done := make(chan struct{})
+	if !c.options.Silent {
+		go c.reportProgress(done)
+	}
+	defer close(done)
+
 	if err := c.collector.Visit(c.baseURL.String()); err != nil {
 		return fmt.Errorf("start crawling: %w", err)
 	}
 
 	c.collector.Wait()
+	if c.documentCollector != nil {
+		c.documentCollector.Wait()
+	}
 
 	return nil
 }
@@ -191,7 +228,14 @@ func (c *Crawler) setupCallbacks() {
 				return
 			}
 
-			if isDocumentLink(link) && !c.options.DownloadDocuments {
+			if isDocumentLink(link) {
+				if !c.options.DownloadDocuments {
+					return
+				}
+
+				if c.documentCollector != nil {
+					_ = c.documentCollector.Visit(absoluteURL)
+				}
 				return
 			}
 
@@ -201,6 +245,9 @@ func (c *Crawler) setupCallbacks() {
 	}
 
 	c.collector.OnResponse(func(r *colly.Response) {
+		atomic.AddInt64(&c.responsesTotal, 1)
+		atomic.AddInt64(&c.inFlight, -1)
+
 		if c.options.DownloadDocuments && isDocumentResponse(r) {
 			doc := Document{
 				URL:         normalizeURL(r.Request.URL.String()),
@@ -214,17 +261,85 @@ func (c *Crawler) setupCallbacks() {
 		}
 	})
 
+	if c.documentCollector != nil {
+		c.documentCollector.OnResponse(func(r *colly.Response) {
+			atomic.AddInt64(&c.responsesTotal, 1)
+			atomic.AddInt64(&c.inFlight, -1)
+
+			if c.options.DownloadDocuments && isDocumentResponse(r) {
+				doc := Document{
+					URL:         normalizeURL(r.Request.URL.String()),
+					ContentType: r.Headers.Get("Content-Type"),
+					Body:        r.Body,
+				}
+
+				if c.documentCallback != nil {
+					c.documentCallback(doc)
+				}
+			}
+		})
+
+		c.documentCollector.OnError(func(r *colly.Response, err error) {
+			atomic.AddInt64(&c.errorsTotal, 1)
+			atomic.AddInt64(&c.inFlight, -1)
+
+			if _, ferr := fmt.Fprintf(c.output, "Error crawling %s: %v\n", r.Request.URL, err); ferr != nil {
+				_ = ferr
+			}
+		})
+
+		c.documentCollector.OnRequest(func(r *colly.Request) {
+			atomic.AddInt64(&c.requestsTotal, 1)
+			atomic.AddInt64(&c.inFlight, 1)
+
+			if _, ferr := fmt.Fprintf(c.output, "Visiting: %s\n", r.URL.String()); ferr != nil {
+				_ = ferr
+			}
+		})
+	}
+
 	c.collector.OnError(func(r *colly.Response, err error) {
+		atomic.AddInt64(&c.errorsTotal, 1)
+		atomic.AddInt64(&c.inFlight, -1)
+
 		if _, ferr := fmt.Fprintf(c.output, "Error crawling %s: %v\n", r.Request.URL, err); ferr != nil {
 			_ = ferr
 		}
 	})
 
 	c.collector.OnRequest(func(r *colly.Request) {
+		atomic.AddInt64(&c.requestsTotal, 1)
+		atomic.AddInt64(&c.inFlight, 1)
+
 		if _, ferr := fmt.Fprintf(c.output, "Visiting: %s\n", r.URL.String()); ferr != nil {
 			_ = ferr
 		}
 	})
+}
+
+func (c *Crawler) reportProgress(done <-chan struct{}) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			inFlight := atomic.LoadInt64(&c.inFlight)
+			if inFlight <= 0 {
+				continue
+			}
+
+			requests := atomic.LoadInt64(&c.requestsTotal)
+			responses := atomic.LoadInt64(&c.responsesTotal)
+			errors := atomic.LoadInt64(&c.errorsTotal)
+
+			if _, err := fmt.Fprintf(c.output, "Progress: requested=%d completed=%d errors=%d in-flight=%d\n", requests, responses, errors, inFlight); err != nil {
+				_ = err
+			}
+		}
+	}
 }
 
 func extractMainContent(e *colly.HTMLElement) string {
@@ -295,15 +410,40 @@ func (c *Crawler) OnDocument(callback DocumentCallback) {
 }
 
 func isDocumentLink(link string) bool {
-	lower := strings.ToLower(link)
-	ext := strings.ToLower(filepath.Ext(lower))
-
-	switch ext {
-	case ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp", ".rtf", ".txt", ".md", ".markdown", ".csv":
-		return true
-	default:
-		return false
+	parsed, err := url.Parse(link)
+	if err != nil {
+		return isDocumentPath(strings.ToLower(link))
 	}
+
+	return isDocumentPath(strings.ToLower(parsed.Path))
+}
+
+func isDocumentPath(path string) bool {
+	extensions := []string{
+		".pdf",
+		".doc",
+		".docx",
+		".xls",
+		".xlsx",
+		".ppt",
+		".pptx",
+		".odt",
+		".ods",
+		".odp",
+		".rtf",
+		".txt",
+		".md",
+		".markdown",
+		".csv",
+	}
+
+	for _, ext := range extensions {
+		if strings.HasSuffix(path, ext) || strings.Contains(path, ext+"/") || strings.Contains(path, ext+"?") || strings.Contains(path, ext+"#") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func isDocumentResponse(r *colly.Response) bool {
@@ -323,7 +463,11 @@ func isDocumentResponse(r *colly.Response) bool {
 		return true
 	}
 
-	return isDocumentLink(r.Request.URL.Path)
+	if strings.Contains(contentType, "application/octet-stream") {
+		return isDocumentLink(r.Request.URL.String())
+	}
+
+	return isDocumentLink(r.Request.URL.String())
 }
 
 func isHTMLResponse(r *colly.Response) bool {

@@ -150,6 +150,65 @@ func TestCrawldownCommand_DownloadDocs(t *testing.T) {
 	}
 }
 
+func TestCrawldownCommand_DownloadDocsFromRootWithDepth(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/document.pdf/view" {
+			w.Header().Set("Content-Type", "application/pdf")
+			_, _ = w.Write([]byte("%PDF-1.4\n%EOF"))
+			return
+		}
+
+		if r.URL.Path == "/page" {
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, `<html><head><title>Page</title></head><body><main><p><a href="/document.pdf/view">Download PDF</a></p></main></body></html>`)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<html><head><title>Root</title></head><body><main><p><a href="/page">Page</a></p></main></body></html>`)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(new(bytes.Buffer))
+	defer func() {
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+	}()
+
+	rootCmd.SetArgs([]string{"crawldown", "--output", dir, "--download-docs", "--depth", "2", srv.URL})
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("crawldown --download-docs --depth 2 failed: %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir(%s) error: %v", dir, err)
+	}
+
+	foundPDF := false
+	foundPage := false
+	for _, e := range entries {
+		if filepath.Ext(e.Name()) == ".pdf" {
+			foundPDF = true
+		}
+		if strings.HasSuffix(e.Name(), ".md") {
+			foundPage = true
+		}
+	}
+
+	if !foundPDF {
+		t.Fatal("expected downloaded PDF file from root crawl, got none")
+	}
+	if !foundPage {
+		t.Fatal("expected markdown pages from root crawl, got none")
+	}
+}
+
 func TestCrawldownCommand_NoArgs(t *testing.T) {
 	rootCmd.SetArgs([]string{"crawldown"})
 	err := rootCmd.Execute()
