@@ -7,7 +7,7 @@ It provides deterministic, composable commands for data manipulation, encoding, 
 persistent memory, and protocol utilities — all with machine-readable output.
 
 Module: `github.com/sandrolain/sdt`
-Go version: 1.26.3 (see `.tool-versions`)
+Go version: 1.26.4 (see `.tool-versions`)
 
 ---
 
