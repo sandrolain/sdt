@@ -9,7 +9,18 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/pflag"
 )
+
+// resetCrawldownFlags resets the persistent flags of crawldownCmd to prevent
+// cross-test contamination — cobra/pflag does not reset Changed state between Execute calls.
+func resetCrawldownFlags() {
+	crawldownCmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		f.Changed = false
+		_ = f.Value.Set(f.DefValue)
+	})
+}
 
 func TestCrawldownCommand_SinglePage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -206,6 +217,63 @@ func TestCrawldownCommand_DownloadDocsFromRootWithDepth(t *testing.T) {
 	}
 	if !foundPage {
 		t.Fatal("expected markdown pages from root crawl, got none")
+	}
+}
+
+func TestCrawldownCommand_OutputFile(t *testing.T) {
+	resetCrawldownFlags()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<html><head><title>File Page</title></head><body><main><h1>File Output</h1><p>Written to file</p></main></body></html>`)
+	}))
+	defer srv.Close()
+
+	outputPath := filepath.Join(t.TempDir(), "result.md")
+
+	rootCmd.SetArgs([]string{"crawldown", "--output-file", outputPath, srv.URL})
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("crawldown --output-file failed: %v", err)
+	}
+
+	content, err := os.ReadFile(outputPath) //nolint:gosec // test reads known temp file
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error: %v", outputPath, err)
+	}
+
+	if !strings.Contains(string(content), "File Page") {
+		t.Errorf("output missing title, got: %s", string(content))
+	}
+
+	if !strings.Contains(string(content), "File Output") {
+		t.Errorf("output missing heading, got: %s", string(content))
+	}
+}
+
+func TestCrawldownCommand_OutputAndOutputFileConflict(t *testing.T) {
+	resetCrawldownFlags()
+
+	exited := -1
+	origExit := exit
+	exit = func(code int) {
+		exited = code
+		panic("exit")
+	}
+	defer func() {
+		exit = origExit
+	}()
+	defer func() {
+		if r := recover(); r != nil && r != "exit" {
+			panic(r)
+		}
+	}()
+
+	rootCmd.SetArgs([]string{"crawldown", "--output", "/tmp/out", "--output-file", "/tmp/out.md", "http://example.com"})
+	_ = rootCmd.Execute()
+
+	if exited != 1 {
+		t.Fatalf("expected exit code 1, got %v", exited)
 	}
 }
 

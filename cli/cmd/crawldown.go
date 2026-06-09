@@ -25,13 +25,15 @@ var crawldownCmd = &cobra.Command{
 	Short: "Download a web page or site as Markdown",
 	Long: `Download a web page or entire website and convert the content to Markdown.
 
-Without --output, fetches the given URL as a single page and prints the Markdown to stdout.
+Without --output, fetches the given URL as a single page and prints the Markdown to stdout
+(or to a file when --output-file is specified).
 With --output <dir>, crawls the full site starting from the given URL and saves each page
 as a separate .md file in the output directory.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		targetURL := args[0]
 		outputDir := getStringFlag(cmd, "output", false)
+		outputFile := getStringFlag(cmd, "output-file", false)
 		maxDepth := getIntFlag(cmd, "depth", false)
 		excludedPaths := getStringArrayFlag(cmd, "exclude", false)
 		timeout := getIntFlag(cmd, "timeout", false)
@@ -50,8 +52,13 @@ as a separate .md file in the output directory.`,
 		})
 		exitWithError(cmd, err)
 
+		if outputDir != "" && outputFile != "" {
+			exitWithError(cmd, fmt.Errorf("cannot use both --output and --output-file"))
+			return
+		}
+
 		if outputDir == "" {
-			// Single-page mode: fetch URL and output markdown to stdout.
+			// Single-page mode: fetch URL and output markdown to stdout or a file.
 			c, err := crawler.NewCrawler(targetURL, crawler.Options{
 				MaxDepth:       1,
 				UserAgent:      userAgent,
@@ -80,7 +87,14 @@ as a separate .md file in the output directory.`,
 				markdown = fmt.Sprintf("# %s\n\nURL: %s\n\n---\n\n%s", resultPage.Title, resultPage.URL, markdown)
 			}
 
-			outputString(cmd, markdown)
+			if outputFile != "" {
+				if err := os.WriteFile(outputFile, []byte(markdown), 0o600); err != nil {
+					exitWithError(cmd, fmt.Errorf("write output file: %w", err))
+					return
+				}
+			} else {
+				outputString(cmd, markdown)
+			}
 			return
 		}
 
@@ -231,6 +245,7 @@ as a separate .md file in the output directory.`,
 func init() {
 	pf := crawldownCmd.PersistentFlags()
 	pf.StringP("output", "o", "", "Output directory for saving Markdown files (enables crawl mode)")
+	pf.StringP("output-file", "f", "", "Output file for single-page mode (default: stdout)")
 	pf.IntP("depth", "d", 2, "Maximum crawl depth (crawl mode only)")
 	pf.StringArrayP("exclude", "e", []string{}, "URL path prefixes to exclude from crawling (repeatable)")
 	pf.IntP("timeout", "t", 60, "Request timeout in seconds")

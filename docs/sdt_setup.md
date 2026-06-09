@@ -6,15 +6,19 @@ Scaffold agent files for the current project
 
 Create agent instruction files and .sdt.yaml in the current directory.
 
-By default, all supported agent files are created in their conventional locations:
+By default (--agent all), the following files are created:
 
-  .sdt.yaml                           — project identity for sdt memory
-  .github/copilot-instructions.md     — GitHub Copilot / VS Code agent
-  CLAUDE.md                           — Claude / Anthropic agent
-  AGENTS.md                           — generic agent instructions
-  .agents/skills/sdt/SKILL.md         — open agent skills ecosystem
+  .sdt.yaml                       — project identity for sdt memory
+  AGENTS.md                       — generic agent instructions
+  .agents/skills/sdt/SKILL.md     — open agent skills ecosystem
 
-Use --agent to limit which instruction files are created.
+Use --agent to create specific files:
+  --agent generic                 AGENTS.md only
+  --agent skill                   .agents/skills/sdt/SKILL.md only
+  --agent copilot                 .github/copilot-instructions.md
+  --agent claude                  CLAUDE.md
+  --agent copilot,claude          multiple agents (comma-separated)
+
 Use --dry-run to preview without writing anything.
 Use --force to overwrite existing files.
 

@@ -48,6 +48,7 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt completion](sdt_completion.md)	 - Generate the autocompletion script for the specified shell
 * [sdt config](sdt_config.md)	 - Configuration Tools
 * [sdt conv](sdt_conv.md)	 - Data Conversion
+* [sdt crawldown](sdt_crawldown.md)	 - Download a web page or site as Markdown
 * [sdt diff](sdt_diff.md)	 - Compare two files and output differences
 * [sdt dns](sdt_dns.md)	 - DNS lookup for a host
 * [sdt docs](sdt_docs.md)	 - Generate CLI docs
