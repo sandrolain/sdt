@@ -18,17 +18,18 @@ sdt crawldown <url> [flags]
 ### Options
 
 ```
-      --delay int             Delay between requests in seconds
-  -d, --depth int             Maximum crawl depth (crawl mode only) (default 2)
-      --download-docs         Download linked documents such as PDF, Word, Office and text files
-  -e, --exclude stringArray   URL path prefixes to exclude from crawling (repeatable)
-      --follow-external       Follow links to external domains
-  -h, --help                  help for crawldown
-      --ignore-robots-txt     Ignore robots.txt restrictions
-  -o, --output string         Output directory for saving Markdown files (enables crawl mode)
-  -f, --output-file string    Output file for single-page mode (default: stdout)
-  -t, --timeout int           Request timeout in seconds (default 60)
-      --user-agent string     HTTP user agent for requests (default "sdt/1.0")
+      --allowed-path stringArray   Only crawl URLs whose path starts with this prefix (repeatable)
+      --delay int                  Delay between requests in seconds
+  -d, --depth int                  Maximum crawl depth (crawl mode only) (default 2)
+      --download-docs              Download linked documents such as PDF, Word, Office and text files
+  -e, --exclude stringArray        URL path prefixes to exclude from crawling (repeatable)
+      --follow-external            Follow links to external domains
+  -h, --help                       help for crawldown
+      --ignore-robots-txt          Ignore robots.txt restrictions
+  -o, --output string              Output directory for saving Markdown files (enables crawl mode)
+  -f, --output-file string         Output file for single-page mode (default: stdout)
+  -t, --timeout int                Request timeout in seconds (default 60)
+      --user-agent string          HTTP user agent for requests (default "sdt/1.0")
 ```
 
 ### Options inherited from parent commands

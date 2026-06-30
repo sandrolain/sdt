@@ -36,6 +36,7 @@ as a separate .md file in the output directory.`,
 		outputFile := getStringFlag(cmd, "output-file", false)
 		maxDepth := getIntFlag(cmd, "depth", false)
 		excludedPaths := getStringArrayFlag(cmd, "exclude", false)
+		allowedPaths := getStringArrayFlag(cmd, "allowed-path", false)
 		timeout := getIntFlag(cmd, "timeout", false)
 		delay := getIntFlag(cmd, "delay", false)
 		userAgent := getStringFlag(cmd, "user-agent", false)
@@ -113,6 +114,7 @@ as a separate .md file in the output directory.`,
 			RequestTimeout:      timeout,
 			RequestDelay:        delay,
 			ExcludedPaths:       excludedPaths,
+			AllowedPaths:        allowedPaths,
 		})
 		exitWithError(cmd, err)
 
@@ -248,6 +250,7 @@ func init() {
 	pf.StringP("output-file", "f", "", "Output file for single-page mode (default: stdout)")
 	pf.IntP("depth", "d", 2, "Maximum crawl depth (crawl mode only)")
 	pf.StringArrayP("exclude", "e", []string{}, "URL path prefixes to exclude from crawling (repeatable)")
+	pf.StringArray("allowed-path", []string{}, "Only crawl URLs whose path starts with this prefix (repeatable)")
 	pf.IntP("timeout", "t", 60, "Request timeout in seconds")
 	pf.Int("delay", 0, "Delay between requests in seconds")
 	pf.String("user-agent", "sdt/1.0", "HTTP user agent for requests")

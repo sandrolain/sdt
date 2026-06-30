@@ -32,6 +32,7 @@ type Options struct {
 	RequestTimeout      int
 	RequestDelay        int
 	ExcludedPaths       []string
+	AllowedPaths        []string
 	Silent              bool
 }
 
@@ -224,7 +225,7 @@ func (c *Crawler) setupCallbacks() {
 			}
 
 			absoluteURL := e.Request.AbsoluteURL(link)
-			if c.isExcludedPath(absoluteURL) {
+			if c.isExcludedPath(absoluteURL) || !c.isAllowedPath(absoluteURL) {
 				return
 			}
 
@@ -397,6 +398,27 @@ func (c *Crawler) isExcludedPath(rawURL string) bool {
 
 	for _, excluded := range c.options.ExcludedPaths {
 		if strings.HasPrefix(fullPath, excluded) || strings.HasPrefix(rawURL, excluded) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *Crawler) isAllowedPath(rawURL string) bool {
+	if len(c.options.AllowedPaths) == 0 {
+		return true
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	fullPath := parsedURL.Scheme + "://" + parsedURL.Host + parsedURL.Path
+
+	for _, allowed := range c.options.AllowedPaths {
+		if strings.HasPrefix(fullPath, allowed) || strings.HasPrefix(rawURL, allowed) {
 			return true
 		}
 	}

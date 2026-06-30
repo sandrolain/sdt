@@ -108,6 +108,49 @@ func TestCrawler_ExcludedPath(t *testing.T) {
 	}
 }
 
+func TestCrawler_AllowedPath(t *testing.T) {
+	visitCount := 0
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		visitCount++
+		w.Header().Set("Content-Type", "text/html")
+
+		if r.URL.Path == "/" || r.URL.Path == "" {
+			fmt.Fprintf(w, `<html><head><title>Home</title></head><body>
+				<a href="/good-practices/page1">Page 1</a>
+				<a href="/other/page">Other</a>
+			</body></html>`)
+		} else {
+			fmt.Fprint(w, `<html><head><title>Sub</title></head><body><p>content</p></body></html>`)
+		}
+	}))
+	defer srv.Close()
+
+	c, err := crawler.NewCrawler(srv.URL, crawler.Options{
+		MaxDepth:     2,
+		Silent:       true,
+		AllowedPaths: []string{srv.URL + "/good-practices"},
+	})
+	if err != nil {
+		t.Fatalf("NewCrawler() error = %v", err)
+	}
+
+	var pages []crawler.Page
+	c.OnPage(func(page crawler.Page) {
+		pages = append(pages, page)
+	})
+
+	if err := c.Start(); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	for _, p := range pages {
+		if strings.Contains(p.URL, "/other") {
+			t.Errorf("non-allowed path was visited: %s", p.URL)
+		}
+	}
+}
+
 func TestCrawler_GetPages(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
