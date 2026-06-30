@@ -384,9 +384,9 @@ func normalizeURL(rawURL string) string {
 	return parsedURL.String()
 }
 
-func (c *Crawler) isExcludedPath(rawURL string) bool {
-	if len(c.options.ExcludedPaths) == 0 {
-		return false
+func matchURLPrefix(rawURL, prefix string) bool {
+	if strings.HasPrefix(prefix, "http://") || strings.HasPrefix(prefix, "https://") {
+		return strings.HasPrefix(rawURL, prefix)
 	}
 
 	parsedURL, err := url.Parse(rawURL)
@@ -394,10 +394,16 @@ func (c *Crawler) isExcludedPath(rawURL string) bool {
 		return false
 	}
 
-	fullPath := parsedURL.Scheme + "://" + parsedURL.Host + parsedURL.Path
+	return strings.HasPrefix(parsedURL.Path, prefix)
+}
+
+func (c *Crawler) isExcludedPath(rawURL string) bool {
+	if len(c.options.ExcludedPaths) == 0 {
+		return false
+	}
 
 	for _, excluded := range c.options.ExcludedPaths {
-		if strings.HasPrefix(fullPath, excluded) || strings.HasPrefix(rawURL, excluded) {
+		if matchURLPrefix(rawURL, excluded) {
 			return true
 		}
 	}
@@ -410,15 +416,8 @@ func (c *Crawler) isAllowedPath(rawURL string) bool {
 		return true
 	}
 
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		return false
-	}
-
-	fullPath := parsedURL.Scheme + "://" + parsedURL.Host + parsedURL.Path
-
 	for _, allowed := range c.options.AllowedPaths {
-		if strings.HasPrefix(fullPath, allowed) || strings.HasPrefix(rawURL, allowed) {
+		if matchURLPrefix(rawURL, allowed) {
 			return true
 		}
 	}

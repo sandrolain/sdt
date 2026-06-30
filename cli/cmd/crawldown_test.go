@@ -252,8 +252,6 @@ func TestCrawldownCommand_OutputFile(t *testing.T) {
 }
 
 func TestCrawldownCommand_AllowedPath(t *testing.T) {
-	resetCrawldownFlags()
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		if r.URL.Path == "/" || r.URL.Path == "" {
@@ -267,37 +265,69 @@ func TestCrawldownCommand_AllowedPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	dir := t.TempDir()
+	t.Run("full URL prefix", func(t *testing.T) {
+		resetCrawldownFlags()
+		dir := t.TempDir()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(new(bytes.Buffer))
+		defer func() {
+			rootCmd.SetOut(nil)
+			rootCmd.SetErr(nil)
+		}()
 
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(new(bytes.Buffer))
-	defer func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-	}()
-
-	rootCmd.SetArgs([]string{"crawldown", "--output", dir, "--allowed-path", srv.URL + "/good-practices", srv.URL})
-	err := rootCmd.Execute()
-	if err != nil {
-		t.Fatalf("crawldown --allowed-path failed: %v", err)
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("ReadDir(%s) error: %v", dir, err)
-	}
-
-	// Should have the root page (always visited) and /good-practices/page1,
-	// but NOT /other/page.
-	for _, e := range entries {
-		if strings.Contains(e.Name(), "other") {
-			t.Errorf("non-allowed path was crawled and saved as %q", e.Name())
+		rootCmd.SetArgs([]string{"crawldown", "--output", dir, "--allowed-path", srv.URL + "/good-practices", srv.URL})
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("crawldown --allowed-path failed: %v", err)
 		}
-	}
-	if len(entries) < 2 {
-		t.Errorf("expected at least 2 files (root + allowed page), got %d: %v", len(entries), entries)
-	}
+
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("ReadDir(%s) error: %v", dir, err)
+		}
+
+		for _, e := range entries {
+			if strings.Contains(e.Name(), "other") {
+				t.Errorf("non-allowed path was crawled and saved as %q", e.Name())
+			}
+		}
+		if len(entries) < 2 {
+			t.Errorf("expected at least 2 files (root + allowed page), got %d: %v", len(entries), entries)
+		}
+	})
+
+	t.Run("relative path prefix", func(t *testing.T) {
+		resetCrawldownFlags()
+		dir := t.TempDir()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(new(bytes.Buffer))
+		defer func() {
+			rootCmd.SetOut(nil)
+			rootCmd.SetErr(nil)
+		}()
+
+		rootCmd.SetArgs([]string{"crawldown", "--output", dir, "--allowed-path", "/good-practices", srv.URL})
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("crawldown --allowed-path failed: %v", err)
+		}
+
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("ReadDir(%s) error: %v", dir, err)
+		}
+
+		for _, e := range entries {
+			if strings.Contains(e.Name(), "other") {
+				t.Errorf("non-allowed path was crawled and saved as %q", e.Name())
+			}
+		}
+		if len(entries) < 2 {
+			t.Errorf("expected at least 2 files (root + allowed page), got %d: %v", len(entries), entries)
+		}
+	})
 }
 
 func TestCrawldownCommand_OutputAndOutputFileConflict(t *testing.T) {
