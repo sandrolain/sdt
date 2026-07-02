@@ -10,14 +10,19 @@ import (
 	"sync/atomic"
 	"time"
 
+	"codeberg.org/readeck/go-readability/v2"
 	"github.com/gocolly/colly"
 )
 
 // Page represents a crawled web page.
 type Page struct {
-	URL     string
-	Title   string
-	Content string
+	URL         string
+	Title       string
+	Content     string
+	Description string
+	Keywords    string
+	Date        string
+	Author      string
 }
 
 // Options defines crawler configuration.
@@ -190,10 +195,31 @@ func (c *Crawler) setupCallbacks() {
 	c.collector.OnHTML("html", func(e *colly.HTMLElement) {
 		normalizedURL := normalizeURL(e.Request.URL.String())
 
+		description := e.ChildAttr("meta[name=description]", "content")
+		if description == "" {
+			description = e.ChildAttr("meta[property=og:description]", "content")
+		}
+
+		keywords := e.ChildAttr("meta[name=keywords]", "content")
+
+		date := e.ChildAttr("meta[name=date]", "content")
+		if date == "" {
+			date = e.ChildAttr("meta[property=article:published_time]", "content")
+		}
+		if date == "" {
+			date = e.ChildAttr("meta[property=article:modified_time]", "content")
+		}
+
+		author := e.ChildAttr("meta[name=author]", "content")
+
 		page := Page{
-			URL:     normalizedURL,
-			Title:   e.ChildText("title"),
-			Content: extractMainContent(e),
+			URL:         normalizedURL,
+			Title:       e.ChildText("title"),
+			Content:     extractMainContent(e),
+			Description: description,
+			Keywords:    keywords,
+			Date:        date,
+			Author:      author,
 		}
 
 		c.pagesMutex.Lock()
@@ -344,6 +370,12 @@ func (c *Crawler) reportProgress(done <-chan struct{}) {
 }
 
 func extractMainContent(e *colly.HTMLElement) string {
+	// Try readability algorithm first (reader mode) — strips layout, nav, sidebars, etc.
+	if content, err := extractReadableContent(e); err == nil && content != "" {
+		return content
+	}
+
+	// Fallback to selector-based extraction
 	selectors := []string{
 		"main",
 		"article",
@@ -362,6 +394,32 @@ func extractMainContent(e *colly.HTMLElement) string {
 	}
 
 	return ""
+}
+
+func extractReadableContent(e *colly.HTMLElement) (string, error) {
+	if e.Response == nil || len(e.Response.Body) == 0 || e.Request == nil || e.Request.URL == nil {
+		return "", fmt.Errorf("missing response or URL")
+	}
+
+	article, err := readability.FromReader(
+		strings.NewReader(string(e.Response.Body)),
+		e.Request.URL,
+	)
+	if err != nil {
+		return "", fmt.Errorf("readability failed: %w", err)
+	}
+
+	var buf strings.Builder
+	if err := article.RenderHTML(&buf); err != nil {
+		return "", fmt.Errorf("render readability HTML: %w", err)
+	}
+
+	content := strings.TrimSpace(buf.String())
+	if len(content) < 50 {
+		return "", fmt.Errorf("readability content too short (%d chars)", len(content))
+	}
+
+	return content, nil
 }
 
 // GetPages returns all crawled pages collected so far.

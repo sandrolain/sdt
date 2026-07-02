@@ -7,11 +7,42 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/sandrolain/sdt/cli/utils/converter"
 	"github.com/sandrolain/sdt/cli/utils/crawler"
 	"github.com/spf13/cobra"
 )
+
+type frontmatterData struct {
+	URL         string `yaml:"url"`
+	Title       string `yaml:"title"`
+	SavedAt     string `yaml:"saved_at"`
+	Date        string `yaml:"date,omitempty"`
+	Description string `yaml:"description,omitempty"`
+	Keywords    string `yaml:"keywords,omitempty"`
+	Author      string `yaml:"author,omitempty"`
+}
+
+func buildFrontmatter(page crawler.Page) string {
+	fm := frontmatterData{
+		URL:         page.URL,
+		Title:       page.Title,
+		SavedAt:     time.Now().UTC().Format(time.RFC3339),
+		Date:        page.Date,
+		Description: page.Description,
+		Keywords:    page.Keywords,
+		Author:      page.Author,
+	}
+
+	data, err := yaml.Marshal(fm)
+	if err != nil {
+		return ""
+	}
+
+	return "---\n" + string(data) + "---\n\n"
+}
 
 // writeInfo writes a formatted message to w, ignoring the error (non-fatal output).
 func writeInfo(w io.Writer, format string, args ...any) {
@@ -85,8 +116,13 @@ as a separate .md file in the output directory.`,
 			exitWithError(cmd, err)
 
 			if resultPage.Title != "" {
-				markdown = fmt.Sprintf("# %s\n\nURL: %s\n\n---\n\n%s", resultPage.Title, resultPage.URL, markdown)
+				trimmed := strings.TrimSpace(markdown)
+				if !strings.HasPrefix(trimmed, "# ") {
+					markdown = fmt.Sprintf("# %s\n\n%s", resultPage.Title, markdown)
+				}
 			}
+
+			markdown = buildFrontmatter(*resultPage) + markdown
 
 			if outputFile != "" {
 				if err := os.WriteFile(outputFile, []byte(markdown), 0o600); err != nil {
@@ -149,6 +185,13 @@ as a separate .md file in the output directory.`,
 				return
 			}
 
+			if page.Title != "" {
+				trimmed := strings.TrimSpace(markdown)
+				if !strings.HasPrefix(trimmed, "# ") {
+					markdown = fmt.Sprintf("# %s\n\n%s", page.Title, markdown)
+				}
+			}
+
 			filename := converter.GenerateFilename(page.URL)
 			normalizedURL := strings.TrimSuffix(page.URL, "/")
 
@@ -156,11 +199,9 @@ as a separate .md file in the output directory.`,
 			urlToFile[normalizedURL] = filename
 			urlToFileMutex.Unlock()
 
-			header := fmt.Sprintf("# %s\n\nURL: %s\n\n---\n\n", page.Title, page.URL)
-
 			pageDataMutex.Lock()
 			pageData[normalizedURL] = pageEntry{
-				markdown: header + markdown,
+				markdown: buildFrontmatter(page) + markdown,
 				filename: filename,
 				pageURL:  page.URL,
 			}
