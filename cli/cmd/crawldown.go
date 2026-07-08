@@ -68,6 +68,7 @@ as a separate .md file in the output directory.`,
 		maxDepth := getIntFlag(cmd, "depth", false)
 		excludedPaths := getStringArrayFlag(cmd, "exclude", false)
 		allowedPaths := getStringArrayFlag(cmd, "allowed-path", false)
+		allowedPathRegexes := getStringArrayFlag(cmd, "allowed-path-regex", false)
 		timeout := getIntFlag(cmd, "timeout", false)
 		delay := getIntFlag(cmd, "delay", false)
 		userAgent := getStringFlag(cmd, "user-agent", false)
@@ -151,6 +152,7 @@ as a separate .md file in the output directory.`,
 			RequestDelay:        delay,
 			ExcludedPaths:       excludedPaths,
 			AllowedPaths:        allowedPaths,
+			AllowedPathRegexes:  allowedPathRegexes,
 		})
 		exitWithError(cmd, err)
 
@@ -292,6 +294,7 @@ func init() {
 	pf.IntP("depth", "d", 2, "Maximum crawl depth (crawl mode only)")
 	pf.StringArrayP("exclude", "e", []string{}, "URL path prefixes to exclude from crawling (repeatable)")
 	pf.StringArray("allowed-path", []string{}, "Only crawl URLs whose path starts with this prefix (repeatable)")
+	pf.StringArray("allowed-path-regex", []string{}, "Only crawl URLs whose path matches this regular expression (repeatable)")
 	pf.IntP("timeout", "t", 60, "Request timeout in seconds")
 	pf.Int("delay", 0, "Delay between requests in seconds")
 	pf.String("user-agent", "sdt/1.0", "HTTP user agent for requests")

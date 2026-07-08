@@ -330,6 +330,52 @@ func TestCrawldownCommand_AllowedPath(t *testing.T) {
 	})
 }
 
+func TestCrawldownCommand_AllowedPathRegex(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		if r.URL.Path == "/" || r.URL.Path == "" {
+			fmt.Fprint(w, `<html><head><title>Home</title></head><body><main>
+				<a href="/blog/page1">Blog</a>
+				<a href="/docs/page">Docs</a>
+				<a href="/other/page">Other</a>
+			</main></body></html>`)
+		} else {
+			fmt.Fprint(w, `<html><head><title>Sub</title></head><body><main><p>content</p></main></body></html>`)
+		}
+	}))
+	defer srv.Close()
+
+	resetCrawldownFlags()
+	dir := t.TempDir()
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(new(bytes.Buffer))
+	defer func() {
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+	}()
+
+	rootCmd.SetArgs([]string{"crawldown", "--output", dir, "--allowed-path-regex", `^/blog/`, srv.URL})
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("crawldown --allowed-path-regex failed: %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir(%s) error: %v", dir, err)
+	}
+
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "docs") || strings.Contains(e.Name(), "other") {
+			t.Errorf("non-allowed path was crawled and saved as %q", e.Name())
+		}
+	}
+	if len(entries) < 2 {
+		t.Errorf("expected at least 2 files (root + allowed page), got %d: %v", len(entries), entries)
+	}
+}
+
 func TestCrawldownCommand_OutputAndOutputFileConflict(t *testing.T) {
 	resetCrawldownFlags()
 

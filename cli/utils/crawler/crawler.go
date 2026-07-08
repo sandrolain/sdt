@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -38,6 +39,7 @@ type Options struct {
 	RequestDelay        int
 	ExcludedPaths       []string
 	AllowedPaths        []string
+	AllowedPathRegexes  []string
 	Silent              bool
 }
 
@@ -469,14 +471,41 @@ func (c *Crawler) isExcludedPath(rawURL string) bool {
 	return false
 }
 
+func matchURLRegex(rawURL, pattern string) bool {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+
+	return re.MatchString(parsedURL.Path)
+}
+
 func (c *Crawler) isAllowedPath(rawURL string) bool {
-	if len(c.options.AllowedPaths) == 0 {
+	hasPrefixes := len(c.options.AllowedPaths) > 0
+	hasRegexes := len(c.options.AllowedPathRegexes) > 0
+
+	if !hasPrefixes && !hasRegexes {
 		return true
 	}
 
-	for _, allowed := range c.options.AllowedPaths {
-		if matchURLPrefix(rawURL, allowed) {
-			return true
+	if hasPrefixes {
+		for _, allowed := range c.options.AllowedPaths {
+			if matchURLPrefix(rawURL, allowed) {
+				return true
+			}
+		}
+	}
+
+	if hasRegexes {
+		for _, allowed := range c.options.AllowedPathRegexes {
+			if matchURLRegex(rawURL, allowed) {
+				return true
+			}
 		}
 	}
 
