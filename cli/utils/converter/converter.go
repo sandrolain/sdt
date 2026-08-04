@@ -21,6 +21,9 @@ type Options struct {
 	LinkStyle        string
 }
 
+// markdownExt is the markdown file extension used when building filenames.
+const markdownExt = ".md"
+
 // Converter handles HTML to Markdown conversion.
 type Converter struct {
 	converter *md.Converter
@@ -127,7 +130,7 @@ func ConvertLinksToLocal(markdown string, baseURL string, urlToFileMap map[strin
 func GenerateFilename(pageURL string) string {
 	parsedURL, err := url.Parse(pageURL)
 	if err != nil {
-		return "index.md"
+		return "index" + markdownExt
 	}
 
 	path := parsedURL.Path
@@ -136,14 +139,14 @@ func GenerateFilename(pageURL string) string {
 	if path == "" || path == "/" {
 		if query != "" {
 			filename := "index-" + sanitizeFilename(query)
-			if !strings.HasSuffix(filename, ".md") {
-				filename += ".md"
+			if !strings.HasSuffix(filename, markdownExt) {
+				filename += markdownExt
 			}
 
 			return filename
 		}
 
-		return "index.md"
+		return "index" + markdownExt
 	}
 
 	path = strings.TrimPrefix(path, "/")
@@ -157,12 +160,12 @@ func GenerateFilename(pageURL string) string {
 
 	filename = sanitizeFilename(filename)
 
-	if !strings.HasSuffix(filename, ".md") {
+	if !strings.HasSuffix(filename, markdownExt) {
 		if filepath.Ext(filename) != "" {
 			filename = strings.TrimSuffix(filename, filepath.Ext(filename))
 		}
 
-		filename += ".md"
+		filename += markdownExt
 	}
 
 	return filename
@@ -240,7 +243,7 @@ func findDocumentExtension(path string) string {
 		".odp",
 		".rtf",
 		".txt",
-		".md",
+		markdownExt,
 		".markdown",
 		".csv",
 	}

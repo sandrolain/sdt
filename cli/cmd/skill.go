@@ -104,7 +104,7 @@ Create ` + "`.sdt.yaml`" + ` in your project root:
 project: myapp
 group: my-org
 ` + "```" + `
-Or run: ` + "`sdt setup --project myapp`" + `
+Or run: ` + "`sdt agent init --project myapp --yes`" + `
 `,
 
 	agentNameClaude: `<tool_instructions>
@@ -531,8 +531,8 @@ sdt bcrypt verify --password "my-password" --hash "$2a$..."
 
 ` + "```" + `bash
 # Project bootstrap for agents
-sdt setup --project myapp --group my-org --agent all
-sdt setup --project myapp --agent skill --force
+sdt agent init --project myapp --group my-org --yes
+sdt agent guide --force
 
 # Generate instructions/skills on demand
 sdt skill --agent generic --output AGENTS.md
@@ -553,7 +553,7 @@ sdt help memory
 
 ## Project Config (.sdt.yaml)
 
-Create with ` + "`sdt setup --project myapp`" + ` or manually:
+Create with ` + "`sdt agent init --project myapp --yes`" + ` or manually:
 
 ` + "```" + `yaml
 project: myapp

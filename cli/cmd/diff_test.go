@@ -80,3 +80,34 @@ func TestLCS(t *testing.T) {
 		t.Errorf("expected LCS length 3, got %d", dp[len(a)][len(b)])
 	}
 }
+
+func TestHunkStartLine(t *testing.T) {
+	aLine := func(p posOp) int { return p.aLine }
+
+	chunk := []posOp{
+		{kind: '+', aLine: 0, bLine: 1},
+		{kind: ' ', aLine: 1, bLine: 2},
+	}
+	if got := hunkStartLine(chunk, '+', aLine); got != 1 {
+		t.Errorf("expected first positive line 1, got %d", got)
+	}
+
+	chunk = []posOp{{kind: '-', aLine: 5, bLine: 0}}
+	if got := hunkStartLine(chunk, '+', aLine); got != 5 {
+		t.Errorf("expected non-zero start 5, got %d", got)
+	}
+
+	chunk = []posOp{{kind: '+', aLine: 0, bLine: 0}}
+	if got := hunkStartLine(chunk, '+', aLine); got != 1 {
+		t.Errorf("expected default start 1, got %d", got)
+	}
+}
+
+func TestDiffMaxMin(t *testing.T) {
+	if max0(3, 5) != 5 || max0(0, 2) != 2 {
+		t.Error("max0 returned wrong value")
+	}
+	if min0(3, 5) != 3 || min0(0, 2) != 0 {
+		t.Error("min0 returned wrong value")
+	}
+}

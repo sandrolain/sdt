@@ -199,29 +199,6 @@ tasks:
         git push origin $NEW_VERSION
         echo "Created and pushed tag: $NEW_VERSION"
 
-  # Web tasks
-  build-web:
-    desc: Build web frontend
-    dir: web
-    cmds:
-      - npm install
-      - npm run build
-      - mkdir -p ../docker/dist
-      - cp -R ./dist/* ../docker/dist/
-
-  wasm-build:
-    desc: Build WASM version
-    cmds:
-      - mkdir -p web/src
-      - GOOS=js GOARCH=wasm go build -o web/src/sdt.wasm ./cli
-      - cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" web/src/
-
-  serve-web:
-    desc: Serve web interface locally
-    deps: [build-web]
-    cmds:
-      - cd docker/dist && python3 -m http.server 3000
-
   # Dependencies tasks
   tidy:
     desc: Tidy and verify go modules

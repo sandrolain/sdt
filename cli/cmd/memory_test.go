@@ -154,6 +154,16 @@ func TestMemoryInitCmd(t *testing.T) {
 	if _, err := os.Stat(".sdt.yaml"); err != nil {
 		t.Fatal(".sdt.yaml not created")
 	}
+	data, err := os.ReadFile(".sdt.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "project: myproj") || !strings.Contains(string(data), "group: mygrp") {
+		t.Errorf("expected project identity in .sdt.yaml:\n%s", data)
+	}
+	if strings.Contains(string(data), "project_id") || strings.Contains(string(data), "group_id") {
+		t.Errorf("did not expect id fields in .sdt.yaml:\n%s", data)
+	}
 }
 
 func TestNormalizeTags(t *testing.T) {
@@ -181,6 +191,7 @@ func TestMemoryExportJSON(t *testing.T) {
 }
 
 func TestOutputEntries_json(t *testing.T) {
+	runInTempDir(t)
 	resetMemoryDB(t)
 	_ = memorySet("p", "g", "k", "v", "tag1")
 	out := execute(t, memoryListCmd, nil, "--project", "p", "--format", "json")
@@ -191,6 +202,7 @@ func TestOutputEntries_json(t *testing.T) {
 }
 
 func TestOutputEntries_text(t *testing.T) {
+	runInTempDir(t)
 	resetMemoryDB(t)
 	_ = memorySet("p", "g", "mykey", "myvalue", "tagA")
 	out := execute(t, memoryListCmd, nil, "--project", "p")
@@ -201,6 +213,7 @@ func TestOutputEntries_text(t *testing.T) {
 }
 
 func TestOutputEntries_yaml(t *testing.T) {
+	runInTempDir(t)
 	resetMemoryDB(t)
 	_ = memorySet("p", "", "k", "v", "")
 	out := execute(t, memoryListCmd, nil, "--project", "p", "--format", "yaml")

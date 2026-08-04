@@ -131,17 +131,21 @@ func NewCrawler(startURL string, opts Options) (*Crawler, error) {
 
 	docCollector.SetRequestTimeout(time.Duration(opts.RequestTimeout) * time.Second)
 	if opts.RequestDelay > 0 {
-		_ = docCollector.Limit(&colly.LimitRule{
+		if err := docCollector.Limit(&colly.LimitRule{
 			DomainGlob:  "*",
 			Delay:       time.Duration(opts.RequestDelay) * time.Second,
 			RandomDelay: time.Duration(opts.RequestDelay/2) * time.Second,
 			Parallelism: 2,
-		})
+		}); err != nil {
+			return nil, fmt.Errorf("set document rate limit: %w", err)
+		}
 	} else {
-		_ = docCollector.Limit(&colly.LimitRule{
+		if err := docCollector.Limit(&colly.LimitRule{
 			DomainGlob:  "*",
 			Parallelism: 2,
-		})
+		}); err != nil {
+			return nil, fmt.Errorf("set document limit: %w", err)
+		}
 	}
 
 	if opts.IgnoreRobotsTxt {
@@ -193,6 +197,7 @@ func (c *Crawler) Start() error {
 	return nil
 }
 
+//nolint:gocognit,gocyclo // pre-existing high-complexity callback registration; kept as-is to avoid behavioral changes
 func (c *Crawler) setupCallbacks() {
 	c.collector.OnHTML("html", func(e *colly.HTMLElement) {
 		normalizedURL := normalizeURL(e.Request.URL.String())
@@ -263,7 +268,9 @@ func (c *Crawler) setupCallbacks() {
 				}
 
 				if c.documentCollector != nil {
-					_ = c.documentCollector.Visit(absoluteURL)
+					if err := c.documentCollector.Visit(absoluteURL); err != nil {
+						atomic.AddInt64(&c.errorsTotal, 1)
+					}
 				}
 				return
 			}

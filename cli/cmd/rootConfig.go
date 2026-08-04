@@ -17,8 +17,17 @@ import (
 
 // ProjectConfig holds the project identity declared in .sdt.yaml.
 type ProjectConfig struct {
-	Project string `yaml:"project"`
-	Group   string `yaml:"group"`
+	Project string `json:"project" yaml:"project"`
+	Group   string `json:"group"   yaml:"group"`
+}
+
+// buildProjectConfigContent renders the YAML body of a .sdt.yaml file.
+func buildProjectConfigContent(project, group string) string {
+	lines := []string{fmt.Sprintf("project: %s", project)}
+	if group != "" {
+		lines = append(lines, fmt.Sprintf("group: %s", group))
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // findProjectConfig walks up from the current working directory looking for
@@ -80,7 +89,7 @@ func getProjectAndGroup(cmd *cobra.Command) (project, group string) {
 }
 
 func loadFileConfig() {
-	viper.SetConfigName("sdt")
+	viper.SetConfigName(sdtConfigFile)
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 	if err := viper.ReadInConfig(); err != nil {

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -37,7 +36,7 @@ func outputEntries(cmd *cobra.Command, entries []MemoryEntry) {
 // ── root memory command ───────────────────────────────────────────────────────
 
 var memoryCmd = &cobra.Command{
-	Use:   "memory",
+	Use:   useMemory,
 	Short: "Persistent key-value memory store for AI agents",
 	Long: `Manage a persistent key-value memory store backed by SQLite.
 
@@ -242,7 +241,7 @@ var memoryImportCmd = &cobra.Command{
 // ── memory init ───────────────────────────────────────────────────────────────
 
 var memoryInitCmd = &cobra.Command{
-	Use:   "init",
+	Use:   useInit,
 	Short: "Create .sdt.yaml in the current directory",
 	Run: func(cmd *cobra.Command, args []string) {
 		projectFlag := getStringFlag(cmd, "project", false)
@@ -252,22 +251,15 @@ var memoryInitCmd = &cobra.Command{
 			exitWithError(cmd, fmt.Errorf("--project is required"))
 		}
 
-		lines := []string{
-			fmt.Sprintf("project: %s", projectFlag),
-		}
-		if groupFlag != "" {
-			lines = append(lines, fmt.Sprintf("group: %s", groupFlag))
-		}
-		content := strings.Join(lines, "\n") + "\n"
+		content := buildProjectConfigContent(projectFlag, groupFlag)
 
-		const configFile = ".sdt.yaml"
-		if _, err := os.Stat(configFile); err == nil {
-			exitWithError(cmd, fmt.Errorf(".sdt.yaml already exists in current directory"))
+		if _, err := os.Stat(sdtConfigFile); err == nil {
+			exitWithError(cmd, fmt.Errorf("%s already exists in current directory", sdtConfigFile))
 		}
-		if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+		if err := os.WriteFile(sdtConfigFile, []byte(content), 0600); err != nil {
 			exitWithError(cmd, err)
 		}
-		outputString(cmd, fmt.Sprintf("created %s", configFile))
+		outputString(cmd, fmt.Sprintf("created %s", sdtConfigFile))
 	},
 }
 

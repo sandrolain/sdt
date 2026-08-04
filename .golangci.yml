@@ -36,6 +36,7 @@ linters:
           - errcheck
           - goconst
           - gocognit
+          - gosec
       - path: "examples/.+\\.go"
         linters:
           - errcheck
