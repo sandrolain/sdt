@@ -39,6 +39,7 @@ Smart Developer Tools is a collection of CLI utilities for developers
 
 ### SEE ALSO
 
+* [sdt agent](sdt_agent.md)	 - Agent instruction tools (AGENTS.md, sections, guides)
 * [sdt b32](sdt_b32.md)	 - B32 Encode
 * [sdt b64](sdt_b64.md)	 - B64 Encode
 * [sdt b64url](sdt_b64url.md)	 - B64 URL Encode
@@ -75,7 +76,6 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt read](sdt_read.md)	 - Read File
 * [sdt regexp](sdt_regexp.md)	 - RegExp matching
 * [sdt schema](sdt_schema.md)	 - Generate JSON Schema for SDT commands
-* [sdt setup](sdt_setup.md)	 - Scaffold agent files for the current project
 * [sdt sha1](sdt_sha1.md)	 - SHA-1
 * [sdt sha256](sdt_sha256.md)	 - SHA-256
 * [sdt sha384](sdt_sha384.md)	 - SHA-384

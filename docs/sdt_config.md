@@ -29,5 +29,7 @@ Configuration Tools
 
 * [sdt](sdt.md)	 - Smart Developer Tools
 * [sdt config get](sdt_config_get.md)	 - Get Configuration Value
+* [sdt config init](sdt_config_init.md)	 - Initialize .sdt.yaml with project identity
 * [sdt config set](sdt_config_set.md)	 - Set Configuration Value
+* [sdt config show](sdt_config_show.md)	 - Show project configuration
 
