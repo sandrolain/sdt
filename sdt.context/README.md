@@ -16,6 +16,8 @@ files for this project.
   - `sdt.context/plan/<YYYY-MM-DD>-<slug>.md`
   - `sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`
   - `sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`
+- Files use concise technical language. Cut fluff, keep meaning and
+  readability (token-efficient).
 - Temporary files always go in `sdt.context/tmp/` — never outside the project
   (no `/tmp`, no other absolute paths).
 - Every file starts with YAML frontmatter:

@@ -171,6 +171,15 @@ stdout is not a TTY.
 | Generate AGENTS.md | ` + "`sdt agent init --project myapp`" + ` |
 | Generate this guide | ` + "`sdt agent guide`" + ` |
 
+## Communication (default)
+
+- Code responses: terse caveman (ultra). Drop articles/filler, fragments OK,
+  technical terms exact, code unchanged. User-requested docs: normal.
+- Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase
+  after type. Body only when "why" unclear. No period on subject.
+- ` + "`sdt.context/`" + ` files and docs: concise technical language. Cut
+  fluff, keep meaning and readability.
+
 ## Reference
 
 See REFERENCE.md for the full command-by-command reference, and WORKFLOWS.md
@@ -473,4 +482,17 @@ sdt tokens --model claude --file big.txt
 sdt extract --type json-blocks --file llm_output.md
 sdt conv --from yaml --to json --file config.yaml
 ` + codeFence + `
+
+## 6. Communication defaults
+
+Code work: terse caveman ultra — drop articles/filler/pleasantries, fragments
+OK, short synonyms, technical terms exact, code unchanged. Pattern:
+` + "[thing] [action] [reason]. [next step]." + `
+Code only; user-requested docs written normal (concise).
+
+Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase after
+type. Body only when "why" unclear. No period on subject.
+
+` + "`sdt.context/`" + ` files and docs: concise technical language. Cut
+fluff, keep meaning and readability.
 `

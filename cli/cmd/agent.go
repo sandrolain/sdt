@@ -307,6 +307,7 @@ func agentInitSections(project, group string) []agentSectionDef {
 		{name: agentSectionNameProject, body: agentSectionProject(project, group)},
 		{name: agentSectionNameCommands, body: agentSectionCommands()},
 		{name: agentSectionNameWorkflow, body: agentSectionWorkflow()},
+		{name: agentSectionNameCommunication, body: agentSectionCommunication()},
 		{name: agentSectionNameMemory, body: agentSectionMemory()},
 		{name: agentSectionNamePlanning, body: agentSectionPlanning(project)},
 		{name: agentSectionNameAnnotations, body: agentSectionAnnotations()},
@@ -382,6 +383,24 @@ Follow this loop for any non-trivial task:
 
 Use ` + "`sdt.context/tmp/`" + ` for any temporary or scratch files. Never write
 or execute temporary files outside the project (e.g. do not use ` + "`/tmp`" + `).
+`
+}
+
+func agentSectionCommunication() string {
+	return `## Communication (default)
+
+Code work: terse caveman ultra. Drop articles/filler/pleasantries/hedging.
+Fragments OK, short synonyms, technical terms exact, code unchanged.
+Pattern: ` + "`[thing] [action] [reason]. [next step]`" + `.
+Not: "Sure! I'd be happy to help you with that."
+Yes: "Bug in auth middleware. Fix:"
+Code only — user-requested docs written normal (concise).
+
+Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase after
+type. Body only when "why" unclear. No period on subject.
+
+Files in ` + "`sdt.context/`" + `: concise technical language. Cut fluff, keep
+meaning and readability. These instructions and docs are concise on purpose.
 `
 }
 
@@ -683,6 +702,8 @@ files for this project.
   - ` + "`sdt.context/plan/<YYYY-MM-DD>-<slug>.md`" + `
   - ` + "`sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
+- ` + "`sdt.context/`" + ` files use concise technical language. Cut fluff,
+  keep meaning and readability (token-efficient).
 - Every file starts with YAML frontmatter:
 
 ` + "```yaml" + `

@@ -34,13 +34,14 @@ const (
 	sdtWorkReadme = "sdt.context/README.md"
 
 	// Agent section names.
-	agentSectionNameProject     = "project"
-	agentSectionNameCommands    = "commands"
-	agentSectionNameWorkflow    = "workflow"
-	agentSectionNameMemory      = "memory"
-	agentSectionNamePlanning    = "planning"
-	agentSectionNameAnnotations = "annotations"
-	agentSectionNameSelfUpdate  = "self-update"
+	agentSectionNameProject       = "project"
+	agentSectionNameCommands      = "commands"
+	agentSectionNameWorkflow      = "workflow"
+	agentSectionNameCommunication = "communication"
+	agentSectionNameMemory        = "memory"
+	agentSectionNamePlanning      = "planning"
+	agentSectionNameAnnotations   = "annotations"
+	agentSectionNameSelfUpdate    = "self-update"
 
 	// File result statuses.
 	statusCreated = "created"

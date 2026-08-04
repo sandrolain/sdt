@@ -214,12 +214,12 @@ func TestAgentInit(t *testing.T) {
 	}
 
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	for _, s := range []string{"project", "commands", "workflow", "memory", "planning", "annotations", "self-update"} {
+	for _, s := range []string{"project", "commands", "workflow", "communication", "memory", "planning", "annotations", "self-update"} {
 		if !strings.Contains(string(data), "<!-- sdt:begin:"+s+" -->") {
 			t.Errorf("expected section %q in generated AGENTS.md", s)
 		}
 	}
-	for _, want := range []string{"sdt memory", "sdt.context/worklog/", "frontmatter", "sdt agent section update", "sdt.context/plan/", "sdt.context/tmp/"} {
+	for _, want := range []string{"sdt memory", "sdt.context/worklog/", "frontmatter", "sdt agent section update", "sdt.context/plan/", "sdt.context/tmp/", "caveman", "Conventional Commits", "≤50 chars"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in opinionated AGENTS.md", want)
 		}
@@ -264,7 +264,7 @@ func TestAgentInitExisting(t *testing.T) {
 	if !strings.Contains(string(data), "existing") {
 		t.Error("expected custom content preserved (non-destructive)")
 	}
-	for _, s := range []string{"project", "commands", "workflow", "memory", "planning", "annotations", "self-update"} {
+	for _, s := range []string{"project", "commands", "workflow", "communication", "memory", "planning", "annotations", "self-update"} {
 		if !strings.Contains(string(data), "<!-- sdt:begin:"+s+" -->") {
 			t.Errorf("expected section %q added to existing AGENTS.md", s)
 		}
@@ -289,7 +289,7 @@ func TestAgentInitEmptyTarget(t *testing.T) {
 	writeTestFile(t, "AGENTS.md", "")
 	execute(t, agentInitCmd, nil, "--project", "p")
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	for _, s := range []string{"project", "commands", "workflow", "memory", "planning", "annotations", "self-update"} {
+	for _, s := range []string{"project", "commands", "workflow", "communication", "memory", "planning", "annotations", "self-update"} {
 		if !strings.Contains(string(data), "<!-- sdt:begin:"+s+" -->") {
 			t.Errorf("expected section %q in generated AGENTS.md", s)
 		}
@@ -323,6 +323,38 @@ func TestAgentInitPreservesConfig(t *testing.T) {
 	for _, want := range []string{"project: existing", "group: g"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q preserved in .sdt.yaml:\n%s", want, data)
+		}
+	}
+}
+
+func TestAgentCommunicationDefaults(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+
+	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	body, ok := getSectionBody(string(data), "communication")
+	if !ok {
+		t.Fatal("expected communication section in AGENTS.md")
+	}
+	for _, want := range []string{"caveman ultra", "[thing] [action] [reason]", "Conventional Commits", "≤50 chars", "sdt.context/", "Code only"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("expected %q in communication section:\n%s", want, body)
+		}
+	}
+
+	readme, _ := os.ReadFile(filepath.Join(dir, "sdt.context/README.md"))
+	if !strings.Contains(string(readme), "concise technical language") {
+		t.Errorf("expected concise-language rule in sdt.context/README.md:\n%s", readme)
+	}
+
+	skill, _ := os.ReadFile(filepath.Join(dir, ".agents/skills/sdt/SKILL.md"))
+	if !strings.Contains(string(skill), "Conventional Commits") {
+		t.Errorf("expected commit rule in SKILL.md:\n%s", skill)
+	}
+	workflows, _ := os.ReadFile(filepath.Join(dir, ".agents/skills/sdt/WORKFLOWS.md"))
+	for _, want := range []string{"Communication defaults", "caveman ultra", "Conventional Commits"} {
+		if !strings.Contains(string(workflows), want) {
+			t.Errorf("expected %q in WORKFLOWS.md:\n%s", want, workflows)
 		}
 	}
 }
