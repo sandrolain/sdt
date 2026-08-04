@@ -26,7 +26,7 @@ var tokenModels = map[string]string{
 	"gpt-3.5":       familyCL100K,
 	"gpt-3.5-turbo": familyCL100K,
 	"gpt-2":         familyP50K,
-	agentNameClaude: familyCL100K,
+	"claude":        familyCL100K,
 	"claude-3":      familyCL100K,
 	familyLlama:     familyLlama,
 	"llama-2":       familyLlama,

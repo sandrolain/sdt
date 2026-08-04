@@ -1,13 +1,14 @@
 # sdt.context/ — Working Directory
 
-This directory holds the agent's planning, work logs, notes and temporary
-files for this project.
+This directory holds the agent's planning, work logs, notes, instruction files
+and temporary files for this project.
 
 ## Layout
 
 - `plan/` — plans written before starting non-trivial work
 - `worklog/` — chronological log of completed work
 - `notes/` — free-form annotations
+- `instructions/` — agent instruction files (referenced by AGENTS.md)
 - `tmp/` — temporary and scratch files (never outside this project)
 
 ## Conventions
@@ -16,11 +17,9 @@ files for this project.
   - `sdt.context/plan/<YYYY-MM-DD>-<slug>.md`
   - `sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`
   - `sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`
-- Files use concise technical language. Cut fluff, keep meaning and
-  readability (token-efficient).
-- Temporary files always go in `sdt.context/tmp/` — never outside the project
-  (no `/tmp`, no other absolute paths).
-- Every file starts with YAML frontmatter:
+- `sdt.context/` files use concise technical language. Cut fluff,
+  keep meaning and readability (token-efficient).
+- Every work file starts with YAML frontmatter:
 
 ```yaml
 ---

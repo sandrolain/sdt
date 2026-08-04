@@ -6,10 +6,10 @@ Bootstrap an SDT-managed project for AI agents
 
 Bootstrap the current directory with everything an AI agent needs:
 
-  .sdt.yaml                  project identity (project/group)
-  AGENTS.md                  opinionated instructions in tagged sections
-  .agents/skills/sdt/        extended skill guide (SKILL/REFERENCE/WORKFLOWS)
-  sdt.context/plan sdt.context/worklog sdt.context/notes sdt.context/tmp   working directories
+  .sdt.yaml                           project identity (project/group)
+  AGENTS.md                           thin index with a single tagged block
+  sdt.context/plan|worklog|notes|tmp  working directories
+  sdt.context/instructions/           instruction files (single source of truth)
 
 The command is idempotent and non-destructive: a second run fills in missing
 content and never overwrites or removes existing files. Use --force to refresh
@@ -30,7 +30,6 @@ sdt agent init [flags]
 ### Options
 
 ```
-      --dir string       Output directory for the skill guide (default ".agents/skills/sdt")
       --force            Refresh generated template content
       --group string     Group name
   -h, --help             help for init
@@ -52,5 +51,5 @@ sdt agent init [flags]
 
 ### SEE ALSO
 
-* [sdt agent](sdt_agent.md)	 - Agent instruction tools (AGENTS.md, sections, guides)
+* [sdt agent](sdt_agent.md)	 - Agent instruction tools (AGENTS.md, instruction files)
 

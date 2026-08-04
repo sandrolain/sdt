@@ -1,21 +1,16 @@
 ## sdt agent
 
-Agent instruction tools (AGENTS.md, sections, guides)
+Agent instruction tools (AGENTS.md, instruction files)
 
 ### Synopsis
 
 Generate and maintain agent instruction files.
 
-  agent init       generate an opinionated AGENTS.md
-  agent section    integrate/update tagged sections inside AGENTS.md
-  agent guide      generate an extended skill guide
+  agent init       bootstrap AGENTS.md + sdt.context/ instruction files
 
-Sections are delimited by start/end tags that make them safe to update
-individually without touching the rest of the file:
-
-  <!-- sdt:begin:NAME -->
-  ...content...
-  <!-- sdt:end:NAME -->
+AGENTS.md is a thin index: it carries a single tagged block that points to the
+instruction files under `sdt.context/instructions/`. Each instruction
+file is the single source of truth for one topic.
 
 ### Options
 
@@ -37,7 +32,5 @@ individually without touching the rest of the file:
 ### SEE ALSO
 
 * [sdt](sdt.md)	 - Smart Developer Tools
-* [sdt agent guide](sdt_agent_guide.md)	 - Generate an extended SDT skill guide
 * [sdt agent init](sdt_agent_init.md)	 - Bootstrap an SDT-managed project for AI agents
-* [sdt agent section](sdt_agent_section.md)	 - Manage tagged sections in AGENTS.md
 

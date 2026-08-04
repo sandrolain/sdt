@@ -39,7 +39,7 @@ Smart Developer Tools is a collection of CLI utilities for developers
 
 ### SEE ALSO
 
-* [sdt agent](sdt_agent.md)	 - Agent instruction tools (AGENTS.md, sections, guides)
+* [sdt agent](sdt_agent.md)	 - Agent instruction tools (AGENTS.md, instruction files)
 * [sdt b32](sdt_b32.md)	 - B32 Encode
 * [sdt b64](sdt_b64.md)	 - B64 Encode
 * [sdt b64url](sdt_b64url.md)	 - B64 URL Encode
@@ -81,7 +81,6 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt sha384](sdt_sha384.md)	 - SHA-384
 * [sdt sha512](sdt_sha512.md)	 - SHA-512
 * [sdt sign](sdt_sign.md)	 - Sign data with a private key
-* [sdt skill](sdt_skill.md)	 - Generate agent skill/instruction files for using SDT
 * [sdt string](sdt_string.md)	 - String Tools
 * [sdt template](sdt_template.md)	 - Render a Go text/template with JSON or YAML data
 * [sdt time](sdt_time.md)	 - Time Tools

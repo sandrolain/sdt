@@ -1,11 +1,15 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func runInTempDir(t *testing.T) string {
@@ -32,78 +36,57 @@ func writeTestFile(t *testing.T, path, content string) {
 	}
 }
 
-// ── section helpers ────────────────────────────────────────────────────────────
-
-func TestSectionBlockHelpers(t *testing.T) {
-	content := "# Header\n\n" + sectionBlock("a", "bodyA")
-
-	out, err := addSectionBlock(content, "b", "bodyB")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !hasSection(out, "a") || !hasSection(out, "b") {
-		t.Error("expected both sections present after add")
-	}
-	if _, err := addSectionBlock(out, "b", "dup"); err == nil {
-		t.Error("expected error adding duplicate section")
-	}
-
-	out, err = updateSectionBlock(out, "a", "newA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, ok := getSectionBody(out, "a")
-	if !ok || body != "newA" {
-		t.Errorf("expected updated body newA, got %q (found=%v)", body, ok)
-	}
-	if _, err := updateSectionBlock(out, "missing", "x"); err == nil {
-		t.Error("expected error updating missing section")
-	}
-
-	names := listSections(out)
-	if len(names) != 2 || names[0] != "a" || names[1] != "b" {
-		t.Errorf("unexpected section list: %v", names)
-	}
-
-	out, err = removeSectionBlock(out, "a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hasSection(out, "a") {
-		t.Error("expected section a removed")
-	}
-	if !hasSection(out, "b") {
-		t.Error("expected section b still present")
+func instructionFileNames() []string {
+	return []string{
+		"README.md",
+		"project.md",
+		"commands.md",
+		"workflow.md",
+		"communication.md",
+		"memory.md",
+		"planning.md",
+		"annotations.md",
+		"self-update.md",
+		"reference.md",
 	}
 }
 
-func TestValidateSectionName(t *testing.T) {
-	for _, good := range []string{"a", "memory", "self-update", "build2"} {
-		if err := validateSectionName(good); err != nil {
-			t.Errorf("expected %q valid, got error: %v", good, err)
-		}
-	}
-	for _, bad := range []string{"", "Bad Name", "UPPER", "a b", "-x", "a/b"} {
-		if err := validateSectionName(bad); err == nil {
-			t.Errorf("expected %q invalid", bad)
+func assertInstructionFiles(t *testing.T, dir string) {
+	t.Helper()
+	for _, f := range instructionFileNames() {
+		if _, err := os.Stat(filepath.Join(dir, "sdt.context/instructions", f)); err != nil {
+			t.Errorf("expected instruction file %s to be created", f)
 		}
 	}
 }
 
-func TestSectionBlockMissingPaths(t *testing.T) {
-	if _, err := removeSectionBlock("# H", "missing"); err == nil {
-		t.Error("expected error removing missing section")
+// ── tagged block helpers ────────────────────────────────────────────────────────
+
+func TestAgentMergeBlock(t *testing.T) {
+	content, changed := agentMergeBlock("# H\n", agentSectionNameInstructions, "body", false)
+	if !changed {
+		t.Error("expected block added")
 	}
-	if _, ok := getSectionBody("# H", "missing"); ok {
-		t.Error("expected ok=false for missing section body")
+	if !strings.Contains(content, "<!-- sdt:begin:"+agentSectionNameInstructions+" -->") {
+		t.Error("expected instructions block in content")
+	}
+
+	again, changed2 := agentMergeBlock(content, agentSectionNameInstructions, "other", false)
+	if changed2 || again != content {
+		t.Error("expected no change when block exists without force")
+	}
+
+	forced, changed3 := agentMergeBlock(content, agentSectionNameInstructions, "refreshed", true)
+	if !changed3 || !strings.Contains(forced, "refreshed") {
+		t.Error("expected block refreshed with force")
 	}
 }
 
 func TestAgentTargetPathFallback(t *testing.T) {
 	runInTempDir(t)
-	writeTestFile(t, "AGENTS.md", sectionBlock("a", "x"))
-	out := execute(t, agentSectionListCmd, nil, "--target", "")
-	if !strings.Contains(string(out), "a") {
+	writeTestFile(t, "AGENTS.md", sectionBlock("instructions", "x"))
+	out := execute(t, agentInitCmd, nil, "--target", "")
+	if !strings.Contains(string(out), "[skipped] AGENTS.md") {
 		t.Errorf("expected fallback to AGENTS.md, got: %s", out)
 	}
 }
@@ -114,93 +97,7 @@ func TestAgentReadTargetDirError(t *testing.T) {
 		t.Fatal(err)
 	}
 	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, agentSectionListCmd, nil, "--target", "adir"))
-	})
-}
-
-func TestAgentSectionExtraArgs(t *testing.T) {
-	runInTempDir(t)
-	writeTestFile(t, "AGENTS.md", "# H\n")
-	execute(t, agentSectionAddCmd, nil, "build", "run", "make", "all")
-	data, _ := os.ReadFile("AGENTS.md")
-	if !strings.Contains(string(data), "run make all") {
-		t.Errorf("expected extra args joined as content:\n%s", data)
-	}
-}
-
-// ── agent section commands ─────────────────────────────────────────────────────
-
-func TestAgentSectionAddUpdateRemove(t *testing.T) {
-	dir := runInTempDir(t)
-	writeTestFile(t, "AGENTS.md", "# My Project\n")
-
-	out := execute(t, agentSectionAddCmd, []byte("run go test"), "tools")
-	if !strings.Contains(string(out), "added section") {
-		t.Errorf("unexpected add output: %s", out)
-	}
-	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	if !strings.Contains(string(data), "run go test") {
-		t.Error("expected section content in AGENTS.md")
-	}
-
-	out = execute(t, agentSectionListCmd, nil)
-	if !strings.Contains(string(out), "tools") {
-		t.Errorf("expected 'tools' in list output: %s", out)
-	}
-
-	out = execute(t, agentSectionShowCmd, nil, "tools")
-	if !strings.Contains(string(out), "run go test") {
-		t.Errorf("expected section body in show output: %s", out)
-	}
-
-	out = execute(t, agentSectionUpdateCmd, []byte("run go vet"), "tools")
-	if !strings.Contains(string(out), "updated section") {
-		t.Errorf("unexpected update output: %s", out)
-	}
-	data, _ = os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	if !strings.Contains(string(data), "run go vet") {
-		t.Error("expected updated content in AGENTS.md")
-	}
-
-	out = execute(t, agentSectionSetCmd, []byte("run go build"), "tools")
-	if !strings.Contains(string(out), "updated section") {
-		t.Errorf("expected set to update: %s", out)
-	}
-	out = execute(t, agentSectionSetCmd, []byte("extra"), "newone")
-	if !strings.Contains(string(out), "added section") {
-		t.Errorf("expected set to add: %s", out)
-	}
-
-	out = execute(t, agentSectionRemoveCmd, nil, "tools")
-	if !strings.Contains(string(out), "removed section") {
-		t.Errorf("unexpected remove output: %s", out)
-	}
-	data, _ = os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	if strings.Contains(string(data), "run go build") {
-		t.Error("expected section removed from AGENTS.md")
-	}
-}
-
-func TestAgentSectionMissingTarget(t *testing.T) {
-	runInTempDir(t)
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, agentSectionListCmd, nil))
-	})
-}
-
-func TestAgentSectionDuplicate(t *testing.T) {
-	runInTempDir(t)
-	writeTestFile(t, "AGENTS.md", sectionBlock("a", "x"))
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, agentSectionAddCmd, []byte("y"), "a"))
-	})
-}
-
-func TestAgentSectionEmptyContent(t *testing.T) {
-	runInTempDir(t)
-	writeTestFile(t, "AGENTS.md", "# H\n")
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, agentSectionAddCmd, []byte("   "), "empty"))
+		return string(execute(t, agentInitCmd, nil, "--target", "adir"))
 	})
 }
 
@@ -214,14 +111,27 @@ func TestAgentInit(t *testing.T) {
 	}
 
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	for _, s := range []string{"project", "commands", "workflow", "communication", "memory", "planning", "annotations", "self-update"} {
-		if !strings.Contains(string(data), "<!-- sdt:begin:"+s+" -->") {
-			t.Errorf("expected section %q in generated AGENTS.md", s)
+	if !strings.Contains(string(data), "<!-- sdt:begin:instructions -->") {
+		t.Error("expected single instructions block in AGENTS.md")
+	}
+	if count := strings.Count(string(data), "<!-- sdt:begin:"); count != 1 {
+		t.Errorf("expected exactly one tagged block, got %d", count)
+	}
+	for _, want := range []string{
+		"sdt.context/instructions/workflow.md",
+		"sdt.context/instructions/communication.md",
+		"sdt.context/instructions/reference.md",
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("expected %q in AGENTS.md index", want)
 		}
 	}
-	for _, want := range []string{"sdt memory", "sdt.context/worklog/", "frontmatter", "sdt agent section update", "sdt.context/plan/", "sdt.context/tmp/", "caveman", "Conventional Commits", "≤50 chars"} {
-		if !strings.Contains(string(data), want) {
-			t.Errorf("expected %q in opinionated AGENTS.md", want)
+
+	assertInstructionFiles(t, dir)
+	proj, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/project.md"))
+	for _, want := range []string{"project: myapp", "group: platform"} {
+		if !strings.Contains(string(proj), want) {
+			t.Errorf("expected %q in project.md:\n%s", want, proj)
 		}
 	}
 
@@ -249,11 +159,12 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"sdt.context/plan", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tmp"} {
+	for _, d := range []string{"sdt.context/plan", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tmp", "sdt.context/instructions"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
 	}
+	assertInstructionFiles(t, dir)
 }
 
 func TestAgentInitExisting(t *testing.T) {
@@ -264,10 +175,11 @@ func TestAgentInitExisting(t *testing.T) {
 	if !strings.Contains(string(data), "existing") {
 		t.Error("expected custom content preserved (non-destructive)")
 	}
-	for _, s := range []string{"project", "commands", "workflow", "communication", "memory", "planning", "annotations", "self-update"} {
-		if !strings.Contains(string(data), "<!-- sdt:begin:"+s+" -->") {
-			t.Errorf("expected section %q added to existing AGENTS.md", s)
-		}
+	if !strings.Contains(string(data), "<!-- sdt:begin:instructions -->") {
+		t.Error("expected instructions block added to existing AGENTS.md")
+	}
+	if count := strings.Count(string(data), "<!-- sdt:begin:"); count != 1 {
+		t.Errorf("expected exactly one tagged block, got %d", count)
 	}
 }
 
@@ -279,8 +191,8 @@ func TestAgentInitForce(t *testing.T) {
 	if !strings.Contains(string(data), "existing") {
 		t.Error("expected leading custom content preserved with --force")
 	}
-	if !strings.Contains(string(data), "- Project: p") {
-		t.Error("expected project section refreshed with --force")
+	if !strings.Contains(string(data), "<!-- sdt:begin:instructions -->") {
+		t.Error("expected instructions block refreshed with --force")
 	}
 }
 
@@ -289,10 +201,8 @@ func TestAgentInitEmptyTarget(t *testing.T) {
 	writeTestFile(t, "AGENTS.md", "")
 	execute(t, agentInitCmd, nil, "--project", "p")
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	for _, s := range []string{"project", "commands", "workflow", "communication", "memory", "planning", "annotations", "self-update"} {
-		if !strings.Contains(string(data), "<!-- sdt:begin:"+s+" -->") {
-			t.Errorf("expected section %q in generated AGENTS.md", s)
-		}
+	if !strings.Contains(string(data), "<!-- sdt:begin:instructions -->") {
+		t.Error("expected instructions block in generated AGENTS.md")
 	}
 }
 
@@ -313,6 +223,12 @@ func TestAgentInitIdempotent(t *testing.T) {
 	if string(firstCfg) != string(secondCfg) {
 		t.Errorf("expected .sdt.yaml unchanged on second run\n--- first ---\n%s\n--- second ---\n%s", firstCfg, secondCfg)
 	}
+	for _, f := range instructionFileNames() {
+		first, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions", f))
+		if !strings.Contains(string(first), "#") {
+			t.Errorf("expected %s to keep content on second run", f)
+		}
+	}
 }
 
 func TestAgentInitPreservesConfig(t *testing.T) {
@@ -327,38 +243,6 @@ func TestAgentInitPreservesConfig(t *testing.T) {
 	}
 }
 
-func TestAgentCommunicationDefaults(t *testing.T) {
-	dir := runInTempDir(t)
-	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-
-	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	body, ok := getSectionBody(string(data), "communication")
-	if !ok {
-		t.Fatal("expected communication section in AGENTS.md")
-	}
-	for _, want := range []string{"caveman ultra", "[thing] [action] [reason]", "Conventional Commits", "≤50 chars", "sdt.context/", "Code only"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("expected %q in communication section:\n%s", want, body)
-		}
-	}
-
-	readme, _ := os.ReadFile(filepath.Join(dir, "sdt.context/README.md"))
-	if !strings.Contains(string(readme), "concise technical language") {
-		t.Errorf("expected concise-language rule in sdt.context/README.md:\n%s", readme)
-	}
-
-	skill, _ := os.ReadFile(filepath.Join(dir, ".agents/skills/sdt/SKILL.md"))
-	if !strings.Contains(string(skill), "Conventional Commits") {
-		t.Errorf("expected commit rule in SKILL.md:\n%s", skill)
-	}
-	workflows, _ := os.ReadFile(filepath.Join(dir, ".agents/skills/sdt/WORKFLOWS.md"))
-	for _, want := range []string{"Communication defaults", "caveman ultra", "Conventional Commits"} {
-		if !strings.Contains(string(workflows), want) {
-			t.Errorf("expected %q in WORKFLOWS.md:\n%s", want, workflows)
-		}
-	}
-}
-
 func TestAgentInitJSONOutput(t *testing.T) {
 	runInTempDir(t)
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--format", "json")
@@ -366,85 +250,8 @@ func TestAgentInitJSONOutput(t *testing.T) {
 	if err := json.Unmarshal(out, &res); err != nil {
 		t.Fatalf("invalid JSON from init: %v\n%s", err, out)
 	}
-	if len(res) < 8 {
-		t.Errorf("expected config+dirs+md+guide results, got %d", len(res))
-	}
-}
-
-// ── agent guide ────────────────────────────────────────────────────────────────
-
-func TestAgentGuide(t *testing.T) {
-	dir := runInTempDir(t)
-	out := execute(t, agentGuideCmd, nil)
-	if !strings.Contains(string(out), "[created]") {
-		t.Errorf("unexpected guide output: %s", out)
-	}
-	for _, f := range []string{"SKILL.md", "REFERENCE.md", "WORKFLOWS.md"} {
-		if _, err := os.Stat(filepath.Join(dir, ".agents/skills/sdt", f)); err != nil {
-			t.Errorf("expected %s to be created", f)
-		}
-	}
-	skill, _ := os.ReadFile(filepath.Join(dir, ".agents/skills/sdt", "SKILL.md"))
-	if !strings.Contains(string(skill), "name: sdt") {
-		t.Error("SKILL.md should contain frontmatter with name: sdt")
-	}
-
-	out = execute(t, agentGuideCmd, nil)
-	if !strings.Contains(string(out), "skipped") {
-		t.Errorf("expected skipped on second run: %s", out)
-	}
-}
-
-func TestAgentGuideForce(t *testing.T) {
-	dir := runInTempDir(t)
-	execute(t, agentGuideCmd, nil)
-	writeTestFile(t, filepath.Join(".agents", "skills", "sdt", "SKILL.md"), "custom")
-	execute(t, agentGuideCmd, nil, "--force")
-	skill, _ := os.ReadFile(filepath.Join(dir, ".agents", "skills", "sdt", "SKILL.md"))
-	if strings.Contains(string(skill), "custom") {
-		t.Error("expected SKILL.md overwritten with --force")
-	}
-}
-
-func TestAgentGuideJSONOutput(t *testing.T) {
-	runInTempDir(t)
-	out := execute(t, agentGuideCmd, nil, "--format", "json")
-	var res []FileResult
-	if err := json.Unmarshal(out, &res); err != nil {
-		t.Fatalf("invalid JSON from guide: %v\n%s", err, out)
-	}
-	if len(res) != 3 {
-		t.Errorf("expected 3 guide files, got %d", len(res))
-	}
-}
-
-func TestAgentGuideDryRun(t *testing.T) {
-	dir := runInTempDir(t)
-	out := execute(t, agentGuideCmd, nil, "--dry-run")
-	if !strings.Contains(string(out), "dry-run") {
-		t.Errorf("expected dry-run in output: %s", out)
-	}
-	for _, f := range []string{"SKILL.md", "REFERENCE.md", "WORKFLOWS.md"} {
-		if _, err := os.Stat(filepath.Join(dir, ".agents/skills/sdt", f)); !os.IsNotExist(err) {
-			t.Errorf("dry-run: %s should not exist", f)
-		}
-	}
-}
-
-func TestAgentGuideYAMLOutput(t *testing.T) {
-	runInTempDir(t)
-	out := execute(t, agentGuideCmd, nil, "--format", "yaml")
-	if !strings.Contains(string(out), "path:") {
-		t.Errorf("expected yaml list output: %s", out)
-	}
-}
-
-func TestAgentGuideDirError(t *testing.T) {
-	runInTempDir(t)
-	writeTestFile(t, filepath.Join(".agents", "skills", "sdt"), "file in the way")
-	out := execute(t, agentGuideCmd, nil)
-	if !strings.Contains(string(out), "[error]") {
-		t.Errorf("expected error status for blocked guide dir: %s", out)
+	if len(res) < 15 {
+		t.Errorf("expected config+dirs+instructions+md results, got %d", len(res))
 	}
 }
 
@@ -457,6 +264,37 @@ func TestAgentInitWorkDirError(t *testing.T) {
 	}
 }
 
+func TestAgentInitInstructionsDirError(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, "sdt.context/instructions", "file in the way")
+	out := execute(t, agentInitCmd, nil, "--project", "p")
+	if !strings.Contains(string(out), "[error]") {
+		t.Errorf("expected error status for blocked instructions dir: %s", out)
+	}
+}
+
+func TestAgentInitPreservesInstructionFiles(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	writeTestFile(t, "sdt.context/instructions/workflow.md", "custom")
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/workflow.md"))
+	if !strings.Contains(string(data), "custom") {
+		t.Error("expected custom workflow.md preserved without --force")
+	}
+}
+
+func TestAgentInitForceRefreshesInstructions(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	writeTestFile(t, "sdt.context/instructions/workflow.md", "custom")
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
+	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/workflow.md"))
+	if strings.Contains(string(data), "custom") {
+		t.Error("expected workflow.md refreshed with --force")
+	}
+}
+
 func TestAgentInitYAMLOutput(t *testing.T) {
 	runInTempDir(t)
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--format", "yaml")
@@ -465,14 +303,30 @@ func TestAgentInitYAMLOutput(t *testing.T) {
 	}
 }
 
-func TestLoadProjectConfigInvalid(t *testing.T) {
-	runInTempDir(t)
-	writeTestFile(t, ".sdt.yaml", "project: [unclosed\n")
-	if cfg := loadProjectConfig(".sdt.yaml"); cfg != nil {
-		t.Error("expected nil for invalid yaml")
+func TestAgentCommunicationDefaults(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+
+	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if !strings.Contains(string(data), "sdt.context/instructions/communication.md") {
+		t.Error("expected AGENTS.md block to reference communication.md")
 	}
-	if cfg := loadProjectConfig("missing.yaml"); cfg != nil {
-		t.Error("expected nil for missing file")
+
+	comm, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/communication.md"))
+	for _, want := range []string{"caveman ultra", "[thing] [action] [reason]", "Conventional Commits", "≤50 chars", "sdt.context/"} {
+		if !strings.Contains(string(comm), want) {
+			t.Errorf("expected %q in communication.md:\n%s", want, comm)
+		}
+	}
+
+	readme, _ := os.ReadFile(filepath.Join(dir, "sdt.context/README.md"))
+	if !strings.Contains(string(readme), "instructions/") {
+		t.Errorf("expected instructions/ layout in sdt.context/README.md:\n%s", readme)
+	}
+
+	ref, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/reference.md"))
+	if !strings.Contains(string(ref), "sdt agent init") {
+		t.Errorf("expected reference.md to cover agent init:\n%s", ref)
 	}
 }
 
@@ -482,6 +336,141 @@ func TestAgentPromptNonTTY(t *testing.T) {
 	if !strings.Contains(string(out), "[written]") {
 		t.Errorf("expected init output: %s", out)
 	}
+}
+
+func hasErrorStatus(results []FileResult) bool {
+	for _, r := range results {
+		if r.Status == statusError {
+			return true
+		}
+	}
+	return false
+}
+
+// ── error paths ────────────────────────────────────────────────────────────────
+
+func TestWriteInstructionFilesMkdirError(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	if res := writeInstructionFiles("p", "g", false); !hasErrorStatus(res) {
+		t.Fatalf("expected mkdir error status, got %+v", res)
+	}
+}
+
+func TestWriteInstructionFilesWriteError(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, "sdt.context/instructions/.keep", "")
+	if err := os.Chmod("sdt.context/instructions", 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod("sdt.context/instructions", 0o755) })
+	if res := writeInstructionFiles("p", "g", false); !hasErrorStatus(res) {
+		t.Fatalf("expected write error status, got %+v", res)
+	}
+}
+
+func TestEnsureWorkDirsMkdirError(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	if res := ensureWorkDirs(false); !hasErrorStatus(res) {
+		t.Fatalf("expected mkdir error status, got %+v", res)
+	}
+}
+
+func TestEnsureWorkDirsReadmeError(t *testing.T) {
+	runInTempDir(t)
+	for _, d := range []string{sdtWorkDir, sdtPlanDir, sdtWorklogDir, sdtNotesDir, sdtTmpDir, sdtInstrDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Chmod(sdtWorkDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(sdtWorkDir, 0o755) })
+	if res := ensureWorkDirs(false); !hasErrorStatus(res) {
+		t.Fatalf("expected readme error status, got %+v", res)
+	}
+}
+
+func TestAgentPromptTTY(t *testing.T) {
+	devNull, err := os.Open("/dev/null")
+	if err != nil {
+		t.Skip("cannot open /dev/null")
+	}
+	defer devNull.Close()
+	orig := os.Stdin
+	os.Stdin = devNull
+	defer func() { os.Stdin = orig }()
+
+	cmd := &cobra.Command{}
+	cmd.SetIn(strings.NewReader("answer\n"))
+	cmd.SetErr(&bytes.Buffer{})
+
+	if !stdinIsTTY() {
+		t.Skip("/dev/null is not a character device on this system")
+	}
+	if got := agentPrompt(cmd, false, "label", "def"); got != "answer" {
+		t.Errorf("expected prompt to read from stdin, got %q", got)
+	}
+}
+
+func TestAgentPromptReadError(t *testing.T) {
+	devNull, err := os.Open("/dev/null")
+	if err != nil {
+		t.Skip("cannot open /dev/null")
+	}
+	defer devNull.Close()
+	orig := os.Stdin
+	os.Stdin = devNull
+	defer func() { os.Stdin = orig }()
+
+	cmd := &cobra.Command{}
+	cmd.SetIn(failingReader{})
+	cmd.SetErr(failingWriter{})
+
+	if !stdinIsTTY() {
+		t.Skip("/dev/null is not a character device on this system")
+	}
+	if got := agentPrompt(cmd, false, "label", "def"); got != "def" {
+		t.Errorf("expected default on read error, got %q", got)
+	}
+}
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) { return 0, errors.New("read failure") }
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("write failure") }
+
+func TestStdinIsTTYError(t *testing.T) {
+	f, err := os.Open("/dev/null")
+	if err != nil {
+		t.Skip("cannot open /dev/null")
+	}
+	_ = f.Close()
+	orig := os.Stdin
+	os.Stdin = f
+	defer func() { os.Stdin = orig }()
+	if stdinIsTTY() {
+		t.Error("expected false for closed stdin")
+	}
+}
+
+func TestAgentInitConfigWriteError(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, ".sdt.yaml/blocker", "")
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, agentInitCmd, nil, "--project", "p", "--yes"))
+	})
 }
 
 // ── config ─────────────────────────────────────────────────────────────────────
@@ -545,6 +534,17 @@ func TestConfigShowNotFound(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, configShowCmd, nil))
 	})
+}
+
+func TestLoadProjectConfigInvalid(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, ".sdt.yaml", "project: [unclosed\n")
+	if cfg := loadProjectConfig(".sdt.yaml"); cfg != nil {
+		t.Error("expected nil for invalid yaml")
+	}
+	if cfg := loadProjectConfig("missing.yaml"); cfg != nil {
+		t.Error("expected nil for missing file")
+	}
 }
 
 func TestDefaultProjectName(t *testing.T) {

@@ -17,31 +17,30 @@ const (
 	pemTypePrivateKey    = "PRIVATE KEY"
 	pemTypePublicKey     = "PUBLIC KEY"
 
-	// Agent names used by the skill command templates.
-	agentNameClaude  = "claude"
-	agentNameGeneric = "generic"
-	agentNameSkill   = "skill"
-
 	// SDT project config file name.
 	sdtConfigFile = ".sdt.yaml"
 
 	// sdt.context/ working directory layout created by sdt agent init.
-	sdtWorkDir    = "sdt.context"
-	sdtPlanDir    = "sdt.context/plan"
-	sdtWorklogDir = "sdt.context/worklog"
-	sdtNotesDir   = "sdt.context/notes"
-	sdtTmpDir     = "sdt.context/tmp"
-	sdtWorkReadme = "sdt.context/README.md"
+	sdtWorkDir        = "sdt.context"
+	sdtPlanDir        = "sdt.context/plan"
+	sdtWorklogDir     = "sdt.context/worklog"
+	sdtNotesDir       = "sdt.context/notes"
+	sdtTmpDir         = "sdt.context/tmp"
+	sdtInstrDir       = "sdt.context/instructions"
+	sdtWorkReadme     = "sdt.context/README.md"
+	sdtInstrReadme    = "sdt.context/instructions/README.md"
+	sdtInstrProject   = "sdt.context/instructions/project.md"
+	sdtInstrCommands  = "sdt.context/instructions/commands.md"
+	sdtInstrWorkflow  = "sdt.context/instructions/workflow.md"
+	sdtInstrComm      = "sdt.context/instructions/communication.md"
+	sdtInstrMemory    = "sdt.context/instructions/memory.md"
+	sdtInstrPlanning  = "sdt.context/instructions/planning.md"
+	sdtInstrAnnotate  = "sdt.context/instructions/annotations.md"
+	sdtInstrSelfUpd   = "sdt.context/instructions/self-update.md"
+	sdtInstrReference = "sdt.context/instructions/reference.md"
 
-	// Agent section names.
-	agentSectionNameProject       = "project"
-	agentSectionNameCommands      = "commands"
-	agentSectionNameWorkflow      = "workflow"
-	agentSectionNameCommunication = "communication"
-	agentSectionNameMemory        = "memory"
-	agentSectionNamePlanning      = "planning"
-	agentSectionNameAnnotations   = "annotations"
-	agentSectionNameSelfUpdate    = "self-update"
+	// The single tagged section name in AGENTS.md.
+	agentSectionNameInstructions = "instructions"
 
 	// File result statuses.
 	statusCreated = "created"
@@ -50,11 +49,6 @@ const (
 	statusWritten = "written"
 	statusUpdated = "updated"
 	statusDryRun  = "dry-run"
-
-	// Extended guide file names.
-	guideFileSkill     = "SKILL.md"
-	guideFileReference = "REFERENCE.md"
-	guideFileWorkflows = "WORKFLOWS.md"
 
 	// Cobra command Use strings shared across files.
 	useInit   = "init"
