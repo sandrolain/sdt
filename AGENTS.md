@@ -102,9 +102,9 @@ Use `getFormat(cmd)` to read the format flag.
 
 ## Agent Instruction Files (`sdt agent`)
 
-Agent instructions live in `sdt.context/instructions/` and are generated with `sdt agent init`:
+Agent instructions are managed with `sdt agent init`:
 
-- `sdt agent init` — non-destructive bootstrap: `.sdt.yaml` (project/group identity), a thin `AGENTS.md` with a single tagged `instructions` block, `sdt.context/plan|worklog|notes|tmp` + `sdt.context/README.md`, and the instruction files under `sdt.context/instructions/`. `project`/`group` are prompted interactively when not passed as flags (default: `<dirname>_<short-path-hash>`). `--yes` accepts defaults without prompting; `--force` refreshes generated files.
+- `sdt agent init` — non-destructive bootstrap: `.sdt.yaml` (project/group identity), an `AGENTS.md` with a single tagged `instructions` block holding the general agent instructions (workflow, planning/work logs/annotations, communication, patterns), `sdt.context/plan|worklog|notes|tmp` + `sdt.context/README.md`, and the CLI-usage instruction files under `sdt.context/instructions/` (project, memory, reference). In a git repository, `.gitignore` is created/updated with an entry ignoring `sdt.context/tmp`. `project`/`group` are prompted interactively when not passed as flags (default: `<dirname>_<short-path-hash>`). `--yes` accepts defaults without prompting; `--force` refreshes generated content and removes obsolete instruction files.
 
 Implementation in `cli/cmd/agent.go` (merge, identity, work dirs) and `cli/cmd/agentinstructions.go` (instruction file templates).
 
@@ -190,17 +190,74 @@ Do not reference this directory in the code, docs, or user-facing output.
 This project is managed with SDT. Read the relevant instruction file before acting:
 
 - `sdt.context/instructions/project.md` — project identity and configuration
-- `sdt.context/instructions/commands.md` — build, test and lint commands
-- `sdt.context/instructions/workflow.md` — agent workflow loop
-- `sdt.context/instructions/communication.md` — response style, commits, conciseness
 - `sdt.context/instructions/memory.md` — persistent memory usage
-- `sdt.context/instructions/planning.md` — planning and work log conventions
-- `sdt.context/instructions/annotations.md` — work annotation rules
-- `sdt.context/instructions/self-update.md` — keeping instructions current
 - `sdt.context/instructions/reference.md` — SDT command reference
 
-Work directories live under `sdt.context/` (plan/, worklog/, notes/,
-tmp/). Never write or execute temporary files outside the project. Keep all
-instruction files concise and technical.
+Work directories live under `sdt.context/` (plan/, worklog/, notes/, tmp/).
+Never write or execute temporary files outside the project. Keep all instruction
+files concise and technical.
+
+### Workflow
+
+Follow this loop for any non-trivial task:
+
+1. **Plan** — write a short plan in `sdt.context/plan/` before starting.
+2. **Investigate** — read this AGENTS.md, search memory (`sdt memory search`) and inspect the code before changing anything.
+3. **Act** — make the smallest change that satisfies the task.
+4. **Verify** — run the project's build, test and lint commands.
+5. **Annotate** — append a `sdt.context/worklog/` entry describing what changed and why.
+6. **Remember** — store durable decisions in `sdt memory`.
+7. **Update** — keep this AGENTS.md current when conventions change.
+
+### Planning, Work Logs & Annotations
+
+Keep planning, work logs and annotations under `sdt.context/`:
+
+```
+sdt.context/plan/<YYYY-MM-DD>-<slug>.md              # plan before starting work
+sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md      # ordered log of completed work
+sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md        # free-form annotations
+```
+
+Temporary and scratch files live in `sdt.context/tmp/` — never outside the
+project (no `/tmp`, no other absolute paths).
+
+Annotate continuously: plan before starting, append a dated worklog entry after
+each change, and record decisions, dead-ends and constraints with
+`sdt memory`. The goal is a chronological, searchable history that lets
+a future session (agent or human) reconstruct what happened and why.
+
+Every work file starts with YAML frontmatter:
+
+```yaml
+---
+kind: worklog      # plan | worklog | notes
+created_at: <ISO 8601>
+context: what triggered this entry
+project: <project>
+---
+```
+
+### Communication (default)
+
+Code work: terse caveman ultra. Drop articles/filler/pleasantries/hedging.
+Fragments OK, short synonyms, technical terms exact, code unchanged.
+Pattern: `[thing] [action] [reason]. [next step]`.
+Not: "Sure! I'd be happy to help you with that."
+Yes: "Bug in auth middleware. Fix:"
+Code only — user-requested docs written normal (concise).
+
+Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase after
+type. Body only when "why" unclear. No period on subject.
+
+Files in `sdt.context/`: concise technical language. Cut fluff, keep meaning
+and readability. These instructions and docs are concise on purpose.
+
+### Patterns (keep updated)
+
+This AGENTS.md is the source of truth for project conventions. Whenever a
+decision is taken on a pattern to use in development, testing, documentation or
+workflows, update the relevant section of this AGENTS.md in place and record the
+change in `sdt.context/worklog/`. Keep every section concise and technical.
 
 <!-- sdt:end:instructions -->

@@ -1,19 +1,33 @@
-/bin
+# Editor
 /.vscode
+
+# Go
 /vendor
+
+# OS
 .DS_Store
+
+# Temp
+/bin
 /foo
 /cover.out
-dist/
-sdt.yaml
-/web/src/sdt.wasm
-web-server/linux
+/dist
+/temp
+/tmp
+/refs
+/.task
+
+# Build
+/sdt
+
+# Agent
 /context
+
+# Result
 trivi-results.json
 /coverage.*
-/.github/copilot*.md
-/.task
-/temp
-.agents
-skills-lock.json
-/refs
+
+
+
+
+sdt.context/tmp/

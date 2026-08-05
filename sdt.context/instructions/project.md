@@ -12,11 +12,3 @@ Discover all capabilities:
 sdt manifest --format json
 sdt schema --command "<command>"
 ```
-## Project Configuration
-
-SDT project identity lives in `.sdt.yaml`:
-
-```yaml
-project: sdt_44f24890
-group: sdt_44f24890
-```

@@ -38,15 +38,8 @@ func writeTestFile(t *testing.T, path, content string) {
 
 func instructionFileNames() []string {
 	return []string{
-		"README.md",
 		"project.md",
-		"commands.md",
-		"workflow.md",
-		"communication.md",
 		"memory.md",
-		"planning.md",
-		"annotations.md",
-		"self-update.md",
 		"reference.md",
 	}
 }
@@ -118,9 +111,13 @@ func TestAgentInit(t *testing.T) {
 		t.Errorf("expected exactly one tagged block, got %d", count)
 	}
 	for _, want := range []string{
-		"sdt.context/instructions/workflow.md",
-		"sdt.context/instructions/communication.md",
+		"sdt.context/instructions/project.md",
+		"sdt.context/instructions/memory.md",
 		"sdt.context/instructions/reference.md",
+		"### Workflow",
+		"### Planning, Work Logs & Annotations",
+		"### Communication (default)",
+		"### Patterns (keep updated)",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md index", want)
@@ -129,7 +126,7 @@ func TestAgentInit(t *testing.T) {
 
 	assertInstructionFiles(t, dir)
 	proj, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/project.md"))
-	for _, want := range []string{"project: myapp", "group: platform"} {
+	for _, want := range []string{"Project: myapp", "Group: platform"} {
 		if !strings.Contains(string(proj), want) {
 			t.Errorf("expected %q in project.md:\n%s", want, proj)
 		}
@@ -250,7 +247,7 @@ func TestAgentInitJSONOutput(t *testing.T) {
 	if err := json.Unmarshal(out, &res); err != nil {
 		t.Fatalf("invalid JSON from init: %v\n%s", err, out)
 	}
-	if len(res) < 15 {
+	if len(res) < 11 {
 		t.Errorf("expected config+dirs+instructions+md results, got %d", len(res))
 	}
 }
@@ -276,22 +273,217 @@ func TestAgentInitInstructionsDirError(t *testing.T) {
 func TestAgentInitPreservesInstructionFiles(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	writeTestFile(t, "sdt.context/instructions/workflow.md", "custom")
+	writeTestFile(t, "sdt.context/instructions/memory.md", "custom")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/workflow.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/memory.md"))
 	if !strings.Contains(string(data), "custom") {
-		t.Error("expected custom workflow.md preserved without --force")
+		t.Error("expected custom memory.md preserved without --force")
 	}
 }
 
 func TestAgentInitForceRefreshesInstructions(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	writeTestFile(t, "sdt.context/instructions/workflow.md", "custom")
+	writeTestFile(t, "sdt.context/instructions/memory.md", "custom")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/workflow.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/memory.md"))
 	if strings.Contains(string(data), "custom") {
-		t.Error("expected workflow.md refreshed with --force")
+		t.Error("expected memory.md refreshed with --force")
+	}
+}
+
+func TestAgentInitForceRemovesObsoleteInstructions(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	for _, name := range obsoleteInstructionFiles {
+		writeTestFile(t, filepath.Join("sdt.context/instructions", name), "obsolete")
+	}
+	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
+	if !strings.Contains(string(out), "removed") {
+		t.Errorf("expected removed status for obsolete files: %s", out)
+	}
+	for _, name := range obsoleteInstructionFiles {
+		if _, err := os.Stat(filepath.Join(dir, "sdt.context/instructions", name)); !os.IsNotExist(err) {
+			t.Errorf("expected obsolete instruction file %s to be removed with --force", name)
+		}
+	}
+}
+
+// ── .gitignore handling ────────────────────────────────────────────────────────
+
+func TestFindGitRepoRoot(t *testing.T) {
+	runInTempDir(t)
+	if got := findGitRepoRoot(); got != "" {
+		t.Errorf("expected no git repo in temp dir, got %q", got)
+	}
+	if err := os.MkdirAll(filepath.Join(".git", "info"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := findGitRepoRoot(); got != root {
+		t.Errorf("expected repo root %q, got %q", root, got)
+	}
+	sub := filepath.Join(root, "nested")
+	if err := os.MkdirAll(sub, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(sub); err != nil {
+		t.Fatal(err)
+	}
+	if got := findGitRepoRoot(); got != root {
+		t.Errorf("expected repo root %q from subdirectory, got %q", root, got)
+	}
+}
+
+func TestFindGitRepoRootWorktree(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, ".git", "gitdir: ../.git/worktrees/foo\n")
+	root, _ := os.Getwd()
+	if got := findGitRepoRoot(); got != root {
+		t.Errorf("expected .git file to mark repo root, got %q", got)
+	}
+}
+
+func TestEnsureGitIgnoreNoRepo(t *testing.T) {
+	runInTempDir(t)
+	if res := ensureGitIgnore(); res != nil {
+		t.Errorf("expected nil result without git repo, got %+v", res)
+	}
+}
+
+func TestEnsureGitIgnoreCreate(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	res := ensureGitIgnore()
+	if res == nil {
+		t.Fatal("expected result for git repo")
+	}
+	if res.Status != statusCreated {
+		t.Errorf("expected created, got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(data), gitIgnoreTmpEntry) {
+		t.Errorf("expected %q in .gitignore:\n%s", gitIgnoreTmpEntry, data)
+	}
+}
+
+func TestEnsureGitIgnoreUpdate(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, ".gitignore", "bin/\n")
+	res := ensureGitIgnore()
+	if res == nil {
+		t.Fatal("expected result for git repo")
+	}
+	if res.Status != statusUpdated {
+		t.Errorf("expected updated, got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(data), "bin/") || !strings.Contains(string(data), gitIgnoreTmpEntry) {
+		t.Errorf("expected existing and new entry in .gitignore:\n%s", data)
+	}
+}
+
+func TestEnsureGitIgnoreSkip(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, ".gitignore", "bin/\n"+gitIgnoreTmpEntry+"\n")
+	res := ensureGitIgnore()
+	if res == nil {
+		t.Fatal("expected result for git repo")
+	}
+	if res.Status != statusSkipped {
+		t.Errorf("expected skipped, got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if strings.Count(string(data), gitIgnoreTmpEntry) != 1 {
+		t.Errorf("expected no duplicate entry in .gitignore:\n%s", data)
+	}
+}
+
+func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, ".gitignore", "sdt.context/tmp\n")
+	res := ensureGitIgnore()
+	if res == nil {
+		t.Fatal("expected result for git repo")
+	}
+	if res.Status != statusSkipped {
+		t.Errorf("expected skipped for entry without trailing slash, got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if strings.Contains(string(data), "sdt.context/tmp/") {
+		t.Errorf("expected no duplicate entry in .gitignore:\n%s", data)
+	}
+}
+
+func TestEnsureGitIgnorePreservesTrailingContent(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, ".gitignore", "bin/")
+	res := ensureGitIgnore()
+	if res == nil || res.Status != statusUpdated {
+		t.Fatalf("expected updated, got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.HasSuffix(string(data), gitIgnoreTmpEntry+"\n") {
+		t.Errorf("expected newline separation before appended entry:\n%s", data)
+	}
+}
+
+func TestAgentInitAddsGitIgnore(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	if !strings.Contains(string(out), ".gitignore") {
+		t.Errorf("expected .gitignore in init output: %s", out)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(data), gitIgnoreTmpEntry) {
+		t.Errorf("expected %q in .gitignore:\n%s", gitIgnoreTmpEntry, data)
+	}
+}
+
+func TestAgentInitGitIgnoreIdempotent(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	if !strings.Contains(string(out), "skipped") {
+		t.Errorf("expected skipped status on second run: %s", out)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if strings.Count(string(data), gitIgnoreTmpEntry) != 1 {
+		t.Errorf("expected exactly one entry in .gitignore:\n%s", data)
+	}
+}
+
+func TestAgentInitNoGitIgnoreOutsideRepo(t *testing.T) {
+	dir := runInTempDir(t)
+	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	if strings.Contains(string(out), ".gitignore") {
+		t.Errorf("expected no .gitignore handling outside git repo: %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitignore")); !os.IsNotExist(err) {
+		t.Error("expected no .gitignore created outside git repo")
 	}
 }
 
@@ -303,20 +495,44 @@ func TestAgentInitYAMLOutput(t *testing.T) {
 	}
 }
 
-func TestAgentCommunicationDefaults(t *testing.T) {
+func TestAgentInstructionsBlock(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
 
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	if !strings.Contains(string(data), "sdt.context/instructions/communication.md") {
-		t.Error("expected AGENTS.md block to reference communication.md")
+	for _, want := range []string{
+		"### Workflow",
+		"### Planning, Work Logs & Annotations",
+		"### Communication (default)",
+		"### Patterns (keep updated)",
+		"caveman ultra",
+		"[thing] [action] [reason]",
+		"Conventional Commits",
+		"≤50 chars",
+		"sdt.context/",
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("expected %q in AGENTS.md instructions block:\n%s", want, data)
+		}
 	}
 
-	comm, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/communication.md"))
-	for _, want := range []string{"caveman ultra", "[thing] [action] [reason]", "Conventional Commits", "≤50 chars", "sdt.context/"} {
-		if !strings.Contains(string(comm), want) {
-			t.Errorf("expected %q in communication.md:\n%s", want, comm)
+	for _, name := range []string{
+		"README.md",
+		"commands.md",
+		"workflow.md",
+		"communication.md",
+		"planning.md",
+		"annotations.md",
+		"self-update.md",
+	} {
+		if _, err := os.Stat(filepath.Join(dir, "sdt.context/instructions", name)); !os.IsNotExist(err) {
+			t.Errorf("expected obsolete instruction file %s to be absent", name)
 		}
+	}
+
+	proj, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/project.md"))
+	if strings.Contains(string(proj), "## Project Configuration") {
+		t.Errorf("expected project.md without Project Configuration section:\n%s", proj)
 	}
 
 	readme, _ := os.ReadFile(filepath.Join(dir, "sdt.context/README.md"))

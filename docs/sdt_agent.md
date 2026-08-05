@@ -8,9 +8,11 @@ Generate and maintain agent instruction files.
 
   agent init       bootstrap AGENTS.md + sdt.context/ instruction files
 
-AGENTS.md is a thin index: it carries a single tagged block that points to the
-instruction files under `sdt.context/instructions/`. Each instruction
-file is the single source of truth for one topic.
+AGENTS.md carries the general agent instructions (workflow, planning and work
+logs, communication, patterns) in a single tagged block. The instruction files
+under `sdt.context/instructions/` cover CLI usage only (project,
+memory, command reference).
+
 
 ### Options
 

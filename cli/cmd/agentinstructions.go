@@ -39,27 +39,6 @@ func outputFileResults(cmd *cobra.Command, results []FileResult) {
 
 // ── instruction file templates ─────────────────────────────────────────────────
 
-const instrReadmeTemplate = `# Instructions
-
-This directory holds the instruction files for agents working in this project.
-AGENTS.md references them; each file is the single source of truth for one topic.
-
-## Files
-
-- ` + "`project.md`" + ` — project identity and configuration
-- ` + "`commands.md`" + ` — build, test and lint commands
-- ` + "`workflow.md`" + ` — agent workflow loop
-- ` + "`communication.md`" + ` — response style, commits, conciseness
-- ` + "`memory.md`" + ` — persistent memory usage
-- ` + "`planning.md`" + ` — planning and work log conventions
-- ` + "`annotations.md`" + ` — work annotation rules
-- ` + "`self-update.md`" + ` — keeping instruction files current
-- ` + "`reference.md`" + ` — SDT command reference
-
-Read the file relevant to the task. Keep every file concise and technical.
-Cut fluff, keep meaning and readability.
-`
-
 func instrProjectTemplate(project, group string) string {
 	var b strings.Builder
 	b.WriteString(`# Project
@@ -81,66 +60,8 @@ Discover all capabilities:
 sdt manifest --format json
 sdt schema --command "<command>"
 ` + codeFence)
-
-	if project != "" {
-		b.WriteString("\n## Project Configuration\n\n")
-		b.WriteString("SDT project identity lives in `.sdt.yaml`:\n\n")
-		b.WriteString(codeFence + "yaml\n")
-		fmt.Fprintf(&b, "project: %s\n", project)
-		if group != "" {
-			fmt.Fprintf(&b, "group: %s\n", group)
-		}
-		b.WriteString(codeFence)
-	}
 	return b.String()
 }
-
-const instrCommandsTemplate = `# Build, Test and Lint
-
-Document the exact commands an agent must run to build, test, lint and format
-this project. Keep this file minimal and accurate.
-
-` + codeFence + `
-# replace with the real commands for this project
-make build
-make test
-make lint
-` + codeFence + `
-
-Whenever these commands change, update this file (see self-update.md).
-`
-
-const instrWorkflowTemplate = `# Agent Workflow (opinionated)
-
-Follow this loop for any non-trivial task:
-
-1. **Plan** — write a short plan in ` + "`sdt.context/plan/`" + ` before starting (see planning.md).
-2. **Investigate** — read this AGENTS.md, search memory (` + "`sdt memory search`" + `) and inspect the code before changing anything.
-3. **Act** — make the smallest change that satisfies the task.
-4. **Verify** — run the project's build, test and lint commands.
-5. **Annotate** — append a ` + "`sdt.context/worklog/`" + ` entry describing what changed and why.
-6. **Remember** — store durable decisions in ` + "`sdt memory`" + `.
-7. **Update** — keep the instruction files current when conventions change.
-
-Use ` + "`sdt.context/tmp/`" + ` for any temporary or scratch files. Never write
-or execute temporary files outside the project (e.g. do not use ` + "`/tmp`" + `).
-`
-
-const instrCommunicationTemplate = `# Communication (default)
-
-Code work: terse caveman ultra. Drop articles/filler/pleasantries/hedging.
-Fragments OK, short synonyms, technical terms exact, code unchanged.
-Pattern: ` + "`[thing] [action] [reason]. [next step]`" + `.
-Not: "Sure! I'd be happy to help you with that."
-Yes: "Bug in auth middleware. Fix:"
-Code only — user-requested docs written normal (concise).
-
-Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase after
-type. Body only when "why" unclear. No period on subject.
-
-Files in ` + "`sdt.context/`" + `: concise technical language. Cut fluff, keep
-meaning and readability. These instructions and docs are concise on purpose.
-`
 
 const instrMemoryTemplate = `# Persistent Memory
 
@@ -160,67 +81,6 @@ Rules:
 - Prefer durable project facts over transient data.
 - Store work progress in ` + "`sdt.context/worklog/`" + `, not in memory.
 - Review everything at session start: ` + "`sdt memory list --format json`" + `.
-`
-
-func instrPlanningTemplate(project string) string {
-	var b strings.Builder
-	b.WriteString(`# Planning and Work Logs
-
-Keep planning, work logs and annotations under the ` + "`sdt.context/`" + ` directory:
-
-` + codeFence + `
-sdt.context/plan/<YYYY-MM-DD>-<slug>.md              # plan before starting work
-sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md      # ordered log of completed work
-sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md        # free-form annotations
-` + codeFence + `
-
-Temporary and scratch files live in ` + "`sdt.context/tmp/`" + ` — never outside the
-project (no ` + "`/tmp`" + `, no other absolute paths).
-
-Date/time prefixes keep files sortable and provide a durable history.
-
-Every work file starts with YAML frontmatter carrying metadata:
-
-`)
-	b.WriteString(codeFence + "yaml\n")
-	b.WriteString(`---
-kind: worklog      # plan | worklog | notes
-created_at: 2026-08-02T10:00:00Z
-context: what triggered this entry
-`)
-	if project != "" {
-		fmt.Fprintf(&b, "project: %s\n", project)
-	}
-	b.WriteString("---\n")
-	b.WriteString(codeFence)
-	return b.String()
-}
-
-const instrAnnotationsTemplate = `# Work Annotations
-
-Annotate continuously while working:
-
-- Before starting, create the plan file in ` + "`sdt.context/plan/`" + `.
-- After each change, append a dated entry to ` + "`sdt.context/worklog/`" + `.
-- Record decisions, dead-ends and constraints with ` + "`sdt memory`" + `.
-
-The goal is a chronological, searchable history that lets a future session
-(agent or human) reconstruct what happened and why.
-`
-
-const instrSelfUpdateTemplate = `# Keeping Instructions Up To Date
-
-AGENTS.md is a thin index. Instruction files under ` + "`sdt.context/instructions/`" + `
-are the source of truth.
-
-When project conventions, commands or workflows change, update the relevant
-instruction file directly, or refresh the generated templates with:
-
-` + codeFence + `
-sdt agent init --force
-` + codeFence + `
-
-Record the change in ` + "`sdt.context/worklog/`" + `.
 `
 
 const instrReferenceTemplate = `# SDT — Command Reference

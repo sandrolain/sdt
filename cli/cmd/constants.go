@@ -28,15 +28,8 @@ const (
 	sdtTmpDir         = "sdt.context/tmp"
 	sdtInstrDir       = "sdt.context/instructions"
 	sdtWorkReadme     = "sdt.context/README.md"
-	sdtInstrReadme    = "sdt.context/instructions/README.md"
 	sdtInstrProject   = "sdt.context/instructions/project.md"
-	sdtInstrCommands  = "sdt.context/instructions/commands.md"
-	sdtInstrWorkflow  = "sdt.context/instructions/workflow.md"
-	sdtInstrComm      = "sdt.context/instructions/communication.md"
 	sdtInstrMemory    = "sdt.context/instructions/memory.md"
-	sdtInstrPlanning  = "sdt.context/instructions/planning.md"
-	sdtInstrAnnotate  = "sdt.context/instructions/annotations.md"
-	sdtInstrSelfUpd   = "sdt.context/instructions/self-update.md"
 	sdtInstrReference = "sdt.context/instructions/reference.md"
 
 	// The single tagged section name in AGENTS.md.
@@ -48,6 +41,7 @@ const (
 	statusError   = "error"
 	statusWritten = "written"
 	statusUpdated = "updated"
+	statusRemoved = "removed"
 	statusDryRun  = "dry-run"
 
 	// Cobra command Use strings shared across files.
