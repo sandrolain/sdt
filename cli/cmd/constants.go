@@ -22,10 +22,16 @@ const (
 
 	// sdt.context/ working directory layout created by sdt agent init.
 	sdtWorkDir        = "sdt.context"
+	readmeFile        = "README.md"
 	sdtPlanDir        = "sdt.context/plan"
 	sdtWorklogDir     = "sdt.context/worklog"
 	sdtNotesDir       = "sdt.context/notes"
+	sdtTasksDir       = "sdt.context/tasks"
+	sdtTasksTODO      = "sdt.context/tasks/TODO.md"
+	sdtArchiveDir     = "sdt.context/archive"
 	sdtTmpDir         = "sdt.context/tmp"
+	sdtDocsDir        = "sdt.context/docs"
+	sdtDocsReadme     = "sdt.context/docs/README.md"
 	sdtInstrDir       = "sdt.context/instructions"
 	sdtWorkReadme     = "sdt.context/README.md"
 	sdtInstrProject   = "sdt.context/instructions/project.md"
@@ -47,4 +53,13 @@ const (
 	// Cobra command Use strings shared across files.
 	useInit   = "init"
 	useMemory = "memory"
+	useList   = "list"
+
+	// Context work file task status values.
+	taskStatusTodo      = "todo"
+	taskStatusDone      = "done"
+	taskStatusWip       = "wip"
+	taskStatusBlocked   = "blocked"
+	taskStatusBlock     = "block"
+	ctxFrontmatterDelim = "---"
 )

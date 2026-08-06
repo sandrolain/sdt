@@ -116,12 +116,23 @@ func TestAgentInit(t *testing.T) {
 		"sdt.context/instructions/reference.md",
 		"### Workflow",
 		"### Planning, Work Logs & Annotations",
+		"### Task List (log-horizon)",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
+		"Discover them from the project",
+		"sdt.context/tasks/TODO.md",
+		"sdt.context/archive/",
+		"create or update the relevant section",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md index", want)
 		}
+	}
+	if !strings.Contains(string(data), "project: myapp") {
+		t.Errorf("expected real project injected in frontmatter:\n%s", data)
+	}
+	if !strings.Contains(string(data), "group: platform") {
+		t.Errorf("expected real group injected in frontmatter:\n%s", data)
 	}
 
 	assertInstructionFiles(t, dir)
@@ -156,7 +167,7 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"sdt.context/plan", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tmp", "sdt.context/instructions"} {
+	for _, d := range []string{"sdt.context/plan", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tasks", "sdt.context/archive", "sdt.context/tmp", "sdt.context/instructions"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
@@ -367,8 +378,8 @@ func TestEnsureGitIgnoreCreate(t *testing.T) {
 		t.Errorf("expected created, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if !strings.Contains(string(data), gitIgnoreTmpEntry) {
-		t.Errorf("expected %q in .gitignore:\n%s", gitIgnoreTmpEntry, data)
+	if !strings.Contains(string(data), gitIgnoreTmpEntry) || !strings.Contains(string(data), gitIgnoreDocsEntry) {
+		t.Errorf("expected %q and %q in .gitignore:\n%s", gitIgnoreTmpEntry, gitIgnoreDocsEntry, data)
 	}
 }
 
@@ -386,8 +397,30 @@ func TestEnsureGitIgnoreUpdate(t *testing.T) {
 		t.Errorf("expected updated, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if !strings.Contains(string(data), "bin/") || !strings.Contains(string(data), gitIgnoreTmpEntry) {
-		t.Errorf("expected existing and new entry in .gitignore:\n%s", data)
+	if !strings.Contains(string(data), "bin/") || !strings.Contains(string(data), gitIgnoreTmpEntry) || !strings.Contains(string(data), gitIgnoreDocsEntry) {
+		t.Errorf("expected existing and new entries in .gitignore:\n%s", data)
+	}
+}
+
+func TestEnsureGitIgnoreAddsMissingEntry(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, ".gitignore", gitIgnoreTmpEntry+"\n")
+	res := ensureGitIgnore()
+	if res == nil {
+		t.Fatal("expected result for git repo")
+	}
+	if res.Status != statusUpdated {
+		t.Errorf("expected updated when one entry is missing, got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(data), gitIgnoreDocsEntry) {
+		t.Errorf("expected %q added:\n%s", gitIgnoreDocsEntry, data)
+	}
+	if strings.Count(string(data), gitIgnoreTmpEntry) != 1 {
+		t.Errorf("expected no duplicate tmp entry:\n%s", data)
 	}
 }
 
@@ -396,7 +429,7 @@ func TestEnsureGitIgnoreSkip(t *testing.T) {
 	if err := os.Mkdir(".git", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, ".gitignore", "bin/\n"+gitIgnoreTmpEntry+"\n")
+	writeTestFile(t, ".gitignore", "bin/\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreDocsEntry+"\n")
 	res := ensureGitIgnore()
 	if res == nil {
 		t.Fatal("expected result for git repo")
@@ -415,17 +448,17 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 	if err := os.Mkdir(".git", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, ".gitignore", "sdt.context/tmp\n")
+	writeTestFile(t, ".gitignore", "sdt.context/tmp\nsdt.context/docs\n")
 	res := ensureGitIgnore()
 	if res == nil {
 		t.Fatal("expected result for git repo")
 	}
 	if res.Status != statusSkipped {
-		t.Errorf("expected skipped for entry without trailing slash, got %+v", res)
+		t.Errorf("expected skipped for entries without trailing slash, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if strings.Contains(string(data), "sdt.context/tmp/") {
-		t.Errorf("expected no duplicate entry in .gitignore:\n%s", data)
+	if strings.Contains(string(data), "sdt.context/tmp/") || strings.Contains(string(data), "sdt.context/docs/") {
+		t.Errorf("expected no duplicate entries in .gitignore:\n%s", data)
 	}
 }
 
@@ -440,8 +473,8 @@ func TestEnsureGitIgnorePreservesTrailingContent(t *testing.T) {
 		t.Fatalf("expected updated, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if !strings.HasSuffix(string(data), gitIgnoreTmpEntry+"\n") {
-		t.Errorf("expected newline separation before appended entry:\n%s", data)
+	if !strings.HasSuffix(string(data), gitIgnoreDocsEntry+"\n") {
+		t.Errorf("expected newline separation before appended entries:\n%s", data)
 	}
 }
 
@@ -503,6 +536,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	for _, want := range []string{
 		"### Workflow",
 		"### Planning, Work Logs & Annotations",
+		"### Task List (log-horizon)",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
 		"caveman ultra",
@@ -510,6 +544,12 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"Conventional Commits",
 		"≤50 chars",
 		"sdt.context/",
+		"plan | worklog | notes | tasks",
+		"[ ]",
+		"[~]",
+		"[x]",
+		"[!]",
+		"archive/<YYYYMMDD-HHMMSS>-<slug>.md",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md instructions block:\n%s", want, data)
@@ -543,6 +583,40 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	ref, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/reference.md"))
 	if !strings.Contains(string(ref), "sdt agent init") {
 		t.Errorf("expected reference.md to cover agent init:\n%s", ref)
+	}
+	if !strings.Contains(string(ref), "sdt manifest --format json") {
+		t.Errorf("expected reference.md to point to manifest:\n%s", ref)
+	}
+
+	mem, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/memory.md"))
+	for _, want := range []string{"memory export", "memory import", "memory projects", "memory groups", "--project"} {
+		if !strings.Contains(string(mem), want) {
+			t.Errorf("expected %q in memory.md:\n%s", want, mem)
+		}
+	}
+
+	proj, _ = os.ReadFile(filepath.Join(dir, "sdt.context/instructions/project.md"))
+	for _, want := range []string{"## Identity", "--project", "no implicit fallback", "<dirname>_<short-path-hash>"} {
+		if !strings.Contains(string(proj), want) {
+			t.Errorf("expected %q in project.md:\n%s", want, proj)
+		}
+	}
+}
+
+func TestAgentBlockInstructionsFrontmatter(t *testing.T) {
+	with := agentBlockInstructions("myapp", "platform")
+	if !strings.Contains(with, "project: myapp\n") {
+		t.Errorf("expected injected project:\n%s", with)
+	}
+	if !strings.Contains(with, "group: platform\n") {
+		t.Errorf("expected injected group:\n%s", with)
+	}
+	without := agentBlockInstructions("", "")
+	if !strings.Contains(without, "project: <project>\n") {
+		t.Errorf("expected placeholder fallback when project empty:\n%s", without)
+	}
+	if strings.Contains(without, "group:") {
+		t.Errorf("expected no group line when group empty:\n%s", without)
 	}
 }
 
@@ -601,7 +675,7 @@ func TestEnsureWorkDirsMkdirError(t *testing.T) {
 
 func TestEnsureWorkDirsReadmeError(t *testing.T) {
 	runInTempDir(t)
-	for _, d := range []string{sdtWorkDir, sdtPlanDir, sdtWorklogDir, sdtNotesDir, sdtTmpDir, sdtInstrDir} {
+	for _, d := range []string{sdtWorkDir, sdtPlanDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}

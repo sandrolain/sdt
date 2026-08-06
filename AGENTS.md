@@ -7,7 +7,8 @@ It provides deterministic, composable commands for data manipulation, encoding, 
 persistent memory, and protocol utilities — all with machine-readable output.
 
 Module: `github.com/sandrolain/sdt`
-Go version: 1.26.4 (see `.tool-versions`)
+Go version: 1.26.5 (see `.tool-versions`)
+Pure-Go: no CGO.
 
 ---
 
@@ -31,7 +32,7 @@ golangci-lint run ./...
 govulncheck ./...
 
 # Format code
-gofmt -w ./cli/...
+gofmt -w ./cli ./main.go
 ```
 
 ---
@@ -43,12 +44,12 @@ cli/
   main.go         — entry point, sets build-time vars (version, commit, date)
   cmd/            — all cobra commands (one file per command group)
   utils/          — shared utility functions (hashing, encoding, JWT, etc.)
-context/
-  project.md      — persistent project description
-  changes.md      — changelog (append on every change)
-  analysis-ai-agent-tooling.md — roadmap document
-sdt.context/      — agent working directories + instruction files (see below)
+main.go           — duplicate entry point at repo root (legacy)
+context/          — persistent notes (project.md, changes.md, analysis-*.md)
+sdt.context/      — agent working directories + instruction files (+ generated docs/)
 docs/             — auto-generated cobra documentation (sdt docs)
+test/             — test fixtures
+Taskfile.yml      — task definitions (build, test, lint, check)
 ```
 
 ---
@@ -60,7 +61,6 @@ docs/             — auto-generated cobra documentation (sdt docs)
 - **Tests**: every new command must have a `_test.go` file; benchmark tests in a separate `_bench_test.go`
 - **Coverage**: minimum 80% per package
 - **Lint**: no `golangci-lint` issues before committing
-- **Commit messages**: Conventional Commits format (`feat:`, `fix:`, `refactor:`, etc.)
 - **No CGO**: all dependencies must be pure-Go; no `cgo` usage
 
 ---
@@ -104,7 +104,7 @@ Use `getFormat(cmd)` to read the format flag.
 
 Agent instructions are managed with `sdt agent init`:
 
-- `sdt agent init` — non-destructive bootstrap: `.sdt.yaml` (project/group identity), an `AGENTS.md` with a single tagged `instructions` block holding the general agent instructions (workflow, planning/work logs/annotations, communication, patterns), `sdt.context/plan|worklog|notes|tmp` + `sdt.context/README.md`, and the CLI-usage instruction files under `sdt.context/instructions/` (project, memory, reference). In a git repository, `.gitignore` is created/updated with an entry ignoring `sdt.context/tmp`. `project`/`group` are prompted interactively when not passed as flags (default: `<dirname>_<short-path-hash>`). `--yes` accepts defaults without prompting; `--force` refreshes generated content and removes obsolete instruction files.
+- `sdt agent init` — non-destructive bootstrap: `.sdt.yaml` (project/group identity), an `AGENTS.md` with a single tagged `instructions` block holding the general agent instructions (workflow, planning/work logs/annotations, communication, patterns), `sdt.context/plan|worklog|notes|tmp` + `sdt.context/README.md`, and the CLI-usage instruction files under `sdt.context/instructions/` (project, memory, reference). In a git repository, `.gitignore` is created/updated with entries ignoring `sdt.context/tmp` and `sdt.context/docs`. `project`/`group` are prompted interactively when not passed as flags (default: `<dirname>_<short-path-hash>`). `--yes` accepts defaults without prompting; `--force` refreshes generated content and removes obsolete instruction files.
 
 Implementation in `cli/cmd/agent.go` (merge, identity, work dirs) and `cli/cmd/agentinstructions.go` (instruction file templates).
 
@@ -125,7 +125,7 @@ project: myapp_7f2b39e1
 group: acme-platform
 ```
 
-Create with: `sdt agent init --project myapp_7f2b39e1 --group acme-platform --yes`
+Create with: `sdt agent init --project myapp_7f2b39e1 --group acme-platform --yes`, or `sdt config init --project myapp --group platform` (see also `sdt config show`).
 
 ---
 
@@ -138,15 +138,6 @@ Create with: `sdt agent init --project myapp_7f2b39e1 --group acme-platform --ye
 
 ---
 
-## After Every Change
-
-1. Run `go test ./...` — all tests must pass, ≥80% coverage
-2. Run `golangci-lint run ./...` — no issues
-3. Run `govulncheck ./...` — no vulnerabilities
-4. Append a short entry to `context/changes.md` with today's date
-
----
-
 ## Context Directory
 
 The `context/` directory contains persistent notes for agents and developers:
@@ -154,6 +145,8 @@ The `context/` directory contains persistent notes for agents and developers:
 - `context/project.md` — project description and architecture overview
 - `context/changes.md` — changelog (append only)
 - `context/analysis-ai-agent-tooling.md` — full roadmap document
+- `context/analysis-obiettivi-istruzioni-agenti.md` — goals analysis for agent instructions
+- `context/analysis-migliorie-istruzioni-agenti.md` — improvements analysis for agent instructions
 
 Do not reference this directory in the code, docs, or user-facing output.
 
@@ -173,15 +166,14 @@ Do not reference this directory in the code, docs, or user-facing output.
 | `modernc.org/sqlite` | Pure-Go SQLite (memory storage) |
 | `golang.org/x/crypto` | bcrypt |
 | `golang.org/x/text` | Unicode text transforms |
-
----
-
-## Roadmap Summary
-
-- **Phase 1** (complete): cleanup, deprecations, global flags, TTY auto-detect
-- **Phase 2** (current): manifest, memory, extract, template, env, diff
-- **Phase 3**: tokens, prompt, truncate, schema
-- **Phase 4**: cert, hmac, sign/verify, dns, port
+| `github.com/JohannesKaufmann/html-to-markdown` | HTML→Markdown (crawldown) |
+| `github.com/gocolly/colly` | Web crawling (crawldown) |
+| `codeberg.org/readeck/go-readability/v2` | Article extraction (crawldown) |
+| `github.com/makiuchi-d/gozxing` | QR code encode/decode (qrcode) |
+| `github.com/pquerna/otp` | TOTP/HOTP generation (totp) |
+| `github.com/sethvargo/go-password` | Password generation (password) |
+| `github.com/segmentio/ksuid`, `github.com/matoous/go-nanoid/v2` | ID generation (uid) |
+| `github.com/hashicorp/go-version` | Version comparison (vman) |
 
 <!-- sdt:begin:instructions -->
 
@@ -192,32 +184,52 @@ This project is managed with SDT. Read the relevant instruction file before acti
 - `sdt.context/instructions/project.md` — project identity and configuration
 - `sdt.context/instructions/memory.md` — persistent memory usage
 - `sdt.context/instructions/reference.md` — SDT command reference
+- `sdt.context/docs/README.md` — per-command reference generated by `sdt context docs` (when present)
 
-Work directories live under `sdt.context/` (plan/, worklog/, notes/, tmp/).
-Never write or execute temporary files outside the project. Keep all instruction
-files concise and technical.
+Work directories live under `sdt.context/` (plan/, worklog/, notes/, tasks/,
+archive/, tmp/). Never write or execute temporary files outside the project. Keep
+all instruction files concise and technical.
 
 ### Workflow
 
 Follow this loop for any non-trivial task:
 
-1. **Plan** — write a short plan in `sdt.context/plan/` before starting.
+1. **Plan** — write a short plan in `sdt.context/plan/` before starting (`sdt context new --type plan --slug <slug>`).
 2. **Investigate** — read this AGENTS.md, search memory (`sdt memory search`) and inspect the code before changing anything.
 3. **Act** — make the smallest change that satisfies the task.
-4. **Verify** — run the project's build, test and lint commands.
+4. **Verify** — run the project's build, test and lint commands. Discover them from the project (Taskfile, Makefile, package.json, go.mod or similar); if the project defines none, record them in `sdt.context/instructions/project.md`.
 5. **Annotate** — append a `sdt.context/worklog/` entry describing what changed and why.
 6. **Remember** — store durable decisions in `sdt memory`.
 7. **Update** — keep this AGENTS.md current when conventions change.
 
 ### Planning, Work Logs & Annotations
 
-Keep planning, work logs and annotations under `sdt.context/`:
+Keep planning, work logs, task lists and annotations under `sdt.context/`:
 
 ```
 sdt.context/plan/<YYYY-MM-DD>-<slug>.md              # plan before starting work
 sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md      # ordered log of completed work
 sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md        # free-form annotations
+sdt.context/tasks/TODO.md                            # active task list (checklist)
+sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md      # completed task lists
 ```
+
+Create work files with `sdt context new --type plan|worklog|notes --slug <slug>` —
+naming and `created_at` frontmatter are guaranteed (`sdt context path --type <type>`
+prints a path without creating anything).
+
+### Task List (log-horizon)
+
+For work with many steps, keep the active task list in
+`sdt.context/tasks/TODO.md` — every step needed to reach the objective,
+with status. Manage it with `sdt context task`.
+
+- Status markers: `[ ]` todo · `[~]` in-progress · `[x]` done · `[!]` blocked
+- Add steps with `sdt context task add "<step>"`; update status with
+  `sdt context task done|block|wip <id>`.
+- On completion, archive it with `sdt context task archive [--slug]` — the file
+  moves to `sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`, preserving history
+  for the next objective.
 
 Temporary and scratch files live in `sdt.context/tmp/` — never outside the
 project (no `/tmp`, no other absolute paths).
@@ -231,10 +243,11 @@ Every work file starts with YAML frontmatter:
 
 ```yaml
 ---
-kind: worklog      # plan | worklog | notes
+kind: worklog      # plan | worklog | notes | tasks
 created_at: <ISO 8601>
 context: what triggered this entry
-project: <project>
+project: sdt_44f24890
+group: sdt_44f24890
 ---
 ```
 
@@ -257,7 +270,8 @@ and readability. These instructions and docs are concise on purpose.
 
 This AGENTS.md is the source of truth for project conventions. Whenever a
 decision is taken on a pattern to use in development, testing, documentation or
-workflows, update the relevant section of this AGENTS.md in place and record the
-change in `sdt.context/worklog/`. Keep every section concise and technical.
+workflows, create or update the relevant section in the header of this AGENTS.md
+(before the tagged block below) and record the change in
+`sdt.context/worklog/`. Keep every section concise and technical.
 
 <!-- sdt:end:instructions -->

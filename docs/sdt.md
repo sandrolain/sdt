@@ -48,6 +48,7 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt cert](sdt_cert.md)	 - Inspect TLS/X.509 certificates
 * [sdt completion](sdt_completion.md)	 - Generate the autocompletion script for the specified shell
 * [sdt config](sdt_config.md)	 - Configuration Tools
+* [sdt context](sdt_context.md)	 - Context Tools (sdt.context/ work files)
 * [sdt conv](sdt_conv.md)	 - Data Conversion
 * [sdt crawldown](sdt_crawldown.md)	 - Download a web page or site as Markdown
 * [sdt diff](sdt_diff.md)	 - Compare two files and output differences
