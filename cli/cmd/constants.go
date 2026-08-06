@@ -37,6 +37,7 @@ const (
 	sdtInstrProject   = "sdt.context/instructions/project.md"
 	sdtInstrMemory    = "sdt.context/instructions/memory.md"
 	sdtInstrReference = "sdt.context/instructions/reference.md"
+	sdtInstrCli       = "sdt.context/instructions/cli.md"
 
 	// The single tagged section name in AGENTS.md.
 	agentSectionNameInstructions = "instructions"

@@ -41,6 +41,7 @@ func instructionFileNames() []string {
 		"project.md",
 		"memory.md",
 		"reference.md",
+		"cli.md",
 	}
 }
 
@@ -114,6 +115,7 @@ func TestAgentInit(t *testing.T) {
 		"sdt.context/instructions/project.md",
 		"sdt.context/instructions/memory.md",
 		"sdt.context/instructions/reference.md",
+		"sdt.context/instructions/cli.md",
 		"### Workflow",
 		"### Planning, Work Logs & Annotations",
 		"### Task List (log-horizon)",
@@ -599,6 +601,13 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	for _, want := range []string{"## Identity", "--project", "no implicit fallback", "<dirname>_<short-path-hash>"} {
 		if !strings.Contains(string(proj), want) {
 			t.Errorf("expected %q in project.md:\n%s", want, proj)
+		}
+	}
+
+	cli, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/cli.md"))
+	for _, want := range []string{"--format text|json|yaml", "sdt conv --in json --out yaml", "sdt context new|path|list|task|docs", "sdt diff --a A --b B --diff-format", "sdt dns --host"} {
+		if !strings.Contains(string(cli), want) {
+			t.Errorf("expected %q in cli.md:\n%s", want, cli)
 		}
 	}
 }

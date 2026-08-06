@@ -9,7 +9,7 @@ Bootstrap the current directory with everything an AI agent needs:
   .sdt.yaml                           project identity (project/group)
   AGENTS.md                           single tagged block of general instructions
   sdt.context/plan|worklog|notes|tasks|archive|tmp  working directories
-  sdt.context/instructions/           CLI usage files (project, memory, reference)
+  sdt.context/instructions/           CLI usage files (project, memory, reference, cli usage)
   .gitignore                          ignores sdt.context/tmp and sdt.context/docs (git repos only)
 
 The command is idempotent and non-destructive: a second run fills in missing
