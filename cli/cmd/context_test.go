@@ -29,13 +29,13 @@ func TestContextPath(t *testing.T) {
 	}
 
 	out = execute(t, contextPathCmd, nil, "--type", "plan")
-	want = filepath.Join("sdt.context", "plan", "2026-08-06.md")
+	want = filepath.Join("sdt.context", "plan", "20260806-070000.md")
 	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
 
 	out = execute(t, contextPathCmd, nil, "--type", "analysis", "--slug", "backend-choice")
-	want = filepath.Join("sdt.context", "analysis", "2026-08-06-backend-choice.md")
+	want = filepath.Join("sdt.context", "analysis", "20260806-070000-backend-choice.md")
 	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
@@ -53,7 +53,7 @@ func TestContextPathJSON(t *testing.T) {
 	if res.Type != "plan" {
 		t.Errorf("unexpected type: %s", res.Type)
 	}
-	if !strings.HasSuffix(res.Path, "plan/2026-08-06.md") {
+	if !strings.HasSuffix(res.Path, "plan/20260806-070000.md") {
 		t.Errorf("unexpected path: %s", res.Path)
 	}
 }
@@ -105,7 +105,7 @@ func TestContextNewPlan(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
 	execute(t, contextNewCmd, nil, "--type", "plan", "--slug", "ship-memory", "--input", "body")
-	data, err := os.ReadFile(filepath.Join(dir, "sdt.context", "plan", "2026-08-06-ship-memory.md"))
+	data, err := os.ReadFile(filepath.Join(dir, "sdt.context", "plan", "20260806-070000-ship-memory.md"))
 	if err != nil {
 		t.Fatalf("expected plan created: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestContextNewAnalysis(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
 	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "backend-choice", "--input", "body")
-	data, err := os.ReadFile(filepath.Join(dir, "sdt.context", "analysis", "2026-08-06-backend-choice.md"))
+	data, err := os.ReadFile(filepath.Join(dir, "sdt.context", "analysis", "20260806-070000-backend-choice.md"))
 	if err != nil {
 		t.Fatalf("expected analysis created: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestContextListJSON(t *testing.T) {
 	if len(files) != 2 {
 		t.Fatalf("expected 2 files, got %d", len(files))
 	}
-	if filepath.Base(files[0]) != "2026-08-06-a.md" {
+	if filepath.Base(files[0]) != "20260806-070000-a.md" {
 		t.Errorf("unexpected first file: %s", files[0])
 	}
 }

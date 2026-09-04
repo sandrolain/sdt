@@ -547,7 +547,8 @@ instruction files and temporary files for this project.
 ## Conventions
 
 - Files are prefixed with date/time so they sort naturally and keep history:
-  - ` + "`sdt.context/plan/<YYYY-MM-DD>-<slug>.md`" + `
+  - ` + "`sdt.context/plan/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
+  - ` + "`sdt.context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`sdt.context/tasks/TODO.md`" + ` — active task list
@@ -778,8 +779,8 @@ Follow this loop for any non-trivial task:
 Keep planning, work logs, task lists and annotations under ` + "`sdt.context/`" + `:
 
 ` + "```" + `
-sdt.context/plan/<YYYY-MM-DD>-<slug>.md              # plan before starting work
-sdt.context/analysis/<YYYY-MM-DD>-<slug>.md          # analysis / implementation plans
+sdt.context/plan/<YYYYMMDD-HHMMSS>-<slug>.md          # plan before starting work
+sdt.context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md      # analysis / implementation plans
 sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md      # ordered log of completed work
 sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md        # free-form annotations
 sdt.context/tasks/TODO.md                            # active task list (checklist)

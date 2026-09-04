@@ -75,9 +75,9 @@ func contextTimePrefix(format, slug string) string {
 func contextPath(typ, slug string) (string, error) {
 	switch typ {
 	case ctxTypePlan:
-		return filepath.Join(sdtPlanDir, contextTimePrefix("2006-01-02", slug)+".md"), nil
+		return filepath.Join(sdtPlanDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	case ctxTypeAnalysis:
-		return filepath.Join(sdtAnalysisDir, contextTimePrefix("2006-01-02", slug)+".md"), nil
+		return filepath.Join(sdtAnalysisDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	case ctxTypeWorklog:
 		return filepath.Join(sdtWorklogDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	case ctxTypeNotes:
@@ -124,8 +124,8 @@ var contextPathCmd = &cobra.Command{
 	Long: `Print the full path of a sdt.context/ work file with the correct date/time
 prefix. Does not create anything.
 
-Types: plan/analysis (<YYYY-MM-DD>-<slug>.md), worklog/notes (<YYYYMMDD-HHMMSS>-<slug>.md),
-tasks (TODO.md), tmp (<slug>), archive (<YYYYMMDD-HHMMSS>-<slug>.md).
+Types: plan/analysis/worklog/notes/archive (<YYYYMMDD-HHMMSS>-<slug>.md),
+tasks (TODO.md), tmp (<slug>).
 
 Examples:
   sdt context path --type worklog --slug review-deps

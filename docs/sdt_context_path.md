@@ -7,8 +7,8 @@ Print the path for a sdt.context/ work file
 Print the full path of a sdt.context/ work file with the correct date/time
 prefix. Does not create anything.
 
-Types: plan/analysis (<YYYY-MM-DD>-<slug>.md), worklog/notes (<YYYYMMDD-HHMMSS>-<slug>.md),
-tasks (TODO.md), tmp (<slug>), archive (<YYYYMMDD-HHMMSS>-<slug>.md).
+Types: plan/analysis/worklog/notes/archive (<YYYYMMDD-HHMMSS>-<slug>.md),
+tasks (TODO.md), tmp (<slug>).
 
 Examples:
   sdt context path --type worklog --slug review-deps
