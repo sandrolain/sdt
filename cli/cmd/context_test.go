@@ -33,6 +33,12 @@ func TestContextPath(t *testing.T) {
 	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
+
+	out = execute(t, contextPathCmd, nil, "--type", "analysis", "--slug", "backend-choice")
+	want = filepath.Join("sdt.context", "analysis", "2026-08-06-backend-choice.md")
+	if got := strings.TrimSpace(string(out)); got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
 }
 
 func TestContextPathJSON(t *testing.T) {
@@ -105,6 +111,22 @@ func TestContextNewPlan(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "kind: plan") {
 		t.Errorf("expected kind: plan:\n%s", data)
+	}
+}
+
+func TestContextNewAnalysis(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "backend-choice", "--input", "body")
+	data, err := os.ReadFile(filepath.Join(dir, "sdt.context", "analysis", "2026-08-06-backend-choice.md"))
+	if err != nil {
+		t.Fatalf("expected analysis created: %v", err)
+	}
+	for _, want := range []string{"kind: analysis", "body"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("expected %q in file:\n%s", want, data)
+		}
 	}
 }
 

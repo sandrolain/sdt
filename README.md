@@ -13,16 +13,16 @@
 
 `sdt` is a command-line toolset built for AI agents and developers who work with
 them. It provides deterministic, composable commands for encoding, hashing and
-cryptography, JWT handling, data conversion and templating, persistent memory,
-text and prompt utilities, and network diagnostics. Every command is
-pipe-friendly and produces machine-readable output, so agents can build
-reliable automation on top of it.
+cryptography, JWT handling, data conversion and templating, file-based
+persistent memory, text and prompt utilities, and network diagnostics. Every
+command is pipe-friendly and produces machine-readable output, so agents can
+build reliable automation on top of it.
 
 ## Features
 
 - **Machine-readable output** — `--format json|yaml|text` on every command; ANSI suppressed automatically when stdout is not a TTY
 - **Pipe-friendly** — reads stdin, writes stdout, errors to stderr; composable with shell pipes
-- **Persistent memory** — key-value store with full-text search (SQLite FTS5, pure-Go, offline)
+- **File-based memory** — durable project memory as plain Markdown under `sdt.context/memory/`, fully offline, no database
 - **AI-agent tooling** — manifest discovery, command schemas, generated per-command docs, project work files and task lists
 - **Zero CGO** — pure-Go build, no C toolchain required
 - **Cross-platform** — Linux, macOS, Windows

@@ -4,14 +4,15 @@ Create a sdt.context/ work file with frontmatter
 
 ### Synopsis
 
-Create a plan, worklog or notes file under sdt.context/ with the correct
-naming and YAML frontmatter (kind, created_at, context, project). The body comes
-from --input/--file or piped stdin. Existing files are preserved unless --force
-is set; --edit opens the file in $EDITOR after creation.
+Create a plan, worklog, notes or analysis file under sdt.context/ with the
+correct naming and YAML frontmatter (kind, created_at, context, project). The body
+comes from --input/--file or piped stdin. Existing files are preserved unless
+--force is set; --edit opens the file in $EDITOR after creation.
 
 Examples:
   sdt context new --type worklog --slug review-deps --input "reviewed deps"
   sdt context new --type plan --slug ship-memory --force
+  sdt context new --type analysis --slug memory-backend --input "..."
 
 ```
 sdt context new [flags]
@@ -25,7 +26,7 @@ sdt context new [flags]
       --force            Overwrite existing file
   -h, --help             help for new
       --slug string      Slug (sanitized)
-      --type string      Type: plan|worklog|notes
+      --type string      Type: plan|analysis|worklog|notes
 ```
 
 ### Options inherited from parent commands

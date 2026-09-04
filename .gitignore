@@ -27,8 +27,6 @@
 trivi-results.json
 /coverage.*
 
-
-
-
+# SDT
 sdt.context/tmp/
 sdt.context/docs/

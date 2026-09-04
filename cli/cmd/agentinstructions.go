@@ -56,7 +56,7 @@ output.
 
 ## Identity
 
-Project-scoped commands (e.g. ` + "`sdt memory`" + `) resolve project/group from:
+Project-scoped commands resolve project/group from:
 
 1. ` + "`--project`" + ` / ` + "`--group`" + ` flags
 2. ` + "`.sdt.yaml`" + ` found by walking up from the current directory (like ` + "`.git`" + `)
@@ -73,37 +73,82 @@ sdt schema --command "<command>"
 	return b.String()
 }
 
-const instrMemoryTemplate = `# Persistent Memory
+const instrMemoryTemplate = `# Persistent Memory (file-based)
 
-Use ` + "`sdt memory`" + ` to store facts that must survive across sessions:
-decisions, constraints, conventions and known-good choices. Storage is a local
-SQLite database (` + "`~/.sdt/memory.sqlite`" + `, FTS5 full-text search); fully
-offline, no external services.
+Memory is plain Markdown under ` + "`sdt.context/memory/`" + ` — no database, no
+daemon, fully offline. It holds durable project knowledge that must survive
+sessions and be readable by any agent: decisions, constraints, conventions,
+concepts and references that are hard to reconstruct from code or git.
 
+` + "`sdt memory`" + ` no longer exists. Manage memory by editing the Markdown
+files directly, following this skill.
+
+## Layout
+
+- ` + "`sdt.context/memory/README.md`" + ` — the protocol (always follow it)
+- ` + "`sdt.context/memory/index.md`" + ` — page index (` + "`[[id]]`" + ` + one-line summary)
+- ` + "`sdt.context/memory/pages/<id>.md`" + ` — one durable unit of knowledge per file
+
+## Page format
+
+` + "`<id>`" + ` is kebab-case and must equal the filename (no ` + "`.md`" + `). Each page has
+frontmatter, a ` + "`<!-- compiled_truth -->`" + ` section and an append-only timeline:
+
+` + codeFence + `markdown
+---
+id: decision-auth-flow
+title: Use JWT for auth
+category: decision
+status: active
+tags: [auth, jwt]
+created: "2026-09-04T00:00:00"
+updated: "2026-09-04T00:00:00"
+---
+
+<!-- compiled_truth -->
+
+<current best understanding: what was decided, alternatives, rationale, blast radius>
+
+## Timeline
+
+- time: 2026-09-04T00:00:00
+  kind: decision
+  summary: <one line>
+  source: <conversation, PR, analysis>
 ` + codeFence + `
-sdt memory set <key> <value> [--tags a,b]   # remember a fact
-sdt memory get <key>                         # retrieve a fact
-sdt memory search <query> --format json      # full-text search (BM25)
-sdt memory list --format json                # list all entries
-sdt memory delete <key>                      # forget a fact
-sdt memory export                            # export all entries
-sdt memory import --file backup.json         # import entries
-sdt memory projects                          # list known projects
-sdt memory groups                            # list known groups
-` + codeFence + `
 
-Identity:
-- Entries are scoped by project. Project/group come from ` + "`--project`" + ` /
-  ` + "`--group`" + ` flags or from ` + "`.sdt.yaml`" + ` (found walking up from the
-  current directory).
-- Without an identity the commands fail with a descriptive error; ` + "`memory projects`" + ` /
-  ` + "`memory groups`" + ` are global and need no project.
+Categories (must be exactly one):
 
-Rules:
-- Use stable, descriptive keys (e.g. ` + "`arch:database`" + `, ` + "`decision:auth`" + `).
-- Prefer durable project facts over transient data.
-- Store work progress in ` + "`sdt.context/worklog/`" + `, not in memory.
-- Review everything at session start: ` + "`sdt memory list --format json`" + `.
+| category | what to write |
+|---|---|
+| ` + "`decision`" + ` | an established judgment and its reasoning (most common) |
+| ` + "`concept`" + ` | a term / mechanism needing shared, lasting understanding |
+| ` + "`project`" + ` | state and intent of a work package not readable from code |
+| ` + "`person`" + ` | a person / role, preferences, collaboration conventions |
+| ` + "`reference`" + ` | an external resource or object of analysis worth keeping |
+
+Status: ` + "`active`" + ` (day-to-day view) | ` + "`draft`" + ` | ` + "`archived`" + `.
+
+## Rules
+
+- compiled_truth is rewritable; the timeline is **append-only**. Every truth
+  rewrite appends a timeline entry (` + "`kind: decision`" + `); overturning a
+  conclusion appends ` + "`kind: reversal`" + `. Never edit existing timeline entries.
+- Reference other pages with ` + "`[[id]]`" + `; keep ` + "`index.md`" + ` in sync.
+- Write in the user's working language; keep ids, tags and paths verbatim.
+- The test for what belongs here: will this still matter in six months, and is
+  it hard to reconstruct from code or git? Implementation details stay in code
+  and commits.
+
+## Discipline
+
+- Session start: read ` + "`index.md`" + ` and the pages relevant to the task.
+- When a decision, requirement or constraint settles while coding, capture it
+  immediately — don't batch it to the end.
+- Pure implementation with no new decision: don't write memory.
+- Overturning a past conclusion: update compiled_truth and append a reversal.
+- Work progress goes to ` + "`sdt.context/worklog/`" + ` and plans to
+  ` + "`sdt.context/plan/`" + `, not to memory.
 `
 
 const instrReferenceTemplate = `# SDT — Command Reference
@@ -145,8 +190,8 @@ Create it with ` + "`sdt agent init --project myapp --group platform`" + ` or
 
 ## Memory
 
-` + "`sdt memory`" + ` is the persistent, offline key-value store. See
-` + "`sdt.context/instructions/memory.md`" + ` for full usage.
+Memory is file-based (no database): ` + "`sdt.context/memory/`" + `, protocol in
+` + "`sdt.context/instructions/memory.md`" + `. ` + "`sdt memory`" + ` no longer exists.
 
 ## CLI usage & examples
 
@@ -176,8 +221,7 @@ sdt <command> --help                 # usage for a single command
 
 ## Agent tooling
 
-- ` + "`sdt memory set|get|search|list|delete|export|import`" + ` — persistent memory (see memory.md)
-- ` + "`sdt context new|path|list|task|docs`" + ` — plan/worklog/notes, task list, generated docs
+- ` + "`sdt context new|path|list|task|docs`" + ` — plan/analysis/worklog/notes, task list, generated docs
 - ` + "`sdt template --tmpl`" + ` — render Go templates from JSON/YAML data
 - ` + "`sdt extract --type urls|emails|ips|json-blocks|code-blocks|dates`" + `
 - ` + "`sdt env parse|get|set|merge`" + ` — .env handling
@@ -220,8 +264,6 @@ cat llm_response.txt | sdt extract --type urls
 cat config.yaml | sdt conv --in yaml --out json
 echo "password" | sdt sha256 | sdt hex                  # pipeline
 sdt diff --a old.json --b new.json --diff-format json-patch
-sdt memory set "arch:database" "PostgreSQL" --project myapp --tags "database,architecture"
-sdt memory search "project architecture" --project myapp --format json
 sdt totp code --secret BASE32SECRET
 sdt dns --host example.com --type A --format json
 ` + codeFence + `

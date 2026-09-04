@@ -29,7 +29,7 @@ var configInitCmd = &cobra.Command{
 	Short: "Initialize .sdt.yaml with project identity",
 	Long: `Create a .sdt.yaml file in the current directory.
 
-The file stores the project identity used by project-scoped commands (memory):
+The file stores the project identity used by project-scoped commands:
   project     — project name
   group       — group name
 

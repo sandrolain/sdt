@@ -24,6 +24,7 @@ const (
 	sdtWorkDir        = "sdt.context"
 	readmeFile        = "README.md"
 	sdtPlanDir        = "sdt.context/plan"
+	sdtAnalysisDir    = "sdt.context/analysis"
 	sdtWorklogDir     = "sdt.context/worklog"
 	sdtNotesDir       = "sdt.context/notes"
 	sdtTasksDir       = "sdt.context/tasks"
@@ -39,6 +40,12 @@ const (
 	sdtInstrReference = "sdt.context/instructions/reference.md"
 	sdtInstrCli       = "sdt.context/instructions/cli.md"
 
+	// File-based memory layout created by sdt agent init.
+	sdtMemoryDir      = "sdt.context/memory"
+	sdtMemoryPagesDir = "sdt.context/memory/pages"
+	sdtMemoryReadme   = "sdt.context/memory/README.md"
+	sdtMemoryIndex    = "sdt.context/memory/index.md"
+
 	// The single tagged section name in AGENTS.md.
 	agentSectionNameInstructions = "instructions"
 
@@ -52,9 +59,8 @@ const (
 	statusDryRun  = "dry-run"
 
 	// Cobra command Use strings shared across files.
-	useInit   = "init"
-	useMemory = "memory"
-	useList   = "list"
+	useInit = "init"
+	useList = "list"
 
 	// Context work file task status values.
 	taskStatusTodo      = "todo"

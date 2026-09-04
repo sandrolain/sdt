@@ -18,12 +18,13 @@ import (
 )
 
 const (
-	ctxTypePlan    = "plan"
-	ctxTypeWorklog = "worklog"
-	ctxTypeNotes   = "notes"
-	ctxTypeTasks   = "tasks"
-	ctxTypeTmp     = "tmp"
-	ctxTypeArchive = "archive"
+	ctxTypePlan     = "plan"
+	ctxTypeAnalysis = "analysis"
+	ctxTypeWorklog  = "worklog"
+	ctxTypeNotes    = "notes"
+	ctxTypeTasks    = "tasks"
+	ctxTypeTmp      = "tmp"
+	ctxTypeArchive  = "archive"
 )
 
 var contextNow = time.Now
@@ -45,6 +46,8 @@ func contextDir(typ string) (string, bool) {
 	switch typ {
 	case ctxTypePlan:
 		return sdtPlanDir, true
+	case ctxTypeAnalysis:
+		return sdtAnalysisDir, true
 	case ctxTypeWorklog:
 		return sdtWorklogDir, true
 	case ctxTypeNotes:
@@ -73,6 +76,8 @@ func contextPath(typ, slug string) (string, error) {
 	switch typ {
 	case ctxTypePlan:
 		return filepath.Join(sdtPlanDir, contextTimePrefix("2006-01-02", slug)+".md"), nil
+	case ctxTypeAnalysis:
+		return filepath.Join(sdtAnalysisDir, contextTimePrefix("2006-01-02", slug)+".md"), nil
 	case ctxTypeWorklog:
 		return filepath.Join(sdtWorklogDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	case ctxTypeNotes:
@@ -87,7 +92,7 @@ func contextPath(typ, slug string) (string, error) {
 	case ctxTypeArchive:
 		return filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	}
-	return "", fmt.Errorf("unknown type %q (use plan|worklog|notes|tasks|tmp|archive)", typ)
+	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive)", typ)
 }
 
 // ── context path ───────────────────────────────────────────────────────────────
@@ -119,7 +124,7 @@ var contextPathCmd = &cobra.Command{
 	Long: `Print the full path of a sdt.context/ work file with the correct date/time
 prefix. Does not create anything.
 
-Types: plan (<YYYY-MM-DD>-<slug>.md), worklog/notes (<YYYYMMDD-HHMMSS>-<slug>.md),
+Types: plan/analysis (<YYYY-MM-DD>-<slug>.md), worklog/notes (<YYYYMMDD-HHMMSS>-<slug>.md),
 tasks (TODO.md), tmp (<slug>), archive (<YYYYMMDD-HHMMSS>-<slug>.md).
 
 Examples:
@@ -191,19 +196,20 @@ func contextFrontmatter(typ, note, project, created string) string {
 var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a sdt.context/ work file with frontmatter",
-	Long: `Create a plan, worklog or notes file under sdt.context/ with the correct
-naming and YAML frontmatter (kind, created_at, context, project). The body comes
-from --input/--file or piped stdin. Existing files are preserved unless --force
-is set; --edit opens the file in $EDITOR after creation.
+	Long: `Create a plan, worklog, notes or analysis file under sdt.context/ with the
+correct naming and YAML frontmatter (kind, created_at, context, project). The body
+comes from --input/--file or piped stdin. Existing files are preserved unless
+--force is set; --edit opens the file in $EDITOR after creation.
 
 Examples:
   sdt context new --type worklog --slug review-deps --input "reviewed deps"
-  sdt context new --type plan --slug ship-memory --force`,
+  sdt context new --type plan --slug ship-memory --force
+  sdt context new --type analysis --slug memory-backend --input "..."`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
-		if typ != ctxTypePlan && typ != ctxTypeWorklog && typ != ctxTypeNotes {
-			exitWithError(cmd, fmt.Errorf("new supports type plan|worklog|notes, got %q", typ))
+		if typ != ctxTypePlan && typ != ctxTypeAnalysis && typ != ctxTypeWorklog && typ != ctxTypeNotes {
+			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes, got %q", typ))
 		}
 		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
 		note := getStringFlag(cmd, "context", false)
@@ -307,7 +313,7 @@ var contextListCmd = &cobra.Command{
 	Long: `List existing work files under sdt.context/ for a type, sorted by name
 (chronological for timestamped files).
 
-Types: plan, worklog, notes, tasks, archive.
+Types: plan, analysis, worklog, notes, tasks, archive.
 
 Examples:
   sdt context list --type worklog
@@ -317,7 +323,7 @@ Examples:
 		typ := getStringFlag(cmd, "type", true)
 		dir, ok := contextDir(typ)
 		if !ok || typ == ctxTypeTmp {
-			exitWithError(cmd, fmt.Errorf("list supports type plan|worklog|notes|tasks|archive, got %q", typ))
+			exitWithError(cmd, fmt.Errorf("list supports type plan|analysis|worklog|notes|tasks|archive, got %q", typ))
 		}
 		files, err := listContextFiles(dir)
 		exitWithError(cmd, err)
@@ -616,16 +622,16 @@ var contextTaskBlockCmd = taskSetStatusCmd("block")
 var contextTaskWipCmd = taskSetStatusCmd("wip")
 
 func init() {
-	contextPathCmd.Flags().String("type", "", "Type: plan|worklog|notes|tasks|tmp|archive")
+	contextPathCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|tasks|tmp|archive")
 	contextPathCmd.Flags().String("slug", "", "Slug (sanitized)")
 
-	contextNewCmd.Flags().String("type", "", "Type: plan|worklog|notes")
+	contextNewCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes")
 	contextNewCmd.Flags().String("slug", "", "Slug (sanitized)")
 	contextNewCmd.Flags().String("context", "", "What triggered this entry")
 	contextNewCmd.Flags().Bool("force", false, "Overwrite existing file")
 	contextNewCmd.Flags().Bool("edit", false, "Open the file in $EDITOR after creation")
 
-	contextListCmd.Flags().String("type", "", "Type: plan|worklog|notes|tasks|archive")
+	contextListCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|tasks|archive")
 
 	contextTaskAddCmd.Flags().String("objective", "", "Objective for the task list (used when creating)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")

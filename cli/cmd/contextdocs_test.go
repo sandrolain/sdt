@@ -13,7 +13,7 @@ func TestDocFileName(t *testing.T) {
 	for in, want := range map[string]string{
 		"context task add": "context-task-add.md",
 		"jwt parse":        "jwt-parse.md",
-		"memory set":       "memory-set.md",
+		"b32 dec":          "b32-dec.md",
 	} {
 		if got := docFileName(in); got != want {
 			t.Errorf("docFileName(%q) = %q, want %q", in, got, want)
@@ -117,7 +117,7 @@ func TestContextDocs(t *testing.T) {
 		t.Errorf("expected README in output: %s", out)
 	}
 	docsDir := filepath.Join(dir, "sdt.context", "docs")
-	for _, f := range []string{"README.md", "context-task-add.md", "memory-set.md"} {
+	for _, f := range []string{"README.md", "context-task-add.md", "b32-dec.md"} {
 		if _, err := os.Stat(filepath.Join(docsDir, f)); err != nil {
 			t.Errorf("expected %s generated: %v", f, err)
 		}

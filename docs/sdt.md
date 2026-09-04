@@ -68,7 +68,6 @@ Smart Developer Tools is a collection of CLI utilities for developers
 * [sdt keypair](sdt_keypair.md)	 - Key pair PEMs
 * [sdt manifest](sdt_manifest.md)	 - Emit a machine-readable manifest of all available commands
 * [sdt md5](sdt_md5.md)	 - MD5
-* [sdt memory](sdt_memory.md)	 - Persistent key-value memory store for AI agents
 * [sdt nslookup](sdt_nslookup.md)	 - NS lookup
 * [sdt password](sdt_password.md)	 - Generate password
 * [sdt port](sdt_port.md)	 - Check if a TCP port is open on a host

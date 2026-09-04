@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -182,16 +183,21 @@ var agentInitCmd = &cobra.Command{
   .sdt.yaml                           project identity (project/group)
   AGENTS.md                           single tagged block of general instructions
   sdt.context/plan|worklog|notes|tasks|archive|tmp  working directories
-  sdt.context/instructions/           CLI usage files (project, memory, reference, cli usage)
-  .gitignore                          ignores sdt.context/tmp and sdt.context/docs (git repos only)
+  sdt.context/analysis/          analysis documents and implementation plans
+  sdt.context/memory/            persistent file-based memory (README.md + index.md + pages/)
+  sdt.context/instructions/      CLI usage files (project, memory, reference, cli usage)
+  .gitignore                          ignores chosen sdt.context dirs (git repos only)
 
 The command is idempotent and non-destructive: a second run fills in missing
 content and never overwrites or removes existing files. Use --force to refresh
 generated content and remove obsolete instruction files.
 
-When the current directory is inside a git repository, .gitignore is created (or
-updated) with entries ignoring the sdt.context/tmp working directory and the
-generated sdt.context/docs reference.
+When the current directory is inside a git repository, the .gitignore entries
+for the sdt.context working directories are decided interactively: you are asked
+whether to ignore them at all, and which entries (tmp/, docs/, or the whole
+sdt.context/ directory). Use --gitignore none|tmp|docs|work|context to pick
+non-interactively; work (tmp/ + docs/ entries) is the default. --yes accepts
+that default without prompting.
 
 Values not provided via flags are prompted interactively with sensible defaults.
 Use --yes to accept defaults without prompting (CI/non-interactive).
@@ -231,9 +237,9 @@ Examples:
 		// 2. sdt.context/ working directories (non-destructive).
 		dirResults := ensureWorkDirs(force)
 
-		// 3. .gitignore: ignore sdt.context/tmp when inside a git repository.
+		// 3. .gitignore: add the chosen sdt.context entries when inside a git repository.
 		var gitIgnoreResults []FileResult
-		if res := ensureGitIgnore(); res != nil {
+		if res := ensureGitIgnore(resolveGitIgnoreMode(cmd, yes)); res != nil {
 			gitIgnoreResults = append(gitIgnoreResults, *res)
 		}
 
@@ -273,6 +279,114 @@ func agentPrompt(cmd *cobra.Command, yes bool, label, def string) string {
 		return def
 	}
 	return line
+}
+
+// resolveGitIgnoreMode decides which sdt.context entries go into .gitignore.
+// A --gitignore flag value wins. When omitted the mode is asked interactively
+// (confirm first, then which entries); non-interactive runs and --yes default
+// to work, preserving the historical behavior.
+func resolveGitIgnoreMode(cmd *cobra.Command, yes bool) string {
+	raw := strings.ToLower(strings.TrimSpace(getStringFlag(cmd, "gitignore", false)))
+	if raw != "" {
+		switch raw {
+		case gitIgnoreModeNone, gitIgnoreModeTmp, gitIgnoreModeDocs, gitIgnoreModeWork, gitIgnoreModeContext:
+			return raw
+		}
+		exitWithError(cmd, fmt.Errorf("invalid --gitignore %q (want one of none|tmp|docs|work|context)", raw))
+	}
+	if yes || !stdinIsTTY() {
+		return gitIgnoreModeWork
+	}
+	if !agentPromptBool(cmd, false, "Add sdt.context working directories to .gitignore?", true) {
+		return gitIgnoreModeNone
+	}
+	return agentPromptGitIgnoreMode(cmd, false, gitIgnoreModeWork)
+}
+
+// agentPromptBool asks a yes/no question on the terminal. When yes is set, or
+// stdin is not a terminal, the default is returned without prompting.
+func agentPromptBool(cmd *cobra.Command, yes bool, label string, def bool) bool {
+	if yes || !stdinIsTTY() {
+		return def
+	}
+	d := "n"
+	if def {
+		d = "y"
+	}
+	if _, ferr := fmt.Fprintf(cmd.ErrOrStderr(), "%s [%s]: ", label, d); ferr != nil {
+		_ = ferr
+	}
+	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return def
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes", "1":
+		return true
+	case "n", "no", "0":
+		return false
+	}
+	if b, perr := strconv.ParseBool(strings.TrimSpace(line)); perr == nil {
+		return b
+	}
+	return def
+}
+
+// agentPromptGitIgnoreMode asks which sdt.context entries to ignore. Accepted
+// input is a comma-separated list of numbers or keywords: 1/tmp, 2/docs,
+// 3/context (entire directory), or work for both tmp and docs. Empty input and
+// unrecognized tokens fall back to def.
+func agentPromptGitIgnoreMode(cmd *cobra.Command, yes bool, def string) string {
+	if yes || !stdinIsTTY() {
+		return def
+	}
+	if _, ferr := fmt.Fprintln(cmd.ErrOrStderr(), "Which sdt.context entries should be added to .gitignore?"); ferr != nil {
+		_ = ferr
+	}
+	if _, ferr := fmt.Fprintf(cmd.ErrOrStderr(), "  1) %s\n", gitIgnoreTmpEntry); ferr != nil {
+		_ = ferr
+	}
+	if _, ferr := fmt.Fprintf(cmd.ErrOrStderr(), "  2) %s\n", gitIgnoreDocsEntry); ferr != nil {
+		_ = ferr
+	}
+	if _, ferr := fmt.Fprintf(cmd.ErrOrStderr(), "  3) %s (entire working directory)\n", gitIgnoreContextEntry); ferr != nil {
+		_ = ferr
+	}
+	if _, ferr := fmt.Fprint(cmd.ErrOrStderr(), "Comma-separated (1,2,3) or keywords (tmp, docs, context) [1,2]: "); ferr != nil {
+		_ = ferr
+	}
+	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return def
+	}
+	sel := strings.ToLower(strings.TrimSpace(line))
+	if sel == "" {
+		return def
+	}
+	selected := map[string]bool{}
+	for _, part := range strings.Split(sel, ",") {
+		choice := strings.TrimSpace(part)
+		switch choice {
+		case "1", gitIgnoreModeTmp:
+			selected[gitIgnoreModeTmp] = true
+		case "2", gitIgnoreModeDocs:
+			selected[gitIgnoreModeDocs] = true
+		case "3", gitIgnoreModeContext, "all":
+			return gitIgnoreModeContext
+		case gitIgnoreModeWork:
+			return gitIgnoreModeWork
+		}
+	}
+	if selected[gitIgnoreModeTmp] && selected[gitIgnoreModeDocs] {
+		return gitIgnoreModeWork
+	}
+	if selected[gitIgnoreModeTmp] {
+		return gitIgnoreModeTmp
+	}
+	if selected[gitIgnoreModeDocs] {
+		return gitIgnoreModeDocs
+	}
+	return def
 }
 
 func stdinIsTTY() bool {
@@ -320,7 +434,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 
 // ensureWorkDirs creates the sdt.context/ working directory layout.
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtMemoryDir, sdtMemoryPagesDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -347,22 +461,71 @@ func ensureWorkDirs(force bool) []FileResult {
 		results = append(results, res)
 	}
 
-	path := sdtWorkReadme
-	res := FileResult{Path: path}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := os.WriteFile(path, []byte(sdtWorkReadmeTemplate), 0o644); err != nil { //#nosec G306 -- user-chosen output
+	files := []struct {
+		path    string
+		content string
+	}{
+		{sdtWorkReadme, sdtWorkReadmeTemplate},
+		{sdtMemoryReadme, sdtMemoryReadmeTemplate},
+		{sdtMemoryIndex, sdtMemoryIndexTemplate},
+	}
+	for _, f := range files {
+		res := FileResult{Path: f.path}
+		if _, err := os.Stat(f.path); os.IsNotExist(err) {
+			if err := os.WriteFile(f.path, []byte(f.content), 0o644); err != nil { //#nosec G306 -- user-chosen output
+				res.Status = statusError
+				res.Reason = err.Error()
+			} else {
+				res.Status = statusCreated
+			}
+		} else if err == nil {
+			res.Status = statusSkipped
+			res.Reason = "file already exists"
+		} else {
 			res.Status = statusError
 			res.Reason = err.Error()
-		} else {
-			res.Status = statusCreated
 		}
-	} else {
-		res.Status = statusSkipped
-		res.Reason = "file already exists"
+		results = append(results, res)
 	}
-	results = append(results, res)
 	return results
 }
+
+const sdtMemoryReadmeTemplate = `# sdt.context/memory/ — File-based Memory
+
+Durable project memory as plain Markdown: decisions, constraints, concepts and
+references that must survive sessions. No database, no daemon — files only,
+fully offline.
+
+## Layout
+
+- ` + "`pages/<id>.md`" + ` — one durable unit of knowledge per file
+- ` + "`index.md`" + ` — page index (` + "`[[id]]`" + ` + one-line summary)
+- ` + "`README.md`" + ` — this protocol
+
+## Page format
+
+Each page carries frontmatter (` + "`id`" + `, ` + "`title`" + `, ` + "`category`" + `, ` + "`status`" + `, ` + "`tags`" + `,
+` + "`created`" + `, ` + "`updated`" + `), a ` + "`<!-- compiled_truth -->`" + ` section (current best
+understanding) and an append-only ` + "`## Timeline`" + `. Category is one of:
+` + "`decision`" + ` | ` + "`concept`" + ` | ` + "`project`" + ` | ` + "`person`" + ` | ` + "`reference`" + `. The ` + "`id`" + `
+is kebab-case and must equal the filename.
+
+## Rules
+
+- compiled_truth is rewritable; the timeline is append-only — every truth change
+  appends a timeline entry, every overturn appends ` + "`kind: reversal`" + `.
+- Reference pages with ` + "`[[id]]`" + `; keep ` + "`index.md`" + ` updated.
+- Write in the user's working language; keep ids, tags and paths verbatim.
+- The test: will this still matter in six months, and is it hard to reconstruct
+  from the code or git?
+
+Full operating skill: ` + "`sdt.context/instructions/memory.md`" + `.
+`
+
+const sdtMemoryIndexTemplate = `# Memory Index
+
+_Auto-maintained by the agent. List pages as ` + "`[[id]]`" + ` — one-line summary; keep in sync when pages are created, updated or archived._
+`
 
 const sdtWorkReadmeTemplate = `# sdt.context/ — Working Directory
 
@@ -372,11 +535,13 @@ instruction files and temporary files for this project.
 ## Layout
 
 - ` + "`plan/`" + ` — plans written before starting non-trivial work
+- ` + "`analysis/`" + ` — analysis documents and implementation plans
 - ` + "`worklog/`" + ` — chronological log of completed work
 - ` + "`notes/`" + ` — free-form annotations
 - ` + "`tasks/`" + ` — active task list (` + "`TODO.md`" + `)
 - ` + "`archive/`" + ` — completed task lists (history)
 - ` + "`instructions/`" + ` — agent instruction files (referenced by AGENTS.md)
+- ` + "`memory/`" + ` — durable file-based memory (` + "`memory/pages/`" + `, protocol in ` + "`memory/README.md`" + `)
 - ` + "`tmp/`" + ` — temporary and scratch files (never outside this project)
 
 ## Conventions
@@ -400,7 +565,8 @@ project: <project>
 ---
 ` + "```" + `
 
-Store durable facts in ` + "`sdt memory`" + `, not here.
+Store durable facts in ` + "`sdt.context/memory/`" + ` (see
+` + "`sdt.context/instructions/memory.md`" + `), not here.
 
 ## Commands
 
@@ -415,6 +581,15 @@ Create and manage work files with ` + "`sdt context`" + `:
   active task list
 `
 
+// gitIgnore modes for --gitignore and the interactive entries prompt.
+const (
+	gitIgnoreModeNone    = "none"    // leave .gitignore untouched
+	gitIgnoreModeTmp     = "tmp"     // ignore sdt.context/tmp/
+	gitIgnoreModeDocs    = "docs"    // ignore sdt.context/docs/
+	gitIgnoreModeWork    = "work"    // ignore tmp/ + docs/ (default)
+	gitIgnoreModeContext = "context" // ignore the whole sdt.context/
+)
+
 // gitIgnoreTmpEntry keeps sdt.context/tmp out of version control. The pattern is
 // not root-anchored so it also applies when sdt.context lives in a subdirectory.
 const gitIgnoreTmpEntry = "sdt.context/tmp/"
@@ -423,8 +598,29 @@ const gitIgnoreTmpEntry = "sdt.context/tmp/"
 // reference is regenerated per binary version, so it is never committed.
 const gitIgnoreDocsEntry = "sdt.context/docs/"
 
-// gitIgnoreEntries lists the sdt.context/ entries ensured by ensureGitIgnore.
-var gitIgnoreEntries = []string{gitIgnoreTmpEntry, gitIgnoreDocsEntry}
+// gitIgnoreContextEntry ignores the entire sdt.context/ working directory,
+// including plans, work logs, notes and instruction files.
+const gitIgnoreContextEntry = "sdt.context/"
+
+// gitIgnoreWorkEntries lists the sdt.context/ entries ensured by default (work).
+var gitIgnoreWorkEntries = []string{gitIgnoreTmpEntry, gitIgnoreDocsEntry}
+
+// gitIgnoreEntriesForMode maps a gitignore mode to the entries it ensures.
+// An empty result means no .gitignore changes (none).
+func gitIgnoreEntriesForMode(mode string) []string {
+	switch mode {
+	case gitIgnoreModeNone:
+		return nil
+	case gitIgnoreModeTmp:
+		return []string{gitIgnoreTmpEntry}
+	case gitIgnoreModeDocs:
+		return []string{gitIgnoreDocsEntry}
+	case gitIgnoreModeContext:
+		return []string{gitIgnoreContextEntry}
+	default:
+		return gitIgnoreWorkEntries
+	}
+}
 
 // findGitRepoRoot walks up from the current directory looking for a .git entry
 // (directory or worktree file). It returns the repository root, or "" when the
@@ -447,10 +643,14 @@ func findGitRepoRoot() string {
 }
 
 // ensureGitIgnore ensures the repository .gitignore ignores the sdt.context
-// working directories that are generated or transient (tmp, docs). It creates
+// working directories selected by mode (tmp, docs, work, context). It creates
 // the file when missing, appends each entry only when absent, and returns nil
-// when no git repository is detected.
-func ensureGitIgnore() *FileResult {
+// when no git repository is detected or mode is none.
+func ensureGitIgnore(mode string) *FileResult {
+	entries := gitIgnoreEntriesForMode(mode)
+	if len(entries) == 0 {
+		return nil
+	}
 	root := findGitRepoRoot()
 	if root == "" {
 		return nil
@@ -467,7 +667,7 @@ func ensureGitIgnore() *FileResult {
 	}
 	content := existing
 	added := false
-	for _, entry := range gitIgnoreEntries {
+	for _, entry := range entries {
 		if gitIgnoreHasEntry(content, entry) {
 			continue
 		}
@@ -552,13 +752,13 @@ func agentBlockInstructions(project, group string) string {
 This project is managed with SDT. Read the relevant instruction file before acting:
 
 - ` + "`sdt.context/instructions/project.md`" + ` — project identity and configuration
-- ` + "`sdt.context/instructions/memory.md`" + ` — persistent memory usage
+- ` + "`sdt.context/instructions/memory.md`" + ` — file-based memory usage (` + "`sdt.context/memory/`" + `)
 - ` + "`sdt.context/instructions/reference.md`" + ` — SDT command reference
 - ` + "`sdt.context/instructions/cli.md`" + ` — CLI usage and examples
 - ` + "`sdt.context/docs/README.md`" + ` — per-command reference generated by ` + "`sdt context docs`" + ` (when present)
 
-Work directories live under ` + "`sdt.context/`" + ` (plan/, worklog/, notes/, tasks/,
-archive/, tmp/). Never write or execute temporary files outside the project. Keep
+Work directories live under ` + "`sdt.context/`" + ` (plan/, analysis/, worklog/, notes/, tasks/,
+archive/, memory/, tmp/). Never write or execute temporary files outside the project. Keep
 all instruction files concise and technical.
 
 ### Workflow
@@ -566,11 +766,11 @@ all instruction files concise and technical.
 Follow this loop for any non-trivial task:
 
 1. **Plan** — write a short plan in ` + "`sdt.context/plan/`" + ` before starting (` + "`sdt context new --type plan --slug <slug>`" + `).
-2. **Investigate** — read this AGENTS.md, search memory (` + "`sdt memory search`" + `) and inspect the code before changing anything.
+2. **Investigate** — read this AGENTS.md, read project memory (` + "`sdt.context/memory/`" + `) and inspect the code before changing anything.
 3. **Act** — make the smallest change that satisfies the task.
 4. **Verify** — run the project's build, test and lint commands. Discover them from the project (Taskfile, Makefile, package.json, go.mod or similar); if the project defines none, record them in ` + "`sdt.context/instructions/project.md`" + `.
 5. **Annotate** — append a ` + "`sdt.context/worklog/`" + ` entry describing what changed and why.
-6. **Remember** — store durable decisions in ` + "`sdt memory`" + `.
+6. **Remember** — store durable decisions in ` + "`sdt.context/memory/`" + `.
 7. **Update** — keep this AGENTS.md current when conventions change.
 
 ### Planning, Work Logs & Annotations
@@ -579,13 +779,14 @@ Keep planning, work logs, task lists and annotations under ` + "`sdt.context/`" 
 
 ` + "```" + `
 sdt.context/plan/<YYYY-MM-DD>-<slug>.md              # plan before starting work
+sdt.context/analysis/<YYYY-MM-DD>-<slug>.md          # analysis / implementation plans
 sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md      # ordered log of completed work
 sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md        # free-form annotations
 sdt.context/tasks/TODO.md                            # active task list (checklist)
 sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md      # completed task lists
 ` + "```" + `
 
-Create work files with ` + "`sdt context new --type plan|worklog|notes --slug <slug>`" + ` —
+Create work files with ` + "`sdt context new --type plan|analysis|worklog|notes --slug <slug>`" + ` —
 naming and ` + "`created_at`" + ` frontmatter are guaranteed (` + "`sdt context path --type <type>`" + `
 prints a path without creating anything).
 
@@ -606,8 +807,9 @@ Temporary and scratch files live in ` + "`sdt.context/tmp/`" + ` — never outsi
 project (no ` + "`/tmp`" + `, no other absolute paths).
 
 Annotate continuously: plan before starting, append a dated worklog entry after
-each change, and record decisions, dead-ends and constraints with
-` + "`sdt memory`" + `. The goal is a chronological, searchable history that lets
+each change, and record decisions, dead-ends and constraints in
+` + "`sdt.context/memory/`" + ` (see ` + "`sdt.context/instructions/memory.md`" + `). The goal is a
+chronological, searchable history that lets
 a future session (agent or human) reconstruct what happened and why.
 
 Every work file starts with YAML frontmatter:
@@ -648,6 +850,7 @@ func init() {
 	agentInitCmd.Flags().String("project", "", "Project name")
 	agentInitCmd.Flags().String("group", "", "Group name")
 	agentInitCmd.Flags().String("target", agentTargetDefault, "Output instruction file")
+	agentInitCmd.Flags().String("gitignore", "", "Which sdt.context entries to add to .gitignore (none, tmp, docs, work, context); prompts interactively when omitted")
 	agentInitCmd.Flags().Bool("force", false, "Refresh generated template content")
 	agentInitCmd.Flags().Bool("yes", false, "Accept defaults without prompting")
 

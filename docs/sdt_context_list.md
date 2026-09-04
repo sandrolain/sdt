@@ -7,7 +7,7 @@ List sdt.context/ work files
 List existing work files under sdt.context/ for a type, sorted by name
 (chronological for timestamped files).
 
-Types: plan, worklog, notes, tasks, archive.
+Types: plan, analysis, worklog, notes, tasks, archive.
 
 Examples:
   sdt context list --type worklog
@@ -21,7 +21,7 @@ sdt context list [flags]
 
 ```
   -h, --help          help for list
-      --type string   Type: plan|worklog|notes|tasks|archive
+      --type string   Type: plan|analysis|worklog|notes|tasks|archive
 ```
 
 ### Options inherited from parent commands

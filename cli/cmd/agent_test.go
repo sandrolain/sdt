@@ -124,6 +124,7 @@ func TestAgentInit(t *testing.T) {
 		"Discover them from the project",
 		"sdt.context/tasks/TODO.md",
 		"sdt.context/archive/",
+		"sdt.context/memory/",
 		"create or update the relevant section",
 	} {
 		if !strings.Contains(string(data), want) {
@@ -169,7 +170,7 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"sdt.context/plan", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tasks", "sdt.context/archive", "sdt.context/tmp", "sdt.context/instructions"} {
+	for _, d := range []string{"sdt.context/plan", "sdt.context/analysis", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tasks", "sdt.context/archive", "sdt.context/tmp", "sdt.context/instructions", "sdt.context/memory", "sdt.context/memory/pages"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
@@ -362,7 +363,7 @@ func TestFindGitRepoRootWorktree(t *testing.T) {
 
 func TestEnsureGitIgnoreNoRepo(t *testing.T) {
 	runInTempDir(t)
-	if res := ensureGitIgnore(); res != nil {
+	if res := ensureGitIgnore(gitIgnoreModeWork); res != nil {
 		t.Errorf("expected nil result without git repo, got %+v", res)
 	}
 }
@@ -372,7 +373,7 @@ func TestEnsureGitIgnoreCreate(t *testing.T) {
 	if err := os.Mkdir(".git", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	res := ensureGitIgnore()
+	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
 	}
@@ -391,7 +392,7 @@ func TestEnsureGitIgnoreUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, ".gitignore", "bin/\n")
-	res := ensureGitIgnore()
+	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
 	}
@@ -410,7 +411,7 @@ func TestEnsureGitIgnoreAddsMissingEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, ".gitignore", gitIgnoreTmpEntry+"\n")
-	res := ensureGitIgnore()
+	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
 	}
@@ -432,7 +433,7 @@ func TestEnsureGitIgnoreSkip(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, ".gitignore", "bin/\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreDocsEntry+"\n")
-	res := ensureGitIgnore()
+	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
 	}
@@ -451,7 +452,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, ".gitignore", "sdt.context/tmp\nsdt.context/docs\n")
-	res := ensureGitIgnore()
+	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
 	}
@@ -470,7 +471,7 @@ func TestEnsureGitIgnorePreservesTrailingContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, ".gitignore", "bin/")
-	res := ensureGitIgnore()
+	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil || res.Status != statusUpdated {
 		t.Fatalf("expected updated, got %+v", res)
 	}
@@ -519,6 +520,235 @@ func TestAgentInitNoGitIgnoreOutsideRepo(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".gitignore")); !os.IsNotExist(err) {
 		t.Error("expected no .gitignore created outside git repo")
+	}
+}
+
+func TestAgentInitGitIgnoreNone(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	out := execute(t, agentInitCmd, nil, "--project", "p", "--gitignore", gitIgnoreModeNone)
+	if strings.Contains(string(out), ".gitignore") {
+		t.Errorf("expected no .gitignore handling with --gitignore none: %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitignore")); !os.IsNotExist(err) {
+		t.Error("expected no .gitignore created with --gitignore none")
+	}
+}
+
+func TestAgentInitGitIgnoreTmp(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--gitignore", gitIgnoreModeTmp)
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(data), gitIgnoreTmpEntry) {
+		t.Errorf("expected %q in .gitignore:\n%s", gitIgnoreTmpEntry, data)
+	}
+	if strings.Contains(string(data), gitIgnoreDocsEntry) {
+		t.Errorf("did not expect %q with --gitignore tmp:\n%s", gitIgnoreDocsEntry, data)
+	}
+}
+
+func TestAgentInitGitIgnoreDocs(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--gitignore", gitIgnoreModeDocs)
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(data), gitIgnoreDocsEntry) {
+		t.Errorf("expected %q in .gitignore:\n%s", gitIgnoreDocsEntry, data)
+	}
+	if strings.Contains(string(data), gitIgnoreTmpEntry) {
+		t.Errorf("did not expect %q with --gitignore docs:\n%s", gitIgnoreTmpEntry, data)
+	}
+}
+
+func TestAgentInitGitIgnoreContext(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--gitignore", gitIgnoreModeContext)
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(data), gitIgnoreContextEntry) {
+		t.Errorf("expected %q in .gitignore:\n%s", gitIgnoreContextEntry, data)
+	}
+}
+
+func TestAgentInitGitIgnoreInvalid(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, agentInitCmd, nil, "--project", "p", "--gitignore", "bogus"))
+	})
+}
+
+func TestGitIgnoreEntriesForMode(t *testing.T) {
+	cases := map[string][]string{
+		gitIgnoreModeNone:    nil,
+		gitIgnoreModeTmp:     {gitIgnoreTmpEntry},
+		gitIgnoreModeDocs:    {gitIgnoreDocsEntry},
+		gitIgnoreModeWork:    {gitIgnoreTmpEntry, gitIgnoreDocsEntry},
+		gitIgnoreModeContext: {gitIgnoreContextEntry},
+		"":                   {gitIgnoreTmpEntry, gitIgnoreDocsEntry},
+	}
+	for mode, want := range cases {
+		got := gitIgnoreEntriesForMode(mode)
+		if len(got) != len(want) {
+			t.Errorf("mode %q: expected %v entries, got %v", mode, want, got)
+			continue
+		}
+		for i := range got {
+			if got[i] != want[i] {
+				t.Errorf("mode %q entry %d: expected %q, got %q", mode, i, want[i], got[i])
+			}
+		}
+	}
+}
+
+func TestResolveGitIgnoreModeFlag(t *testing.T) {
+	for _, mode := range []string{gitIgnoreModeNone, gitIgnoreModeTmp, gitIgnoreModeDocs, gitIgnoreModeWork, gitIgnoreModeContext} {
+		cmd := &cobra.Command{}
+		cmd.Flags().String("gitignore", "", "")
+		if err := cmd.Flags().Set("gitignore", mode); err != nil {
+			t.Fatal(err)
+		}
+		if got := resolveGitIgnoreMode(cmd, false); got != mode {
+			t.Errorf("flag %q: expected %q, got %q", mode, mode, got)
+		}
+	}
+}
+
+func TestResolveGitIgnoreModeFlagCaseInsensitive(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("gitignore", "", "")
+	if err := cmd.Flags().Set("gitignore", "WORK"); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveGitIgnoreMode(cmd, false); got != gitIgnoreModeWork {
+		t.Errorf("expected work for uppercase flag, got %q", got)
+	}
+}
+
+func TestResolveGitIgnoreModeDefault(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("gitignore", "", "")
+	if got := resolveGitIgnoreMode(cmd, true); got != gitIgnoreModeWork {
+		t.Errorf("expected work default with --yes, got %q", got)
+	}
+}
+
+func TestResolveGitIgnoreModeNonTTY(t *testing.T) {
+	if !stdinIsTTY() {
+		cmd := &cobra.Command{}
+		cmd.Flags().String("gitignore", "", "")
+		if got := resolveGitIgnoreMode(cmd, false); got != gitIgnoreModeWork {
+			t.Errorf("expected work default without TTY, got %q", got)
+		}
+	}
+}
+
+func TestResolveGitIgnoreModeInvalid(t *testing.T) {
+	runInTempDir(t)
+	cmd := &cobra.Command{}
+	cmd.Flags().String("gitignore", "", "")
+	if err := cmd.Flags().Set("gitignore", "bogus"); err != nil {
+		t.Fatal(err)
+	}
+	shouldExitWithCode(t, 1, func() string {
+		return string(resolveGitIgnoreMode(cmd, false))
+	})
+}
+
+func TestAgentPromptBool(t *testing.T) {
+	devNull, err := os.Open("/dev/null")
+	if err != nil {
+		t.Skip("cannot open /dev/null")
+	}
+	defer devNull.Close()
+	orig := os.Stdin
+	os.Stdin = devNull
+	defer func() { os.Stdin = orig }()
+
+	if !stdinIsTTY() {
+		t.Skip("/dev/null is not a character device on this system")
+	}
+	cases := []struct {
+		in  string
+		def bool
+		got bool
+	}{
+		{"y\n", true, true},
+		{"n\n", true, false},
+		{"yes\n", false, true},
+		{"NO\n", true, false},
+		{"\n", true, true},
+		{"junk\n", true, true},
+	}
+	for _, c := range cases {
+		cmd := &cobra.Command{}
+		cmd.SetIn(strings.NewReader(c.in))
+		cmd.SetErr(failingWriter{})
+		if got := agentPromptBool(cmd, false, "label", c.def); got != c.got {
+			t.Errorf("input %q def %v: expected %v, got %v", c.in, c.def, c.got, got)
+		}
+	}
+}
+
+// withTTYPrompts runs fn with os.Stdin pointing at a character device so that
+// prompt helpers take the interactive branch. It spawns a helper process: the
+// standard trick of reading /dev/null works for other suites but here stdin
+// content is driven through cmd.SetIn.
+func withTTYPrompt(t *testing.T, fn func(cmd *cobra.Command)) {
+	t.Helper()
+	devNull, err := os.Open("/dev/null")
+	if err != nil {
+		t.Skip("cannot open /dev/null")
+	}
+	defer devNull.Close()
+	orig := os.Stdin
+	os.Stdin = devNull
+	defer func() { os.Stdin = orig }()
+	if !stdinIsTTY() {
+		t.Skip("/dev/null is not a character device on this system")
+	}
+	cmd := &cobra.Command{}
+	cmd.SetErr(failingWriter{})
+	fn(cmd)
+}
+
+func TestAgentPromptGitIgnoreModeParsing(t *testing.T) {
+	withTTYPrompt(t, func(cmd *cobra.Command) {
+		cases := []struct {
+			in   string
+			want string
+		}{
+			{"1\n", gitIgnoreModeTmp},
+			{"2\n", gitIgnoreModeDocs},
+			{"1,2\n", gitIgnoreModeWork},
+			{"3\n", gitIgnoreModeContext},
+			{"tmp, docs\n", gitIgnoreModeWork},
+			{"context\n", gitIgnoreModeContext},
+			{"work\n", gitIgnoreModeWork},
+			{"\n", gitIgnoreModeWork},
+			{"garbage\n", gitIgnoreModeWork},
+			{"5\n", gitIgnoreModeWork},
+		}
+		for _, c := range cases {
+			cmd.SetIn(strings.NewReader(c.in))
+			if got := agentPromptGitIgnoreMode(cmd, false, gitIgnoreModeWork); got != c.want {
+				t.Errorf("input %q: expected %q, got %q", c.in, c.want, got)
+			}
+		}
+	})
+}
+
+func TestAgentPromptGitIgnoreModeYes(t *testing.T) {
+	if got := agentPromptGitIgnoreMode(&cobra.Command{}, true, gitIgnoreModeWork); got != gitIgnoreModeWork {
+		t.Errorf("expected default with yes, got %q", got)
 	}
 }
 
@@ -591,7 +821,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	}
 
 	mem, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/memory.md"))
-	for _, want := range []string{"memory export", "memory import", "memory projects", "memory groups", "--project"} {
+	for _, want := range []string{"sdt.context/memory/", "compiled_truth", "## Timeline", "category", "decision", "append-only"} {
 		if !strings.Contains(string(mem), want) {
 			t.Errorf("expected %q in memory.md:\n%s", want, mem)
 		}
