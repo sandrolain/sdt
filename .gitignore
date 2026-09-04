@@ -27,6 +27,7 @@
 trivi-results.json
 /coverage.*
 
-# SDT
+# sdt:start
 sdt.context/tmp/
 sdt.context/docs/
+# sdt:end

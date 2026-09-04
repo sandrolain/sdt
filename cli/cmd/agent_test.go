@@ -325,46 +325,59 @@ func TestAgentInitForceRemovesObsoleteInstructions(t *testing.T) {
 
 // ── .gitignore handling ────────────────────────────────────────────────────────
 
-func TestFindGitRepoRoot(t *testing.T) {
-	runInTempDir(t)
-	if got := findGitRepoRoot(); got != "" {
-		t.Errorf("expected no git repo in temp dir, got %q", got)
-	}
-	if err := os.MkdirAll(filepath.Join(".git", "info"), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	root, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := findGitRepoRoot(); got != root {
-		t.Errorf("expected repo root %q, got %q", root, got)
-	}
-	sub := filepath.Join(root, "nested")
+func TestEnsureGitIgnoreNoParentResolution(t *testing.T) {
+	parent := runInTempDir(t)
+	writeTestFile(t, ".gitignore", "from-parent/\n")
+	sub := filepath.Join(parent, "child")
 	if err := os.MkdirAll(sub, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chdir(sub); err != nil {
 		t.Fatal(err)
 	}
-	if got := findGitRepoRoot(); got != root {
-		t.Errorf("expected repo root %q from subdirectory, got %q", root, got)
+	res := ensureGitIgnore(gitIgnoreModeWork)
+	if res == nil || res.Status != statusCreated {
+		t.Fatalf("expected created in current dir (no parent resolution), got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(sub, ".gitignore"))
+	if !strings.Contains(string(data), gitIgnoreTmpEntry) {
+		t.Errorf("expected entries in local .gitignore:\n%s", data)
+	}
+	if parentData, err := os.ReadFile(filepath.Join(parent, ".gitignore")); err != nil || strings.Contains(string(parentData), gitIgnoreTmpEntry) {
+		t.Errorf("expected parent .gitignore untouched:\n%s", parentData)
 	}
 }
 
-func TestFindGitRepoRootWorktree(t *testing.T) {
-	runInTempDir(t)
-	writeTestFile(t, ".git", "gitdir: ../.git/worktrees/foo\n")
-	root, _ := os.Getwd()
-	if got := findGitRepoRoot(); got != root {
-		t.Errorf("expected .git file to mark repo root, got %q", got)
+func TestEnsureGitIgnoreUsesLocalDir(t *testing.T) {
+	parent := runInTempDir(t)
+	writeTestFile(t, ".gitignore", "from-parent/\n")
+	sub := filepath.Join(parent, "child")
+	if err := os.MkdirAll(sub, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(sub); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, ".gitignore", "local-preexisting/\n")
+	res := ensureGitIgnore(gitIgnoreModeWork)
+	if res == nil || res.Status != statusUpdated {
+		t.Fatalf("expected updated in current dir, got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(sub, ".gitignore"))
+	if !strings.Contains(string(data), "local-preexisting/") || !strings.Contains(string(data), gitIgnoreTmpEntry) {
+		t.Errorf("expected local entries:\n%s", data)
+	}
+	parentData, _ := os.ReadFile(filepath.Join(parent, ".gitignore"))
+	if !strings.Contains(string(parentData), "from-parent/") || strings.Contains(string(parentData), gitIgnoreTmpEntry) {
+		t.Errorf("expected parent .gitignore untouched:\n%s", parentData)
 	}
 }
 
-func TestEnsureGitIgnoreNoRepo(t *testing.T) {
+func TestEnsureGitIgnoreWithoutGit(t *testing.T) {
 	runInTempDir(t)
-	if res := ensureGitIgnore(gitIgnoreModeWork); res != nil {
-		t.Errorf("expected nil result without git repo, got %+v", res)
+	res := ensureGitIgnore(gitIgnoreModeWork)
+	if res == nil || res.Status != statusCreated {
+		t.Fatalf("expected created without git repo, got %+v", res)
 	}
 }
 
@@ -383,6 +396,9 @@ func TestEnsureGitIgnoreCreate(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
 	if !strings.Contains(string(data), gitIgnoreTmpEntry) || !strings.Contains(string(data), gitIgnoreDocsEntry) {
 		t.Errorf("expected %q and %q in .gitignore:\n%s", gitIgnoreTmpEntry, gitIgnoreDocsEntry, data)
+	}
+	if !strings.HasPrefix(string(data), gitIgnoreBlockStart+"\n") || !strings.HasSuffix(string(data), gitIgnoreBlockEnd+"\n") {
+		t.Errorf("expected entries wrapped in # sdt:start / # sdt:end:\n%s", data)
 	}
 }
 
@@ -476,8 +492,38 @@ func TestEnsureGitIgnorePreservesTrailingContent(t *testing.T) {
 		t.Fatalf("expected updated, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if !strings.HasSuffix(string(data), gitIgnoreDocsEntry+"\n") {
-		t.Errorf("expected newline separation before appended entries:\n%s", data)
+	body := string(data)
+	if !strings.HasPrefix(body, "bin/\n") {
+		t.Errorf("expected existing content preserved:\n%s", body)
+	}
+	if !strings.HasSuffix(body, gitIgnoreBlockStart+"\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreDocsEntry+"\n"+gitIgnoreBlockEnd+"\n") {
+		t.Errorf("expected sdt block appended with markers:\n%s", body)
+	}
+}
+
+func TestEnsureGitIgnoreAddsMissingInsideBlock(t *testing.T) {
+	dir := runInTempDir(t)
+	if err := os.Mkdir(".git", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, ".gitignore", "bin/\n"+gitIgnoreBlockStart+"\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreBlockEnd+"\n")
+	res := ensureGitIgnore(gitIgnoreModeWork)
+	if res == nil || res.Status != statusUpdated {
+		t.Fatalf("expected updated, got %+v", res)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	body := string(data)
+	if strings.Count(body, gitIgnoreDocsEntry) != 1 {
+		t.Errorf("expected docs entry added inside block:\n%s", body)
+	}
+	if !strings.Contains(body, gitIgnoreBlockStart+"\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreDocsEntry+"\n"+gitIgnoreBlockEnd) {
+		t.Errorf("expected missing entry inserted inside the sdt block:\n%s", body)
+	}
+	if strings.Count(body, gitIgnoreBlockEnd) != 1 {
+		t.Errorf("expected single end marker:\n%s", body)
+	}
+	if strings.Count(body, gitIgnoreTmpEntry) != 1 {
+		t.Errorf("expected no duplicate tmp entry:\n%s", body)
 	}
 }
 
@@ -512,14 +558,15 @@ func TestAgentInitGitIgnoreIdempotent(t *testing.T) {
 	}
 }
 
-func TestAgentInitNoGitIgnoreOutsideRepo(t *testing.T) {
+func TestAgentInitAddsGitIgnoreWithoutGit(t *testing.T) {
 	dir := runInTempDir(t)
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	if strings.Contains(string(out), ".gitignore") {
-		t.Errorf("expected no .gitignore handling outside git repo: %s", out)
+	if !strings.Contains(string(out), ".gitignore") {
+		t.Errorf("expected .gitignore handling even outside git repo: %s", out)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".gitignore")); !os.IsNotExist(err) {
-		t.Error("expected no .gitignore created outside git repo")
+	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(data), gitIgnoreTmpEntry) {
+		t.Errorf("expected entries in .gitignore:\n%s", data)
 	}
 }
 

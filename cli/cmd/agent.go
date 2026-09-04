@@ -186,18 +186,19 @@ var agentInitCmd = &cobra.Command{
   sdt.context/analysis/          analysis documents and implementation plans
   sdt.context/memory/            persistent file-based memory (README.md + index.md + pages/)
   sdt.context/instructions/      CLI usage files (project, memory, reference, cli usage)
-  .gitignore                          ignores chosen sdt.context dirs (git repos only)
+  .gitignore                          ignores chosen sdt.context dirs (current dir)
 
 The command is idempotent and non-destructive: a second run fills in missing
 content and never overwrites or removes existing files. Use --force to refresh
 generated content and remove obsolete instruction files.
 
-When the current directory is inside a git repository, the .gitignore entries
-for the sdt.context working directories are decided interactively: you are asked
-whether to ignore them at all, and which entries (tmp/, docs/, or the whole
-sdt.context/ directory). Use --gitignore none|tmp|docs|work|context to pick
-non-interactively; work (tmp/ + docs/ entries) is the default. --yes accepts
-that default without prompting.
+The .gitignore entries for the sdt.context working directories are decided
+interactively: you are asked whether to ignore them at all, and which entries
+(tmp/, docs/, or the whole sdt.context/ directory). The file is created or
+updated in the execution directory — the same directory as .sdt.yaml — even
+when it is not a git repository; parent directories are never resolved. Use
+--gitignore none|tmp|docs|work|context to pick non-interactively; work (tmp/ +
+docs/ entries) is the default. --yes accepts that default without prompting.
 
 Values not provided via flags are prompted interactively with sensible defaults.
 Use --yes to accept defaults without prompting (CI/non-interactive).
@@ -237,7 +238,9 @@ Examples:
 		// 2. sdt.context/ working directories (non-destructive).
 		dirResults := ensureWorkDirs(force)
 
-		// 3. .gitignore: add the chosen sdt.context entries when inside a git repository.
+		// 3. .gitignore: entries maintained in the execution directory (the .sdt.yaml
+		//    location) — asked/picked even outside a git repository, never
+		//    resolved from a parent.
 		var gitIgnoreResults []FileResult
 		if res := ensureGitIgnore(resolveGitIgnoreMode(cmd, yes)); res != nil {
 			gitIgnoreResults = append(gitIgnoreResults, *res)
@@ -606,6 +609,14 @@ const gitIgnoreContextEntry = "sdt.context/"
 // gitIgnoreWorkEntries lists the sdt.context/ entries ensured by default (work).
 var gitIgnoreWorkEntries = []string{gitIgnoreTmpEntry, gitIgnoreDocsEntry}
 
+// gitIgnore block markers bound the sdt-managed .gitignore entries so later
+// runs can update them in place and the block is distinguishable from
+// hand-written entries.
+const (
+	gitIgnoreBlockStart = "# sdt:start"
+	gitIgnoreBlockEnd   = "# sdt:end"
+)
+
 // gitIgnoreEntriesForMode maps a gitignore mode to the entries it ensures.
 // An empty result means no .gitignore changes (none).
 func gitIgnoreEntriesForMode(mode string) []string {
@@ -623,67 +634,46 @@ func gitIgnoreEntriesForMode(mode string) []string {
 	}
 }
 
-// findGitRepoRoot walks up from the current directory looking for a .git entry
-// (directory or worktree file). It returns the repository root, or "" when the
-// current directory is not inside a git repository.
-func findGitRepoRoot() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
-// ensureGitIgnore ensures the repository .gitignore ignores the sdt.context
-// working directories selected by mode (tmp, docs, work, context). It creates
-// the file when missing, appends each entry only when absent, and returns nil
-// when no git repository is detected or mode is none.
+// ensureGitIgnore ensures the .gitignore file located in the current working
+// directory (the .sdt.yaml location) ignores the sdt.context working
+// directories selected by mode (tmp, docs, work, context). The file is
+// maintained even outside a git repository and parent directories are never
+// resolved. Entries live inside a `# sdt:start` / `# sdt:end` block: the block
+// is appended when absent, missing entries are inserted inside an existing
+// block, and nothing changes when every entry is already present. It returns
+// nil only when mode is none.
 func ensureGitIgnore(mode string) *FileResult {
 	entries := gitIgnoreEntriesForMode(mode)
 	if len(entries) == 0 {
 		return nil
 	}
-	root := findGitRepoRoot()
-	if root == "" {
-		return nil
-	}
-	path := filepath.Join(root, ".gitignore")
+	path := filepath.Join(".", ".gitignore")
 	res := &FileResult{Path: path}
 	existing := ""
-	if data, err := os.ReadFile(path); err == nil { //#nosec G304 -- repo root derived from cwd walk-up
+	if data, err := os.ReadFile(path); err == nil { //#nosec G304 -- user project directory derived from cwd
 		existing = string(data)
 	} else if !os.IsNotExist(err) {
 		res.Status = statusError
 		res.Reason = err.Error()
 		return res
 	}
-	content := existing
-	added := false
-	for _, entry := range entries {
-		if gitIgnoreHasEntry(content, entry) {
-			continue
-		}
-		if content != "" && !strings.HasSuffix(content, "\n") {
-			content += "\n"
-		}
-		content += entry + "\n"
-		added = true
-	}
-	if !added {
+	missing := gitIgnoreMissingEntries(existing, entries)
+	if len(missing) == 0 {
 		res.Status = statusSkipped
 		res.Reason = "entries already present"
 		return res
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil { //#nosec G306,G703 -- repo root derived from cwd walk-up
+	inner := strings.Join(missing, "\n")
+	content := existing
+	if strings.Contains(content, gitIgnoreBlockEnd) {
+		content = strings.Replace(content, gitIgnoreBlockEnd, inner+"\n"+gitIgnoreBlockEnd, 1)
+	} else {
+		if content != "" && !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
+		content += gitIgnoreBlockStart + "\n" + inner + "\n" + gitIgnoreBlockEnd + "\n"
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil { //#nosec G306,G703 -- user project directory derived from cwd
 		res.Status = statusError
 		res.Reason = err.Error()
 		return res
@@ -694,6 +684,18 @@ func ensureGitIgnore(mode string) *FileResult {
 		res.Status = statusUpdated
 	}
 	return res
+}
+
+// gitIgnoreMissingEntries returns the entries not already present as a line in
+// content (tolerating a missing trailing slash), independent of the sdt block.
+func gitIgnoreMissingEntries(content string, entries []string) []string {
+	var missing []string
+	for _, entry := range entries {
+		if !gitIgnoreHasEntry(content, entry) {
+			missing = append(missing, entry)
+		}
+	}
+	return missing
 }
 
 // gitIgnoreHasEntry reports whether content already contains entry as a line,
