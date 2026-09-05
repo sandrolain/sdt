@@ -30,4 +30,5 @@ trivi-results.json
 # sdt:start
 sdt.context/tmp/
 sdt.context/docs/
+sdt.context/
 # sdt:end
