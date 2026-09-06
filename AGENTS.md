@@ -1,156 +1,5 @@
 # AGENTS.md — SDT Project
 
-## Project Overview
-
-**SDT (Smart Developer Tools)** is a Go CLI toolset designed for use by AI agents and developers.
-It provides deterministic, composable commands for data manipulation, encoding, cryptography, templating,
-project knowledge management, and protocol utilities — all with machine-readable output.
-
-Module: `github.com/sandrolain/sdt`
-Go version: 1.26.5 (see `.tool-versions`)
-Pure-Go: no CGO.
-
----
-
-## Build and Test Commands
-
-```bash
-# Build the CLI binary
-go build -o bin/sdt ./cli
-
-# Run all tests
-go test ./...
-
-# Run tests with coverage (minimum 80% required)
-go test ./... -coverprofile=coverage.out
-go tool cover -func=coverage.out
-
-# Run linter
-golangci-lint run ./...
-
-# Run vulnerability check
-govulncheck ./...
-
-# Format code
-gofmt -w ./cli ./main.go
-```
-
----
-
-## Repository Structure
-
-```
-cli/
-  main.go         — entry point, sets build-time vars (version, commit, date)
-  cmd/            — all cobra commands (one file per command group)
-  utils/          — shared utility functions (hashing, encoding, JWT, etc.)
-main.go           — duplicate entry point at repo root (legacy)
-sdt.context/      — agent working directories (plan/, analysis/, worklog/, notes/, tasks/,
-                    questions/, archive/, architecture/, decisions/, instructions/) + instruction files (+ generated docs/)
-docs/             — auto-generated cobra documentation (sdt docs)
-test/             — test fixtures
-Taskfile.yml      — task definitions (build, test, lint, check)
-```
-
----
-
-## Code Conventions
-
-- **Language**: all code, comments, and documentation in English
-- **New Go files**: create as `.txt` first, then rename to `.go` (VS Code creates corrupted files otherwise)
-- **Tests**: every new command must have a `_test.go` file; benchmark tests in a separate `_bench_test.go`
-- **Coverage**: minimum 80% per package
-- **Lint**: no `golangci-lint` issues before committing
-- **No CGO**: all dependencies must be pure-Go; no `cgo` usage
-
----
-
-## Command Authoring Guidelines
-
-Every new command file must follow this pattern:
-
-```go
-var myCmd = &cobra.Command{
-    Use:   "mycommand",
-    Short: "One-line description",
-    Long:  `Detailed description`,
-    Run: func(cmd *cobra.Command, args []string) {
-        // 1. Read input via getInputString / getInputBytes / getInputStringOrFlag
-        // 2. Read flags via getStringFlag / getBoolFlag / getIntFlag
-        // 3. Process
-        // 4. Output via outputString / outputBytes
-        // 5. Errors via exitWithError(cmd, err)
-    },
-}
-
-func init() {
-    // add flags
-    rootCmd.AddCommand(myCmd)
-}
-```
-
-Global flags available on all commands (do not redefine):
-
-- `--format text|json|yaml` — output format
-- `--quiet` — suppress informational output
-- `--no-color` — disable ANSI
-- `--input`, `--inb64`, `--file` — input sources
-
-Use `getFormat(cmd)` to read the format flag.
-
----
-
-## Agent Instruction Files (`sdt agent`)
-
-Agent instructions are managed with `sdt agent init`:
-
-- `sdt agent init` — non-destructive bootstrap: `.sdt.yaml` (project/group identity), an `AGENTS.md` with a tagged `instructions` block (general agent instructions: 5-phase lifecycle, knowledge tiers, communication, patterns) and a write-once `project` block (project-specific conventions), `sdt.context/` work dirs (plan, worklog, notes, tasks, questions, tmp, architecture, decisions, archive) + `sdt.context/README.md`, and the per-type instruction files under `sdt.context/instructions/` (project, analysis, plan, tasks, adr, architecture, worklog, notes, questions, reference, cli). In a git repository (.git entry in the current directory), `.gitignore` handling is interactive: you are asked whether to ignore `sdt.context/` and which entries — `--gitignore none|tmp|docs|work|context` picks non-interactively (default `work` = `sdt.context/tmp` + `sdt.context/docs`). Entries are written to `.gitignore` in the same directory as `.sdt.yaml`, wrapped in a `# sdt:start` / `# sdt:end` block; parent directories are never resolved. `project`/`group` are prompted interactively when not passed as flags (default: `<dirname>_<short-path-hash>`). `--yes` accepts defaults without prompting; `--force` refreshes the generated instructions block (never the project block) and removes obsolete instruction files.
-
-Implementation in `cli/cmd/agent.go` (merge, identity, work dirs) and `cli/cmd/agentinstructions.go` (instruction file templates).
-
----
-
-## Project Configuration (`.sdt.yaml`)
-
-Commands that are project-scoped (e.g. `sdt context`) read project/group identity from:
-
-1. Explicit `--project` / `--group` flags (highest priority)
-2. `.sdt.yaml` file found by walking up from `$CWD` (like `.git`)
-3. Error with descriptive message (no implicit fallback)
-
-Example `.sdt.yaml`:
-
-```yaml
-project: myapp_7f2b39e1
-group: acme-platform
-```
-
-Create with: `sdt agent init --project myapp_7f2b39e1 --group acme-platform --yes`, or `sdt config init --project myapp --group platform` (see also `sdt config show`).
-
----
-
-## Key Dependencies
-
-| Package | Purpose |
-|---|---|
-| `github.com/spf13/cobra` | CLI framework |
-| `github.com/spf13/viper` | Config file loading |
-| `github.com/goccy/go-yaml` | YAML marshal/unmarshal |
-| `github.com/pelletier/go-toml/v2` | TOML support |
-| `github.com/vmihailenco/msgpack/v5` | MessagePack support |
-| `github.com/golang-jwt/jwt/v5` | JWT parsing/validation |
-| `github.com/google/uuid` | UUID v4 |
-| `golang.org/x/crypto` | bcrypt |
-| `golang.org/x/text` | Unicode text transforms |
-| `github.com/JohannesKaufmann/html-to-markdown` | HTML→Markdown (crawldown) |
-| `github.com/gocolly/colly` | Web crawling (crawldown) |
-| `codeberg.org/readeck/go-readability/v2` | Article extraction (crawldown) |
-| `github.com/makiuchi-d/gozxing` | QR code encode/decode (qrcode) |
-| `github.com/pquerna/otp` | TOTP/HOTP generation (totp) |
-| `github.com/sethvargo/go-password` | Password generation (password) |
-| `github.com/segmentio/ksuid`, `github.com/matoous/go-nanoid/v2` | ID generation (uid) |
-| `github.com/hashicorp/go-version` | Version comparison (vman) |
-
 <!-- sdt:begin:instructions -->
 
 ## Instructions
@@ -172,7 +21,7 @@ This project is managed with SDT. Read the relevant instruction file before acti
 - `sdt.context/docs/README.md` — per-command reference generated by `sdt context docs` (when present)
 
 Work directories live under `sdt.context/` (`plan/`, `analysis/`, `sdt.context/architecture/`,
-`sdt.context/decisions/`, worklog/, notes/, tasks/, archive/, tmp/). Never write or execute
+`sdt.context/decisions/`, worklog/, notes/, tasks/, questions/, archive/, tmp/). Never write or execute
 temporary files outside the project. Keep all instruction files concise and technical.
 
 ### 5-phase development lifecycle
@@ -268,21 +117,71 @@ and record the change in
 
 ## Project
 
-<!-- Fill in the sections below. Delete what does not apply. -->
-
 ### Stack
-<!-- e.g. Go 1.26 · PostgreSQL · gRPC · ... -->
+
+Go 1.26.5 (see `.tool-versions`) · pure-Go, no CGO · cobra CLI + viper config.
+
+Key dependencies:
+
+- `github.com/spf13/cobra` — CLI framework
+- `github.com/spf13/viper` — config file loading
+- `github.com/goccy/go-yaml` — YAML marshal/unmarshal
+- `github.com/pelletier/go-toml/v2` — TOML support
+- `github.com/vmihailenco/msgpack/v5` — MessagePack support
+- `github.com/golang-jwt/jwt/v5` — JWT parsing/validation
+- `github.com/google/uuid` — UUID v4
+- `golang.org/x/crypto` — bcrypt
+- `golang.org/x/text` — Unicode text transforms
+- `github.com/JohannesKaufmann/html-to-markdown`, `github.com/gocolly/colly`,
+  `codeberg.org/readeck/go-readability/v2` — (crawldown)
+- `github.com/makiuchi-d/gozxing` — QR code encode/decode (qrcode)
+- `github.com/pquerna/otp` — TOTP/HOTP generation (totp)
+- `github.com/sethvargo/go-password` — password generation (password)
+- `github.com/segmentio/ksuid`, `github.com/matoous/go-nanoid/v2` — ID generation (uid)
+- `github.com/hashicorp/go-version` — version comparison (vman)
 
 ### Build & Run
-<!-- e.g. go build -o bin/app ./cmd/app · docker compose up · ... -->
+
+```bash
+go build -o bin/sdt ./cli
+```
+
+Module `github.com/sandrolain/sdt`. Entry `cli/main.go` (sets build-time vars);
+`main.go` at repo root is a legacy duplicate.
 
 ### Test
-<!-- e.g. go test ./... · npm test · pytest · ... -->
+
+```bash
+go test ./...
+# coverage (minimum 80% required):
+go test ./... -coverprofile=coverage.out
+go tool cover -func=coverage.out
+```
 
 ### Lint & Format
-<!-- e.g. golangci-lint run · eslint --fix · ruff format · ... -->
+
+```bash
+golangci-lint run ./...
+govulncheck ./...
+gofmt -w ./cli ./main.go
+```
 
 ### Conventions
-<!-- Project-specific coding conventions, naming rules, branching strategy, ... -->
+
+- **Language**: all code, comments, and documentation in English.
+- **Tests**: every new command must have a `_test.go` file; benchmark tests in a
+  separate `_bench_test.go`.
+- **Coverage**: minimum 80% per package.
+- **Lint**: no `golangci-lint` issues before committing.
+- **No CGO**: all dependencies must be pure-Go; no `cgo` usage.
+- **Commands**: cobra, one file per command group under `cli/cmd/`. Follow the
+  pattern: read input via `getInputString`/`getInputBytes`, read flags via
+  `getStringFlag`/`getBoolFlag`/`getIntFlag`, output via `outputString`/`outputBytes`,
+  errors via `exitWithError(cmd, err)`. Register with `rootCmd.AddCommand(myCmd)` in `init()`.
+- **Global flags** (do not redefine): `--format text|json|yaml`, `--quiet`,
+  `--no-color`, `--input`, `--inb64`, `--file`. Read `--format` with `getFormat(cmd)`.
+- **Project-scoped commands** (e.g. `sdt context`) read identity from `--project`/`--group`
+  flags, then `.sdt.yaml` (walking up from `$CWD` like `.git`); error if absent.
+  Create with `sdt agent init --project … --group … --yes` or `sdt config init`.
 
 <!-- sdt:end:project -->
