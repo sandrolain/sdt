@@ -18,15 +18,17 @@ import (
 )
 
 const (
-	ctxTypePlan     = "plan"
-	ctxTypeAnalysis = "analysis"
-	ctxTypeWorklog  = "worklog"
-	ctxTypeNotes    = "notes"
-	ctxTypeTasks    = "tasks"
-	ctxTypeTmp      = "tmp"
-	ctxTypeArchive  = "archive"
+	ctxTypePlan         = "plan"
+	ctxTypeAnalysis     = "analysis"
+	ctxTypeWorklog      = "worklog"
+	ctxTypeNotes        = "notes"
+	ctxTypeTasks        = "tasks"
+	ctxTypeTmp          = "tmp"
+	ctxTypeArchive      = "archive"
 	ctxTypeArchitecture = "architecture"
-	ctxTypeDecision = "decision"
+	ctxTypeDecision     = "decision"
+	ctxTypeAdr          = "adr"
+	ctxTypeQuestions    = "questions"
 )
 
 var contextNow = time.Now
@@ -64,6 +66,8 @@ func contextDir(typ string) (string, bool) {
 		return sdtArchitectureDir, true
 	case ctxTypeDecision:
 		return sdtDecisionsDir, true
+	case ctxTypeQuestions:
+		return sdtQuestionsDir, true
 	}
 	return "", false
 }
@@ -101,8 +105,10 @@ func contextPath(typ, slug, phase string) (string, error) {
 		return "sdt.context/architecture/" + slug + sdtMarkdownExt, nil
 	case ctxTypeDecision:
 		return "", errors.New("decision type is append-only ADR; create via `sdt context new --type analysis` or edit decisions/")
+	case ctxTypeQuestions:
+		return filepath.Join(sdtQuestionsDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	}
-	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive|architecture|decisions)", typ)
+	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive|architecture|decisions|questions)", typ)
 }
 
 // ── context path ───────────────────────────────────────────────────────────────
@@ -233,20 +239,23 @@ func contextFrontmatter(typ, note, project, created string) string {
 var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a sdt.context/ work file with frontmatter",
-	Long: `Create a plan, worklog, notes or analysis file under sdt.context/ with the
-correct naming and YAML frontmatter (kind, created_at, context, project). The body
+	Long: `Create a plan, worklog, notes, analysis or questions file under sdt.context/
+with the correct naming and YAML frontmatter (kind, created_at, context, project). The body
 comes from --input/--file or piped stdin. Existing files are preserved unless
 --force is set; --edit opens the file in $EDITOR after creation.
 
 Examples:
   sdt context new --type worklog --slug review-deps --input "reviewed deps"
   sdt context new --type plan --slug ship-memory --force
-  sdt context new --type analysis --slug memory-backend --input "..."`,
+  sdt context new --type analysis --slug memory-backend --input "..."
+  sdt context new --type questions --slug open-api --input "..."`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
-		if typ != ctxTypePlan && typ != ctxTypeAnalysis && typ != ctxTypeWorklog && typ != ctxTypeNotes {
-			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes, got %q", typ))
+		switch typ {
+		case ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions:
+		default:
+			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes|questions, got %q", typ))
 		}
 		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
 		note := getStringFlag(cmd, "context", false)
@@ -359,7 +368,7 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
 		switch typ {
-		case "decisions", "adr":
+		case "decisions", ctxTypeAdr:
 			typ = ctxTypeDecision
 		}
 		dir, ok := contextDir(typ)
@@ -566,21 +575,21 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			if err != nil {
 				exitWithError(cmd, fmt.Errorf("invalid task id %q", args[0]))
 			}
-reason := ""
-		if status == taskStatusBlock {
-			reason = getStringFlag(cmd, "reason", false)
-		}
-		phase := getStringFlag(cmd, "phase", false)
-		content, err := readTaskFile(phase)
-		exitWithError(cmd, err)
-		updated, err := updateTaskStatus(content, id, status, reason)
-		exitWithError(cmd, err)
-		//#nosec G306 -- user work file
-		if err := os.WriteFile(taskFileFor(phase), []byte(updated), 0o644); err != nil {
+			reason := ""
+			if status == taskStatusBlock {
+				reason = getStringFlag(cmd, "reason", false)
+			}
+			phase := getStringFlag(cmd, "phase", false)
+			content, err := readTaskFile(phase)
 			exitWithError(cmd, err)
-		}
-		outputString(cmd, "ok\n")
-	},
+			updated, err := updateTaskStatus(content, id, status, reason)
+			exitWithError(cmd, err)
+			//#nosec G306 -- user work file
+			if err := os.WriteFile(taskFileFor(phase), []byte(updated), 0o644); err != nil {
+				exitWithError(cmd, err)
+			}
+			outputString(cmd, "ok\n")
+		},
 	}
 }
 

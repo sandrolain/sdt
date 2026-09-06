@@ -39,7 +39,7 @@ func ctxTierForDir(dir string) string {
 		return "essential"
 	case sdtAnalysisDir:
 		return "important"
-	case sdtPlanDir, sdtNotesDir:
+	case sdtPlanDir, sdtNotesDir, sdtQuestionsDir:
 		return "medium"
 	case sdtTasksDir:
 		return "operational"
@@ -58,6 +58,7 @@ var ctxIndexDirs = []string{
 	sdtAnalysisDir,
 	sdtPlanDir,
 	sdtNotesDir,
+	sdtQuestionsDir,
 	sdtTasksDir,
 	sdtWorklogDir,
 	sdtArchiveDir,
@@ -103,6 +104,63 @@ func parseFrontmatterField(content, key string) string {
 		}
 	}
 	return ""
+}
+
+// parseFrontmatterList parses a YAML block-list frontmatter field (a line
+// `key:` followed by `  - item` lines), returning the list items. Falls back to
+// a single inline value when present. Returns nil when the key is absent.
+func parseFrontmatterList(content, key string) []string {
+	lines := strings.Split(content, "\n")
+	var out []string
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
+		return nil
+	}
+	in := false
+	for _, line := range lines[1:] {
+		trim := strings.TrimSpace(line)
+		if trim == ctxFrontmatterDelim {
+			break
+		}
+		if !in {
+			if strings.HasPrefix(line, key+":") {
+				val := strings.TrimSpace(strings.TrimPrefix(line, key+":"))
+				if val != "" {
+					out = append(out, strings.TrimSpace(strings.Trim(val, `"'`)))
+				}
+				in = true
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "  -") {
+			out = append(out, strings.TrimSpace(strings.TrimPrefix(line, "  -")))
+		} else if line != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+			// a new top-level key ends the list
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// ctxResolvePath resolves a frontmatter reference ([[path]] or plain path)
+// relative to the document's directory, returning the absolute path if it
+// exists.
+func ctxResolvePath(base, ref string) (string, bool) {
+	ref = strings.TrimSpace(ref)
+	ref = strings.TrimSuffix(ref, sdtMarkdownExt)
+	if ref == "" {
+		return "", false
+	}
+	abs := filepath.Join(base, ref)
+	if !strings.HasSuffix(abs, sdtMarkdownExt) {
+		abs += sdtMarkdownExt
+	}
+	if _, err := os.Stat(abs); err != nil { //#nosec G703 -- validated against sdt.context/ tree
+		return "", false
+	}
+	return abs, true
 }
 
 // ctxIndexLine renders one index row: relative path + summary.
@@ -227,6 +285,19 @@ func (i ctxLintIssue) String() string {
 // ctxLinkRegexp matches a `[[path]]` wiki-style link or a plain relative path.
 var ctxLinkRegexp = regexp.MustCompile(`\[\[([a-zA-Z0-9_./-]+)\]\]`)
 
+// ctxDerivedKinds are document kinds that derive from or extend another
+// document and therefore must carry a `sources` frontmatter reference. Plan and
+// tasks always derive (from analysis/plan by the 5-phase lifecycle); ADR
+// decisions and open-question collections state their origin. A greenfield
+// analysis does not derive from anything, so analysis is not required to set
+// sources (a follow-up analysis should set it but is not hard-flagged).
+var ctxDerivedKinds = map[string]bool{
+	ctxTypePlan:      true,
+	ctxTypeTasks:     true,
+	ctxTypeAdr:       true,
+	ctxTypeQuestions: true,
+}
+
 // lintDoc validates one sdt.context document. priorityFn lowers CRITICAL to
 // WARNING when the file is legacy (no new-style frontmatter) so old history
 // does not fail the whole check.
@@ -277,6 +348,17 @@ func lintDoc(path string) []ctxLintIssue {
 		if _, err := os.Stat(abs); os.IsNotExist(err) { //#nosec G703 -- validated against sdt.context/ tree
 			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "broken link [[" + target + "]]"})
 		}
+	}
+	// sources: backward-provenance references (root-relative to sdt.context/,
+	// like the index). Resolve each entry; require the field on documents known
+	// to derive from/extend another document.
+	for _, ref := range parseFrontmatterList(content, "sources") {
+		if _, ok := ctxResolvePath(sdtWorkDir, ref); !ok {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "broken source reference: " + ref})
+		}
+	}
+	if ctxDerivedKinds[kind] && len(parseFrontmatterList(content, "sources")) == 0 {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "document derives from/extend another; missing `sources` frontmatter"})
 	}
 	// ADR directory: filename must match NNNN-slug.md and number must match.
 	if dir == sdtDecisionsDir {
@@ -403,6 +485,7 @@ func ctxStatusRows() []ctxStatusEntry {
 		{typ: "analysis", dir: sdtAnalysisDir, next: "read if current", ifClean: "done"},
 		{typ: "plan", dir: sdtPlanDir, next: "active plan", ifClean: gitIgnoreModeNone},
 		{typ: "notes", dir: sdtNotesDir, next: "review", ifClean: gitIgnoreModeNone},
+		{typ: "questions", dir: sdtQuestionsDir, next: "answer open questions", ifClean: gitIgnoreModeNone},
 		{typ: "tasks", dir: sdtTasksDir, next: "track per-phase", ifClean: gitIgnoreModeNone},
 		{typ: "worklog", dir: sdtWorklogDir, next: ctxTierHistory, ifClean: ctxTierHistory},
 		{typ: "archive", dir: sdtArchiveDir, next: ctxTierHistory, ifClean: ctxTierHistory},
@@ -441,7 +524,7 @@ Examples:
 		exitWithError(cmd, err)
 		data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
 		if os.IsNotExist(err) {
-			exitWithError(cmd, fmt.Errorf("no instruction file at %s (types: analysis|plan|tasks|adr|architecture|worklog|notes)", path))
+			exitWithError(cmd, fmt.Errorf("no instruction file at %s (types: analysis|plan|tasks|adr|architecture|worklog|notes|questions)", path))
 		}
 		exitWithError(cmd, err)
 		switch getFormat(cmd) {
@@ -471,7 +554,7 @@ func contextInstrPath(typ string) (string, error) {
 		name = "plan.md"
 	case ctxTypeTasks:
 		name = "tasks.md"
-	case "adr", "decision":
+	case ctxTypeAdr, "decision":
 		name = "adr.md"
 	case "architecture":
 		name = "architecture.md"
@@ -479,8 +562,10 @@ func contextInstrPath(typ string) (string, error) {
 		name = "worklog.md"
 	case ctxTypeNotes:
 		name = "notes.md"
+	case ctxTypeQuestions:
+		name = "questions.md"
 	default:
-		return "", fmt.Errorf("unknown type %q (use analysis|plan|tasks|adr|architecture|worklog|notes)", typ)
+		return "", fmt.Errorf("unknown type %q (use analysis|plan|tasks|adr|architecture|worklog|notes|questions)", typ)
 	}
 	return filepath.Join(sdtInstrDir, name), nil
 }

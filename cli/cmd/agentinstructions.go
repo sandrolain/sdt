@@ -69,7 +69,16 @@ Without explicit flags the default identity is ` + "`<dirname>_<short-path-hash>
 ` + codeFence + `
 sdt manifest --format json
 sdt schema --command "<command>"
-` + codeFence)
+` + codeFence + `
+
+## Project-specific conventions
+
+AGENTS.md carries a write-once ` + "`<!-- sdt:begin:project -->`" + ` block with a
+single generic template (Stack, Build & Run, Test, Lint & Format, Conventions).
+This file is the companion: record the concrete build/test/lint commands and
+project conventions here, and keep the AGENTS.md project block in sync when a
+pattern becomes a stable convention.
+`)
 	return b.String()
 }
 
@@ -96,6 +105,8 @@ created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:                    # optional related documents
   - decisions/0002-api-format
+sources:                  # optional: analysis/plan this derives from or extends
+  - analysis/<date>-<slug>.md
 project: <project>
 ---
 
@@ -115,7 +126,11 @@ project: <project>
 
 - ` + "`summary`" + ` is mandatory and used by ` + "`sdt context reindex`" + `.
 - Dated files: integrate/modify the current analysis while it is the active one;
-  a materially new line of investigation gets a new dated file.
+  a materially new line of investigation gets a new dated file (and sets
+  ` + "`sources`" + ` back to the analysis it extends).
+- Leave **no open points**: if a decision is missing, ask on the fly or register
+  it as an open question in ` + "`sdt.context/questions/`" + `; keep the user in
+  control of the decisions.
 - Track work via the 5-phase cycle: Analysis → Plan → Tasks per phase → Execution
   (updates plan+task, creates architecture/ADRs) → Final reports.
 - Verify-step before finishing: completeness, coherence, correctness; prioritize
@@ -342,6 +357,47 @@ project: <project>
 - Tier: **medium** (notes with context), indexed.
 `
 
+const instrQuestionsTemplate = `# Open Questions
+
+` + "`sdt.context/questions/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` collect open questions and
+unresolved points that need the user's decision before a piece of work can
+proceed. Analysis and plan documents must NOT contain open points: surface them
+here instead.
+
+## Structure
+
+` + codeFence + `markdown
+---
+kind: questions
+summary: "<1-2 sentence summary — MANDATORY, index source>"
+context: "<objective / what triggered the open points>"
+status: active            # active | resolved
+sources:                  # document(s) where the points surfaced
+  - analysis/<date>-<slug>.md
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+project: <project>
+---
+
+## Open questions
+
+- [ ] Q1: <question> — options: A / B / C — decision needed by <who>
+- [ ] Q2: <question> — ...
+` + codeFence + `
+
+## Rules
+
+- Keep no open points in analysis/plan documents: ask on the fly or register the
+  question here and prompt the user to answer.
+- The ` + "`sources`" + ` frontmatter array links back to the document(s) where each open
+  point surfaced (bidirectional traceability: from the questions doc you find the
+  analysis, and from the analysis you find its open points).
+- Help the user cover the open points, but keep the user in control of the
+  decisions. Once answered, resolve the point in the analysis/plan and mark the
+  question resolved (` + "`status: resolved`" + `).
+- Tier: **medium**, indexed.
+`
+
 const instrReferenceTemplate = `# SDT — Command Reference
 
 SDT (Smart Developer Tools) is a pure-Go, offline-first CLI for AI agents.
@@ -383,7 +439,7 @@ Create it with ` + "`sdt agent init --project myapp --group platform`" + ` or
 
 Documents under ` + "`sdt.context/`" + ` are the project knowledge. Per-type
 instructions and templates in ` + "`sdt.context/instructions/`" + ` (analysis, plan,
-tasks, adr, architecture, worklog, notes, project, cli usage). Index and checks:
+tasks, adr, architecture, worklog, notes, questions, project, cli usage). Index and checks:
 ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` / ` + "`sdt context status`" + ` /
 ` + "`sdt context template --type <tipo>`" + `. Nothing is written by the CLI: the
 agent edits the Markdown files.

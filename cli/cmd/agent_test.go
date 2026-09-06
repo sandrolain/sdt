@@ -46,6 +46,7 @@ func instructionFileNames() []string {
 		"architecture.md",
 		"worklog.md",
 		"notes.md",
+		"questions.md",
 		"reference.md",
 		"cli.md",
 	}
@@ -82,12 +83,83 @@ func TestAgentMergeBlock(t *testing.T) {
 	}
 }
 
+func TestAgentAppendIfMissing(t *testing.T) {
+	content := agentAppendIfMissing("# H\n", agentSectionNameProject, "body")
+	if !strings.Contains(content, "<!-- sdt:begin:"+agentSectionNameProject+" -->") {
+		t.Error("expected project block appended when absent")
+	}
+
+	again := agentAppendIfMissing(content, agentSectionNameProject, "refreshed-ish-not-forced")
+	if again != content {
+		t.Error("expected project block unchanged when already present (write-once)")
+	}
+}
+
+func TestAgentBlockProject(t *testing.T) {
+	body := agentBlockProject("myapp", "grp")
+	for _, want := range []string{"## Project", "### Stack", "### Build & Run", "### Test", "### Lint & Format", "### Conventions", "<!-- Fill in the sections below. Delete what does not apply. -->"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("expected %q in project template:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "myapp") || strings.Contains(body, "grp") {
+		t.Error("project template should not embed project/group identity")
+	}
+}
+
+func TestAgentMergeTargetProjectWriteOnce(t *testing.T) {
+	dir := runInTempDir(t)
+
+	// first init: both blocks created
+	res, content := agentMergeTarget("AGENTS.md", "myapp", "grp", false)
+	if res.Status != statusCreated {
+		t.Fatalf("expected created, got %s", res.Status)
+	}
+	if !strings.Contains(content, "<!-- sdt:begin:instructions -->") || !strings.Contains(content, "<!-- sdt:begin:project -->") {
+		t.Fatal("expected both blocks on first merge")
+	}
+
+	// write the file so second merge sees it
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// re-init without force: skip unchanged
+	res2, content2 := agentMergeTarget("AGENTS.md", "myapp", "grp", false)
+	if res2.Status != statusSkipped {
+		t.Fatalf("expected skipped on re-run, got %s", res2.Status)
+	}
+	if content2 != content {
+		t.Error("expected no change on re-run")
+	}
+
+	// edit the project block as the user would, then --force must NOT touch it
+	edited := strings.Replace(content, "### Stack", "### Stack\n<!-- Go 1.26 -->", 1)
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, forced := agentMergeTarget("AGENTS.md", "myapp", "grp", true)
+	if strings.Contains(forced, "<!-- Go 1.26 -->") != strings.Contains(edited, "<!-- Go 1.26 -->") {
+		t.Error("expected --force to leave the project block untouched")
+	}
+	if !strings.Contains(forced, "<!-- Go 1.26 -->") {
+		t.Error("expected user's project block edit preserved through --force")
+	}
+}
+
 func TestAgentTargetPathFallback(t *testing.T) {
-	runInTempDir(t)
+	dir := runInTempDir(t)
 	writeTestFile(t, "AGENTS.md", sectionBlock("instructions", "x"))
 	out := execute(t, agentInitCmd, nil, "--target", "")
-	if !strings.Contains(string(out), "[skipped] AGENTS.md") {
-		t.Errorf("expected fallback to AGENTS.md, got: %s", out)
+	if !strings.Contains(string(out), "[updated] AGENTS.md") {
+		t.Errorf("expected fallback to AGENTS.md that adds the project block, got: %s", out)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if !strings.Contains(string(data), "<!-- sdt:begin:project -->") {
+		t.Error("expected project block added to legacy instructions-only AGENTS.md")
+	}
+	if !strings.Contains(string(data), "x") {
+		t.Error("expected existing instructions block preserved")
 	}
 }
 
@@ -112,10 +184,16 @@ func TestAgentInit(t *testing.T) {
 
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	if !strings.Contains(string(data), "<!-- sdt:begin:instructions -->") {
-		t.Error("expected single instructions block in AGENTS.md")
+		t.Error("expected instructions block in AGENTS.md")
 	}
-	if count := strings.Count(string(data), "<!-- sdt:begin:"); count != 1 {
-		t.Errorf("expected exactly one tagged block, got %d", count)
+	if !strings.Contains(string(data), "<!-- sdt:begin:project -->") {
+		t.Error("expected project block in AGENTS.md")
+	}
+	if !strings.Contains(string(data), "<!-- sdt:end:instructions -->") || !strings.Contains(string(data), "<!-- sdt:end:project -->") {
+		t.Error("expected instructions and project end markers in AGENTS.md")
+	}
+	if count := strings.Count(string(data), "<!-- sdt:end:"); count != 2 {
+		t.Errorf("expected exactly two tagged blocks (instructions + project), got %d end markers", count)
 	}
 	for _, want := range []string{
 		"sdt.context/instructions/project.md",
@@ -137,11 +215,20 @@ func TestAgentInit(t *testing.T) {
 		"sdt.context/architecture/",
 		"sdt.context/decisions/",
 		"sdt.context/index.md",
-		"create or update the relevant section",
+		"### Open points (no open questions in analysis/plans)",
+		"sdt.context/questions/",
+		"### Stack",
+		"### Build & Run",
+		"### Test",
+		"### Lint & Format",
+		"### Conventions",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md index", want)
 		}
+	}
+	if !strings.Contains(string(data), "update the relevant section in the `<!-- sdt:begin:project -->` block") {
+		t.Error("expected Patterns to point at the project block")
 	}
 	if !strings.Contains(string(data), "project: myapp") {
 		t.Errorf("expected real project injected in frontmatter:\n%s", data)
@@ -182,7 +269,7 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"sdt.context/plan", "sdt.context/analysis", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tasks", "sdt.context/archive", "sdt.context/tmp", "sdt.context/instructions", "sdt.context/architecture", "sdt.context/decisions"} {
+	for _, d := range []string{"sdt.context/plan", "sdt.context/analysis", "sdt.context/worklog", "sdt.context/notes", "sdt.context/questions", "sdt.context/tasks", "sdt.context/archive", "sdt.context/tmp", "sdt.context/instructions", "sdt.context/architecture", "sdt.context/decisions"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
@@ -201,8 +288,8 @@ func TestAgentInitExisting(t *testing.T) {
 	if !strings.Contains(string(data), "<!-- sdt:begin:instructions -->") {
 		t.Error("expected instructions block added to existing AGENTS.md")
 	}
-	if count := strings.Count(string(data), "<!-- sdt:begin:"); count != 1 {
-		t.Errorf("expected exactly one tagged block, got %d", count)
+	if count := strings.Count(string(data), "<!-- sdt:end:"); count != 2 {
+		t.Errorf("expected two tagged blocks (instructions + project), got %d end markers", count)
 	}
 }
 

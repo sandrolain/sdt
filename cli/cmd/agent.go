@@ -60,6 +60,20 @@ func agentMergeBlock(content, name, body string, force bool) (string, bool) {
 	return content + sectionBlock(name, body), true
 }
 
+// agentAppendIfMissing appends the named block only when it is absent. Unlike
+// agentMergeBlock it has no force semantics: once present, the block is never
+// touched. Used for write-once sections owned by the user/agent.
+func agentAppendIfMissing(content, name, body string) string {
+	if hasSection(content, name) {
+		return content
+	}
+	content = strings.TrimRight(content, "\n")
+	if content != "" {
+		content += "\n\n"
+	}
+	return content + sectionBlock(name, body)
+}
+
 // ── target file helpers ────────────────────────────────────────────────────────
 
 func agentTargetPath(cmd *cobra.Command) string {
@@ -80,10 +94,12 @@ var agentCmd = &cobra.Command{
   agent init       bootstrap AGENTS.md + sdt.context/ instruction files
 
 AGENTS.md carries the general agent instructions (5-phase lifecycle, knowledge
-tiers, planning and work logs, communication, patterns) in a single tagged
-block. The instruction files under ` + "`sdt.context/instructions/`" + ` cover CLI
-usage plus per-type templates (analysis, plan, tasks, adr, architecture,
-worklog, notes) and the command reference.
+tiers, planning and work logs, communication, patterns) in a tagged
+` + "`instructions`" + ` block, plus a write-once ` + "`project`" + ` block for project-specific
+stack/build/test/lint/conventions. The instruction files under
+` + "`sdt.context/instructions/`" + ` cover CLI usage plus per-type templates (analysis,
+plan, tasks, adr, architecture, worklog, notes, questions) and the command
+reference.
 `,
 }
 
@@ -105,6 +121,7 @@ func instructionFiles(project, group string) []instructionFile {
 		{name: filepath.Base(sdtInstrArchitecture), body: instrArchitectureTemplate},
 		{name: filepath.Base(sdtInstrWorklog), body: instrWorklogTemplate},
 		{name: filepath.Base(sdtInstrNotes), body: instrNotesTemplate},
+		{name: filepath.Base(sdtInstrQuestions), body: instrQuestionsTemplate},
 		{name: filepath.Base(sdtInstrReference), body: instrReferenceTemplate},
 		{name: filepath.Base(sdtInstrCli), body: instrCLITemplate},
 	}
@@ -189,10 +206,11 @@ var agentInitCmd = &cobra.Command{
 	Long: `Bootstrap the current directory with everything an AI agent needs:
 
   .sdt.yaml                           project identity (project/group)
-  AGENTS.md                           single tagged block of general instructions
+  AGENTS.md                           tagged blocks: instructions + write-once project template
   sdt.context/plan|worklog|notes|tasks|archive|tmp  working directories
   sdt.context/architecture/      living architecture documentation (no date)
   sdt.context/decisions/         numbered ADRs (NNNN-<slug>.md, append-only)
+  sdt.context/questions/         open questions awaiting a user decision
   sdt.context/analysis/          analysis documents and implementation plans
   sdt.context/instructions/      per-type instruction/template files
   .gitignore                          ignores chosen sdt.context dirs (current dir)
@@ -258,7 +276,8 @@ Examples:
 		// 4. Instruction files under sdt.context/instructions/.
 		instrResults := writeInstructionFiles(cfg.Project, cfg.Group, force)
 
-		// 5. AGENTS.md: ensure the single instructions block.
+		// 5. AGENTS.md: ensure the instructions block (--force refreshable) and
+		//    the write-once project block.
 		mdResult, mdBody := agentMergeTarget(target, cfg.Project, cfg.Group, force)
 		if err := os.WriteFile(target, []byte(mdBody), 0o644); err != nil { //#nosec G306 -- user-chosen output file
 			exitWithError(cmd, err)
@@ -446,7 +465,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 
 // ensureWorkDirs creates the sdt.context/ working directory layout.
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -513,6 +532,7 @@ instruction files and temporary files for this project.
 - ` + "`decisions/`" + ` — numbered ADRs (` + "`NNNN-<slug>.md`" + `, append-only)
 - ` + "`worklog/`" + ` — chronological log of completed work
 - ` + "`notes/`" + ` — free-form annotations
+- ` + "`questions/`" + ` — open questions / points awaiting user decision (` + "`sources`" + ` link back to origin)
 - ` + "`tasks/`" + ` — per-phase task checklists
 - ` + "`archive/`" + ` — completed task lists (history)
 - ` + "`instructions/`" + ` — agent instruction files (referenced by AGENTS.md)
@@ -693,8 +713,9 @@ func gitIgnoreHasEntry(content, entry string) bool {
 	return false
 }
 
-// agentMergeTarget ensures AGENTS.md carries the single instructions block
-// without destroying custom content. With force the block is refreshed.
+// agentMergeTarget ensures AGENTS.md carries the instructions block (refreshed
+// with --force) plus the write-once project block (never touched once present),
+// without destroying custom content. Returns the new content.
 func agentMergeTarget(target, project, group string, force bool) (FileResult, string) {
 	res := FileResult{Path: target}
 	content := ""
@@ -708,8 +729,15 @@ func agentMergeTarget(target, project, group string, force bool) (FileResult, st
 		content = string(data)
 	}
 
-	newContent, changed := agentMergeBlock(content, agentSectionNameInstructions, agentBlockInstructions(project, group), force)
-	if !changed {
+	// Instructions block: refreshed with --force, else preserved.
+	instrContent, instrChanged := agentMergeBlock(content, agentSectionNameInstructions, agentBlockInstructions(project, group), force)
+
+	// Project block: write-once, created only when absent, never by --force.
+	beforeProject := instrContent
+	projectContent := agentAppendIfMissing(instrContent, agentSectionNameProject, agentBlockProject(project, group))
+	projectAdded := projectContent != beforeProject
+
+	if !instrChanged && !projectAdded {
 		res.Status = statusSkipped
 		res.Reason = "AGENTS.md already up to date"
 	} else if strings.TrimSpace(content) == "" {
@@ -717,7 +745,7 @@ func agentMergeTarget(target, project, group string, force bool) (FileResult, st
 	} else {
 		res.Status = statusUpdated
 	}
-	return res, newContent
+	return res, projectContent
 }
 
 func agentBlockInstructions(project, group string) string {
@@ -751,6 +779,7 @@ This project is managed with SDT. Read the relevant instruction file before acti
 - ` + "`sdt.context/instructions/architecture.md`" + ` — living architecture docs (tier: essential)
 - ` + "`sdt.context/instructions/worklog.md`" + ` — work logs (final reports, append-only)
 - ` + "`sdt.context/instructions/notes.md`" + ` — free-form annotations
+- ` + "`sdt.context/instructions/questions.md`" + ` — open questions with provenance (sources)
 - ` + "`sdt.context/index.md`" + ` — generated knowledge index (` + "`sdt context reindex`" + `)
 - ` + "`sdt.context/docs/README.md`" + ` — per-command reference generated by ` + "`sdt context docs`" + ` (when present)
 
@@ -809,13 +838,56 @@ type. Body only when "why" unclear. No period on subject.
 Files in ` + "`sdt.context/`" + `: concise technical language. Cut fluff, keep meaning
 and readability. These instructions and docs are concise on purpose.
 
+### Open points (no open questions in analysis/plans)
+
+Analysis and plan documents must NOT contain open points. If a decision is
+missing or you are unsure, either:
+
+1. ask on the fly (a short question during the conversation), or
+2. register it as an open question in ` + "`sdt.context/questions/`" + ` (one dated
+   file with a checklist of open questions) and prompt the user to answer it.
+
+Every questions document, and any document that derives from or extends another
+(plan→analysis, tasks→plan, ADR→architecture/analysis, follow-up analysis, ...),
+must keep a reference to its source document via the ` + "`sources`" + ` frontmatter
+array and/or inline body text, for bidirectional traceability.
+
+Help the user cover the open points, but keep the user in control of the
+decisions. Once answered, resolve the point in the analysis/plan and mark the
+question resolved.
+
 ### Patterns (keep updated)
 
 This AGENTS.md is the source of truth for project conventions. Whenever a
 decision is taken on a pattern to use in development, testing, documentation or
-workflows, create or update the relevant section in the header of this AGENTS.md
-(before the tagged block below) and record the change in
+workflows, update the relevant section in the ` + "`<!-- sdt:begin:project -->`" + ` block
+and record the change in
 ` + "`sdt.context/worklog/`" + `. Keep every section concise and technical.
+`
+}
+
+// agentBlockProject returns the write-once, single generic template placed in
+// the `<!-- sdt:begin:project -->` block. The user or agent fills in the
+// sections over time; the template does not vary by project type.
+func agentBlockProject(project, group string) string {
+	return `## Project
+
+<!-- Fill in the sections below. Delete what does not apply. -->
+
+### Stack
+<!-- e.g. Go 1.26 · PostgreSQL · gRPC · ... -->
+
+### Build & Run
+<!-- e.g. go build -o bin/app ./cmd/app · docker compose up · ... -->
+
+### Test
+<!-- e.g. go test ./... · npm test · pytest · ... -->
+
+### Lint & Format
+<!-- e.g. golangci-lint run · eslint --fix · ruff format · ... -->
+
+### Conventions
+<!-- Project-specific coding conventions, naming rules, branching strategy, ... -->
 `
 }
 

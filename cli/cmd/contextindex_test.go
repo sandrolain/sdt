@@ -172,3 +172,100 @@ func TestContextTaskArchivePhaseFile(t *testing.T) {
 		t.Error("expected task file removed after archive")
 	}
 }
+
+func TestContextQuestionsPath(t *testing.T) {
+	setupContextProject(t)
+	out := execute(t, contextPathCmd, nil, "--type", "questions", "--slug", "backend")
+	if !strings.Contains(string(out), filepath.Join("sdt.context", "questions")) {
+		t.Errorf("expected questions path, got %s", out)
+	}
+	if !strings.Contains(string(out), "-backend.md") {
+		t.Errorf("expected slug in questions path, got %s", out)
+	}
+}
+
+func TestContextQuestionsNew(t *testing.T) {
+	dir := setupContextProject(t)
+	execute(t, contextNewCmd, nil, "--type", "questions", "--slug", "open-api", "--input", "body")
+	path := filepath.Join(dir, "sdt.context", "questions")
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		t.Fatalf("expected questions dir: %v", err)
+	}
+	if len(entries) != 1 || !strings.Contains(entries[0].Name(), "open-api") {
+		t.Fatalf("expected one questions file with slug, got %v", entries)
+	}
+	data, _ := os.ReadFile(filepath.Join(path, entries[0].Name()))
+	if !strings.Contains(string(data), "kind: questions") {
+		t.Errorf("expected kind: questions in doc:\n%s", data)
+	}
+}
+
+func TestContextQuestionsTemplate(t *testing.T) {
+	setupContextProject(t)
+	out := execute(t, contextTemplateCmd, nil, "--type", "questions")
+	if !strings.Contains(string(out), "kind: questions") {
+		t.Errorf("expected questions template content: %s", out)
+	}
+	if !strings.Contains(string(out), "sources") {
+		t.Errorf("expected sources field in questions template: %s", out)
+	}
+}
+
+func TestContextStatusIncludesQuestions(t *testing.T) {
+	setupContextProject(t)
+	out := execute(t, contextStatusCmd, nil)
+	if !strings.Contains(string(out), "questions:") {
+		t.Errorf("expected questions type in status: %s", out)
+	}
+}
+
+func TestContextReindexIncludesQuestions(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "sdt.context/questions/q.md", "---\nkind: questions\nsummary: An open question\n---\nbody\n")
+	execute(t, contextReindexCmd, nil)
+	idx, _ := os.ReadFile(filepath.Join(dir, "sdt.context/index.md"))
+	if !strings.Contains(string(idx), "[[questions/q.md]]") {
+		t.Errorf("expected questions doc in index:\n%s", idx)
+	}
+}
+
+func TestContextLintSourcesResolves(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "sdt.context/analysis/base.md", "---\nkind: analysis\nsummary: base\n---\n")
+	writeCtxDoc(t, "sdt.context/questions/q.md", "---\nkind: questions\nsummary: q\nsources:\n  - analysis/base.md\n---\n")
+	idx := "---\nkind: index\nsummary: i\n---\n"
+	if err := os.WriteFile(filepath.Join(dir, "sdt.context/index.md"), []byte(idx), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	if strings.Contains(string(out), "broken source") {
+		t.Errorf("expected no broken source warnings for valid reference: %s", out)
+	}
+}
+
+func TestContextLintSourcesMissingOnDerived(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "sdt.context/questions/q.md", "---\nkind: questions\nsummary: q\n---\n")
+	idx := "---\nkind: index\nsummary: i\n---\n"
+	if err := os.WriteFile(filepath.Join(dir, "sdt.context/index.md"), []byte(idx), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	if !strings.Contains(string(out), "missing `sources`") {
+		t.Errorf("expected missing sources warning on derived questions doc: %s", out)
+	}
+}
+
+func TestContextLintSourcesBroken(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "sdt.context/questions/q.md", "---\nkind: questions\nsummary: q\nsources:\n  - analysis/does-not-exist.md\n---\n")
+	idx := "---\nkind: index\nsummary: i\n---\n"
+	if err := os.WriteFile(filepath.Join(dir, "sdt.context/index.md"), []byte(idx), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	if !strings.Contains(string(out), "broken source") {
+		t.Errorf("expected broken source warning: %s", out)
+	}
+}

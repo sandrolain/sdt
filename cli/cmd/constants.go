@@ -37,6 +37,7 @@ const (
 	sdtContextIndex      = "sdt.context/index.md"
 	sdtArchitectureDir   = "sdt.context/architecture"
 	sdtDecisionsDir      = "sdt.context/decisions"
+	sdtQuestionsDir      = "sdt.context/questions"
 	sdtInstrProject      = "sdt.context/instructions/project.md"
 	sdtInstrReference    = "sdt.context/instructions/reference.md"
 	sdtInstrCli          = "sdt.context/instructions/cli.md"
@@ -47,9 +48,11 @@ const (
 	sdtInstrArchitecture = "sdt.context/instructions/architecture.md"
 	sdtInstrWorklog      = "sdt.context/instructions/worklog.md"
 	sdtInstrNotes        = "sdt.context/instructions/notes.md"
+	sdtInstrQuestions    = "sdt.context/instructions/questions.md"
 
-	// The single tagged section name in AGENTS.md.
+	// The tagged section names in AGENTS.md.
 	agentSectionNameInstructions = "instructions"
+	agentSectionNameProject      = "project"
 
 	// File result statuses.
 	statusCreated = "created"
