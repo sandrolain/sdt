@@ -92,6 +92,17 @@ implementation plans. They are important while open, less once implemented.
 - Record a reasoning/decision process: what was examined, what was decided, why.
 - Every analysis has a clear objective that triggered it.
 
+## When to start here (intent first)
+
+A user objective/question that falls **outside the context of an existing
+analysis or plan** starts here: create the **analysis** and stop. Each next
+step — **plan** → **task files** → **execution** — is taken only with
+**explicit user approval**, unless the user has indicated to proceed. When the
+intent is in the context of an existing analysis, integrate/modify it in place
+(` + "`sources`" + ` back to it); never modify a previous analysis on your own —
+only when the user points to it. Trivial or informational questions are
+answered inline — the chain starts at the first non-trivial piece of work.
+
 ## Structure
 
 ` + codeFence + `markdown
@@ -191,6 +202,17 @@ const instrPlanTemplate = `# Plan Documents
 work, derived from the related analysis. Plans are **living documents**: they are
 updated during execution, not frozen. A plan exists to produce task files; a plan
 without tasks has no execution value.
+
+## Intent first
+
+A plan is **required before implementation** and **derives from an analysis**.
+For a new user objective/question outside the context of an existing analysis
+or plan, the order is: analysis → (approval) → plan → (approval) → task files →
+(approval) → implementation — each step gated by **explicit user approval**
+unless the user indicated to proceed. The plan is built on top of the analysis
+(set ` + "`sources`" + `). Within a plan that is already running,
+integrate/modify it in place — do not restart the chain; never modify a
+previous analysis/plan on your own.
 
 ## Workflow (plan → tasks → execution)
 
@@ -300,6 +322,15 @@ There is no single global TODO: each plan phase gets its own file so the agent
 can track exactly what is done and what is pending for that phase. The task file
 is the **execution unit**: work happens from one task file at a time, never from
 the plan.
+
+## Intent first
+
+Task files **follow the plan**; the plan **follows the analysis**. Do not start
+implementation without the analysis → plan → tasks chain for a new objective,
+and take each step — plan, tasks, execution — only with **explicit user
+approval** unless the user indicated to proceed. If the intent lies inside an
+existing analysis/plan, continue that chain (integrate/modify) instead of
+restarting; never modify a previous analysis/plan on your own.
 
 ## Structure
 

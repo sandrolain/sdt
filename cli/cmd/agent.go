@@ -794,6 +794,15 @@ temporary files outside the project. Keep all instruction files concise and tech
 
 Follow this cycle for any non-trivial task:
 
+0. **Intent first, gated** — when the user poses a question or objective that
+   lies **outside the context of an existing analysis or plan**, do not start
+   implementing: first create the **analysis** (step 1) and stop. Each next
+   step — **plan** → **task files** → **execution** — requires **explicit
+   user approval**, unless the user has already indicated to proceed. When the
+   intent **is** in the context of an existing analysis/plan, integrate/modify
+   that document in place. Never modify a previous analysis/plan on your own —
+   only when the user points to it. Trivial or informational questions are
+   answered inline — the chain starts at the first non-trivial piece of work.
 1. **Analysis** — perform it; integrate/modify existing analysis files.
 2. **Plan** — create from the analysis; integrate/modify as needed.
 3. **Tasks** — right after the plan, create **one task file per phase** in
