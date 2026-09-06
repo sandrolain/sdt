@@ -178,16 +178,40 @@ func outputContextNew(cmd *cobra.Command, res contextNewResult) {
 	}
 }
 
+// yamlScalar quotes s when the plain form would not parse as a valid YAML
+// block scalar (e.g. contains ": ", " #", leading/trailing space, newline, or
+// starts with a special indicator). Plain form is kept for ordinary values so
+// generated frontmatter stays readable.
+func yamlScalar(s string) string {
+	if s == "" {
+		return `""`
+	}
+	special := strings.ContainsAny(s, ":#\n\t")
+	indicatorPrefix := strings.HasPrefix(s, "-") || strings.HasPrefix(s, "?") ||
+		strings.HasPrefix(s, "[") || strings.HasPrefix(s, "]") ||
+		strings.HasPrefix(s, "{") || strings.HasPrefix(s, "}") ||
+		strings.HasPrefix(s, ",") || strings.HasPrefix(s, "&") ||
+		strings.HasPrefix(s, "*") || strings.HasPrefix(s, "!") ||
+		strings.HasPrefix(s, "|") || strings.HasPrefix(s, ">") ||
+		strings.HasPrefix(s, "%") || strings.HasPrefix(s, "@") ||
+		strings.HasPrefix(s, "`") || strings.HasPrefix(s, `"`) ||
+		strings.HasPrefix(s, "'")
+	if !special && !indicatorPrefix && s == strings.TrimSpace(s) {
+		return s
+	}
+	return strconv.Quote(s)
+}
+
 func contextFrontmatter(typ, note, project, created string) string {
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: " + typ + "\n")
 	b.WriteString("created_at: " + created + "\n")
 	if note != "" {
-		b.WriteString("context: " + note + "\n")
+		b.WriteString("context: " + yamlScalar(note) + "\n")
 	}
 	if project != "" {
-		b.WriteString("project: " + project + "\n")
+		b.WriteString("project: " + yamlScalar(project) + "\n")
 	}
 	b.WriteString("---\n")
 	return b.String()

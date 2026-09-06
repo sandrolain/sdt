@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/goccy/go-yaml"
 )
 
 // stubContextNow pins contextNow to a fixed timestamp for deterministic paths
@@ -111,6 +113,35 @@ func TestContextNewPlan(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "kind: plan") {
 		t.Errorf("expected kind: plan:\n%s", data)
+	}
+}
+
+func TestContextNewQuotesContextWithColon(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	out := execute(t, contextNewCmd, nil, "--type", "worklog", "--slug", "colon-context", "--context", "Delta here: nested maps", "--input", "body")
+	path := strings.TrimSpace(string(out))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("expected worklog file created: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, `context: "Delta here: nested maps"`) {
+		t.Errorf("expected quoted context to avoid invalid YAML:\n%s", content)
+	}
+	fmBlock := strings.TrimSpace(strings.SplitN(content, "---", 3)[1])
+	var fm struct {
+		Kind      string `yaml:"kind"`
+		CreatedAt string `yaml:"created_at"`
+		Context   string `yaml:"context"`
+		Project   string `yaml:"project"`
+	}
+	if err := yaml.Unmarshal([]byte(fmBlock), &fm); err != nil {
+		t.Fatalf("frontmatter must parse as YAML: %v\n%s", err, fmBlock)
+	}
+	if fm.Kind != "worklog" || fm.Context != "Delta here: nested maps" {
+		t.Errorf("unexpected frontmatter values: %+v", fm)
 	}
 }
 
