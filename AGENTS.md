@@ -11,7 +11,7 @@ This project is managed with SDT. Read the relevant instruction file before acti
 - `sdt.context/instructions/cli.md` — CLI usage and examples
 - `sdt.context/instructions/analysis.md` — analysis documents (structure + initial scan)
 - `sdt.context/instructions/plan.md` — plans + the 5-phase development lifecycle
-- `sdt.context/instructions/tasks.md` — per-phase task checklists (verify-step)
+- `sdt.context/instructions/tasks.md` — per-phase task files (workflow, stale check, verify-step)
 - `sdt.context/instructions/adr.md` — ADRs (numbered, append-only, sync → architecture)
 - `sdt.context/instructions/architecture.md` — living architecture docs (tier: essential)
 - `sdt.context/instructions/worklog.md` — work logs (final reports, append-only)
@@ -30,10 +30,14 @@ Follow this cycle for any non-trivial task:
 
 1. **Analysis** — perform it; integrate/modify existing analysis files.
 2. **Plan** — create from the analysis; integrate/modify as needed.
-3. **Tasks** — from the plan create **one checklist file per phase** in
-   `sdt.context/tasks/<phase>.md` (`sdt context task`).
-4. **Execution** — develop the project; create `sdt.context/architecture/` and `sdt.context/decisions/`
-   (ADRs) as needed; **update the tasks and plan files** in place.
+3. **Tasks** — right after the plan, create **one task file per phase** in
+   `sdt.context/tasks/<phase>.md` (`sdt context task`); a plan
+   without task files has no execution value.
+4. **Execution** — work **one task file at a time**, never from the plan;
+   **mark it in progress on take-in**, complete items as they finish, scan
+   `sdt.context/tasks/` for stale in-progress files before starting; create
+   `sdt.context/architecture/` and `sdt.context/decisions/` (ADRs) as
+   needed; **update the task and plan files** in place.
 5. **Final reports** — append `sdt.context/worklog/` and `notes/` entries.
 
 Before closing a phase run the **verify-step**: completeness, coherence, correctness
@@ -67,6 +71,9 @@ links:             # optional array
   - decisions/0001-something
 project: sdt_44f24890
 group: sdt_44f24890
+agent: <agent/tool>     # optional — name of the agent/tool that edited
+model: <model id>       # optional — model id for provenance
+session: <session id>   # optional — session id for traceability
 ---
 ```
 
