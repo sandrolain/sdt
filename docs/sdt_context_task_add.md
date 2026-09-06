@@ -11,6 +11,7 @@ sdt context task add <step> [flags]
 ```
   -h, --help               help for add
       --objective string   Objective for the task list (used when creating)
+      --phase string       Phase for the checklist file (default plan) (default "plan")
 ```
 
 ### Options inherited from parent commands
@@ -26,5 +27,5 @@ sdt context task add <step> [flags]
 
 ### SEE ALSO
 
-* [sdt context task](sdt_context_task.md)	 - Manage the active task list (sdt.context/tasks/TODO.md)
+* [sdt context task](sdt_context_task.md)	 - Manage per-phase task checklists (sdt.context/tasks/<phase>.md)
 

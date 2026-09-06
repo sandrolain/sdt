@@ -1,27 +1,25 @@
-## sdt context list
+## sdt context status
 
-List sdt.context/ work files
+Summarize sdt.context/ documents per type with next step
 
 ### Synopsis
 
-List existing work files under sdt.context/ for a type, sorted by name
-(chronological for timestamped files).
-
-Types: plan, analysis, worklog, notes, tasks, archive, architecture, decisions.
+Summarize the sdt.context/ knowledge: per-type document count and the
+recommended next step (read / write / verify). Useful at session start after
+reindex.
 
 Examples:
-  sdt context list --type worklog
-  sdt context list --type decisions --format json
+  sdt context status
+  sdt context status --format json
 
 ```
-sdt context list [flags]
+sdt context status [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help          help for list
-      --type string   Type: plan|analysis|worklog|notes|tasks|archive
+  -h, --help   help for status
 ```
 
 ### Options inherited from parent commands

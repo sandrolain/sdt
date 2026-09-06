@@ -1,27 +1,25 @@
-## sdt context list
+## sdt context lint
 
-List sdt.context/ work files
+Validate sdt.context frontmatter and links
 
 ### Synopsis
 
-List existing work files under sdt.context/ for a type, sorted by name
-(chronological for timestamped files).
-
-Types: plan, analysis, worklog, notes, tasks, archive, architecture, decisions.
+Validate the sdt.context/ documents: frontmatter well-formed (kind, mandatory
+summary), [[links]] resolve to existing files, and ADR filenames/numbers are
+consistent. Exits non-zero when CRITICAL issues are found.
 
 Examples:
-  sdt context list --type worklog
-  sdt context list --type decisions --format json
+  sdt context lint
+  sdt context lint --format json
 
 ```
-sdt context list [flags]
+sdt context lint [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help          help for list
-      --type string   Type: plan|analysis|worklog|notes|tasks|archive
+  -h, --help   help for lint
 ```
 
 ### Options inherited from parent commands

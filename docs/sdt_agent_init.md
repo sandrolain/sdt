@@ -9,9 +9,10 @@ Bootstrap the current directory with everything an AI agent needs:
   .sdt.yaml                           project identity (project/group)
   AGENTS.md                           single tagged block of general instructions
   sdt.context/plan|worklog|notes|tasks|archive|tmp  working directories
+  sdt.context/architecture/      living architecture documentation (no date)
+  sdt.context/decisions/         numbered ADRs (NNNN-<slug>.md, append-only)
   sdt.context/analysis/          analysis documents and implementation plans
-  sdt.context/memory/            persistent file-based memory (README.md + index.md + pages/)
-  sdt.context/instructions/      CLI usage files (project, memory, reference, cli usage)
+  sdt.context/instructions/      per-type instruction/template files
   .gitignore                          ignores chosen sdt.context dirs (current dir)
 
 The command is idempotent and non-destructive: a second run fills in missing

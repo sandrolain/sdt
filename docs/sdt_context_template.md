@@ -1,27 +1,26 @@
-## sdt context list
+## sdt context template
 
-List sdt.context/ work files
+Print the per-type instruction file for a context type
 
 ### Synopsis
 
-List existing work files under sdt.context/ for a type, sorted by name
-(chronological for timestamped files).
-
-Types: plan, analysis, worklog, notes, tasks, archive, architecture, decisions.
+Print the content of sdt.context/instructions/<tipo>.md for one document
+type (analysis, plan, tasks, adr, architecture, worklog, notes). Read-only: the
+CLI never writes documents.
 
 Examples:
-  sdt context list --type worklog
-  sdt context list --type decisions --format json
+  sdt context template --type adr
+  sdt context template --type plan --format json
 
 ```
-sdt context list [flags]
+sdt context template [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help          help for list
-      --type string   Type: plan|analysis|worklog|notes|tasks|archive
+  -h, --help          help for template
+      --type string   Type: analysis|plan|tasks|adr|architecture|worklog|notes
 ```
 
 ### Options inherited from parent commands

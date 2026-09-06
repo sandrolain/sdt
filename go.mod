@@ -1,6 +1,6 @@
 module github.com/sandrolain/sdt
 
-go 1.26.5
+go 1.27.1
 
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.2
@@ -17,19 +17,21 @@ require (
 	github.com/segmentio/ksuid v1.0.4
 	github.com/sethvargo/go-password v0.4.0
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	golang.org/x/crypto v0.54.0
-	golang.org/x/text v0.40.0
+	golang.org/x/crypto v0.56.0
+	golang.org/x/text v0.41.0
 )
 
 require (
-	github.com/PuerkitoBio/goquery v1.12.0 // indirect
-	github.com/andybalholm/cascadia v1.3.4 // indirect
+	github.com/PuerkitoBio/goquery v1.13.0 // indirect
+	github.com/andybalholm/cascadia v1.3.5 // indirect
 	github.com/antchfx/htmlquery v1.3.6 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.8 // indirect
 	github.com/boombuler/barcode v1.1.0 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-shiori/dom v0.0.0-20230515143342-73569d674e1c // indirect
@@ -38,10 +40,12 @@ require (
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itlightning/dateparse v0.2.1 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
 	github.com/spf13/afero v1.15.0 // indirect
@@ -50,18 +54,11 @@ require (
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-)
-
-require (
-	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/spf13/pflag v1.0.10
-	golang.org/x/sys v0.47.0 // indirect
 )

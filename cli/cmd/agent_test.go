@@ -39,7 +39,13 @@ func writeTestFile(t *testing.T, path, content string) {
 func instructionFileNames() []string {
 	return []string{
 		"project.md",
-		"memory.md",
+		"analysis.md",
+		"plan.md",
+		"tasks.md",
+		"adr.md",
+		"architecture.md",
+		"worklog.md",
+		"notes.md",
 		"reference.md",
 		"cli.md",
 	}
@@ -113,18 +119,24 @@ func TestAgentInit(t *testing.T) {
 	}
 	for _, want := range []string{
 		"sdt.context/instructions/project.md",
-		"sdt.context/instructions/memory.md",
+		"sdt.context/instructions/analysis.md",
+		"sdt.context/instructions/plan.md",
+		"sdt.context/instructions/tasks.md",
+		"sdt.context/instructions/adr.md",
+		"sdt.context/instructions/architecture.md",
+		"sdt.context/instructions/worklog.md",
+		"sdt.context/instructions/notes.md",
 		"sdt.context/instructions/reference.md",
 		"sdt.context/instructions/cli.md",
-		"### Workflow",
-		"### Planning, Work Logs & Annotations",
-		"### Task List (log-horizon)",
+		"### 5-phase development lifecycle",
+		"### Knowledge tiers",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
-		"Discover them from the project",
-		"sdt.context/tasks/TODO.md",
-		"sdt.context/archive/",
-		"sdt.context/memory/",
+		"discover them from the",
+		"sdt.context/tasks/<phase>.md",
+		"sdt.context/architecture/",
+		"sdt.context/decisions/",
+		"sdt.context/index.md",
 		"create or update the relevant section",
 	} {
 		if !strings.Contains(string(data), want) {
@@ -170,7 +182,7 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"sdt.context/plan", "sdt.context/analysis", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tasks", "sdt.context/archive", "sdt.context/tmp", "sdt.context/instructions", "sdt.context/memory", "sdt.context/memory/pages"} {
+	for _, d := range []string{"sdt.context/plan", "sdt.context/analysis", "sdt.context/worklog", "sdt.context/notes", "sdt.context/tasks", "sdt.context/archive", "sdt.context/tmp", "sdt.context/instructions", "sdt.context/architecture", "sdt.context/decisions"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
@@ -287,22 +299,22 @@ func TestAgentInitInstructionsDirError(t *testing.T) {
 func TestAgentInitPreservesInstructionFiles(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	writeTestFile(t, "sdt.context/instructions/memory.md", "custom")
+	writeTestFile(t, "sdt.context/instructions/adr.md", "custom")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/memory.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/adr.md"))
 	if !strings.Contains(string(data), "custom") {
-		t.Error("expected custom memory.md preserved without --force")
+		t.Error("expected custom adr.md preserved without --force")
 	}
 }
 
 func TestAgentInitForceRefreshesInstructions(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	writeTestFile(t, "sdt.context/instructions/memory.md", "custom")
+	writeTestFile(t, "sdt.context/instructions/adr.md", "custom")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/memory.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/adr.md"))
 	if strings.Contains(string(data), "custom") {
-		t.Error("expected memory.md refreshed with --force")
+		t.Error("expected adr.md refreshed with --force")
 	}
 }
 
@@ -813,9 +825,8 @@ func TestAgentInstructionsBlock(t *testing.T) {
 
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	for _, want := range []string{
-		"### Workflow",
-		"### Planning, Work Logs & Annotations",
-		"### Task List (log-horizon)",
+		"### 5-phase development lifecycle",
+		"### Knowledge tiers",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
 		"caveman ultra",
@@ -823,12 +834,10 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"Conventional Commits",
 		"≤50 chars",
 		"sdt.context/",
-		"plan | worklog | notes | tasks",
-		"[ ]",
-		"[~]",
-		"[x]",
-		"[!]",
-		"archive/<YYYYMMDD-HHMMSS>-<slug>.md",
+		"sdt.context/tasks/<phase>.md",
+		"sdt.context/architecture/",
+		"sdt.context/decisions/",
+		"sdt.context/index.md",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md instructions block:\n%s", want, data)
@@ -867,10 +876,24 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		t.Errorf("expected reference.md to point to manifest:\n%s", ref)
 	}
 
-	mem, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/memory.md"))
-	for _, want := range []string{"sdt.context/memory/", "compiled_truth", "## Timeline", "category", "decision", "append-only"} {
-		if !strings.Contains(string(mem), want) {
-			t.Errorf("expected %q in memory.md:\n%s", want, mem)
+	adr, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/adr.md"))
+	for _, want := range []string{"decisions/", "NNNN-", "append-only", "sync", "architecture/"} {
+		if !strings.Contains(string(adr), want) {
+			t.Errorf("expected %q in adr.md:\n%s", want, adr)
+		}
+	}
+
+	arch, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/architecture.md"))
+	for _, want := range []string{"kebab-case", "no date", "Mermaid", "essential"} {
+		if !strings.Contains(string(arch), want) {
+			t.Errorf("expected %q in architecture.md:\n%s", want, arch)
+		}
+	}
+
+	plan, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/plan.md"))
+	for _, want := range []string{"5-phase", "Analysis", "Tasks", "living"} {
+		if !strings.Contains(string(plan), want) {
+			t.Errorf("expected %q in plan.md:\n%s", want, plan)
 		}
 	}
 

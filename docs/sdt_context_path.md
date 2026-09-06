@@ -8,10 +8,12 @@ Print the full path of a sdt.context/ work file with the correct date/time
 prefix. Does not create anything.
 
 Types: plan/analysis/worklog/notes/archive (<YYYYMMDD-HHMMSS>-<slug>.md),
-tasks (TODO.md), tmp (<slug>).
+tasks (<phase>.md with --phase, default plan), tmp (<slug>),
+architecture (<slug>.md).
 
 Examples:
   sdt context path --type worklog --slug review-deps
+  sdt context path --type tasks --phase execution
   sdt context path --type plan --format json
 
 ```
@@ -21,9 +23,10 @@ sdt context path [flags]
 ### Options
 
 ```
-  -h, --help          help for path
-      --slug string   Slug (sanitized)
-      --type string   Type: plan|analysis|worklog|notes|tasks|tmp|archive
+  -h, --help           help for path
+      --phase string   Phase for type tasks (checklist file name) (default "plan")
+      --slug string    Slug (sanitized)
+      --type string    Type: plan|analysis|worklog|notes|tasks|tmp|archive|architecture|decisions
 ```
 
 ### Options inherited from parent commands

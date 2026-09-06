@@ -25,6 +25,8 @@ const (
 	ctxTypeTasks    = "tasks"
 	ctxTypeTmp      = "tmp"
 	ctxTypeArchive  = "archive"
+	ctxTypeArchitecture = "architecture"
+	ctxTypeDecision = "decision"
 )
 
 var contextNow = time.Now
@@ -58,6 +60,10 @@ func contextDir(typ string) (string, bool) {
 		return sdtTmpDir, true
 	case ctxTypeArchive:
 		return sdtArchiveDir, true
+	case ctxTypeArchitecture:
+		return sdtArchitectureDir, true
+	case ctxTypeDecision:
+		return sdtDecisionsDir, true
 	}
 	return "", false
 }
@@ -72,7 +78,7 @@ func contextTimePrefix(format, slug string) string {
 
 // contextPath computes the full path of a context work file without touching the
 // filesystem. It is deterministic for a given time and slug.
-func contextPath(typ, slug string) (string, error) {
+func contextPath(typ, slug, phase string) (string, error) {
 	switch typ {
 	case ctxTypePlan:
 		return filepath.Join(sdtPlanDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
@@ -83,7 +89,7 @@ func contextPath(typ, slug string) (string, error) {
 	case ctxTypeNotes:
 		return filepath.Join(sdtNotesDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	case ctxTypeTasks:
-		return filepath.Join(sdtTasksDir, "TODO.md"), nil
+		return taskFileFor(phase), nil
 	case ctxTypeTmp:
 		if slug == "" {
 			return "", errors.New("--slug is required for type tmp")
@@ -91,8 +97,12 @@ func contextPath(typ, slug string) (string, error) {
 		return filepath.Join(sdtTmpDir, slug), nil
 	case ctxTypeArchive:
 		return filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
+	case ctxTypeArchitecture:
+		return "sdt.context/architecture/" + slug + sdtMarkdownExt, nil
+	case ctxTypeDecision:
+		return "", errors.New("decision type is append-only ADR; create via `sdt context new --type analysis` or edit decisions/")
 	}
-	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive)", typ)
+	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive|architecture|decisions)", typ)
 }
 
 // ── context path ───────────────────────────────────────────────────────────────
@@ -125,16 +135,19 @@ var contextPathCmd = &cobra.Command{
 prefix. Does not create anything.
 
 Types: plan/analysis/worklog/notes/archive (<YYYYMMDD-HHMMSS>-<slug>.md),
-tasks (TODO.md), tmp (<slug>).
+tasks (<phase>.md with --phase, default plan), tmp (<slug>),
+architecture (<slug>.md).
 
 Examples:
   sdt context path --type worklog --slug review-deps
+  sdt context path --type tasks --phase execution
   sdt context path --type plan --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
 		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
-		p, err := contextPath(typ, slug)
+		phase := getStringFlag(cmd, "phase", false)
+		p, err := contextPath(typ, slug, phase)
 		exitWithError(cmd, err)
 		outputContextPath(cmd, contextPathResult{Path: p, Type: typ, Slug: slug})
 	},
@@ -247,7 +260,7 @@ Examples:
 			project = cfg.Project
 		}
 
-		path, err := contextPath(typ, slug)
+		path, err := contextPath(typ, slug, "")
 		exitWithError(cmd, err)
 
 		status := statusCreated
@@ -322,7 +335,7 @@ func listContextFiles(dir string) ([]string, error) {
 		if e.IsDir() {
 			continue
 		}
-		if filepath.Ext(e.Name()) != ".md" {
+		if filepath.Ext(e.Name()) != sdtMarkdownExt {
 			continue
 		}
 		files = append(files, filepath.Join(dir, e.Name()))
@@ -337,17 +350,21 @@ var contextListCmd = &cobra.Command{
 	Long: `List existing work files under sdt.context/ for a type, sorted by name
 (chronological for timestamped files).
 
-Types: plan, analysis, worklog, notes, tasks, archive.
+Types: plan, analysis, worklog, notes, tasks, archive, architecture, decisions.
 
 Examples:
   sdt context list --type worklog
-  sdt context list --type archive --format json`,
+  sdt context list --type decisions --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
+		switch typ {
+		case "decisions", "adr":
+			typ = ctxTypeDecision
+		}
 		dir, ok := contextDir(typ)
 		if !ok || typ == ctxTypeTmp {
-			exitWithError(cmd, fmt.Errorf("list supports type plan|analysis|worklog|notes|tasks|archive, got %q", typ))
+			exitWithError(cmd, fmt.Errorf("list supports type plan|analysis|worklog|notes|tasks|archive|architecture|decisions, got %q", typ))
 		}
 		files, err := listContextFiles(dir)
 		exitWithError(cmd, err)
@@ -410,12 +427,21 @@ func outputTaskItems(cmd *cobra.Command, items []taskItem) {
 	}
 }
 
-func readTaskFile() (string, error) {
+func taskFileFor(phase string) string {
+	name := sanitizeSlug(phase)
+	if name == "" {
+		name = "plan"
+	}
+	return filepath.Join(sdtTasksDir, name+".md")
+}
+
+func readTaskFile(phase string) (string, error) {
+	path := taskFileFor(phase)
 	//#nosec G304 -- fixed repo path
-	data, err := os.ReadFile(sdtTasksTODO)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("no active task list at %s (create one with `sdt context task add`)", sdtTasksTODO)
+			return "", fmt.Errorf("no task list at %s (create one with `sdt context task add --phase %s`)", path, phase)
 		}
 		return "", err
 	}
@@ -424,20 +450,22 @@ func readTaskFile() (string, error) {
 
 var contextTaskListCmd = &cobra.Command{
 	Use:   useList,
-	Short: "Show the active task list",
+	Short: "Show a per-phase task list",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		content, err := readTaskFile()
+		phase := getStringFlag(cmd, "phase", false)
+		content, err := readTaskFile(phase)
 		exitWithError(cmd, err)
 		outputTaskItems(cmd, parseTaskItems(content))
 	},
 }
 
-func buildTaskFrontmatter(objective, project string) string {
+func buildTaskFrontmatter(objective, project, phase string) string {
 	now := contextNow().UTC().Format(time.RFC3339)
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: tasks\n")
+	b.WriteString("phase: " + phase + "\n")
 	b.WriteString("created_at: " + now + "\n")
 	if objective != "" {
 		b.WriteString("objective: " + objective + "\n")
@@ -459,16 +487,18 @@ var contextTaskAddCmd = &cobra.Command{
 			exitWithError(cmd, errors.New("step is required"))
 		}
 		objective := getStringFlag(cmd, "objective", false)
+		phase := getStringFlag(cmd, "phase", false)
+		path := taskFileFor(phase)
 		content := ""
 		//#nosec G304 -- fixed repo path
-		if data, err := os.ReadFile(sdtTasksTODO); err == nil {
+		if data, err := os.ReadFile(path); err == nil {
 			content = string(data)
 		} else if os.IsNotExist(err) {
 			project := ""
 			if cfg, cerr := findProjectConfig(); cerr == nil && cfg != nil {
 				project = cfg.Project
 			}
-			content = buildTaskFrontmatter(objective, project)
+			content = buildTaskFrontmatter(objective, project, phase)
 		} else {
 			exitWithError(cmd, err)
 		}
@@ -478,7 +508,7 @@ var contextTaskAddCmd = &cobra.Command{
 			exitWithError(cmd, err)
 		}
 		//#nosec G306 -- user work file
-		if err := os.WriteFile(sdtTasksTODO, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			exitWithError(cmd, err)
 		}
 		items := parseTaskItems(content)
@@ -536,20 +566,21 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			if err != nil {
 				exitWithError(cmd, fmt.Errorf("invalid task id %q", args[0]))
 			}
-			reason := ""
-			if status == taskStatusBlock {
-				reason = getStringFlag(cmd, "reason", false)
-			}
-			content, err := readTaskFile()
+reason := ""
+		if status == taskStatusBlock {
+			reason = getStringFlag(cmd, "reason", false)
+		}
+		phase := getStringFlag(cmd, "phase", false)
+		content, err := readTaskFile(phase)
+		exitWithError(cmd, err)
+		updated, err := updateTaskStatus(content, id, status, reason)
+		exitWithError(cmd, err)
+		//#nosec G306 -- user work file
+		if err := os.WriteFile(taskFileFor(phase), []byte(updated), 0o644); err != nil {
 			exitWithError(cmd, err)
-			updated, err := updateTaskStatus(content, id, status, reason)
-			exitWithError(cmd, err)
-			//#nosec G306 -- user work file
-			if err := os.WriteFile(sdtTasksTODO, []byte(updated), 0o644); err != nil {
-				exitWithError(cmd, err)
-			}
-			outputString(cmd, "ok\n")
-		},
+		}
+		outputString(cmd, "ok\n")
+	},
 	}
 }
 
@@ -584,7 +615,8 @@ var contextTaskArchiveCmd = &cobra.Command{
 	Short: "Archive the active task list to sdt.context/archive/",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		content, err := readTaskFile()
+		phase := getStringFlag(cmd, "phase", false)
+		content, err := readTaskFile(phase)
 		exitWithError(cmd, err)
 		slug := taskArchiveSlug(content, getStringFlag(cmd, "slug", false))
 		path := filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", slug)+".md")
@@ -595,7 +627,7 @@ var contextTaskArchiveCmd = &cobra.Command{
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			exitWithError(cmd, err)
 		}
-		if err := os.Remove(sdtTasksTODO); err != nil {
+		if err := os.Remove(taskFileFor(phase)); err != nil {
 			exitWithError(cmd, err)
 		}
 		outputString(cmd, path+"\n")
@@ -604,13 +636,14 @@ var contextTaskArchiveCmd = &cobra.Command{
 
 var contextTaskCmd = &cobra.Command{
 	Use:   "task",
-	Short: "Manage the active task list (sdt.context/tasks/TODO.md)",
-	Long: `Manage the active task list in sdt.context/tasks/TODO.md.
+	Short: "Manage per-phase task checklists (sdt.context/tasks/<phase>.md)",
+	Long: `Manage per-phase task checklists in sdt.context/tasks/<phase>.md. Each plan
+phase gets its own checklist file; --phase defaults to "plan".
 
-  sdt context task list                        show steps with ids
-  sdt context task add "<step>" [--objective]  add a step (creates the list)
-  sdt context task done|block|wip <id>         update a step status
-  sdt context task archive [--slug]            archive the list and start fresh
+  sdt context task list [--phase <phase>]             show steps with ids
+  sdt context task add "<step>" [--phase] [--objective]  add a step (creates the list)
+  sdt context task done|block|wip <id> [--phase]      update a step status
+  sdt context task archive [--phase] [--slug]         archive the list and start fresh
 
 Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked`,
 }
@@ -646,8 +679,9 @@ var contextTaskBlockCmd = taskSetStatusCmd("block")
 var contextTaskWipCmd = taskSetStatusCmd("wip")
 
 func init() {
-	contextPathCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|tasks|tmp|archive")
+	contextPathCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|tasks|tmp|archive|architecture|decisions")
 	contextPathCmd.Flags().String("slug", "", "Slug (sanitized)")
+	contextPathCmd.Flags().String("phase", "plan", "Phase for type tasks (checklist file name)")
 
 	contextNewCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes")
 	contextNewCmd.Flags().String("slug", "", "Slug (sanitized)")
@@ -660,8 +694,16 @@ func init() {
 	contextTaskAddCmd.Flags().String("objective", "", "Objective for the task list (used when creating)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")
 	contextTaskArchiveCmd.Flags().String("slug", "", "Archive slug (default: from objective)")
+	contextTaskAddCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
+	contextTaskListCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
+	contextTaskDoneCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
+	contextTaskBlockCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
+	contextTaskWipCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
+	contextTaskArchiveCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
+
+	contextTemplateCmd.Flags().String("type", "", "Type: analysis|plan|tasks|adr|architecture|worklog|notes")
 
 	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskArchiveCmd)
-	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd)
+	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd)
 	rootCmd.AddCommand(contextCmd)
 }

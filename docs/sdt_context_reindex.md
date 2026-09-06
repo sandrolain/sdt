@@ -1,27 +1,25 @@
-## sdt context list
+## sdt context reindex
 
-List sdt.context/ work files
+Regenerate sdt.context/index.md from frontmatter summaries
 
 ### Synopsis
 
-List existing work files under sdt.context/ for a type, sorted by name
-(chronological for timestamped files).
-
-Types: plan, analysis, worklog, notes, tasks, archive, architecture, decisions.
+Scan the sdt.context/ knowledge directories, read the mandatory frontmatter
+summary of every document and regenerate sdt.context/index.md grouped by
+relevance tier (essential, important, medium, operational, history).
 
 Examples:
-  sdt context list --type worklog
-  sdt context list --type decisions --format json
+  sdt context reindex
+  sdt context reindex --format json
 
 ```
-sdt context list [flags]
+sdt context reindex [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help          help for list
-      --type string   Type: plan|analysis|worklog|notes|tasks|archive
+  -h, --help   help for reindex
 ```
 
 ### Options inherited from parent commands

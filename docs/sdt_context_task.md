@@ -1,15 +1,16 @@
 ## sdt context task
 
-Manage the active task list (sdt.context/tasks/TODO.md)
+Manage per-phase task checklists (sdt.context/tasks/<phase>.md)
 
 ### Synopsis
 
-Manage the active task list in sdt.context/tasks/TODO.md.
+Manage per-phase task checklists in sdt.context/tasks/<phase>.md. Each plan
+phase gets its own checklist file; --phase defaults to "plan".
 
-  sdt context task list                        show steps with ids
-  sdt context task add "<step>" [--objective]  add a step (creates the list)
-  sdt context task done|block|wip <id>         update a step status
-  sdt context task archive [--slug]            archive the list and start fresh
+  sdt context task list [--phase <phase>]             show steps with ids
+  sdt context task add "<step>" [--phase] [--objective]  add a step (creates the list)
+  sdt context task done|block|wip <id> [--phase]      update a step status
+  sdt context task archive [--phase] [--slug]         archive the list and start fresh
 
 Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked
 
@@ -37,6 +38,6 @@ Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked
 * [sdt context task archive](sdt_context_task_archive.md)	 - Archive the active task list to sdt.context/archive/
 * [sdt context task block](sdt_context_task_block.md)	 - Mark a task step blocked
 * [sdt context task done](sdt_context_task_done.md)	 - Mark a task step done
-* [sdt context task list](sdt_context_task_list.md)	 - Show the active task list
+* [sdt context task list](sdt_context_task_list.md)	 - Show a per-phase task list
 * [sdt context task wip](sdt_context_task_wip.md)	 - Mark a task step in progress
 

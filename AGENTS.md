@@ -4,7 +4,7 @@
 
 **SDT (Smart Developer Tools)** is a Go CLI toolset designed for use by AI agents and developers.
 It provides deterministic, composable commands for data manipulation, encoding, cryptography, templating,
-persistent memory, and protocol utilities — all with machine-readable output.
+project knowledge management, and protocol utilities — all with machine-readable output.
 
 Module: `github.com/sandrolain/sdt`
 Go version: 1.26.5 (see `.tool-versions`)
@@ -46,7 +46,7 @@ cli/
   utils/          — shared utility functions (hashing, encoding, JWT, etc.)
 main.go           — duplicate entry point at repo root (legacy)
 sdt.context/      — agent working directories (plan/, analysis/, worklog/, notes/, tasks/,
-                    archive/, memory/, instructions/) + instruction files (+ generated docs/)
+                    archive/, architecture/, decisions/, instructions/) + instruction files (+ generated docs/)
 docs/             — auto-generated cobra documentation (sdt docs)
 test/             — test fixtures
 Taskfile.yml      — task definitions (build, test, lint, check)
@@ -104,7 +104,7 @@ Use `getFormat(cmd)` to read the format flag.
 
 Agent instructions are managed with `sdt agent init`:
 
-- `sdt agent init` — non-destructive bootstrap: `.sdt.yaml` (project/group identity), an `AGENTS.md` with a single tagged `instructions` block holding the general agent instructions (workflow, planning/work logs/annotations, communication, patterns), `sdt.context/plan|worklog|notes|tmp` + `sdt.context/README.md`, and the CLI-usage instruction files under `sdt.context/instructions/` (project, memory, reference, cli usage). In a git repository (.git entry in the current directory), `.gitignore` handling is interactive: you are asked whether to ignore `sdt.context/` and which entries — `--gitignore none|tmp|docs|work|context` picks non-interactively (default `work` = `sdt.context/tmp` + `sdt.context/docs`). Entries are written to `.gitignore` in the same directory as `.sdt.yaml`, wrapped in a `# sdt:start` / `# sdt:end` block; parent directories are never resolved. `project`/`group` are prompted interactively when not passed as flags (default: `<dirname>_<short-path-hash>`). `--yes` accepts defaults without prompting; `--force` refreshes generated content and removes obsolete instruction files.
+- `sdt agent init` — non-destructive bootstrap: `.sdt.yaml` (project/group identity), an `AGENTS.md` with a single tagged `instructions` block holding the general agent instructions (5-phase development lifecycle, knowledge tiers, communication, patterns), `sdt.context/` work dirs (plan, worklog, notes, tasks, tmp, architecture, decisions, archive) + `sdt.context/README.md`, and the per-type instruction files under `sdt.context/instructions/` (project, analysis, plan, tasks, adr, architecture, worklog, notes, reference, cli). In a git repository (.git entry in the current directory), `.gitignore` handling is interactive: you are asked whether to ignore `sdt.context/` and which entries — `--gitignore none|tmp|docs|work|context` picks non-interactively (default `work` = `sdt.context/tmp` + `sdt.context/docs`). Entries are written to `.gitignore` in the same directory as `.sdt.yaml`, wrapped in a `# sdt:start` / `# sdt:end` block; parent directories are never resolved. `project`/`group` are prompted interactively when not passed as flags (default: `<dirname>_<short-path-hash>`). `--yes` accepts defaults without prompting; `--force` refreshes generated content and removes obsolete instruction files.
 
 Implementation in `cli/cmd/agent.go` (merge, identity, work dirs) and `cli/cmd/agentinstructions.go` (instruction file templates).
 
@@ -112,7 +112,7 @@ Implementation in `cli/cmd/agent.go` (merge, identity, work dirs) and `cli/cmd/a
 
 ## Project Configuration (`.sdt.yaml`)
 
-Commands that are project-scoped (e.g. `memory`) read project/group identity from:
+Commands that are project-scoped (e.g. `sdt context`) read project/group identity from:
 
 1. Explicit `--project` / `--group` flags (highest priority)
 2. `.sdt.yaml` file found by walking up from `$CWD` (like `.git`)
@@ -158,73 +158,63 @@ Create with: `sdt agent init --project myapp_7f2b39e1 --group acme-platform --ye
 This project is managed with SDT. Read the relevant instruction file before acting:
 
 - `sdt.context/instructions/project.md` — project identity and configuration
-- `sdt.context/instructions/memory.md` — file-based memory usage (`sdt.context/memory/`)
 - `sdt.context/instructions/reference.md` — SDT command reference
 - `sdt.context/instructions/cli.md` — CLI usage and examples
+- `sdt.context/instructions/analysis.md` — analysis documents (structure + initial scan)
+- `sdt.context/instructions/plan.md` — plans + the 5-phase development lifecycle
+- `sdt.context/instructions/tasks.md` — per-phase task checklists (verify-step)
+- `sdt.context/instructions/adr.md` — ADRs (numbered, append-only, sync → architecture)
+- `sdt.context/instructions/architecture.md` — living architecture docs (tier: essential)
+- `sdt.context/instructions/worklog.md` — work logs (final reports, append-only)
+- `sdt.context/instructions/notes.md` — free-form annotations
+- `sdt.context/index.md` — generated knowledge index (`sdt context reindex`)
 - `sdt.context/docs/README.md` — per-command reference generated by `sdt context docs` (when present)
 
-Work directories live under `sdt.context/` (plan/, analysis/, worklog/, notes/, tasks/,
-archive/, memory/, tmp/). Never write or execute temporary files outside the project. Keep
-all instruction files concise and technical.
+Work directories live under `sdt.context/` (`plan/`, `analysis/`, `sdt.context/architecture/`,
+`sdt.context/decisions/`, worklog/, notes/, tasks/, archive/, tmp/). Never write or execute
+temporary files outside the project. Keep all instruction files concise and technical.
 
-### Workflow
+### 5-phase development lifecycle
 
-Follow this loop for any non-trivial task:
+Follow this cycle for any non-trivial task:
 
-1. **Plan** — write a short plan in `sdt.context/plan/` before starting (`sdt context new --type plan --slug <slug>`).
-2. **Investigate** — read this AGENTS.md, read project memory (`sdt.context/memory/`) and inspect the code before changing anything.
-3. **Act** — make the smallest change that satisfies the task.
-4. **Verify** — run the project's build, test and lint commands. Discover them from the project (Taskfile, Makefile, package.json, go.mod or similar); if the project defines none, record them in `sdt.context/instructions/project.md`.
-5. **Annotate** — append a `sdt.context/worklog/` entry describing what changed and why.
-6. **Remember** — store durable decisions in `sdt.context/memory/`.
-7. **Update** — keep this AGENTS.md current when conventions change.
+1. **Analysis** — perform it; integrate/modify existing analysis files.
+2. **Plan** — create from the analysis; integrate/modify as needed.
+3. **Tasks** — from the plan create **one checklist file per phase** in
+   `sdt.context/tasks/<phase>.md` (`sdt context task`).
+4. **Execution** — develop the project; create `sdt.context/architecture/` and `sdt.context/decisions/`
+   (ADRs) as needed; **update the tasks and plan files** in place.
+5. **Final reports** — append `sdt.context/worklog/` and `notes/` entries.
 
-### Planning, Work Logs & Annotations
+Before closing a phase run the **verify-step**: completeness, coherence, correctness
+(prioritize CRITICAL / WARNING / SUGGESTION, degrade gracefully). Then reindex: run
+`sdt context reindex` and `sdt context lint`.
 
-Keep planning, work logs, task lists and annotations under `sdt.context/`:
+When running the project's build, test and lint commands, discover them from the
+project (Taskfile, Makefile, package.json, go.mod or similar); if the project defines
+none, record them in `sdt.context/instructions/project.md`.
 
-```
-sdt.context/plan/<YYYYMMDD-HHMMSS>-<slug>.md          # plan before starting work
-sdt.context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md      # analysis / implementation plans
-sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md      # ordered log of completed work
-sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md        # free-form annotations
-sdt.context/tasks/TODO.md                            # active task list (checklist)
-sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md      # completed task lists
-```
+### Knowledge tiers
 
-Create work files with `sdt context new --type plan|analysis|worklog|notes --slug <slug>` —
-naming and `created_at` frontmatter are guaranteed (`sdt context path --type <type>`
-prints a path without creating anything).
-
-### Task List (log-horizon)
-
-For work with many steps, keep the active task list in
-`sdt.context/tasks/TODO.md` — every step needed to reach the objective,
-with status. Manage it with `sdt context task`.
-
-- Status markers: `[ ]` todo · `[~]` in-progress · `[x]` done · `[!]` blocked
-- Add steps with `sdt context task add "<step>"`; update status with
-  `sdt context task done|block|wip <id>`.
-- On completion, archive it with `sdt context task archive [--slug]` — the file
-  moves to `sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`, preserving history
-  for the next objective.
-
-Temporary and scratch files live in `sdt.context/tmp/` — never outside the
-project (no `/tmp`, no other absolute paths).
-
-Annotate continuously: plan before starting, append a dated worklog entry after
-each change, and record decisions, dead-ends and constraints in
-`sdt.context/memory/` (see `sdt.context/instructions/memory.md`). The goal is a
-chronological, searchable history that lets
-a future session (agent or human) reconstruct what happened and why.
+`sdt.context/index.md` is the single entry point (generated). At session start read it,
+then the **essential** tier first ( `sdt.context/architecture/` + `sdt.context/decisions/` — always
+versioned),
+then only what is needed of the lower tiers (analysis, plan, notes, tasks). `worklog/` /
+`archive/` are history. `summary` frontmatter is mandatory everywhere; `links`
+is an optional array validated by lint.
 
 Every work file starts with YAML frontmatter:
 
 ```yaml
 ---
-kind: worklog      # plan | worklog | notes | tasks
-created_at: <ISO 8601>
+kind: worklog      # plan | worklog | notes | tasks | adr | architecture
+summary: <one-line description>   # MANDATORY — the index source
 context: what triggered this entry
+status: active
+created: <ISO 8601>
+updated: <ISO 8601>
+links:             # optional array
+  - decisions/0001-something
 project: sdt_44f24890
 group: sdt_44f24890
 ---

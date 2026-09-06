@@ -9,7 +9,8 @@ sdt context task wip <id> [flags]
 ### Options
 
 ```
-  -h, --help   help for wip
+  -h, --help           help for wip
+      --phase string   Phase for the checklist file (default plan) (default "plan")
 ```
 
 ### Options inherited from parent commands
@@ -25,5 +26,5 @@ sdt context task wip <id> [flags]
 
 ### SEE ALSO
 
-* [sdt context task](sdt_context_task.md)	 - Manage the active task list (sdt.context/tasks/TODO.md)
+* [sdt context task](sdt_context_task.md)	 - Manage per-phase task checklists (sdt.context/tasks/<phase>.md)
 

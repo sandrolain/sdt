@@ -111,6 +111,13 @@ tasks:
       - task: tidy
       - task: test
       - task: govulncheck
+      - task: context
+
+  context:
+    desc: Rebuild the sdt.context knowledge index and lint the documents
+    cmds:
+      - go run ./cli context reindex
+      - go run ./cli context lint
 
   trivy:
     desc: Run Trivy vulnerability scanner

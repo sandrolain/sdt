@@ -22,7 +22,7 @@ build reliable automation on top of it.
 
 - **Machine-readable output** — `--format json|yaml|text` on every command; ANSI suppressed automatically when stdout is not a TTY
 - **Pipe-friendly** — reads stdin, writes stdout, errors to stderr; composable with shell pipes
-- **File-based memory** — durable project memory as plain Markdown under `sdt.context/memory/`, fully offline, no database
+- **File-based knowledge** — durable project knowledge as versioned Markdown under `sdt.context/` (architecture, decisions/ADRs, plans, worklogs, notes, tasks) with a generated index, fully offline, no database
 - **AI-agent tooling** — manifest discovery, command schemas, generated per-command docs, project work files and task lists
 - **Zero CGO** — pure-Go build, no C toolchain required
 - **Cross-platform** — Linux, macOS, Windows

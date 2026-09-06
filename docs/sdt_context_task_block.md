@@ -10,6 +10,7 @@ sdt context task block <id> [flags]
 
 ```
   -h, --help            help for block
+      --phase string    Phase for the checklist file (default plan) (default "plan")
       --reason string   Reason for blocking
 ```
 
@@ -26,5 +27,5 @@ sdt context task block <id> [flags]
 
 ### SEE ALSO
 
-* [sdt context task](sdt_context_task.md)	 - Manage the active task list (sdt.context/tasks/TODO.md)
+* [sdt context task](sdt_context_task.md)	 - Manage per-phase task checklists (sdt.context/tasks/<phase>.md)
 

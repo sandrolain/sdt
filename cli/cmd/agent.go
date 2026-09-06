@@ -79,10 +79,11 @@ var agentCmd = &cobra.Command{
 
   agent init       bootstrap AGENTS.md + sdt.context/ instruction files
 
-AGENTS.md carries the general agent instructions (workflow, planning and work
-logs, communication, patterns) in a single tagged block. The instruction files
-under ` + "`sdt.context/instructions/`" + ` cover CLI usage only (project,
-memory, command reference, CLI usage and examples).
+AGENTS.md carries the general agent instructions (5-phase lifecycle, knowledge
+tiers, planning and work logs, communication, patterns) in a single tagged
+block. The instruction files under ` + "`sdt.context/instructions/`" + ` cover CLI
+usage plus per-type templates (analysis, plan, tasks, adr, architecture,
+worklog, notes) and the command reference.
 `,
 }
 
@@ -97,7 +98,13 @@ type instructionFile struct {
 func instructionFiles(project, group string) []instructionFile {
 	return []instructionFile{
 		{name: filepath.Base(sdtInstrProject), body: instrProjectTemplate(project, group)},
-		{name: filepath.Base(sdtInstrMemory), body: instrMemoryTemplate},
+		{name: filepath.Base(sdtInstrAnalysis), body: instrAnalysisTemplate},
+		{name: filepath.Base(sdtInstrPlan), body: instrPlanTemplate},
+		{name: filepath.Base(sdtInstrTasks), body: instrTasksTemplate},
+		{name: filepath.Base(sdtInstrAdr), body: instrAdrTemplate},
+		{name: filepath.Base(sdtInstrArchitecture), body: instrArchitectureTemplate},
+		{name: filepath.Base(sdtInstrWorklog), body: instrWorklogTemplate},
+		{name: filepath.Base(sdtInstrNotes), body: instrNotesTemplate},
 		{name: filepath.Base(sdtInstrReference), body: instrReferenceTemplate},
 		{name: filepath.Base(sdtInstrCli), body: instrCLITemplate},
 	}
@@ -113,6 +120,7 @@ var obsoleteInstructionFiles = []string{
 	"planning.md",
 	"annotations.md",
 	"self-update.md",
+	"memory.md",
 }
 
 // writeInstructionFiles creates the instruction files under sdt.context/instructions/.
@@ -183,9 +191,10 @@ var agentInitCmd = &cobra.Command{
   .sdt.yaml                           project identity (project/group)
   AGENTS.md                           single tagged block of general instructions
   sdt.context/plan|worklog|notes|tasks|archive|tmp  working directories
+  sdt.context/architecture/      living architecture documentation (no date)
+  sdt.context/decisions/         numbered ADRs (NNNN-<slug>.md, append-only)
   sdt.context/analysis/          analysis documents and implementation plans
-  sdt.context/memory/            persistent file-based memory (README.md + index.md + pages/)
-  sdt.context/instructions/      CLI usage files (project, memory, reference, cli usage)
+  sdt.context/instructions/      per-type instruction/template files
   .gitignore                          ignores chosen sdt.context dirs (current dir)
 
 The command is idempotent and non-destructive: a second run fills in missing
@@ -437,7 +446,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 
 // ensureWorkDirs creates the sdt.context/ working directory layout.
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtMemoryDir, sdtMemoryPagesDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -469,8 +478,6 @@ func ensureWorkDirs(force bool) []FileResult {
 		content string
 	}{
 		{sdtWorkReadme, sdtWorkReadmeTemplate},
-		{sdtMemoryReadme, sdtMemoryReadmeTemplate},
-		{sdtMemoryIndex, sdtMemoryIndexTemplate},
 	}
 	for _, f := range files {
 		res := FileResult{Path: f.path}
@@ -493,43 +500,6 @@ func ensureWorkDirs(force bool) []FileResult {
 	return results
 }
 
-const sdtMemoryReadmeTemplate = `# sdt.context/memory/ — File-based Memory
-
-Durable project memory as plain Markdown: decisions, constraints, concepts and
-references that must survive sessions. No database, no daemon — files only,
-fully offline.
-
-## Layout
-
-- ` + "`pages/<id>.md`" + ` — one durable unit of knowledge per file
-- ` + "`index.md`" + ` — page index (` + "`[[id]]`" + ` + one-line summary)
-- ` + "`README.md`" + ` — this protocol
-
-## Page format
-
-Each page carries frontmatter (` + "`id`" + `, ` + "`title`" + `, ` + "`category`" + `, ` + "`status`" + `, ` + "`tags`" + `,
-` + "`created`" + `, ` + "`updated`" + `), a ` + "`<!-- compiled_truth -->`" + ` section (current best
-understanding) and an append-only ` + "`## Timeline`" + `. Category is one of:
-` + "`decision`" + ` | ` + "`concept`" + ` | ` + "`project`" + ` | ` + "`person`" + ` | ` + "`reference`" + `. The ` + "`id`" + `
-is kebab-case and must equal the filename.
-
-## Rules
-
-- compiled_truth is rewritable; the timeline is append-only — every truth change
-  appends a timeline entry, every overturn appends ` + "`kind: reversal`" + `.
-- Reference pages with ` + "`[[id]]`" + `; keep ` + "`index.md`" + ` updated.
-- Write in the user's working language; keep ids, tags and paths verbatim.
-- The test: will this still matter in six months, and is it hard to reconstruct
-  from the code or git?
-
-Full operating skill: ` + "`sdt.context/instructions/memory.md`" + `.
-`
-
-const sdtMemoryIndexTemplate = `# Memory Index
-
-_Auto-maintained by the agent. List pages as ` + "`[[id]]`" + ` — one-line summary; keep in sync when pages are created, updated or archived._
-`
-
 const sdtWorkReadmeTemplate = `# sdt.context/ — Working Directory
 
 This directory holds the agent's planning, work logs, task lists, notes,
@@ -539,12 +509,14 @@ instruction files and temporary files for this project.
 
 - ` + "`plan/`" + ` — plans written before starting non-trivial work
 - ` + "`analysis/`" + ` — analysis documents and implementation plans
+- ` + "`architecture/`" + ` — living architecture documentation (no date in name)
+- ` + "`decisions/`" + ` — numbered ADRs (` + "`NNNN-<slug>.md`" + `, append-only)
 - ` + "`worklog/`" + ` — chronological log of completed work
 - ` + "`notes/`" + ` — free-form annotations
-- ` + "`tasks/`" + ` — active task list (` + "`TODO.md`" + `)
+- ` + "`tasks/`" + ` — per-phase task checklists
 - ` + "`archive/`" + ` — completed task lists (history)
 - ` + "`instructions/`" + ` — agent instruction files (referenced by AGENTS.md)
-- ` + "`memory/`" + ` — durable file-based memory (` + "`memory/pages/`" + `, protocol in ` + "`memory/README.md`" + `)
+- ` + "`index.md`" + ` — generated knowledge index (reindex/lint)
 - ` + "`tmp/`" + ` — temporary and scratch files (never outside this project)
 
 ## Conventions
@@ -554,8 +526,10 @@ instruction files and temporary files for this project.
   - ` + "`sdt.context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`sdt.context/tasks/TODO.md`" + ` — active task list
+  - ` + "`sdt.context/tasks/<phase>.md`" + ` — checklist per plan phase
   - ` + "`sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` — archived task lists
+- ` + "`architecture/`" + ` files are living documents without a date; ADRs are
+  append-only and numbered (` + "`decisions/0001-<slug>.md`" + `).
 - ` + "`sdt.context/`" + ` files use concise technical language. Cut fluff,
   keep meaning and readability (token-efficient).
 - Every work file starts with YAML frontmatter:
@@ -563,14 +537,19 @@ instruction files and temporary files for this project.
 ` + "```yaml" + `
 ---
 kind: worklog      # plan | worklog | notes | tasks
-created_at: <ISO 8601>
+summary: <one-line description>   # mandatory (index source)
 context: what triggered this entry
+status: active
+created: <ISO 8601>
+updated: <ISO 8601>
+links:                            # optional array of related docs
+  - decisions/0001-something
 project: <project>
 ---
 ` + "```" + `
 
-Store durable facts in ` + "`sdt.context/memory/`" + ` (see
-` + "`sdt.context/instructions/memory.md`" + `), not here.
+Store durable facts in ` + "`decisions/`" + ` (ADRs) and ` + "`architecture/`" + `; the rest of
+the directory keeps the chronological work history.
 
 ## Commands
 
@@ -578,11 +557,14 @@ Create and manage work files with ` + "`sdt context`" + `:
 
 - ` + "`sdt context new --type plan|worklog|notes --slug <slug> [--input ...]`" + ` — create a
   file with the correct name and frontmatter
+- ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` — regenerate ` + "`index.md`" + ` / validate
+  frontmatter and links
+- ` + "`sdt context template --type <tipo>`" + ` — print the per-type instruction file
 - ` + "`sdt context path --type plan|worklog|notes|tasks|tmp|archive [--slug]`" + ` — print a
   path without creating anything
 - ` + "`sdt context list --type plan|worklog|notes|tasks|archive`" + ` — list existing files
-- ` + "`sdt context task add \"<step>\"`" + ` / ` + "`done|block|wip <id>`" + ` / ` + "`list`" + ` / ` + "`archive`" + ` — manage the
-  active task list
+- ` + "`sdt context task add --phase <phase> \"<step>\"`" + ` / ` + "`done|block|wip <id>`" + ` — manage a
+  per-phase task checklist
 `
 
 // gitIgnore modes for --gitignore and the interactive entries prompt.
@@ -742,9 +724,14 @@ func agentBlockInstructions(project, group string) string {
 	if project == "" {
 		project = "<project>"
 	}
-	frontmatter := "kind: worklog      # plan | worklog | notes | tasks\n"
-	frontmatter += "created_at: <ISO 8601>\n"
+	frontmatter := "kind: worklog      # plan | worklog | notes | tasks | adr | architecture\n"
+	frontmatter += "summary: <one-line description>   # MANDATORY — the index source\n"
 	frontmatter += "context: what triggered this entry\n"
+	frontmatter += "status: active\n"
+	frontmatter += "created: <ISO 8601>\n"
+	frontmatter += "updated: <ISO 8601>\n"
+	frontmatter += "links:             # optional array\n"
+	frontmatter += "  - decisions/0001-something\n"
 	frontmatter += "project: " + project + "\n"
 	if group != "" {
 		frontmatter += "group: " + group + "\n"
@@ -755,65 +742,50 @@ func agentBlockInstructions(project, group string) string {
 This project is managed with SDT. Read the relevant instruction file before acting:
 
 - ` + "`sdt.context/instructions/project.md`" + ` — project identity and configuration
-- ` + "`sdt.context/instructions/memory.md`" + ` — file-based memory usage (` + "`sdt.context/memory/`" + `)
 - ` + "`sdt.context/instructions/reference.md`" + ` — SDT command reference
 - ` + "`sdt.context/instructions/cli.md`" + ` — CLI usage and examples
+- ` + "`sdt.context/instructions/analysis.md`" + ` — analysis documents (structure + initial scan)
+- ` + "`sdt.context/instructions/plan.md`" + ` — plans + the 5-phase development lifecycle
+- ` + "`sdt.context/instructions/tasks.md`" + ` — per-phase task checklists (verify-step)
+- ` + "`sdt.context/instructions/adr.md`" + ` — ADRs (numbered, append-only, sync → architecture)
+- ` + "`sdt.context/instructions/architecture.md`" + ` — living architecture docs (tier: essential)
+- ` + "`sdt.context/instructions/worklog.md`" + ` — work logs (final reports, append-only)
+- ` + "`sdt.context/instructions/notes.md`" + ` — free-form annotations
+- ` + "`sdt.context/index.md`" + ` — generated knowledge index (` + "`sdt context reindex`" + `)
 - ` + "`sdt.context/docs/README.md`" + ` — per-command reference generated by ` + "`sdt context docs`" + ` (when present)
 
-Work directories live under ` + "`sdt.context/`" + ` (plan/, analysis/, worklog/, notes/, tasks/,
-archive/, memory/, tmp/). Never write or execute temporary files outside the project. Keep
-all instruction files concise and technical.
+Work directories live under ` + "`sdt.context/`" + ` (` + "`plan/`" + `, ` + "`analysis/`" + `, ` + "`sdt.context/architecture/`" + `,
+` + "`sdt.context/decisions/`" + `, worklog/, notes/, tasks/, archive/, tmp/). Never write or execute
+temporary files outside the project. Keep all instruction files concise and technical.
 
-### Workflow
+### 5-phase development lifecycle
 
-Follow this loop for any non-trivial task:
+Follow this cycle for any non-trivial task:
 
-1. **Plan** — write a short plan in ` + "`sdt.context/plan/`" + ` before starting (` + "`sdt context new --type plan --slug <slug>`" + `).
-2. **Investigate** — read this AGENTS.md, read project memory (` + "`sdt.context/memory/`" + `) and inspect the code before changing anything.
-3. **Act** — make the smallest change that satisfies the task.
-4. **Verify** — run the project's build, test and lint commands. Discover them from the project (Taskfile, Makefile, package.json, go.mod or similar); if the project defines none, record them in ` + "`sdt.context/instructions/project.md`" + `.
-5. **Annotate** — append a ` + "`sdt.context/worklog/`" + ` entry describing what changed and why.
-6. **Remember** — store durable decisions in ` + "`sdt.context/memory/`" + `.
-7. **Update** — keep this AGENTS.md current when conventions change.
+1. **Analysis** — perform it; integrate/modify existing analysis files.
+2. **Plan** — create from the analysis; integrate/modify as needed.
+3. **Tasks** — from the plan create **one checklist file per phase** in
+   ` + "`sdt.context/tasks/<phase>.md`" + ` (` + "`sdt context task`" + `).
+4. **Execution** — develop the project; create ` + "`sdt.context/architecture/`" + ` and ` + "`sdt.context/decisions/`" + `
+   (ADRs) as needed; **update the tasks and plan files** in place.
+5. **Final reports** — append ` + "`sdt.context/worklog/`" + ` and ` + "`notes/`" + ` entries.
 
-### Planning, Work Logs & Annotations
+Before closing a phase run the **verify-step**: completeness, coherence, correctness
+(prioritize CRITICAL / WARNING / SUGGESTION, degrade gracefully). Then reindex: run
+` + "`sdt context reindex`" + ` and ` + "`sdt context lint`" + `.
 
-Keep planning, work logs, task lists and annotations under ` + "`sdt.context/`" + `:
+When running the project's build, test and lint commands, discover them from the
+project (Taskfile, Makefile, package.json, go.mod or similar); if the project defines
+none, record them in ` + "`sdt.context/instructions/project.md`" + `.
 
-` + "```" + `
-sdt.context/plan/<YYYYMMDD-HHMMSS>-<slug>.md          # plan before starting work
-sdt.context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md      # analysis / implementation plans
-sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md      # ordered log of completed work
-sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md        # free-form annotations
-sdt.context/tasks/TODO.md                            # active task list (checklist)
-sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md      # completed task lists
-` + "```" + `
+### Knowledge tiers
 
-Create work files with ` + "`sdt context new --type plan|analysis|worklog|notes --slug <slug>`" + ` —
-naming and ` + "`created_at`" + ` frontmatter are guaranteed (` + "`sdt context path --type <type>`" + `
-prints a path without creating anything).
-
-### Task List (log-horizon)
-
-For work with many steps, keep the active task list in
-` + "`sdt.context/tasks/TODO.md`" + ` — every step needed to reach the objective,
-with status. Manage it with ` + "`sdt context task`" + `.
-
-- Status markers: ` + "`[ ]`" + ` todo · ` + "`[~]`" + ` in-progress · ` + "`[x]`" + ` done · ` + "`[!]`" + ` blocked
-- Add steps with ` + "`sdt context task add \"<step>\"`" + `; update status with
-  ` + "`sdt context task done|block|wip <id>`" + `.
-- On completion, archive it with ` + "`sdt context task archive [--slug]`" + ` — the file
-  moves to ` + "`sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`" + `, preserving history
-  for the next objective.
-
-Temporary and scratch files live in ` + "`sdt.context/tmp/`" + ` — never outside the
-project (no ` + "`/tmp`" + `, no other absolute paths).
-
-Annotate continuously: plan before starting, append a dated worklog entry after
-each change, and record decisions, dead-ends and constraints in
-` + "`sdt.context/memory/`" + ` (see ` + "`sdt.context/instructions/memory.md`" + `). The goal is a
-chronological, searchable history that lets
-a future session (agent or human) reconstruct what happened and why.
+` + "`sdt.context/index.md`" + ` is the single entry point (generated). At session start read it,
+then the **essential** tier first ( ` + "`sdt.context/architecture/`" + ` + ` + "`sdt.context/decisions/`" + ` — always
+versioned),
+then only what is needed of the lower tiers (analysis, plan, notes, tasks). ` + "`worklog/`" + ` /
+` + "`archive/`" + ` are history. ` + "`summary`" + ` frontmatter is mandatory everywhere; ` + "`links`" + `
+is an optional array validated by lint.
 
 Every work file starts with YAML frontmatter:
 

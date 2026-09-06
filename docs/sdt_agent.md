@@ -8,10 +8,11 @@ Generate and maintain agent instruction files.
 
   agent init       bootstrap AGENTS.md + sdt.context/ instruction files
 
-AGENTS.md carries the general agent instructions (workflow, planning and work
-logs, communication, patterns) in a single tagged block. The instruction files
-under `sdt.context/instructions/` cover CLI usage only (project,
-memory, command reference, CLI usage and examples).
+AGENTS.md carries the general agent instructions (5-phase lifecycle, knowledge
+tiers, planning and work logs, communication, patterns) in a single tagged
+block. The instruction files under `sdt.context/instructions/` cover CLI
+usage plus per-type templates (analysis, plan, tasks, adr, architecture,
+worklog, notes) and the command reference.
 
 
 ### Options

@@ -365,15 +365,15 @@ func TestContextTaskLifecycle(t *testing.T) {
 	execute(t, contextTaskBlockCmd, nil, "3", "--reason", "ci broken")
 	execute(t, contextTaskWipCmd, nil, "2")
 
-	items = parseTaskItems(mustReadFile(t, filepath.Join(dir, "sdt.context", "tasks", "TODO.md")))
+	items = parseTaskItems(mustReadFile(t, filepath.Join(dir, "sdt.context", "tasks", "plan.md")))
 	want := []string{taskStatusDone, taskStatusWip, taskStatusBlocked}
 	for i, w := range want {
 		if items[i].Status != w {
 			t.Errorf("item %d status = %q, want %q", i, items[i].Status, w)
 		}
 	}
-	if !strings.Contains(mustReadFile(t, filepath.Join(dir, "sdt.context", "tasks", "TODO.md")), "blocked: ci broken") {
-		t.Error("expected block reason in TODO.md")
+	if !strings.Contains(mustReadFile(t, filepath.Join(dir, "sdt.context", "tasks", "plan.md")), "blocked: ci broken") {
+		t.Error("expected block reason in plan.md")
 	}
 
 	out = execute(t, contextTaskArchiveCmd, nil)
@@ -384,7 +384,7 @@ func TestContextTaskLifecycle(t *testing.T) {
 	if _, err := os.Stat(archivePath); err != nil {
 		t.Errorf("expected archived file at %s: %v", archivePath, err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "sdt.context", "tasks", "TODO.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, "sdt.context", "tasks", "plan.md")); !os.IsNotExist(err) {
 		t.Error("expected active task list removed after archive")
 	}
 }
@@ -417,12 +417,11 @@ func TestContextTaskArchiveEmptyList(t *testing.T) {
 func TestAgentBlockReferencesContextCommands(t *testing.T) {
 	block := agentBlockInstructions("", "")
 	for _, want := range []string{
-		"sdt context new --type plan --slug <slug>",
-		"sdt context path --type <type>",
+		"sdt context reindex",
+		"sdt context lint",
 		"sdt context task",
-		"sdt context task add",
-		"sdt context task done|block|wip <id>",
-		"sdt context task archive",
+		"sdt.context/tasks/<phase>.md",
+		"sdt.context/index.md",
 	} {
 		if !strings.Contains(block, want) {
 			t.Errorf("expected %q in agent block", want)

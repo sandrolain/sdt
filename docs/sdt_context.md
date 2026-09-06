@@ -33,8 +33,12 @@ and the active task list.
 
 * [sdt](sdt.md)	 - Smart Developer Tools
 * [sdt context docs](sdt_context_docs.md)	 - Generate agent docs in sdt.context/docs/
+* [sdt context lint](sdt_context_lint.md)	 - Validate sdt.context frontmatter and links
 * [sdt context list](sdt_context_list.md)	 - List sdt.context/ work files
 * [sdt context new](sdt_context_new.md)	 - Create a sdt.context/ work file with frontmatter
 * [sdt context path](sdt_context_path.md)	 - Print the path for a sdt.context/ work file
-* [sdt context task](sdt_context_task.md)	 - Manage the active task list (sdt.context/tasks/TODO.md)
+* [sdt context reindex](sdt_context_reindex.md)	 - Regenerate sdt.context/index.md from frontmatter summaries
+* [sdt context status](sdt_context_status.md)	 - Summarize sdt.context/ documents per type with next step
+* [sdt context task](sdt_context_task.md)	 - Manage per-phase task checklists (sdt.context/tasks/<phase>.md)
+* [sdt context template](sdt_context_template.md)	 - Print the per-type instruction file for a context type
 
