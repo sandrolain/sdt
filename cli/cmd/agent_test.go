@@ -55,7 +55,7 @@ func instructionFileNames() []string {
 func assertInstructionFiles(t *testing.T, dir string) {
 	t.Helper()
 	for _, f := range instructionFileNames() {
-		if _, err := os.Stat(filepath.Join(dir, "sdt.context/instructions", f)); err != nil {
+		if _, err := os.Stat(filepath.Join(dir, "context/instructions", f)); err != nil {
 			t.Errorf("expected instruction file %s to be created", f)
 		}
 	}
@@ -111,7 +111,7 @@ func TestAgentMergeTargetProjectWriteOnce(t *testing.T) {
 	dir := runInTempDir(t)
 
 	// first init: both blocks created
-	res, content := agentMergeTarget("AGENTS.md", "myapp", "grp", false)
+	res, content := agentMergeTarget("AGENTS.md", "myapp", "grp", false, true)
 	if res.Status != statusCreated {
 		t.Fatalf("expected created, got %s", res.Status)
 	}
@@ -125,7 +125,7 @@ func TestAgentMergeTargetProjectWriteOnce(t *testing.T) {
 	}
 
 	// re-init without force: skip unchanged
-	res2, content2 := agentMergeTarget("AGENTS.md", "myapp", "grp", false)
+	res2, content2 := agentMergeTarget("AGENTS.md", "myapp", "grp", false, true)
 	if res2.Status != statusSkipped {
 		t.Fatalf("expected skipped on re-run, got %s", res2.Status)
 	}
@@ -138,7 +138,7 @@ func TestAgentMergeTargetProjectWriteOnce(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(edited), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, forced := agentMergeTarget("AGENTS.md", "myapp", "grp", true)
+	_, forced := agentMergeTarget("AGENTS.md", "myapp", "grp", true, true)
 	if strings.Contains(forced, "<!-- Go 1.26 -->") != strings.Contains(edited, "<!-- Go 1.26 -->") {
 		t.Error("expected --force to leave the project block untouched")
 	}
@@ -150,7 +150,7 @@ func TestAgentMergeTargetProjectWriteOnce(t *testing.T) {
 func TestAgentTargetPathFallback(t *testing.T) {
 	dir := runInTempDir(t)
 	writeTestFile(t, "AGENTS.md", sectionBlock("instructions", "x"))
-	out := execute(t, agentInitCmd, nil, "--target", "")
+	out := execute(t, agentInitCmd, nil, "--target", "", "--project-block")
 	if !strings.Contains(string(out), "[updated] AGENTS.md") {
 		t.Errorf("expected fallback to AGENTS.md that adds the project block, got: %s", out)
 	}
@@ -177,7 +177,7 @@ func TestAgentReadTargetDirError(t *testing.T) {
 
 func TestAgentInit(t *testing.T) {
 	dir := runInTempDir(t)
-	out := execute(t, agentInitCmd, nil, "--project", "myapp", "--group", "platform")
+	out := execute(t, agentInitCmd, nil, "--project", "myapp", "--group", "platform", "--project-block")
 	if !strings.Contains(string(out), "AGENTS.md") {
 		t.Errorf("unexpected init output: %s", out)
 	}
@@ -196,32 +196,38 @@ func TestAgentInit(t *testing.T) {
 		t.Errorf("expected exactly two tagged blocks (instructions + project), got %d end markers", count)
 	}
 	for _, want := range []string{
-		"sdt.context/instructions/project.md",
-		"sdt.context/instructions/analysis.md",
-		"sdt.context/instructions/plan.md",
-		"sdt.context/instructions/tasks.md",
-		"sdt.context/instructions/adr.md",
-		"sdt.context/instructions/architecture.md",
-		"sdt.context/instructions/worklog.md",
-		"sdt.context/instructions/notes.md",
-		"sdt.context/instructions/reference.md",
-		"sdt.context/instructions/cli.md",
+		"context/instructions/project.md",
+		"context/instructions/analysis.md",
+		"context/instructions/plan.md",
+		"context/instructions/tasks.md",
+		"context/instructions/adr.md",
+		"context/instructions/architecture.md",
+		"context/instructions/worklog.md",
+		"context/instructions/notes.md",
+		"context/instructions/reference.md",
+		"context/instructions/cli.md",
 		"### 5-phase development lifecycle",
 		"### Knowledge tiers",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
 		"discover them from the",
-		"sdt.context/tasks/<phase>.md",
-		"sdt.context/architecture/",
-		"sdt.context/decisions/",
-		"sdt.context/index.md",
+		"context/tasks/<phase>.md",
+		"context/architecture/",
+		"context/decisions/",
+		"context/index.md",
 		"### Open points (no open questions in analysis/plans)",
-		"sdt.context/questions/",
+		"context/questions/",
 		"### Stack",
 		"### Build & Run",
 		"### Test",
 		"### Lint & Format",
 		"### Conventions",
+		"### HARD RULES",
+		"Never create or modify AGENTS.md without asking the user first",
+		"### SESSION START",
+		"file when you take that action:",
+		"fill it from project evidence",
+		"source of truth for project conventions",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md index", want)
@@ -238,7 +244,7 @@ func TestAgentInit(t *testing.T) {
 	}
 
 	assertInstructionFiles(t, dir)
-	proj, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/project.md"))
+	proj, _ := os.ReadFile(filepath.Join(dir, "context/instructions/project.md"))
 	for _, want := range []string{"Project: myapp", "Group: platform"} {
 		if !strings.Contains(string(proj), want) {
 			t.Errorf("expected %q in project.md:\n%s", want, proj)
@@ -269,7 +275,7 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"sdt.context/plan", "sdt.context/analysis", "sdt.context/worklog", "sdt.context/notes", "sdt.context/questions", "sdt.context/tasks", "sdt.context/archive", "sdt.context/tmp", "sdt.context/instructions", "sdt.context/architecture", "sdt.context/decisions"} {
+	for _, d := range []string{"context/plan", "context/analysis", "context/worklog", "context/notes", "context/questions", "context/tasks", "context/archive", "context/tmp", "context/instructions", "context/architecture", "context/decisions"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
@@ -280,7 +286,7 @@ func TestAgentInitNoProject(t *testing.T) {
 func TestAgentInitExisting(t *testing.T) {
 	dir := runInTempDir(t)
 	writeTestFile(t, "AGENTS.md", "existing")
-	execute(t, agentInitCmd, nil, "--project", "p")
+	execute(t, agentInitCmd, nil, "--project", "p", "--project-block")
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	if !strings.Contains(string(data), "existing") {
 		t.Error("expected custom content preserved (non-destructive)")
@@ -316,6 +322,45 @@ func TestAgentInitEmptyTarget(t *testing.T) {
 	}
 }
 
+func TestAgentInitNoProjectBlockByDefault(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p")
+	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if !strings.Contains(string(data), "<!-- sdt:begin:instructions -->") {
+		t.Error("expected instructions block in generated AGENTS.md")
+	}
+	// count real tagged blocks only (end markers are unambiguous; the begin
+	// marker string also appears as a reference inside the instructions block).
+	if count := strings.Count(string(data), "<!-- sdt:end:"); count != 1 {
+		t.Errorf("expected exactly one tagged block (instructions only), got %d end markers", count)
+	}
+}
+
+func TestAgentInitDeclinedProjectBlockOptsIn(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--project-block")
+	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if count := strings.Count(string(data), "<!-- sdt:end:"); count != 2 {
+		t.Errorf("expected two tagged blocks (instructions + project) when opted in via --project-block, got %d end markers", count)
+	}
+}
+
+func TestAgentInitDeclinedBlockPreservesExisting(t *testing.T) {
+	dir := runInTempDir(t)
+	writeTestFile(t, "AGENTS.md", "<!-- sdt:begin:project -->\n### Stack\n<!-- sdt:end:project -->")
+	execute(t, agentInitCmd, nil, "--project", "p")
+	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if !strings.Contains(string(data), "<!-- sdt:begin:project -->") {
+		t.Error("expected existing project block preserved even when insertion declined")
+	}
+	if !strings.Contains(string(data), "### Stack") {
+		t.Error("expected existing project block content preserved when insertion declined")
+	}
+	if !strings.Contains(string(data), "<!-- sdt:begin:instructions -->") {
+		t.Error("expected instructions block added alongside preserved project block")
+	}
+}
+
 func TestAgentInitIdempotent(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "myapp", "--group", "platform")
@@ -334,7 +379,7 @@ func TestAgentInitIdempotent(t *testing.T) {
 		t.Errorf("expected .sdt.yaml unchanged on second run\n--- first ---\n%s\n--- second ---\n%s", firstCfg, secondCfg)
 	}
 	for _, f := range instructionFileNames() {
-		first, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions", f))
+		first, _ := os.ReadFile(filepath.Join(dir, "context/instructions", f))
 		if !strings.Contains(string(first), "#") {
 			t.Errorf("expected %s to keep content on second run", f)
 		}
@@ -367,16 +412,16 @@ func TestAgentInitJSONOutput(t *testing.T) {
 
 func TestAgentInitWorkDirError(t *testing.T) {
 	runInTempDir(t)
-	writeTestFile(t, "sdt.context", "file in the way")
+	writeTestFile(t, "context", "file in the way")
 	out := execute(t, agentInitCmd, nil, "--project", "p")
 	if !strings.Contains(string(out), "[error]") {
-		t.Errorf("expected error status for blocked sdt.context/ dir: %s", out)
+		t.Errorf("expected error status for blocked context/ dir: %s", out)
 	}
 }
 
 func TestAgentInitInstructionsDirError(t *testing.T) {
 	runInTempDir(t)
-	writeTestFile(t, "sdt.context/instructions", "file in the way")
+	writeTestFile(t, "context/instructions", "file in the way")
 	out := execute(t, agentInitCmd, nil, "--project", "p")
 	if !strings.Contains(string(out), "[error]") {
 		t.Errorf("expected error status for blocked instructions dir: %s", out)
@@ -386,9 +431,9 @@ func TestAgentInitInstructionsDirError(t *testing.T) {
 func TestAgentInitPreservesInstructionFiles(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	writeTestFile(t, "sdt.context/instructions/adr.md", "custom")
+	writeTestFile(t, "context/instructions/adr.md", "custom")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/adr.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "context/instructions/adr.md"))
 	if !strings.Contains(string(data), "custom") {
 		t.Error("expected custom adr.md preserved without --force")
 	}
@@ -397,9 +442,9 @@ func TestAgentInitPreservesInstructionFiles(t *testing.T) {
 func TestAgentInitForceRefreshesInstructions(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	writeTestFile(t, "sdt.context/instructions/adr.md", "custom")
+	writeTestFile(t, "context/instructions/adr.md", "custom")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/adr.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "context/instructions/adr.md"))
 	if strings.Contains(string(data), "custom") {
 		t.Error("expected adr.md refreshed with --force")
 	}
@@ -409,14 +454,14 @@ func TestAgentInitForceRemovesObsoleteInstructions(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
 	for _, name := range obsoleteInstructionFiles {
-		writeTestFile(t, filepath.Join("sdt.context/instructions", name), "obsolete")
+		writeTestFile(t, filepath.Join("context/instructions", name), "obsolete")
 	}
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
 	if !strings.Contains(string(out), "removed") {
 		t.Errorf("expected removed status for obsolete files: %s", out)
 	}
 	for _, name := range obsoleteInstructionFiles {
-		if _, err := os.Stat(filepath.Join(dir, "sdt.context/instructions", name)); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(dir, "context/instructions", name)); !os.IsNotExist(err) {
 			t.Errorf("expected obsolete instruction file %s to be removed with --force", name)
 		}
 	}
@@ -566,7 +611,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 	if err := os.Mkdir(".git", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, ".gitignore", "sdt.context/tmp\nsdt.context/docs\n")
+	writeTestFile(t, ".gitignore", "context/tmp\ncontext/docs\n")
 	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
@@ -575,7 +620,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 		t.Errorf("expected skipped for entries without trailing slash, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if strings.Contains(string(data), "sdt.context/tmp/") || strings.Contains(string(data), "sdt.context/docs/") {
+	if strings.Contains(string(data), "context/tmp/") || strings.Contains(string(data), "context/docs/") {
 		t.Errorf("expected no duplicate entries in .gitignore:\n%s", data)
 	}
 }
@@ -920,11 +965,11 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"[thing] [action] [reason]",
 		"Conventional Commits",
 		"≤50 chars",
-		"sdt.context/",
-		"sdt.context/tasks/<phase>.md",
-		"sdt.context/architecture/",
-		"sdt.context/decisions/",
-		"sdt.context/index.md",
+		"context/",
+		"context/tasks/<phase>.md",
+		"context/architecture/",
+		"context/decisions/",
+		"context/index.md",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md instructions block:\n%s", want, data)
@@ -940,22 +985,22 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"annotations.md",
 		"self-update.md",
 	} {
-		if _, err := os.Stat(filepath.Join(dir, "sdt.context/instructions", name)); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(dir, "context/instructions", name)); !os.IsNotExist(err) {
 			t.Errorf("expected obsolete instruction file %s to be absent", name)
 		}
 	}
 
-	proj, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/project.md"))
+	proj, _ := os.ReadFile(filepath.Join(dir, "context/instructions/project.md"))
 	if strings.Contains(string(proj), "## Project Configuration") {
 		t.Errorf("expected project.md without Project Configuration section:\n%s", proj)
 	}
 
-	readme, _ := os.ReadFile(filepath.Join(dir, "sdt.context/README.md"))
+	readme, _ := os.ReadFile(filepath.Join(dir, "context/README.md"))
 	if !strings.Contains(string(readme), "instructions/") {
-		t.Errorf("expected instructions/ layout in sdt.context/README.md:\n%s", readme)
+		t.Errorf("expected instructions/ layout in context/README.md:\n%s", readme)
 	}
 
-	ref, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/reference.md"))
+	ref, _ := os.ReadFile(filepath.Join(dir, "context/instructions/reference.md"))
 	if !strings.Contains(string(ref), "sdt agent init") {
 		t.Errorf("expected reference.md to cover agent init:\n%s", ref)
 	}
@@ -963,35 +1008,35 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		t.Errorf("expected reference.md to point to manifest:\n%s", ref)
 	}
 
-	adr, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/adr.md"))
+	adr, _ := os.ReadFile(filepath.Join(dir, "context/instructions/adr.md"))
 	for _, want := range []string{"decisions/", "NNNN-", "append-only", "sync", "architecture/"} {
 		if !strings.Contains(string(adr), want) {
 			t.Errorf("expected %q in adr.md:\n%s", want, adr)
 		}
 	}
 
-	arch, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/architecture.md"))
+	arch, _ := os.ReadFile(filepath.Join(dir, "context/instructions/architecture.md"))
 	for _, want := range []string{"kebab-case", "no date", "Mermaid", "essential"} {
 		if !strings.Contains(string(arch), want) {
 			t.Errorf("expected %q in architecture.md:\n%s", want, arch)
 		}
 	}
 
-	plan, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/plan.md"))
+	plan, _ := os.ReadFile(filepath.Join(dir, "context/instructions/plan.md"))
 	for _, want := range []string{"5-phase", "Analysis", "Tasks", "living"} {
 		if !strings.Contains(string(plan), want) {
 			t.Errorf("expected %q in plan.md:\n%s", want, plan)
 		}
 	}
 
-	proj, _ = os.ReadFile(filepath.Join(dir, "sdt.context/instructions/project.md"))
+	proj, _ = os.ReadFile(filepath.Join(dir, "context/instructions/project.md"))
 	for _, want := range []string{"## Identity", "--project", "no implicit fallback", "<dirname>_<short-path-hash>"} {
 		if !strings.Contains(string(proj), want) {
 			t.Errorf("expected %q in project.md:\n%s", want, proj)
 		}
 	}
 
-	cli, _ := os.ReadFile(filepath.Join(dir, "sdt.context/instructions/cli.md"))
+	cli, _ := os.ReadFile(filepath.Join(dir, "context/instructions/cli.md"))
 	for _, want := range []string{"--format text|json|yaml", "sdt conv --in json --out yaml", "sdt context new|path|list|task|docs", "sdt diff --a A --b B --diff-format", "sdt dns --host"} {
 		if !strings.Contains(string(cli), want) {
 			t.Errorf("expected %q in cli.md:\n%s", want, cli)
@@ -1048,11 +1093,11 @@ func TestWriteInstructionFilesMkdirError(t *testing.T) {
 
 func TestWriteInstructionFilesWriteError(t *testing.T) {
 	runInTempDir(t)
-	writeTestFile(t, "sdt.context/instructions/.keep", "")
-	if err := os.Chmod("sdt.context/instructions", 0o555); err != nil {
+	writeTestFile(t, "context/instructions/.keep", "")
+	if err := os.Chmod("context/instructions", 0o555); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod("sdt.context/instructions", 0o755) })
+	t.Cleanup(func() { _ = os.Chmod("context/instructions", 0o755) })
 	if res := writeInstructionFiles("p", "g", false); !hasErrorStatus(res) {
 		t.Fatalf("expected write error status, got %+v", res)
 	}

@@ -102,7 +102,7 @@ func contextPath(typ, slug, phase string) (string, error) {
 	case ctxTypeArchive:
 		return filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	case ctxTypeArchitecture:
-		return "sdt.context/architecture/" + slug + sdtMarkdownExt, nil
+		return "context/architecture/" + slug + sdtMarkdownExt, nil
 	case ctxTypeDecision:
 		return "", errors.New("decision type is append-only ADR; create via `sdt context new --type analysis` or edit decisions/")
 	case ctxTypeQuestions:
@@ -136,8 +136,8 @@ func outputContextPath(cmd *cobra.Command, res contextPathResult) {
 
 var contextPathCmd = &cobra.Command{
 	Use:   "path",
-	Short: "Print the path for a sdt.context/ work file",
-	Long: `Print the full path of a sdt.context/ work file with the correct date/time
+	Short: "Print the path for a context/ work file",
+	Long: `Print the full path of a context/ work file with the correct date/time
 prefix. Does not create anything.
 
 Types: plan/analysis/worklog/notes/archive (<YYYYMMDD-HHMMSS>-<slug>.md),
@@ -238,8 +238,8 @@ func contextFrontmatter(typ, note, project, created string) string {
 
 var contextNewCmd = &cobra.Command{
 	Use:   "new",
-	Short: "Create a sdt.context/ work file with frontmatter",
-	Long: `Create a plan, worklog, notes, analysis or questions file under sdt.context/
+	Short: "Create a context/ work file with frontmatter",
+	Long: `Create a plan, worklog, notes, analysis or questions file under context/
 with the correct naming and YAML frontmatter (kind, created_at, context, project). The body
 comes from --input/--file or piped stdin. Existing files are preserved unless
 --force is set; --edit opens the file in $EDITOR after creation.
@@ -355,8 +355,8 @@ func listContextFiles(dir string) ([]string, error) {
 
 var contextListCmd = &cobra.Command{
 	Use:   useList,
-	Short: "List sdt.context/ work files",
-	Long: `List existing work files under sdt.context/ for a type, sorted by name
+	Short: "List context/ work files",
+	Long: `List existing work files under context/ for a type, sorted by name
 (chronological for timestamped files).
 
 Types: plan, analysis, worklog, notes, tasks, archive, architecture, decisions.
@@ -621,7 +621,7 @@ func frontmatterField(content, key string) string {
 
 var contextTaskArchiveCmd = &cobra.Command{
 	Use:   "archive",
-	Short: "Archive the active task list to sdt.context/archive/",
+	Short: "Archive the active task list to context/archive/",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		phase := getStringFlag(cmd, "phase", false)
@@ -645,8 +645,8 @@ var contextTaskArchiveCmd = &cobra.Command{
 
 var contextTaskCmd = &cobra.Command{
 	Use:   "task",
-	Short: "Manage per-phase task checklists (sdt.context/tasks/<phase>.md)",
-	Long: `Manage per-phase task checklists in sdt.context/tasks/<phase>.md. Each plan
+	Short: "Manage per-phase task checklists (context/tasks/<phase>.md)",
+	Long: `Manage per-phase task checklists in context/tasks/<phase>.md. Each plan
 phase gets its own checklist file; --phase defaults to "plan".
 
   sdt context task list [--phase <phase>]             show steps with ids
@@ -662,8 +662,8 @@ Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked`,
 var contextCmd = &cobra.Command{
 	Use:     "context",
 	Aliases: []string{"ctx"},
-	Short:   "Context Tools (sdt.context/ work files)",
-	Long: `Manage the agent working files under sdt.context/: plans, work logs, notes
+	Short:   "Context Tools (context/ work files)",
+	Long: `Manage the agent working files under context/: plans, work logs, notes
 and the active task list.
 
   sdt context path [--type ...]   print a work file path

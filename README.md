@@ -22,10 +22,10 @@ build reliable automation on top of it.
 
 - **Machine-readable output** — `--format json|yaml|text` on every command; ANSI suppressed automatically when stdout is not a TTY
 - **Pipe-friendly** — reads stdin, writes stdout, errors to stderr; composable with shell pipes
-- **File-based knowledge** — durable project knowledge as versioned Markdown under `sdt.context/` (architecture, decisions/ADRs, plans, worklogs, notes, tasks) with a generated index, fully offline, no database
+- **File-based knowledge** — durable project knowledge as versioned Markdown under `context/` (architecture, decisions/ADRs, plans, worklogs, notes, tasks) with a generated index, fully offline, no database
 - **AI-agent tooling** — manifest discovery, command schemas, generated per-command docs, project work files and task lists
-- **Context management** — structured knowledge base with typed documents, a generated index (`sdt context reindex`), linting (`sdt context lint`), and agent instruction files in `sdt.context/instructions/`
-- **Agent instructions** — per-project conventions, CLI reference, and workflow guides generated and maintained under `sdt.context/instructions/`
+- **Context management** — structured knowledge base with typed documents, a generated index (`sdt context reindex`), linting (`sdt context lint`), and agent instruction files in `context/instructions/`
+- **Agent instructions** — per-project conventions, CLI reference, and workflow guides generated and maintained under `context/instructions/`
 - **Zero CGO** — pure-Go build, no C toolchain required
 - **Cross-platform** — Linux, macOS, Windows
 
@@ -46,8 +46,8 @@ go build -o bin/sdt ./cli
 ## Documentation
 
 - `docs/` — per-command reference (regenerate with `sdt docs`)
-- `sdt.context/instructions/cli.md` — curated CLI usage and examples for agents
-- `sdt.context/instructions/reference.md` — SDT command reference overview
+- `context/instructions/cli.md` — curated CLI usage and examples for agents
+- `context/instructions/reference.md` — SDT command reference overview
 - `AGENTS.md` — conventions for agents working on this repository
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — contribution guidelines
 
@@ -66,7 +66,7 @@ govulncheck ./...
 
 ## Context & Knowledge
 
-Project knowledge lives under `sdt.context/` as versioned Markdown files:
+Project knowledge lives under `context/` as versioned Markdown files:
 
 - `architecture/` — living architecture docs (essential tier)
 - `decisions/` — Architecture Decision Records (ADRs), append-only

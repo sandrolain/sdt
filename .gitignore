@@ -20,15 +20,12 @@
 # Build
 /sdt
 
-# Agent
-/context
-
 # Result
 trivi-results.json
 /coverage.*
 
 # sdt:start
-sdt.context/tmp/
-sdt.context/docs/
-sdt.context/
+context/tmp/
+context/docs/
+context/
 # sdt:end

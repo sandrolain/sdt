@@ -91,13 +91,13 @@ var agentCmd = &cobra.Command{
 	Short: "Agent instruction tools (AGENTS.md, instruction files)",
 	Long: `Generate and maintain agent instruction files.
 
-  agent init       bootstrap AGENTS.md + sdt.context/ instruction files
+  agent init       bootstrap AGENTS.md + context/ instruction files
 
 AGENTS.md carries the general agent instructions (5-phase lifecycle, knowledge
 tiers, planning and work logs, communication, patterns) in a tagged
 ` + "`instructions`" + ` block, plus a write-once ` + "`project`" + ` block for project-specific
 stack/build/test/lint/conventions. The instruction files under
-` + "`sdt.context/instructions/`" + ` cover CLI usage plus per-type templates (analysis,
+` + "`context/instructions/`" + ` cover CLI usage plus per-type templates (analysis,
 plan, tasks, adr, architecture, worklog, notes, questions) and the command
 reference.
 `,
@@ -105,7 +105,7 @@ reference.
 
 // ── agent init (AGENTS.md + instruction files) ─────────────────────────────────
 
-// instructionFile is one generated instruction file under sdt.context/instructions/.
+// instructionFile is one generated instruction file under context/instructions/.
 type instructionFile struct {
 	name string
 	body string
@@ -140,7 +140,7 @@ var obsoleteInstructionFiles = []string{
 	"memory.md",
 }
 
-// writeInstructionFiles creates the instruction files under sdt.context/instructions/.
+// writeInstructionFiles creates the instruction files under context/instructions/.
 // It is non-destructive: existing files are preserved unless force is set.
 func writeInstructionFiles(project, group string, force bool) []FileResult {
 	var results []FileResult
@@ -206,26 +206,32 @@ var agentInitCmd = &cobra.Command{
 	Long: `Bootstrap the current directory with everything an AI agent needs:
 
   .sdt.yaml                           project identity (project/group)
-  AGENTS.md                           tagged blocks: instructions + write-once project template
-  sdt.context/plan|worklog|notes|tasks|archive|tmp  working directories
-  sdt.context/architecture/      living architecture documentation (no date)
-  sdt.context/decisions/         numbered ADRs (NNNN-<slug>.md, append-only)
-  sdt.context/questions/         open questions awaiting a user decision
-  sdt.context/analysis/          analysis documents and implementation plans
-  sdt.context/instructions/      per-type instruction/template files
-  .gitignore                          ignores chosen sdt.context dirs (current dir)
+  AGENTS.md                           instructions block + optional write-once project template
+  context/plan|worklog|notes|tasks|archive|tmp  working directories
+  context/architecture/      living architecture documentation (no date)
+  context/decisions/         numbered ADRs (NNNN-<slug>.md, append-only)
+  context/questions/         open questions awaiting a user decision
+  context/analysis/          analysis documents and implementation plans
+  context/instructions/      per-type instruction/template files
+  .gitignore                          ignores chosen context dirs (current dir)
 
 The command is idempotent and non-destructive: a second run fills in missing
 content and never overwrites or removes existing files. Use --force to refresh
 generated content and remove obsolete instruction files.
 
-The .gitignore entries for the sdt.context working directories are decided
+The .gitignore entries for the context working directories are decided
 interactively: you are asked whether to ignore them at all, and which entries
-(tmp/, docs/, or the whole sdt.context/ directory). The file is created or
+(tmp/, docs/, or the whole context/ directory). The file is created or
 updated in the execution directory — the same directory as .sdt.yaml — even
 when it is not a git repository; parent directories are never resolved. Use
 --gitignore none|tmp|docs|work|context to pick non-interactively; work (tmp/ +
 docs/ entries) is the default. --yes accepts that default without prompting.
+
+The write-once project block (<!-- sdt:begin:project -->) is optional: you
+are asked whether to insert it (default no), or pass --project-block to insert
+it non-interactively. Declining never removes an existing block; re-running
+never modifies a present block. The agent fills empty sections from project
+evidence, asking first (see the hard rules in the instructions block).
 
 Values not provided via flags are prompted interactively with sensible defaults.
 Use --yes to accept defaults without prompting (CI/non-interactive).
@@ -262,7 +268,7 @@ Examples:
 		}
 		configResult.Status = statusWritten
 
-		// 2. sdt.context/ working directories (non-destructive).
+		// 2. context/ working directories (non-destructive).
 		dirResults := ensureWorkDirs(force)
 
 		// 3. .gitignore: entries maintained in the execution directory (the .sdt.yaml
@@ -273,12 +279,18 @@ Examples:
 			gitIgnoreResults = append(gitIgnoreResults, *res)
 		}
 
-		// 4. Instruction files under sdt.context/instructions/.
+		// 4. Instruction files under context/instructions/.
 		instrResults := writeInstructionFiles(cfg.Project, cfg.Group, force)
 
-		// 5. AGENTS.md: ensure the instructions block (--force refreshable) and
-		//    the write-once project block.
-		mdResult, mdBody := agentMergeTarget(target, cfg.Project, cfg.Group, force)
+		// 5. AGENTS.md: ensure the instructions block (--force refreshable) and,
+		//    unless declined, the write-once project block. Prompts only when
+		//    interactive; --project-block forces insertion non-interactively;
+		//    --yes and non-TTY runs default to no block.
+		wantProject := getBoolFlag(cmd, "project-block", false)
+		if !wantProject {
+			wantProject = agentPromptBool(cmd, yes, "Insert the `<!-- sdt:begin:project -->` block into AGENTS.md?", false)
+		}
+		mdResult, mdBody := agentMergeTarget(target, cfg.Project, cfg.Group, force, wantProject)
 		if err := os.WriteFile(target, []byte(mdBody), 0o644); err != nil { //#nosec G306 -- user-chosen output file
 			exitWithError(cmd, err)
 		}
@@ -312,7 +324,7 @@ func agentPrompt(cmd *cobra.Command, yes bool, label, def string) string {
 	return line
 }
 
-// resolveGitIgnoreMode decides which sdt.context entries go into .gitignore.
+// resolveGitIgnoreMode decides which context entries go into .gitignore.
 // A --gitignore flag value wins. When omitted the mode is asked interactively
 // (confirm first, then which entries); non-interactive runs and --yes default
 // to work, preserving the historical behavior.
@@ -328,7 +340,7 @@ func resolveGitIgnoreMode(cmd *cobra.Command, yes bool) string {
 	if yes || !stdinIsTTY() {
 		return gitIgnoreModeWork
 	}
-	if !agentPromptBool(cmd, false, "Add sdt.context working directories to .gitignore?", true) {
+	if !agentPromptBool(cmd, false, "Add context working directories to .gitignore?", true) {
 		return gitIgnoreModeNone
 	}
 	return agentPromptGitIgnoreMode(cmd, false, gitIgnoreModeWork)
@@ -363,7 +375,7 @@ func agentPromptBool(cmd *cobra.Command, yes bool, label string, def bool) bool 
 	return def
 }
 
-// agentPromptGitIgnoreMode asks which sdt.context entries to ignore. Accepted
+// agentPromptGitIgnoreMode asks which context entries to ignore. Accepted
 // input is a comma-separated list of numbers or keywords: 1/tmp, 2/docs,
 // 3/context (entire directory), or work for both tmp and docs. Empty input and
 // unrecognized tokens fall back to def.
@@ -371,7 +383,7 @@ func agentPromptGitIgnoreMode(cmd *cobra.Command, yes bool, def string) string {
 	if yes || !stdinIsTTY() {
 		return def
 	}
-	if _, ferr := fmt.Fprintln(cmd.ErrOrStderr(), "Which sdt.context entries should be added to .gitignore?"); ferr != nil {
+	if _, ferr := fmt.Fprintln(cmd.ErrOrStderr(), "Which context entries should be added to .gitignore?"); ferr != nil {
 		_ = ferr
 	}
 	if _, ferr := fmt.Fprintf(cmd.ErrOrStderr(), "  1) %s\n", gitIgnoreTmpEntry); ferr != nil {
@@ -463,7 +475,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 	}
 }
 
-// ensureWorkDirs creates the sdt.context/ working directory layout.
+// ensureWorkDirs creates the context/ working directory layout.
 func ensureWorkDirs(force bool) []FileResult {
 	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir}
 	var results []FileResult
@@ -519,7 +531,7 @@ func ensureWorkDirs(force bool) []FileResult {
 	return results
 }
 
-const sdtWorkReadmeTemplate = `# sdt.context/ — Working Directory
+const sdtWorkReadmeTemplate = `# context/ — Working Directory
 
 This directory holds the agent's planning, work logs, task lists, notes,
 instruction files and temporary files for this project.
@@ -542,15 +554,15 @@ instruction files and temporary files for this project.
 ## Conventions
 
 - Files are prefixed with date/time so they sort naturally and keep history:
-  - ` + "`sdt.context/plan/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`sdt.context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`sdt.context/tasks/<phase>.md`" + ` — checklist per plan phase
-  - ` + "`sdt.context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` — archived task lists
+  - ` + "`context/plan/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
+  - ` + "`context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
+  - ` + "`context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
+  - ` + "`context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
+  - ` + "`context/tasks/<phase>.md`" + ` — checklist per plan phase
+  - ` + "`context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` — archived task lists
 - ` + "`architecture/`" + ` files are living documents without a date; ADRs are
   append-only and numbered (` + "`decisions/0001-<slug>.md`" + `).
-- ` + "`sdt.context/`" + ` files use concise technical language. Cut fluff,
+- ` + "`context/`" + ` files use concise technical language. Cut fluff,
   keep meaning and readability (token-efficient).
 - Every work file starts with YAML frontmatter:
 
@@ -590,25 +602,25 @@ Create and manage work files with ` + "`sdt context`" + `:
 // gitIgnore modes for --gitignore and the interactive entries prompt.
 const (
 	gitIgnoreModeNone    = "none"    // leave .gitignore untouched
-	gitIgnoreModeTmp     = "tmp"     // ignore sdt.context/tmp/
-	gitIgnoreModeDocs    = "docs"    // ignore sdt.context/docs/
+	gitIgnoreModeTmp     = "tmp"     // ignore context/tmp/
+	gitIgnoreModeDocs    = "docs"    // ignore context/docs/
 	gitIgnoreModeWork    = "work"    // ignore tmp/ + docs/ (default)
-	gitIgnoreModeContext = "context" // ignore the whole sdt.context/
+	gitIgnoreModeContext = "context" // ignore the whole context/
 )
 
-// gitIgnoreTmpEntry keeps sdt.context/tmp out of version control. The pattern is
-// not root-anchored so it also applies when sdt.context lives in a subdirectory.
-const gitIgnoreTmpEntry = "sdt.context/tmp/"
+// gitIgnoreTmpEntry keeps context/tmp out of version control. The pattern is
+// not root-anchored so it also applies when context lives in a subdirectory.
+const gitIgnoreTmpEntry = "context/tmp/"
 
 // gitIgnoreDocsEntry keeps generated agent docs out of version control. The
 // reference is regenerated per binary version, so it is never committed.
-const gitIgnoreDocsEntry = "sdt.context/docs/"
+const gitIgnoreDocsEntry = "context/docs/"
 
-// gitIgnoreContextEntry ignores the entire sdt.context/ working directory,
+// gitIgnoreContextEntry ignores the entire context/ working directory,
 // including plans, work logs, notes and instruction files.
-const gitIgnoreContextEntry = "sdt.context/"
+const gitIgnoreContextEntry = "context/"
 
-// gitIgnoreWorkEntries lists the sdt.context/ entries ensured by default (work).
+// gitIgnoreWorkEntries lists the context/ entries ensured by default (work).
 var gitIgnoreWorkEntries = []string{gitIgnoreTmpEntry, gitIgnoreDocsEntry}
 
 // gitIgnore block markers bound the sdt-managed .gitignore entries so later
@@ -637,7 +649,7 @@ func gitIgnoreEntriesForMode(mode string) []string {
 }
 
 // ensureGitIgnore ensures the .gitignore file located in the current working
-// directory (the .sdt.yaml location) ignores the sdt.context working
+// directory (the .sdt.yaml location) ignores the context working
 // directories selected by mode (tmp, docs, work, context). The file is
 // maintained even outside a git repository and parent directories are never
 // resolved. Entries live inside a `# sdt:start` / `# sdt:end` block: the block
@@ -716,7 +728,7 @@ func gitIgnoreHasEntry(content, entry string) bool {
 // agentMergeTarget ensures AGENTS.md carries the instructions block (refreshed
 // with --force) plus the write-once project block (never touched once present),
 // without destroying custom content. Returns the new content.
-func agentMergeTarget(target, project, group string, force bool) (FileResult, string) {
+func agentMergeTarget(target, project, group string, force, wantProject bool) (FileResult, string) {
 	res := FileResult{Path: target}
 	content := ""
 	if _, err := os.Stat(target); err == nil {
@@ -732,10 +744,15 @@ func agentMergeTarget(target, project, group string, force bool) (FileResult, st
 	// Instructions block: refreshed with --force, else preserved.
 	instrContent, instrChanged := agentMergeBlock(content, agentSectionNameInstructions, agentBlockInstructions(project, group), force)
 
-	// Project block: write-once, created only when absent, never by --force.
-	beforeProject := instrContent
-	projectContent := agentAppendIfMissing(instrContent, agentSectionNameProject, agentBlockProject(project, group))
-	projectAdded := projectContent != beforeProject
+	// Project block: write-once, created only when absent and requested, never
+	// by --force. Declining never removes an already-present block.
+	projectContent := instrContent
+	projectAdded := false
+	if wantProject {
+		beforeProject := projectContent
+		projectContent = agentAppendIfMissing(projectContent, agentSectionNameProject, agentBlockProject(project, group))
+		projectAdded = projectContent != beforeProject
+	}
 
 	if !instrChanged && !projectAdded {
 		res.Status = statusSkipped
@@ -752,7 +769,7 @@ func agentBlockInstructions(project, group string) string {
 	if project == "" {
 		project = "<project>"
 	}
-	frontmatter := "kind: worklog      # plan | worklog | notes | tasks | adr | architecture\n"
+	frontmatter := "kind: worklog      # analysis | plan | worklog | notes | tasks | adr | architecture | questions | index\n"
 	frontmatter += "summary: <one-line description>   # MANDATORY — the index source\n"
 	frontmatter += "context: what triggered this entry\n"
 	frontmatter += "status: active\n"
@@ -770,50 +787,72 @@ func agentBlockInstructions(project, group string) string {
 
 	return `## Instructions
 
-This project is managed with SDT. Read the relevant instruction file before acting:
+This project is managed with SDT. This file carries two tagged blocks:
+` + "`<!-- sdt:begin:instructions -->`" + ` (this one) and the write-once
+` + "`<!-- sdt:begin:project -->`" + ` block below (project conventions).
 
-- ` + "`sdt.context/instructions/project.md`" + ` — project identity and configuration
-- ` + "`sdt.context/instructions/reference.md`" + ` — SDT command reference
-- ` + "`sdt.context/instructions/cli.md`" + ` — CLI usage and examples
-- ` + "`sdt.context/instructions/analysis.md`" + ` — analysis documents (structure + initial scan)
-- ` + "`sdt.context/instructions/plan.md`" + ` — plans + the 5-phase development lifecycle
-- ` + "`sdt.context/instructions/tasks.md`" + ` — per-phase task files (workflow, stale check, verify-step)
-- ` + "`sdt.context/instructions/adr.md`" + ` — ADRs (numbered, append-only, sync → architecture)
-- ` + "`sdt.context/instructions/architecture.md`" + ` — living architecture docs (tier: essential)
-- ` + "`sdt.context/instructions/worklog.md`" + ` — work logs (final reports, append-only)
-- ` + "`sdt.context/instructions/notes.md`" + ` — free-form annotations
-- ` + "`sdt.context/instructions/questions.md`" + ` — open questions with provenance (sources)
-- ` + "`sdt.context/index.md`" + ` — generated knowledge index (` + "`sdt context reindex`" + `)
-- ` + "`sdt.context/docs/README.md`" + ` — per-command reference generated by ` + "`sdt context docs`" + ` (when present)
+### HARD RULES (apply always)
 
-Work directories live under ` + "`sdt.context/`" + ` (` + "`plan/`" + `, ` + "`analysis/`" + `, ` + "`sdt.context/architecture/`" + `,
-` + "`sdt.context/decisions/`" + `, worklog/, notes/, tasks/, questions/, archive/, tmp/). Never write or execute
-temporary files outside the project. Keep all instruction files concise and technical.
+1. **Intent gate** — a non-trivial user objective/question that falls **outside
+   the context of an existing analysis or plan** is not implemented directly:
+   create the **analysis** and stop. plan → **task files** → **execution** follow
+   only with **explicit user approval**, unless the user already indicated to
+   proceed. When the intent **is** inside an existing analysis/plan,
+   integrate/modify that document in place. Trivial or informational questions
+   are answered inline — the chain starts at the first non-trivial piece of work.
+2. **Never modify a previous analysis/plan on your own** — only when the user
+   points to it. "integrate/modify" never means editing past documents on your
+   own initiative.
+3. **Never write or execute temporary files outside the project.**
+4. **Never create or modify AGENTS.md without asking the user first.**
+5. **Project block auto-fill** — if the ` + "`<!-- sdt:begin:project -->`" + ` block is
+   missing or has empty/placeholder sections, fill it from project evidence
+   (repo files, not guesses); complete only the empty/placeholder parts; ask the
+   user first (rule 4 applies).
+6. **Frontmatter + ` + "`summary`" + `** — every work file under ` + "`context/`" + ` starts with
+   YAML frontmatter (kind correct for the file type, mandatory ` + "`summary`" + `); the
+   index (` + "`sdt context reindex`" + `) and lint depend on it.
+
+### SESSION START (always)
+
+Read ` + "`context/index.md`" + ` first — it is the single entry point (generated). Then
+the **essential** tier: ` + "`context/architecture/`" + ` + ` + "`context/decisions/`" + ` (always
+versioned). Then only what the current task needs of the lower tiers
+(analysis, plan, notes, tasks). ` + "`worklog/`" + ` / ` + "`archive/`" + ` are history. Read a
+` + "`context/instructions/<type>.md`" + ` file when you take that action:
+
+- ` + "`context/instructions/project.md`" + ` — project identity and configuration
+- ` + "`context/instructions/reference.md`" + ` — SDT command reference
+- ` + "`context/instructions/cli.md`" + ` — CLI usage and examples
+- ` + "`context/instructions/analysis.md`" + ` — analysis documents (structure + initial scan)
+- ` + "`context/instructions/plan.md`" + ` — plans + the 5-phase development lifecycle
+- ` + "`context/instructions/tasks.md`" + ` — per-phase task files (workflow, stale check, verify-step)
+- ` + "`context/instructions/adr.md`" + ` — ADRs (numbered, append-only, sync → architecture)
+- ` + "`context/instructions/architecture.md`" + ` — living architecture docs (tier: essential)
+- ` + "`context/instructions/worklog.md`" + ` — work logs (final reports, append-only)
+- ` + "`context/instructions/notes.md`" + ` — free-form annotations
+- ` + "`context/instructions/questions.md`" + ` — open questions with provenance (sources)
+- ` + "`context/docs/README.md`" + ` — per-command reference generated by ` + "`sdt context docs`" + ` (when present)
+
+Work directories live under ` + "`context/`" + ` (` + "`plan/`" + `, ` + "`analysis/`" + `, ` + "`architecture/`" + `,
+` + "`decisions/`" + `, worklog/, notes/, tasks/, questions/, archive/, tmp/). Keep all
+instruction files concise and technical.
 
 ### 5-phase development lifecycle
 
 Follow this cycle for any non-trivial task:
 
-0. **Intent first, gated** — when the user poses a question or objective that
-   lies **outside the context of an existing analysis or plan**, do not start
-   implementing: first create the **analysis** (step 1) and stop. Each next
-   step — **plan** → **task files** → **execution** — requires **explicit
-   user approval**, unless the user has already indicated to proceed. When the
-   intent **is** in the context of an existing analysis/plan, integrate/modify
-   that document in place. Never modify a previous analysis/plan on your own —
-   only when the user points to it. Trivial or informational questions are
-   answered inline — the chain starts at the first non-trivial piece of work.
 1. **Analysis** — perform it; integrate/modify existing analysis files.
 2. **Plan** — create from the analysis; integrate/modify as needed.
 3. **Tasks** — right after the plan, create **one task file per phase** in
-   ` + "`sdt.context/tasks/<phase>.md`" + ` (` + "`sdt context task`" + `); a plan
+   ` + "`context/tasks/<phase>.md`" + ` (` + "`sdt context task`" + `); a plan
    without task files has no execution value.
 4. **Execution** — work **one task file at a time**, never from the plan;
    **mark it in progress on take-in**, complete items as they finish, scan
-   ` + "`sdt.context/tasks/`" + ` for stale in-progress files before starting; create
-   ` + "`sdt.context/architecture/`" + ` and ` + "`sdt.context/decisions/`" + ` (ADRs) as
+   ` + "`context/tasks/`" + ` for stale in-progress files before starting; create
+   ` + "`context/architecture/`" + ` and ` + "`context/decisions/`" + ` (ADRs) as
    needed; **update the task and plan files** in place.
-5. **Final reports** — append ` + "`sdt.context/worklog/`" + ` and ` + "`notes/`" + ` entries.
+5. **Final reports** — append ` + "`context/worklog/`" + ` and ` + "`notes/`" + ` entries.
 
 Before closing a phase run the **verify-step**: completeness, coherence, correctness
 (prioritize CRITICAL / WARNING / SUGGESTION, degrade gracefully). Then reindex: run
@@ -821,14 +860,13 @@ Before closing a phase run the **verify-step**: completeness, coherence, correct
 
 When running the project's build, test and lint commands, discover them from the
 project (Taskfile, Makefile, package.json, go.mod or similar); if the project defines
-none, record them in ` + "`sdt.context/instructions/project.md`" + `.
+none, record them in ` + "`context/instructions/project.md`" + `.
 
 ### Knowledge tiers
 
-` + "`sdt.context/index.md`" + ` is the single entry point (generated). At session start read it,
-then the **essential** tier first ( ` + "`sdt.context/architecture/`" + ` + ` + "`sdt.context/decisions/`" + ` — always
-versioned),
-then only what is needed of the lower tiers (analysis, plan, notes, tasks). ` + "`worklog/`" + ` /
+` + "`context/index.md`" + ` is the single entry point (generated). Tiers: **essential**
+(` + "`context/architecture/`" + ` + ` + "`context/decisions/`" + ` — always versioned), then only what is
+needed of the lower tiers (analysis, plan, notes, tasks); ` + "`worklog/`" + ` /
 ` + "`archive/`" + ` are history. ` + "`summary`" + ` frontmatter is mandatory everywhere; ` + "`links`" + `
 is an optional array validated by lint.
 
@@ -851,7 +889,7 @@ Code only — user-requested docs written normal (concise).
 Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase after
 type. Body only when "why" unclear. No period on subject.
 
-Files in ` + "`sdt.context/`" + `: concise technical language. Cut fluff, keep meaning
+Files in ` + "`context/`" + `: concise technical language. Cut fluff, keep meaning
 and readability. These instructions and docs are concise on purpose.
 
 ### Open points (no open questions in analysis/plans)
@@ -860,7 +898,7 @@ Analysis and plan documents must NOT contain open points. If a decision is
 missing or you are unsure, either:
 
 1. ask on the fly (a short question during the conversation), or
-2. register it as an open question in ` + "`sdt.context/questions/`" + ` (one dated
+2. register it as an open question in ` + "`context/questions/`" + ` (one dated
    file with a checklist of open questions) and prompt the user to answer it.
 
 Every questions document, and any document that derives from or extends another
@@ -878,7 +916,7 @@ This AGENTS.md is the source of truth for project conventions. Whenever a
 decision is taken on a pattern to use in development, testing, documentation or
 workflows, update the relevant section in the ` + "`<!-- sdt:begin:project -->`" + ` block
 and record the change in
-` + "`sdt.context/worklog/`" + `. Keep every section concise and technical.
+` + "`context/worklog/`" + `. Keep every section concise and technical.
 `
 }
 
@@ -913,8 +951,9 @@ func init() {
 	agentInitCmd.Flags().String("project", "", "Project name")
 	agentInitCmd.Flags().String("group", "", "Group name")
 	agentInitCmd.Flags().String("target", agentTargetDefault, "Output instruction file")
-	agentInitCmd.Flags().String("gitignore", "", "Which sdt.context entries to add to .gitignore (none, tmp, docs, work, context); prompts interactively when omitted")
+	agentInitCmd.Flags().String("gitignore", "", "Which context entries to add to .gitignore (none, tmp, docs, work, context); prompts interactively when omitted")
 	agentInitCmd.Flags().Bool("force", false, "Refresh generated template content")
+	agentInitCmd.Flags().Bool("project-block", false, "Insert the write-once <!-- sdt:begin:project --> block (asks interactively when omitted)")
 	agentInitCmd.Flags().Bool("yes", false, "Accept defaults without prompting")
 
 	agentCmd.AddCommand(agentInitCmd)

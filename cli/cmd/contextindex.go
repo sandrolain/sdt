@@ -157,7 +157,7 @@ func ctxResolvePath(base, ref string) (string, bool) {
 	if !strings.HasSuffix(abs, sdtMarkdownExt) {
 		abs += sdtMarkdownExt
 	}
-	if _, err := os.Stat(abs); err != nil { //#nosec G703 -- validated against sdt.context/ tree
+	if _, err := os.Stat(abs); err != nil { //#nosec G703 -- validated against context/ tree
 		return "", false
 	}
 	return abs, true
@@ -180,15 +180,15 @@ func ctxIndexLine(dir, path string) string {
 	return fmt.Sprintf("- [[%s]] — %s", rel, summary)
 }
 
-// buildIndex renders the full sdt.context/index.md content grouped by tier.
+// buildIndex renders the full context/index.md content grouped by tier.
 func buildIndex() (string, error) {
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: index\n")
-	b.WriteString("summary: Generated knowledge index of sdt.context documents grouped by relevance tier\n")
+	b.WriteString("summary: Generated knowledge index of context documents grouped by relevance tier\n")
 	b.WriteString("_generated: auto\n")
 	b.WriteString("---\n\n")
-	b.WriteString("# sdt.context — Knowledge Index\n\n")
+	b.WriteString("# context — Knowledge Index\n\n")
 	b.WriteString("_Managed by `sdt context reindex`. Each row lists the file and its frontmatter `summary`._\n\n")
 	for _, tier := range ctxTierOrder {
 		var rows []string
@@ -226,9 +226,9 @@ func writeIndex(content string) error {
 
 var contextReindexCmd = &cobra.Command{
 	Use:   "reindex",
-	Short: "Regenerate sdt.context/index.md from frontmatter summaries",
-	Long: `Scan the sdt.context/ knowledge directories, read the mandatory frontmatter
-summary of every document and regenerate sdt.context/index.md grouped by
+	Short: "Regenerate context/index.md from frontmatter summaries",
+	Long: `Scan the context/ knowledge directories, read the mandatory frontmatter
+summary of every document and regenerate context/index.md grouped by
 relevance tier (essential, important, medium, operational, history).
 
 Examples:
@@ -298,7 +298,7 @@ var ctxDerivedKinds = map[string]bool{
 	ctxTypeQuestions: true,
 }
 
-// lintDoc validates one sdt.context document. priorityFn lowers CRITICAL to
+// lintDoc validates one context document. priorityFn lowers CRITICAL to
 // WARNING when the file is legacy (no new-style frontmatter) so old history
 // does not fail the whole check.
 func lintDoc(path string) []ctxLintIssue {
@@ -333,7 +333,7 @@ func lintDoc(path string) []ctxLintIssue {
 	}
 	// resolve [[links]] and links: array to existing documents.
 	// Files under context dirs link relative to their own directory; the
-	// generated index.md links relative to the sdt.context/ root.
+	// generated index.md links relative to the context/ root.
 	dir := filepath.Dir(path)
 	linkBase := dir
 	if path == sdtContextIndex {
@@ -345,11 +345,11 @@ func lintDoc(path string) []ctxLintIssue {
 		if !strings.HasSuffix(abs, sdtMarkdownExt) {
 			abs += sdtMarkdownExt
 		}
-		if _, err := os.Stat(abs); os.IsNotExist(err) { //#nosec G703 -- validated against sdt.context/ tree
+		if _, err := os.Stat(abs); os.IsNotExist(err) { //#nosec G703 -- validated against context/ tree
 			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "broken link [[" + target + "]]"})
 		}
 	}
-	// sources: backward-provenance references (root-relative to sdt.context/,
+	// sources: backward-provenance references (root-relative to context/,
 	// like the index). Resolve each entry; require the field on documents known
 	// to derive from/extend another document.
 	for _, ref := range parseFrontmatterList(content, "sources") {
@@ -375,8 +375,8 @@ func lintDoc(path string) []ctxLintIssue {
 
 var contextLintCmd = &cobra.Command{
 	Use:   "lint",
-	Short: "Validate sdt.context frontmatter and links",
-	Long: `Validate the sdt.context/ documents: frontmatter well-formed (kind, mandatory
+	Short: "Validate context frontmatter and links",
+	Long: `Validate the context/ documents: frontmatter well-formed (kind, mandatory
 summary), [[links]] resolve to existing files, and ADR filenames/numbers are
 consistent. Exits non-zero when CRITICAL issues are found.
 
@@ -441,8 +441,8 @@ type ctxStatusEntry struct {
 
 var contextStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Summarize sdt.context/ documents per type with next step",
-	Long: `Summarize the sdt.context/ knowledge: per-type document count and the
+	Short: "Summarize context/ documents per type with next step",
+	Long: `Summarize the context/ knowledge: per-type document count and the
 recommended next step (read / write / verify). Useful at session start after
 reindex.
 
@@ -510,7 +510,7 @@ func ctxStatusRows() []ctxStatusEntry {
 var contextTemplateCmd = &cobra.Command{
 	Use:   "template",
 	Short: "Print the per-type instruction file for a context type",
-	Long: `Print the content of sdt.context/instructions/<tipo>.md for one document
+	Long: `Print the content of context/instructions/<tipo>.md for one document
 type (analysis, plan, tasks, adr, architecture, worklog, notes). Read-only: the
 CLI never writes documents.
 

@@ -84,7 +84,7 @@ pattern becomes a stable convention.
 
 const instrAnalysisTemplate = `# Analysis Documents
 
-` + "`sdt.context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` hold investigation and
+` + "`context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` hold investigation and
 implementation plans. They are important while open, less once implemented.
 
 ## Purpose
@@ -180,7 +180,7 @@ session: <session id>        # optional
   a materially new line of investigation gets a new dated file (and sets
   ` + "`sources`" + ` back to the analysis it extends).
 - Leave **no open points**: if a decision is missing, ask on the fly or register
-  it as an open question in ` + "`sdt.context/questions/`" + `; keep the user in
+  it as an open question in ` + "`context/questions/`" + `; keep the user in
   control of the decisions.
 - Track work via the 5-phase cycle: Analysis → Plan → Tasks per phase → Execution
   (updates plan+task, creates architecture/ADRs) → Final reports.
@@ -198,7 +198,7 @@ Offer what to capture and ask confirmation before writing knowledge files
 
 const instrPlanTemplate = `# Plan Documents
 
-` + "`sdt.context/plan/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` hold the plan for a piece of
+` + "`context/plan/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` hold the plan for a piece of
 work, derived from the related analysis. Plans are **living documents**: they are
 updated during execution, not frozen. A plan exists to produce task files; a plan
 without tasks has no execution value.
@@ -221,7 +221,7 @@ Follow strictly — the plan defines the work, the task files execute it:
 1. **Create the plan** — write Objective, Constraints and assumptions, Out of
    scope, Phases, Verification and Completion criteria from the analysis.
 2. **Create task files right after** — as soon as the plan exists, create
-   **one task file per phase** (` + "`sdt.context/tasks/<phase>.md`" + `, see
+   **one task file per phase** (` + "`context/tasks/<phase>.md`" + `, see
    ` + "`instructions/tasks.md`" + `). Every phase maps to a task file; link in
    both directions (plan frontmatter → task files, task file frontmatter →
    plan).
@@ -317,7 +317,7 @@ Plan and task files are updated during execution (not append-only); ADRs and
 
 const instrTasksTemplate = `# Task Files (one per plan phase)
 
-` + "`sdt.context/tasks/<phase>.md`" + ` holds the task list for **one phase of a plan**.
+` + "`context/tasks/<phase>.md`" + ` holds the task list for **one phase of a plan**.
 There is no single global TODO: each plan phase gets its own file so the agent
 can track exactly what is done and what is pending for that phase. The task file
 is the **execution unit**: work happens from one task file at a time, never from
@@ -414,7 +414,7 @@ sections handle that.
 
 ## Stale task files
 
-At the start of any execution pass, scan ` + "`sdt.context/tasks/`" + ` for stale
+At the start of any execution pass, scan ` + "`context/tasks/`" + ` for stale
 files: status ` + "`active`" + ` with ` + "`[~]`" + ` in-progress items that went
 unupdated for a long time (compare each file's ` + "`updated`" + ` with the current
 date and the recorded take-in). For each stale file:
@@ -440,7 +440,7 @@ Prioritize CRITICAL / WARNING / SUGGESTION and degrade gracefully.
 
 const instrAdrTemplate = `# ADR (Architecture Decision Records)
 
-` + "`sdt.context/decisions/NNNN-<slug>.md`" + ` record a decision and its rationale.
+` + "`context/decisions/NNNN-<slug>.md`" + ` record a decision and its rationale.
 Numbered with 4 digits (0001, 0002, ...), in chronological order, append-only.
 A new decision creates a new ADR with the next number; existing ADRs are never
 rewritten in place.
@@ -515,7 +515,7 @@ versioned, read at session start after ` + "`index.md`" + `.
 
 const instrArchitectureTemplate = `# Architecture (living documents)
 
-` + "`sdt.context/architecture/`" + ` holds the living architecture documentation:
+` + "`context/architecture/`" + ` holds the living architecture documentation:
 ` + "`stack.md`" + `, ` + "`map.md`" + `, ` + "`flows.md`" + `, ` + "`components.md`" + `, ...
 
 ## Structure
@@ -607,7 +607,7 @@ versioned, read at session start after ` + "`index.md`" + `.
 
 const instrWorklogTemplate = `# Work Logs
 
-` + "`sdt.context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` append one dated entry per
+` + "`context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` append one dated entry per
 completed change: what changed and why. Append-only history; do not rewrite
 existing entries.
 
@@ -687,7 +687,7 @@ session: <session id>        # optional
 
 const instrNotesTemplate = `# Notes
 
-` + "`sdt.context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` hold free-form annotations that
+` + "`context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` hold free-form annotations that
 do not fit plan/web log/task files.
 
 ## Structure
@@ -715,7 +715,7 @@ project: <project>
 
 const instrQuestionsTemplate = `# Open Questions
 
-` + "`sdt.context/questions/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` collect open questions and
+` + "`context/questions/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` collect open questions and
 unresolved points that need the user's decision before a piece of work can
 proceed. Analysis and plan documents must NOT contain open points: surface them
 here instead.
@@ -815,7 +815,7 @@ The full, always-current command reference is generated, not written by hand:
 ` + codeFence + `
 sdt manifest --format json            # full command tree
 sdt schema --command "<command>"      # JSON Schema for one command
-sdt context docs                      # per-command docs in sdt.context/docs/
+sdt context docs                      # per-command docs in context/docs/
 sdt docs                              # full markdown docs per command (humans)
 sdt <command> --help                  # usage for a single command
 ` + codeFence + `
@@ -835,8 +835,8 @@ Create it with ` + "`sdt agent init --project myapp --group platform`" + ` or
 
 ## Context knowledge
 
-Documents under ` + "`sdt.context/`" + ` are the project knowledge. Per-type
-instructions and templates in ` + "`sdt.context/instructions/`" + ` (analysis, plan,
+Documents under ` + "`context/`" + ` are the project knowledge. Per-type
+instructions and templates in ` + "`context/instructions/`" + ` (analysis, plan,
 tasks, adr, architecture, worklog, notes, questions, project, cli usage). Index and checks:
 ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` / ` + "`sdt context status`" + ` /
 ` + "`sdt context template --type <tipo>`" + `. Nothing is written by the CLI: the
@@ -845,7 +845,7 @@ agent edits the Markdown files.
 ## CLI usage & examples
 
 The curated command catalog, global flags and practical examples live in
-` + "`sdt.context/instructions/cli.md`" + `.
+` + "`context/instructions/cli.md`" + `.
 `
 
 const instrCLITemplate = `# CLI Usage & Examples
@@ -857,7 +857,7 @@ reference use the generated docs:
 ` + codeFence + `
 sdt manifest --format json           # full command tree
 sdt schema --command "<command>"     # JSON Schema for one command
-sdt context docs                     # per-command docs in sdt.context/docs/
+sdt context docs                     # per-command docs in context/docs/
 sdt <command> --help                 # usage for a single command
 ` + codeFence + `
 

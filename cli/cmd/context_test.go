@@ -25,19 +25,19 @@ func TestContextPath(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
 	out := execute(t, contextPathCmd, nil, "--type", "worklog", "--slug", "Review Deps!")
-	want := filepath.Join("sdt.context", "worklog", "20260806-070000-review-deps.md")
+	want := filepath.Join("context", "worklog", "20260806-070000-review-deps.md")
 	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
 
 	out = execute(t, contextPathCmd, nil, "--type", "plan")
-	want = filepath.Join("sdt.context", "plan", "20260806-070000.md")
+	want = filepath.Join("context", "plan", "20260806-070000.md")
 	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
 
 	out = execute(t, contextPathCmd, nil, "--type", "analysis", "--slug", "backend-choice")
-	want = filepath.Join("sdt.context", "analysis", "20260806-070000-backend-choice.md")
+	want = filepath.Join("context", "analysis", "20260806-070000-backend-choice.md")
 	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
@@ -80,7 +80,7 @@ func TestContextNew(t *testing.T) {
 
 	out := execute(t, contextNewCmd, nil, "--type", "worklog", "--slug", "review-deps", "--context", "reviewed deps", "--input", "reviewed all deps")
 	path := strings.TrimSpace(string(out))
-	want := filepath.Join("sdt.context", "worklog", "20260806-070000-review-deps.md")
+	want := filepath.Join("context", "worklog", "20260806-070000-review-deps.md")
 	if path != want {
 		t.Errorf("expected %q, got %q", want, path)
 	}
@@ -107,7 +107,7 @@ func TestContextNewPlan(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
 	execute(t, contextNewCmd, nil, "--type", "plan", "--slug", "ship-memory", "--input", "body")
-	data, err := os.ReadFile(filepath.Join(dir, "sdt.context", "plan", "20260806-070000-ship-memory.md"))
+	data, err := os.ReadFile(filepath.Join(dir, "context", "plan", "20260806-070000-ship-memory.md"))
 	if err != nil {
 		t.Fatalf("expected plan created: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestContextNewAnalysis(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
 	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "backend-choice", "--input", "body")
-	data, err := os.ReadFile(filepath.Join(dir, "sdt.context", "analysis", "20260806-070000-backend-choice.md"))
+	data, err := os.ReadFile(filepath.Join(dir, "context", "analysis", "20260806-070000-backend-choice.md"))
 	if err != nil {
 		t.Fatalf("expected analysis created: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestContextNewForce(t *testing.T) {
 	if !strings.Contains(string(out), "notes/20260806-070000-x.md") {
 		t.Errorf("unexpected output: %s", out)
 	}
-	data, _ := os.ReadFile(filepath.Join(dir, "sdt.context", "notes", "20260806-070000-x.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "context", "notes", "20260806-070000-x.md"))
 	if !strings.Contains(string(data), "second") {
 		t.Errorf("expected overwritten content:\n%s", data)
 	}
@@ -234,7 +234,7 @@ func TestContextList(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 files, got %q", out)
 	}
-	wantA := filepath.Join("sdt.context", "worklog", "20260806-070000-a.md")
+	wantA := filepath.Join("context", "worklog", "20260806-070000-a.md")
 	if lines[0] != wantA {
 		t.Errorf("expected %q, got %q", wantA, lines[0])
 	}
@@ -365,26 +365,26 @@ func TestContextTaskLifecycle(t *testing.T) {
 	execute(t, contextTaskBlockCmd, nil, "3", "--reason", "ci broken")
 	execute(t, contextTaskWipCmd, nil, "2")
 
-	items = parseTaskItems(mustReadFile(t, filepath.Join(dir, "sdt.context", "tasks", "plan.md")))
+	items = parseTaskItems(mustReadFile(t, filepath.Join(dir, "context", "tasks", "plan.md")))
 	want := []string{taskStatusDone, taskStatusWip, taskStatusBlocked}
 	for i, w := range want {
 		if items[i].Status != w {
 			t.Errorf("item %d status = %q, want %q", i, items[i].Status, w)
 		}
 	}
-	if !strings.Contains(mustReadFile(t, filepath.Join(dir, "sdt.context", "tasks", "plan.md")), "blocked: ci broken") {
+	if !strings.Contains(mustReadFile(t, filepath.Join(dir, "context", "tasks", "plan.md")), "blocked: ci broken") {
 		t.Error("expected block reason in plan.md")
 	}
 
 	out = execute(t, contextTaskArchiveCmd, nil)
 	archivePath := strings.TrimSpace(string(out))
-	if !strings.Contains(archivePath, filepath.Join("sdt.context", "archive")) {
+	if !strings.Contains(archivePath, filepath.Join("context", "archive")) {
 		t.Errorf("expected archive path, got %q", out)
 	}
 	if _, err := os.Stat(archivePath); err != nil {
 		t.Errorf("expected archived file at %s: %v", archivePath, err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "sdt.context", "tasks", "plan.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, "context", "tasks", "plan.md")); !os.IsNotExist(err) {
 		t.Error("expected active task list removed after archive")
 	}
 }
@@ -420,8 +420,8 @@ func TestAgentBlockReferencesContextCommands(t *testing.T) {
 		"sdt context reindex",
 		"sdt context lint",
 		"sdt context task",
-		"sdt.context/tasks/<phase>.md",
-		"sdt.context/index.md",
+		"context/tasks/<phase>.md",
+		"context/index.md",
 	} {
 		if !strings.Contains(block, want) {
 			t.Errorf("expected %q in agent block", want)

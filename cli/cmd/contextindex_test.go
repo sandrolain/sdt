@@ -27,12 +27,12 @@ func writeCtxDoc(t *testing.T, rel, frontmatter string) {
 
 func TestContextReindex(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "sdt.context/plan/planx.md", "---\nkind: plan\nsummary: A plan summary\ncreated_at: 2026-01-01T00:00:00Z\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/planx.md", "---\nkind: plan\nsummary: A plan summary\ncreated_at: 2026-01-01T00:00:00Z\n---\nbody\n")
 	out := execute(t, contextReindexCmd, nil)
-	if !strings.Contains(string(out), "sdt.context/index.md") {
+	if !strings.Contains(string(out), "context/index.md") {
 		t.Fatalf("expected index path in output: %s", out)
 	}
-	idx, _ := os.ReadFile(filepath.Join(dir, "sdt.context/index.md"))
+	idx, _ := os.ReadFile(filepath.Join(dir, "context/index.md"))
 	content := string(idx)
 	if !strings.Contains(content, "[[plan/planx.md]]") {
 		t.Errorf("expected plan doc in index:\n%s", content)
@@ -56,12 +56,12 @@ func TestContextReindexSkipUnchanged(t *testing.T) {
 
 func TestContextLintClean(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "sdt.context/plan/good.md", "---\nkind: plan\nsummary: Good plan\nlinks:\n  - notes/other.md\n---\nbody\n")
-	writeCtxDoc(t, "sdt.context/notes/other.md", "---\nkind: notes\nsummary: Other\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/good.md", "---\nkind: plan\nsummary: Good plan\nlinks:\n  - notes/other.md\n---\nbody\n")
+	writeCtxDoc(t, "context/notes/other.md", "---\nkind: notes\nsummary: Other\n---\nbody\n")
 	idx := "---\nkind: index\nsummary: index\n"
 	idx += "[[plan/good.md]]\n"
 	idx += "[[notes/other.md]]\n---\n"
-	if err := os.WriteFile(filepath.Join(dir, "sdt.context/index.md"), []byte(idx), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := execute(t, contextLintCmd, nil, "--format", "json")
@@ -72,7 +72,7 @@ func TestContextLintClean(t *testing.T) {
 
 func TestContextLintMissingSummary(t *testing.T) {
 	setupContextProject(t)
-	path := "sdt.context/plan/nosummary.md"
+	path := "context/plan/nosummary.md"
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -87,10 +87,10 @@ func TestContextLintMissingSummary(t *testing.T) {
 
 func TestContextLintBrokenLink(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "sdt.context/plan/nosearch.md", "---\nkind: plan\nsummary: x\n[[missing-file]]\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/nosearch.md", "---\nkind: plan\nsummary: x\n[[missing-file]]\n---\nbody\n")
 	idx := "---\nkind: index\nsummary: i\n"
 	idx += "[[plan/nosearch.md]]\n---\n"
-	if err := os.WriteFile(filepath.Join(dir, "sdt.context/index.md"), []byte(idx), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := execute(t, contextLintCmd, nil, "--format", "json")
@@ -128,11 +128,11 @@ func TestContextTemplateUnknownType(t *testing.T) {
 func TestContextListArchitectureAndDecisions(t *testing.T) {
 	dir := setupContextProject(t)
 	//#nosec G306 -- user work file
-	if err := os.WriteFile(filepath.Join(dir, "sdt.context/architecture/stack.md"), []byte("---\nkind: architecture\nsummary: stack\n---\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "context/architecture/stack.md"), []byte("---\nkind: architecture\nsummary: stack\n---\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	//#nosec G306 -- user work file
-	if err := os.WriteFile(filepath.Join(dir, "sdt.context/decisions/0001-x.md"), []byte("---\nkind: adr\nnumber: 0001\nsummary: x\n---\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "context/decisions/0001-x.md"), []byte("---\nkind: adr\nnumber: 0001\nsummary: x\n---\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := execute(t, contextListCmd, nil, "--type", "architecture")
@@ -148,7 +148,7 @@ func TestContextListArchitectureAndDecisions(t *testing.T) {
 func TestContextTaskPhaseFile(t *testing.T) {
 	dir := setupContextProject(t)
 	execute(t, contextTaskAddCmd, nil, "step exec", "--phase", "execution")
-	if _, err := os.Stat(filepath.Join(dir, "sdt.context/tasks/execution.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "context/tasks/execution.md")); err != nil {
 		t.Fatalf("expected tasks/execution.md to exist: %v", err)
 	}
 	out := execute(t, contextTaskListCmd, nil, "--phase", "execution", "--format", "json")
@@ -162,13 +162,13 @@ func TestContextTaskArchivePhaseFile(t *testing.T) {
 	execute(t, contextTaskAddCmd, nil, "one", "--phase", "verify")
 	out := execute(t, contextTaskArchiveCmd, nil, "--phase", "verify")
 	archivePath := strings.TrimSpace(string(out))
-	if !strings.Contains(archivePath, filepath.Join("sdt.context", "archive")) {
+	if !strings.Contains(archivePath, filepath.Join("context", "archive")) {
 		t.Errorf("expected archive path, got %q", out)
 	}
 	if _, err := os.Stat(archivePath); err != nil {
 		t.Fatalf("expected archived file at %s: %v", archivePath, err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "sdt.context/tasks/verify.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, "context/tasks/verify.md")); !os.IsNotExist(err) {
 		t.Error("expected task file removed after archive")
 	}
 }
@@ -176,7 +176,7 @@ func TestContextTaskArchivePhaseFile(t *testing.T) {
 func TestContextQuestionsPath(t *testing.T) {
 	setupContextProject(t)
 	out := execute(t, contextPathCmd, nil, "--type", "questions", "--slug", "backend")
-	if !strings.Contains(string(out), filepath.Join("sdt.context", "questions")) {
+	if !strings.Contains(string(out), filepath.Join("context", "questions")) {
 		t.Errorf("expected questions path, got %s", out)
 	}
 	if !strings.Contains(string(out), "-backend.md") {
@@ -187,7 +187,7 @@ func TestContextQuestionsPath(t *testing.T) {
 func TestContextQuestionsNew(t *testing.T) {
 	dir := setupContextProject(t)
 	execute(t, contextNewCmd, nil, "--type", "questions", "--slug", "open-api", "--input", "body")
-	path := filepath.Join(dir, "sdt.context", "questions")
+	path := filepath.Join(dir, "context", "questions")
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		t.Fatalf("expected questions dir: %v", err)
@@ -222,9 +222,9 @@ func TestContextStatusIncludesQuestions(t *testing.T) {
 
 func TestContextReindexIncludesQuestions(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "sdt.context/questions/q.md", "---\nkind: questions\nsummary: An open question\n---\nbody\n")
+	writeCtxDoc(t, "context/questions/q.md", "---\nkind: questions\nsummary: An open question\n---\nbody\n")
 	execute(t, contextReindexCmd, nil)
-	idx, _ := os.ReadFile(filepath.Join(dir, "sdt.context/index.md"))
+	idx, _ := os.ReadFile(filepath.Join(dir, "context/index.md"))
 	if !strings.Contains(string(idx), "[[questions/q.md]]") {
 		t.Errorf("expected questions doc in index:\n%s", idx)
 	}
@@ -232,10 +232,10 @@ func TestContextReindexIncludesQuestions(t *testing.T) {
 
 func TestContextLintSourcesResolves(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "sdt.context/analysis/base.md", "---\nkind: analysis\nsummary: base\n---\n")
-	writeCtxDoc(t, "sdt.context/questions/q.md", "---\nkind: questions\nsummary: q\nsources:\n  - analysis/base.md\n---\n")
+	writeCtxDoc(t, "context/analysis/base.md", "---\nkind: analysis\nsummary: base\n---\n")
+	writeCtxDoc(t, "context/questions/q.md", "---\nkind: questions\nsummary: q\nsources:\n  - analysis/base.md\n---\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
-	if err := os.WriteFile(filepath.Join(dir, "sdt.context/index.md"), []byte(idx), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := execute(t, contextLintCmd, nil, "--format", "json")
@@ -246,9 +246,9 @@ func TestContextLintSourcesResolves(t *testing.T) {
 
 func TestContextLintSourcesMissingOnDerived(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "sdt.context/questions/q.md", "---\nkind: questions\nsummary: q\n---\n")
+	writeCtxDoc(t, "context/questions/q.md", "---\nkind: questions\nsummary: q\n---\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
-	if err := os.WriteFile(filepath.Join(dir, "sdt.context/index.md"), []byte(idx), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := execute(t, contextLintCmd, nil, "--format", "json")
@@ -259,9 +259,9 @@ func TestContextLintSourcesMissingOnDerived(t *testing.T) {
 
 func TestContextLintSourcesBroken(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "sdt.context/questions/q.md", "---\nkind: questions\nsummary: q\nsources:\n  - analysis/does-not-exist.md\n---\n")
+	writeCtxDoc(t, "context/questions/q.md", "---\nkind: questions\nsummary: q\nsources:\n  - analysis/does-not-exist.md\n---\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
-	if err := os.WriteFile(filepath.Join(dir, "sdt.context/index.md"), []byte(idx), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := execute(t, contextLintCmd, nil, "--format", "json")

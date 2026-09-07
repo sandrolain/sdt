@@ -116,7 +116,7 @@ func TestContextDocs(t *testing.T) {
 	if !strings.Contains(string(out), "README.md") {
 		t.Errorf("expected README in output: %s", out)
 	}
-	docsDir := filepath.Join(dir, "sdt.context", "docs")
+	docsDir := filepath.Join(dir, "context", "docs")
 	for _, f := range []string{"README.md", "context-task-add.md", "b32-dec.md"} {
 		if _, err := os.Stat(filepath.Join(docsDir, f)); err != nil {
 			t.Errorf("expected %s generated: %v", f, err)
@@ -148,7 +148,7 @@ func TestContextDocsIdempotent(t *testing.T) {
 	if !strings.Contains(string(out), "[updated]") {
 		t.Errorf("expected updated status on second run: %s", out)
 	}
-	docsDir := filepath.Join(dir, "sdt.context", "docs")
+	docsDir := filepath.Join(dir, "context", "docs")
 	entries, err := os.ReadDir(docsDir)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestContextDocsIdempotent(t *testing.T) {
 func TestContextDocsClean(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, contextDocsCmd, nil)
-	stale := filepath.Join(dir, "sdt.context", "docs", "zz-stale.md")
+	stale := filepath.Join(dir, "context", "docs", "zz-stale.md")
 	if err := os.WriteFile(stale, []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestContextDocsJSON(t *testing.T) {
 
 func TestAgentBlockReferencesDocs(t *testing.T) {
 	block := agentBlockInstructions("", "")
-	if !strings.Contains(block, "sdt.context/docs/README.md") {
+	if !strings.Contains(block, "context/docs/README.md") {
 		t.Error("expected generated docs pointer in agent block")
 	}
 	if !strings.Contains(block, "sdt context docs") {
@@ -209,14 +209,14 @@ func TestAgentBlockMatchesInstructionFiles(t *testing.T) {
 	block := agentBlockInstructions("p", "g")
 	files := instructionFiles("p", "g")
 	for _, f := range files {
-		want := "sdt.context/instructions/" + f.name
+		want := "context/instructions/" + f.name
 		if !strings.Contains(block, "`"+want+"`") {
 			t.Errorf("block does not reference generated file %s", want)
 		}
 	}
 	for _, line := range strings.Split(block, "\n") {
 		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "- `sdt.context/instructions/") {
+		if !strings.HasPrefix(line, "- `context/instructions/") {
 			continue
 		}
 		start := strings.Index(line, "`")
@@ -231,7 +231,7 @@ func TestAgentBlockMatchesInstructionFiles(t *testing.T) {
 		ref := rest[:end]
 		found := false
 		for _, f := range files {
-			if ref == "sdt.context/instructions/"+f.name {
+			if ref == "context/instructions/"+f.name {
 				found = true
 				break
 			}

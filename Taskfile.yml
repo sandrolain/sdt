@@ -114,7 +114,7 @@ tasks:
       - task: context
 
   context:
-    desc: Rebuild the sdt.context knowledge index and lint the documents
+    desc: Rebuild the context knowledge index and lint the documents
     cmds:
       - go run ./cli context reindex
       - go run ./cli context lint
