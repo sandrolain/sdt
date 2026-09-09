@@ -436,6 +436,13 @@ Never leave ` + "`[~]`" + ` in-progress markers unattended across sessions.
 Before closing a phase run the verify-step: completeness (all steps handled),
 coherence (documents agree), correctness (no broken links / stale state).
 Prioritize CRITICAL / WARNING / SUGGESTION and degrade gracefully.
+
+Use a standardized claim vocabulary for checklist items: **passed** (ran and
+verified), **expected** (written, not run), **inferred** (static analysis only).
+Never mark ` + "`[x]`" + ` a claim that did not run — use a description instead.
+
+At session end: note open tasks and questions in ` + "`context/tasks/`" + ` or
+` + "`context/questions/`" + ` for continuity.
 `
 
 const instrAdrTemplate = `# ADR (Architecture Decision Records)

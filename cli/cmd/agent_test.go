@@ -206,8 +206,8 @@ func TestAgentInit(t *testing.T) {
 		"context/instructions/notes.md",
 		"context/instructions/reference.md",
 		"context/instructions/cli.md",
+		"context/instructions/questions.md",
 		"### 5-phase development lifecycle",
-		"### Knowledge tiers",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
 		"discover them from the",
@@ -223,9 +223,11 @@ func TestAgentInit(t *testing.T) {
 		"### Lint & Format",
 		"### Conventions",
 		"### HARD RULES",
-		"Never create or modify AGENTS.md without asking the user first",
+		"Ask before touching AGENTS.md",
+		"Temp files in `context/tmp/`",
+		"Immutable past docs",
 		"### SESSION START",
-		"file when you take that action:",
+		"**On action**",
 		"fill it from project evidence",
 		"source of truth for project conventions",
 	} {
@@ -236,11 +238,17 @@ func TestAgentInit(t *testing.T) {
 	if !strings.Contains(string(data), "update the relevant section in the `<!-- sdt:begin:project -->` block") {
 		t.Error("expected Patterns to point at the project block")
 	}
-	if !strings.Contains(string(data), "project: myapp") {
-		t.Errorf("expected real project injected in frontmatter:\n%s", data)
+	if !strings.Contains(string(data), "Project: myapp") {
+		t.Errorf("expected real project injected in identity line:\n%s", data)
 	}
-	if !strings.Contains(string(data), "group: platform") {
-		t.Errorf("expected real group injected in frontmatter:\n%s", data)
+	if !strings.Contains(string(data), "Group: platform") {
+		t.Errorf("expected real group injected in identity line:\n%s", data)
+	}
+	if strings.Contains(string(data), "### Knowledge tiers") || strings.Contains(string(data), "```yaml") {
+		t.Error("expected removed redundant Knowledge tiers section and frontmatter sample")
+	}
+	if !strings.Contains(string(data), "### Keep the chain (recap)") {
+		t.Error("expected intent gate recap section at block end")
 	}
 
 	assertInstructionFiles(t, dir)
@@ -958,9 +966,11 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	for _, want := range []string{
 		"### 5-phase development lifecycle",
-		"### Knowledge tiers",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
+		"### SESSION START",
+		"**Always read**",
+		"**On action**",
 		"caveman ultra",
 		"[thing] [action] [reason]",
 		"Conventional Commits",
@@ -974,6 +984,12 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md instructions block:\n%s", want, data)
 		}
+	}
+	if strings.Contains(string(data), "### Knowledge tiers") || strings.Contains(string(data), "```yaml") {
+		t.Error("expected removed redundant Knowledge tiers section and frontmatter sample")
+	}
+	if !strings.Contains(string(data), "### Keep the chain (recap)") {
+		t.Error("expected intent gate recap section at block end")
 	}
 
 	for _, name := range []string{
@@ -1044,20 +1060,51 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	}
 }
 
-func TestAgentBlockInstructionsFrontmatter(t *testing.T) {
+func TestAgentBlockInstructionsIdentity(t *testing.T) {
 	with := agentBlockInstructions("myapp", "platform")
-	if !strings.Contains(with, "project: myapp\n") {
+	if !strings.Contains(with, "Project: myapp") {
 		t.Errorf("expected injected project:\n%s", with)
 	}
-	if !strings.Contains(with, "group: platform\n") {
+	if !strings.Contains(with, "Group: platform") {
 		t.Errorf("expected injected group:\n%s", with)
 	}
 	without := agentBlockInstructions("", "")
-	if !strings.Contains(without, "project: <project>\n") {
-		t.Errorf("expected placeholder fallback when project empty:\n%s", without)
+	if strings.Contains(without, "Project:") {
+		t.Errorf("expected no project line when project empty:\n%s", without)
 	}
-	if strings.Contains(without, "group:") {
+	if strings.Contains(without, "Group:") {
 		t.Errorf("expected no group line when group empty:\n%s", without)
+	}
+}
+
+// TestAgentBlockInstructionsCoherence guards against accidental rule deletion
+// during template edits: each hard rule and key structure must survive.
+func TestAgentBlockInstructionsCoherence(t *testing.T) {
+	block := agentBlockInstructions("p", "g")
+	for _, want := range []string{
+		"### HARD RULES",
+		"Intent gate",
+		"Immutable past docs",
+		"context/tmp/",
+		"Ask before touching AGENTS.md",
+		"Frontmatter",
+		"summary",
+		"### SESSION START",
+		"**Always read**",
+		"**On action**",
+		"context/index.md",
+		"### 5-phase development lifecycle",
+		"verify-step",
+		"sdt context status",
+		"passed",
+		"expected",
+		"inferred",
+		"session end",
+		"### Keep the chain (recap)",
+	} {
+		if !strings.Contains(block, want) {
+			t.Errorf("expected %q in instructions block:\n%s", want, block)
+		}
 	}
 }
 
