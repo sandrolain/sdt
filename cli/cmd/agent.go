@@ -207,7 +207,7 @@ var agentInitCmd = &cobra.Command{
 
   .sdt.yaml                           project identity (project/group)
   AGENTS.md                           instructions block + optional write-once project template
-  context/plan|worklog|notes|tasks|archive|tmp  working directories
+  context/plan|worklog|notes|tasks|archive|tmp|scripts  working directories
   context/architecture/      living architecture documentation (no date)
   context/decisions/         numbered ADRs (NNNN-<slug>.md, append-only)
   context/questions/         open questions awaiting a user decision
@@ -477,7 +477,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 
 // ensureWorkDirs creates the context/ working directory layout.
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtScriptsDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -833,11 +833,13 @@ Read ` + "`context/index.md`" + ` first (single entry point, generated). Then th
 | ` + "`context/instructions/questions.md`" + ` | Registering an open question |
 | ` + "`context/instructions/reference.md`" + ` | Looking up a command |
 | ` + "`context/instructions/cli.md`" + ` | Looking up usage examples |
+| ` + "`context/scripts/`" + ` | Running bundled scripts (execute, do not read into context) |
 | ` + "`context/docs/README.md`" + ` | Needing per-command docs (` + "`sdt context docs`" + `, when present) |
 
 Work directories live under ` + "`context/`" + ` (` + "`plan/`" + `, ` + "`analysis/`" + `, ` + "`architecture/`" + `,
-` + "`decisions/`" + `, worklog/, notes/, tasks/, questions/, archive/, tmp/). Keep all
-instruction files concise and technical.
+` + "`decisions/`" + `, worklog/, notes/, tasks/, questions/, archive/, tmp/,
+` + "`scripts/`" + `). Keep all instruction files concise and technical. Bundled
+scripts in ` + "`context/scripts/`" + ` are executed on demand, never read into context.
 
 ### 5-phase development lifecycle
 
@@ -954,6 +956,6 @@ func init() {
 	agentInitCmd.Flags().Bool("project-block", false, "Insert the write-once <!-- sdt:begin:project --> block (asks interactively when omitted)")
 	agentInitCmd.Flags().Bool("yes", false, "Accept defaults without prompting")
 
-	agentCmd.AddCommand(agentInitCmd)
+	agentCmd.AddCommand(agentInitCmd, agentVerifyCmd)
 	rootCmd.AddCommand(agentCmd)
 }

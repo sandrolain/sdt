@@ -846,8 +846,10 @@ Documents under ` + "`context/`" + ` are the project knowledge. Per-type
 instructions and templates in ` + "`context/instructions/`" + ` (analysis, plan,
 tasks, adr, architecture, worklog, notes, questions, project, cli usage). Index and checks:
 ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` / ` + "`sdt context status`" + ` /
-` + "`sdt context template --type <tipo>`" + `. Nothing is written by the CLI: the
-agent edits the Markdown files.
+` + "`sdt context template --type <tipo>`" + `. Agent instruction contract:
+` + "`sdt agent verify`" + `. Bundled runnable scripts live in ` + "`context/scripts/`" + `
+(executed on demand, never read into context). Nothing is written by the CLI:
+the agent edits the Markdown files.
 
 ## CLI usage & examples
 

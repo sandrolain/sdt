@@ -207,6 +207,7 @@ func TestAgentInit(t *testing.T) {
 		"context/instructions/reference.md",
 		"context/instructions/cli.md",
 		"context/instructions/questions.md",
+		"context/scripts/",
 		"### 5-phase development lifecycle",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
@@ -283,7 +284,7 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"context/plan", "context/analysis", "context/worklog", "context/notes", "context/questions", "context/tasks", "context/archive", "context/tmp", "context/instructions", "context/architecture", "context/decisions"} {
+	for _, d := range []string{"context/plan", "context/analysis", "context/worklog", "context/notes", "context/questions", "context/tasks", "context/archive", "context/tmp", "context/instructions", "context/architecture", "context/decisions", "context/scripts"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
@@ -1093,6 +1094,8 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 		"**Always read**",
 		"**On action**",
 		"context/index.md",
+		"context/scripts/",
+		"execute, do not read into context",
 		"### 5-phase development lifecycle",
 		"verify-step",
 		"sdt context status",

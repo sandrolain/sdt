@@ -38,6 +38,7 @@ const (
 	sdtArchitectureDir   = "context/architecture"
 	sdtDecisionsDir      = "context/decisions"
 	sdtQuestionsDir      = "context/questions"
+	sdtScriptsDir        = "context/scripts"
 	sdtInstrProject      = "context/instructions/project.md"
 	sdtInstrReference    = "context/instructions/reference.md"
 	sdtInstrCli          = "context/instructions/cli.md"
