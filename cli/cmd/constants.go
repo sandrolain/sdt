@@ -50,6 +50,8 @@ const (
 	sdtInstrWorklog      = "context/instructions/worklog.md"
 	sdtInstrNotes        = "context/instructions/notes.md"
 	sdtInstrQuestions    = "context/instructions/questions.md"
+	sdtInstrScripts      = "context/instructions/scripts.md"
+	sdtScriptsIndex      = "context/scripts/index.md"
 
 	// The tagged section names in AGENTS.md.
 	agentSectionNameInstructions = "instructions"

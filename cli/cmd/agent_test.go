@@ -49,6 +49,7 @@ func instructionFileNames() []string {
 		"questions.md",
 		"reference.md",
 		"cli.md",
+		"scripts.md",
 	}
 }
 
@@ -290,6 +291,37 @@ func TestAgentInitNoProject(t *testing.T) {
 		}
 	}
 	assertInstructionFiles(t, dir)
+}
+
+func TestAgentInitSeedsScriptsIndex(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p")
+	idx := filepath.Join(dir, sdtScriptsIndex)
+	data, err := os.ReadFile(idx)
+	if err != nil {
+		t.Fatalf("expected scripts index seeded: %v", err)
+	}
+	content := string(data)
+	for _, want := range []string{"kind: scripts", "summary:", "Available scripts", "| Script | Purpose | Example |", "_none yet_", "context/instructions/scripts.md"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("expected %q in scripts index:\n%s", want, content)
+		}
+	}
+	if !strings.HasPrefix(content, "---\n") {
+		t.Errorf("expected frontmatter in scripts index:\n%s", content)
+	}
+}
+
+func TestAgentInitScriptsIndexPreserved(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p")
+	custom := "| convert-csv.sh | normalize feeds | convert-csv --in raw.csv |\n"
+	writeTestFile(t, sdtScriptsIndex, "---\nkind: scripts\nsummary: custom\n---\n\n"+custom)
+	execute(t, agentInitCmd, nil, "--project", "p")
+	data, _ := os.ReadFile(filepath.Join(dir, sdtScriptsIndex))
+	if !strings.Contains(string(data), custom) {
+		t.Errorf("expected manual script rows preserved after re-init:\n%s", data)
+	}
 }
 
 func TestAgentInitExisting(t *testing.T) {
@@ -1095,7 +1127,8 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 		"**On action**",
 		"context/index.md",
 		"context/scripts/",
-		"execute, do not read into context",
+		"context/instructions/scripts.md",
+		"context/scripts/index.md",
 		"### 5-phase development lifecycle",
 		"verify-step",
 		"sdt context status",

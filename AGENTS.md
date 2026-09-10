@@ -61,13 +61,16 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/questions.md` | Registering an open question |
 | `context/instructions/reference.md` | Looking up a command |
 | `context/instructions/cli.md` | Looking up usage examples |
-| `context/scripts/` | Running bundled scripts (execute, do not read into context) |
+| `context/scripts/` | Running bundled scripts (see `instructions/scripts.md`) |
+| `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
 | `context/docs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
 
 Work directories live under `context/` (`plan/`, `analysis/`, `architecture/`,
 `decisions/`, worklog/, notes/, tasks/, questions/, archive/, tmp/,
 `scripts/`). Keep all instruction files concise and technical. Bundled
-scripts in `context/scripts/` are executed on demand, never read into context.
+scripts in `context/scripts/` are listed in
+`context/scripts/index.md` and executed on demand, never read into context
+(see `instructions/scripts.md`).
 
 ### 5-phase development lifecycle
 
