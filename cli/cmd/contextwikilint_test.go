@@ -106,7 +106,7 @@ x
 	out := wikiLintError(t)
 	for _, want := range []string{
 		`kind "nope"`,
-		`does not match the file slug "broken"`,
+		`does not match the file id "broken"`,
 		"missing mandatory `title`",
 		"unknown `type`",
 		"missing `status`",
@@ -431,6 +431,173 @@ s
 	out := execute(t, contextWikiLintCmd, nil)
 	if !strings.Contains(string(out), "[SUGGESTION]") || !strings.Contains(string(out), "orphan page") {
 		t.Errorf("expected orphan suggestion:\n%s", out)
+	}
+}
+
+// TestWikiLintSubdirs covers nested wiki pages: valid subpath id, id mismatch
+// on a subpath page, and duplicate titles across subdirectories.
+func TestWikiLintSubdirs(t *testing.T) {
+	setupContextProject(t)
+	wikiSourceDirs(t)
+	// Valid nested pages: context/wiki/<ctx>/<slug>.md, id = relative subpath.
+	writeCtxDoc(t, "context/wiki/backend/auth.md", `---
+kind: wiki
+id: backend/auth
+title: Authentication
+type: concept
+status: active
+summary: s
+tags:
+  - backend
+relations:
+  refers_to:
+    - [[backend/db|Database]]
+sources:
+  - refs/spec.md
+---
+## Summary
+s
+## Claims
+1. f. {#claim-1} (refs/spec.md@a:1)
+`)
+	writeCtxDoc(t, "context/wiki/backend/db.md", `---
+kind: wiki
+id: backend/db
+title: Database
+type: concept
+status: active
+summary: s
+tags:
+  - backend
+relations:
+  refers_to:
+    - [[accounts|Account Service]]
+sources:
+  - refs/spec.md
+---
+## Summary
+s
+## Claims
+1. f. {#claim-1} (refs/spec.md@a:1)
+`)
+	// Flat pages may reference nested ones by subpath id.
+	writeCtxDoc(t, "context/wiki/accounts.md", `---
+kind: wiki
+id: accounts
+title: Account Service
+type: module
+status: active
+summary: s
+tags:
+  - backend
+relations:
+  refers_to:
+    - [[backend/auth|Authentication]]
+sources:
+  - refs/spec.md
+---
+## Summary
+s
+## Claims
+1. f. {#claim-1} (refs/spec.md@a:1)
+`)
+	out := execute(t, contextWikiLintCmd, nil)
+	if len(out) != 0 {
+		t.Fatalf("expected clean recursive lint, got:\n%s", out)
+	}
+
+	// Subpath page with a flat slug id → CRITICAL id mismatch.
+	writeCtxDoc(t, "context/wiki/backend/badid.md", `---
+kind: wiki
+id: auth
+title: Bad ID
+type: concept
+status: active
+summary: s
+tags:
+  - backend
+sources:
+  - refs/spec.md
+---
+## Summary
+s
+## Claims
+1. f. {#claim-1} (refs/spec.md@a:1)
+`)
+	bad := wikiLintError(t)
+	if !strings.Contains(bad, "`id` \"auth\" does not match the file id \"backend/badid\"") {
+		t.Errorf("expected subpath id mismatch:\n%s", bad)
+	}
+
+	// Duplicate titles across subdirectories still flagged.
+	writeCtxDoc(t, "context/wiki/frontend/db.md", `---
+kind: wiki
+id: frontend/db
+title: Database
+type: concept
+status: active
+summary: s
+tags:
+  - frontend
+sources:
+  - refs/spec.md
+---
+## Summary
+s
+## Claims
+1. f. {#claim-1} (refs/spec.md@a:1)
+`)
+	dup := wikiLintError(t)
+	if !strings.Contains(dup, `duplicate title "Database"`) {
+		t.Errorf("expected duplicate title across subdirs:\n%s", dup)
+	}
+}
+
+// TestWikiLintBrokenNestedLink verifies that a flat page linking to a nested
+// page by wrong (flat) id is flagged, and that nested pages resolve flat ids.
+func TestWikiLintBrokenNestedLink(t *testing.T) {
+	setupContextProject(t)
+	wikiSourceDirs(t)
+	writeCtxDoc(t, "context/wiki/backend/db.md", `---
+kind: wiki
+id: backend/db
+title: Database
+type: concept
+status: active
+summary: s
+tags:
+  - backend
+sources:
+  - refs/spec.md
+---
+## Summary
+s
+## Claims
+1. f. {#claim-1} (refs/spec.md@a:1)
+`)
+	writeCtxDoc(t, "context/wiki/accounts.md", `---
+kind: wiki
+id: accounts
+title: Account Service
+type: module
+status: active
+summary: s
+tags:
+  - backend
+relations:
+  refers_to:
+    - [[db|Database]]
+sources:
+  - refs/spec.md
+---
+## Summary
+s
+## Claims
+1. f. {#claim-1} (refs/spec.md@a:1)
+`)
+	out := wikiLintWarning(t)
+	if !strings.Contains(out, `relation refers_to targets missing page "db"`) {
+		t.Errorf("expected flat-to-nested id mismatch warning:\n%s", out)
 	}
 }
 

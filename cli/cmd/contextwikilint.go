@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -158,19 +159,24 @@ func parseFrontmatterMap(fm, key string) (map[string][]string, bool) {
 	return out, false
 }
 
-// parseWikiPage parses a wiki/refs/ingestion file into a wikiPage.
-func parseWikiPage(path string) (*wikiPage, error) {
+// parseWikiPage parses a wiki/refs/ingestion file into a wikiPage. dir is the
+// directory the file lives in (or its root for nested wiki pages); the FileID
+// is the dir-relative path minus ".md" (flat files keep their basename slug).
+func parseWikiPage(dir, path string) (*wikiPage, error) {
 	data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
 	if err != nil {
 		return nil, err
 	}
 	content := string(data)
 	fm, body := splitFrontmatter(content)
-	base := filepath.Base(path)
-	fileID := strings.TrimSuffix(base, sdtMarkdownExt)
+	rel, err := filepath.Rel(dir, path)
+	if err != nil {
+		rel = filepath.Base(path)
+	}
+	fileID := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt))
 	p := &wikiPage{
 		Path:        path,
-		Base:        base,
+		Base:        filepath.Base(path),
 		FileID:      fileID,
 		Frontmatter: fm,
 		Body:        body,
@@ -226,12 +232,28 @@ func lintWikiLint() []ctxLintIssue {
 	return b.issues
 }
 
-// lintWikiLoad scans context/wiki into pages plus id/title indexes.
+// lintWikiLoad scans context/wiki recursively into pages plus id/title indexes.
+// Wiki subdirectories are allowed (wiki/<context>/<slug>.md); each page's FileID
+// is the relative subpath minus ".md" (wiki/backend/auth.md → "backend/auth").
 func lintWikiLoad(b *wikiIssueBuilder) ([]*wikiPage, map[string]*wikiPage, map[string][]*wikiPage) {
 	var pages []*wikiPage
 	byID := map[string]*wikiPage{}
 	byTitle := map[string][]*wikiPage{}
-	entries, err := os.ReadDir(sdtWikiDir)
+	var rel []string
+	err := filepath.WalkDir(sdtWikiDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || filepath.Ext(d.Name()) != sdtMarkdownExt {
+			return nil
+		}
+		r, err := filepath.Rel(sdtWikiDir, path)
+		if err != nil {
+			return err
+		}
+		rel = append(rel, r)
+		return nil
+	})
 	if err != nil {
 		if os.IsNotExist(err) {
 			b.add(sdtWikiDir, ctxLintWarning, "directory missing: %s", sdtWikiDir)
@@ -240,17 +262,12 @@ func lintWikiLoad(b *wikiIssueBuilder) ([]*wikiPage, map[string]*wikiPage, map[s
 		}
 		return pages, byID, byTitle
 	}
-	var names []string
-	for _, e := range entries {
-		if !e.IsDir() && filepath.Ext(e.Name()) == sdtMarkdownExt {
-			names = append(names, e.Name())
-		}
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		p, err := parseWikiPage(filepath.Join(sdtWikiDir, name))
+	sort.Strings(rel)
+	for _, r := range rel {
+		path := filepath.Join(sdtWikiDir, r)
+		p, err := parseWikiPage(sdtWikiDir, path)
 		if err != nil {
-			b.add(filepath.Join(sdtWikiDir, name), ctxLintCritical, "unreadable: %v", err)
+			b.add(path, ctxLintCritical, "unreadable: %v", err)
 			continue
 		}
 		pages = append(pages, p)
@@ -273,9 +290,9 @@ func lintWikiSchema(b *wikiIssueBuilder, pages []*wikiPage) {
 		}
 		switch {
 		case p.ID == "":
-			b.add(p.Path, ctxLintCritical, "missing mandatory `id` (must equal the slug %q)", p.FileID)
+			b.add(p.Path, ctxLintCritical, "missing mandatory `id` (must equal the file id %q)", p.FileID)
 		case p.ID != p.FileID:
-			b.add(p.Path, ctxLintCritical, "`id` %q does not match the file slug %q", p.ID, p.FileID)
+			b.add(p.Path, ctxLintCritical, "`id` %q does not match the file id %q", p.ID, p.FileID)
 		}
 		if p.Title == "" || p.Title == p.FileID && !hasTitleField(p) {
 			b.add(p.Path, ctxLintCritical, "missing mandatory `title`")
@@ -495,7 +512,7 @@ func lintWikiMarkers(b *wikiIssueBuilder) {
 				continue
 			}
 			f := filepath.Join(d.dir, e.Name())
-			p, err := parseWikiPage(f)
+			p, err := parseWikiPage(d.dir, f)
 			if err != nil {
 				b.add(f, ctxLintCritical, "unreadable: %v", err)
 				continue
@@ -645,6 +662,10 @@ claim citations, tags, concept budget, optional markdown-ld JSON), plus the
 immutable source markers under ingestion/ (status: pending) and refs/
 (status: archived).
 
+wiki/ is scanned recursively (wiki/<context>/<slug>.md allowed): a page's id
+must equal its relative subpath minus ".md" (wiki/backend/auth.md → id:
+backend/auth).
+
 Exit codes: 0 clean, 1 warnings only, 2 errors.
 
 Examples:
@@ -700,8 +721,9 @@ var contextWikiCmd = &cobra.Command{
 	Use:   "wiki",
 	Short: "Knowledge graph operations (wiki lint)",
 	Long: `Knowledge-pipeline commands for the wiki/ knowledge graph under context/.
-Currently provides "lint": schema/graph validation of wiki pages and the
-immutable source markers (ingestion/ status: pending, refs/ status: archived).`,
+Currently provides "lint": recursive schema/graph validation of wiki pages
+(including wiki/<context>/<slug>.md subdirectories) and the immutable source
+markers (ingestion/ status: pending, refs/ status: archived).`,
 }
 
 func init() {
