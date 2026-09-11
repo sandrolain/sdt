@@ -308,6 +308,124 @@ func TestContextNewArchitectureRequiresSlug(t *testing.T) {
 	})
 }
 
+func TestNextAdrNumber(t *testing.T) {
+	dir := runInTempDir(t)
+	dec := filepath.Join(dir, "context", "decisions")
+
+	// Empty / missing dir → 0001
+	n, err := nextAdrNumber()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != "0001" {
+		t.Errorf("empty dir: got %q, want 0001", n)
+	}
+
+	os.MkdirAll(dec, 0o750)
+	writeCtxDoc(t, filepath.Join(dec, "0002-auth.md"), "---\nkind: adr\nsummary: s\n---\n")
+	writeCtxDoc(t, filepath.Join(dec, "0004-temp.md"), "---\nkind: adr\nsummary: s\n---\n")
+	writeCtxDoc(t, filepath.Join(dec, "README.md"), "not an adr\n")
+
+	n, err = nextAdrNumber()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != "0005" {
+		t.Errorf("max=4 → got %q, want 0005", n)
+	}
+}
+
+func TestContextNewAdr(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	out := execute(t, contextNewCmd, nil, "--type", "adr", "--title", "Auth choice", "--summary", "Use JWT for auth")
+	path := strings.TrimSpace(string(out))
+	want := filepath.Join("context", "decisions", "0001-auth-choice.md")
+	if path != want {
+		t.Errorf("expected %q, got %q", want, path)
+	}
+	content := mustReadFile(t, path)
+	for _, w := range []string{
+		"kind: adr",
+		"number: 0001",
+		"title: Auth choice",
+		"summary: Use JWT for auth",
+		"status: proposed",
+		"created: 2026-08-06T07:00:00Z",
+		"links:",
+	} {
+		if !strings.Contains(content, w) {
+			t.Errorf("expected %q in file:\n%s", w, content)
+		}
+	}
+}
+
+func TestContextNewAdrAutoNumber(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	writeCtxDoc(t, filepath.Join("context", "decisions", "0003-legacy.md"), "---\nkind: adr\nsummary: l\n---\n")
+
+	out := execute(t, contextNewCmd, nil, "--type", "adr", "--title", "Second", "--slug", "second-choice")
+	path := strings.TrimSpace(string(out))
+	want := filepath.Join("context", "decisions", "0004-second-choice.md")
+	if path != want {
+		t.Errorf("expected %q, got %q", want, path)
+	}
+	if num := mustReadFile(t, path); !strings.Contains(num, "number: 0004") {
+		t.Errorf("expected number 0004:\n%s", num)
+	}
+}
+
+func TestContextNewAdrNumberOverride(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	out := execute(t, contextNewCmd, nil, "--type", "adr", "--title", "M", "--slug", "m", "--number", "0007")
+	path := strings.TrimSpace(string(out))
+	if !strings.HasSuffix(path, "0007-m.md") {
+		t.Errorf("expected 0007-m.md, got %q", path)
+	}
+}
+
+func TestContextNewAdrRequiresSlug(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextNewCmd, nil, "--type", "adr"))
+	})
+}
+
+func TestContextNewAdrBadNumber(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextNewCmd, nil, "--type", "adr", "--title", "X", "--slug", "x", "--number", "7"))
+	})
+}
+
+func TestContextPathAdr(t *testing.T) {
+	runInTempDir(t)
+	out := execute(t, contextPathCmd, nil, "--type", "adr", "--number", "0009", "--slug", "choice")
+	path := strings.TrimSpace(string(out))
+	want := filepath.Join("context", "decisions", "0009-choice.md")
+	if path != want {
+		t.Errorf("expected %q, got %q", want, path)
+	}
+}
+
+func TestContextPathAdrRequiresNumber(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextPathCmd, nil, "--type", "adr", "--slug", "x"))
+	})
+}
+
+func TestContextPathAdrBadNumber(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextPathCmd, nil, "--type", "adr", "--number", "42", "--slug", "x"))
+	})
+}
+
 func TestContextNewLintClean(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))

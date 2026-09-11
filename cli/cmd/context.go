@@ -128,11 +128,11 @@ func contextPath(typ, slug, phase string) (string, error) {
 	case ctxTypeArchitecture:
 		return "context/architecture/" + slug + sdtMarkdownExt, nil
 	case ctxTypeDecision:
-		return "", errors.New("decision type is append-only ADR; create via `sdt context new --type analysis` or edit decisions/")
+		return "", errors.New("decision type is append-only ADR; create via `sdt context new --type adr`")
 	case ctxTypeQuestions:
 		return filepath.Join(sdtQuestionsDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	}
-	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive|architecture|decisions|questions)", typ)
+	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive|architecture|adr|questions)", typ)
 }
 
 // ── context path ───────────────────────────────────────────────────────────────
@@ -166,21 +166,100 @@ prefix. Does not create anything.
 
 Types: plan/analysis/worklog/notes/archive (<YYYYMMDD-HHMMSS>-<slug>.md),
 tasks (<phase>.md with --phase, default plan), tmp (<slug>),
-architecture (<slug>.md).
+architecture (<slug>.md), adr (<NNNN>-<slug>.md with --number).
 
 Examples:
   sdt context path --type worklog --slug review-deps
   sdt context path --type tasks --phase execution
-  sdt context path --type plan --format json`,
+  sdt context path --type plan --format json
+  sdt context path --type adr --number 0001 --slug auth-choice`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
 		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
 		phase := getStringFlag(cmd, "phase", false)
+		number := getStringFlag(cmd, "number", false)
+		switch typ {
+		case ctxTypeAdr, ctxTypeDecision:
+			if number == "" {
+				exitWithError(cmd, errors.New("--number is required for type adr (create with `sdt context new --type adr` to auto-assign)"))
+			}
+			if err := validateAdrNumber(number); err != nil {
+				exitWithError(cmd, err)
+			}
+			if slug == "" {
+				exitWithError(cmd, errors.New("--slug is required for type adr"))
+			}
+			p := filepath.Join(sdtDecisionsDir, number+"-"+slug+".md")
+			outputContextPath(cmd, contextPathResult{Path: p, Type: ctxTypeAdr, Slug: slug})
+			return
+		}
 		p, err := contextPath(typ, slug, phase)
 		exitWithError(cmd, err)
 		outputContextPath(cmd, contextPathResult{Path: p, Type: typ, Slug: slug})
 	},
+}
+
+// ── context new (adr helpers) ────────────────────────────────────────────────
+
+var ctxAdrNumberRegexp = regexp.MustCompile(`^\d{4}$`)
+
+func validateAdrNumber(n string) error {
+	if !ctxAdrNumberRegexp.MatchString(n) {
+		return fmt.Errorf("ADR number must be exactly 4 digits, got %q", n)
+	}
+	return nil
+}
+
+// nextAdrNumber scans context/decisions/ and returns the 4-digit NNNN that
+// follows the highest existing file, or "0001" when the directory is empty or
+// does not exist yet.
+func nextAdrNumber() (string, error) {
+	entries, err := os.ReadDir(sdtDecisionsDir)
+	if os.IsNotExist(err) {
+		return "0001", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	maxN := 0
+	for _, e := range entries {
+		base := strings.TrimSuffix(e.Name(), sdtMarkdownExt)
+		parts := strings.SplitN(base, "-", 2)
+		if len(parts) < 2 || len(parts[0]) != 4 {
+			continue
+		}
+		n, nerr := strconv.Atoi(parts[0])
+		if nerr != nil {
+			continue
+		}
+		if n > maxN {
+			maxN = n
+		}
+	}
+	return fmt.Sprintf("%04d", maxN+1), nil
+}
+
+func contextAdrFrontmatter(number, title, summary, project, created string) string {
+	if summary == "" {
+		summary = ctxSummaryPlaceholder
+	}
+	var b strings.Builder
+	b.WriteString("---\n")
+	b.WriteString("kind: adr\n")
+	b.WriteString("number: " + number + "\n")
+	if title != "" {
+		b.WriteString("title: " + yamlScalar(title) + "\n")
+	}
+	b.WriteString("summary: " + yamlScalar(summary) + "\n")
+	b.WriteString("status: proposed\n")
+	b.WriteString("created: " + created + "\n")
+	b.WriteString("links:\n")
+	if project != "" {
+		b.WriteString("project: " + yamlScalar(project) + "\n")
+	}
+	b.WriteString("---\n")
+	return b.String()
 }
 
 // ── context new ────────────────────────────────────────────────────────────────
@@ -284,7 +363,7 @@ func contextFrontmatter(typ, title, summary, note, project, component, created s
 var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a context/ work file with frontmatter",
-	Long: `Create a plan, analysis, worklog, notes, questions or architecture
+	Long: `Create a plan, analysis, worklog, notes, questions, architecture or ADR
 file under context/ with the correct naming and the full per-type YAML
 frontmatter (kind, summary, context, status, created, updated, project plus
 per-type fields). The body comes from --input/--file or piped stdin. Existing
@@ -292,7 +371,8 @@ files are preserved unless --force is set; --edit opens the file in $EDITOR
 after creation.
 
 The slug is derived from --title when --slug is omitted; --summary is optional
-and falls back to a MANDATORY-fill placeholder so the file passes lint. The
+and falls back to a MANDATORY-fill placeholder so the file passes lint. For
+ADR type the next NNNN number is auto-assigned (override with --number). The
 command prints the created file path (--format text|json|yaml).
 
 Examples:
@@ -300,27 +380,29 @@ Examples:
   sdt context new --type plan --title "ship memory" --force
   sdt context new --type analysis --title "memory backend" --input "..."
   sdt context new --type architecture --title "config loading" --summary "config loading component"
+  sdt context new --type adr --title "Auth choice" --summary "Use JWT for auth"
   sdt context new --type questions --title "open api questions"`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
 		switch typ {
-		case ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions, ctxTypeArchitecture:
+		case ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions, ctxTypeArchitecture, ctxTypeAdr:
 		default:
-			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes|questions|architecture, got %q", typ))
+			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes|questions|architecture|adr, got %q", typ))
 		}
 		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
 		title := getStringFlag(cmd, "title", false)
 		if slug == "" && title != "" {
 			slug = sanitizeSlug(title)
 		}
-		if typ == ctxTypeArchitecture && slug == "" {
-			exitWithError(cmd, errors.New("--title or --slug is required for type architecture"))
+		if (typ == ctxTypeArchitecture || typ == ctxTypeAdr) && slug == "" {
+			exitWithError(cmd, fmt.Errorf("--title or --slug is required for type %s", typ))
 		}
 		note := getStringFlag(cmd, "context", false)
 		summary := getStringFlag(cmd, "summary", false)
 		force := getBoolFlag(cmd, "force", false)
 		edit := getBoolFlag(cmd, "edit", false)
+		numberOverride := getStringFlag(cmd, "number", false)
 		body := getContextBody(cmd, args)
 		created := contextNow().UTC().Format(time.RFC3339)
 
@@ -329,8 +411,30 @@ Examples:
 			project = cfg.Project
 		}
 
-		path, err := contextPath(typ, slug, "")
-		exitWithError(cmd, err)
+		var path string
+		var content string
+		if typ == ctxTypeAdr {
+			adrNum := numberOverride
+			if adrNum == "" {
+				var numerr error
+				adrNum, numerr = nextAdrNumber()
+				exitWithError(cmd, numerr)
+			}
+			if err := validateAdrNumber(adrNum); err != nil {
+				exitWithError(cmd, err)
+			}
+			path = filepath.Join(sdtDecisionsDir, adrNum+"-"+slug+".md")
+			content = contextAdrFrontmatter(adrNum, title, summary, project, created)
+		} else {
+			var err error
+			path, err = contextPath(typ, slug, "")
+			exitWithError(cmd, err)
+			component := ""
+			if typ == ctxTypeArchitecture {
+				component = slug
+			}
+			content = contextFrontmatter(typ, title, summary, note, project, component, created)
+		}
 
 		status := statusCreated
 		if _, err := os.Stat(path); err == nil {
@@ -341,13 +445,6 @@ Examples:
 		} else if !os.IsNotExist(err) {
 			exitWithError(cmd, err)
 		}
-
-		component := ""
-		if typ == ctxTypeArchitecture {
-			component = slug
-		}
-
-		content := contextFrontmatter(typ, title, summary, note, project, component, created)
 		if body != "" {
 			content += "\n" + strings.TrimRight(body, "\n") + "\n"
 		}
@@ -424,11 +521,11 @@ var contextListCmd = &cobra.Command{
 	Long: `List existing work files under context/ for a type, sorted by name
 (chronological for timestamped files).
 
-Types: plan, analysis, worklog, notes, tasks, archive, architecture, decisions.
+Types: plan, analysis, worklog, notes, tasks, archive, architecture, adr.
 
 Examples:
   sdt context list --type worklog
-  sdt context list --type decisions --format json`,
+  sdt context list --type adr --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
@@ -803,15 +900,17 @@ var contextTaskBlockCmd = taskSetStatusCmd("block")
 var contextTaskWipCmd = taskSetStatusCmd("wip")
 
 func init() {
-	contextPathCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|tasks|tmp|archive|architecture|decisions")
+	contextPathCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|tasks|tmp|archive|architecture|adr")
 	contextPathCmd.Flags().String("slug", "", "Slug (sanitized)")
 	contextPathCmd.Flags().String("phase", "plan", "Phase for type tasks (checklist file name)")
+	contextPathCmd.Flags().String("number", "", "Number for type adr (4-digit NNNN)")
 
-	contextNewCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|questions|architecture")
+	contextNewCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|questions|architecture|adr")
 	contextNewCmd.Flags().String("title", "", "Title (slug derived from it when --slug omitted)")
 	contextNewCmd.Flags().String("slug", "", "Slug (sanitized; overrides --title-derived slug)")
 	contextNewCmd.Flags().String("summary", "", "Summary for the frontmatter (default: MANDATORY-fill placeholder)")
 	contextNewCmd.Flags().String("context", "", "What triggered this entry")
+	contextNewCmd.Flags().String("number", "", "Override for the ADR number (default: next NNNN from decisions/)")
 	contextNewCmd.Flags().Bool("force", false, "Overwrite existing file")
 	contextNewCmd.Flags().Bool("edit", false, "Open the file in $EDITOR after creation")
 
