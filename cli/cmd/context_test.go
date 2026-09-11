@@ -92,7 +92,7 @@ func TestContextNew(t *testing.T) {
 	content := string(data)
 	for _, want := range []string{
 		"kind: worklog",
-		"created_at: 2026-08-06T07:00:00Z",
+		"created: 2026-08-06T07:00:00Z",
 		"context: reviewed deps",
 		"reviewed all deps",
 	} {
@@ -132,10 +132,10 @@ func TestContextNewQuotesContextWithColon(t *testing.T) {
 	}
 	fmBlock := strings.TrimSpace(strings.SplitN(content, "---", 3)[1])
 	var fm struct {
-		Kind      string `yaml:"kind"`
-		CreatedAt string `yaml:"created_at"`
-		Context   string `yaml:"context"`
-		Project   string `yaml:"project"`
+		Kind    string `yaml:"kind"`
+		Created string `yaml:"created"`
+		Context string `yaml:"context"`
+		Project string `yaml:"project"`
 	}
 	if err := yaml.Unmarshal([]byte(fmBlock), &fm); err != nil {
 		t.Fatalf("frontmatter must parse as YAML: %v\n%s", err, fmBlock)
@@ -195,7 +195,7 @@ func TestContextNewJSON(t *testing.T) {
 	if err := json.Unmarshal(out, &res); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
-	if res.Type != "worklog" || res.Status != statusCreated || res.CreatedAt == "" {
+	if res.Type != "worklog" || res.Status != statusCreated || res.Created == "" {
 		t.Errorf("unexpected result: %+v", res)
 	}
 }
@@ -208,6 +208,118 @@ func TestContextNewInvalidType(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextNewCmd, nil, "--type", "bogus"))
 	})
+}
+
+func TestContextNewTitleDerivesSlug(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	out := execute(t, contextNewCmd, nil, "--type", "worklog", "--title", "Review Deps!")
+	path := strings.TrimSpace(string(out))
+	want := filepath.Join("context", "worklog", "20260806-070000-review-deps.md")
+	if path != want {
+		t.Errorf("expected %q, got %q", want, path)
+	}
+	content := mustReadFile(t, path)
+	if !strings.Contains(content, "summary: "+ctxSummaryPlaceholder) {
+		t.Errorf("expected placeholder summary, got:\n%s", content)
+	}
+}
+
+func TestContextNewSummaryFlag(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "notes", "--slug", "x",
+		"--summary", "A real summary")
+	content := mustReadFile(t, filepath.Join("context", "notes", "20260806-070000-x.md"))
+	if !strings.Contains(content, "summary: A real summary") {
+		t.Errorf("expected --summary value, got:\n%s", content)
+	}
+}
+
+func TestContextNewFullFrontmatter(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	writeCtxDoc(t, filepath.Join("context", "plan", "20260912-000000-pipeline.md"),
+		"---\nkind: plan\nsummary: p\nstatus: active\n---\nbody\n")
+
+	cases := []struct {
+		typ    string
+		flags  []string
+		want   []string
+		forbid []string
+	}{
+		{typ: "plan", want: []string{"kind: plan", "status: active", "created: 2026-08-06T07:00:00Z", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
+		{typ: "analysis", flags: []string{"--title", "Backend Choice"}, want: []string{"kind: analysis", "title: Backend Choice", "status: active", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
+		{typ: "worklog", want: []string{"kind: worklog", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:", "status:"}},
+		{typ: "notes", want: []string{"kind: notes", "created: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:", "status:", "updated:"}},
+		{typ: "questions", want: []string{"kind: questions", "status: active", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
+	}
+	for _, c := range cases {
+		args := append([]string{"--type", c.typ, "--slug", "x"}, c.flags...)
+		execute(t, contextNewCmd, nil, args...)
+		path := filepath.Join(dir, "context", c.typ, "20260806-070000-x.md")
+		content := mustReadFile(t, path)
+		for _, w := range c.want {
+			if !strings.Contains(content, w) {
+				t.Errorf("[%s] expected %q in frontmatter:\n%s", c.typ, w, content)
+			}
+		}
+		for _, f := range c.forbid {
+			if strings.Contains(content, f) {
+				t.Errorf("[%s] did not expect %q:\n%s", c.typ, f, content)
+			}
+		}
+		if !strings.Contains(content, "summary: "+ctxSummaryPlaceholder) {
+			t.Errorf("[%s] expected placeholder summary:\n%s", c.typ, content)
+		}
+	}
+}
+
+func TestContextNewArchitecture(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	out := execute(t, contextNewCmd, nil, "--type", "architecture", "--title", "Config Loading", "--input", "body")
+	path := strings.TrimSpace(string(out))
+	want := filepath.Join("context", "architecture", "config-loading.md")
+	if path != want {
+		t.Errorf("expected %q, got %q", want, path)
+	}
+	content := mustReadFile(t, path)
+	for _, w := range []string{
+		"kind: architecture",
+		"component: config-loading",
+		"status: draft",
+		"created: 2026-08-06T07:00:00Z",
+		"updated: 2026-08-06T07:00:00Z",
+	} {
+		if !strings.Contains(content, w) {
+			t.Errorf("expected %q in file:\n%s", w, content)
+		}
+	}
+}
+
+func TestContextNewArchitectureRequiresSlug(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextNewCmd, nil, "--type", "architecture"))
+	})
+}
+
+func TestContextNewLintClean(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	for _, typ := range []string{"plan", "analysis", "worklog", "notes", "questions", "architecture"} {
+		execute(t, contextNewCmd, nil, "--type", typ, "--title", "Lint Clean "+typ,
+			"--summary", "bootstrap check")
+	}
+	out := execute(t, contextLintCmd, nil)
+	if strings.Contains(string(out), ctxLintCritical) {
+		t.Errorf("lint CRITICAL on bootstrapped files:\n%s", out)
+	}
 }
 
 func TestContextNewEditNoEditor(t *testing.T) {

@@ -38,6 +38,30 @@ var contextRunEditor = contextRunEditorDefault
 var ctxSlugRegexp = regexp.MustCompile(`[^a-z0-9-]+`)
 var ctxTaskLineRegexp = regexp.MustCompile(`^- \[([ x~!])\] (.*)$`)
 
+// ctxSummaryPlaceholder is emitted as the `summary` value when --summary is
+// omitted, so the generated file is lint-parseable and the agent knows to fill
+// it in.
+const ctxSummaryPlaceholder = "<one-line summary — MANDATORY, fill in>"
+
+// ctxDefaultStatus maps a bootstrappable type to its initial `status`. Types
+// without an entry do not carry a `status` field (worklog/notes).
+var ctxDefaultStatus = map[string]string{
+	ctxTypePlan:         ctxWikiStatusActive,
+	ctxTypeAnalysis:     ctxWikiStatusActive,
+	ctxTypeQuestions:    ctxWikiStatusActive,
+	ctxTypeArchitecture: "draft",
+}
+
+// ctxHasUpdated lists types whose instruction contract requires an `updated`
+// field (notes does not).
+var ctxHasUpdated = map[string]bool{
+	ctxTypePlan:         true,
+	ctxTypeAnalysis:     true,
+	ctxTypeWorklog:      true,
+	ctxTypeQuestions:    true,
+	ctxTypeArchitecture: true,
+}
+
 func sanitizeSlug(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = ctxSlugRegexp.ReplaceAllString(s, "-")
@@ -175,11 +199,11 @@ func getContextBody(cmd *cobra.Command, args []string) string {
 }
 
 type contextNewResult struct {
-	Path      string `json:"path" yaml:"path"`
-	Type      string `json:"type" yaml:"type"`
-	CreatedAt string `json:"created_at" yaml:"created_at"`
-	Project   string `json:"project,omitempty" yaml:"project,omitempty"`
-	Status    string `json:"status" yaml:"status"`
+	Path    string `json:"path" yaml:"path"`
+	Type    string `json:"type" yaml:"type"`
+	Created string `json:"created" yaml:"created"`
+	Project string `json:"project,omitempty" yaml:"project,omitempty"`
+	Status  string `json:"status" yaml:"status"`
 }
 
 func outputContextNew(cmd *cobra.Command, res contextNewResult) {
@@ -221,13 +245,34 @@ func yamlScalar(s string) string {
 	return strconv.Quote(s)
 }
 
-func contextFrontmatter(typ, note, project, created string) string {
+// contextFrontmatter builds the YAML frontmatter for a freshly created
+// context/ work file, matching the per-type instruction contracts
+// (context/instructions/*.md). summary falls back to ctxSummaryPlaceholder so
+// the file stays lint-parseable; title/component are emitted only where the
+// type requires them and the value is non-empty.
+func contextFrontmatter(typ, title, summary, note, project, component, created string) string {
+	if summary == "" {
+		summary = ctxSummaryPlaceholder
+	}
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: " + typ + "\n")
-	b.WriteString("created_at: " + created + "\n")
+	if typ == ctxTypeAnalysis && title != "" {
+		b.WriteString("title: " + yamlScalar(title) + "\n")
+	}
+	b.WriteString("summary: " + yamlScalar(summary) + "\n")
 	if note != "" {
 		b.WriteString("context: " + yamlScalar(note) + "\n")
+	}
+	if st, ok := ctxDefaultStatus[typ]; ok {
+		b.WriteString("status: " + st + "\n")
+	}
+	if typ == ctxTypeArchitecture && component != "" {
+		b.WriteString("component: " + yamlScalar(component) + "\n")
+	}
+	b.WriteString("created: " + created + "\n")
+	if ctxHasUpdated[typ] {
+		b.WriteString("updated: " + created + "\n")
 	}
 	if project != "" {
 		b.WriteString("project: " + yamlScalar(project) + "\n")
@@ -239,26 +284,41 @@ func contextFrontmatter(typ, note, project, created string) string {
 var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a context/ work file with frontmatter",
-	Long: `Create a plan, worklog, notes, analysis or questions file under context/
-with the correct naming and YAML frontmatter (kind, created_at, context, project). The body
-comes from --input/--file or piped stdin. Existing files are preserved unless
---force is set; --edit opens the file in $EDITOR after creation.
+	Long: `Create a plan, analysis, worklog, notes, questions or architecture
+file under context/ with the correct naming and the full per-type YAML
+frontmatter (kind, summary, context, status, created, updated, project plus
+per-type fields). The body comes from --input/--file or piped stdin. Existing
+files are preserved unless --force is set; --edit opens the file in $EDITOR
+after creation.
+
+The slug is derived from --title when --slug is omitted; --summary is optional
+and falls back to a MANDATORY-fill placeholder so the file passes lint. The
+command prints the created file path (--format text|json|yaml).
 
 Examples:
-  sdt context new --type worklog --slug review-deps --input "reviewed deps"
-  sdt context new --type plan --slug ship-memory --force
-  sdt context new --type analysis --slug memory-backend --input "..."
-  sdt context new --type questions --slug open-api --input "..."`,
+  sdt context new --type worklog --title "review deps" --input "reviewed deps"
+  sdt context new --type plan --title "ship memory" --force
+  sdt context new --type analysis --title "memory backend" --input "..."
+  sdt context new --type architecture --title "config loading" --summary "config loading component"
+  sdt context new --type questions --title "open api questions"`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
 		switch typ {
-		case ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions:
+		case ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions, ctxTypeArchitecture:
 		default:
-			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes|questions, got %q", typ))
+			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes|questions|architecture, got %q", typ))
 		}
 		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
+		title := getStringFlag(cmd, "title", false)
+		if slug == "" && title != "" {
+			slug = sanitizeSlug(title)
+		}
+		if typ == ctxTypeArchitecture && slug == "" {
+			exitWithError(cmd, errors.New("--title or --slug is required for type architecture"))
+		}
 		note := getStringFlag(cmd, "context", false)
+		summary := getStringFlag(cmd, "summary", false)
 		force := getBoolFlag(cmd, "force", false)
 		edit := getBoolFlag(cmd, "edit", false)
 		body := getContextBody(cmd, args)
@@ -282,7 +342,12 @@ Examples:
 			exitWithError(cmd, err)
 		}
 
-		content := contextFrontmatter(typ, note, project, created)
+		component := ""
+		if typ == ctxTypeArchitecture {
+			component = slug
+		}
+
+		content := contextFrontmatter(typ, title, summary, note, project, component, created)
 		if body != "" {
 			content += "\n" + strings.TrimRight(body, "\n") + "\n"
 		}
@@ -303,11 +368,11 @@ Examples:
 		}
 
 		outputContextNew(cmd, contextNewResult{
-			Path:      path,
-			Type:      typ,
-			CreatedAt: created,
-			Project:   project,
-			Status:    status,
+			Path:    path,
+			Type:    typ,
+			Created: created,
+			Project: project,
+			Status:  status,
 		})
 	},
 }
@@ -742,8 +807,10 @@ func init() {
 	contextPathCmd.Flags().String("slug", "", "Slug (sanitized)")
 	contextPathCmd.Flags().String("phase", "plan", "Phase for type tasks (checklist file name)")
 
-	contextNewCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes")
-	contextNewCmd.Flags().String("slug", "", "Slug (sanitized)")
+	contextNewCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|questions|architecture")
+	contextNewCmd.Flags().String("title", "", "Title (slug derived from it when --slug omitted)")
+	contextNewCmd.Flags().String("slug", "", "Slug (sanitized; overrides --title-derived slug)")
+	contextNewCmd.Flags().String("summary", "", "Summary for the frontmatter (default: MANDATORY-fill placeholder)")
 	contextNewCmd.Flags().String("context", "", "What triggered this entry")
 	contextNewCmd.Flags().Bool("force", false, "Overwrite existing file")
 	contextNewCmd.Flags().Bool("edit", false, "Open the file in $EDITOR after creation")
