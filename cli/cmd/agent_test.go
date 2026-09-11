@@ -209,7 +209,7 @@ func TestAgentInit(t *testing.T) {
 		"context/instructions/cli.md",
 		"context/instructions/questions.md",
 		"context/scripts/",
-		"### 5-phase development lifecycle",
+		"### 5-stage development lifecycle",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
 		"discover them from the",
@@ -998,7 +998,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 
 	data, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	for _, want := range []string{
-		"### 5-phase development lifecycle",
+		"### 5-stage development lifecycle",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
 		"### SESSION START",
@@ -1072,7 +1072,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	}
 
 	plan, _ := os.ReadFile(filepath.Join(dir, "context/instructions/plan.md"))
-	for _, want := range []string{"5-phase", "Analysis", "Tasks", "living"} {
+	for _, want := range []string{"5-stage", "Analysis", "Tasks", "living"} {
 		if !strings.Contains(string(plan), want) {
 			t.Errorf("expected %q in plan.md:\n%s", want, plan)
 		}
@@ -1129,7 +1129,7 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 		"context/scripts/",
 		"context/instructions/scripts.md",
 		"context/scripts/index.md",
-		"### 5-phase development lifecycle",
+		"### 5-stage development lifecycle",
 		"verify-step",
 		"sdt context status",
 		"passed",

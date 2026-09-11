@@ -182,7 +182,7 @@ session: <session id>        # optional
 - Leave **no open points**: if a decision is missing, ask on the fly or register
   it as an open question in ` + "`context/questions/`" + `; keep the user in
   control of the decisions.
-- Track work via the 5-phase cycle: Analysis → Plan → Tasks per phase → Execution
+- Track work via the 5-stage cycle: Analysis → Plan → Tasks per phase → Execution
   (updates plan+task, creates architecture/ADRs) → Final reports.
 - Verify-step before finishing: completeness, coherence, correctness; prioritize
   CRITICAL / WARNING / SUGGESTION and degrade gracefully.
@@ -272,9 +272,19 @@ session: <session id>        # optional
   specific: not just "other things" but named areas.
 - **Phases** — each phase maps to one task file. Checklists here are at TASK
   granularity (one line per task); step-level detail lives in the task file.
-  Each phase should have: **Goal** (one sentence), **Depends on** (none / Phase
-  X), and a task list. Split further until every task is executable by a single
-  agent in a single session without re-reading the whole plan.
+  Each phase has: **Goal** (one sentence), **Depends on** (none / Phase X), and
+  a task list. **Phase rules** (user-mandated):
+  1. one phase = **one deliverable/concern**, stated in its Goal sentence;
+  2. **no cap on the number of phases** — a plan may have any count;
+  3. keep phases **small**: aim for ~5-7 checklist items; a >10-item checklist
+     triggers a ` + "`sdt context lint`" + ` SUGGESTION to split the phase;
+  4. a phase must be completable by a **single agent in one focused session**
+     without re-reading the whole plan;
+  5. when refining an existing phase, use alphanumeric sub-phase suffixes
+     (` + "`1a`" + `, ` + "`1b`" + `) instead of widening it.
+- **Good vs bad splitting** — bad: one "Implement feature" phase with 15 mixed
+  items (schema + backend + CLI + tests in one file). Good: split into phases,
+  each with a single deliverable and ≤ ~5 items: schema → backend → CLI → tests.
 - **Dependency graph** — only needed when there are more than ~3 tasks or
   non-obvious ordering. Use a simple ASCII diagram.
 - **Completion criteria** — checkboxes for global exit conditions (all phases
@@ -298,7 +308,7 @@ session: <session id>        # optional
 | model | no | Model id of that agent (e.g. ` + "`opencode/big-pickle`" + `) — provenance. |
 | session | no | Session id for traceability across edits. |
 
-## 5-phase development lifecycle
+## 5-stage development lifecycle
 
 Every non-trivial piece of work follows this cycle; a plan is phase 2:
 
@@ -398,6 +408,8 @@ sections handle that.
 
 - Status markers: ` + "`[ ]`" + ` todo · ` + "`[~]`" + ` in-progress · ` + "`[x]`" + ` done · ` + "`[!]`" + ` blocked.
 - Manage with ` + "`sdt context task <sub> --phase <n> [--plan <slug>]`" + ` (add/list/done/block/wip).
+- One plan phase per file: **single focus**, small checklist (~5-7 items); a
+  >10-item checklist triggers a ` + "`sdt context lint`" + ` SUGGESTION to split.
 - Task files are **living**: updated during execution of the phase.
 - When a phase completes, archive or remove its task file and update the plan.
 
@@ -690,7 +702,7 @@ session: <session id>        # optional
 
 - Append-only (nothing is edited retroactively); new entries are new dated
   entries.
-- Entry per change (final report phase of the 5-phase cycle).
+- Entry per change (final report phase of the 5-stage cycle).
 - Tier: **low** (history) — indexed for traceability, does not drive action.
 `
 

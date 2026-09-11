@@ -55,6 +55,42 @@ func TestContextReindexSkipUnchanged(t *testing.T) {
 	}
 }
 
+func TestContextLintOversizedTaskFile(t *testing.T) {
+	setupContextProject(t)
+	var body strings.Builder
+	body.WriteString("---\nkind: tasks\nsummary: big phase\nlinks:\n  - plan/planx.md\nsources:\n  - plan/planx.md\n---\n")
+	for i := 1; i <= 11; i++ {
+		body.WriteString("- [ ] step\n")
+	}
+	writeCtxDoc(t, "context/tasks/big.md", body.String())
+	writeCtxDoc(t, "context/plan/planx.md", "---\nkind: plan\nsummary: plan\n---\nbody\n")
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	if !strings.Contains(string(out), ctxLintSuggestion) || !strings.Contains(string(out), "task file has 11 checklist items") || !strings.Contains(string(out), "consider splitting the phase") {
+		t.Errorf("expected a SUGGESTION for the oversized task file: %s", out)
+	}
+	if strings.Contains(string(out), `"CRITICAL"`) {
+		t.Errorf("expected no CRITICAL issues: %s", out)
+	}
+	yamlOut := execute(t, contextLintCmd, nil, "--format", "yaml")
+	if !strings.Contains(string(yamlOut), "SUGGESTION") {
+		t.Errorf("expected the suggestion in YAML output: %s", yamlOut)
+	}
+}
+
+func TestContextLintOversizedTaskFileBoundary(t *testing.T) {
+	setupContextProject(t)
+	var body strings.Builder
+	body.WriteString("---\nkind: tasks\nsummary: ok phase\n---\n")
+	for i := 1; i <= 10; i++ {
+		body.WriteString("- [ ] step\n")
+	}
+	writeCtxDoc(t, "context/tasks/ok.md", body.String())
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	if strings.Contains(string(out), "consider splitting the phase") {
+		t.Errorf("expected no suggestion at exactly 10 items: %s", out)
+	}
+}
+
 func TestContextLintClean(t *testing.T) {
 	dir := setupContextProject(t)
 	writeCtxDoc(t, "context/plan/good.md", "---\nkind: plan\nsummary: Good plan\nlinks:\n  - notes/other.md\n---\nbody\n")

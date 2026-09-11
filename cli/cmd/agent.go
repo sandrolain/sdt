@@ -93,7 +93,7 @@ var agentCmd = &cobra.Command{
 
   agent init       bootstrap AGENTS.md + context/ instruction files
 
-AGENTS.md carries the general agent instructions (5-phase lifecycle, knowledge
+AGENTS.md carries the general agent instructions (5-stage lifecycle, knowledge
 tiers, planning and work logs, communication, patterns) in a tagged
 ` + "`instructions`" + ` block, plus a write-once ` + "`project`" + ` block for project-specific
 stack/build/test/lint/conventions. The instruction files under
@@ -847,7 +847,7 @@ scripts in ` + "`context/scripts/`" + ` are listed in
 ` + "`context/scripts/index.md`" + ` and executed on demand, never read into context
 (see ` + "`instructions/scripts.md`" + `).
 
-### 5-phase development lifecycle
+### 5-stage development lifecycle
 
 Follow this cycle for any non-trivial task:
 
@@ -855,7 +855,10 @@ Follow this cycle for any non-trivial task:
 2. **Plan** — create from the analysis; integrate/modify as needed.
 3. **Tasks** — right after the plan, create **one task file per phase** in
    ` + "`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`" + ` (` + "`sdt context task`" + `); a plan
-   without task files has no execution value.
+   without task files has no execution value. Phases are **unbounded in count**,
+   **small** and each targets **exactly one deliverable/concern** — split a phase
+   further the moment it grows beyond a single agent session (full rules in
+   ` + "`instructions/plan.md`" + `).
 4. **Execution** — work **one task file at a time**, never from the plan;
    **mark it in progress on take-in**, complete items as they finish, scan
    ` + "`context/tasks/`" + ` for stale in-progress files before starting; create

@@ -276,6 +276,9 @@ type ctxLintIssue struct {
 const (
 	ctxLintCritical = "CRITICAL"
 	ctxLintWarning  = "WARNING"
+	// ctxTasksOversizedItems is the soft checklist-size guard for task files:
+	// a phase whose checklist exceeds it triggers a SUGGESTION to split.
+	ctxTasksOversizedItems = 10
 )
 
 func (i ctxLintIssue) String() string {
@@ -287,7 +290,7 @@ var ctxLinkRegexp = regexp.MustCompile(`\[\[([a-zA-Z0-9_./-]+)\]\]`)
 
 // ctxDerivedKinds are document kinds that derive from or extend another
 // document and therefore must carry a `sources` frontmatter reference. Plan and
-// tasks always derive (from analysis/plan by the 5-phase lifecycle); ADR
+// tasks always derive (from analysis/plan by the 5-stage lifecycle); ADR
 // decisions and open-question collections state their origin. A greenfield
 // analysis does not derive from anything, so analysis is not required to set
 // sources (a follow-up analysis should set it but is not hard-flagged).
@@ -368,6 +371,13 @@ func lintDoc(path string) []ctxLintIssue {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: "ADR filename must start with a 4-digit number (NNNN-<slug>.md)"})
 		} else if n := parseFrontmatterField(content, "number"); n != "" && n != m[1] {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: fmt.Sprintf("frontmatter number %s does not match filename %s", n, m[1])})
+		}
+	}
+	// Oversized task phases: a checklist beyond the soft bound gets a
+	// SUGGESTION to split the phase (never a failure).
+	if kind == ctxTypeTasks {
+		if n := len(parseTaskItems(content)); n > ctxTasksOversizedItems {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: fmt.Sprintf("task file has %d checklist items (>%d); consider splitting the phase", n, ctxTasksOversizedItems)})
 		}
 	}
 	return issues
