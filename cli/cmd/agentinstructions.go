@@ -221,7 +221,7 @@ Follow strictly — the plan defines the work, the task files execute it:
 1. **Create the plan** — write Objective, Constraints and assumptions, Out of
    scope, Phases, Verification and Completion criteria from the analysis.
 2. **Create task files right after** — as soon as the plan exists, create
-   **one task file per phase** (` + "`context/tasks/<phase>.md`" + `, see
+   **one task file per phase** (` + "`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`" + `, see
    ` + "`instructions/tasks.md`" + `). Every phase maps to a task file; link in
    both directions (plan frontmatter → task files, task file frontmatter →
    plan).
@@ -243,7 +243,7 @@ created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:
   - analysis/20260905-...-analysis-slug.md
-  - tasks/phase-1.md
+  - tasks/<date>-<plan-slug>-phase-1.md
 project: <project>
 agent: <agent/tool>          # optional
 model: <model id>            # optional
@@ -317,7 +317,7 @@ Plan and task files are updated during execution (not append-only); ADRs and
 
 const instrTasksTemplate = `# Task Files (one per plan phase)
 
-` + "`context/tasks/<phase>.md`" + ` holds the task list for **one phase of a plan**.
+` + "`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`" + ` holds the task list for **one phase of a plan**.
 There is no single global TODO: each plan phase gets its own file so the agent
 can track exactly what is done and what is pending for that phase. The task file
 is the **execution unit**: work happens from one task file at a time, never from
@@ -397,7 +397,7 @@ sections handle that.
 ## Rules
 
 - Status markers: ` + "`[ ]`" + ` todo · ` + "`[~]`" + ` in-progress · ` + "`[x]`" + ` done · ` + "`[!]`" + ` blocked.
-- Manage with ` + "`sdt context task <sub> --phase <phase>`" + ` (add/list/done/block/wip).
+- Manage with ` + "`sdt context task <sub> --phase <n> [--plan <slug>]`" + ` (add/list/done/block/wip).
 - Task files are **living**: updated during execution of the phase.
 - When a phase completes, archive or remove its task file and update the plan.
 
@@ -462,7 +462,7 @@ kind: adr            # decision
 number: NNNN
 title: "<one-line title>"
 summary: "<1-2 sentence summary — MANDATORY, index source>"
-status: active       # accepted | superseded
+status: proposed   # proposed | accepted | rejected | deprecated | superseded
 created: "<ISO 8601>"
 links:
   - architecture/stack.md
@@ -631,7 +631,7 @@ created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:
   - plan/<date>-<plan-slug>.md
-  - tasks/phase-1.md
+  - tasks/<date>-<plan-slug>-phase-1.md
 project: <project>
 agent: <agent/tool>          # optional
 model: <model id>            # optional

@@ -790,7 +790,7 @@ func TestAgentBlockReferencesContextCommands(t *testing.T) {
 		"sdt context reindex",
 		"sdt context lint",
 		"sdt context task",
-		"context/tasks/<phase>.md",
+		"context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md",
 		"context/index.md",
 	} {
 		if !strings.Contains(block, want) {

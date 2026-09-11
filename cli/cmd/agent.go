@@ -854,7 +854,7 @@ Follow this cycle for any non-trivial task:
 1. **Analysis** — perform it; integrate/modify existing analysis files.
 2. **Plan** — create from the analysis; integrate/modify as needed.
 3. **Tasks** — right after the plan, create **one task file per phase** in
-   ` + "`context/tasks/<phase>.md`" + ` (` + "`sdt context task`" + `); a plan
+   ` + "`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`" + ` (` + "`sdt context task`" + `); a plan
    without task files has no execution value.
 4. **Execution** — work **one task file at a time**, never from the plan;
    **mark it in progress on take-in**, complete items as they finish, scan
