@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func setupContextProject(t *testing.T) string {
@@ -147,11 +148,21 @@ func TestContextListArchitectureAndDecisions(t *testing.T) {
 
 func TestContextTaskPhaseFile(t *testing.T) {
 	dir := setupContextProject(t)
-	execute(t, contextTaskAddCmd, nil, "step exec", "--phase", "execution")
-	if _, err := os.Stat(filepath.Join(dir, "context/tasks/execution.md")); err != nil {
-		t.Fatalf("expected tasks/execution.md to exist: %v", err)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	execute(t, contextTaskAddCmd, nil, "step exec", "--phase", "execution", "--plan", "custom")
+	path := filepath.Join(dir, "context/tasks/20260806-070000-custom-phase-execution.md")
+	got := mustReadFile(t, path)
+	for _, want := range []string{"step exec", "summary: Task checklist for phase execution", "status: active"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in task file:\n%s", want, got)
+		}
 	}
-	out := execute(t, contextTaskListCmd, nil, "--phase", "execution", "--format", "json")
+	for _, forbid := range []string{"links:", "sources:"} {
+		if strings.Contains(got, forbid) {
+			t.Errorf("standalone task file must not reference a plan:\n%s", got)
+		}
+	}
+	out := execute(t, contextTaskListCmd, nil, "--phase", "execution", "--plan", "custom", "--format", "json")
 	if !strings.Contains(string(out), "step exec") {
 		t.Errorf("expected step in execution list: %s", out)
 	}
@@ -159,8 +170,9 @@ func TestContextTaskPhaseFile(t *testing.T) {
 
 func TestContextTaskArchivePhaseFile(t *testing.T) {
 	dir := setupContextProject(t)
-	execute(t, contextTaskAddCmd, nil, "one", "--phase", "verify")
-	out := execute(t, contextTaskArchiveCmd, nil, "--phase", "verify")
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	execute(t, contextTaskAddCmd, nil, "one", "--phase", "verify", "--plan", "custom")
+	out := execute(t, contextTaskArchiveCmd, nil, "--phase", "verify", "--plan", "custom")
 	archivePath := strings.TrimSpace(string(out))
 	if !strings.Contains(archivePath, filepath.Join("context", "archive")) {
 		t.Errorf("expected archive path, got %q", out)
@@ -168,7 +180,7 @@ func TestContextTaskArchivePhaseFile(t *testing.T) {
 	if _, err := os.Stat(archivePath); err != nil {
 		t.Fatalf("expected archived file at %s: %v", archivePath, err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "context/tasks/verify.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, "context/tasks/20260806-070000-custom-phase-verify.md")); !os.IsNotExist(err) {
 		t.Error("expected task file removed after archive")
 	}
 }

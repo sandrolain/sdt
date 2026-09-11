@@ -105,8 +105,10 @@ func contextTimePrefix(format, slug string) string {
 }
 
 // contextPath computes the full path of a context work file without touching the
-// filesystem. It is deterministic for a given time and slug.
-func contextPath(typ, slug, phase string) (string, error) {
+// filesystem. It is deterministic for a given time and slug. The tasks type
+// needs the plan reference (plan filename or standalone slug) and the plan
+// phase number in `phase`.
+func contextPath(typ, slug, phase, plan string) (string, error) {
 	switch typ {
 	case ctxTypePlan:
 		return filepath.Join(sdtPlanDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
@@ -117,7 +119,10 @@ func contextPath(typ, slug, phase string) (string, error) {
 	case ctxTypeNotes:
 		return filepath.Join(sdtNotesDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	case ctxTypeTasks:
-		return taskFileFor(phase), nil
+		if phase == "" {
+			return "", errors.New("--phase <n> is required for type tasks")
+		}
+		return taskFileFor(phase, plan), nil
 	case ctxTypeTmp:
 		if slug == "" {
 			return "", errors.New("--slug is required for type tmp")
@@ -165,12 +170,13 @@ var contextPathCmd = &cobra.Command{
 prefix. Does not create anything.
 
 Types: plan/analysis/worklog/notes/archive (<YYYYMMDD-HHMMSS>-<slug>.md),
-tasks (<phase>.md with --phase, default plan), tmp (<slug>),
-architecture (<slug>.md), adr (<NNNN>-<slug>.md with --number).
+tasks (<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md with --phase <n> and
+--plan), tmp (<slug>), architecture (<slug>.md),
+adr (<NNNN>-<slug>.md with --number).
 
 Examples:
   sdt context path --type worklog --slug review-deps
-  sdt context path --type tasks --phase execution
+  sdt context path --type tasks --phase 1 --plan 20260911-155545-plan-context-file-formats-cli.md
   sdt context path --type plan --format json
   sdt context path --type adr --number 0001 --slug auth-choice`,
 	Args: cobra.NoArgs,
@@ -194,7 +200,7 @@ Examples:
 			outputContextPath(cmd, contextPathResult{Path: p, Type: ctxTypeAdr, Slug: slug})
 			return
 		}
-		p, err := contextPath(typ, slug, phase)
+		p, err := contextPath(typ, slug, phase, getStringFlag(cmd, "plan", false))
 		exitWithError(cmd, err)
 		outputContextPath(cmd, contextPathResult{Path: p, Type: typ, Slug: slug})
 	},
@@ -427,7 +433,7 @@ Examples:
 			content = contextAdrFrontmatter(adrNum, title, summary, project, created)
 		} else {
 			var err error
-			path, err = contextPath(typ, slug, "")
+			path, err = contextPath(typ, slug, "", "")
 			exitWithError(cmd, err)
 			component := ""
 			if typ == ctxTypeArchitecture {
@@ -598,25 +604,99 @@ func outputTaskItems(cmd *cobra.Command, items []taskItem) {
 	}
 }
 
-func taskFileFor(phase string) string {
-	name := sanitizeSlug(phase)
-	if name == "" {
-		name = "plan"
+// ctxPlanPrefix matches the leading timestamp of a canonical plan filename
+// (YYYYMMDD-HHMMSS-). taskSlugFromPlan strips it to recover the plan's slug.
+var ctxPlanPrefix = regexp.MustCompile(`^\d{8}-\d{6}-`)
+
+// taskSlugFromPlan derives the slug part of a task file name from the plan
+// reference: a canonical plan filename (timestamps stripped) or a standalone
+// custom slug used verbatim.
+func taskSlugFromPlan(plan string) string {
+	s := strings.TrimSuffix(strings.TrimSpace(plan), sdtMarkdownExt)
+	if loc := ctxPlanPrefix.FindStringIndex(s); loc != nil {
+		s = s[loc[1]:]
 	}
+	return s
+}
+
+// taskFileFor builds the plan-scoped dated task file name
+// (<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md) for the given plan phase
+// number `<n>` and plan reference. When a matching file for the phase already
+// exists it is returned (its name keeps its real creation-time prefix);
+// otherwise a fresh name with timestamp = now (task creation, contextNow) is
+// produced.
+func taskFileFor(phase, plan string) string {
+	n := sanitizeSlug(phase)
+	slug := taskSlugFromPlan(plan)
+	if matches, err := taskFilesForPhase(phase, slug); err == nil && len(matches) > 0 {
+		sort.Slice(matches, func(i, j int) bool {
+			mi, ei := os.Stat(matches[i])
+			mj, ej := os.Stat(matches[j])
+			if ei != nil || ej != nil {
+				return matches[i] > matches[j]
+			}
+			return mi.ModTime().After(mj.ModTime())
+		})
+		return matches[0]
+	}
+	name := contextTimePrefix("20060102-150405", slug+"-phase-"+n)
 	return filepath.Join(sdtTasksDir, name+".md")
 }
 
-func readTaskFile(phase string) (string, error) {
-	path := taskFileFor(phase)
+// taskFilesForPhase lists existing task files matching
+// *-<slug-plan>-phase-<n>.md (any timestamp prefix).
+func taskFilesForPhase(phase, slug string) ([]string, error) {
+	pattern := filepath.Join(sdtTasksDir, "*-"+slug+"-phase-"+sanitizeSlug(phase)+sdtMarkdownExt)
+	return filepath.Glob(pattern)
+}
+
+func readTaskFile(phase, plan string) (string, error) {
+	path := taskFileFor(phase, plan)
 	//#nosec G304 -- fixed repo path
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("no task list at %s (create one with `sdt context task add --phase %s`)", path, phase)
+			return "", fmt.Errorf("no task list at %s (create one with `sdt context task add --phase %s %s`)", path, phase, planFlagForHint(plan))
 		}
 		return "", err
 	}
 	return string(data), nil
+}
+
+// planFlagForHint renders the --plan fragment for an error hint, or "" when
+// the plan reference is the default (not worth repeating).
+func planFlagForHint(plan string) string {
+	if plan == "" {
+		return ""
+	}
+	return "--plan " + plan
+}
+
+// taskTarget resolves the confirmed --phase/--plan semantics for the
+// `context task` family: --phase <n> is required (plan phase number, numeric
+// or alphanumeric as written), --plan defaults to latestActivePlan() and an
+// explicit `--plan <custom-slug>` enables standalone checklists.
+func taskTarget(cmd *cobra.Command) (phase, plan string, err error) {
+	phase = sanitizeSlug(getStringFlag(cmd, "phase", false))
+	if phase == "" {
+		return "", "", errors.New("--phase <n> is required (plan phase number, e.g. 1 or 1a)")
+	}
+	plan = getStringFlag(cmd, "plan", false)
+	if plan == "" {
+		plan = latestActivePlan()
+		if plan == "" {
+			return "", "", errors.New("no active plan found; pass --plan <slug> to create a standalone checklist")
+		}
+	}
+	return phase, plan, nil
+}
+
+// planHasFile reports whether ref is an existing file under context/plan/
+// (a real plan reference). Standalone custom slugs do not resolve, so
+// frontmatter links/sources are skipped for them.
+func planHasFile(ref string) bool {
+	info, err := os.Stat(filepath.Join(sdtPlanDir, ref)) //#nosec G304 -- fixed repo path
+	return err == nil && !info.IsDir()
 }
 
 var contextTaskListCmd = &cobra.Command{
@@ -624,8 +704,9 @@ var contextTaskListCmd = &cobra.Command{
 	Short: "Show a per-phase task list",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		phase := getStringFlag(cmd, "phase", false)
-		content, err := readTaskFile(phase)
+		phase, plan, err := taskTarget(cmd)
+		exitWithError(cmd, err)
+		content, err := readTaskFile(phase, plan)
 		exitWithError(cmd, err)
 		outputTaskItems(cmd, parseTaskItems(content))
 	},
@@ -634,6 +715,8 @@ var contextTaskListCmd = &cobra.Command{
 // buildTaskFrontmatter emits a task checklist header matching the tasks.md
 // convention (kind/summary/objective/status/created/updated/links/sources/
 // project) so `sdt context task add` output passes lint and the index.
+// links/sources reference the plan only when it is an existing real plan file
+// (standalone custom slugs get no plan reference).
 func buildTaskFrontmatter(objective, project, phase, summary, planRef string) string {
 	now := contextNow().UTC().Format(time.RFC3339)
 	var b strings.Builder
@@ -646,7 +729,7 @@ func buildTaskFrontmatter(objective, project, phase, summary, planRef string) st
 	b.WriteString("status: active\n")
 	b.WriteString("created: " + now + "\n")
 	b.WriteString("updated: " + now + "\n")
-	if planRef != "" {
+	if planRef != "" && planHasFile(planRef) {
 		ref := "plan/" + planRef
 		b.WriteString("links:\n  - " + ref + "\n")
 		b.WriteString("sources:\n  - " + ref + "\n")
@@ -697,8 +780,9 @@ var contextTaskAddCmd = &cobra.Command{
 			exitWithError(cmd, errors.New("step is required"))
 		}
 		objective := getStringFlag(cmd, "objective", false)
-		phase := getStringFlag(cmd, "phase", false)
-		path := taskFileFor(phase)
+		phase, plan, err := taskTarget(cmd)
+		exitWithError(cmd, err)
+		path := taskFileFor(phase, plan)
 		content := ""
 		//#nosec G304 -- fixed repo path
 		if data, err := os.ReadFile(path); err == nil {
@@ -715,11 +799,7 @@ var contextTaskAddCmd = &cobra.Command{
 					summary += ": " + objective
 				}
 			}
-			planRef := sanitizeSlug(getStringFlag(cmd, "plan", false))
-			if planRef == "" {
-				planRef = latestActivePlan()
-			}
-			content = buildTaskFrontmatter(objective, project, phase, summary, planRef)
+			content = buildTaskFrontmatter(objective, project, phase, summary, plan)
 		} else {
 			exitWithError(cmd, err)
 		}
@@ -791,13 +871,14 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			if status == taskStatusBlock {
 				reason = getStringFlag(cmd, "reason", false)
 			}
-			phase := getStringFlag(cmd, "phase", false)
-			content, err := readTaskFile(phase)
+			phase, plan, err := taskTarget(cmd)
+			exitWithError(cmd, err)
+			content, err := readTaskFile(phase, plan)
 			exitWithError(cmd, err)
 			updated, err := updateTaskStatus(content, id, status, reason)
 			exitWithError(cmd, err)
 			//#nosec G306 -- user work file
-			if err := os.WriteFile(taskFileFor(phase), []byte(updated), 0o644); err != nil {
+			if err := os.WriteFile(taskFileFor(phase, plan), []byte(updated), 0o644); err != nil {
 				exitWithError(cmd, err)
 			}
 			outputString(cmd, "ok\n")
@@ -836,8 +917,9 @@ var contextTaskArchiveCmd = &cobra.Command{
 	Short: "Archive the active task list to context/archive/",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		phase := getStringFlag(cmd, "phase", false)
-		content, err := readTaskFile(phase)
+		phase, plan, err := taskTarget(cmd)
+		exitWithError(cmd, err)
+		content, err := readTaskFile(phase, plan)
 		exitWithError(cmd, err)
 		slug := taskArchiveSlug(content, getStringFlag(cmd, "slug", false))
 		path := filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", slug)+".md")
@@ -848,7 +930,7 @@ var contextTaskArchiveCmd = &cobra.Command{
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			exitWithError(cmd, err)
 		}
-		if err := os.Remove(taskFileFor(phase)); err != nil {
+		if err := os.Remove(taskFileFor(phase, plan)); err != nil {
 			exitWithError(cmd, err)
 		}
 		outputString(cmd, path+"\n")
@@ -857,14 +939,17 @@ var contextTaskArchiveCmd = &cobra.Command{
 
 var contextTaskCmd = &cobra.Command{
 	Use:   "task",
-	Short: "Manage per-phase task checklists (context/tasks/<phase>.md)",
-	Long: `Manage per-phase task checklists in context/tasks/<phase>.md. Each plan
-phase gets its own checklist file; --phase defaults to "plan".
+	Short: "Manage per-phase task checklists",
+	Long: `Manage plan-scoped task checklists in
+context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md. Each plan phase maps
+to its own checklist; --phase <n> is required and --plan defaults to the
+latest active plan (or an explicit --plan <plan-file> / --plan <slug> for a
+standalone checklist).
 
-  sdt context task list [--phase <phase>]             show steps with ids
-  sdt context task add "<step>" [--phase] [--objective] [--summary] [--plan]  add a step (creates the list)
-  sdt context task done|block|wip <id> [--phase]      update a step status
-  sdt context task archive [--phase] [--slug]         archive the list and start fresh
+  sdt context task list [--phase <n>] [--plan <ref>]      show steps with ids
+  sdt context task add "<step>" --phase <n> [--plan <ref>] [--objective] [--summary]
+  sdt context task done|block|wip <id> --phase <n> [--plan <ref>]
+  sdt context task archive --phase <n> [--plan <ref>] [--slug]
 
 Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked`,
 }
@@ -902,7 +987,8 @@ var contextTaskWipCmd = taskSetStatusCmd("wip")
 func init() {
 	contextPathCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|tasks|tmp|archive|architecture|adr")
 	contextPathCmd.Flags().String("slug", "", "Slug (sanitized)")
-	contextPathCmd.Flags().String("phase", "plan", "Phase for type tasks (checklist file name)")
+	contextPathCmd.Flags().String("phase", "", "Phase for type tasks (plan phase number, e.g. 1 or 1a)")
+	contextPathCmd.Flags().String("plan", "", "Plan reference for type tasks (plan file or standalone slug)")
 	contextPathCmd.Flags().String("number", "", "Number for type adr (4-digit NNNN)")
 
 	contextNewCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|questions|architecture|adr")
@@ -918,15 +1004,20 @@ func init() {
 
 	contextTaskAddCmd.Flags().String("objective", "", "Objective for the task list (used when creating)")
 	contextTaskAddCmd.Flags().String("summary", "", "Summary for the checklist frontmatter (default: derived from phase/objective)")
-	contextTaskAddCmd.Flags().String("plan", "", "Plan reference for links/sources (default: latest active plan)")
+	contextTaskAddCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskListCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskDoneCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskBlockCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskWipCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskArchiveCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")
 	contextTaskArchiveCmd.Flags().String("slug", "", "Archive slug (default: from objective)")
-	contextTaskAddCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
-	contextTaskListCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
-	contextTaskDoneCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
-	contextTaskBlockCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
-	contextTaskWipCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
-	contextTaskArchiveCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")
+	contextTaskAddCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
+	contextTaskListCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
+	contextTaskDoneCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
+	contextTaskBlockCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
+	contextTaskWipCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
+	contextTaskArchiveCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 
 	contextTemplateCmd.Flags().String("type", "", "Type: analysis|plan|tasks|adr|architecture|worklog|notes")
 
