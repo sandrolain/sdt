@@ -1,0 +1,38 @@
+## sdt string
+
+String Tools
+
+### Synopsis
+
+String Tools
+
+### Options
+
+```
+  -e, --end int     End index (default 9223372036854775807)
+  -h, --help        help for string
+  -s, --start int   Start index
+```
+
+### Options inherited from parent commands
+
+```
+      --file string         Input File
+      --format string       Output format: text|json|yaml (default "text")
+      --inb64 bytesBase64   Input Base 64
+      --input string        Input String
+      --no-color            Disable ANSI color codes
+      --quiet               Suppress informational messages, only output result
+```
+
+### SEE ALSO
+
+* [sdt](sdt.md)	 - Smart Developer Tools
+* [sdt string count](sdt_string_count.md)	 - Count text elements
+* [sdt string escape](sdt_string_escape.md)	 - Escape string
+* [sdt string lowercase](sdt_string_lowercase.md)	 - Lowercase string
+* [sdt string replacespace](sdt_string_replacespace.md)	 - Replace Spaces
+* [sdt string titlecase](sdt_string_titlecase.md)	 - Title Case string
+* [sdt string unescape](sdt_string_unescape.md)	 - Unescape string
+* [sdt string uppercase](sdt_string_uppercase.md)	 - Uppercase string
+
