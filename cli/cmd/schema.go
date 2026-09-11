@@ -58,7 +58,7 @@ func buildFlagSchema(c *cobra.Command) *JSONSchema {
 			Description: f.Usage,
 			Type:        cobraFlagTypeToJSONType(f.Value.Type()),
 		}
-		if f.DefValue != "" && f.DefValue != "[]" && f.DefValue != "false" {
+		if f.DefValue != "" && f.DefValue != "[]" && f.DefValue != flagValueFalse {
 			s.Default = f.DefValue
 		}
 		if f.Value.Type() == typeStringArray || f.Value.Type() == "stringSlice" {

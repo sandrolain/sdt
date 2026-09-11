@@ -65,7 +65,7 @@ func collectFlags(fs *pflag.FlagSet) []docsFlag {
 			return
 		}
 		df := docsFlag{Name: f.Name, Shorthand: f.Shorthand, Type: f.Value.Type(), Usage: f.Usage}
-		if f.DefValue != "" && f.DefValue != "[]" && f.DefValue != "false" {
+		if f.DefValue != "" && f.DefValue != "[]" && f.DefValue != flagValueFalse {
 			df.Default = f.DefValue
 		}
 		out = append(out, df)

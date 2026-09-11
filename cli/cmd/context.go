@@ -469,21 +469,60 @@ var contextTaskListCmd = &cobra.Command{
 	},
 }
 
-func buildTaskFrontmatter(objective, project, phase string) string {
+// buildTaskFrontmatter emits a task checklist header matching the tasks.md
+// convention (kind/summary/objective/status/created/updated/links/sources/
+// project) so `sdt context task add` output passes lint and the index.
+func buildTaskFrontmatter(objective, project, phase, summary, planRef string) string {
 	now := contextNow().UTC().Format(time.RFC3339)
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: tasks\n")
-	b.WriteString("phase: " + phase + "\n")
-	b.WriteString("created_at: " + now + "\n")
+	b.WriteString("summary: " + yamlScalar(summary) + "\n")
 	if objective != "" {
-		b.WriteString("objective: " + objective + "\n")
+		b.WriteString("objective: " + yamlScalar(objective) + "\n")
+	}
+	b.WriteString("status: active\n")
+	b.WriteString("created: " + now + "\n")
+	b.WriteString("updated: " + now + "\n")
+	if planRef != "" {
+		ref := "plan/" + planRef
+		b.WriteString("links:\n  - " + ref + "\n")
+		b.WriteString("sources:\n  - " + ref + "\n")
 	}
 	if project != "" {
-		b.WriteString("project: " + project + "\n")
+		b.WriteString("project: " + yamlScalar(project) + "\n")
 	}
 	b.WriteString("---\n\n")
 	return b.String()
+}
+
+// latestActivePlan returns the newest `status: active` plan filename under
+// context/plan/, or "" when none exists (standalone checklist). Plan names are
+// lexically sortable (YYYYMMDD-HHMMSS-... = chronological).
+func latestActivePlan() string {
+	entries, err := os.ReadDir(sdtPlanDir)
+	if err != nil {
+		return ""
+	}
+	names := []string{}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), sdtMarkdownExt) {
+			continue
+		}
+		data, rerr := os.ReadFile(filepath.Join(sdtPlanDir, e.Name())) //#nosec G304 -- fixed repo path
+		if rerr != nil {
+			continue
+		}
+		if frontmatterField(string(data), "status") != ctxWikiStatusActive {
+			continue
+		}
+		names = append(names, e.Name())
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	sort.Strings(names)
+	return names[len(names)-1]
 }
 
 var contextTaskAddCmd = &cobra.Command{
@@ -507,7 +546,18 @@ var contextTaskAddCmd = &cobra.Command{
 			if cfg, cerr := findProjectConfig(); cerr == nil && cfg != nil {
 				project = cfg.Project
 			}
-			content = buildTaskFrontmatter(objective, project, phase)
+			summary := getStringFlag(cmd, "summary", false)
+			if summary == "" {
+				summary = "Task checklist for phase " + phase
+				if objective != "" {
+					summary += ": " + objective
+				}
+			}
+			planRef := sanitizeSlug(getStringFlag(cmd, "plan", false))
+			if planRef == "" {
+				planRef = latestActivePlan()
+			}
+			content = buildTaskFrontmatter(objective, project, phase, summary, planRef)
 		} else {
 			exitWithError(cmd, err)
 		}
@@ -650,7 +700,7 @@ var contextTaskCmd = &cobra.Command{
 phase gets its own checklist file; --phase defaults to "plan".
 
   sdt context task list [--phase <phase>]             show steps with ids
-  sdt context task add "<step>" [--phase] [--objective]  add a step (creates the list)
+  sdt context task add "<step>" [--phase] [--objective] [--summary] [--plan]  add a step (creates the list)
   sdt context task done|block|wip <id> [--phase]      update a step status
   sdt context task archive [--phase] [--slug]         archive the list and start fresh
 
@@ -701,6 +751,8 @@ func init() {
 	contextListCmd.Flags().String("type", "", "Type: plan|analysis|worklog|notes|tasks|archive")
 
 	contextTaskAddCmd.Flags().String("objective", "", "Objective for the task list (used when creating)")
+	contextTaskAddCmd.Flags().String("summary", "", "Summary for the checklist frontmatter (default: derived from phase/objective)")
+	contextTaskAddCmd.Flags().String("plan", "", "Plan reference for links/sources (default: latest active plan)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")
 	contextTaskArchiveCmd.Flags().String("slug", "", "Archive slug (default: from objective)")
 	contextTaskAddCmd.Flags().String("phase", "plan", "Phase for the checklist file (default plan)")

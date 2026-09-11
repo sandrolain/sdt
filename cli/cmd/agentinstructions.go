@@ -344,6 +344,8 @@ created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:
   - plan/<date>-<plan-slug>.md
+sources:
+  - plan/<date>-<plan-slug>.md
 project: <project>
 agent: <agent/tool>          # optional
 model: <model id>            # optional

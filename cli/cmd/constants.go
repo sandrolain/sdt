@@ -52,6 +52,9 @@ const (
 	sdtInstrQuestions    = "context/instructions/questions.md"
 	sdtInstrScripts      = "context/instructions/scripts.md"
 	sdtScriptsIndex      = "context/scripts/index.md"
+	sdtWikiDir           = "context/wiki"
+	sdtIngestionDir      = "context/ingestion"
+	sdtRefsDir           = "context/refs"
 
 	// The tagged section names in AGENTS.md.
 	agentSectionNameInstructions = "instructions"
@@ -77,4 +80,7 @@ const (
 	taskStatusBlocked   = "blocked"
 	taskStatusBlock     = "block"
 	ctxFrontmatterDelim = "---"
+
+	// Canonical string literal for boolean-flag defaults.
+	flagValueFalse = "false"
 )

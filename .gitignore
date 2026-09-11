@@ -24,6 +24,9 @@
 trivi-results.json
 /coverage.*
 
+# Other
+/TODO.md
+
 # sdt:start
 context/tmp/
 context/docs/

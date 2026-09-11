@@ -873,6 +873,9 @@ files: **passed** (ran and verified), **expected** (written, not run),
 At session end: note open tasks and questions in ` + "`context/tasks/`" + ` or
 ` + "`context/questions/`" + ` for continuity.
 
+**File answers back**: substantive query answers and discoveries are filed into
+` + "`context/`" + ` (` + "`notes/`" + `, ` + "`analysis/`" + `, ` + "`wiki/`" + `) — never left in chat.
+
 When running the project's build, test and lint commands, discover them from the
 project (Taskfile, Makefile, package.json, go.mod or similar); if the project defines
 none, record them in ` + "`context/instructions/project.md`" + `.

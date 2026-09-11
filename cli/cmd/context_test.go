@@ -407,6 +407,53 @@ func TestContextTaskAddEmpty(t *testing.T) {
 	})
 }
 
+func TestContextTaskAddFrontmatterConvention(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	// An active plan exists → generated checklist must link it (links+sources).
+	writeCtxDoc(t, filepath.Join("context", "plan", "20260912-000000-pipeline.md"),
+		"---\nkind: plan\nsummary: p\nstatus: active\n---\nbody\n")
+	execute(t, contextTaskAddCmd, nil, "step one", "--phase", "demo",
+		"--objective", "Demo objective", "--summary", "Demo checklist")
+
+	content := mustReadFile(t, filepath.Join(dir, "context", "tasks", "demo.md"))
+	for _, want := range []string{
+		"kind: tasks",
+		"summary: Demo checklist",
+		"objective: Demo objective",
+		"status: active",
+		"created: 2026-08-06T07:00:00Z",
+		"updated: 2026-08-06T07:00:00Z",
+		"links:\n  - plan/20260912-000000-pipeline.md",
+		"sources:\n  - plan/20260912-000000-pipeline.md",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("expected %q in generated task frontmatter:\n%s", want, content)
+		}
+	}
+	for _, forbid := range []string{"phase:", "created_at:"} {
+		if strings.Contains(content, forbid) {
+			t.Errorf("did not expect %q in generated task frontmatter:\n%s", forbid, content)
+		}
+	}
+
+	// Default summary derives from phase/objective when --summary is omitted.
+	execute(t, contextTaskAddCmd, nil, "step two", "--phase", "other",
+		"--objective", "Ship feature")
+	other := mustReadFile(t, filepath.Join(dir, "context", "tasks", "other.md"))
+	if !strings.Contains(other, `summary: "Task checklist for phase other: Ship feature"`) {
+		t.Errorf("expected derived default summary, got:\n%s", other)
+	}
+
+	// lint must not flag the CLI-generated checklist.
+	out := execute(t, contextLintCmd, nil)
+	if strings.Contains(string(out), "context/tasks/demo.md") ||
+		strings.Contains(string(out), "context/tasks/other.md") {
+		t.Errorf("lint flagged CLI-generated task file:\n%s", out)
+	}
+}
+
 func TestContextTaskArchiveEmptyList(t *testing.T) {
 	runInTempDir(t)
 	shouldExitWithCode(t, 1, func() string {
