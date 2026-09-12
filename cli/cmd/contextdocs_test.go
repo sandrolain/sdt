@@ -241,3 +241,35 @@ func TestAgentBlockMatchesInstructionFiles(t *testing.T) {
 		}
 	}
 }
+
+// TestAgentBlockWikiInstruction verifies the generated wiki instruction file is
+// both part of the generated set and wired into the AGENTS.md trigger table.
+func TestAgentBlockWikiInstruction(t *testing.T) {
+	block := agentBlockInstructions("p", "g")
+	if !strings.Contains(block, "`context/instructions/wiki.md`") {
+		t.Error("expected wiki.md trigger row in agent block")
+	}
+	hasRow := false
+	for _, line := range strings.Split(block, "\n") {
+		if strings.Contains(line, "context/instructions/wiki.md") && strings.Contains(line, "Writing or updating wiki pages") {
+			hasRow = true
+			break
+		}
+	}
+	if !hasRow {
+		t.Error("expected trigger table row 'Writing or updating wiki pages' for wiki.md")
+	}
+	found := false
+	for _, f := range instructionFiles("p", "g") {
+		if f.name == "wiki.md" {
+			found = true
+			if !strings.Contains(f.body, "## Verification") {
+				t.Error("expected wiki template to include a Verification section")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected wiki.md in generated instruction set")
+	}
+}

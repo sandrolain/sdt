@@ -63,6 +63,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/cli.md` | Looking up usage examples |
 | `context/scripts/` | Running bundled scripts (see `instructions/scripts.md`) |
 | `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
+| `context/instructions/wiki.md` | Writing or updating wiki pages |
 | `context/docs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
 
 Work directories live under `context/` (`plan/`, `analysis/`, `architecture/`,
@@ -163,7 +164,7 @@ only with **explicit user approval**.
 
 ### Stack
 
-Go 1.26.5 (see `.tool-versions`) · pure-Go, no CGO · cobra CLI + viper config.
+Go 1.27.1 (see `.tool-versions`) · pure-Go, no CGO · cobra CLI + viper config.
 
 Key dependencies:
 

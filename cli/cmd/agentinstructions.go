@@ -866,6 +866,67 @@ Index workflow:
   ` + "`context/scripts/`" + ` column, read this instruction file first.
 `
 
+const instrWikiTemplate = `# Wiki Pages (context/wiki/)
+
+` + "`context/wiki/`" + ` holds knowledge-graph pages distilled from ingested
+sources. Read this file when **writing or updating** a wiki page — including
+plain editing of an existing page, not only the full ingestion pipeline (that
+pipeline is owned by ` + "`context/instructions/ingestion.md`" + `).
+
+## Page contract
+
+Every page keeps the stable machine envelope (frontmatter, provenance,
+relations, citations — see ` + "`ingestion.md`" + `):
+
+- ` + "`kind`" + `: wiki · ` + "`id`" + `: relative subpath · ` + "`title`" + `: unique ·
+  ` + "`type`" + ` (` + "`concept`" + `/` + "`entity`" + `/` + "`decision`" + `/` + "`pattern`" + `/` + "`module`" + `) ·
+  ` + "`status`" + ` (` + "`draft`" + `/` + "`active`" + `/` + "`archived`" + `) · ` + "`summary`" + ` ·
+  ` + "`relations`" + ` (closed verb vocabulary) · ` + "`tags`" + ` · ` + "`sources`" + `.
+- Body anatomy: ` + "`## Summary`" + ` (3-10 line TL;DR), ` + "`## Claims`" + `
+  (numbered, atomic, source-cited ` + "`(refs/<file>@<sha>:<lines>)`" + `, anchored
+  ` + "`{#claim-<n>}`" + `), ` + "`## Notes`" + ` (rationale, trade-offs, open points).
+- Machine surface = frontmatter + claim anchors + typed wiki-links +
+  markdown-ld; human surface = Summary + prose.
+
+## Reading and writing
+
+- Frontmatter values stay consistent with the shared schema; ` + "`id`" + ` equals the
+  relative subpath (` + "`wiki/backend/auth.md`" + ` → ` + "`backend/auth`" + `).
+- Preserve the graph when editing: relation direction (this node → target),
+  closed vocabulary, and ` + "`sources`" + ` entries remain stable unless a source
+  adds authority to change them.
+- One concept, one page. A page is exhaustive for its concept; material spanning
+  several distinct concepts is split into child/sibling nodes wired via
+  ` + "`part_of`" + `/` + "`depends_on`" + `/` + "`refers_to`" + `.
+- Never overwrite an existing claim silently. Corrections refine
+  ` + "`refines #claim-<n>`" + `; conflicting claims stay visible with source, scope,
+  and date until reviewed.
+
+## Correlation and relation discipline
+
+- **Ordinary navigation** (prose or ` + "`[[id|label]]`" + `) is not a graph edge;
+  only ` + "`relations`" + ` frontmatter with a closed verb creates one.
+- A typed relation needs evidence: a claim in the source, or an existing page
+  statement naming the link. Co-occurrence alone never justifies a relation.
+- ` + "`supersedes`" + `/` + "`conflicts_with`" + ` are graph signals that trigger human
+  review; lint checks only their syntax and targets, not the interpretation.
+
+## Padding and quality
+
+- No empty headings, boilerplate restating frontmatter, or copied source
+  structure. The page follows the source only when that order is the best
+  explanation.
+- Do not repeat a linked page's content — state the connection and point to the
+  target.
+
+## Verification
+
+- Run ` + "`sdt context wiki lint`" + ` after every change and fix issues caused by
+  the edit; run ` + "`sdt context reindex`" + ` when done.
+- Keep the page within the concept budget (~120 lines / ~20 claims); a larger
+  page is a split signal, not a command to bloat prose.
+`
+
 const scriptsIndexTemplate = `---
 kind: scripts
 summary: "Index of utility scripts in context/scripts/ (name · purpose · example). Keep the table in sync: add a row for every script, remove it when deleted."
