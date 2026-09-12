@@ -220,15 +220,19 @@ Follow strictly — the plan defines the work, the task files execute it:
 
 1. **Create the plan** — write Objective, Constraints and assumptions, Out of
    scope, Phases, Verification and Completion criteria from the analysis.
-2. **Create task files right after** — as soon as the plan exists, create
-   **one task file per phase** (` + "`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`" + `, see
-   ` + "`instructions/tasks.md`" + `). Every phase maps to a task file; link in
-   both directions (plan frontmatter → task files, task file frontmatter →
-   plan).
-3. **Execute one task file at a time** — never work from the plan itself. Pick
+2. **Wait for plan approval** — stop after creating the plan and wait for
+  explicit user approval before creating task files. Do not create task files
+  as part of plan creation.
+3. **Create task files after approval** — create **one task file per phase**
+  (` + "`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`" + `, see
+  ` + "`instructions/tasks.md`" + `). Every phase maps to a task file; link in both
+  directions (plan frontmatter → task files, task file frontmatter → plan).
+4. **Wait for task approval** — stop after creating the task files and wait for
+  explicit user approval before implementation.
+5. **Execute one task file at a time** — never work from the plan itself. Pick
    a task file with no pending dependencies, mark it **in progress** on
    take-in, complete items as they finish, then move to the next.
-4. **Update in place** — plan and task files are **living**: reflect progress,
+6. **Update in place** — plan and task files are **living**: reflect progress,
    decisions and deviations as they happen; keep ` + "`updated`" + ` current.
 
 ## Structure
