@@ -131,8 +131,8 @@ func parseFrontmatterList(content, key string) []string {
 			}
 			continue
 		}
-		if strings.HasPrefix(line, "  -") {
-			out = append(out, strings.TrimSpace(strings.TrimPrefix(line, "  -")))
+		if strings.HasPrefix(strings.TrimSpace(line), "-") {
+			out = append(out, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-")))
 		} else if line != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
 			// a new top-level key ends the list
 			break
