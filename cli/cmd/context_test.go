@@ -41,6 +41,18 @@ func TestContextPath(t *testing.T) {
 	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
+
+	out = execute(t, contextPathCmd, nil, "--type", "rfc", "--slug", "prompt-provenance")
+	want = filepath.Join("context", "rfcs", "20260806-070000-prompt-provenance.md")
+	if got := strings.TrimSpace(string(out)); got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+
+	out = execute(t, contextPathCmd, nil, "--type", "prompt", "--slug", "deepsearch")
+	want = filepath.Join("context", "prompts", "20260806-070000-deepsearch.md")
+	if got := strings.TrimSpace(string(out)); got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
 }
 
 func TestContextPathJSON(t *testing.T) {
@@ -98,6 +110,35 @@ func TestContextNew(t *testing.T) {
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("expected %q in file:\n%s", want, content)
+		}
+	}
+}
+
+func TestContextNewRFCAndPrompt(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "rfc", "--title", "prompt provenance")
+	rfcPath := filepath.Join(dir, "context", "rfcs", "20260806-070000-prompt-provenance.md")
+	rfc, err := os.ReadFile(rfcPath)
+	if err != nil {
+		t.Fatalf("expected RFC file: %v", err)
+	}
+	for _, want := range []string{"kind: rfc", "title: prompt provenance", "status: draft", "## Proposed design", "## Decision outcome"} {
+		if !strings.Contains(string(rfc), want) {
+			t.Errorf("expected RFC content %q:\n%s", want, rfc)
+		}
+	}
+
+	execute(t, contextNewCmd, nil, "--type", "prompt", "--title", "deepsearch")
+	promptPath := filepath.Join(dir, "context", "prompts", "20260806-070000-deepsearch.md")
+	prompt, err := os.ReadFile(promptPath)
+	if err != nil {
+		t.Fatalf("expected prompt file: %v", err)
+	}
+	for _, want := range []string{"kind: prompt", "title: deepsearch", "## Prompt", "## Runs", "| Model/tool |"} {
+		if !strings.Contains(string(prompt), want) {
+			t.Errorf("expected prompt content %q:\n%s", want, prompt)
 		}
 	}
 }

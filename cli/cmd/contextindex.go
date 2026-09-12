@@ -22,24 +22,25 @@ import (
 // sdtMarkdownExt avoids a repeated ".md" literal across context commands.
 const sdtMarkdownExt = ".md"
 
-// ctxTierHistory is the lowest relevance tier label.
-const ctxTierHistory = "history"
-
 // map keys reused by reindex/lint/template output.
 const (
-	ctxMapPath   = "path"
-	ctxMapStatus = "status"
+	ctxMapPath       = "path"
+	ctxMapStatus     = "status"
+	ctxTierImportant = "important"
+	ctxTierHistory   = "history"
 )
 
-var ctxTierOrder = []string{"essential", "important", "medium", "operational", ctxTierHistory}
+var ctxTierOrder = []string{"essential", ctxTierImportant, "medium", "operational", ctxTierHistory}
 
 func ctxTierForDir(dir string) string {
 	switch dir {
 	case sdtArchitectureDir, sdtDecisionsDir:
 		return "essential"
 	case sdtAnalysisDir:
-		return "important"
-	case sdtPlanDir, sdtNotesDir, sdtQuestionsDir:
+		return ctxTierImportant
+	case sdtRFCsDir:
+		return ctxTierImportant
+	case sdtPlanDir, sdtNotesDir, sdtQuestionsDir, sdtPromptsDir:
 		return "medium"
 	case sdtTasksDir:
 		return "operational"
@@ -56,9 +57,11 @@ var ctxIndexDirs = []string{
 	sdtArchitectureDir,
 	sdtDecisionsDir,
 	sdtAnalysisDir,
+	sdtRFCsDir,
 	sdtPlanDir,
 	sdtNotesDir,
 	sdtQuestionsDir,
+	sdtPromptsDir,
 	sdtTasksDir,
 	sdtWorklogDir,
 	sdtArchiveDir,
@@ -161,6 +164,39 @@ func ctxResolvePath(base, ref string) (string, bool) {
 		return "", false
 	}
 	return abs, true
+}
+
+func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	for _, field := range []string{"sources", "links", "derived_from", "results"} {
+		for _, ref := range parseFrontmatterList(content, field) {
+			if _, ok := ctxResolvePath(sdtWorkDir, ref); ok {
+				continue
+			}
+			message := "broken " + field + " reference: " + ref
+			if field == "sources" {
+				message = "broken source reference: " + ref
+			}
+			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: message})
+		}
+	}
+	return issues
+}
+
+func lintRFCAndPromptContract(path, content, kind string, prio func(string) string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	if kind == ctxTypePrompt && len(parseFrontmatterList(content, "derived_from")) == 0 {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "prompt must declare `derived_from` provenance"})
+	}
+	if kind != ctxTypeRFC && kind != ctxTypePrompt {
+		return issues
+	}
+	for _, field := range []string{"title", "status", "created", "updated"} {
+		if parseFrontmatterField(content, field) == "" {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintCritical), Message: "frontmatter missing mandatory `" + field + "`"})
+		}
+	}
+	return issues
 }
 
 // ctxIndexLine renders one index row: relative path + summary.
@@ -352,17 +388,11 @@ func lintDoc(path string) []ctxLintIssue {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "broken link [[" + target + "]]"})
 		}
 	}
-	// sources: backward-provenance references (root-relative to context/,
-	// like the index). Resolve each entry; require the field on documents known
-	// to derive from/extend another document.
-	for _, ref := range parseFrontmatterList(content, "sources") {
-		if _, ok := ctxResolvePath(sdtWorkDir, ref); !ok {
-			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "broken source reference: " + ref})
-		}
-	}
+	issues = append(issues, lintFrontmatterReferences(path, content, prio)...)
 	if ctxDerivedKinds[kind] && len(parseFrontmatterList(content, "sources")) == 0 {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "document derives from/extend another; missing `sources` frontmatter"})
 	}
+	issues = append(issues, lintRFCAndPromptContract(path, content, kind, prio)...)
 	// ADR directory: filename must match NNNN-slug.md and number must match.
 	if dir == sdtDecisionsDir {
 		base := filepath.Base(path)
@@ -574,8 +604,12 @@ func contextInstrPath(typ string) (string, error) {
 		name = "notes.md"
 	case ctxTypeQuestions:
 		name = "questions.md"
+	case ctxTypeRFC:
+		name = "rfc.md"
+	case ctxTypePrompt:
+		name = "prompts.md"
 	default:
-		return "", fmt.Errorf("unknown type %q (use analysis|plan|tasks|adr|architecture|worklog|notes|questions)", typ)
+		return "", fmt.Errorf("unknown type %q (use analysis|plan|tasks|adr|architecture|worklog|notes|questions|rfc|prompt)", typ)
 	}
 	return filepath.Join(sdtInstrDir, name), nil
 }

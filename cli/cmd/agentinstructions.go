@@ -994,7 +994,7 @@ Create it with ` + "`sdt agent init --project myapp --group platform`" + ` or
 
 Documents under ` + "`context/`" + ` are the project knowledge. Per-type
 instructions and templates in ` + "`context/instructions/`" + ` (analysis, plan,
-tasks, adr, architecture, worklog, notes, questions, project, scripts, cli
+tasks, adr, architecture, worklog, notes, questions, rfc, prompts, project, scripts, cli
 usage). Index and checks:
 ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` / ` + "`sdt context status`" + ` /
 ` + "`sdt context template --type <tipo>`" + `. Agent instruction contract:
@@ -1077,4 +1077,91 @@ sdt diff --a old.json --b new.json --diff-format json-patch
 sdt totp code --secret BASE32SECRET
 sdt dns --host example.com --type A --format json
 ` + codeFence + `
+`
+
+const instrRFCTemplate = `# RFC Documents
+
+` + "`context/rfcs/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records a proposal before
+an implementation or architectural decision. Read this file when creating or
+reviewing an RFC.
+
+## Contract
+
+Every RFC starts with frontmatter:
+
+` + codeFence + `yaml
+kind: rfc
+title: "One-line proposal title"
+summary: "1-2 sentence index summary — MANDATORY"
+context: "Problem or opportunity"
+status: draft # draft | review | accepted | rejected | superseded
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+links:
+  - analysis/<source-analysis>.md
+sources:
+  - refs/<evidence>.md
+project: <project>
+` + codeFence + `
+
+## Template
+
+Use these sections: Problem statement, Goals, Non-goals, Constraints, Current
+state, Proposed design, Alternatives considered, Impact and migration,
+Validation/evidence, Decision outcome, and Follow-up. Separate observed facts
+from the proposed choice and preserve links to analyses, procedures, prompts,
+and immutable evidence under ` + "`context/refs/`" + `.
+
+## RFC → ADR → architecture
+
+An accepted RFC creates a new numbered ADR when it makes an architectural or
+policy decision. The ADR links back to the RFC and is authoritative for the
+decision. When the ADR changes the current system shape, update the relevant
+living ` + "`context/architecture/`" + ` document in the same execution phase and
+link it to the ADR. An accepted non-architectural RFC may record its outcome in
+the RFC without an ADR.
+
+RFCs propose; ADRs decide; architecture documents describe the current state.
+Do not treat research in ` + "`refs/`" + ` or an RFC status alone as an accepted
+decision.
+`
+
+const instrPromptsTemplate = `# Tracked Prompts
+
+` + "`context/prompts/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records a reusable or
+executed prompt and its provenance. Read this file when creating, revising, or
+running a prompt that contributes to an analysis, procedure, RFC, or decision.
+
+## Contract
+
+Every prompt starts with frontmatter:
+
+` + codeFence + `yaml
+kind: prompt
+title: "Prompt title"
+summary: "1-2 sentence index summary — MANDATORY"
+status: draft # draft | active | archived
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+derived_from:
+  - analysis/<analysis>.md
+procedure: instructions/<procedure>.md
+sources:
+  - refs/<deepsearch-result>.md
+results:
+  - analysis/<follow-up>.md
+project: <project>
+` + codeFence + `
+
+Keep the complete prompt text in the body. Link the analysis, RFC, instruction,
+or procedure that produced it through ` + "`derived_from`" + ` and record deep-
+search outputs by relative pointers under ` + "`context/refs/`" + `. Do not copy
+large reports into the prompt record or modify files in ` + "`refs/`" + `.
+
+## Runs
+
+Use one ` + "`## Runs`" + ` section for repeated executions. Each row records at
+least date/time, model or tool, scope, status, and result references. Link
+resulting analyses, RFCs, ADRs, or other documents in ` + "`results`" + ` or the
+run row. Split runs into separate files only through a later schema change.
 `

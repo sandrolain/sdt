@@ -43,6 +43,48 @@ func TestContextReindex(t *testing.T) {
 	}
 }
 
+func TestContextReindexRFCAndPrompt(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\n---\nbody\n")
+	writeCtxDoc(t, "context/refs/search.md", "---\nkind: reference\nstatus: archived\nsummary: Search evidence\n---\nsource\n")
+	writeCtxDoc(t, "context/rfcs/proposal.md", "---\nkind: rfc\ntitle: Proposal\nsummary: RFC summary\nstatus: review\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
+	writeCtxDoc(t, "context/prompts/search.md", "---\nkind: prompt\ntitle: Search prompt\nsummary: Prompt summary\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
+
+	execute(t, contextReindexCmd, nil)
+	idx, err := os.ReadFile(filepath.Join("context", "index.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"[[rfcs/proposal.md]]", "RFC summary", "[[prompts/search.md]]", "Prompt summary"} {
+		if !strings.Contains(string(idx), want) {
+			t.Errorf("expected %q in index:\n%s", want, idx)
+		}
+	}
+	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
+		t.Fatalf("expected clean RFC/prompt lint, got:\n%s", out)
+	}
+}
+
+func TestContextLintPromptProvenance(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/prompts/broken.md", "---\nkind: prompt\ntitle: Broken prompt\nsummary: Prompt summary\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/missing.md\n---\nbody\n")
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	if !strings.Contains(string(out), "broken derived_from reference") {
+		t.Fatalf("expected broken provenance issue, got:\n%s", out)
+	}
+}
+
+func TestContextLintRFCADRArchitectureChain(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\n---\nbody\n")
+	writeCtxDoc(t, "context/rfcs/decision.md", "---\nkind: rfc\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
+	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: adr\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - rfcs/decision.md\nproject: p\nsources:\n  - rfcs/decision.md\n---\n## Decision\nUse the proposal.\n")
+	writeCtxDoc(t, "context/architecture/decision.md", "---\nkind: architecture\nsummary: Current decision architecture\ncontext: Decision shape\nstatus: current\ncomponent: decision\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - decisions/0002-decision.md\nproject: p\n---\n# Architecture\n")
+	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
+		t.Fatalf("expected clean RFC/ADR/architecture chain, got:\n%s", out)
+	}
+}
+
 func TestContextReindexSkipUnchanged(t *testing.T) {
 	setupContextProject(t)
 	first := execute(t, contextReindexCmd, nil)

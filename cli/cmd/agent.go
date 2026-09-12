@@ -98,7 +98,7 @@ tiers, planning and work logs, communication, patterns) in a tagged
 ` + "`instructions`" + ` block, plus a write-once ` + "`project`" + ` block for project-specific
 stack/build/test/lint/conventions. The instruction files under
 ` + "`context/instructions/`" + ` cover CLI usage plus per-type templates (analysis,
-plan, tasks, adr, architecture, worklog, notes, questions) and the command
+plan, tasks, adr, architecture, worklog, notes, questions, rfc, prompts) and the command
 reference.
 `,
 }
@@ -122,6 +122,8 @@ func instructionFiles(project, group string) []instructionFile {
 		{name: filepath.Base(sdtInstrWorklog), body: instrWorklogTemplate},
 		{name: filepath.Base(sdtInstrNotes), body: instrNotesTemplate},
 		{name: filepath.Base(sdtInstrQuestions), body: instrQuestionsTemplate},
+		{name: filepath.Base(sdtInstrRFC), body: instrRFCTemplate},
+		{name: filepath.Base(sdtInstrPrompts), body: instrPromptsTemplate},
 		{name: filepath.Base(sdtInstrReference), body: instrReferenceTemplate},
 		{name: filepath.Base(sdtInstrCli), body: instrCLITemplate},
 		{name: filepath.Base(sdtInstrScripts), body: instrScriptsTemplate},
@@ -479,7 +481,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 
 // ensureWorkDirs creates the context/ working directory layout.
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtScriptsDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtRFCsDir, sdtPromptsDir, sdtScriptsDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -835,6 +837,8 @@ Read ` + "`context/index.md`" + ` first (single entry point, generated). Then th
 | ` + "`context/instructions/worklog.md`" + ` | Writing a final report |
 | ` + "`context/instructions/notes.md`" + ` | Writing a note |
 | ` + "`context/instructions/questions.md`" + ` | Registering an open question |
+| ` + "`context/instructions/rfc.md`" + ` | Creating or reviewing an RFC |
+| ` + "`context/instructions/prompts.md`" + ` | Creating or running a tracked prompt |
 | ` + "`context/instructions/reference.md`" + ` | Looking up a command |
 | ` + "`context/instructions/cli.md`" + ` | Looking up usage examples |
 | ` + "`context/scripts/`" + ` | Running bundled scripts (see ` + "`instructions/scripts.md`" + `) |
@@ -843,8 +847,8 @@ Read ` + "`context/index.md`" + ` first (single entry point, generated). Then th
 | ` + "`context/docs/README.md`" + ` | Needing per-command docs (` + "`sdt context docs`" + `, when present) |
 
 Work directories live under ` + "`context/`" + ` (` + "`plan/`" + `, ` + "`analysis/`" + `, ` + "`architecture/`" + `,
-` + "`decisions/`" + `, worklog/, notes/, tasks/, questions/, archive/, tmp/,
-` + "`scripts/`" + `). Keep all instruction files concise and technical. Bundled
+` + "`decisions/`" + `, ` + "`rfcs/`" + `, ` + "`prompts/`" + `, worklog/, notes/, tasks/,
+questions/, archive/, tmp/, ` + "`scripts/`" + `). Keep all instruction files concise and technical. Bundled
 scripts in ` + "`context/scripts/`" + ` are listed in
 ` + "`context/scripts/index.md`" + ` and executed on demand, never read into context
 (see ` + "`instructions/scripts.md`" + `).

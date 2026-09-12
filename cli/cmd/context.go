@@ -29,6 +29,8 @@ const (
 	ctxTypeDecision     = "decision"
 	ctxTypeAdr          = "adr"
 	ctxTypeQuestions    = "questions"
+	ctxTypeRFC          = "rfc"
+	ctxTypePrompt       = "prompt"
 )
 
 var contextNow = time.Now
@@ -49,7 +51,9 @@ var ctxDefaultStatus = map[string]string{
 	ctxTypePlan:         ctxWikiStatusActive,
 	ctxTypeAnalysis:     ctxWikiStatusActive,
 	ctxTypeQuestions:    ctxWikiStatusActive,
-	ctxTypeArchitecture: "draft",
+	ctxTypeArchitecture: ctxWikiStatusDraft,
+	ctxTypeRFC:          ctxWikiStatusDraft,
+	ctxTypePrompt:       ctxWikiStatusDraft,
 }
 
 // ctxHasUpdated lists types whose instruction contract requires an `updated`
@@ -60,6 +64,8 @@ var ctxHasUpdated = map[string]bool{
 	ctxTypeWorklog:      true,
 	ctxTypeQuestions:    true,
 	ctxTypeArchitecture: true,
+	ctxTypeRFC:          true,
+	ctxTypePrompt:       true,
 }
 
 func sanitizeSlug(s string) string {
@@ -92,6 +98,10 @@ func contextDir(typ string) (string, bool) {
 		return sdtDecisionsDir, true
 	case ctxTypeQuestions:
 		return sdtQuestionsDir, true
+	case ctxTypeRFC:
+		return sdtRFCsDir, true
+	case ctxTypePrompt:
+		return sdtPromptsDir, true
 	}
 	return "", false
 }
@@ -136,8 +146,12 @@ func contextPath(typ, slug, phase, plan string) (string, error) {
 		return "", errors.New("decision type is append-only ADR; create via `sdt context new --type adr`")
 	case ctxTypeQuestions:
 		return filepath.Join(sdtQuestionsDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
+	case ctxTypeRFC:
+		return filepath.Join(sdtRFCsDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
+	case ctxTypePrompt:
+		return filepath.Join(sdtPromptsDir, contextTimePrefix("20060102-150405", slug)+".md"), nil
 	}
-	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive|architecture|adr|questions)", typ)
+	return "", fmt.Errorf("unknown type %q (use plan|analysis|worklog|notes|tasks|tmp|archive|architecture|adr|questions|rfc|prompt)", typ)
 }
 
 // ── context path ───────────────────────────────────────────────────────────────
@@ -342,7 +356,7 @@ func contextFrontmatter(typ, title, summary, note, project, component, created s
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: " + typ + "\n")
-	if typ == ctxTypeAnalysis && title != "" {
+	if (typ == ctxTypeAnalysis || typ == ctxTypeRFC || typ == ctxTypePrompt) && title != "" {
 		b.WriteString("title: " + yamlScalar(title) + "\n")
 	}
 	b.WriteString("summary: " + yamlScalar(summary) + "\n")
@@ -366,10 +380,21 @@ func contextFrontmatter(typ, title, summary, note, project, component, created s
 	return b.String()
 }
 
+func contextDefaultBody(typ string) string {
+	switch typ {
+	case ctxTypeRFC:
+		return "## Problem statement\n\n## Goals\n\n## Non-goals\n\n## Constraints\n\n## Current state\n\n## Proposed design\n\n## Alternatives considered\n\n## Impact and migration\n\n## Validation/evidence\n\n## Decision outcome\n\n## Follow-up\n"
+	case ctxTypePrompt:
+		return "## Purpose\n\n## Prompt\n\n## Runs\n\n| Date | Model/tool | Scope | Status | Results |\n|---|---|---|---|---|\n"
+	default:
+		return ""
+	}
+}
+
 var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a context/ work file with frontmatter",
-	Long: `Create a plan, analysis, worklog, notes, questions, architecture or ADR
+	Long: `Create a plan, analysis, worklog, notes, questions, RFC, prompt, architecture or ADR
 file under context/ with the correct naming and the full per-type YAML
 frontmatter (kind, summary, context, status, created, updated, project plus
 per-type fields). The body comes from --input/--file or piped stdin. Existing
@@ -387,21 +412,23 @@ Examples:
   sdt context new --type analysis --title "memory backend" --input "..."
   sdt context new --type architecture --title "config loading" --summary "config loading component"
   sdt context new --type adr --title "Auth choice" --summary "Use JWT for auth"
-  sdt context new --type questions --title "open api questions"`,
+	sdt context new --type questions --title "open api questions"
+	sdt context new --type rfc --title "add prompt provenance"
+	sdt context new --type prompt --title "deepsearch prompt"`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
 		switch typ {
-		case ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions, ctxTypeArchitecture, ctxTypeAdr:
+		case ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions, ctxTypeRFC, ctxTypePrompt, ctxTypeArchitecture, ctxTypeAdr:
 		default:
-			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes|questions|architecture|adr, got %q", typ))
+			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes|questions|rfc|prompt|architecture|adr, got %q", typ))
 		}
 		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
 		title := getStringFlag(cmd, "title", false)
 		if slug == "" && title != "" {
 			slug = sanitizeSlug(title)
 		}
-		if (typ == ctxTypeArchitecture || typ == ctxTypeAdr) && slug == "" {
+		if (typ == ctxTypeArchitecture || typ == ctxTypeAdr || typ == ctxTypeRFC || typ == ctxTypePrompt) && slug == "" {
 			exitWithError(cmd, fmt.Errorf("--title or --slug is required for type %s", typ))
 		}
 		note := getStringFlag(cmd, "context", false)
@@ -440,6 +467,9 @@ Examples:
 				component = slug
 			}
 			content = contextFrontmatter(typ, title, summary, note, project, component, created)
+			if body == "" {
+				body = contextDefaultBody(typ)
+			}
 		}
 
 		status := statusCreated

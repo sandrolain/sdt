@@ -208,6 +208,8 @@ func TestAgentInit(t *testing.T) {
 		"context/instructions/reference.md",
 		"context/instructions/cli.md",
 		"context/instructions/questions.md",
+		"context/instructions/rfc.md",
+		"context/instructions/prompts.md",
 		"context/instructions/wiki.md",
 		"context/scripts/",
 		"### 5-stage development lifecycle",

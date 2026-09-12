@@ -24,6 +24,8 @@ var agentVerifyWorkDirs = []string{
 	sdtWorklogDir,
 	sdtNotesDir,
 	sdtQuestionsDir,
+	sdtRFCsDir,
+	sdtPromptsDir,
 	sdtTasksDir,
 	sdtArchiveDir,
 	sdtTmpDir,
