@@ -4,7 +4,7 @@ Create a context/ work file with frontmatter
 
 ### Synopsis
 
-Create a plan, analysis, worklog, notes, questions, architecture or ADR
+Create a plan, analysis, worklog, notes, questions, RFC, prompt, architecture or ADR
 file under context/ with the correct naming and the full per-type YAML
 frontmatter (kind, summary, context, status, created, updated, project plus
 per-type fields). The body comes from --input/--file or piped stdin. Existing
@@ -22,7 +22,9 @@ Examples:
   sdt context new --type analysis --title "memory backend" --input "..."
   sdt context new --type architecture --title "config loading" --summary "config loading component"
   sdt context new --type adr --title "Auth choice" --summary "Use JWT for auth"
-  sdt context new --type questions --title "open api questions"
+	sdt context new --type questions --title "open api questions"
+	sdt context new --type rfc --title "add prompt provenance"
+	sdt context new --type prompt --title "deepsearch prompt"
 
 ```
 sdt context new [flags]

@@ -8,12 +8,12 @@ Generate and maintain agent instruction files.
 
   agent init       bootstrap AGENTS.md + context/ instruction files
 
-AGENTS.md carries the general agent instructions (5-phase lifecycle, knowledge
+AGENTS.md carries the general agent instructions (5-stage lifecycle, knowledge
 tiers, planning and work logs, communication, patterns) in a tagged
 `instructions` block, plus a write-once `project` block for project-specific
 stack/build/test/lint/conventions. The instruction files under
 `context/instructions/` cover CLI usage plus per-type templates (analysis,
-plan, tasks, adr, architecture, worklog, notes, questions) and the command
+plan, tasks, adr, architecture, worklog, notes, questions, rfc, prompts) and the command
 reference.
 
 
