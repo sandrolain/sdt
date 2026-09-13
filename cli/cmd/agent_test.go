@@ -1016,6 +1016,9 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"context/architecture/",
 		"context/decisions/",
 		"context/index.md",
+		"context/commands/",
+		">ingestion",
+		"agent command",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md instructions block:\n%s", want, data)
@@ -1026,6 +1029,28 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "### Keep the chain (recap)") {
 		t.Error("expected intent gate recap section at block end")
+	}
+
+	// Commands directory: index + one thin trigger per agent-visible task,
+	// each referencing its durable instruction.
+	if _, err := os.Stat(filepath.Join(dir, "context/commands")); err != nil {
+		t.Fatalf("expected context/commands/ directory: %v", err)
+	}
+	cmdIndex, err := os.ReadFile(filepath.Join(dir, "context/commands/index.md"))
+	if err != nil {
+		t.Fatalf("expected context/commands/index.md: %v", err)
+	}
+	for _, want := range []string{"kind: commands", ">ingestion", "context/commands/ingestion.md", "context/instructions/ingestion.md"} {
+		if !strings.Contains(string(cmdIndex), want) {
+			t.Errorf("expected %q in commands index:\n%s", want, cmdIndex)
+		}
+	}
+	ing, err := os.ReadFile(filepath.Join(dir, "context/commands/ingestion.md"))
+	if err != nil {
+		t.Fatalf("expected context/commands/ingestion.md: %v", err)
+	}
+	if !strings.Contains(string(ing), "id: commands/ingestion") || !strings.Contains(string(ing), "instructions/ingestion.md") {
+		t.Errorf("expected thin ingestion trigger:\n%s", ing)
 	}
 
 	for _, name := range []string{
@@ -1132,6 +1157,8 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 		"context/scripts/",
 		"context/instructions/scripts.md",
 		"context/scripts/index.md",
+		"context/commands/",
+		">ingestion",
 		"### 5-stage development lifecycle",
 		"verify-step",
 		"sdt context status",

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -204,6 +205,73 @@ func writeInstructionFiles(project, group string, force bool) []FileResult {
 	return results
 }
 
+// agentCommandIDs are the agent-visible task triggers that get a thin command
+// file under context/commands/. Each id maps to a durable contract at
+// context/instructions/<id>.md; command files invoke/reference it, never move
+// or duplicate it.
+var agentCommandIDs = []string{
+	"ingestion", "wiki", ctxTypeAnalysis, ctxTypePlan, ctxTypeTasks, ctxTypeRFC,
+	ctxTypeAdr, ctxTypeArchitecture, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions,
+	"prompts", "reference",
+}
+
+// commandFiles returns the generated command files under context/commands/:
+// one index plus one thin trigger per agent-visible task.
+func commandFiles(project string, now time.Time) []instructionFile {
+	files := []instructionFile{
+		{name: filepath.Base(sdtCommandsIndex), body: instrCommandsIndexTemplate(project, now)},
+	}
+	for _, id := range agentCommandIDs {
+		files = append(files, instructionFile{name: id + ".md", body: instrCommandStubTemplate(id, project, now)})
+	}
+	return files
+}
+
+// writeCommandFiles creates the command files under context/commands/. It is
+// non-destructive: existing files are preserved unless force is set.
+func writeCommandFiles(project string, force bool) []FileResult {
+	now := time.Now()
+	var results []FileResult
+	for _, f := range commandFiles(project, now) {
+		path := filepath.Join(sdtCommandsDir, f.name)
+		res := FileResult{Path: path}
+		existed := false
+		if _, err := os.Stat(path); err == nil {
+			existed = true
+			if !force {
+				res.Status = statusSkipped
+				res.Reason = "file already exists (use --force to overwrite)"
+				results = append(results, res)
+				continue
+			}
+		} else if !os.IsNotExist(err) {
+			res.Status = statusError
+			res.Reason = err.Error()
+			results = append(results, res)
+			continue
+		}
+		if err := os.MkdirAll(sdtCommandsDir, 0o750); err != nil { //#nosec G301
+			res.Status = statusError
+			res.Reason = err.Error()
+			results = append(results, res)
+			continue
+		}
+		if err := os.WriteFile(path, []byte(f.body), 0o644); err != nil { //#nosec G306 -- user-chosen output
+			res.Status = statusError
+			res.Reason = err.Error()
+			results = append(results, res)
+			continue
+		}
+		if existed {
+			res.Status = statusUpdated
+		} else {
+			res.Status = statusCreated
+		}
+		results = append(results, res)
+	}
+	return results
+}
+
 var agentInitCmd = &cobra.Command{
 	Use:   useInit,
 	Short: "Bootstrap an SDT-managed project for AI agents",
@@ -286,6 +354,10 @@ Examples:
 		// 4. Instruction files under context/instructions/.
 		instrResults := writeInstructionFiles(cfg.Project, cfg.Group, force)
 
+		// 4b. Command files under context/commands/ (thin agent-invokable
+		//     triggers; contracts stay in context/instructions/).
+		cmdResults := writeCommandFiles(cfg.Project, force)
+
 		// 5. AGENTS.md: ensure the instructions block (--force refreshable) and,
 		//    unless declined, the write-once project block. Prompts only when
 		//    interactive; --project-block forces insertion non-interactively;
@@ -303,6 +375,7 @@ Examples:
 		results = append(results, dirResults...)
 		results = append(results, gitIgnoreResults...)
 		results = append(results, instrResults...)
+		results = append(results, cmdResults...)
 		results = append(results, mdResult)
 		outputFileResults(cmd, results)
 	},
@@ -481,7 +554,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 
 // ensureWorkDirs creates the context/ working directory layout.
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtRFCsDir, sdtPromptsDir, sdtScriptsDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtRFCsDir, sdtPromptsDir, sdtScriptsDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -844,10 +917,14 @@ Read ` + "`context/index.md`" + ` first (single entry point, generated). Then th
 | ` + "`context/scripts/`" + ` | Running bundled scripts (see ` + "`instructions/scripts.md`" + `) |
 | ` + "`context/instructions/scripts.md`" + ` | Adding or reading scripts in ` + "`context/scripts/`" + ` |
 | ` + "`context/instructions/wiki.md`" + ` | Writing or updating wiki pages |
+| ` + "`context/commands/`" + ` | Invoking an agent command: ` + "`>trigger`" + ` (e.g. ` + "`>ingestion`" + `) → ` + "`context/commands/<trigger>.md`" + ` → contract ` + "`context/instructions/<trigger>.md`" + ` (approve before write) |
 | ` + "`context/docs/README.md`" + ` | Needing per-command docs (` + "`sdt context docs`" + `, when present) |
 
+Each agent-visible task gets **one file** under ` + "`context/commands/`" + ` (thin
+triggers; the durable contract stays under ` + "`context/instructions/`" + `).
+
 Work directories live under ` + "`context/`" + ` (` + "`plan/`" + `, ` + "`analysis/`" + `, ` + "`architecture/`" + `,
-` + "`decisions/`" + `, ` + "`rfcs/`" + `, ` + "`prompts/`" + `, worklog/, notes/, tasks/,
+` + "`decisions/`" + `, ` + "`rfcs/`" + `, ` + "`prompts/`" + `, worklog/, notes/, tasks/, commands/,
 questions/, archive/, tmp/, ` + "`scripts/`" + `). Keep all instruction files concise and technical. Bundled
 scripts in ` + "`context/scripts/`" + ` are listed in
 ` + "`context/scripts/index.md`" + ` and executed on demand, never read into context

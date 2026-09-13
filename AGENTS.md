@@ -49,7 +49,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 **On action** — read when you take that action:
 
 | File | When to read |
-| ------ | ------------- |
+|------|-------------|
 | `context/instructions/project.md` | First time working on the project |
 | `context/instructions/analysis.md` | Creating or modifying an analysis |
 | `context/instructions/plan.md` | Creating or modifying a plan |
@@ -66,10 +66,14 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/scripts/` | Running bundled scripts (see `instructions/scripts.md`) |
 | `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
+| `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
 | `context/docs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
 
+Each agent-visible task gets **one file** under `context/commands/` (thin
+triggers; the durable contract stays under `context/instructions/`).
+
 Work directories live under `context/` (`plan/`, `analysis/`, `architecture/`,
-`decisions/`, `rfcs/`, `prompts/`, worklog/, notes/, tasks/,
+`decisions/`, `rfcs/`, `prompts/`, worklog/, notes/, tasks/, commands/,
 questions/, archive/, tmp/, `scripts/`). Keep all instruction files concise and technical. Bundled
 scripts in `context/scripts/` are listed in
 `context/scripts/index.md` and executed on demand, never read into context
@@ -82,9 +86,9 @@ Follow this cycle for any non-trivial task:
 1. **Analysis** — perform it; integrate/modify existing analysis files.
 2. **Plan** — create from the analysis; integrate/modify as needed.
 3. **Tasks** — after the plan is explicitly approved, create **one task file per phase** in
-   `context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md` (`sdt context task`); do not
-   create task files while creating the plan or before that approval. A plan without
-   task files has no execution value. Phases are **unbounded in count**,
+	`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md` (`sdt context task`); do not
+	create task files while creating the plan or before that approval. A plan without
+	task files has no execution value. Phases are **unbounded in count**,
    **small** and each targets **exactly one deliverable/concern** — split a phase
    further the moment it grows beyond a single agent session (full rules in
    `instructions/plan.md`).

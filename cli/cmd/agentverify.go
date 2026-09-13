@@ -30,6 +30,7 @@ var agentVerifyWorkDirs = []string{
 	sdtArchiveDir,
 	sdtTmpDir,
 	sdtInstrDir,
+	sdtCommandsDir,
 	sdtScriptsDir,
 }
 
