@@ -18,6 +18,8 @@ const (
 	// markdownExt and canvasExt are the served corpus extensions.
 	markdownExt = ".md"
 	canvasExt   = ".canvas"
+	// errNotFound is the opaquely-shared 404 body across doc/wiki endpoints.
+	errNotFound = "not found"
 )
 
 // indexHTML is a minimal placeholder served at / until the Phase 11 go:embed
@@ -37,6 +39,7 @@ const indexHTML = `<!doctype html>
 // server is the read-only httper of the corpus under root.
 type server struct {
 	root string
+	wiki *contextwiki.Builder
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -77,9 +80,15 @@ func newHandler(root string) (http.Handler, error) {
 		return nil, fmt.Errorf("%s is not a directory", root)
 	}
 	s := &server{root: root}
+	if err := s.loadWiki(); err != nil {
+		log.Printf("sdtviewer: wiki graph unavailable: %v", err)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tree", s.handleTree)
 	mux.HandleFunc("/api/doc", s.handleDoc)
+	mux.HandleFunc("/api/wiki/graph", s.handleWikiGraph)
+	mux.HandleFunc("/api/wiki/rel", s.handleWikiRel)
+	mux.HandleFunc("/api/wiki/board", s.handleWikiBoard)
 	mux.HandleFunc("/", s.handleIndex)
 	return mux, nil
 }
@@ -177,12 +186,12 @@ func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
 	full, ok := s.safePath(rel)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: "not found"})
+		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
 		return
 	}
 	info, err := os.Stat(full)
 	if err != nil || info.IsDir() {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: "not found"})
+		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
 		return
 	}
 	data, err := os.ReadFile(full) //#nosec G304 -- path validated against root
