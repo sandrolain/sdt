@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/search"
 )
 
 const (
@@ -40,6 +41,7 @@ const indexHTML = `<!doctype html>
 type server struct {
 	root string
 	wiki *contextwiki.Builder
+	srch *search.Index
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -83,9 +85,13 @@ func newHandler(root string) (http.Handler, error) {
 	if err := s.loadWiki(); err != nil {
 		log.Printf("sdtviewer: wiki graph unavailable: %v", err)
 	}
+	if err := s.loadSearch(); err != nil {
+		log.Printf("sdtviewer: search unavailable: %v", err)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tree", s.handleTree)
 	mux.HandleFunc("/api/doc", s.handleDoc)
+	mux.HandleFunc("/api/search", s.handleSearch)
 	mux.HandleFunc("/api/wiki/graph", s.handleWikiGraph)
 	mux.HandleFunc("/api/wiki/rel", s.handleWikiRel)
 	mux.HandleFunc("/api/wiki/board", s.handleWikiBoard)
