@@ -19,6 +19,9 @@ const (
 	// markdownExt and canvasExt are the served corpus extensions.
 	markdownExt = ".md"
 	canvasExt   = ".canvas"
+	// corpusDir is the served knowledge base subdirectory under the project
+	// root; everything outside it (refs/, docs/, root-level files) is private.
+	corpusDir = "context"
 	// errNotFound is the opaquely-shared 404 body across doc/wiki endpoints.
 	errNotFound = "not found"
 )
@@ -37,11 +40,13 @@ const indexHTML = `<!doctype html>
 </body>
 </html>`
 
-// server is the read-only httper of the corpus under root.
+// server is the read-only httper of the corpus under root. corpus is the
+// served subtree (root/context); everything else under root is out of scope.
 type server struct {
-	root string
-	wiki *contextwiki.Builder
-	srch *search.Index
+	root   string
+	corpus string
+	wiki   *contextwiki.Builder
+	srch   *search.Index
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -81,7 +86,7 @@ func newHandler(root string) (http.Handler, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("%s is not a directory", root)
 	}
-	s := &server{root: root}
+	s := &server{root: root, corpus: filepath.Join(root, corpusDir)}
 	if err := s.loadWiki(); err != nil {
 		log.Printf("sdtviewer: wiki graph unavailable: %v", err)
 	}
@@ -113,8 +118,9 @@ func (s *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleTree walks the corpus excluding tmp/ and scripts/, returning .md
-// (frontmatter title/summary/created) and .canvas files tagged with canvas.
+// handleTree walks the corpus (root/context) excluding tmp/, scripts/ and
+// refs/, returning .md (frontmatter title/summary/created) and .canvas files
+// tagged with canvas. A missing corpus yields an empty listing.
 func (s *server) handleTree(w http.ResponseWriter, _ *http.Request) {
 	entries, err := s.walkTree()
 	if err != nil {
@@ -124,28 +130,39 @@ func (s *server) handleTree(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
 }
 
-// walkTree walks root, skipping tmp/ and scripts/ directories (corpus noise),
-// collecting .md entries and .canvas entries.
+// walkTree walks the corpus, skipping tmp/, scripts/ and refs/ directories
+// (corpus noise), collecting .md entries and .canvas entries. Paths are
+// project-root-relative (context/...), matching doc/search/wiki endpoints.
 func (s *server) walkTree() ([]treeEntry, error) {
+	info, err := os.Stat(s.corpus)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []treeEntry{}, nil
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", s.corpus)
+	}
 	var entries []treeEntry
-	err := filepath.WalkDir(s.root, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(s.corpus, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if path == s.root {
+			if path == s.corpus {
 				return nil
 			}
-			if d.Name() == "tmp" || d.Name() == "scripts" {
+			if d.Name() == "tmp" || d.Name() == "scripts" || d.Name() == "refs" {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		rel, rerr := filepath.Rel(s.root, path)
+		rel, rerr := filepath.Rel(s.corpus, path)
 		if rerr != nil {
 			return rerr
 		}
-		rel = filepath.ToSlash(rel)
+		rel = filepath.ToSlash(filepath.Join(corpusDir, rel))
 		switch filepath.Ext(rel) {
 		case markdownExt:
 			e, merr := s.mdEntry(path, rel)
@@ -187,7 +204,7 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 }
 
 // handleDoc serves a validated corpus file: frontmatter+markdown for .md, raw
-// JSON Canvas content for .canvas. Missing/outside-root/unsupported = 404.
+// JSON Canvas content for .canvas. Missing/outside-corpus/unsupported = 404.
 func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
 	full, ok := s.safePath(rel)
@@ -200,7 +217,7 @@ func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
 		return
 	}
-	data, err := os.ReadFile(full) //#nosec G304 -- path validated against root
+	data, err := os.ReadFile(full) //#nosec G304 -- path validated against corpus
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
 		return
@@ -216,8 +233,9 @@ func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// safePath resolves a relative corpus path under root, rejecting absolute and
-// parent-escaped paths with filepath.Rel. ok=false for any invalid input.
+// safePath resolves a project-root-relative corpus path (context/...) under
+// the corpus, rejecting absolute, parent-escaped and non-corpus paths with
+// filepath.Rel. ok=false for any invalid input.
 func (s *server) safePath(rel string) (string, bool) {
 	if rel == "" {
 		return "", false
@@ -226,8 +244,16 @@ func (s *server) safePath(rel string) (string, bool) {
 	if filepath.IsAbs(clean) {
 		return "", false
 	}
-	full := filepath.Join(s.root, clean)
-	r, err := filepath.Rel(s.root, full)
+	slash := filepath.ToSlash(clean)
+	if slash != corpusDir && !strings.HasPrefix(slash, corpusDir+"/") {
+		return "", false
+	}
+	inner := strings.TrimPrefix(slash, corpusDir+"/")
+	if inner == "" || inner == "." {
+		return "", false
+	}
+	full := filepath.Join(s.corpus, filepath.FromSlash(inner))
+	r, err := filepath.Rel(s.corpus, full)
 	if err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) || filepath.IsAbs(r) {
 		return "", false
 	}

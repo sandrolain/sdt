@@ -76,11 +76,37 @@ func buildIndexMapping() (mapping.IndexMapping, error) {
 // large GitNexus clone, not authored content.
 func skipDir(name string) bool { return name == "tmp" || name == "scripts" || name == "refs" }
 
-// New builds an in-memory bleve index over the .md files in root, skipping
-// tmp/ and scripts/ (.canvas files are never searchable). Build time and doc
-// count are logged. A missing root is a fatal error; unreadable docs are
-// skipped with a warning.
+// corpusDirName is the served corpus subdirectory under the project root.
+const corpusDirName = "context"
+
+// New builds an in-memory bleve index over the markdown corpus under
+// <root>/context, skipping tmp/, scripts/ and refs/. .canvas files are never
+// searchable. Doc IDs and result paths are project-root-relative
+// (context/<...>). Build time and doc count are logged. A missing root is a
+// fatal error; a missing corpus yields an empty index (non-fatal). Unreadable
+// docs are skipped with a warning.
 func New(root string) (*Index, error) {
+	if _, err := os.Stat(root); err != nil {
+		return nil, fmt.Errorf("search root: %w", err)
+	}
+	ix, err := newMemIndex()
+	if err != nil {
+		return nil, err
+	}
+	corpus := filepath.Join(root, corpusDirName)
+	start := time.Now()
+	indexed, err := ix.indexCorpus(corpus)
+	if err != nil {
+		ix.closeLog()
+		return nil, err
+	}
+	log.Printf("sdtviewer: search index built in %s — %d docs (corpus %s)",
+		time.Since(start).Round(time.Millisecond), indexed, corpus)
+	return ix, nil
+}
+
+// newMemIndex allocates the in-memory bleve index with the corpus mapping.
+func newMemIndex() (*Index, error) {
 	m, err := buildIndexMapping()
 	if err != nil {
 		return nil, fmt.Errorf("search mapping: %w", err)
@@ -89,49 +115,73 @@ func New(root string) (*Index, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bleve mem: %w", err)
 	}
-	ix := &Index{idx: idx, registry: map[string]doc{}}
-	start := time.Now()
-	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
+	return &Index{idx: idx, registry: map[string]doc{}}, nil
+}
+
+// indexCorpus walks corpus indexing .md docs (skipping tmp/, scripts/ and
+// refs/) and returns the number of indexed docs. A missing corpus yields an
+// empty index with nil error.
+func (ix *Index) indexCorpus(corpus string) (int, error) {
+	info, err := os.Stat(corpus)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Printf("sdtviewer: search index empty (no %s)", corpus)
+			return 0, nil
 		}
-		if d.IsDir() {
-			if d.Name() == root {
-				return nil
-			}
-			if d.Name() != "." && skipDir(d.Name()) {
-				return filepath.SkipDir
-			}
+		return 0, fmt.Errorf("search corpus: %w", err)
+	}
+	if !info.IsDir() {
+		return 0, fmt.Errorf("search corpus: %s is not a directory", corpus)
+	}
+	err = filepath.WalkDir(corpus, func(path string, d os.DirEntry, err error) error {
+		return ix.addEntry(corpus, path, d, err)
+	})
+	if err != nil {
+		return 0, fmt.Errorf("search walk: %w", err)
+	}
+	return len(ix.registry), nil
+}
+
+// addEntry indexes one .md file from the corpus walk, skipping excluded dirs,
+// non-.md files and unreadable docs.
+func (ix *Index) addEntry(corpus, path string, d os.DirEntry, err error) error {
+	if err != nil {
+		return err
+	}
+	if d.IsDir() {
+		if path == corpus {
 			return nil
 		}
-		if filepath.Ext(d.Name()) != ".md" {
-			return nil
-		}
-		rel, rerr := filepath.Rel(root, path)
-		if rerr != nil {
-			return nil
-		}
-		docID := filepath.ToSlash(rel)
-		cd, perr := parseDoc(docID, path)
-		if perr != nil {
-			log.Printf("sdtviewer: search skip %s: %v", docID, perr)
-			return nil
-		}
-		ix.registry[docID] = cd
-		if ierr := ix.idx.Index(docID, cd); ierr != nil {
-			log.Printf("sdtviewer: search index %s: %v", docID, ierr)
+		if d.Name() != "." && skipDir(d.Name()) {
+			return filepath.SkipDir
 		}
 		return nil
-	})
-	if walkErr != nil {
-		// release the mem index on failure (logs instead of failing the walk).
-		if cerr := ix.idx.Close(); cerr != nil {
-			log.Printf("sdtviewer: search index close: %v", cerr)
-		}
-		return nil, fmt.Errorf("search walk: %w", walkErr)
 	}
-	log.Printf("sdtviewer: search index built in %s — %d docs", time.Since(start).Round(time.Millisecond), len(ix.registry))
-	return ix, nil
+	if filepath.Ext(d.Name()) != ".md" {
+		return nil
+	}
+	rel, rerr := filepath.Rel(corpus, path)
+	if rerr != nil {
+		return nil
+	}
+	docID := filepath.ToSlash(filepath.Join(corpusDirName, rel))
+	cd, perr := parseDoc(docID, path)
+	if perr != nil {
+		log.Printf("sdtviewer: search skip %s: %v", docID, perr)
+		return nil
+	}
+	ix.registry[docID] = cd
+	if ierr := ix.idx.Index(docID, cd); ierr != nil {
+		log.Printf("sdtviewer: search index %s: %v", docID, ierr)
+	}
+	return nil
+}
+
+// closeLog releases the mem index; a close failure is logged, not fatal.
+func (ix *Index) closeLog() {
+	if cerr := ix.idx.Close(); cerr != nil {
+		log.Printf("sdtviewer: search index close: %v", cerr)
+	}
 }
 
 // parseDoc reads and parses one glyph of the corpus into a doc.

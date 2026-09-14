@@ -82,6 +82,15 @@ created: 2026-08-01
 refs tokens
 `)
 	write("context/wiki/board.canvas", `{"nodes":[]}`)
+	// outside the corpus: root-level docs must never be indexed
+	write("docs/outside.md", `---
+kind: notes
+title: Outside docs
+created: 2026-09-13
+---
+
+outsideonly unique term not in the corpus.
+`)
 	return root
 }
 
@@ -92,9 +101,28 @@ func TestNewAndBulkIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	// wiki(2) + analysis(1) + notes(1) = 4; tmp/scripts/canvas skipped
+	// wiki(2) + analysis(1) + notes(1) = 4; tmp/scripts/refs/canvas/root-docs skipped
 	if len(ix.registry) != 4 {
 		t.Errorf("indexed %d docs, want 4", len(ix.registry))
+	}
+	if _, ok := ix.registry["docs/outside.md"]; ok {
+		t.Error("outside-corpus doc indexed")
+	}
+}
+
+func TestSearchIgnoresOutsideCorpus(t *testing.T) {
+	root := corpus(t)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	res, err := ix.Search("outsideonly", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 0 {
+		t.Errorf("total = %d, want 0 (outside-corpus term hit)", res.Total)
 	}
 }
 
@@ -228,6 +256,31 @@ func TestSearchLimitAndMax(t *testing.T) {
 func TestSearchMissingRoot(t *testing.T) {
 	if _, err := New(filepath.Join(t.TempDir(), "nope")); err == nil {
 		t.Error("expected error for missing root")
+	}
+}
+
+func TestSearchMissingCorpus(t *testing.T) {
+	ix, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	if len(ix.registry) != 0 {
+		t.Errorf("indexed %d docs for corpus-less root, want 0", len(ix.registry))
+	}
+	if res, _ := ix.Search("anything", "", "", "", 0); res.Total != 0 {
+		t.Errorf("search on empty index returned hits: %+v", res)
+	}
+}
+
+func TestSearchCorpusNotDir(t *testing.T) {
+	root := t.TempDir()
+	f := filepath.Join(root, "context")
+	if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(root); err == nil {
+		t.Error("expected error when corpus path is a file")
 	}
 }
 

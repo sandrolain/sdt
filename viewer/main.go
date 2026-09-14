@@ -96,7 +96,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().String("host", "127.0.0.1", "bind host")
 	cmd.Flags().Int("port", 8443, "bind port")
 	cmd.Flags().Bool("no-open", false, "do not open the browser")
-	cmd.Flags().String("root", "", "project root; required when CWD does not hold "+sdtConfigFile)
+	cmd.Flags().String("root", "", "project root; defaults to the nearest ancestor of CWD holding "+sdtConfigFile)
 	return cmd
 }
 
@@ -122,8 +122,8 @@ func serve(host string, port int, noOpen bool, rootFlag string, listen func(addr
 }
 
 // resolveRoot returns the directory to serve: an explicit --root, or the
-// current directory when it holds .sdt.yaml. cwd may be passed explicitly for
-// tests; "" resolves to os.Getwd().
+// nearest ancestor of cwd holding .sdt.yaml, walking up like .git. cwd may be
+// passed explicitly for tests; "" resolves to os.Getwd().
 func resolveRoot(rootFlag, cwd string) (string, error) {
 	if rootFlag != "" {
 		abs, err := filepath.Abs(rootFlag)
@@ -146,10 +146,18 @@ func resolveRoot(rootFlag, cwd string) (string, error) {
 			return "", err
 		}
 	}
-	if _, err := os.Stat(filepath.Join(cwd, sdtConfigFile)); err == nil {
-		return cwd, nil
+	dir := cwd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, sdtConfigFile)); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
-	return "", fmt.Errorf("no %s in %s and no --root given; use --root <dir> or run from the project root", sdtConfigFile, cwd)
+	return "", fmt.Errorf("no %s found upward from %s and no --root given; use --root <dir> or run inside a project", sdtConfigFile, cwd)
 }
 
 // browserCmd returns the launcher command for the given OS and URL.

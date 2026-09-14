@@ -63,6 +63,27 @@ title: Scratch
 scratch
 `)
 	writeFixture(t, root, "context/scripts/behind.md", "not a corpus file")
+	writeFixture(t, root, "context/refs/clone.md", `---
+kind: wiki
+title: Refs clone page
+---
+
+refs corpus noise
+`)
+	writeFixture(t, root, "context/../outside.md", `---
+kind: wiki
+title: Outside root
+---
+
+outside the corpus
+`)
+	writeFixture(t, root, "docs/sdt_tokens.md", `---
+kind: notes
+title: Outside docs
+---
+
+not in the corpus
+`)
 	return root
 }
 
@@ -94,6 +115,33 @@ func TestResolveRootByConfig(t *testing.T) {
 	}
 	if got != dir {
 		t.Errorf("got %q want %q", got, dir)
+	}
+}
+
+func TestResolveRootWalkUp(t *testing.T) {
+	proj := t.TempDir()
+	if err := os.WriteFile(filepath.Join(proj, sdtConfigFile), []byte("project: p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := filepath.EvalSymlinks(proj) // os.Getwd() resolves /var → /private/var
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(proj, "a", "b")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	orig, _ := os.Getwd()
+	if err := os.Chdir(nested); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(orig) }()
+	got, err := resolveRoot("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != canonical {
+		t.Errorf("got %q want %q", got, canonical)
 	}
 }
 
@@ -312,11 +360,14 @@ func TestTreeOutput(t *testing.T) {
 	} else if !e.Canvas || e.Kind != "canvas" || e.Title != "board" {
 		t.Errorf("canvas entry wrong: %+v", e)
 	}
-	// tmp/ and scripts/ excluded
-	for _, p := range []string{"context/tmp/scratch.md", "context/scripts/behind.md"} {
+	// tmp/, scripts/ and refs/ excluded, plus anything outside the corpus.
+	for _, p := range []string{"context/tmp/scratch.md", "context/scripts/behind.md", "context/refs/clone.md", "docs/sdt_tokens.md"} {
 		if _, ok := byPath[p]; ok {
 			t.Errorf("excluded path present: %s", p)
 		}
+	}
+	if _, ok := byPath["../outside.md"]; ok {
+		t.Errorf("outside-corpus path present: ../outside.md")
 	}
 	if len(out.Entries) != 4 {
 		t.Errorf("expected 4 entries, got %d: %v", len(out.Entries), out.Entries)
@@ -400,11 +451,29 @@ func TestDocUnsupportedExt(t *testing.T) {
 	root := makeCorpus(t)
 	writeFixture(t, root, "context/notes/note.txt", "text")
 	h, _ := newHandler(root)
-	req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape("notes/note.txt"), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape("context/notes/note.txt"), nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d", rec.Code)
+	}
+}
+
+func TestDocOutsideCorpus(t *testing.T) {
+	root := makeCorpus(t)
+	writeFixture(t, root, "docs/secret.md", `---
+kind: notes
+title: Secret
+---
+
+secret
+`)
+	h, _ := newHandler(root)
+	req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape("docs/secret.md"), nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 for outside-corpus doc", rec.Code)
 	}
 }
 
