@@ -34,6 +34,8 @@ const (
 	MarkdownExt = ".md"
 	// frontmatterDelim delimits a YAML frontmatter block.
 	frontmatterDelim = "---"
+	// fmStart is the opening frontmatter delimiter including its newline.
+	fmStart = "---\n"
 )
 
 // Verbs is the closed relation vocabulary.
@@ -111,17 +113,22 @@ func (p *Page) Active() bool { return p.Status == StatusActive }
 func (p *Page) ExplicitTitle() bool { return FrontmatterField(p.Frontmatter, "title") != "" }
 
 // SplitFrontmatter returns the full outer "---\n...\n---" block (or "" when
-// absent) and the body after it.
+// absent) and the body after it. A trailing newline after the closing
+// delimiter belongs to the frontmatter block.
 func SplitFrontmatter(content string) (fm string, body string) {
-	if !strings.HasPrefix(content, "---\n") {
+	if !strings.HasPrefix(content, fmStart) {
 		return "", content
 	}
-	bodyStart := strings.Index(content[len("---\n"):], "\n---")
-	if bodyStart < 0 {
+	rest := content[len(fmStart):]
+	idx := strings.Index(rest, "\n---")
+	if idx < 0 {
 		return content, ""
 	}
-	bodyStart += len("---\n") + len("\n---")
-	return content[:bodyStart+2], content[bodyStart+2:]
+	end := len(fmStart) + idx + len("\n---")
+	if end < len(content) && content[end] == '\n' {
+		end++
+	}
+	return content[:end], content[end:]
 }
 
 // FrontmatterField returns the value of a top-level YAML frontmatter key, or ""

@@ -64,6 +64,16 @@ func TestSplitFrontmatter(t *testing.T) {
 	if _, body := SplitFrontmatter("---\na: 1\n"); body != "" {
 		t.Errorf("unclosed: body = %q", body)
 	}
+	// Closing delimiter at EOF without trailing newline must not panic and
+	// must round-trip the full content (seen on refs/ corpus files).
+	full := "---\na: 1\n---"
+	fmEOF, bodyEOF := SplitFrontmatter(full)
+	if !strings.Contains(fmEOF, "a: 1") || bodyEOF != "" {
+		t.Errorf("eof fm=%q body=%q", fmEOF, bodyEOF)
+	}
+	if fmEOF+bodyEOF != full {
+		t.Errorf("eof split must preserve content: %q+%q", fmEOF, bodyEOF)
+	}
 }
 
 func TestParseContentFields(t *testing.T) {
