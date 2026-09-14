@@ -13,6 +13,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/sandrolain/sdt/internal/contextwiki"
 )
 
 // ── context knowledge index (reindex/lint) ─────────────────────────────────────
@@ -92,59 +94,18 @@ func dirFiles(dir string) ([]string, error) {
 }
 
 // parseFrontmatterField returns the value of a top-level YAML frontmatter key,
-// or "" when absent or malformed.
+// or "" when absent or malformed. Delegates to the shared contextwiki parser so
+// the CLI and the viewer never drift.
 func parseFrontmatterField(content, key string) string {
-	lines := strings.Split(content, "\n")
-	if len(lines) < 2 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
-		return ""
-	}
-	for _, line := range lines[1:] {
-		if strings.TrimSpace(line) == ctxFrontmatterDelim {
-			return ""
-		}
-		if strings.HasPrefix(line, key+":") {
-			return strings.TrimSpace(strings.TrimPrefix(line, key+":"))
-		}
-	}
-	return ""
+	return contextwiki.FrontmatterField(content, key)
 }
 
 // parseFrontmatterList parses a YAML block-list frontmatter field (a line
 // `key:` followed by `  - item` lines), returning the list items. Falls back to
 // a single inline value when present. Returns nil when the key is absent.
+// Delegates to the shared contextwiki parser.
 func parseFrontmatterList(content, key string) []string {
-	lines := strings.Split(content, "\n")
-	var out []string
-	if len(lines) < 2 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
-		return nil
-	}
-	in := false
-	for _, line := range lines[1:] {
-		trim := strings.TrimSpace(line)
-		if trim == ctxFrontmatterDelim {
-			break
-		}
-		if !in {
-			if strings.HasPrefix(line, key+":") {
-				val := strings.TrimSpace(strings.TrimPrefix(line, key+":"))
-				if val != "" {
-					out = append(out, strings.TrimSpace(strings.Trim(val, `"'`)))
-				}
-				in = true
-			}
-			continue
-		}
-		if strings.HasPrefix(strings.TrimSpace(line), "-") {
-			out = append(out, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-")))
-		} else if line != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
-			// a new top-level key ends the list
-			break
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return contextwiki.FrontmatterList(content, key)
 }
 
 // ctxResolvePath resolves a frontmatter reference ([[path]] or plain path)
