@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchTree, fetchWikiBoard, type TreeEntry } from "../lib/api";
 import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
+import { displayTitle } from "../lib/titles";
 import { BoardView } from "./BoardView";
 
 /** #/wiki/board — read-only board from the graph default or a .canvas file. */
@@ -75,7 +76,7 @@ export function WikiBoardView() {
             <option value="">Wiki graph (default)</option>
             {canvases.map((c) => (
               <option key={c.path} value={c.path}>
-                {c.title ?? c.path}
+                {displayTitle({ title: c.title, path: c.path })}
               </option>
             ))}
           </select>

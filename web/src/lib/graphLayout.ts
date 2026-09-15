@@ -33,13 +33,40 @@ interface LayoutOptions {
 /**
  * Position nodes for the active layout. Force uses a deterministic seeded
  * spread; radial/circular group by cluster; hierarchy runs dagre over the
- * part_of/contains/depends_on edges. Node identity is preserved.
+ * part_of/contains/depends_on edges.
+ *
+ * Positions are computed on clones and written back onto the input nodes
+ * (id-keyed), so node object identity is preserved for the renderer. Every
+ * layout kind unbinds `fx/fy/fz` first: drag pins are positional overrides and
+ * would otherwise freeze the dragged node in place across layout switches.
  */
 export function applyLayout(
   nodes: GNode[],
   links: GLink[],
   kind: LayoutKind,
   opts: LayoutOptions = {},
+): GNode[] {
+  const laid = layoutNodes(nodes, links, kind, opts);
+  const byId = new Map(laid.map((n) => [n.id, n]));
+  for (const n of nodes) {
+    const p = byId.get(n.id);
+    if (!p) continue;
+    n.x = p.x;
+    n.y = p.y;
+    n.z = p.z;
+    n.fx = undefined;
+    n.fy = undefined;
+    n.fz = undefined;
+  }
+  return nodes;
+}
+
+/** Compute layout positions on fresh clones, without touching the inputs. */
+function layoutNodes(
+  nodes: GNode[],
+  links: GLink[],
+  kind: LayoutKind,
+  opts: LayoutOptions,
 ): GNode[] {
   const next = nodes.map((n) => ({ ...n }));
   switch (kind) {
@@ -62,8 +89,6 @@ function seedForce(nodes: GNode[], seed: number): GNode[] {
     n.x = Math.cos(angle) * radius;
     n.y = Math.sin(angle) * radius;
     n.z = (rng() - 0.5) * 80;
-    n.fx = undefined;
-    n.fy = undefined;
   }
   return nodes;
 }

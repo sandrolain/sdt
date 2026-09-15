@@ -4,13 +4,15 @@ export type DocumentMode = "code" | "render" | "map";
 export interface DocumentModeInfo {
   id: DocumentMode;
   label: string;
+  /** Material Symbols glyph name for the mode button */
+  icon: string;
 }
 
 /** Display order of the mode switch. */
 export const DOCUMENT_MODES: DocumentModeInfo[] = [
-  { id: "code", label: "Code" },
-  { id: "render", label: "Render" },
-  { id: "map", label: "Map" },
+  { id: "code", label: "Code", icon: "code" },
+  { id: "render", label: "Render", icon: "article" },
+  { id: "map", label: "Map", icon: "account_tree" },
 ];
 
 export function isDocumentMode(value: string | null | undefined): value is DocumentMode {

@@ -3,6 +3,7 @@ import { adaptGraph, type GraphData } from "./graphModel";
 import {
   computeHighlight,
   linkVisual,
+  linkWidthFor,
   nodeVisual,
   selectionReducer,
   initialSelection,
@@ -57,5 +58,14 @@ describe("computeHighlight", () => {
     expect(h.edges.size).toBe(1);
     expect(linkVisual({ source: "a", target: "b", verb: "depends_on" }, h).alpha).toBe(1);
     expect(linkVisual({ source: "c", target: "d", verb: "refers_to" }, h).alpha).toBeLessThan(0.5);
+  });
+
+  it("weights link strokes by emphasis under the highlight", () => {
+    const h = computeHighlight(g.links, { selected: "a", hovered: null });
+    const hot = { source: "a", target: "b", verb: "depends_on" };
+    const cold = { source: "c", target: "d", verb: "refers_to" };
+    expect(linkWidthFor(hot, h)).toBe(2.5);
+    expect(linkWidthFor(cold, h)).toBe(0.75);
+    expect(linkWidthFor(hot, computeHighlight(g.links, initialSelection))).toBe(1);
   });
 });

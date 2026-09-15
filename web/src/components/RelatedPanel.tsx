@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { fetchWikiRel, type RelResponse } from "../lib/api";
 import { groupRelations, relationCounts } from "../lib/relations";
+import { Icon } from "../lib/icon";
+import { displayTitle } from "../lib/titles";
 
 interface RelatedPanelProps {
   /** wiki page id */
@@ -54,10 +56,8 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
                 {group.outbound.map((item) => (
                   <li key={`out-${item.id}`}>
                     <NavLink className="related-item" to={`/wiki/${item.id}`}>
-                      <span className="related-item__arrow" aria-label="outbound">
-                        →
-                      </span>
-                      <span className="related-item__title">{item.title}</span>
+                      <Icon name="arrow_outward" label="outbound" className="related-item__arrow" />
+                      <span className="related-item__title">{displayTitle({ title: item.title, path: item.id })}</span>
                       <span className="related-item__kind">{item.kind}</span>
                     </NavLink>
                   </li>
@@ -65,10 +65,8 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
                 {group.inbound.map((item) => (
                   <li key={`in-${item.id}`}>
                     <NavLink className="related-item" to={`/wiki/${item.id}`}>
-                      <span className="related-item__arrow" aria-label="inbound">
-                        ←
-                      </span>
-                      <span className="related-item__title">{item.title}</span>
+                      <Icon name="arrow_back" label="inbound" className="related-item__arrow" />
+                      <span className="related-item__title">{displayTitle({ title: item.title, path: item.id })}</span>
                       <span className="related-item__kind">{item.kind}</span>
                     </NavLink>
                   </li>

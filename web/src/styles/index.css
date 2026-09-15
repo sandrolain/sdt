@@ -206,9 +206,22 @@
     color: var(--fg);
   }
   .search-palette__list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
     overflow: auto;
     padding: 0.35rem;
-    min-height: 8rem;
+  }
+  .search-palette__list::-webkit-scrollbar {
+    width: 10px;
+  }
+  .search-palette__list::-webkit-scrollbar-thumb {
+    background: var(--ctp-surface1);
+    border-radius: 999px;
+    border: 2px solid var(--bg-mantle);
+  }
+  .search-palette__list::-webkit-scrollbar-track {
+    background: transparent;
   }
   .search-palette__empty {
     padding: 2rem 1rem;
@@ -334,6 +347,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .tree-entry__glyph {
+    color: var(--fg-faint);
+    display: inline-flex;
+  }
+  .tree-entry__glyph .ms-icon {
+    font-size: 1.1rem;
+  }
   .tree-entry__kind {
     font-size: 0.6875rem;
     padding: 0 0.35rem;
@@ -432,6 +452,9 @@
     background: var(--bg-base);
   }
   .doc-mode {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     padding: 0.25rem 0.7rem;
     border-radius: 7px;
     color: var(--fg-dim);
@@ -635,7 +658,8 @@
     display: grid;
     grid-template-columns: 240px 1fr;
     gap: 0.75rem;
-    height: calc(100vh - 7rem);
+    height: 100%;
+    min-height: 0;
   }
   .graph-view__canvas {
     position: relative;
@@ -675,6 +699,9 @@
     gap: 0.35rem;
   }
   .graph-tools__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     padding: 0.2rem 0.6rem;
     border-radius: 6px;
     background: var(--bg-rise);
@@ -726,6 +753,9 @@
     flex: none;
   }
   .graph-tools__button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     padding: 0.25rem 0.7rem;
     border-radius: 7px;
     background: var(--bg-rise);
@@ -748,6 +778,14 @@
     display: grid;
     grid-template-rows: auto 1fr;
     min-height: 0;
+  }
+  .wiki-shell > .content {
+    min-height: 0;
+  }
+  .wiki-shell > .content:has(> .graph-view),
+  .wiki-shell > .content:has(> .board-page) {
+    overflow: hidden;
+    padding: 0;
   }
 
   .detail-layout {
@@ -822,7 +860,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-    height: calc(100vh - 7rem);
+    height: 100%;
+    min-height: 0;
   }
   .board-page__toolbar {
     display: flex;
@@ -913,6 +952,24 @@
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
+  }
+  .ms-icon {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+    vertical-align: -0.125em;
+    user-select: none;
+    font-size: 1.35em;
+    flex: none;
   }
   @media (prefers-reduced-motion: reduce) {
     *,

@@ -10,6 +10,7 @@ import {
   type Transform,
   type Viewport,
 } from "../lib/boardView";
+import { displayTitle } from "../lib/titles";
 
 interface BoardViewProps {
   model: BoardModel;
@@ -17,6 +18,14 @@ interface BoardViewProps {
 }
 
 const PAD = 120;
+
+/** Card label: explicit canvas text first, else a formatted file title / id. */
+function cardText(node: BoardNode): string {
+  if (node.label) return node.label;
+  if (node.text) return node.text;
+  if (node.file) return displayTitle({ path: node.file });
+  return node.id;
+}
 
 /** Read-only pan/zoom JSON Canvas board with relation edges. */
 export function BoardView({ model, onOpen }: BoardViewProps) {
@@ -183,11 +192,11 @@ export function BoardView({ model, onOpen }: BoardViewProps) {
               >
                 {!isGroup && route && onOpen ? (
                   <button type="button" className="board-card__button" onClick={() => onOpen(node)}>
-                    {node.label ?? node.text ?? node.file ?? node.id}
+                    {cardText(node)}
                   </button>
                 ) : (
                   <span className="board-card__text">
-                    {node.label ?? node.text ?? node.file ?? node.id}
+                    {cardText(node)}
                   </span>
                 )}
               </div>

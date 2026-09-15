@@ -32,7 +32,7 @@ and the active task list.
 ### SEE ALSO
 
 * [sdt](sdt.md)	 - Smart Developer Tools
-* [sdt context docs](sdt_context_docs.md)	 - Generate agent docs in context/docs/
+* [sdt context docs](sdt_context_docs.md)	 - Generate agent docs in context/sdtdocs/
 * [sdt context lint](sdt_context_lint.md)	 - Validate context frontmatter and links
 * [sdt context list](sdt_context_list.md)	 - List context/ work files
 * [sdt context new](sdt_context_new.md)	 - Create a context/ work file with frontmatter

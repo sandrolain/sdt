@@ -17,6 +17,7 @@ import (
 	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	corpuspkg "github.com/sandrolain/sdt/internal/corpus"
 )
 
 // Index is an in-memory bleve fulltext index over the corpus markdown.
@@ -74,10 +75,10 @@ func buildIndexMapping() (mapping.IndexMapping, error) {
 	return im, nil
 }
 
-// skipDir reports whether the directory is excluded from the corpus scan.
-// tmp/, scripts/ are viewer-excluded per the /api/tree contract; refs/ is the
-// large GitNexus clone, not authored content.
-func skipDir(name string) bool { return name == "tmp" || name == "scripts" || name == "refs" }
+// skipDir reports whether the directory is excluded from the corpus scan (the
+// shared corpus exclusion set: tmp/, scripts/, refs/, commands/, instructions/,
+// sdtdocs/).
+func skipDir(name string) bool { return corpuspkg.ExcludedDirName(name) }
 
 // corpusDirName is the served corpus subdirectory under the project root.
 const corpusDirName = "context"
@@ -96,15 +97,15 @@ func New(root string) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	corpus := filepath.Join(root, corpusDirName)
+	corpusPath := filepath.Join(root, corpusDirName)
 	start := time.Now()
-	indexed, err := ix.indexCorpus(corpus)
+	indexed, err := ix.indexCorpus(corpusPath)
 	if err != nil {
 		ix.closeLog()
 		return nil, err
 	}
 	log.Printf("sdtviewer: search index built in %s — %d docs (corpus %s)",
-		time.Since(start).Round(time.Millisecond), indexed, corpus)
+		time.Since(start).Round(time.Millisecond), indexed, corpusPath)
 	return ix, nil
 }
 
@@ -124,20 +125,20 @@ func newMemIndex() (*Index, error) {
 // indexCorpus walks corpus indexing .md docs (skipping tmp/, scripts/ and
 // refs/) and returns the number of indexed docs. A missing corpus yields an
 // empty index with nil error.
-func (ix *Index) indexCorpus(corpus string) (int, error) {
-	info, err := os.Stat(corpus)
+func (ix *Index) indexCorpus(dir string) (int, error) {
+	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("sdtviewer: search index empty (no %s)", corpus)
+			log.Printf("sdtviewer: search index empty (no %s)", dir)
 			return 0, nil
 		}
 		return 0, fmt.Errorf("search corpus: %w", err)
 	}
 	if !info.IsDir() {
-		return 0, fmt.Errorf("search corpus: %s is not a directory", corpus)
+		return 0, fmt.Errorf("search corpus: %s is not a directory", dir)
 	}
-	err = filepath.WalkDir(corpus, func(path string, d os.DirEntry, err error) error {
-		return ix.addEntry(corpus, path, d, err)
+	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		return ix.addEntry(dir, path, d, err)
 	})
 	if err != nil {
 		return 0, fmt.Errorf("search walk: %w", err)
@@ -147,12 +148,12 @@ func (ix *Index) indexCorpus(corpus string) (int, error) {
 
 // addEntry indexes one .md file from the corpus walk, skipping excluded dirs,
 // non-.md files and unreadable docs.
-func (ix *Index) addEntry(corpus, path string, d os.DirEntry, err error) error {
+func (ix *Index) addEntry(dir, path string, d os.DirEntry, err error) error {
 	if err != nil {
 		return err
 	}
 	if d.IsDir() {
-		if path == corpus {
+		if path == dir {
 			return nil
 		}
 		if d.Name() != "." && skipDir(d.Name()) {
@@ -163,11 +164,14 @@ func (ix *Index) addEntry(corpus, path string, d os.DirEntry, err error) error {
 	if filepath.Ext(d.Name()) != ".md" {
 		return nil
 	}
-	rel, rerr := filepath.Rel(corpus, path)
+	rel, rerr := filepath.Rel(dir, path)
 	if rerr != nil {
 		return nil
 	}
 	docID := filepath.ToSlash(filepath.Join(corpusDirName, rel))
+	if corpuspkg.ExcludedPath(docID) {
+		return nil
+	}
 	cd, perr := parseDoc(docID, path)
 	if perr != nil {
 		log.Printf("sdtviewer: search skip %s: %v", docID, perr)

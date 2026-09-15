@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
-import { parseOutline, type OutlineItem } from "../lib/outline";
 import {
   defaultMode,
   DOCUMENT_MODES,
@@ -11,6 +10,10 @@ import {
 } from "../lib/documentModes";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
+import { Icon } from "../lib/icon";
+import { fallbackTitle, frontmatterTitle } from "../lib/titles";
+
+const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
 
 interface DocumentViewProps {
   path: string;
@@ -56,7 +59,10 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     () => (mode === "code" ? highlightMarkdown(markdown) : ""),
     [mode, markdown],
   );
-  const outline = useMemo(() => (mode === "map" ? parseOutline(markdown) : []), [mode, markdown]);
+  const title = useMemo(
+    () => frontmatterTitle(frontmatter) || fallbackTitle(path),
+    [frontmatter, path],
+  );
 
   return (
     <article className="doc-view">
@@ -69,6 +75,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
             aria-pressed={mode === m.id}
             onClick={() => setMode(m.id)}
           >
+            <Icon name={m.icon} />
             {m.label}
           </button>
         ))}
@@ -83,26 +90,11 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
       {mode === "render" && (
         <div className="doc-rendered" dangerouslySetInnerHTML={{ __html: html }} />
       )}
-      {mode === "map" && <Outline items={outline} />}
+      {mode === "map" && (
+        <Suspense fallback={<p className="content__empty">Loading map…</p>}>
+          <MindmapView markdown={markdown} basePath={path} title={title} />
+        </Suspense>
+      )}
     </article>
-  );
-}
-
-function Outline({ items }: { items: OutlineItem[] }) {
-  if (items.length === 0) {
-    return <p className="content__empty">No headings or lists to map.</p>;
-  }
-  return (
-    <ul className="outline" role="list">
-      {items.map((item, i) => (
-        <li
-          key={i}
-          className={`outline__item outline__item--${item.kind} outline__depth-${item.depth}`}
-        >
-          <span className="outline__text">{item.text}</span>
-          {item.children.length > 0 && <Outline items={item.children} />}
-        </li>
-      ))}
-    </ul>
   );
 }

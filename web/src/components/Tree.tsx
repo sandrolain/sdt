@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
 import { entryKind, kindLabel, availableKinds } from "../lib/kinds";
+import { Icon } from "../lib/icon";
+import { displayTitle } from "../lib/titles";
 
 export function Tree() {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
@@ -65,6 +67,9 @@ export function Tree() {
                 title={e.summary || e.path}
                 end
               >
+                <span className="tree-entry__glyph">
+                <Icon name={entryGlyph(e)} />
+              </span>
                 <span className="tree-entry__title">{entryTitle(e)}</span>
                 {e.isMap && <span className="tree-entry__kind tree-entry__kind--map">map</span>}
                 <span className={`tree-entry__kind${e.canvas ? " tree-entry__kind--canvas" : ""}`}>
@@ -80,8 +85,12 @@ export function Tree() {
 }
 
 function entryTitle(e: TreeEntry): string {
-  if (e.title) return e.title;
   if (e.canvas) return e.path;
-  const base = e.path.split("/").pop() ?? e.path;
-  return base.endsWith(".md") ? base.slice(0, -3) : base;
+  return displayTitle({ title: e.title, path: e.path });
+}
+
+function entryGlyph(e: TreeEntry): string {
+  if (e.isMap) return "account_tree";
+  if (e.canvas) return "dashboard";
+  return "description";
 }

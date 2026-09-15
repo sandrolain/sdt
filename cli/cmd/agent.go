@@ -682,7 +682,7 @@ Create and manage work files with ` + "`sdt context`" + `:
 const (
 	gitIgnoreModeNone    = "none"    // leave .gitignore untouched
 	gitIgnoreModeTmp     = "tmp"     // ignore context/tmp/
-	gitIgnoreModeDocs    = "docs"    // ignore context/docs/
+	gitIgnoreModeDocs    = "docs"    // ignore context/sdtdocs/
 	gitIgnoreModeWork    = "work"    // ignore tmp/ + docs/ (default)
 	gitIgnoreModeContext = "context" // ignore the whole context/
 )
@@ -693,7 +693,7 @@ const gitIgnoreTmpEntry = "context/tmp/"
 
 // gitIgnoreDocsEntry keeps generated agent docs out of version control. The
 // reference is regenerated per binary version, so it is never committed.
-const gitIgnoreDocsEntry = "context/docs/"
+const gitIgnoreDocsEntry = "context/sdtdocs/"
 
 // gitIgnoreContextEntry ignores the entire context/ working directory,
 // including plans, work logs, notes and instruction files.
@@ -918,7 +918,7 @@ Read ` + "`context/index.md`" + ` first (single entry point, generated). Then th
 | ` + "`context/instructions/scripts.md`" + ` | Adding or reading scripts in ` + "`context/scripts/`" + ` |
 | ` + "`context/instructions/wiki.md`" + ` | Writing or updating wiki pages |
 | ` + "`context/commands/`" + ` | Invoking an agent command: ` + "`>trigger`" + ` (e.g. ` + "`>ingestion`" + `) → ` + "`context/commands/<trigger>.md`" + ` → contract ` + "`context/instructions/<trigger>.md`" + ` (approve before write) |
-| ` + "`context/docs/README.md`" + ` | Needing per-command docs (` + "`sdt context docs`" + `, when present) |
+| ` + "`context/sdtdocs/README.md`" + ` | Needing per-command docs (` + "`sdt context docs`" + `, when present) |
 
 Each agent-visible task gets **one file** under ` + "`context/commands/`" + ` (thin
 triggers; the durable contract stays under ` + "`context/instructions/`" + `).

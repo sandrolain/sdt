@@ -2,8 +2,10 @@ import { lazy, Suspense, useState } from "react";
 import { useParams } from "react-router-dom";
 import { isMapPath } from "../lib/documentModes";
 import { useDoc } from "../lib/useDoc";
+import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
 import { RelatedPanel } from "./RelatedPanel";
+import { Icon } from "../lib/icon";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
 
@@ -21,11 +23,11 @@ export function WikiPageDetail() {
   if (loading || !doc) return <p className="content__empty">Loading {id}…</p>;
   if (!("markdown" in doc)) return <p className="content__empty">not a markdown wiki page</p>;
 
-  const title =
-    /^title:\s*(.+)$/m
-      .exec(doc.frontmatter)?.[1]
-      ?.trim()
-      .replace(/^["']|["']$/g, "") || id;
+  const title = displayTitle({
+    title: frontmatterTitle(doc.frontmatter),
+    markdown: doc.markdown,
+    path,
+  });
 
   return (
     <div className="detail-layout">
@@ -40,6 +42,7 @@ export function WikiPageDetail() {
               aria-pressed={view === "document"}
               onClick={() => setView("document")}
             >
+              <Icon name="description" />
               Document
             </button>
             <button
@@ -48,6 +51,7 @@ export function WikiPageDetail() {
               aria-pressed={view === "mindmap"}
               onClick={() => setView("mindmap")}
             >
+              <Icon name="account_tree" />
               Mindmap
             </button>
           </div>

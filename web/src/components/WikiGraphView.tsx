@@ -20,10 +20,12 @@ import {
   type GNode,
 } from "../lib/graphModel";
 import { applyLayout } from "../lib/graphLayout";
+import { labelObject, labelSpriteSpec } from "../lib/graphSprites";
 import {
   computeHighlight,
   initialSelection,
   linkVisual,
+  linkWidthFor,
   nodeVisual,
   selectionReducer,
 } from "../lib/graphSelection";
@@ -34,7 +36,13 @@ const ForceGraph3D = lazy(() => import("react-force-graph-3d"));
 
 interface GraphHandle {
   zoomToFit?: (durationMs?: number, padding?: number, filter?: (n: GNode) => boolean) => void;
+  postProcessingComposer?: () => { addPass: (pass: unknown) => void };
 }
+
+/** 3D viewport above this node count skips the bloom pass (frame budget). */
+const BLOOM_NODE_BUDGET = 300;
+/** Subtle bloom parameters (strength / radius / threshold). */
+const BLOOM_STRENGTH = 0.35;
 
 /**
  * Narrow prop contract shared by the 2D and 3D renderers (their generic
@@ -47,6 +55,7 @@ interface ForceGraphViewProps {
   nodeLabel?: (n: GNode) => string;
   nodeColor?: (n: GNode) => string;
   linkColor?: (l: GLink) => string;
+  linkWidth?: (l: GLink) => number;
   onNodeClick?: (n: GNode) => void;
   onNodeHover?: (n: GNode | null) => void;
   onBackgroundClick?: () => void;
@@ -54,11 +63,14 @@ interface ForceGraphViewProps {
   nodeCanvasObject?: (n: GNode, ctx: CanvasRenderingContext2D, globalScale: number) => void;
   showNavInfo?: boolean;
   ref?: Ref<GraphHandle | undefined>;
+  /** 3D-only: replaces the default sphere with a canvas-sprite per node. */
+  nodeThreeObject?: (n: GNode) => unknown;
+  nodeThreeObjectExtend?: boolean;
 }
 
 const ForceGraph2D = ForceGraph2DBase as unknown as ComponentType<ForceGraphViewProps>;
 
-const BG = "#1e1e2e";
+const BG = "#11111b";
 const LABEL_COLOR = "#cdd6f4";
 const EDGE_COLOR = "#6c7086";
 const EDGE_ACTIVE = "#cba6f7";
@@ -128,14 +140,43 @@ export function WikiGraphView() {
     graphRef.current?.zoomToFit?.(400, 60);
   }, []);
 
+  const bloomInstalled = useRef(false);
+  const bloomTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const installBloom = useCallback(function installBloomTask() {
+    if (tools.mode !== "3d" || !data) return;
+    if (bloomInstalled.current) return;
+    if (data.nodes.length > BLOOM_NODE_BUDGET) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const composer = graphRef.current?.postProcessingComposer?.();
+    if (!composer) {
+      if (bloomTimer.current) clearTimeout(bloomTimer.current);
+      bloomTimer.current = setTimeout(installBloomTask, 150);
+      return;
+    }
+    bloomInstalled.current = true;
+    import("three/examples/jsm/postprocessing/UnrealBloomPass.js").then(({ UnrealBloomPass }) => {
+      composer.addPass(new UnrealBloomPass({ x: 1280, y: 720 }, BLOOM_STRENGTH, 0.6, 0));
+    });
+  }, [tools.mode, data]);
+
+  useEffect(() => {
+    installBloom();
+    return () => {
+      if (bloomTimer.current) clearTimeout(bloomTimer.current);
+    };
+  }, [installBloom]);
+
   useEffect(() => {
     if (tools.layout) fit();
-  }, [tools.layout, fit]);
+  }, [tools.layout, tools.clusterKey, fit]);
 
   const selectedTitle = useMemo(() => {
     if (!sel.selected || !adapted) return null;
     return adapted.nodes.find((n) => n.id === sel.selected)?.title ?? sel.selected;
   }, [sel.selected, adapted]);
+
+  const focusedId = sel.selected ?? sel.hovered;
 
   const open = useCallback(
     (id: string) => {
@@ -174,6 +215,7 @@ export function WikiGraphView() {
           ? EDGE_ACTIVE
           : EDGE_DIM
         : EDGE_COLOR,
+    linkWidth: (l: GLink) => linkWidthFor(l, highlight),
     onNodeClick: handleNodeClick,
     onNodeHover: (n: GNode | null) => dispatchSel({ type: "hover", id: n?.id ?? null }),
     onBackgroundClick: () => dispatchSel({ type: "clear" }),
@@ -190,11 +232,18 @@ export function WikiGraphView() {
         allVerbs={allVerbs}
         allKinds={allKinds}
         selectedId={sel.selected}
+        focusedId={focusedId}
         selectedTitle={selectedTitle}
         clusters={clusters}
         onTools={dispatchTools}
         onFit={fit}
-        onClear={() => dispatchSel({ type: "clear" })}
+        onClear={() => {
+          dispatchSel({ type: "clear" });
+          if (sel.selected) {
+            dispatchTools({ type: "focus", value: null });
+            fit();
+          }
+        }}
         onOpen={open}
       />
       <div className="graph-view__canvas">
@@ -207,7 +256,13 @@ export function WikiGraphView() {
           />
         ) : (
           <Suspense fallback={<p className="content__empty">Loading 3D renderer…</p>}>
-            <ForceGraph3DLazy {...commonProps} />
+            <ForceGraph3DLazy
+              {...commonProps}
+              nodeThreeObject={(node) =>
+                labelObject(labelSpriteSpec(node, nodeVisual(node.id, highlight), tools.showLabels))
+              }
+              nodeThreeObjectExtend={false}
+            />
           </Suspense>
         )}
       </div>

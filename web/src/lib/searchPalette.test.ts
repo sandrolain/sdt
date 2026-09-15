@@ -99,9 +99,9 @@ describe("resultRoute", () => {
 });
 
 describe("resultTitle", () => {
-  it("prefers the frontmatter title, else the basename", () => {
+  it("prefers the frontmatter title, else the formatted filename", () => {
     expect(resultTitle(result({ title: "Alpha" }))).toBe("Alpha");
-    expect(resultTitle(result({ title: undefined }))).toBe("alpha");
+    expect(resultTitle(result({ title: undefined }))).toBe("Alpha");
   });
 });
 

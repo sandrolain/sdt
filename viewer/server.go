@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/search"
 )
 
@@ -141,9 +142,11 @@ func (s *server) handleTree(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
 }
 
-// walkTree walks the corpus, skipping tmp/, scripts/ and refs/ directories
-// (corpus noise), collecting .md entries and .canvas entries. Paths are
-// project-root-relative (context/...), matching doc/search/wiki endpoints.
+// walkTree walks the corpus, skipping the corpus-excluded directories (tmp/,
+// scripts/, refs/, commands/, instructions/, sdtdocs/) and the excluded
+// context/README.md (corpus noise), collecting .md entries and .canvas entries.
+// Paths are project-root-relative (context/...), matching doc/search/wiki
+// endpoints.
 func (s *server) walkTree() ([]treeEntry, error) {
 	info, err := os.Stat(s.corpus)
 	if err != nil {
@@ -164,7 +167,7 @@ func (s *server) walkTree() ([]treeEntry, error) {
 			if path == s.corpus {
 				return nil
 			}
-			if d.Name() == "tmp" || d.Name() == "scripts" || d.Name() == "refs" {
+			if corpus.ExcludedDirName(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -174,6 +177,9 @@ func (s *server) walkTree() ([]treeEntry, error) {
 			return rerr
 		}
 		rel = filepath.ToSlash(filepath.Join(corpusDir, rel))
+		if corpus.ExcludedPath(rel) {
+			return nil
+		}
 		switch filepath.Ext(rel) {
 		case markdownExt:
 			e, merr := s.mdEntry(path, rel)
@@ -266,6 +272,9 @@ func (s *server) safePath(rel string) (string, bool) {
 	}
 	inner := strings.TrimPrefix(slash, corpusDir+"/")
 	if inner == "" || inner == "." {
+		return "", false
+	}
+	if corpus.ExcludedPath(slash) {
 		return "", false
 	}
 	full := filepath.Join(s.corpus, filepath.FromSlash(inner))

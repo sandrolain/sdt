@@ -123,7 +123,7 @@ func renderCommandDoc(d docsCommand) string {
 	return b.String()
 }
 
-// renderDocsIndex renders the context/docs/README.md index.
+// renderDocsIndex renders the context/sdtdocs/README.md index.
 func renderDocsIndex(cmds []docsCommand, generated string) string {
 	var b strings.Builder
 	b.WriteString("# sdt — Generated Command Reference\n\n")
@@ -183,8 +183,8 @@ func listContextDocsStale(out string, files map[string]string) ([]string, error)
 
 var contextDocsCmd = &cobra.Command{
 	Use:   "docs",
-	Short: "Generate agent docs in context/docs/",
-	Long: `Generate a per-command reference under context/docs/ (gitignored) for AI
+	Short: "Generate agent docs in context/sdtdocs/",
+	Long: `Generate a per-command reference under context/sdtdocs/ (gitignored) for AI
 agents: a README index plus one markdown file per leaf command. The output is
 regenerated from the command tree and tagged with the binary version so agents
 can detect and refresh stale docs.

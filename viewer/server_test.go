@@ -93,6 +93,10 @@ title: Outside docs
 
 not in the corpus
 `)
+	writeFixture(t, root, "context/commands/ingest.md", "agent command contract")
+	writeFixture(t, root, "context/instructions/project.md", "agent instructions")
+	writeFixture(t, root, "context/sdtdocs/README.md", "generated per-command reference")
+	writeFixture(t, root, "context/README.md", "context umbrella readme")
 	return root
 }
 
@@ -378,8 +382,17 @@ func TestTreeOutput(t *testing.T) {
 	if e, ok := byPath["context/wiki/backend/auth.md"]; ok && (e.IsMap || e.MapID != "") {
 		t.Errorf("plain doc flagged as map: %+v", e)
 	}
-	// tmp/, scripts/ and refs/ excluded, plus anything outside the corpus.
-	for _, p := range []string{"context/tmp/scratch.md", "context/scripts/behind.md", "context/refs/clone.md", "docs/sdt_tokens.md"} {
+	// corpus exclusions (shared set) plus anything outside the corpus.
+	for _, p := range []string{
+		"context/tmp/scratch.md",
+		"context/scripts/behind.md",
+		"context/refs/clone.md",
+		"context/commands/ingest.md",
+		"context/instructions/project.md",
+		"context/sdtdocs/README.md",
+		"context/README.md",
+		"docs/sdt_tokens.md",
+	} {
 		if _, ok := byPath[p]; ok {
 			t.Errorf("excluded path present: %s", p)
 		}
@@ -449,6 +462,25 @@ func TestDocMissing(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d", rec.Code)
+	}
+}
+
+func TestDocExcludedCorpus(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+	for _, path := range []string{
+		"context/commands/ingest.md",
+		"context/instructions/project.md",
+		"context/sdtdocs/README.md",
+		"context/README.md",
+		"context/refs/clone.md",
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape(path), nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("path %q: status = %d, body = %s", path, rec.Code, rec.Body.String())
+		}
 	}
 }
 

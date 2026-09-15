@@ -980,7 +980,7 @@ The full, always-current command reference is generated, not written by hand:
 ` + codeFence + `
 sdt manifest --format json            # full command tree
 sdt schema --command "<command>"      # JSON Schema for one command
-sdt context docs                      # per-command docs in context/docs/
+sdt context docs                      # per-command docs in context/sdtdocs/
 sdt docs                              # full markdown docs per command (humans)
 sdt <command> --help                  # usage for a single command
 ` + codeFence + `
@@ -1026,7 +1026,7 @@ reference use the generated docs:
 ` + codeFence + `
 sdt manifest --format json           # full command tree
 sdt schema --command "<command>"     # JSON Schema for one command
-sdt context docs                     # per-command docs in context/docs/
+sdt context docs                     # per-command docs in context/sdtdocs/
 sdt <command> --help                 # usage for a single command
 ` + codeFence + `
 

@@ -2,12 +2,15 @@ import type { Dispatch } from "react";
 import { CLUSTER_KEYS, type ClusterKey } from "../lib/graphModel";
 import { LAYOUTS, type LayoutKind } from "../lib/graphLayout";
 import type { GraphToolsAction, GraphToolsState } from "../lib/graphTools";
+import { Icon } from "../lib/icon";
 
 interface GraphToolsPanelProps {
   tools: GraphToolsState;
   allVerbs: string[];
   allKinds: string[];
   selectedId: string | null;
+  /** selected or hovered node; drives the Clear button's enabled state */
+  focusedId?: string | null;
   selectedTitle: string | null;
   clusters: { id: string; color: string; count: number }[];
   onTools: Dispatch<GraphToolsAction>;
@@ -21,6 +24,7 @@ export function GraphToolsPanel({
   allVerbs,
   allKinds,
   selectedId,
+  focusedId,
   selectedTitle,
   clusters,
   onTools,
@@ -41,6 +45,7 @@ export function GraphToolsPanel({
               aria-pressed={tools.mode === m}
               onClick={() => onTools({ type: "mode", value: m })}
             >
+              <Icon name={m === "2d" ? "grid_view" : "view_in_ar"} />
               {m.toUpperCase()}
             </button>
           ))}
@@ -137,15 +142,18 @@ export function GraphToolsPanel({
       </section>
 
       <section className="graph-tools__section graph-tools__section--actions">
-        <button type="button" className="graph-tools__button" onClick={onFit}>
+        <button type="button" className="graph-tools__button" onClick={onFit} title="Fit graph to view">
+          <Icon name="center_focus_strong" />
           Fit
         </button>
         <button
           type="button"
           className="graph-tools__button"
           onClick={onClear}
-          disabled={!selectedId}
+          disabled={!focusedId}
+          title="Clear selection and re-fit"
         >
+          <Icon name="clear" />
           Clear
         </button>
       </section>
@@ -155,6 +163,7 @@ export function GraphToolsPanel({
           <h3 className="graph-tools__title">Selected</h3>
           <p className="graph-tools__selected-title">{selectedTitle ?? selectedId}</p>
           <button type="button" className="graph-tools__button" onClick={() => onOpen(selectedId)}>
+            <Icon name="open_in_new" />
             Open page
           </button>
         </section>

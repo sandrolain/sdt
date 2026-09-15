@@ -183,5 +183,33 @@ created: 2026-09-01
 
 script tokens
 `)
+	writeFixture(t, root, "context/commands/cmd.md", `---
+kind: commands
+title: Command
+---
+
+command tokens
+`)
+	writeFixture(t, root, "context/instructions/ins.md", `---
+kind: instructions
+title: Instruction
+---
+
+instruction tokens
+`)
+	writeFixture(t, root, "context/sdtdocs/README.md", `---
+kind: task
+title: Generated docs
+---
+
+generated tokens
+`)
+	writeFixture(t, root, "context/README.md", `---
+kind: task
+title: Corpus readme
+---
+
+readme tokens
+`)
 	return root
 }

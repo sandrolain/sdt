@@ -11,7 +11,7 @@ function LocationProbe() {
 }
 
 function renderPalette(onOpenChange = vi.fn()) {
-  render(
+  const view = render(
     <MemoryRouter initialEntries={["/docs"]}>
       <Routes>
         <Route path="/docs/*" element={<LocationProbe />} />
@@ -19,7 +19,7 @@ function renderPalette(onOpenChange = vi.fn()) {
       <SearchPalette open onOpenChange={onOpenChange} />
     </MemoryRouter>,
   );
-  return onOpenChange;
+  return { container: view.container, onOpenChange };
 }
 
 function mockSearch(payload: unknown, ok = true) {
@@ -57,7 +57,7 @@ describe("SearchPalette", () => {
       ],
       total: 1,
     }) as unknown as typeof fetch;
-    const onOpenChange = renderPalette();
+    const { onOpenChange } = renderPalette();
 
     await userEvent.type(screen.getByLabelText("Search query"), "tokens");
     const item = await screen.findByText("Alpha module");
@@ -97,5 +97,23 @@ describe("SearchPalette", () => {
       const urls = fetchMock.mock.calls.map((c) => c[0]);
       expect(urls.some((u) => u.includes("kind=wiki"))).toBe(true);
     });
+  });
+
+  it("renders many results inside the scrollable list host", async () => {
+    const results = Array.from({ length: 25 }, (_, i) => ({
+      path: `context/wiki/doc${i}.md`,
+      kind: "wiki",
+      title: `Doc ${i}`,
+      created: "2026-09-10",
+      score: 1,
+      snippet: `body ${i}`,
+    }));
+    globalThis.fetch = mockSearch({ results, total: results.length }) as unknown as typeof fetch;
+    renderPalette();
+    await userEvent.type(screen.getByLabelText("Search query"), "doc");
+    expect(await screen.findByText("25 results")).toBeTruthy();
+    const host = document.querySelector(".search-palette__list");
+    expect(host).not.toBeNull();
+    expect(host!.querySelectorAll("[cmdk-item]").length).toBe(results.length);
   });
 });

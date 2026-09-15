@@ -1,10 +1,10 @@
 ## sdt context docs
 
-Generate agent docs in context/docs/
+Generate agent docs in context/sdtdocs/
 
 ### Synopsis
 
-Generate a per-command reference under context/docs/ (gitignored) for AI
+Generate a per-command reference under context/sdtdocs/ (gitignored) for AI
 agents: a README index plus one markdown file per leaf command. The output is
 regenerated from the command tree and tagged with the binary version so agents
 can detect and refresh stale docs.
@@ -26,7 +26,7 @@ sdt context docs [flags]
 ```
       --clean        Remove generated files not part of this run
   -h, --help         help for docs
-      --out string   Output directory (default "context/docs")
+      --out string   Output directory (default "context/sdtdocs")
 ```
 
 ### Options inherited from parent commands

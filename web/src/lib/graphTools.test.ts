@@ -25,6 +25,8 @@ describe("graphToolsReducer", () => {
     expect(s.showLabels).toBe(false);
     s = graphToolsReducer(s, { type: "focus", value: "a" });
     expect(s.focusId).toBe("a");
+    s = graphToolsReducer(s, { type: "focus", value: null });
+    expect(s.focusId).toBeNull();
     s = graphToolsReducer(s, { type: "reset" });
     expect(s).toEqual(initialGraphTools);
   });

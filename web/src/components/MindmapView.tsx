@@ -12,6 +12,7 @@ import {
 import { transformMindmap, type MindNode } from "../lib/mindmap";
 import { fetchDoc, isCanvas } from "../lib/api";
 import { isMapPath } from "../lib/documentModes";
+import { Icon } from "../lib/icon";
 import { loadMapIndex, loadWikiIndex, type MapIndexEntry } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
 
@@ -145,6 +146,7 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
               aria-pressed={mode === "current"}
               onClick={() => setMode("current")}
             >
+              <Icon name="my_location" />
               Current Map
             </button>
             <button
@@ -153,6 +155,7 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
               aria-pressed={mode === "fused"}
               onClick={() => setMode("fused")}
             >
+              <Icon name="merge" />
               Fused Map
             </button>
           </div>

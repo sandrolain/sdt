@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/sandrolain/sdt/internal/corpus"
 )
 
 // Closed vocabulary and schema-frozen constants for wiki page frontmatter.
@@ -330,7 +332,16 @@ func LoadWiki(dir string) (bld *Builder, errs []LoadError, walkErr error) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || filepath.Ext(d.Name()) != MarkdownExt {
+		if d.IsDir() {
+			if path != dir && corpus.ExcludedDirName(d.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(d.Name()) != MarkdownExt {
+			return nil
+		}
+		if relPath, rerr := filepath.Rel(dir, path); rerr == nil && corpus.ExcludedPath(relPath) {
 			return nil
 		}
 		r, err := filepath.Rel(dir, path)

@@ -655,7 +655,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 	if err := os.Mkdir(".git", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, ".gitignore", "context/tmp\ncontext/docs\n")
+	writeTestFile(t, ".gitignore", "context/tmp\ncontext/sdtdocs\n")
 	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
@@ -664,7 +664,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 		t.Errorf("expected skipped for entries without trailing slash, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if strings.Contains(string(data), "context/tmp/") || strings.Contains(string(data), "context/docs/") {
+	if strings.Contains(string(data), "context/tmp/") || strings.Contains(string(data), "context/sdtdocs/") {
 		t.Errorf("expected no duplicate entries in .gitignore:\n%s", data)
 	}
 }

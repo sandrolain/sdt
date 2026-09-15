@@ -106,6 +106,15 @@ export function linkVisual(
   return { alpha: 0.08 };
 }
 
+/** Link stroke width: emphasis links are heavier, dimmed ones thinner. */
+export function linkWidthFor(
+  link: { source: unknown; target: unknown; verb: string },
+  h: Highlight,
+): number {
+  if (!h.active) return 1;
+  return linkVisual(link, h).alpha > 0.5 ? 2.5 : 0.75;
+}
+
 export function dimmedColor(): string {
   return DIM_NODE_COLOR;
 }

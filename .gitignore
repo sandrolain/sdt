@@ -33,6 +33,6 @@ trivi-results.json
 
 # sdt:start
 context/tmp/
-context/docs/
+context/sdtdocs/
 context/
 # sdt:end

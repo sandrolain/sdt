@@ -1,5 +1,6 @@
 import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
 import { useDoc } from "../lib/useDoc";
+import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
 
 interface DocDetailProps {
@@ -37,9 +38,10 @@ export function DocDetail({ path }: DocDetailProps) {
 }
 
 function heading(doc: DocResponse | CanvasResponse): string {
-  if (!("frontmatter" in doc)) return doc.path.split("/").pop() ?? doc.path;
-  const title = /^title:\s*(.+)$/m.exec(doc.frontmatter);
-  if (title) return title[1].trim().replace(/^["']|["']$/g, "");
-  const base = doc.path.split("/").pop() ?? doc.path;
-  return base.endsWith(".md") ? base.slice(0, -3) : base;
+  if (!("frontmatter" in doc)) return displayTitle({ path: doc.path });
+  return displayTitle({
+    title: frontmatterTitle(doc.frontmatter),
+    markdown: doc.markdown,
+    path: doc.path,
+  });
 }

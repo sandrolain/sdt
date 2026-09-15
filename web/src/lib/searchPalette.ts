@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SearchResult } from "./api";
 import { KIND_ORDER, type EntryKind } from "./kinds";
+import { displayTitle } from "./titles";
 
 /** Minimum trimmed query length before a search request is issued. */
 export const MIN_QUERY_LENGTH = 2;
@@ -119,11 +120,9 @@ export function highlightSegments(text: string, query: string): HighlightSegment
   return segments;
 }
 
-/** Display title for a result: frontmatter title, else the file basename. */
+/** Display title for a result via the shared cascade (title → formatted path). */
 export function resultTitle(r: SearchResult): string {
-  if (r.title) return r.title;
-  const base = r.path.split("/").pop() ?? r.path;
-  return base.endsWith(".md") ? base.slice(0, -3) : base;
+  return displayTitle({ title: r.title, path: r.path });
 }
 
 /** Debounce a value by delayMs (used to pace /api/search calls). */
