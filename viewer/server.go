@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
@@ -53,14 +54,15 @@ type server struct {
 
 // treeEntry is one corpus file in the /api/tree listing.
 type treeEntry struct {
-	Path    string `json:"path"`
-	Kind    string `json:"kind,omitempty"`
-	Title   string `json:"title,omitempty"`
-	Summary string `json:"summary,omitempty"`
-	Created string `json:"created,omitempty"`
-	Canvas  bool   `json:"canvas,omitempty"`
-	IsMap   bool   `json:"isMap,omitempty"`
-	MapID   string `json:"mapId,omitempty"`
+	Path     string `json:"path"`
+	Kind     string `json:"kind,omitempty"`
+	Title    string `json:"title,omitempty"`
+	Summary  string `json:"summary,omitempty"`
+	Created  string `json:"created,omitempty"`
+	Modified string `json:"modified,omitempty"`
+	Canvas   bool   `json:"canvas,omitempty"`
+	IsMap    bool   `json:"isMap,omitempty"`
+	MapID    string `json:"mapId,omitempty"`
 }
 
 // docResponse is the .md payload of /api/doc.
@@ -188,12 +190,16 @@ func (s *server) walkTree() ([]treeEntry, error) {
 			}
 			entries = append(entries, e)
 		case canvasExt:
-			entries = append(entries, treeEntry{
+			entry := treeEntry{
 				Path:   rel,
 				Kind:   "canvas",
 				Title:  strings.TrimSuffix(d.Name(), canvasExt),
 				Canvas: true,
-			})
+			}
+			if info, statErr := d.Info(); statErr == nil {
+				entry.Modified = info.ModTime().UTC().Format(time.RFC3339)
+			}
+			entries = append(entries, entry)
 		}
 		return nil
 	})
@@ -204,7 +210,9 @@ func (s *server) walkTree() ([]treeEntry, error) {
 	return entries, nil
 }
 
-// mdEntry reads frontmatter fields (kind/title/summary/created) for one .md file.
+// mdEntry reads frontmatter fields (kind/title/summary/created) and the
+// modified timestamp (frontmatter `updated`, else the file mtime) for one .md
+// file.
 func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 	data, err := os.ReadFile(path) //#nosec G304 -- corpus walk target
 	if err != nil {
@@ -212,11 +220,17 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 	}
 	fm, _ := contextwiki.SplitFrontmatter(string(data))
 	e := treeEntry{
-		Path:    rel,
-		Kind:    contextwiki.FrontmatterField(fm, "kind"),
-		Title:   contextwiki.FrontmatterField(fm, "title"),
-		Summary: contextwiki.FrontmatterField(fm, "summary"),
-		Created: contextwiki.FrontmatterField(fm, "created"),
+		Path:     rel,
+		Kind:     contextwiki.FrontmatterField(fm, "kind"),
+		Title:    contextwiki.FrontmatterField(fm, "title"),
+		Summary:  contextwiki.FrontmatterField(fm, "summary"),
+		Created:  contextwiki.FrontmatterField(fm, "created"),
+		Modified: contextwiki.FrontmatterField(fm, "updated"),
+	}
+	if e.Modified == "" {
+		if info, statErr := os.Stat(path); statErr == nil {
+			e.Modified = info.ModTime().UTC().Format(time.RFC3339)
+		}
 	}
 	if contextwiki.IsMapDoc(rel) {
 		e.IsMap = true

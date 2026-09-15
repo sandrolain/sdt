@@ -7,6 +7,8 @@ export interface TreeEntry {
   title?: string;
   summary?: string;
   created?: string;
+  /** frontmatter `updated`, else the file mtime (RFC3339) */
+  modified?: string;
   canvas?: boolean;
   /** true for `.map.md` semantic map documents */
   isMap?: boolean;

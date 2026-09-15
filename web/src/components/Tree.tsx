@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
-import { entryKind, kindLabel, availableKinds } from "../lib/kinds";
+import { kindColor, kindIcon, kindLabel } from "../lib/kinds";
 import { Icon } from "../lib/icon";
-import { displayTitle } from "../lib/titles";
+import { displayTitle, filenameDate } from "../lib/titles";
+import { formatFieldDate } from "../lib/frontmatter";
+import { groupByKind, sortEntries, TREE_SORTS, type TreeDir, type TreeSortKey } from "../lib/treeSort";
 
 export function Tree() {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [kind, setKind] = useState<string>("all");
+  const [sortKey, setSortKey] = useState<TreeSortKey>("name");
+  const [dir, setDir] = useState<TreeDir>("asc");
 
   useEffect(() => {
     let alive = true;
@@ -24,16 +27,12 @@ export function Tree() {
     };
   }, []);
 
-  const kinds = useMemo(() => (entries ? availableKinds(entries) : []), [entries]);
-
-  const filtered = useMemo(
-    () =>
-      (entries ?? []).filter((e) => {
-        if (kind === "all") return true;
-        return entryKind(e) === kind;
-      }),
-    [entries, kind],
-  );
+  const groups = entries
+    ? groupByKind(entries).map((group) => ({
+        kind: group.kind,
+        entries: sortEntries(group.entries, sortKey, dir),
+      }))
+    : [];
 
   return (
     <aside className="panel panel--tree" aria-label="Corpus tree">
@@ -41,44 +40,79 @@ export function Tree() {
         <span className="panel-header__title">Tree</span>
         <select
           className="kind-filter"
-          aria-label="Filter by kind"
-          value={kind}
-          onChange={(e) => setKind(e.target.value)}
+          aria-label="Sort entries by"
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as TreeSortKey)}
         >
-          <option value="all">all</option>
-          {kinds.map((k) => (
-            <option key={k} value={k}>
-              {kindLabel(k)}
+          {TREE_SORTS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          className="tree-sort-dir"
+          aria-label={dir === "asc" ? "Sort ascending" : "Sort descending"}
+          title={dir === "asc" ? "Ascending" : "Descending"}
+          onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))}
+        >
+          <Icon name={dir === "asc" ? "arrow_upward" : "arrow_downward"} />
+        </button>
       </div>
       {error ? (
         <p className="content__empty">Tree error: {error}</p>
       ) : !entries ? (
         <p className="content__empty">Loading tree…</p>
       ) : (
-        <ul role="list">
-          {filtered.map((e) => (
-            <li key={e.path}>
-              <NavLink
-                to={e.canvas ? `/wiki/board?file=${encodeURIComponent(e.path)}` : `/docs/${e.path}`}
-                className="tree-entry"
-                title={e.summary || e.path}
-                end
-              >
-                <span className="tree-entry__glyph">
-                <Icon name={entryGlyph(e)} />
-              </span>
-                <span className="tree-entry__title">{entryTitle(e)}</span>
-                {e.isMap && <span className="tree-entry__kind tree-entry__kind--map">map</span>}
-                <span className={`tree-entry__kind${e.canvas ? " tree-entry__kind--canvas" : ""}`}>
-                  {e.canvas ? "canvas" : (e.kind ?? "md")}
-                </span>
-              </NavLink>
-            </li>
+        <div className="tree-groups">
+          {groups.map((group) => (
+            <details key={group.kind} className="tree-folder" open>
+              <summary className="tree-folder__header">
+                <Icon name="expand_more" className="tree-folder__chevron" />
+                <Icon
+                  name={kindIcon(group.kind)}
+                  className="tree-folder__icon"
+                  style={{ color: kindColor(group.kind) }}
+                />
+                <span className="tree-folder__label">{kindLabel(group.kind)}</span>
+                <span className="tree-folder__count">{group.entries.length}</span>
+              </summary>
+              <ul role="list">
+                {group.entries.map((entry) => (
+                  <li key={entry.path}>
+                    <NavLink
+                      to={
+                        entry.canvas
+                          ? `/wiki/board?file=${encodeURIComponent(entry.path)}`
+                          : `/docs/${entry.path}`
+                      }
+                      className="tree-entry"
+                      title={entry.summary || entry.path}
+                      end
+                    >
+                      <span className="tree-entry__glyph">
+                        <Icon name="description" />
+                      </span>
+                      <span className="tree-entry__text">
+                        <span className="tree-entry__title">{entryTitle(entry)}</span>
+                        {entryDate(entry) && (
+                          <span className="tree-entry__date">{entryDate(entry)}</span>
+                        )}
+                      </span>
+                      {entry.isMap && <span className="tree-entry__kind tree-entry__kind--map">map</span>}
+                      <span
+                        className={`tree-entry__kind${entry.canvas ? " tree-entry__kind--canvas" : ""}`}
+                      >
+                        {entry.canvas ? "canvas" : (entry.kind ?? "md")}
+                      </span>
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </details>
           ))}
-        </ul>
+        </div>
       )}
     </aside>
   );
@@ -89,8 +123,8 @@ function entryTitle(e: TreeEntry): string {
   return displayTitle({ title: e.title, path: e.path });
 }
 
-function entryGlyph(e: TreeEntry): string {
-  if (e.isMap) return "account_tree";
-  if (e.canvas) return "dashboard";
-  return "description";
+/** Small date line: frontmatter `created`, else the filename date prefix. */
+function entryDate(e: TreeEntry): string {
+  const raw = e.created || filenameDate(e.path);
+  return raw ? formatFieldDate(raw) : "";
 }

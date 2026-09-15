@@ -41,6 +41,48 @@ export function kindLabel(k: EntryFilterKind): string {
   return k;
 }
 
+/** Material Symbols glyph for a kind folder/entry. */
+const KIND_ICONS: Record<EntryFilterKind, string> = {
+  wiki: "menu_book",
+  analysis: "analytics",
+  notes: "sticky_note_2",
+  tasks: "checklist",
+  plan: "map",
+  worklog: "history",
+  decisions: "gavel",
+  questions: "help",
+  rfc: "description",
+  prompts: "terminal",
+  architecture: "account_tree",
+  other: "description",
+  canvas: "dashboard",
+};
+
+/** Catppuccin token (CSS var reference) for a kind. */
+const KIND_COLORS: Record<EntryFilterKind, string> = {
+  wiki: "var(--ctp-blue)",
+  analysis: "var(--ctp-mauve)",
+  notes: "var(--ctp-green)",
+  tasks: "var(--ctp-yellow)",
+  plan: "var(--ctp-peach)",
+  worklog: "var(--ctp-overlay1)",
+  decisions: "var(--ctp-red)",
+  questions: "var(--ctp-sky)",
+  rfc: "var(--ctp-sapphire)",
+  prompts: "var(--ctp-teal)",
+  architecture: "var(--ctp-lavender)",
+  other: "var(--ctp-overlay0)",
+  canvas: "var(--ctp-teal)",
+};
+
+export function kindIcon(k: EntryFilterKind): string {
+  return KIND_ICONS[k] ?? KIND_ICONS.other;
+}
+
+export function kindColor(k: EntryFilterKind): string {
+  return KIND_COLORS[k] ?? KIND_COLORS.other;
+}
+
 /** All kinds present in the tree, canvas represented specially, sorted by KIND_ORDER. */
 export function availableKinds(entries: TreeEntry[]): EntryFilterKind[] {
   const seen = new Set<EntryFilterKind>();

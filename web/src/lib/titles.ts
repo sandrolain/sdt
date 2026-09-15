@@ -22,6 +22,13 @@ export function stripDatePrefix(name: string): string {
   return name.replace(/^\d{8}-\d{6}-/, "");
 }
 
+/** `YYYY-MM-DD` date embedded as a filename prefix, or "" when absent. */
+export function filenameDate(path: string): string {
+  const base = path.split("/").filter(Boolean).pop() ?? "";
+  const match = /^(\d{4})(\d{2})(\d{2})-\d{6}-/.exec(base);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : "";
+}
+
 /** Lightweight fallback title used when a document has no frontmatter title. */
 export function fallbackTitle(path: string): string {
   const base = path.split("/").filter(Boolean).pop() ?? path;

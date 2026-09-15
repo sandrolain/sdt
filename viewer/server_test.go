@@ -58,6 +58,7 @@ blue body
 kind: wiki
 title: Topic map
 created: 2026-09-13
+updated: 2026-09-14T09:30:00Z
 ---
 
 # Topic
@@ -360,6 +361,8 @@ func TestTreeOutput(t *testing.T) {
 		t.Errorf("missing context/wiki/backend/auth.md in %v", byPath)
 	} else if e.Kind != "wiki" || e.Title != "Auth wiki page" || e.Summary != "Wiki summary" || e.Created != "2026-09-10" {
 		t.Errorf("wiki entry wrong: %+v", e)
+	} else if e.Modified == "" {
+		t.Errorf("wiki entry missing modified mtime fallback: %+v", e)
 	}
 	// analysis page
 	if e, ok := byPath["context/analysis/analy-x.md"]; !ok {
@@ -372,12 +375,16 @@ func TestTreeOutput(t *testing.T) {
 		t.Errorf("missing context/board.canvas in %v", byPath)
 	} else if !e.Canvas || e.Kind != "canvas" || e.Title != "board" {
 		t.Errorf("canvas entry wrong: %+v", e)
+	} else if e.Modified == "" {
+		t.Errorf("canvas entry missing modified mtime: %+v", e)
 	}
 	// map document flagged with a canonical mapId; plain docs are not
 	if e, ok := byPath["context/wiki/topic.map.md"]; !ok {
 		t.Errorf("missing context/wiki/topic.map.md in %v", byPath)
 	} else if !e.IsMap || e.MapID != "topic.map" {
 		t.Errorf("map entry wrong: %+v", e)
+	} else if e.Modified != "2026-09-14T09:30:00Z" {
+		t.Errorf("map modified = %q, want frontmatter updated", e.Modified)
 	}
 	if e, ok := byPath["context/wiki/backend/auth.md"]; ok && (e.IsMap || e.MapID != "") {
 		t.Errorf("plain doc flagged as map: %+v", e)
