@@ -9,6 +9,7 @@ import {
 import { collectBodyLinks, collectMetaLinks, type DocLink } from "../lib/docLinks";
 import { parseOutline, type OutlineItem } from "../lib/outline";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
+import { useReloadToken } from "../lib/useReloadToken";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Icon } from "../lib/icon";
 import { RelatedPanel } from "./RelatedPanel";
@@ -27,6 +28,7 @@ const LINK_KEYS = new Set(["links", "sources", "relations"]);
 export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
   const markdownDoc = doc && !isCanvas(doc) ? doc : null;
+  const reloadToken = useReloadToken();
 
   useEffect(() => {
     if (relatedId || !markdownDoc) return;
@@ -41,7 +43,7 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
     return () => {
       alive = false;
     };
-  }, [relatedId, markdownDoc]);
+  }, [relatedId, markdownDoc, reloadToken]);
 
   const fields = useMemo(
     () => (markdownDoc ? parseFrontmatter(markdownDoc.frontmatter) : []),

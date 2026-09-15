@@ -3,8 +3,9 @@ import { NavLink } from "react-router-dom";
 import { fetchWikiRel, type RelResponse } from "../lib/api";
 import { groupRelations, relationCounts } from "../lib/relations";
 import { Icon } from "../lib/icon";
-import { SkeletonLines } from "./Skeleton";
 import { displayTitle } from "../lib/titles";
+import { useReloadToken } from "../lib/useReloadToken";
+import { SkeletonLines } from "./Skeleton";
 
 interface RelatedPanelProps {
   /** wiki page id */
@@ -15,6 +16,7 @@ interface RelatedPanelProps {
 export function RelatedPanel({ id }: RelatedPanelProps) {
   const [resp, setResp] = useState<RelResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const reloadToken = useReloadToken();
 
   useEffect(() => {
     let alive = true;
@@ -28,7 +30,7 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, reloadToken]);
 
   const counts = resp ? relationCounts(resp) : null;
 

@@ -4,6 +4,7 @@ import { initialOpenDocs, openDocsReducer } from "../lib/openDocs";
 import { OpenDocsContext } from "../lib/openDocsContext";
 import { displayTitle } from "../lib/titles";
 import { useDoc } from "../lib/useDoc";
+import { useReloadToken } from "../lib/useReloadToken";
 import { DocDetail } from "./DocDetail";
 import { Icon } from "../lib/icon";
 
@@ -16,6 +17,7 @@ interface OpenDocsRailProps {
 export function OpenDocsRail({ path }: OpenDocsRailProps) {
   const [state, dispatch] = useReducer(openDocsReducer, initialOpenDocs);
   const navigate = useNavigate();
+  const reloadToken = useReloadToken();
 
   const api = useMemo(() => ({ state, dispatch }), [state]);
 
@@ -95,7 +97,7 @@ export function OpenDocsRail({ path }: OpenDocsRailProps) {
                 data-path={docPath}
               >
                 {state.seen.includes(docPath) ? (
-                  <DocSlide path={docPath} />
+                  <DocSlide key={`${docPath}:${reloadToken}`} path={docPath} />
                 ) : (
                   <p className="content__empty">…</p>
                 )}

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -90,6 +90,11 @@ func newServeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			logFormat, err := cmd.Flags().GetString("log-format")
+			if err != nil {
+				return err
+			}
+			setupLogger(logFormat)
 			return serve(host, port, noOpen, root, listen)
 		},
 	}
@@ -97,7 +102,18 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().Int("port", 8443, "bind port")
 	cmd.Flags().Bool("no-open", false, "do not open the browser")
 	cmd.Flags().String("root", "", "project root; defaults to the nearest ancestor of CWD holding "+sdtConfigFile)
+	cmd.Flags().String("log-format", "text", "log format: text|json")
 	return cmd
+}
+
+// setupLogger installs the slog default logger in text or json format.
+func setupLogger(format string) {
+	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
+	var handler slog.Handler = slog.NewTextHandler(os.Stderr, opts)
+	if format == "json" {
+		handler = slog.NewJSONHandler(os.Stderr, opts)
+	}
+	slog.SetDefault(slog.New(handler))
 }
 
 // serve resolves the root, builds the handler, optionally opens the browser and
@@ -107,18 +123,23 @@ func serve(host string, port int, noOpen bool, rootFlag string, listen func(addr
 	if err != nil {
 		return err
 	}
-	handler, err := newHandler(root)
+	s, err := newServer(root)
 	if err != nil {
 		return err
+	}
+	if werr := s.startWatching(); werr != nil {
+		slog.Warn("sdtviewer: live updates disabled", "err", werr)
+	} else {
+		defer s.stopWatching()
 	}
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	if !noOpen {
 		if oerr := openBrowser("http://" + addr); oerr != nil {
-			log.Printf("sdtviewer: browser open skipped: %v", oerr)
+			slog.Warn("sdtviewer: browser open skipped", "err", oerr)
 		}
 	}
-	log.Printf("sdtviewer: serving %s at http://%s", root, addr)
-	return listen(addr, handler)
+	slog.Info("sdtviewer: serving", "root", root, "addr", "http://"+addr)
+	return listen(addr, s.mux())
 }
 
 // resolveRoot returns the directory to serve: an explicit --root, or the

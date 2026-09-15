@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -15,8 +16,38 @@ func (s *server) loadSearch() error {
 	if err != nil {
 		return err
 	}
+	s.srchMu.Lock()
 	s.srch = ix
+	s.srchMu.Unlock()
 	return nil
+}
+
+// rebuildSearch rebuilds the index after a corpus change and publishes the
+// changed paths to SSE subscribers. The old index is released.
+func (s *server) rebuildSearch(paths []string) {
+	ix, err := search.New(s.root)
+	if err != nil {
+		slog.Warn("sdtviewer: search rebuild failed", "err", err)
+		return
+	}
+	s.srchMu.Lock()
+	old := s.srch
+	s.srch = ix
+	s.srchMu.Unlock()
+	if old != nil {
+		if err := old.Close(); err != nil {
+			slog.Warn("sdtviewer: search close failed", "err", err)
+		}
+	}
+	slog.Info("sdtviewer: corpus changed", "paths", paths)
+	s.broker.publish(paths)
+}
+
+// index returns the current search index (nil when unavailable).
+func (s *server) index() *search.Index {
+	s.srchMu.RLock()
+	defer s.srchMu.RUnlock()
+	return s.srch
 }
 
 // handleSearch serves ranked fulltext results from the in-memory bleve index:
@@ -34,11 +65,11 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			max = n
 		}
 	}
-	if s.srch == nil {
+	if s.index() == nil {
 		writeJSON(w, http.StatusOK, search.Results{Results: []search.Result{}, Total: 0})
 		return
 	}
-	res, err := s.srch.Search(q, kind, from, to, max)
+	res, err := s.index().Search(q, kind, from, to, max)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
 		return

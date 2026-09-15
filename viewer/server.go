@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/search"
@@ -45,11 +47,14 @@ const indexHTML = `<!doctype html>
 // server is the read-only httper of the corpus under root. corpus is the
 // served subtree (root/context); everything else under root is out of scope.
 type server struct {
-	root   string
-	corpus string
-	wiki   *contextwiki.Builder
-	srch   *search.Index
-	spa    http.Handler
+	root    string
+	corpus  string
+	wiki    *contextwiki.Builder
+	srch    *search.Index
+	srchMu  sync.RWMutex
+	spa     http.Handler
+	broker  *broker
+	watcher *fsnotify.Watcher
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -85,6 +90,15 @@ type errResponse struct {
 
 // newHandler builds the viewer mux for the given root directory.
 func newHandler(root string) (http.Handler, error) {
+	s, err := newServer(root)
+	if err != nil {
+		return nil, err
+	}
+	return s.mux(), nil
+}
+
+// newServer stats the root and loads the in-memory caches.
+func newServer(root string) (*server, error) {
 	info, err := os.Stat(root)
 	if err != nil {
 		return nil, err
@@ -92,16 +106,21 @@ func newHandler(root string) (http.Handler, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("%s is not a directory", root)
 	}
-	s := &server{root: root, corpus: filepath.Join(root, corpusDir)}
+	s := &server{root: root, corpus: filepath.Join(root, corpusDir), broker: newBroker()}
 	if h, ok := spaHandler(); ok {
 		s.spa = h
 	}
 	if err := s.loadWiki(); err != nil {
-		log.Printf("sdtviewer: wiki graph unavailable: %v", err)
+		slog.Warn("sdtviewer: wiki graph unavailable", "err", err)
 	}
 	if err := s.loadSearch(); err != nil {
-		log.Printf("sdtviewer: search unavailable: %v", err)
+		slog.Warn("sdtviewer: search unavailable", "err", err)
 	}
+	return s, nil
+}
+
+// mux registers the API routes on the server.
+func (s *server) mux() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tree", s.handleTree)
 	mux.HandleFunc("/api/doc", s.handleDoc)
@@ -109,8 +128,9 @@ func newHandler(root string) (http.Handler, error) {
 	mux.HandleFunc("/api/wiki/graph", s.handleWikiGraph)
 	mux.HandleFunc("/api/wiki/rel", s.handleWikiRel)
 	mux.HandleFunc("/api/wiki/board", s.handleWikiBoard)
+	mux.HandleFunc("/api/events", s.handleEvents)
 	mux.HandleFunc("/", s.handleIndex)
-	return mux, nil
+	return mux
 }
 
 // handleIndex serves the embedded SPA (with hash-route fallback) when a build
@@ -305,6 +325,6 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("sdtviewer: json encode: %v", err)
+		slog.Error("sdtviewer: json encode", "err", err)
 	}
 }

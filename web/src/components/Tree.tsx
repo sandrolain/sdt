@@ -7,12 +7,14 @@ import { SkeletonLines } from "./Skeleton";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { formatFieldDate } from "../lib/frontmatter";
 import { groupByKind, sortEntries, TREE_SORTS, type TreeDir, type TreeSortKey } from "../lib/treeSort";
+import { useReloadToken } from "../lib/useReloadToken";
 
 export function Tree() {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<TreeSortKey>("name");
   const [dir, setDir] = useState<TreeDir>("asc");
+  const reloadToken = useReloadToken();
 
   useEffect(() => {
     let alive = true;
@@ -26,7 +28,7 @@ export function Tree() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadToken]);
 
   const groups = entries
     ? groupByKind(entries).map((group) => ({

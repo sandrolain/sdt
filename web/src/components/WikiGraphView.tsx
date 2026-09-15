@@ -32,6 +32,7 @@ import {
 import { graphToolsReducer, initialGraphTools, visibleSet } from "../lib/graphTools";
 import { GraphToolsPanel } from "./GraphToolsPanel";
 import { SkeletonLines } from "./Skeleton";
+import { useReloadToken } from "../lib/useReloadToken";
 
 const ForceGraph3D = lazy(() => import("react-force-graph-3d"));
 
@@ -85,6 +86,7 @@ export function WikiGraphView() {
   const [sel, dispatchSel] = useReducer(selectionReducer, initialSelection);
   const graphRef = useRef<GraphHandle | undefined>(undefined);
   const navigate = useNavigate();
+  const reloadToken = useReloadToken();
 
   useEffect(() => {
     let alive = true;
@@ -98,7 +100,7 @@ export function WikiGraphView() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadToken]);
 
   const allVerbs = useMemo(
     () => (data ? [...new Set(data.edges.map((e) => e.verb))].sort() : []),

@@ -5,6 +5,7 @@ import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
 import { displayTitle } from "../lib/titles";
 import { BoardView } from "./BoardView";
 import { SkeletonLines } from "./Skeleton";
+import { useReloadToken } from "../lib/useReloadToken";
 
 /** #/wiki/board — read-only board from the graph default or a .canvas file. */
 export function WikiBoardView() {
@@ -14,6 +15,7 @@ export function WikiBoardView() {
   const [model, setModel] = useState<BoardModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [canvases, setCanvases] = useState<TreeEntry[]>([]);
+  const reloadToken = useReloadToken();
 
   useEffect(() => {
     let alive = true;
@@ -25,7 +27,7 @@ export function WikiBoardView() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadToken]);
 
   useEffect(() => {
     let alive = true;
@@ -45,7 +47,7 @@ export function WikiBoardView() {
     return () => {
       alive = false;
     };
-  }, [file]);
+  }, [file, reloadToken]);
 
   const current = useMemo(() => params.get("file") ?? "", [params]);
 

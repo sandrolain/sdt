@@ -8,6 +8,7 @@ import { WikiPage } from "./pages/WikiPage";
 import { WikiGraphView } from "./components/WikiGraphView";
 import { WikiBoardView } from "./components/WikiBoardView";
 import { WikiPageDetail } from "./components/WikiPageDetail";
+import { applyLiveChange, connectLiveUpdates } from "./lib/liveUpdates";
 
 export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -22,6 +23,8 @@ export function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => connectLiveUpdates(() => applyLiveChange()), []);
 
   return (
     <ThemeProvider>
