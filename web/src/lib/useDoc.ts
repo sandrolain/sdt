@@ -18,6 +18,7 @@ export function useDoc(path: string): DocState {
   const [fetched, setFetched] = useState<Fetched | null>(null);
 
   useEffect(() => {
+    if (path === "") return;
     let alive = true;
     fetchDoc(path)
       .then((d) => {
@@ -33,7 +34,7 @@ export function useDoc(path: string): DocState {
     };
   }, [path]);
 
-  const current = fetched?.path === path ? fetched : null;
+  const current = path !== "" && fetched?.path === path ? fetched : null;
   return {
     doc: current?.doc ?? null,
     error: current?.error ?? null,

@@ -36,7 +36,7 @@ export function Tree() {
   );
 
   return (
-    <aside className="panel panel--tree">
+    <aside className="panel panel--tree" aria-label="Corpus tree">
       <div className="panel-header">
         <span className="panel-header__title">Tree</span>
         <select

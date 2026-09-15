@@ -81,7 +81,6 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
         ))}
         {mapDoc && <span className="doc-badge doc-badge--map">map</span>}
       </div>
-      {frontmatter && <pre className="doc-frontmatter">{frontmatter}</pre>}
       {mode === "code" && (
         <pre className="doc-code">
           <code className="hljs" dangerouslySetInnerHTML={{ __html: code }} />

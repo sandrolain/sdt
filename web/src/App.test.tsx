@@ -35,7 +35,10 @@ function renderApp() {
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.location.hash = "";
+});
 
 describe("app shell", () => {
   it("renders tabs and the tree", async () => {
@@ -66,7 +69,7 @@ describe("app shell", () => {
     globalThis.fetch = mockFetch as typeof fetch;
     renderApp();
     await screen.findByText("A note");
-    const tree = screen.getByRole("complementary");
+    const tree = screen.getByRole("complementary", { name: "Corpus tree" });
     // both canvas badge and the canvas entry exist
     expect(within(tree).getAllByText("canvas").length).toBeGreaterThan(0);
   });

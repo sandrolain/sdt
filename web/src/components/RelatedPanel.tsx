@@ -32,15 +32,12 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
   const counts = resp ? relationCounts(resp) : null;
 
   return (
-    <aside className="panel panel--related" aria-label="Related pages">
-      <div className="panel-header">
-        <span className="panel-header__title">Related</span>
-        {counts && (
-          <span className="related-counts">
-            {counts.outbound} out · {counts.inbound} in
-          </span>
-        )}
-      </div>
+    <div className="related" aria-label="Related pages">
+      {counts && (
+        <span className="related-counts">
+          {counts.outbound} out · {counts.inbound} in
+        </span>
+      )}
       {error ? (
         <p className="content__empty">relations error: {error}</p>
       ) : !resp ? (
@@ -57,7 +54,9 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
                   <li key={`out-${item.id}`}>
                     <NavLink className="related-item" to={`/wiki/${item.id}`}>
                       <Icon name="arrow_outward" label="outbound" className="related-item__arrow" />
-                      <span className="related-item__title">{displayTitle({ title: item.title, path: item.id })}</span>
+                      <span className="related-item__title">
+                        {displayTitle({ title: item.title, path: item.id })}
+                      </span>
                       <span className="related-item__kind">{item.kind}</span>
                     </NavLink>
                   </li>
@@ -66,7 +65,9 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
                   <li key={`in-${item.id}`}>
                     <NavLink className="related-item" to={`/wiki/${item.id}`}>
                       <Icon name="arrow_back" label="inbound" className="related-item__arrow" />
-                      <span className="related-item__title">{displayTitle({ title: item.title, path: item.id })}</span>
+                      <span className="related-item__title">
+                        {displayTitle({ title: item.title, path: item.id })}
+                      </span>
                       <span className="related-item__kind">{item.kind}</span>
                     </NavLink>
                   </li>
@@ -76,6 +77,6 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
           ))}
         </div>
       )}
-    </aside>
+    </div>
   );
 }

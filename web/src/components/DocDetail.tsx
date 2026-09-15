@@ -1,16 +1,16 @@
 import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
-import { useDoc } from "../lib/useDoc";
 import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
 
 interface DocDetailProps {
   /** corpus-relative path from the URL, e.g. context/wiki/foo.md */
   path: string;
+  doc: DocResponse | CanvasResponse | null;
+  error: string | null;
+  loading: boolean;
 }
 
-export function DocDetail({ path }: DocDetailProps) {
-  const { doc, error, loading } = useDoc(path);
-
+export function DocDetail({ path, doc, error, loading }: DocDetailProps) {
   if (error) return <p className="content__empty">doc error: {error}</p>;
   if (loading || !doc) return <p className="content__empty">Loading {path}…</p>;
 

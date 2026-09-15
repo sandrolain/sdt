@@ -4,7 +4,7 @@ import { isMapPath } from "../lib/documentModes";
 import { useDoc } from "../lib/useDoc";
 import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
-import { RelatedPanel } from "./RelatedPanel";
+import { DocMetaPanel } from "./DocMetaPanel";
 import { Icon } from "../lib/icon";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
@@ -69,7 +69,7 @@ export function WikiPageDetail() {
           </Suspense>
         )}
       </article>
-      <RelatedPanel id={id} />
+      <DocMetaPanel doc={doc} relatedId={id} />
     </div>
   );
 }
