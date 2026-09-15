@@ -389,6 +389,183 @@
     color: var(--fg);
   }
 
+  .doc-modes {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.9rem;
+  }
+  .doc-mode {
+    padding: 0.25rem 0.7rem;
+    border-radius: 7px;
+    color: var(--fg-dim);
+    font-size: 0.8125rem;
+  }
+  .doc-mode:hover {
+    background: var(--bg-hover);
+  }
+  .doc-mode.is-active {
+    background: var(--bg-rise);
+    color: var(--fg);
+  }
+  .doc-badge--map,
+  .tree-entry__kind--map,
+  .search-result__meta--map {
+    background: var(--ctp-peach);
+    color: var(--ctp-crust);
+  }
+
+  .doc-code {
+    margin: 0;
+    overflow: auto;
+    padding: 0.9rem 1rem;
+    border-radius: 10px;
+    background: var(--bg-mantle);
+    border: 1px solid var(--border);
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  .doc-rendered {
+    line-height: 1.65;
+  }
+  .doc-rendered h1 {
+    font-size: 1.5rem;
+    margin: 1.2rem 0 0.6rem;
+  }
+  .doc-rendered h2 {
+    font-size: 1.25rem;
+    margin: 1.1rem 0 0.5rem;
+  }
+  .doc-rendered h3,
+  .doc-rendered h4,
+  .doc-rendered h5,
+  .doc-rendered h6 {
+    font-size: 1.05rem;
+    margin: 1rem 0 0.4rem;
+  }
+  .doc-rendered p,
+  .doc-rendered ul,
+  .doc-rendered ol,
+  .doc-rendered blockquote,
+  .doc-rendered table {
+    margin: 0.6rem 0;
+  }
+  .doc-rendered ul,
+  .doc-rendered ol {
+    padding-left: 1.5rem;
+  }
+  .doc-rendered a {
+    color: var(--accent);
+  }
+  .doc-rendered a:hover {
+    text-decoration: underline;
+  }
+  .doc-rendered code {
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.85em;
+    padding: 0.1rem 0.3rem;
+    border-radius: 5px;
+    background: var(--bg-rise);
+  }
+  .doc-rendered pre.md-code {
+    margin: 0.75rem 0;
+    padding: 0.9rem 1rem;
+    overflow: auto;
+    border-radius: 10px;
+    background: var(--bg-mantle);
+    border: 1px solid var(--border);
+  }
+  .doc-rendered pre.md-code code {
+    padding: 0;
+    background: none;
+    font-size: 0.8125rem;
+  }
+  .doc-rendered blockquote {
+    padding-left: 0.9rem;
+    border-left: 3px solid var(--border);
+    color: var(--fg-dim);
+  }
+  .doc-rendered table {
+    border-collapse: collapse;
+  }
+  .doc-rendered th,
+  .doc-rendered td {
+    border: 1px solid var(--border);
+    padding: 0.3rem 0.6rem;
+  }
+  .wikilink-broken {
+    color: var(--danger);
+    text-decoration: underline dotted;
+    cursor: help;
+  }
+
+  .outline {
+    list-style: none;
+    margin: 0;
+    padding-left: 0;
+  }
+  .outline .outline {
+    padding-left: 1.1rem;
+    border-left: 1px dashed var(--border);
+  }
+  .outline__item--heading > .outline__text {
+    font-weight: 600;
+  }
+  .outline__item--list > .outline__text::before {
+    content: "• ";
+    color: var(--fg-faint);
+  }
+  .outline__text {
+    display: inline-block;
+    padding: 0.1rem 0;
+  }
+
+  /* highlight.js tokens mapped to Catppuccin */
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-literal {
+    color: var(--ctp-mauve);
+  }
+  .hljs-string,
+  .hljs-attr,
+  .hljs-addition {
+    color: var(--ctp-green);
+  }
+  .hljs-number,
+  .hljs-built_in {
+    color: var(--ctp-peach);
+  }
+  .hljs-comment,
+  .hljs-quote {
+    color: var(--fg-faint);
+    font-style: italic;
+  }
+  .hljs-title,
+  .hljs-section,
+  .hljs-function .hljs-title {
+    color: var(--ctp-blue);
+  }
+  .hljs-type,
+  .hljs-name,
+  .hljs-tag {
+    color: var(--ctp-yellow);
+  }
+  .hljs-meta,
+  .hljs-symbol {
+    color: var(--ctp-sky);
+  }
+  .hljs-deletion {
+    color: var(--ctp-red);
+  }
+  .hljs-emphasis {
+    font-style: italic;
+  }
+  .hljs-strong {
+    font-weight: 600;
+  }
+
   .wiki-modes {
     display: flex;
     gap: 0.35rem;

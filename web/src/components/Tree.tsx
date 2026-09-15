@@ -66,6 +66,7 @@ export function Tree() {
                 end
               >
                 <span className="tree-entry__title">{entryTitle(e)}</span>
+                {e.isMap && <span className="tree-entry__kind tree-entry__kind--map">map</span>}
                 <span className={`tree-entry__kind${e.canvas ? " tree-entry__kind--canvas" : ""}`}>
                   {e.canvas ? "canvas" : (e.kind ?? "md")}
                 </span>

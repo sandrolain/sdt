@@ -32,6 +32,10 @@ const (
 	VerifiedFalse = "false"
 	// MarkdownExt is the corpus file extension.
 	MarkdownExt = ".md"
+	// MapSuffix marks a document as a semantic map (`.map.md`).
+	MapSuffix = ".map.md"
+	// WikiDirPrefix is the corpus-relative wiki directory prefix.
+	WikiDirPrefix = "context/wiki/"
 	// frontmatterDelim delimits a YAML frontmatter block.
 	frontmatterDelim = "---"
 	// fmStart is the opening frontmatter delimiter including its newline.
@@ -75,6 +79,23 @@ var (
 	// MarkdownLDPrag matches the optional markdown-ld pragma.
 	MarkdownLDPrag = regexp.MustCompile(`<!--\s*markdown-ld\s*-->`)
 )
+
+// IsMapDoc reports whether a corpus path is a map document (`.map.md`).
+func IsMapDoc(path string) bool {
+	return strings.HasSuffix(filepath.ToSlash(path), MapSuffix)
+}
+
+// DocID returns the canonical document id for a corpus path: for wiki pages
+// the dir-relative path minus ".md" (matching Page.FileID, e.g.
+// "context/wiki/topic.map.md" -> "topic.map"); otherwise the slash path minus
+// ".md" ("context/notes/plan.map.md" -> "context/notes/plan.map").
+func DocID(path string) string {
+	p := strings.TrimSuffix(filepath.ToSlash(path), MarkdownExt)
+	if strings.HasPrefix(p, WikiDirPrefix) {
+		return strings.TrimPrefix(p, WikiDirPrefix)
+	}
+	return p
+}
 
 // Page is one parsed wiki knowledge-graph node.
 type Page struct {

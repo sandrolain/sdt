@@ -82,6 +82,15 @@ created: 2026-08-01
 refs tokens
 `)
 	write("context/wiki/board.canvas", `{"nodes":[]}`)
+	// map document: unique term so it does not disturb ranked/kind/date tests
+	write("context/wiki/topic.map.md", `---
+kind: wiki
+title: Topic map
+created: 2026-09-14
+---
+
+outlineword map content
+`)
 	// outside the corpus: root-level docs must never be indexed
 	write("docs/outside.md", `---
 kind: notes
@@ -101,12 +110,32 @@ func TestNewAndBulkIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	// wiki(2) + analysis(1) + notes(1) = 4; tmp/scripts/refs/canvas/root-docs skipped
-	if len(ix.registry) != 4 {
-		t.Errorf("indexed %d docs, want 4", len(ix.registry))
+	// wiki(2) + analysis(1) + notes(1) + map(1) = 5; tmp/scripts/refs/canvas/root-docs skipped
+	if len(ix.registry) != 5 {
+		t.Errorf("indexed %d docs, want 5", len(ix.registry))
 	}
 	if _, ok := ix.registry["docs/outside.md"]; ok {
 		t.Error("outside-corpus doc indexed")
+	}
+}
+
+func TestSearchMapResult(t *testing.T) {
+	root := corpus(t)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	res, err := ix.Search("outlineword", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 1 || len(res.Results) != 1 {
+		t.Fatalf("map search: %+v", res)
+	}
+	r := res.Results[0]
+	if !r.IsMap || r.MapID != "topic.map" {
+		t.Errorf("map flags wrong: %+v", r)
 	}
 }
 

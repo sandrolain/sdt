@@ -144,6 +144,9 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
               >
                 <div className="search-result__head">
                   <span className="search-result__title">{resultTitle(r)}</span>
+                  {r.isMap && (
+                    <span className="search-result__meta search-result__meta--map">map</span>
+                  )}
                   <span className="search-result__meta">
                     {r.kind ?? "md"}
                     {r.created ? ` · ${r.created}` : ""}

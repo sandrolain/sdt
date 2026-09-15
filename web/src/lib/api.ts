@@ -6,6 +6,10 @@ export interface TreeEntry {
   summary?: string;
   created?: string;
   canvas?: boolean;
+  /** true for `.map.md` semantic map documents */
+  isMap?: boolean;
+  /** canonical map id, present when isMap */
+  mapId?: string;
 }
 
 export interface TreeResponse {
@@ -36,6 +40,10 @@ export interface SearchResult {
   created?: string;
   score: number;
   snippet: string;
+  /** true for `.map.md` semantic map documents */
+  isMap?: boolean;
+  /** canonical map id, present when isMap */
+  mapId?: string;
 }
 
 export interface SearchResponse {

@@ -4,12 +4,8 @@ import { TopBar } from "./components/TopBar";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { SearchPalette } from "./components/SearchPalette";
 import { DocumentsPage } from "./pages/DocumentsPage";
-import {
-  WikiPage,
-  WikiGraphPlaceholder,
-  WikiBoardPlaceholder,
-  WikiPagePlaceholder,
-} from "./pages/WikiPage";
+import { WikiPage, WikiGraphPlaceholder, WikiBoardPlaceholder } from "./pages/WikiPage";
+import { WikiPageDetail } from "./components/WikiPageDetail";
 
 export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -37,7 +33,7 @@ export function App() {
             <Route index element={<Navigate to="/wiki/graph" replace />} />
             <Route path="graph" element={<WikiGraphPlaceholder />} />
             <Route path="board" element={<WikiBoardPlaceholder />} />
-            <Route path=":id" element={<WikiPagePlaceholder />} />
+            <Route path=":id" element={<WikiPageDetail />} />
           </Route>
           <Route path="*" element={<p className="content__empty">not found</p>} />
         </Routes>

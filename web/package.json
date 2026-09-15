@@ -15,6 +15,9 @@
   },
   "dependencies": {
     "cmdk": "^1.1.1",
+    "dompurify": "^3.4.15",
+    "highlight.js": "^11.12.0",
+    "marked": "^18.0.13",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3"
@@ -27,6 +30,7 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "happy-dom": "^20.14.5",
+    "jsdom": "^30.0.1",
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
     "typescript": "~6.0.2",

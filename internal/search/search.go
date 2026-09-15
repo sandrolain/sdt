@@ -16,6 +16,7 @@ import (
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/blevesearch/bleve/v2/search/query"
+	"github.com/sandrolain/sdt/internal/contextwiki"
 )
 
 // Index is an in-memory bleve fulltext index over the corpus markdown.
@@ -33,6 +34,8 @@ type Result struct {
 	Created string  `json:"created,omitempty"`
 	Score   float64 `json:"score"`
 	Snippet string  `json:"snippet"`
+	IsMap   bool    `json:"isMap,omitempty"`
+	MapID   string  `json:"mapId,omitempty"`
 }
 
 // Results is the response body for /api/search.
@@ -298,6 +301,7 @@ func (ix *Index) Search(q, kind, from, to string, max int) (Results, error) {
 		if !ok {
 			continue
 		}
+		isMap := contextwiki.IsMapDoc(doc.Path)
 		out = append(out, Result{
 			Path:    doc.Path,
 			Kind:    doc.Kind,
@@ -306,6 +310,8 @@ func (ix *Index) Search(q, kind, from, to string, max int) (Results, error) {
 			Created: doc.RawCreated,
 			Score:   hit.Score,
 			Snippet: Snippet(doc, q, 160),
+			IsMap:   isMap,
+			MapID:   mapID(doc.Path, isMap),
 		})
 	}
 	total := sr.Total
@@ -313,6 +319,14 @@ func (ix *Index) Search(q, kind, from, to string, max int) (Results, error) {
 		total = math.MaxInt64
 	}
 	return Results{Results: out, Total: int64(total)}, nil
+}
+
+// mapID returns the canonical map id for map documents, "" otherwise.
+func mapID(path string, isMap bool) string {
+	if !isMap {
+		return ""
+	}
+	return contextwiki.DocID(path)
 }
 
 // Snippet extracts a context window around the first match of the query terms

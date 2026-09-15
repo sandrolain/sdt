@@ -36,7 +36,3 @@ export function WikiGraphPlaceholder() {
 export function WikiBoardPlaceholder() {
   return <p className="placeholder">Wiki board — Phase 10 (JSON Canvas).</p>;
 }
-
-export function WikiPagePlaceholder() {
-  return <p className="placeholder">Wiki page detail — Phase 7 (markdown pipeline).</p>;
-}

@@ -319,3 +319,33 @@ func TestPageHelpers(t *testing.T) {
 		t.Error("CleanTag misclassification")
 	}
 }
+
+func TestIsMapDoc(t *testing.T) {
+	cases := map[string]bool{
+		"context/wiki/topic.map.md":  true,
+		"context/notes/plan.map.md":  true,
+		"context/wiki/topic.md":      false,
+		"context/wiki/map.md":        false,
+		"context/wiki/topic.map.txt": false,
+	}
+	for path, want := range cases {
+		if got := IsMapDoc(path); got != want {
+			t.Errorf("IsMapDoc(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestDocID(t *testing.T) {
+	cases := map[string]string{
+		"context/wiki/topic.md":       "topic",
+		"context/wiki/topic.map.md":   "topic.map",
+		"context/wiki/sub/page.md":    "sub/page",
+		"context/notes/plan.map.md":   "context/notes/plan.map",
+		"context/analysis/analy-x.md": "context/analysis/analy-x",
+	}
+	for path, want := range cases {
+		if got := DocID(path); got != want {
+			t.Errorf("DocID(%q) = %q, want %q", path, got, want)
+		}
+	}
+}

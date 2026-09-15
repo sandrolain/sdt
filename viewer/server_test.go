@@ -55,6 +55,16 @@ created: 2026-09-12
 blue body
 `)
 	writeFixture(t, root, "context/board.canvas", `{"nodes":[{"id":"a"}],"edges":[]}`)
+	writeFixture(t, root, "context/wiki/topic.map.md", `---
+kind: wiki
+title: Topic map
+created: 2026-09-13
+---
+
+# Topic
+
+- item
+`)
 	writeFixture(t, root, "context/tmp/scratch.md", `---
 kind: wiki
 title: Scratch
@@ -360,6 +370,15 @@ func TestTreeOutput(t *testing.T) {
 	} else if !e.Canvas || e.Kind != "canvas" || e.Title != "board" {
 		t.Errorf("canvas entry wrong: %+v", e)
 	}
+	// map document flagged with a canonical mapId; plain docs are not
+	if e, ok := byPath["context/wiki/topic.map.md"]; !ok {
+		t.Errorf("missing context/wiki/topic.map.md in %v", byPath)
+	} else if !e.IsMap || e.MapID != "topic.map" {
+		t.Errorf("map entry wrong: %+v", e)
+	}
+	if e, ok := byPath["context/wiki/backend/auth.md"]; ok && (e.IsMap || e.MapID != "") {
+		t.Errorf("plain doc flagged as map: %+v", e)
+	}
 	// tmp/, scripts/ and refs/ excluded, plus anything outside the corpus.
 	for _, p := range []string{"context/tmp/scratch.md", "context/scripts/behind.md", "context/refs/clone.md", "docs/sdt_tokens.md"} {
 		if _, ok := byPath[p]; ok {
@@ -369,8 +388,8 @@ func TestTreeOutput(t *testing.T) {
 	if _, ok := byPath["../outside.md"]; ok {
 		t.Errorf("outside-corpus path present: ../outside.md")
 	}
-	if len(out.Entries) != 4 {
-		t.Errorf("expected 4 entries, got %d: %v", len(out.Entries), out.Entries)
+	if len(out.Entries) != 5 {
+		t.Errorf("expected 5 entries, got %d: %v", len(out.Entries), out.Entries)
 	}
 }
 

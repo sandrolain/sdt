@@ -57,6 +57,8 @@ type treeEntry struct {
 	Summary string `json:"summary,omitempty"`
 	Created string `json:"created,omitempty"`
 	Canvas  bool   `json:"canvas,omitempty"`
+	IsMap   bool   `json:"isMap,omitempty"`
+	MapID   string `json:"mapId,omitempty"`
 }
 
 // docResponse is the .md payload of /api/doc.
@@ -194,13 +196,18 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 		return treeEntry{}, err
 	}
 	fm, _ := contextwiki.SplitFrontmatter(string(data))
-	return treeEntry{
+	e := treeEntry{
 		Path:    rel,
 		Kind:    contextwiki.FrontmatterField(fm, "kind"),
 		Title:   contextwiki.FrontmatterField(fm, "title"),
 		Summary: contextwiki.FrontmatterField(fm, "summary"),
 		Created: contextwiki.FrontmatterField(fm, "created"),
-	}, nil
+	}
+	if contextwiki.IsMapDoc(rel) {
+		e.IsMap = true
+		e.MapID = contextwiki.DocID(rel)
+	}
+	return e, nil
 }
 
 // handleDoc serves a validated corpus file: frontmatter+markdown for .md, raw
