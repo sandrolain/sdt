@@ -1,3 +1,5 @@
+import { fetchJSON } from "./fetchJson";
+
 export interface TreeEntry {
   path: string;
   /** omitted for .md entries without frontmatter kind */
@@ -62,12 +64,7 @@ export interface SearchQuery {
 }
 
 async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as ErrorResponse | null;
-    throw new Error(body?.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as T;
+  return fetchJSON<T>(url);
 }
 
 export function fetchTree(): Promise<TreeResponse> {

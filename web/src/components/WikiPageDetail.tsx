@@ -3,9 +3,10 @@ import { isMapPath } from "../lib/documentModes";
 import { useDoc } from "../lib/useDoc";
 import { DocumentView } from "./DocumentView";
 
-/** Wiki page detail at #/wiki/:id, rendering context/wiki/<id>.md. */
+/** Wiki page detail at #/wiki/*, rendering context/wiki/<id>.md. */
 export function WikiPageDetail() {
-  const { id = "" } = useParams();
+  const params = useParams();
+  const id = params["*"] ?? "";
   const path = `context/wiki/${id}.md`;
   const { doc, error, loading } = useDoc(path);
 

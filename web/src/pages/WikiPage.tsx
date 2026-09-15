@@ -29,10 +29,6 @@ export function WikiPage() {
   );
 }
 
-export function WikiGraphPlaceholder() {
-  return <p className="placeholder">Wiki graph — Phase 8 (react-force-graph).</p>;
-}
-
 export function WikiBoardPlaceholder() {
   return <p className="placeholder">Wiki board — Phase 10 (JSON Canvas).</p>;
 }

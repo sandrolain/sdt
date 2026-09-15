@@ -594,6 +594,119 @@
     text-align: center;
     padding: 2rem;
   }
+
+  .graph-view {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 0.75rem;
+    height: calc(100vh - 7rem);
+  }
+  .graph-view__canvas {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-base);
+  }
+  .graph-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    overflow: auto;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-mantle);
+  }
+  .graph-tools__section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .graph-tools__section--actions {
+    flex-direction: row;
+  }
+  .graph-tools__title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--fg-faint);
+  }
+  .graph-tools__row {
+    display: flex;
+    gap: 0.35rem;
+  }
+  .graph-tools__chip {
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    background: var(--bg-rise);
+    color: var(--fg-dim);
+    font-size: 0.8125rem;
+  }
+  .graph-tools__chip.is-active {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .graph-tools__field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .graph-tools__label {
+    font-size: 0.75rem;
+    color: var(--fg-dim);
+  }
+  .graph-tools__control {
+    font: inherit;
+    font-size: 0.8125rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-rise);
+    color: var(--fg);
+  }
+  .graph-tools__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .graph-tools__check,
+  .graph-tools__legend {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+  }
+  .graph-tools__swatch {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 3px;
+    flex: none;
+  }
+  .graph-tools__button {
+    padding: 0.25rem 0.7rem;
+    border-radius: 7px;
+    background: var(--bg-rise);
+    color: var(--fg);
+    font-size: 0.8125rem;
+  }
+  .graph-tools__button:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+  .graph-tools__button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .graph-tools__selected-title {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
 }
 
 @layer utilities {
