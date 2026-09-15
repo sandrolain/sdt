@@ -1,19 +1,19 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { Tree } from "../components/Tree";
-import { DocDetail } from "../components/DocDetail";
 import { DocMetaPanel } from "../components/DocMetaPanel";
 import { DockLayout, type DockPanelDef } from "../components/DockLayout";
+import { OpenDocsRail } from "../components/OpenDocsRail";
 import { useDoc } from "../lib/useDoc";
 
 export function DocumentsPage() {
   return <DocWorkspace />;
 }
 
-/** Dockview workspace: tree | document | metadata, one doc fetch shared. */
+/** Dockview workspace: tree | open documents rail | metadata. */
 function DocWorkspace() {
   const path = useParams()["*"];
-  const { doc, error, loading } = useDoc(path ?? "");
+  const { doc } = useDoc(path ?? "");
 
   const panels = useMemo<DockPanelDef[]>(
     () => [
@@ -32,11 +32,7 @@ function DocWorkspace() {
         minWidth: 320,
         render: () => (
           <main className="content">
-            {path ? (
-              <DocDetail key={path} path={path} doc={doc} error={error} loading={loading} />
-            ) : (
-              <p className="content__empty">Select a document from the tree.</p>
-            )}
+            <OpenDocsRail path={path} />
           </main>
         ),
       },
@@ -49,7 +45,7 @@ function DocWorkspace() {
         render: () => (path ? <DocMetaPanel doc={doc} /> : null),
       },
     ],
-    [path, doc, error, loading],
+    [path, doc],
   );
 
   return (
@@ -58,3 +54,4 @@ function DocWorkspace() {
     </div>
   );
 }
+

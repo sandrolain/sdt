@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
 import { kindColor, kindIcon, kindLabel } from "../lib/kinds";
 import { Icon } from "../lib/icon";
+import { SkeletonLines } from "./Skeleton";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { formatFieldDate } from "../lib/frontmatter";
 import { groupByKind, sortEntries, TREE_SORTS, type TreeDir, type TreeSortKey } from "../lib/treeSort";
@@ -63,7 +64,7 @@ export function Tree() {
       {error ? (
         <p className="content__empty">Tree error: {error}</p>
       ) : !entries ? (
-        <p className="content__empty">Loading tree…</p>
+        <SkeletonLines count={6} label="Loading tree" />
       ) : (
         <div className="tree-groups">
           {groups.map((group) => (

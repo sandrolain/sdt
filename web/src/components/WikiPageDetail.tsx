@@ -8,6 +8,7 @@ import { DocMetaPanel } from "./DocMetaPanel";
 import { DockLayout, type DockPanelDef } from "./DockLayout";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { Icon } from "../lib/icon";
+import { SkeletonLines } from "./Skeleton";
 import type { DocResponse } from "../lib/api";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
@@ -22,7 +23,7 @@ export function WikiPageDetail() {
   const { doc, error, loading } = useDoc(path);
 
   if (error) return <p className="content__empty">wiki error: {error}</p>;
-  if (loading || !doc) return <p className="content__empty">Loading {id}…</p>;
+  if (loading || !doc) return <SkeletonLines count={6} label={`Loading ${id}`} />;
   if (!("markdown" in doc)) return <p className="content__empty">not a markdown wiki page</p>;
 
   const title = displayTitle({

@@ -2,6 +2,7 @@ import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
 import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { SkeletonLines } from "./Skeleton";
 
 interface DocDetailProps {
   /** corpus-relative path from the URL, e.g. context/wiki/foo.md */
@@ -13,7 +14,7 @@ interface DocDetailProps {
 
 export function DocDetail({ path, doc, error, loading }: DocDetailProps) {
   if (error) return <p className="content__empty">doc error: {error}</p>;
-  if (loading || !doc) return <p className="content__empty">Loading {path}…</p>;
+  if (loading || !doc) return <SkeletonLines count={6} label={`Loading ${path}`} />;
 
   if (isCanvas(doc)) {
     return (

@@ -283,6 +283,114 @@
     height: 100%;
   }
 
+  .skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 0.5rem;
+  }
+  .skeleton__line {
+    height: 0.75rem;
+    border-radius: 5px;
+    background: linear-gradient(90deg, var(--bg-rise) 25%, var(--bg-hover) 50%, var(--bg-rise) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  }
+  .skeleton__line:nth-child(3n) {
+    width: 80%;
+  }
+  .skeleton__line:nth-child(4n) {
+    width: 60%;
+  }
+  @keyframes skeleton-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  .hover-preview {
+    position: fixed;
+    z-index: 60;
+    max-height: 40vh;
+    overflow: hidden;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-mantle);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+    font-size: 0.8125rem;
+    pointer-events: none;
+  }
+  .hover-preview h1,
+  .hover-preview h2,
+  .hover-preview h3 {
+    font-size: 0.9rem;
+    margin: 0 0 0.35rem;
+  }
+  .hover-preview pre {
+    display: none;
+  }
+
+  .open-docs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 0;
+  }
+  .open-docs__tabs {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+  }
+  .open-docs__tab {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-rise);
+    color: var(--fg-dim);
+    font-size: 0.75rem;
+    flex: none;
+  }
+  .open-docs__tab.is-active {
+    background: var(--bg-hover);
+    color: var(--fg);
+    border-color: var(--accent);
+  }
+  .open-docs__tab-title {
+    padding: 0.2rem 0.45rem;
+    color: inherit;
+    font-size: inherit;
+    white-space: nowrap;
+  }
+  .open-docs__close {
+    display: inline-flex;
+    padding-right: 0.3rem;
+    color: var(--fg-faint);
+  }
+  .open-docs__close:hover {
+    color: var(--ctp-red);
+  }
+  .open-docs__close .ms-icon {
+    font-size: 1rem;
+  }
+  .open-docs__rail {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+  .open-docs__slide {
+    min-width: 100%;
+    scroll-snap-align: start;
+    content-visibility: auto;
+    contain-intrinsic-size: 800px 2000px;
+  }
+
   .dock-layout {
     display: flex;
     flex-direction: column;

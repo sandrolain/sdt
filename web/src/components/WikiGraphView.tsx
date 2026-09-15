@@ -31,6 +31,7 @@ import {
 } from "../lib/graphSelection";
 import { graphToolsReducer, initialGraphTools, visibleSet } from "../lib/graphTools";
 import { GraphToolsPanel } from "./GraphToolsPanel";
+import { SkeletonLines } from "./Skeleton";
 
 const ForceGraph3D = lazy(() => import("react-force-graph-3d"));
 
@@ -198,7 +199,7 @@ export function WikiGraphView() {
   );
 
   if (error) return <p className="content__empty">Graph error: {error}</p>;
-  if (!data || !adapted) return <p className="content__empty">Loading graph…</p>;
+  if (!data || !adapted) return <SkeletonLines count={5} label="Loading graph" />;
 
   const commonProps: ForceGraphViewProps = {
     graphData,

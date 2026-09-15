@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { fetchWikiRel, type RelResponse } from "../lib/api";
 import { groupRelations, relationCounts } from "../lib/relations";
 import { Icon } from "../lib/icon";
+import { SkeletonLines } from "./Skeleton";
 import { displayTitle } from "../lib/titles";
 
 interface RelatedPanelProps {
@@ -41,7 +42,7 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
       {error ? (
         <p className="content__empty">relations error: {error}</p>
       ) : !resp ? (
-        <p className="content__empty">Loading relations…</p>
+        <SkeletonLines count={3} label="Loading relations" />
       ) : counts && counts.inbound + counts.outbound === 0 ? (
         <p className="content__empty">No relations.</p>
       ) : (

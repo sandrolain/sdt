@@ -4,6 +4,7 @@ import { fetchTree, fetchWikiBoard, type TreeEntry } from "../lib/api";
 import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
 import { displayTitle } from "../lib/titles";
 import { BoardView } from "./BoardView";
+import { SkeletonLines } from "./Skeleton";
 
 /** #/wiki/board — read-only board from the graph default or a .canvas file. */
 export function WikiBoardView() {
@@ -86,7 +87,7 @@ export function WikiBoardView() {
       {error ? (
         <p className="content__empty">Board error: {error}</p>
       ) : !model ? (
-        <p className="content__empty">Loading board…</p>
+        <SkeletonLines count={5} label="Loading board" />
       ) : (
         <BoardView key={file} model={model} onOpen={open} />
       )}

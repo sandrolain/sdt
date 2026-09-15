@@ -12,6 +12,7 @@ import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Icon } from "../lib/icon";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
+import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
 
@@ -87,7 +88,10 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
         </pre>
       )}
       {mode === "render" && (
-        <div className="doc-rendered" dangerouslySetInnerHTML={{ __html: html }} />
+        <>
+          <div className="doc-rendered" dangerouslySetInnerHTML={{ __html: html }} />
+          <HoverPreview />
+        </>
       )}
       {mode === "map" && (
         <Suspense fallback={<p className="content__empty">Loading map…</p>}>

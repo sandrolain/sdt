@@ -9,6 +9,7 @@ import {
   CommandList,
 } from "cmdk";
 import { fetchSearch } from "../lib/api";
+import { SkeletonLines } from "./Skeleton";
 import {
   isSearchable,
   KIND_OPTIONS,
@@ -192,7 +193,11 @@ function PaletteEmpty({
     );
   }
   if (status === "loading") {
-    return <CommandEmpty className="search-palette__empty">Searching…</CommandEmpty>;
+    return (
+      <CommandEmpty className="search-palette__empty">
+        <SkeletonLines count={3} label="Searching" />
+      </CommandEmpty>
+    );
   }
   if (status === "error") {
     return <CommandEmpty className="search-palette__empty">Search error: {error}</CommandEmpty>;
