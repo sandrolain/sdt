@@ -44,7 +44,14 @@ describe("app shell", () => {
     await screen.findByText("Alpha module");
     expect(screen.getByRole("link", { name: "Documents" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Wiki" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Search" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Search the corpus" })).toBeTruthy();
+  });
+
+  it("opens the search palette from the top bar", async () => {
+    globalThis.fetch = mockFetch as typeof fetch;
+    renderApp();
+    await userEvent.click(screen.getByRole("button", { name: "Search the corpus" }));
+    expect(await screen.findByLabelText("Search query")).toBeTruthy();
   });
 
   it("navigates from the tree to the doc detail", async () => {

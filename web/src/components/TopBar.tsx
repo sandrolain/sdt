@@ -2,7 +2,15 @@ import { NavLink } from "react-router-dom";
 import { THEME_LABEL } from "../lib/theme";
 import { useTheme } from "../lib/useTheme";
 
-export function TopBar() {
+interface TopBarProps {
+  onOpenSearch: () => void;
+}
+
+const IS_MAC =
+  typeof navigator !== "undefined" &&
+  /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
+export function TopBar({ onOpenSearch }: TopBarProps) {
   const { pref, cycle } = useTheme();
   return (
     <header className="top-bar">
@@ -21,14 +29,17 @@ export function TopBar() {
         >
           Wiki
         </NavLink>
-        <NavLink
-          to="/search"
-          className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
-        >
-          Search
-        </NavLink>
       </nav>
       <div className="top-bar__actions">
+        <button
+          type="button"
+          className="search-trigger"
+          onClick={onOpenSearch}
+          aria-label="Search the corpus"
+        >
+          <span>Search</span>
+          <kbd className="search-trigger__kbd">{IS_MAC ? "⌘K" : "Ctrl K"}</kbd>
+        </button>
         <button
           type="button"
           className="theme-toggle"

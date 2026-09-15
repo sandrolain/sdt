@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { TopBar } from "./components/TopBar";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { SearchPalette } from "./components/SearchPalette";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import {
   WikiPage,
@@ -8,13 +10,25 @@ import {
   WikiBoardPlaceholder,
   WikiPagePlaceholder,
 } from "./pages/WikiPage";
-import { SearchPage } from "./pages/SearchPage";
 
 export function App() {
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <ThemeProvider>
       <div className="app-shell">
-        <TopBar />
+        <TopBar onOpenSearch={() => setSearchOpen(true)} />
         <Routes>
           <Route path="/" element={<Navigate to="/docs" replace />} />
           <Route path="/docs" element={<DocumentsPage />} />
@@ -25,9 +39,9 @@ export function App() {
             <Route path="board" element={<WikiBoardPlaceholder />} />
             <Route path=":id" element={<WikiPagePlaceholder />} />
           </Route>
-          <Route path="/search" element={<SearchPage />} />
           <Route path="*" element={<p className="content__empty">not found</p>} />
         </Routes>
+        <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
       </div>
     </ThemeProvider>
   );
