@@ -1,6 +1,7 @@
 import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
 import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
+import { Breadcrumbs } from "./Breadcrumbs";
 
 interface DocDetailProps {
   /** corpus-relative path from the URL, e.g. context/wiki/foo.md */
@@ -18,7 +19,7 @@ export function DocDetail({ path, doc, error, loading }: DocDetailProps) {
     return (
       <article>
         <header className="doc-header">
-          <div className="doc-header__path">{doc.path}</div>
+          <Breadcrumbs path={doc.path} title={heading(doc)} />
           <h1 className="doc-header__title">{heading(doc)}</h1>
         </header>
         <pre className="doc-markdown">{JSON.stringify(doc.canvas, null, 2)}</pre>
@@ -29,7 +30,7 @@ export function DocDetail({ path, doc, error, loading }: DocDetailProps) {
   return (
     <article>
       <header className="doc-header">
-        <div className="doc-header__path">{doc.path}</div>
+        <Breadcrumbs path={doc.path} title={heading(doc)} />
         <h1 className="doc-header__title">{heading(doc)}</h1>
       </header>
       <DocumentView path={doc.path} frontmatter={doc.frontmatter} markdown={doc.markdown} />

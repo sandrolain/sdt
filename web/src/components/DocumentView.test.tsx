@@ -63,6 +63,11 @@ describe("DocumentView", () => {
     expect(screen.getByText(/Hello/)).toBeTruthy();
   });
 
+  it("renders exactly one pressed mode button (exclusive group)", () => {
+    renderView({ path: "context/wiki/alpha.md" });
+    expect(screen.getAllByRole("button", { pressed: true })).toHaveLength(1);
+  });
+
   it("renders a mindmap for plain prose in Map mode", async () => {
     renderView({ path: "context/wiki/prose.md", isMap: true, markdown: "just prose" });
     expect(await screen.findByRole("img", { name: "Mindmap: prose" })).toBeTruthy();

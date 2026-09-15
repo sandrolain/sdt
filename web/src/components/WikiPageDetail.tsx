@@ -6,6 +6,7 @@ import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
 import { DocMetaPanel } from "./DocMetaPanel";
 import { DockLayout, type DockPanelDef } from "./DockLayout";
+import { Breadcrumbs } from "./Breadcrumbs";
 import { Icon } from "../lib/icon";
 import type { DocResponse } from "../lib/api";
 
@@ -46,7 +47,7 @@ function WikiDetail({ doc, id, title }: { doc: DocResponse; id: string; title: s
         render: () => (
           <article className="wiki-article">
             <header className="doc-header">
-              <div className="doc-header__path">{doc.path}</div>
+              <Breadcrumbs path={doc.path} title={title} />
               <h1 className="doc-header__title">{title}</h1>
               <div className="doc-view-toggle" role="group" aria-label="Page view">
                 <button

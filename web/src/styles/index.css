@@ -505,14 +505,40 @@
   .doc-header {
     margin-bottom: 1.25rem;
   }
-  .doc-header__path {
-    font-family: ui-monospace, "SF Mono", monospace;
-    font-size: 0.8125rem;
+  .breadcrumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-mantle);
+    font-size: 0.75rem;
+    color: var(--fg-dim);
+  }
+  .breadcrumbs__root {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--accent);
+  }
+  .breadcrumbs__seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .breadcrumbs__sep {
+    font-size: 1rem;
     color: var(--fg-faint);
+  }
+  .breadcrumbs__seg--current {
+    color: var(--fg);
+    font-weight: 600;
   }
   .doc-header__title {
     font-size: 1.5rem;
-    margin-top: 0.15rem;
+    margin-top: 0.35rem;
   }
 
   .panel--meta {
