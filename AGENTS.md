@@ -195,27 +195,42 @@ Key dependencies:
 ### Build & Run
 
 ```bash
-go build -o bin/sdt ./cli
+task build                        # CLI -> bin/sdt
+task build-viewer                 # web SPA build + embed + sdtviewer -> bin/sdtviewer
+task web-install                  # bun install in web/
 ```
 
+Equal to `go build -o bin/sdt ./cli` for the CLI and
+`bun run build` (in `web/`) → copy `web/dist` → `viewer/dist` → `go build -o
+bin/sdtviewer ./viewer` for the standalone viewer (embedded SPA via
+`//go:embed all:dist`; `viewer/dist` is gitignored except `.gitkeep`).
+
 Module `github.com/sandrolain/sdt`. Entry `cli/main.go` (sets build-time vars);
-`main.go` at repo root is a legacy duplicate.
+`main.go` at repo root is a legacy duplicate. `web/` is Bun + Vite + React TS;
+DOM tests use **jsdom** (happy-dom breaks DOMPurify).
 
 ### Test
 
 ```bash
-go test ./...
-# coverage (minimum 80% required):
-go test ./... -coverprofile=coverage.out
+# Go: context/refs holds an immutable clone with C files / broken Go packages,
+# so a bare `go test ./...` fails; exclude it:
+go test $(go list -e ./... | grep -v /context/) -coverprofile=coverage.out
 go tool cover -func=coverage.out
+
+cd web && bun run test          # vitest (jsdom)
 ```
+
+`task test` wraps the scoped Go command. Known gap: `cli/utils/converter` and
+`cli/utils/crawler` are below the 80% per-package target (pre-existing).
 
 ### Lint & Format
 
 ```bash
-golangci-lint run ./...
+golangci-lint run ./cli/... ./viewer/... ./internal/... .
+gofmt -w ./cli ./internal ./viewer ./main.go
 govulncheck ./...
-gofmt -w ./cli ./main.go
+
+cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
 ```
 
 ### Conventions

@@ -3,6 +3,7 @@ version: "3"
 vars:
   BINARY_NAME: sdt
   BINARY_PATH: ./bin/{{.BINARY_NAME}}
+  VIEWER_BINARY: ./bin/sdtviewer
   DOCKER_IMAGE: sandrolain/sdt
   VERSION:
     sh: git tag --sort=-version:refname | head -n 1 || echo "v0.0.0"
@@ -49,6 +50,36 @@ tasks:
       - task: build-web
       - task: wasm-build
 
+  # Web SPA + viewer tasks
+  web-install:
+    desc: Install web/ dependencies with Bun
+    dir: web
+    cmds:
+      - bun install
+
+  build-web:
+    desc: Build the web/ SPA (Bun + Vite) into web/dist
+    dir: web
+    cmds:
+      - bun run lint
+      - bun run test
+      - bun run build
+
+  viewer-embed:
+    desc: Copy web/dist into viewer/dist for go:embed
+    deps: [build-web]
+    cmds:
+      - rm -rf viewer/dist
+      - mkdir -p viewer/dist
+      - cp -R web/dist/. viewer/dist/
+      - touch viewer/dist/.gitkeep
+
+  build-viewer:
+    desc: Build the sdtviewer binary with the embedded SPA
+    deps: [viewer-embed]
+    cmds:
+      - go build -ldflags="-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.date={{.BUILD_DATE}}" -o {{.VIEWER_BINARY}} "./viewer"
+
   install:
     desc: Install the binary to GOPATH/bin
     deps: [build]
@@ -56,22 +87,24 @@ tasks:
       - cp {{.BINARY_PATH}} $(go env GOPATH)/bin/{{.BINARY_NAME}}
 
   # Test tasks
+  # Go package selection excludes the immutable context/refs clone (C files /
+  # broken packages), which a bare `go test ./...` cannot skip.
   test:
-    desc: Run unit tests
+    desc: Run unit tests (project packages; context/refs excluded)
     cmds:
-      - go test -coverprofile=coverage.out ./cli/...
+      - go test -coverprofile=coverage.out $(go list -e ./... | grep -v /context/)
       - go tool cover -html=coverage.out -o coverage.html
       - echo "Coverage report generated at coverage.html"
 
   test-race:
     desc: Run tests with race detector
     cmds:
-      - go test -race -v ./cli/...
+      - go test -race -v $(go list -e ./... | grep -v /context/)
 
   test-bench:
     desc: Run benchmarks
     cmds:
-      - go test -bench=. -benchmem ./cli/...
+      - go test -bench=. -benchmem $(go list -e ./... | grep -v /context/)
 
   test-all:
     desc: Run all tests (unit, race, benchmarks)
@@ -82,19 +115,19 @@ tasks:
 
   # Code quality tasks
   fmt:
-    desc: Format Go code with simplification
+    desc: Format Go code with simplification (project dirs only)
     cmds:
-      - gofmt -s -l -w .
+      - gofmt -s -l -w cli internal viewer main.go
 
   lint:
-    desc: Run golangci-lint
+    desc: Run golangci-lint (project packages)
     cmds:
-      - golangci-lint run ./cli/...
+      - golangci-lint run ./cli/... ./viewer/... ./internal/... .
 
   vet:
-    desc: Run go vet for static analysis
+    desc: Run go vet for static analysis (project packages)
     cmds:
-      - go vet ./cli/...
+      - go vet $(go list -e ./... | grep -v /context/)
 
   govulncheck:
     desc: Run Go vulnerability check using govulncheck
@@ -103,7 +136,7 @@ tasks:
       - govulncheck .
 
   check:
-    desc: Run all checks (fmt, lint, vet, test, security)
+    desc: Run all checks (fmt, lint, vet, test, security, web, context)
     cmds:
       - task: fmt
       - task: lint
@@ -111,6 +144,7 @@ tasks:
       - task: tidy
       - task: test
       - task: govulncheck
+      - task: build-web
       - task: context
 
   context:
@@ -249,3 +283,4 @@ tasks:
       - task: clean
       - rm -rf web/node_modules/
       - rm -rf web/dist/
+      - rm -rf viewer/dist/

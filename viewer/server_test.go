@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -508,26 +507,26 @@ func TestDocDirectory(t *testing.T) {
 }
 
 func TestIndexPlaceholder(t *testing.T) {
-	root := makeCorpus(t)
-	h, _ := newHandler(root)
+	// No embedded SPA: the placeholder handler serves / only.
+	s := &server{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
+	s.handleIndex(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	body, _ := io.ReadAll(rec.Body)
-	if !strings.Contains(string(body), "sdtviewer") {
+	body := rec.Body.String()
+	if !strings.Contains(body, "sdtviewer") {
 		t.Errorf("index missing title: %s", body)
 	}
 }
 
 func TestIndexNotFound(t *testing.T) {
-	root := makeCorpus(t)
-	h, _ := newHandler(root)
+	// Without an embedded SPA, non-root paths 404.
+	s := &server{}
 	req := httptest.NewRequest(http.MethodGet, "/other", nil)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
+	s.handleIndex(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d", rec.Code)
 	}

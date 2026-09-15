@@ -19,6 +19,10 @@
 
 # Build
 /sdt
+/bin/sdtviewer
+/web/dist
+/viewer/dist/*
+!/viewer/dist/.gitkeep
 
 # Result
 trivi-results.json

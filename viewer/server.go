@@ -47,6 +47,7 @@ type server struct {
 	corpus string
 	wiki   *contextwiki.Builder
 	srch   *search.Index
+	spa    http.Handler
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -89,6 +90,9 @@ func newHandler(root string) (http.Handler, error) {
 		return nil, fmt.Errorf("%s is not a directory", root)
 	}
 	s := &server{root: root, corpus: filepath.Join(root, corpusDir)}
+	if h, ok := spaHandler(); ok {
+		s.spa = h
+	}
 	if err := s.loadWiki(); err != nil {
 		log.Printf("sdtviewer: wiki graph unavailable: %v", err)
 	}
@@ -106,8 +110,13 @@ func newHandler(root string) (http.Handler, error) {
 	return mux, nil
 }
 
-// handleIndex serves the SPA placeholder at / (and only at / in this phase).
+// handleIndex serves the embedded SPA (with hash-route fallback) when a build
+// is embedded, else the placeholder page at / only.
 func (s *server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	if s.spa != nil {
+		s.spa.ServeHTTP(w, r)
+		return
+	}
 	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
 		http.NotFound(w, r)
 		return
