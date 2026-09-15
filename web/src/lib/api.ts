@@ -33,6 +33,64 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface WikiGraphNode {
+  id: string;
+  title: string;
+  type?: string;
+  status?: string;
+  tags?: string[];
+  summary?: string;
+  path: string;
+}
+
+export interface WikiGraphEdge {
+  source: string;
+  target: string;
+  verb: string;
+  label?: string;
+  kind: string;
+}
+
+export interface WikiGraphResponse {
+  nodes: WikiGraphNode[];
+  edges: WikiGraphEdge[];
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  verb: string;
+  label?: string;
+  kind: string;
+}
+
+export interface RelEntry {
+  source?: string;
+  target?: string;
+  label?: string;
+  kind: string;
+  title?: string;
+  type?: string;
+  status?: string;
+  summary?: string;
+  path: string;
+}
+
+export type RelGroup = Record<string, RelEntry[]>;
+
+export interface RelResponse {
+  id: string;
+  title: string;
+  inbound?: RelGroup;
+  outbound?: RelGroup;
+}
+
+/** Canvas payload natively returned by /api/doc for `.canvas` files. */
+export interface CanvasFile {
+  nodes?: unknown[];
+  edges?: unknown[];
+}
+
 export interface SearchResult {
   path: string;
   /** omitted for .md entries without frontmatter kind */
@@ -88,6 +146,16 @@ export function buildSearchUrl(query: SearchQuery): string {
 
 export function fetchSearch(query: SearchQuery): Promise<SearchResponse> {
   return getJSON(buildSearchUrl(query));
+}
+
+export function fetchWikiRel(id: string): Promise<RelResponse> {
+  return getJSON(`/api/wiki/rel?id=${encodeURIComponent(id)}`);
+}
+
+/** Fetch the API-generated board, or a specific `.canvas` file when given. */
+export function fetchWikiBoard(file?: string): Promise<unknown> {
+  const suffix = file ? `?file=${encodeURIComponent(file)}` : "";
+  return getJSON<unknown>(`/api/wiki/board${suffix}`);
 }
 
 export function isCanvas(res: DocResponse | CanvasResponse): res is CanvasResponse {

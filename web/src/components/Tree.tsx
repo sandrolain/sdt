@@ -60,7 +60,7 @@ export function Tree() {
           {filtered.map((e) => (
             <li key={e.path}>
               <NavLink
-                to={`/docs/${e.path}`}
+                to={e.canvas ? `/wiki/board?file=${encodeURIComponent(e.path)}` : `/docs/${e.path}`}
                 className="tree-entry"
                 title={e.summary || e.path}
                 end

@@ -2,7 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 
 export function WikiPage() {
   return (
-    <div className="workspace">
+    <div className="wiki-shell">
       <nav className="wiki-modes" aria-label="Wiki mode">
         <NavLink
           to="/wiki/graph"
@@ -20,15 +20,6 @@ export function WikiPage() {
       <main className="content">
         <Outlet />
       </main>
-      <aside className="panel panel--related" aria-hidden="true">
-        <div className="panel-header">
-          <span className="panel-header__title">Inspector</span>
-        </div>
-      </aside>
     </div>
   );
-}
-
-export function WikiBoardPlaceholder() {
-  return <p className="placeholder">Wiki board — Phase 10 (JSON Canvas).</p>;
 }

@@ -1,0 +1,83 @@
+import { useEffect, useState } from "react";
+import { NavLink } from "react-router-dom";
+import { fetchWikiRel, type RelResponse } from "../lib/api";
+import { groupRelations, relationCounts } from "../lib/relations";
+
+interface RelatedPanelProps {
+  /** wiki page id */
+  id: string;
+}
+
+/** Inbound/outbound relations grouped by verb, with direction arrows. */
+export function RelatedPanel({ id }: RelatedPanelProps) {
+  const [resp, setResp] = useState<RelResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchWikiRel(id)
+      .then((r) => {
+        if (alive) setResp(r);
+      })
+      .catch((err: unknown) => {
+        if (alive) setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  const counts = resp ? relationCounts(resp) : null;
+
+  return (
+    <aside className="panel panel--related" aria-label="Related pages">
+      <div className="panel-header">
+        <span className="panel-header__title">Related</span>
+        {counts && (
+          <span className="related-counts">
+            {counts.outbound} out · {counts.inbound} in
+          </span>
+        )}
+      </div>
+      {error ? (
+        <p className="content__empty">relations error: {error}</p>
+      ) : !resp ? (
+        <p className="content__empty">Loading relations…</p>
+      ) : counts && counts.inbound + counts.outbound === 0 ? (
+        <p className="content__empty">No relations.</p>
+      ) : (
+        <div className="related-groups">
+          {groupRelations(resp).map((group) => (
+            <section key={group.verb} className="related-group">
+              <h3 className="related-group__verb">{group.verb}</h3>
+              <ul className="related-list" role="list">
+                {group.outbound.map((item) => (
+                  <li key={`out-${item.id}`}>
+                    <NavLink className="related-item" to={`/wiki/${item.id}`}>
+                      <span className="related-item__arrow" aria-label="outbound">
+                        →
+                      </span>
+                      <span className="related-item__title">{item.title}</span>
+                      <span className="related-item__kind">{item.kind}</span>
+                    </NavLink>
+                  </li>
+                ))}
+                {group.inbound.map((item) => (
+                  <li key={`in-${item.id}`}>
+                    <NavLink className="related-item" to={`/wiki/${item.id}`}>
+                      <span className="related-item__arrow" aria-label="inbound">
+                        ←
+                      </span>
+                      <span className="related-item__title">{item.title}</span>
+                      <span className="related-item__kind">{item.kind}</span>
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
+    </aside>
+  );
+}

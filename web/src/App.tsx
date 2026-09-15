@@ -4,8 +4,9 @@ import { TopBar } from "./components/TopBar";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { SearchPalette } from "./components/SearchPalette";
 import { DocumentsPage } from "./pages/DocumentsPage";
-import { WikiPage, WikiBoardPlaceholder } from "./pages/WikiPage";
+import { WikiPage } from "./pages/WikiPage";
 import { WikiGraphView } from "./components/WikiGraphView";
+import { WikiBoardView } from "./components/WikiBoardView";
 import { WikiPageDetail } from "./components/WikiPageDetail";
 
 export function App() {
@@ -33,7 +34,7 @@ export function App() {
           <Route path="/wiki" element={<WikiPage />}>
             <Route index element={<Navigate to="/wiki/graph" replace />} />
             <Route path="graph" element={<WikiGraphView />} />
-            <Route path="board" element={<WikiBoardPlaceholder />} />
+            <Route path="board" element={<WikiBoardView />} />
             <Route path="*" element={<WikiPageDetail />} />
           </Route>
           <Route path="*" element={<p className="content__empty">not found</p>} />
