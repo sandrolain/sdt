@@ -91,6 +91,14 @@ export function resolveDocPath(href: string, basePath?: string): string {
 }
 
 const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+const MD_LINK_RE = /\[([^\]]*)\]\(([^)\s]+\.md)(#[^)]*)?\)/g;
+
+/** Rewrite relative/absolute `.md` markdown links to the docs hash route. */
+export function rewriteDocLinks(md: string, basePath?: string): string {
+  return md.replace(MD_LINK_RE, (_m, label: string, href: string, hash?: string) => {
+    return `[${label}](${docHref(resolveDocPath(href, basePath))}${hash ?? ""})`;
+  });
+}
 
 /**
  * Rewrite `[[id]]`, `[[id|label]]` and `[[verb::title]]` occurrences into
