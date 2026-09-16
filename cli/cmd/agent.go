@@ -969,12 +969,12 @@ none, record them in ` + "`context/instructions/project.md`" + `.
 
 ### Communication (default)
 
-Code work: terse caveman ultra. Drop articles/filler/pleasantries/hedging.
-Fragments OK, short synonyms, technical terms exact, code unchanged.
+Code work: concise, direct. Drop filler/pleasantries/hedging, keep full sentences.
+No unnecessary preamble. Technical terms exact, code unchanged.
 Pattern: ` + "`[thing] [action] [reason]. [next step]`" + `.
 Not: "Sure! I'd be happy to help you with that."
-Yes: "Bug in auth middleware. Fix:"
-Code only — user-requested docs written normal (concise).
+Yes: "Auth middleware has a bug. Fixing:"
+Code only — user-requested docs written normal (concise)
 
 Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase after
 type. Body only when "why" unclear. No period on subject.
