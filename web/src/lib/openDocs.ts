@@ -23,7 +23,8 @@ export const initialOpenDocs: OpenDocsState = { docs: [], active: null, seen: []
 export function openDocsReducer(state: OpenDocsState, action: OpenDocsAction): OpenDocsState {
   switch (action.type) {
     case "route":
-      return state.docs.includes(action.path) ? activate(state, action.path) : replace(action.path);
+      // every document navigation appends (or activates an open tab)
+      return openDoc(state, action.path);
     case "open":
       return openDoc(state, action.path);
     case "activate":
@@ -35,10 +36,6 @@ export function openDocsReducer(state: OpenDocsState, action: OpenDocsAction): O
 
 function withSeen(state: OpenDocsState, path: string): string[] {
   return state.seen.includes(path) ? state.seen : [...state.seen, path];
-}
-
-function replace(path: string): OpenDocsState {
-  return { docs: [path], active: path, seen: [path] };
 }
 
 function activate(state: OpenDocsState, path: string): OpenDocsState {

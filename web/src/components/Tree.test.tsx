@@ -10,6 +10,9 @@ const TREE = {
     { path: "context/wiki/zeta.md", kind: "wiki", title: "Zeta", created: "2026-09-02" },
     { path: "context/wiki/alpha.md", kind: "wiki", title: "Alpha", created: "2026-09-01" },
     { path: "context/notes/20260915-195559-note.md", kind: "notes", title: "Note" },
+    { path: "context/plan/p.md", kind: "plan", title: "Plan", status: "active" },
+    { path: "context/tasks/t.md", kind: "tasks", title: "Task", status: "in-progress" },
+    { path: "context/analysis/a.md", kind: "analysis", title: "Analysis" },
   ],
 };
 
@@ -36,9 +39,25 @@ describe("Tree", () => {
     // folder headers (also present as entry kind badges, hence *AllBy*)
     expect(screen.getAllByText("wiki").length).toBeGreaterThan(0);
     expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
-    // folder counts
-    expect(screen.getByText("2")).toBeTruthy();
-    expect(screen.getByText("1")).toBeTruthy();
+    // folder counts live in the folder header
+    const headers = Array.from(document.querySelectorAll(".tree-folder__header"));
+    const countFor = (kind: string) =>
+      headers
+        .find((h) => h.querySelector(".tree-folder__label")?.textContent === kind)
+        ?.querySelector(".tree-folder__count")?.textContent;
+    expect(countFor("wiki")).toBe("2");
+    expect(countFor("notes")).toBe("1");
+  });
+
+  it("shows status dots for plans, tasks and unplanned analyses", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Plan");
+    expect(screen.getByLabelText("Plan not executed")).toBeTruthy();
+    expect(screen.getByLabelText("Task in progress")).toBeTruthy();
+    expect(screen.getByLabelText("Analysis without a plan")).toBeTruthy();
   });
 
   it("sorts by title descending from the sort control", async () => {

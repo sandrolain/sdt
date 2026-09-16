@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
 import {
@@ -12,6 +12,8 @@ import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Icon } from "../lib/icon";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
+import { useOpenDocsOptional } from "../lib/openDocsContext";
+import { lineNumbers } from "../lib/codeLines";
 import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
@@ -65,6 +67,22 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     [frontmatter, path],
   );
 
+  const docsApi = useOpenDocsOptional();
+
+  const onRenderedClick = (event: MouseEvent<HTMLDivElement>) => {
+    const anchor = (event.target as HTMLElement | null)?.closest?.("a");
+    const href = anchor?.getAttribute("href") ?? "";
+    if (!anchor || !docsApi) return;
+    const target = href.startsWith("#/docs/")
+      ? href.slice("#/docs/".length)
+      : href.startsWith("#/wiki/")
+        ? `context/wiki/${href.slice("#/wiki/".length)}.md`
+        : null;
+    if (!target) return;
+    event.preventDefault();
+    docsApi.open(decodeURIComponent(target));
+  };
+
   return (
     <article className="doc-view">
       <div className="doc-modes" role="group" aria-label="Document view mode">
@@ -83,13 +101,22 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
         {mapDoc && <span className="doc-badge doc-badge--map">map</span>}
       </div>
       {mode === "code" && (
-        <pre className="doc-code">
-          <code className="hljs" dangerouslySetInnerHTML={{ __html: code }} />
-        </pre>
+        <div className="doc-code-wrap">
+          <pre className="doc-code__gutter" aria-hidden="true">
+            {lineNumbers(markdown)}
+          </pre>
+          <pre className="doc-code">
+            <code className="hljs" dangerouslySetInnerHTML={{ __html: code }} />
+          </pre>
+        </div>
       )}
       {mode === "render" && (
         <>
-          <div className="doc-rendered" dangerouslySetInnerHTML={{ __html: html }} />
+          <div
+            className="doc-rendered"
+            onClick={onRenderedClick}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
           <HoverPreview />
         </>
       )}

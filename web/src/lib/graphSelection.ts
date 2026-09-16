@@ -88,7 +88,7 @@ export function nodeVisual(id: string, h: Highlight): NodeVisual {
   if (h.selected.has(id)) return { alpha: 1, emphasis: true };
   if (h.neighbors.has(id)) return { alpha: 0.9, emphasis: true };
   if (h.blast.has(id)) return { alpha: 0.55, emphasis: false };
-  return { alpha: 0.18, emphasis: false };
+  return { alpha: 0.3, emphasis: false };
 }
 
 /** Visual weight for a link under the active highlight. */
@@ -110,9 +110,10 @@ export function linkVisual(
 export function linkWidthFor(
   link: { source: unknown; target: unknown; verb: string },
   h: Highlight,
+  scale = 1,
 ): number {
-  if (!h.active) return 1;
-  return linkVisual(link, h).alpha > 0.5 ? 2.5 : 0.75;
+  if (!h.active) return 1 * scale;
+  return (linkVisual(link, h).alpha > 0.5 ? 2.5 : 0.75) * scale;
 }
 
 export function dimmedColor(): string {

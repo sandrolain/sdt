@@ -12,9 +12,9 @@ function openMany(paths: string[]): OpenDocsState {
 }
 
 describe("openDocsReducer", () => {
-  it("replaces the whole stack on a route change to an unopened doc", () => {
+  it("appends on a route change to an unopened doc", () => {
     const s = openDocsReducer(openMany(["a", "b"]), { type: "route", path: "c" });
-    expect(s).toEqual({ docs: ["c"], active: "c", seen: ["c"] });
+    expect(s).toEqual({ docs: ["a", "b", "c"], active: "c", seen: ["a", "b", "c"] });
   });
 
   it("activates an already-open doc on a route change", () => {

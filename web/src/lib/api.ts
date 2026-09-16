@@ -6,6 +6,10 @@ export interface TreeEntry {
   kind?: string;
   title?: string;
   summary?: string;
+  /** frontmatter `status` (plan/task execution state) */
+  status?: string;
+  /** frontmatter `sources` + `links` references, corpus-relative */
+  sources?: string[];
   created?: string;
   /** frontmatter `updated`, else the file mtime (RFC3339) */
   modified?: string;

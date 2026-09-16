@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearPreviewCache, loadPreview, previewHtml, previewPathFromHref } from "./preview";
+import { clearPreviewCache, loadPreview, previewMeta, previewPathFromHref } from "./preview";
 
 afterEach(() => {
   clearPreviewCache();
@@ -20,28 +20,45 @@ describe("previewPathFromHref", () => {
   });
 });
 
-describe("previewHtml", () => {
-  it("strips frontmatter and clips long bodies", () => {
-    const md = "---\ntitle: X\n---\n\n# Heading\n\nbody text";
-    const html = previewHtml(md);
-    expect(html).not.toContain("title: X");
-    expect(html).toContain("Heading");
-    expect(previewHtml(`---\n---\n${"a".repeat(3000)}`)).toContain("…");
+describe("previewMeta", () => {
+  it("extracts title, summary and dates from the frontmatter", () => {
+    const fm = [
+      "---",
+      'title: "Quoted title"',
+      "summary: Short summary",
+      "created: 2026-09-01",
+      "updated: 2026-09-10",
+      "---",
+    ].join("\n");
+    expect(previewMeta("context/notes/x.md", fm)).toEqual({
+      title: "Quoted title",
+      summary: "Short summary",
+      created: "2026-09-01",
+      modified: "2026-09-10",
+      path: "context/notes/x.md",
+    });
+  });
+
+  it("falls back to the path-derived title", () => {
+    expect(previewMeta("context/notes/x.md", undefined).title).toBe("X");
   });
 });
 
 describe("loadPreview", () => {
-  it("fetches once and caches by path", async () => {
+  it("fetches once and caches metadata by path", async () => {
     const fetchMock = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({ markdown: "# Cached" }) }),
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ frontmatter: "---\ntitle: Cached\n---\n", markdown: "# Cached" }),
+      }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const controller = new AbortController();
     const first = await loadPreview("context/a.md", controller.signal);
     const second = await loadPreview("context/a.md", controller.signal);
-    expect(first).toBe(second);
+    expect(first).toEqual(second);
+    expect(first.title).toBe("Cached");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(first).toContain("Cached");
   });
 
   it("raises on a failed fetch without caching", async () => {

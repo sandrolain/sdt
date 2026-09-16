@@ -59,15 +59,17 @@ type server struct {
 
 // treeEntry is one corpus file in the /api/tree listing.
 type treeEntry struct {
-	Path     string `json:"path"`
-	Kind     string `json:"kind,omitempty"`
-	Title    string `json:"title,omitempty"`
-	Summary  string `json:"summary,omitempty"`
-	Created  string `json:"created,omitempty"`
-	Modified string `json:"modified,omitempty"`
-	Canvas   bool   `json:"canvas,omitempty"`
-	IsMap    bool   `json:"isMap,omitempty"`
-	MapID    string `json:"mapId,omitempty"`
+	Path     string   `json:"path"`
+	Kind     string   `json:"kind,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	Summary  string   `json:"summary,omitempty"`
+	Status   string   `json:"status,omitempty"`
+	Sources  []string `json:"sources,omitempty"`
+	Created  string   `json:"created,omitempty"`
+	Modified string   `json:"modified,omitempty"`
+	Canvas   bool     `json:"canvas,omitempty"`
+	IsMap    bool     `json:"isMap,omitempty"`
+	MapID    string   `json:"mapId,omitempty"`
 }
 
 // docResponse is the .md payload of /api/doc.
@@ -239,11 +241,14 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 		return treeEntry{}, err
 	}
 	fm, _ := contextwiki.SplitFrontmatter(string(data))
+	sources := append(contextwiki.FrontmatterList(fm, "sources"), contextwiki.FrontmatterList(fm, "links")...)
 	e := treeEntry{
 		Path:     rel,
 		Kind:     contextwiki.FrontmatterField(fm, "kind"),
 		Title:    contextwiki.FrontmatterField(fm, "title"),
 		Summary:  contextwiki.FrontmatterField(fm, "summary"),
+		Status:   contextwiki.FrontmatterField(fm, "status"),
+		Sources:  sources,
 		Created:  contextwiki.FrontmatterField(fm, "created"),
 		Modified: contextwiki.FrontmatterField(fm, "updated"),
 	}

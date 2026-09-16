@@ -40,10 +40,23 @@ created: 2026-09-10
 kind: analysis
 title: "Analysis X"
 summary: "Analysis summary"
+status: active
 created: "2026-09-11"
 ---
 
 analysis body
+`)
+	writeFixture(t, root, "context/plan/plan-x.md", `---
+kind: plan
+title: "Plan X"
+status: completed
+sources:
+  - analysis/analy-x.md
+links:
+  - tasks/plan-x-phase-1.md
+---
+
+plan body
 `)
 	writeFixture(t, root, "context/wiki/backlog/blue.md", `---
 kind: wiki
@@ -407,8 +420,8 @@ func TestTreeOutput(t *testing.T) {
 	if _, ok := byPath["../outside.md"]; ok {
 		t.Errorf("outside-corpus path present: ../outside.md")
 	}
-	if len(out.Entries) != 5 {
-		t.Errorf("expected 5 entries, got %d: %v", len(out.Entries), out.Entries)
+	if len(out.Entries) != 6 {
+		t.Errorf("expected 6 entries, got %d: %v", len(out.Entries), out.Entries)
 	}
 }
 
@@ -644,7 +657,48 @@ func TestTreeQuotedFrontmatter(t *testing.T) {
 		if e.Title != "Analysis X" || e.Summary != "Analysis summary" || e.Created != "2026-09-11" {
 			t.Errorf("quoted frontmatter not normalized: %+v", e)
 		}
+		if e.Status != "active" {
+			t.Errorf("status = %q, want active", e.Status)
+		}
 		return
 	}
 	t.Error("analysis entry not found")
+}
+
+func TestTreePlanSources(t *testing.T) {
+	root := makeCorpus(t)
+	h, err := newHandler(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Entries []treeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range out.Entries {
+		if e.Path != "context/plan/plan-x.md" {
+			continue
+		}
+		if e.Status != "completed" {
+			t.Errorf("plan status = %q, want completed", e.Status)
+		}
+		want := []string{"analysis/analy-x.md", "tasks/plan-x-phase-1.md"}
+		if len(e.Sources) != len(want) {
+			t.Fatalf("plan sources = %v, want %v", e.Sources, want)
+		}
+		for i := range want {
+			if e.Sources[i] != want[i] {
+				t.Errorf("plan sources[%d] = %q, want %q", i, e.Sources[i], want[i])
+			}
+		}
+		return
+	}
+	t.Error("plan entry not found")
 }

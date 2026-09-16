@@ -329,49 +329,63 @@
   .hover-preview {
     position: fixed;
     z-index: 60;
-    max-height: 40vh;
-    overflow: hidden;
+    max-width: 90vw;
     padding: 0.6rem 0.75rem;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--bg-mantle);
     box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
     font-size: 0.8125rem;
-    pointer-events: none;
+    pointer-events: auto;
   }
-  .hover-preview h1,
-  .hover-preview h2,
-  .hover-preview h3 {
-    font-size: 0.9rem;
+  .hover-preview__title {
+    font-weight: 600;
+    color: var(--fg);
+    margin-bottom: 0.2rem;
+  }
+  .hover-preview__summary {
     margin: 0 0 0.35rem;
+    color: var(--fg-dim);
+    font-size: 0.75rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
-  .hover-preview pre {
-    display: none;
+  .hover-preview__dates {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+  .hover-preview__dates > div {
+    display: flex;
+    gap: 0.4rem;
+  }
+  .hover-preview__dates dt {
+    color: var(--fg-faint);
+    font-size: 0.6875rem;
+  }
+  .hover-preview__dates dd {
+    margin: 0;
+    color: var(--fg-dim);
+    font-size: 0.6875rem;
+  }
+  .hover-preview__path {
+    margin-top: 0.35rem;
+    padding-top: 0.3rem;
+    border-top: 1px solid var(--border);
+    color: var(--fg-faint);
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.6875rem;
+    overflow-wrap: anywhere;
   }
 
   .docs-workspace {
     height: 100%;
     min-height: 0;
   }
-  .dock-layout {
-    height: 100%;
-    min-height: 0;
-  }
-  /* Catppuccin overrides must outrank dockview's theme classes (loaded later). */
-  .dock-layout.dockview-theme-dark {
-    --dv-group-view-background-color: var(--bg-base);
-    --dv-tabs-and-actions-container-background-color: var(--bg-mantle);
-    --dv-activegroup-visiblepanel-tab-background-color: var(--bg-rise);
-    --dv-activegroup-visiblepanel-tab-color: var(--fg);
-    --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-mantle);
-    --dv-activegroup-hiddenpanel-tab-color: var(--fg-dim);
-    --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-base);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--fg-dim);
-    --dv-separator-border: var(--border);
-    --dv-sash-color: transparent;
-    --dv-active-sash-color: var(--accent);
-    --dv-border-radius: 0px;
-  }
+  /* dockview `--dv-*` theming lives in the unlayered styles/dockview.css */
   .dock-layout--fallback {
     display: grid;
     grid-auto-flow: column;
@@ -384,6 +398,11 @@
     min-height: 0;
     overflow: auto;
     overscroll-behavior: contain;
+  }
+  /* panels hosted directly in a dock content area fill it and scroll internally */
+  .dock-content > .panel {
+    height: 100%;
+    min-height: 0;
   }
   .dock-content.doc-tab {
     padding: 0;
@@ -499,6 +518,24 @@
   .tree-entry__date {
     font-size: 0.625rem;
     color: var(--fg-faint);
+  }
+  .tree-entry__dot {
+    flex: none;
+    align-self: flex-start;
+    margin-top: 0.45rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--fg-faint);
+  }
+  .tree-entry__dot--danger {
+    background: var(--danger);
+  }
+  .tree-entry__dot--warn {
+    background: var(--warn);
+  }
+  .tree-entry__dot--ok {
+    background: var(--ok);
   }
   .tree-folder ul {
     list-style: none;
@@ -757,9 +794,19 @@
     width: 100%;
     height: calc(100vh - 14rem);
     min-height: 320px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    border: none;
+    border-radius: 0;
     background: var(--bg-base);
+    --markmap-text-color: var(--fg);
+    --markmap-code-bg: var(--bg-mantle);
+    --markmap-code-color: var(--fg);
+    --markmap-a-color: var(--accent);
+    --markmap-a-hover-color: var(--ctp-lavender);
+    --markmap-circle-open-bg: var(--bg-base);
+    --markmap-table-border: var(--border);
+    --markmap-highlight-bg: var(--bg-hover);
+    --markmap-highlight-node-bg: var(--bg-rise);
+    --markmap-font: inherit;
   }
   .doc-mode {
     display: inline-flex;
@@ -784,13 +831,38 @@
     color: var(--ctp-crust);
   }
 
+  .doc-code-wrap {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    background: var(--bg-mantle);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .doc-code__gutter {
+    position: sticky;
+    left: 0;
+    margin: 0;
+    padding: 0.9rem 0.6rem 0.9rem 0.9rem;
+    text-align: right;
+    user-select: none;
+    color: var(--fg-faint);
+    background: var(--bg-mantle);
+    border-right: 1px solid var(--border);
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    white-space: pre;
+  }
   .doc-code {
     margin: 0;
-    overflow: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: visible;
     padding: 0.9rem 1rem;
-    border-radius: 10px;
+    border-radius: 0;
     background: var(--bg-mantle);
-    border: 1px solid var(--border);
+    border: none;
     font-family: ui-monospace, "SF Mono", monospace;
     font-size: 0.8125rem;
     line-height: 1.5;

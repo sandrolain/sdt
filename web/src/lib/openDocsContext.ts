@@ -19,3 +19,8 @@ export function useOpenDocs(): OpenDocsApi {
   if (!api) throw new Error("useOpenDocs must be used inside OpenDocsProvider");
   return api;
 }
+
+/** Optional variant: components that only use the API when a provider is present. */
+export function useOpenDocsOptional(): OpenDocsApi | null {
+  return useContext(OpenDocsContext);
+}

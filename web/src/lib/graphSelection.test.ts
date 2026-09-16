@@ -68,4 +68,11 @@ describe("computeHighlight", () => {
     expect(linkWidthFor(cold, h)).toBe(0.75);
     expect(linkWidthFor(hot, computeHighlight(g.links, initialSelection))).toBe(1);
   });
+
+  it("scales widths for the 3D renderer", () => {
+    const h = computeHighlight(g.links, { selected: "a", hovered: null });
+    const hot = { source: "a", target: "b", verb: "depends_on" };
+    expect(linkWidthFor(hot, h, 4)).toBe(10);
+    expect(linkWidthFor(hot, computeHighlight(g.links, initialSelection), 4)).toBe(4);
+  });
 });

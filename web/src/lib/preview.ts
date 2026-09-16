@@ -1,8 +1,17 @@
-import { stripFrontmatter } from "./outline";
-import { renderMarkdown } from "./markdown";
+import { parseFrontmatter } from "./frontmatter";
+import { displayTitle } from "./titles";
 
-/** Session cache of rendered preview HTML, keyed by corpus path. */
-const cache = new Map<string, string>();
+/** Metadata card shown on link hover. */
+export interface PreviewMeta {
+  title: string;
+  summary: string;
+  created: string;
+  modified: string;
+  path: string;
+}
+
+/** Session cache of preview metadata, keyed by corpus path. */
+const cache = new Map<string, PreviewMeta>();
 
 /** Test-only cache reset. */
 export function clearPreviewCache(): void {
@@ -23,22 +32,28 @@ export function previewPathFromHref(href: string): string | null {
   return null;
 }
 
-/** Sanitized preview HTML: the leading body prose of a markdown document. */
-export function previewHtml(markdown: string, limit = 1200): string {
-  const body = stripFrontmatter(markdown).trim();
-  const clipped = body.length > limit ? `${body.slice(0, limit)}\n\n…` : body;
-  return renderMarkdown(clipped);
+/** Metadata parsed from a document's frontmatter and path. */
+export function previewMeta(path: string, frontmatter?: string): PreviewMeta {
+  const fields = parseFrontmatter(frontmatter);
+  const value = (key: string) => fields.find((f) => f.key === key)?.values[0] ?? "";
+  return {
+    title: value("title") || displayTitle({ path }),
+    summary: value("summary"),
+    created: value("created"),
+    modified: value("updated"),
+    path,
+  };
 }
 
-/** Fetch + render a document preview, cached by path. Aborts between hovers. */
-export async function loadPreview(path: string, signal: AbortSignal): Promise<string> {
+/** Fetch + parse a document's preview metadata, cached by path. */
+export async function loadPreview(path: string, signal: AbortSignal): Promise<PreviewMeta> {
   const cached = cache.get(path);
   if (cached !== undefined) return cached;
   const res = await fetch(`/api/doc?path=${encodeURIComponent(path)}`, { signal });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const doc = (await res.json()) as { markdown?: string };
+  const doc = (await res.json()) as { frontmatter?: string; markdown?: string };
   if (signal.aborted) throw new DOMException("aborted", "AbortError");
-  const html = previewHtml(doc.markdown ?? "");
-  cache.set(path, html);
-  return html;
+  const meta = previewMeta(path, doc.frontmatter);
+  cache.set(path, meta);
+  return meta;
 }

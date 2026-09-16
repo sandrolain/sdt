@@ -1,0 +1,40 @@
+/* Dockview theming.
+   Deliberately UNLAYERED: `dockview.css` is imported unlayered, and layered
+   rules lose to unlayered ones regardless of specificity. Keeping these
+   declarations outside `@layer` makes the Catppuccin tokens win. */
+
+.dock-layout {
+  height: 100%;
+  min-height: 0;
+}
+
+.dock-layout.dockview-theme-dark {
+  --dv-group-view-background-color: var(--bg-base);
+  --dv-tabs-and-actions-container-background-color: var(--bg-mantle);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg-rise);
+  --dv-activegroup-visiblepanel-tab-color: var(--fg);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-mantle);
+  --dv-activegroup-hiddenpanel-tab-color: var(--fg-dim);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-base);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-dim);
+  --dv-separator-border: var(--border);
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: var(--accent);
+  --dv-border-radius: 0px;
+}
+
+/* Panel content paints the Catppuccin base so no area falls back to dockview's theme colour. */
+.dv-groupview,
+.dv-content-container,
+.dv-react-part,
+.dock-content {
+  background-color: var(--bg-base);
+}
+
+.dv-tabs-and-actions-container {
+  background-color: var(--bg-mantle);
+}
+
+.dv-tab.dv-active-tab {
+  color: var(--fg);
+}

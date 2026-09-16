@@ -56,17 +56,17 @@ describe("glowColor", () => {
 
 describe("labelFontSize", () => {
   it("keeps the base size for short labels", () => {
-    expect(labelFontSize("Node", 88, 40)).toBe(88);
+    expect(labelFontSize("Node", 56, 28)).toBe(56);
   });
 
   it("shrinks long labels to fit the canvas width", () => {
     const long = "a very long document title that would overflow the sprite canvas";
-    const size = labelFontSize(long, 88, 40);
-    expect(size).toBeLessThan(88);
-    expect(size).toBeGreaterThanOrEqual(40);
+    const size = labelFontSize(long, 56, 28);
+    expect(size).toBeLessThan(56);
+    expect(size).toBeGreaterThanOrEqual(28);
   });
 
   it("handles an empty label", () => {
-    expect(labelFontSize("", 88)).toBe(88);
+    expect(labelFontSize("", 56)).toBe(56);
   });
 });

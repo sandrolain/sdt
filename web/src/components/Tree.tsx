@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
 import { kindColor, kindIcon, kindLabel } from "../lib/kinds";
 import { Icon } from "../lib/icon";
@@ -7,6 +7,7 @@ import { SkeletonLines } from "./Skeleton";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { formatFieldDate } from "../lib/frontmatter";
 import { groupByKind, sortEntries, TREE_SORTS, type TreeDir, type TreeSortKey } from "../lib/treeSort";
+import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
 import { useReloadToken } from "../lib/useReloadToken";
 
 export function Tree() {
@@ -15,6 +16,7 @@ export function Tree() {
   const [sortKey, setSortKey] = useState<TreeSortKey>("name");
   const [dir, setDir] = useState<TreeDir>("asc");
   const reloadToken = useReloadToken();
+  const location = useLocation();
 
   useEffect(() => {
     let alive = true;
@@ -30,12 +32,21 @@ export function Tree() {
     };
   }, [reloadToken]);
 
+  // reveal the active entry when navigation changes the current document
+  useEffect(() => {
+    if (!entries) return;
+    document
+      .querySelector(".panel--tree .tree-entry.is-active")
+      ?.scrollIntoView({ block: "nearest" });
+  }, [entries, location.pathname]);
+
   const groups = entries
     ? groupByKind(entries).map((group) => ({
         kind: group.kind,
         entries: sortEntries(group.entries, sortKey, dir),
       }))
     : [];
+  const plannedAnalyses = planReferencedAnalyses(entries ?? []);
 
   return (
     <aside className="panel panel--tree" aria-label="Corpus tree">
@@ -82,36 +93,49 @@ export function Tree() {
                 <span className="tree-folder__count">{group.entries.length}</span>
               </summary>
               <ul role="list">
-                {group.entries.map((entry) => (
-                  <li key={entry.path}>
-                    <NavLink
-                      to={
-                        entry.canvas
-                          ? `/wiki/board?file=${encodeURIComponent(entry.path)}`
-                          : `/docs/${entry.path}`
-                      }
-                      className="tree-entry"
-                      title={entry.summary || entry.path}
-                      end
-                    >
-                      <span className="tree-entry__glyph">
-                        <Icon name="description" />
-                      </span>
-                      <span className="tree-entry__text">
-                        <span className="tree-entry__title">{entryTitle(entry)}</span>
-                        {entryDate(entry) && (
-                          <span className="tree-entry__date">{entryDate(entry)}</span>
-                        )}
-                      </span>
-                      {entry.isMap && <span className="tree-entry__kind tree-entry__kind--map">map</span>}
-                      <span
-                        className={`tree-entry__kind${entry.canvas ? " tree-entry__kind--canvas" : ""}`}
+                {group.entries.map((entry) => {
+                  const dot = statusDot(entry, plannedAnalyses);
+                  return (
+                    <li key={entry.path}>
+                      <NavLink
+                        to={
+                          entry.canvas
+                            ? `/wiki/board?file=${encodeURIComponent(entry.path)}`
+                            : `/docs/${entry.path}`
+                        }
+                        className="tree-entry"
+                        title={entry.summary || entry.path}
+                        end
                       >
-                        {entry.canvas ? "canvas" : (entry.kind ?? "md")}
-                      </span>
-                    </NavLink>
-                  </li>
-                ))}
+                        <span className="tree-entry__glyph">
+                          <Icon name="description" />
+                        </span>
+                        <span className="tree-entry__text">
+                          <span className="tree-entry__title">{entryTitle(entry)}</span>
+                          {entryDate(entry) && (
+                            <span className="tree-entry__date">{entryDate(entry)}</span>
+                          )}
+                        </span>
+                        {dot && (
+                          <span
+                            className={`tree-entry__dot tree-entry__dot--${dot.tone}`}
+                            title={dot.label}
+                            aria-label={dot.label}
+                            role="img"
+                          />
+                        )}
+                        {entry.isMap && (
+                          <span className="tree-entry__kind tree-entry__kind--map">map</span>
+                        )}
+                        <span
+                          className={`tree-entry__kind${entry.canvas ? " tree-entry__kind--canvas" : ""}`}
+                        >
+                          {entry.canvas ? "canvas" : (entry.kind ?? "md")}
+                        </span>
+                      </NavLink>
+                    </li>
+                  );
+                })}
               </ul>
             </details>
           ))}

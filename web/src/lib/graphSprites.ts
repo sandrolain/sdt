@@ -8,8 +8,8 @@ export const SPRITE_BASE = { width: 48, height: 24 };
 /** Sprite canvas: the dot sits at the centre so it matches the node origin (link anchor). */
 export const SPRITE_CANVAS = { width: 1024, height: 512 };
 const DOT_SCALE = 8; // canvas px per radius unit
-const LABEL_FONT = 88;
-const LABEL_MIN_FONT = 40;
+const LABEL_FONT = 56;
+const LABEL_MIN_FONT = 28;
 const LABEL_GAP = 80;
 
 /** Font size for a label so it fits the canvas width without clipping. */
@@ -100,7 +100,7 @@ export function labelObject(spec: LabelSpriteSpec): THREE.Object3D {
 
   if (spec.show) {
     const size = labelFontSize(spec.title);
-    ctx.font = `600 ${size}px 'IBM Plex Sans', sans-serif`;
+    ctx.font = `500 ${size}px 'IBM Plex Sans', sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = spec.labelColor;
@@ -114,7 +114,7 @@ export function labelObject(spec: LabelSpriteSpec): THREE.Object3D {
   const material = new THREE.SpriteMaterial({
     map: texture,
     transparent: true,
-    alphaTest: 0.5,
+    alphaTest: 0.01,
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(material);

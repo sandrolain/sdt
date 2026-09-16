@@ -230,6 +230,7 @@ export function WikiGraphView() {
           <Suspense fallback={<p className="content__empty">Loading 3D renderer…</p>}>
             <ForceGraph3DLazy
               {...commonProps}
+              linkWidth={(l: GLink) => linkWidthFor(l, highlight, 4)}
               nodeThreeObject={(node) =>
                 labelObject(labelSpriteSpec(node, nodeVisual(node.id, highlight), tools.showLabels))
               }

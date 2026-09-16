@@ -4,53 +4,62 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { HoverPreview } from "./HoverPreview";
 import { clearPreviewCache } from "../lib/preview";
 
+const DOC = {
+  frontmatter: "---\ntitle: Preview Title\nsummary: A short summary\ncreated: 2026-09-01\nupdated: 2026-09-10\n---\n",
+  markdown: "# Preview Title\n\nBody with <script>alert(1)</script>",
+};
+
 afterEach(() => {
   cleanup();
   clearPreviewCache();
   vi.restoreAllMocks();
 });
 
+function mockDoc() {
+  globalThis.fetch = vi.fn(() =>
+    Promise.resolve({ ok: true, json: () => Promise.resolve(DOC) }),
+  ) as unknown as typeof fetch;
+}
+
+function renderLink() {
+  render(
+    <div className="doc-rendered">
+      <a href="#/docs/context/b.md">Go B</a>
+    </div>,
+  );
+  render(<HoverPreview delay={0} leaveDelay={0} />);
+}
+
 describe("HoverPreview", () => {
-  it("fetches and shows a sanitized preview on link hover", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ markdown: "# Preview\n\nBody with <script>alert(1)</script>" }),
-      }),
-    ) as unknown as typeof fetch;
-
-    render(
-      <div className="doc-rendered">
-        <a href="#/docs/context/b.md">Go B</a>
-      </div>,
-    );
-    render(<HoverPreview delay={0} />);
-
-    const link = screen.getByText("Go B");
-    fireEvent.mouseOver(link);
+  it("shows a metadata card with title, summary, dates and path", async () => {
+    mockDoc();
+    renderLink();
+    fireEvent.mouseOver(screen.getByText("Go B"));
     const tip = await screen.findByRole("tooltip");
-    expect(tip.textContent).toContain("Preview");
-    expect(tip.innerHTML).not.toContain("<script");
-    // rendered in a root layer so panel overflow cannot clip it
+    expect(tip.textContent).toContain("Preview Title");
+    expect(tip.textContent).toContain("A short summary");
+    expect(tip.textContent).toContain("2026");
+    expect(tip.textContent).toContain("context/b.md");
     expect(tip.parentElement).toBe(document.body);
   });
 
-  it("hides the preview when the pointer leaves the link", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({ markdown: "# Preview" }) }),
-    ) as unknown as typeof fetch;
+  it("stays open while the pointer is over the card", async () => {
+    mockDoc();
+    renderLink();
+    fireEvent.mouseOver(screen.getByText("Go B"));
+    const tip = await screen.findByRole("tooltip");
+    fireEvent.mouseOut(screen.getByText("Go B"));
+    fireEvent.mouseEnter(tip);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByRole("tooltip")).toBeTruthy();
+  });
 
-    render(
-      <div className="doc-rendered">
-        <a href="#/docs/context/b.md">Go B</a>
-      </div>,
-    );
-    render(<HoverPreview delay={0} />);
-
-    const link = screen.getByText("Go B");
-    fireEvent.mouseOver(link);
+  it("hides shortly after the pointer leaves the link", async () => {
+    mockDoc();
+    renderLink();
+    fireEvent.mouseOver(screen.getByText("Go B"));
     await screen.findByRole("tooltip");
-    fireEvent.mouseOut(link);
+    fireEvent.mouseOut(screen.getByText("Go B"));
     await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
   });
 });
