@@ -349,3 +349,18 @@ func TestDocID(t *testing.T) {
 		}
 	}
 }
+
+func TestFrontmatterFieldStripsQuotes(t *testing.T) {
+	fm := "---\ntitle: \"Quoted title\"\ncreated: '2026-09-15'\nplain: value\n---\n"
+	cases := map[string]string{
+		"title":   "Quoted title",
+		"created": "2026-09-15",
+		"plain":   "value",
+		"missing": "",
+	}
+	for key, want := range cases {
+		if got := FrontmatterField(fm, key); got != want {
+			t.Errorf("FrontmatterField(%q) = %q, want %q", key, got, want)
+		}
+	}
+}

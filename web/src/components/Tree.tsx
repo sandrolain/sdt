@@ -70,7 +70,7 @@ export function Tree() {
       ) : (
         <div className="tree-groups">
           {groups.map((group) => (
-            <details key={group.kind} className="tree-folder" open>
+            <details key={group.kind} className="tree-folder">
               <summary className="tree-folder__header">
                 <Icon name="expand_more" className="tree-folder__chevron" />
                 <Icon

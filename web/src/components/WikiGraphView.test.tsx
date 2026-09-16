@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { WikiGraphView } from "./WikiGraphView";
+import { OpenDocsProvider } from "./OpenDocsProvider";
 import type { GNode } from "../lib/graphModel";
 
 vi.mock("react-force-graph-2d", () => ({
@@ -44,10 +45,12 @@ function LocationProbe() {
 function renderView() {
   render(
     <MemoryRouter initialEntries={["/wiki/graph"]}>
-      <Routes>
-        <Route path="/wiki/graph" element={<WikiGraphView />} />
-        <Route path="/wiki/*" element={<LocationProbe />} />
-      </Routes>
+      <OpenDocsProvider>
+        <Routes>
+          <Route path="/wiki/graph" element={<WikiGraphView />} />
+          <Route path="/docs/*" element={<LocationProbe />} />
+        </Routes>
+      </OpenDocsProvider>
     </MemoryRouter>,
   );
 }
@@ -78,7 +81,9 @@ describe("WikiGraphView", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Alpha" }));
     expect(screen.getByText("Selected")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Open page" }));
-    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/wiki/a"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location").textContent).toBe("/docs/context/wiki/a.md"),
+    );
   });
 
   it("lazy-loads the 3D renderer on mode switch", async () => {

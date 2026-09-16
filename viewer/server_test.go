@@ -38,9 +38,9 @@ created: 2026-09-10
 `)
 	writeFixture(t, root, "context/analysis/analy-x.md", `---
 kind: analysis
-title: Analysis X
-summary: Analysis summary
-created: 2026-09-11
+title: "Analysis X"
+summary: "Analysis summary"
+created: "2026-09-11"
 ---
 
 analysis body
@@ -618,4 +618,33 @@ func TestWriteJSONEncodeError(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d", rec.Code)
 	}
+}
+
+func TestTreeQuotedFrontmatter(t *testing.T) {
+	root := makeCorpus(t)
+	h, err := newHandler(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Entries []treeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range out.Entries {
+		if e.Path != "context/analysis/analy-x.md" {
+			continue
+		}
+		if e.Title != "Analysis X" || e.Summary != "Analysis summary" || e.Created != "2026-09-11" {
+			t.Errorf("quoted frontmatter not normalized: %+v", e)
+		}
+		return
+	}
+	t.Error("analysis entry not found")
 }

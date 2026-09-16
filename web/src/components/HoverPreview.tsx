@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { loadPreview, previewPathFromHref } from "../lib/preview";
 
 interface HoverPreviewProps {
@@ -62,12 +63,13 @@ export function HoverPreview({ delay = 150 }: HoverPreviewProps) {
   }, [delay]);
 
   if (!preview) return null;
-  return (
+  return createPortal(
     <div
       className="hover-preview"
       role="tooltip"
       style={{ left: preview.left, top: preview.top, width: WIDTH }}
       dangerouslySetInnerHTML={{ __html: preview.html }}
-    />
+    />,
+    document.body,
   );
 }

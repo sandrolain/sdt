@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { fetchTree, fetchWikiBoard, type TreeEntry } from "../lib/api";
 import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
 import { displayTitle } from "../lib/titles";
 import { BoardView } from "./BoardView";
 import { SkeletonLines } from "./Skeleton";
 import { useReloadToken } from "../lib/useReloadToken";
+import { useOpenDocs } from "../lib/openDocsContext";
 
 /** #/wiki/board — read-only board from the graph default or a .canvas file. */
 export function WikiBoardView() {
   const [params, setParams] = useSearchParams();
-  const navigate = useNavigate();
+  const { open: openDoc } = useOpenDocs();
   const file = params.get("file") ?? "";
   const [model, setModel] = useState<BoardModel | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,10 +55,10 @@ export function WikiBoardView() {
   const open = (node: BoardNode) => {
     if (node.file) {
       const path = node.file.startsWith("context/") ? node.file : `context/${node.file}`;
-      navigate(`/docs/${path}`);
+      openDoc(path);
       return;
     }
-    if (node.type === "text" && node.id) navigate(`/wiki/${node.id}`);
+    if (node.type === "text" && node.id) openDoc(`context/wiki/${node.id}.md`);
   };
 
   return (

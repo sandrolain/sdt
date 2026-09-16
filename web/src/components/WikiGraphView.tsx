@@ -10,7 +10,6 @@ import {
   type ComponentType,
   type Ref,
 } from "react";
-import { useNavigate } from "react-router-dom";
 import ForceGraph2DBase from "react-force-graph-2d";
 import {
   adaptGraph,
@@ -33,18 +32,16 @@ import { graphToolsReducer, initialGraphTools, visibleSet } from "../lib/graphTo
 import { GraphToolsPanel } from "./GraphToolsPanel";
 import { SkeletonLines } from "./Skeleton";
 import { useReloadToken } from "../lib/useReloadToken";
+import { useOpenDocs } from "../lib/openDocsContext";
 
 const ForceGraph3D = lazy(() => import("react-force-graph-3d"));
 
 interface GraphHandle {
   zoomToFit?: (durationMs?: number, padding?: number, filter?: (n: GNode) => boolean) => void;
-  postProcessingComposer?: () => { addPass: (pass: unknown) => void };
 }
 
-/** 3D viewport above this node count skips the bloom pass (frame budget). */
-const BLOOM_NODE_BUDGET = 300;
-/** Subtle bloom parameters (strength / radius / threshold). */
-const BLOOM_STRENGTH = 0.35;
+/** 3D background: dark enough that the node glow reads without washing the scene. */
+const BG = "#0d0d15";
 
 /**
  * Narrow prop contract shared by the 2D and 3D renderers (their generic
@@ -72,7 +69,6 @@ interface ForceGraphViewProps {
 
 const ForceGraph2D = ForceGraph2DBase as unknown as ComponentType<ForceGraphViewProps>;
 
-const BG = "#11111b";
 const LABEL_COLOR = "#cdd6f4";
 const EDGE_COLOR = "#6c7086";
 const EDGE_ACTIVE = "#cba6f7";
@@ -85,7 +81,7 @@ export function WikiGraphView() {
   const [tools, dispatchTools] = useReducer(graphToolsReducer, initialGraphTools);
   const [sel, dispatchSel] = useReducer(selectionReducer, initialSelection);
   const graphRef = useRef<GraphHandle | undefined>(undefined);
-  const navigate = useNavigate();
+  const { open: openDoc } = useOpenDocs();
   const reloadToken = useReloadToken();
 
   useEffect(() => {
@@ -143,33 +139,6 @@ export function WikiGraphView() {
     graphRef.current?.zoomToFit?.(400, 60);
   }, []);
 
-  const bloomInstalled = useRef(false);
-  const bloomTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  const installBloom = useCallback(function installBloomTask() {
-    if (tools.mode !== "3d" || !data) return;
-    if (bloomInstalled.current) return;
-    if (data.nodes.length > BLOOM_NODE_BUDGET) return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const composer = graphRef.current?.postProcessingComposer?.();
-    if (!composer) {
-      if (bloomTimer.current) clearTimeout(bloomTimer.current);
-      bloomTimer.current = setTimeout(installBloomTask, 150);
-      return;
-    }
-    bloomInstalled.current = true;
-    import("three/examples/jsm/postprocessing/UnrealBloomPass.js").then(({ UnrealBloomPass }) => {
-      composer.addPass(new UnrealBloomPass({ x: 1280, y: 720 }, BLOOM_STRENGTH, 0.6, 0));
-    });
-  }, [tools.mode, data]);
-
-  useEffect(() => {
-    installBloom();
-    return () => {
-      if (bloomTimer.current) clearTimeout(bloomTimer.current);
-    };
-  }, [installBloom]);
-
   useEffect(() => {
     if (tools.layout) fit();
   }, [tools.layout, tools.clusterKey, fit]);
@@ -183,9 +152,9 @@ export function WikiGraphView() {
 
   const open = useCallback(
     (id: string) => {
-      navigate(`/wiki/${id}`);
+      openDoc(`context/wiki/${id}.md`);
     },
-    [navigate],
+    [openDoc],
   );
 
   const handleNodeClick = useCallback(

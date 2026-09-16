@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GNode } from "./graphModel";
-import { labelSpriteSpec } from "./graphSprites";
+import { glowColor, labelFontSize, labelSpriteSpec } from "./graphSprites";
 
 function node(overrides: Partial<GNode> = {}): GNode {
   return {
@@ -40,5 +40,33 @@ describe("labelSpriteSpec", () => {
     expect(low.show).toBe(false);
     expect(big.radius).toBeGreaterThan(low.radius);
     expect(big.dotColor).toBe("#89b4fa");
+  });
+});
+
+describe("glowColor", () => {
+  it("converts a hex colour to rgba with the given alpha", () => {
+    expect(glowColor("#89b4fa", 0.3)).toBe("rgba(137, 180, 250, 0.3)");
+    expect(glowColor("#000000", 0)).toBe("rgba(0, 0, 0, 0)");
+  });
+
+  it("passes non-hex colours through", () => {
+    expect(glowColor("var(--accent)", 0.3)).toBe("var(--accent)");
+  });
+});
+
+describe("labelFontSize", () => {
+  it("keeps the base size for short labels", () => {
+    expect(labelFontSize("Node", 88, 40)).toBe(88);
+  });
+
+  it("shrinks long labels to fit the canvas width", () => {
+    const long = "a very long document title that would overflow the sprite canvas";
+    const size = labelFontSize(long, 88, 40);
+    expect(size).toBeLessThan(88);
+    expect(size).toBeGreaterThanOrEqual(40);
+  });
+
+  it("handles an empty label", () => {
+    expect(labelFontSize("", 88)).toBe(88);
   });
 });

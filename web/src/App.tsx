@@ -8,6 +8,7 @@ import { WikiPage } from "./pages/WikiPage";
 import { WikiGraphView } from "./components/WikiGraphView";
 import { WikiBoardView } from "./components/WikiBoardView";
 import { WikiPageDetail } from "./components/WikiPageDetail";
+import { OpenDocsProvider } from "./components/OpenDocsProvider";
 import { applyLiveChange, connectLiveUpdates } from "./lib/liveUpdates";
 
 export function App() {
@@ -28,22 +29,24 @@ export function App() {
 
   return (
     <ThemeProvider>
-      <div className="app-shell">
-        <TopBar onOpenSearch={() => setSearchOpen(true)} />
-        <Routes>
-          <Route path="/" element={<Navigate to="/docs" replace />} />
-          <Route path="/docs" element={<DocumentsPage />} />
-          <Route path="/docs/*" element={<DocumentsPage />} />
-          <Route path="/wiki" element={<WikiPage />}>
-            <Route index element={<Navigate to="/wiki/graph" replace />} />
-            <Route path="graph" element={<WikiGraphView />} />
-            <Route path="board" element={<WikiBoardView />} />
-            <Route path="*" element={<WikiPageDetail />} />
-          </Route>
-          <Route path="*" element={<p className="content__empty">not found</p>} />
-        </Routes>
-        <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
-      </div>
+      <OpenDocsProvider>
+        <div className="app-shell">
+          <TopBar onOpenSearch={() => setSearchOpen(true)} />
+          <Routes>
+            <Route path="/" element={<Navigate to="/docs" replace />} />
+            <Route path="/docs" element={<DocumentsPage />} />
+            <Route path="/docs/*" element={<DocumentsPage />} />
+            <Route path="/wiki" element={<WikiPage />}>
+              <Route index element={<Navigate to="/wiki/graph" replace />} />
+              <Route path="graph" element={<WikiGraphView />} />
+              <Route path="board" element={<WikiBoardView />} />
+              <Route path="*" element={<WikiPageDetail />} />
+            </Route>
+            <Route path="*" element={<p className="content__empty">not found</p>} />
+          </Routes>
+          <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
+        </div>
+      </OpenDocsProvider>
     </ThemeProvider>
   );
 }

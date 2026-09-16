@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { WikiBoardView } from "./WikiBoardView";
+import { OpenDocsProvider } from "./OpenDocsProvider";
 
 const TREE = {
   entries: [
@@ -50,7 +51,9 @@ describe("WikiBoardView", () => {
     globalThis.fetch = mockFetch() as unknown as typeof fetch;
     render(
       <MemoryRouter>
-        <WikiBoardView />
+        <OpenDocsProvider>
+          <WikiBoardView />
+        </OpenDocsProvider>
       </MemoryRouter>,
     );
     expect(await screen.findByRole("button", { name: "Alpha" })).toBeTruthy();
@@ -64,7 +67,9 @@ describe("WikiBoardView", () => {
     globalThis.fetch = mockFetch() as unknown as typeof fetch;
     render(
       <MemoryRouter>
-        <WikiBoardView />
+        <OpenDocsProvider>
+          <WikiBoardView />
+        </OpenDocsProvider>
       </MemoryRouter>,
     );
     await screen.findByRole("button", { name: "Alpha" });
@@ -87,7 +92,9 @@ describe("WikiBoardView", () => {
     }) as unknown as typeof fetch;
     render(
       <MemoryRouter>
-        <WikiBoardView />
+        <OpenDocsProvider>
+          <WikiBoardView />
+        </OpenDocsProvider>
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText(/Board error: boom/)).toBeTruthy());

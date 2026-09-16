@@ -57,6 +57,19 @@ describe("Tree", () => {
     expect(screen.getByLabelText("Sort descending")).toBeTruthy();
   });
 
+  it("starts kind folders collapsed", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Alpha");
+    const folders = document.querySelectorAll(".tree-folder");
+    expect(folders.length).toBeGreaterThan(0);
+    for (const folder of folders) {
+      expect(folder.hasAttribute("open")).toBe(false);
+    }
+  });
+
   it("shows a date line from frontmatter or the filename prefix", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),

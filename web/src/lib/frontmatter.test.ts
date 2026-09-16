@@ -60,4 +60,15 @@ describe("dates", () => {
     expect(formatFieldDate("2026-09-15", "en-US")).toContain("2026");
     expect(formatFieldDate("not-a-date")).toBe("not-a-date");
   });
+
+  it("parses quoted ISO values shipped by the API", () => {
+    const quoted = '"2026-09-15T10:30:00Z"';
+    expect(parseFieldDate(quoted)).not.toBeNull();
+    expect(formatFieldDate(quoted, "en-US")).toContain("2026");
+  });
+
+  it("includes the time in the formatted output", () => {
+    const formatted = formatFieldDate("2026-09-15T14:45:00Z", "en-GB");
+    expect(formatted).toMatch(/\d{2}:\d{2}/);
+  });
 });

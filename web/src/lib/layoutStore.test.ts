@@ -16,6 +16,12 @@ describe("layoutStore", () => {
     expect(localStorage.getItem("sdt-layout:workspace")).toBeNull();
   });
 
+  it("drops the previous layout schema version", () => {
+    localStorage.setItem("sdt-layout:workspace", JSON.stringify({ version: 1, layout: { x: 1 } }));
+    expect(loadLayout("workspace")).toBeNull();
+    expect(localStorage.getItem("sdt-layout:workspace")).toBeNull();
+  });
+
   it("recovers from corrupt JSON", () => {
     localStorage.setItem("sdt-layout:workspace", "{not json");
     expect(loadLayout("workspace")).toBeNull();

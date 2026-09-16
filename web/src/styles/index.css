@@ -13,6 +13,11 @@
     padding: 0;
     height: 100%;
   }
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   h1,
   h2,
   h3,
@@ -90,6 +95,9 @@
     justify-content: center;
   }
   .top-bar__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     padding: 0.375rem 0.9rem;
     border-radius: 8px;
     color: var(--fg-dim);
@@ -167,6 +175,13 @@
     background: var(--bg-mantle);
     box-shadow: 0 16px 48px rgb(0 0 0 / 35%);
   }
+  .search-palette__content [cmdk-root] {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: inherit;
+    overflow: hidden;
+  }
   .search-palette__input {
     width: 100%;
     padding: 0.85rem 1rem;
@@ -206,6 +221,7 @@
     color: var(--fg);
   }
   .search-palette__list {
+    overscroll-behavior: contain;
     flex: 1 1 auto;
     min-height: 0;
     max-height: 100%;
@@ -333,69 +349,16 @@
     display: none;
   }
 
-  .open-docs {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    min-height: 0;
-  }
-  .open-docs__tabs {
-    display: flex;
-    gap: 0.25rem;
-    overflow-x: auto;
-    padding-bottom: 0.15rem;
-  }
-  .open-docs__tab {
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    background: var(--bg-rise);
-    color: var(--fg-dim);
-    font-size: 0.75rem;
-    flex: none;
-  }
-  .open-docs__tab.is-active {
-    background: var(--bg-hover);
-    color: var(--fg);
-    border-color: var(--accent);
-  }
-  .open-docs__tab-title {
-    padding: 0.2rem 0.45rem;
-    color: inherit;
-    font-size: inherit;
-    white-space: nowrap;
-  }
-  .open-docs__close {
-    display: inline-flex;
-    padding-right: 0.3rem;
-    color: var(--fg-faint);
-  }
-  .open-docs__close:hover {
-    color: var(--ctp-red);
-  }
-  .open-docs__close .ms-icon {
-    font-size: 1rem;
-  }
-  .open-docs__rail {
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    min-height: 0;
-    flex: 1 1 auto;
-  }
-  .open-docs__slide {
-    min-width: 100%;
-    scroll-snap-align: start;
-    content-visibility: auto;
-    contain-intrinsic-size: 800px 2000px;
-  }
-
-  .dock-layout {
-    display: flex;
-    flex-direction: column;
+  .docs-workspace {
     height: 100%;
     min-height: 0;
+  }
+  .dock-layout {
+    height: 100%;
+    min-height: 0;
+  }
+  /* Catppuccin overrides must outrank dockview's theme classes (loaded later). */
+  .dock-layout.dockview-theme-dark {
     --dv-group-view-background-color: var(--bg-base);
     --dv-tabs-and-actions-container-background-color: var(--bg-mantle);
     --dv-activegroup-visiblepanel-tab-background-color: var(--bg-rise);
@@ -409,69 +372,46 @@
     --dv-active-sash-color: var(--accent);
     --dv-border-radius: 0px;
   }
-  .dock-layout__grid {
-    flex: 1 1 auto;
-    min-height: 0;
-  }
   .dock-layout--fallback {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.5rem;
   }
-  .dock-panel {
-    display: flex;
-    flex-direction: column;
+  .dock-content {
     height: 100%;
     min-height: 0;
-    background: var(--bg-base);
-  }
-  .dock-panel__header {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.6rem;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-mantle);
-    color: var(--fg-dim);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .dock-panel__title {
-    flex: 1;
-  }
-  .dock-panel__toggle {
-    display: inline-flex;
-    color: var(--fg-faint);
-  }
-  .dock-panel__toggle:hover {
-    color: var(--fg);
-  }
-  .dock-panel__body {
-    flex: 1 1 auto;
-    min-height: 0;
     overflow: auto;
+    overscroll-behavior: contain;
   }
-  .dock-reopen {
+  .dock-content.doc-tab {
+    padding: 0;
+  }
+  .dock-content.doc-tab .doc-view,
+  .dock-content.doc-tab article {
+    padding: 0 1rem;
+  }
+  .fallback-tabs {
     display: flex;
-    gap: 0.4rem;
-    padding: 0.25rem 0.5rem;
-    background: var(--bg-mantle);
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem;
     border-bottom: 1px solid var(--border);
+    background: var(--bg-mantle);
   }
-  .dock-reopen__button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
+  .fallback-tabs button {
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
     color: var(--fg-dim);
     font-size: 0.75rem;
   }
-  .dock-reopen__button:hover {
+  .fallback-tabs button.is-active {
+    background: var(--bg-rise);
     color: var(--fg);
   }
 
   .panel {
+    overscroll-behavior: contain;
     overflow: auto;
     background: var(--bg-base);
   }
@@ -560,13 +500,24 @@
     font-size: 0.625rem;
     color: var(--fg-faint);
   }
+  .tree-folder ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
   .tree-entry {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
     padding: 0.25rem 0.75rem;
     color: var(--fg);
     border-left: 2px solid transparent;
+  }
+  .tree-entry > .tree-entry__glyph,
+  .tree-entry > .tree-entry__kind {
+    height: 1.35rem;
+    display: inline-flex;
+    align-items: center;
   }
   .tree-entry:hover {
     background: var(--bg-hover);
@@ -601,6 +552,7 @@
   }
 
   .content {
+    overscroll-behavior: contain;
     overflow: auto;
     padding: 1rem 1.5rem 3rem;
   }
@@ -991,6 +943,9 @@
     background: var(--bg-mantle);
   }
   .wiki-mode {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     padding: 0.25rem 0.7rem;
     border-radius: 7px;
     color: var(--fg-dim);

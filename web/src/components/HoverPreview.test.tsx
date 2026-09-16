@@ -31,6 +31,8 @@ describe("HoverPreview", () => {
     const tip = await screen.findByRole("tooltip");
     expect(tip.textContent).toContain("Preview");
     expect(tip.innerHTML).not.toContain("<script");
+    // rendered in a root layer so panel overflow cannot clip it
+    expect(tip.parentElement).toBe(document.body);
   });
 
   it("hides the preview when the pointer leaves the link", async () => {

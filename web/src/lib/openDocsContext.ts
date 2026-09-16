@@ -1,10 +1,15 @@
 import { createContext, useContext } from "react";
-import type { OpenDocsAction, OpenDocsState } from "../lib/openDocs";
+import type { OpenDocsState } from "./openDocs";
 
-/** Open-documents stack API, provided by `OpenDocsProvider`. */
+/** App-level open-documents API shared by the documents workspace and the wiki views. */
 export interface OpenDocsApi {
   state: OpenDocsState;
-  dispatch: (action: OpenDocsAction) => void;
+  /** append (or activate) a document and navigate to it */
+  open: (path: string) => void;
+  /** focus an already-open document and navigate to it */
+  activate: (path: string) => void;
+  /** close a document tab, moving focus to a neighbour */
+  close: (path: string) => void;
 }
 
 export const OpenDocsContext = createContext<OpenDocsApi | null>(null);

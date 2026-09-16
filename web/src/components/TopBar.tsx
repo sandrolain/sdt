@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { THEME_LABEL } from "../lib/theme";
 import { useTheme } from "../lib/useTheme";
+import { Icon } from "../lib/icon";
 
 interface TopBarProps {
   onOpenSearch: () => void;
@@ -21,12 +22,14 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           end
           className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
         >
+          <Icon name="description" />
           Documents
         </NavLink>
         <NavLink
           to="/wiki"
           className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
         >
+          <Icon name="menu_book" />
           Wiki
         </NavLink>
       </nav>

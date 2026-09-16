@@ -155,7 +155,8 @@ func SplitFrontmatter(content string) (fm string, body string) {
 }
 
 // FrontmatterField returns the value of a top-level YAML frontmatter key, or ""
-// when absent or malformed.
+// when absent or malformed. A single wrapping pair of quotes is stripped so
+// callers never see YAML quoting.
 func FrontmatterField(content, key string) string {
 	lines := strings.Split(content, "\n")
 	if len(lines) < 2 || strings.TrimSpace(lines[0]) != frontmatterDelim {
@@ -166,10 +167,21 @@ func FrontmatterField(content, key string) string {
 			return ""
 		}
 		if strings.HasPrefix(line, key+":") {
-			return strings.TrimSpace(strings.TrimPrefix(line, key+":"))
+			return trimYAMLQuotes(strings.TrimSpace(strings.TrimPrefix(line, key+":")))
 		}
 	}
 	return ""
+}
+
+// trimYAMLQuotes removes one wrapping pair of double or single quotes.
+func trimYAMLQuotes(value string) string {
+	if len(value) >= 2 {
+		first, last := value[0], value[len(value)-1]
+		if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+			return value[1 : len(value)-1]
+		}
+	}
+	return value
 }
 
 // FrontmatterList parses a YAML block-list frontmatter field (a line `key:`

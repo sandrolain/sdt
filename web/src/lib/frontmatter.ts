@@ -1,5 +1,7 @@
 /** Structured parsing of a simple YAML frontmatter block for the meta panel. */
 
+import { unwrapQuotes } from "./titles";
+
 export interface FrontmatterField {
   key: string;
   label: string;
@@ -80,9 +82,9 @@ export function booleanValue(value: string): boolean | null {
   return null;
 }
 
-/** Parse a frontmatter date value; null when unparseable. */
+/** Parse a frontmatter date value; null when unparseable. Quotes are unwrapped. */
 export function parseFieldDate(value: string): Date | null {
-  const trimmed = value.trim();
+  const trimmed = unwrapQuotes(value);
   if (trimmed === "") return null;
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
   if (dateOnly) {
@@ -93,13 +95,12 @@ export function parseFieldDate(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** Local short date/time for a frontmatter date value; raw value when unparseable. */
+/** Local date+time for a frontmatter date value; raw value when unparseable. */
 export function formatFieldDate(value: string, locale?: string): string {
   const date = parseFieldDate(value);
   if (!date) return value;
-  const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
-    ...(hasTime ? { timeStyle: "short" as const } : {}),
+    timeStyle: "short",
   }).format(date);
 }
