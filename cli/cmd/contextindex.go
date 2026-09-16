@@ -40,7 +40,9 @@ func ctxTierForDir(dir string) string {
 		return "essential"
 	case sdtAnalysisDir:
 		return ctxTierImportant
-	case sdtRFCsDir:
+	case sdtProposalsDir:
+		return ctxTierImportant
+	case sdtResearchDir:
 		return ctxTierImportant
 	case sdtPlanDir, sdtNotesDir, sdtQuestionsDir, sdtPromptsDir:
 		return "medium"
@@ -59,7 +61,8 @@ var ctxIndexDirs = []string{
 	sdtArchitectureDir,
 	sdtDecisionsDir,
 	sdtAnalysisDir,
-	sdtRFCsDir,
+	sdtProposalsDir,
+	sdtResearchDir,
 	sdtPlanDir,
 	sdtNotesDir,
 	sdtQuestionsDir,
@@ -144,12 +147,14 @@ func lintFrontmatterReferences(path, content string, prio func(string) string) [
 	return issues
 }
 
+// lintRFCAndPromptContract enforces the proposal and prompt instruction
+// contracts.
 func lintRFCAndPromptContract(path, content, kind string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
 	if kind == ctxTypePrompt && len(parseFrontmatterList(content, "derived_from")) == 0 {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "prompt must declare `derived_from` provenance"})
 	}
-	if kind != ctxTypeRFC && kind != ctxTypePrompt {
+	if kind != ctxTypeProposal && kind != ctxTypePrompt {
 		return issues
 	}
 	for _, field := range []string{"title", "status", "created", "updated"} {
@@ -287,15 +292,39 @@ var ctxLinkRegexp = regexp.MustCompile(`\[\[([a-zA-Z0-9_./-]+)\]\]`)
 
 // ctxDerivedKinds are document kinds that derive from or extend another
 // document and therefore must carry a `sources` frontmatter reference. Plan and
-// tasks always derive (from analysis/plan by the 5-stage lifecycle); ADR
+// tasks always derive (from analysis/plan by the 5-stage lifecycle); decision
 // decisions and open-question collections state their origin. A greenfield
 // analysis does not derive from anything, so analysis is not required to set
 // sources (a follow-up analysis should set it but is not hard-flagged).
 var ctxDerivedKinds = map[string]bool{
 	ctxTypePlan:      true,
 	ctxTypeTasks:     true,
-	ctxTypeAdr:       true,
+	ctxTypeDecision:  true,
 	ctxTypeQuestions: true,
+}
+
+// ctxTaskFileStatuses is the accepted task-file frontmatter status vocabulary:
+// pending (to work on), in-progress, completed, archived — plus the legacy
+// `active` value kept for pre-change task lists.
+var ctxTaskFileStatuses = map[string]bool{
+	taskFileStatusPending:    true,
+	taskFileStatusInProgress: true,
+	taskFileStatusCompleted:  true,
+	taskFileStatusArchived:   true,
+	taskFileStatusLegacy:     true,
+}
+
+// lintTaskFileStatus flags task files whose frontmatter status is outside the
+// pending | in-progress | completed | archived vocabulary (legacy `active`
+// accepted). WARNING so historical lists never hard-fail the check.
+func lintTaskFileStatus(path, status string) []ctxLintIssue {
+	if status == "" {
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "task file missing frontmatter `status` (pending | in-progress | completed | archived)"}}
+	}
+	if !ctxTaskFileStatuses[status] {
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("task file status %q outside vocabulary (pending | in-progress | completed | archived)", status)}}
+	}
+	return nil
 }
 
 // lintDoc validates one context document. priorityFn lowers CRITICAL to
@@ -331,6 +360,9 @@ func lintDoc(path string) []ctxLintIssue {
 	if summary == "" {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintCritical), Message: "frontmatter missing mandatory `summary`"})
 	}
+	if kind == ctxTypeTasks {
+		issues = append(issues, lintTaskFileStatus(path, parseFrontmatterField(content, "status"))...)
+	}
 	// resolve [[links]] and links: array to existing documents.
 	// Files under context dirs link relative to their own directory; the
 	// generated index.md links relative to the context/ root.
@@ -354,12 +386,12 @@ func lintDoc(path string) []ctxLintIssue {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "document derives from/extend another; missing `sources` frontmatter"})
 	}
 	issues = append(issues, lintRFCAndPromptContract(path, content, kind, prio)...)
-	// ADR directory: filename must match NNNN-slug.md and number must match.
+	// Decision directory: filename must match NNNN-slug.md and number must match.
 	if dir == sdtDecisionsDir {
 		base := filepath.Base(path)
 		m := regexp.MustCompile(`^(\d{4})-`).FindStringSubmatch(base)
 		if m == nil {
-			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: "ADR filename must start with a 4-digit number (NNNN-<slug>.md)"})
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: "decision filename must start with a 4-digit number (NNNN-<slug>.md)"})
 		} else if n := parseFrontmatterField(content, "number"); n != "" && n != m[1] {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: fmt.Sprintf("frontmatter number %s does not match filename %s", n, m[1])})
 		}
@@ -378,7 +410,7 @@ var contextLintCmd = &cobra.Command{
 	Use:   "lint",
 	Short: "Validate context frontmatter and links",
 	Long: `Validate the context/ documents: frontmatter well-formed (kind, mandatory
-summary), [[links]] resolve to existing files, and ADR filenames/numbers are
+summary), [[links]] resolve to existing files, and decision filenames/numbers are
 consistent. Exits non-zero when CRITICAL issues are found.
 
 Examples:
@@ -512,11 +544,11 @@ var contextTemplateCmd = &cobra.Command{
 	Use:   "template",
 	Short: "Print the per-type instruction file for a context type",
 	Long: `Print the content of context/instructions/<tipo>.md for one document
-type (analysis, plan, tasks, adr, architecture, worklog, notes). Read-only: the
+type (analysis, plan, tasks, decision, architecture, worklog, notes). Read-only: the
 CLI never writes documents.
 
 Examples:
-  sdt context template --type adr
+  sdt context template --type decision
   sdt context template --type plan --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -525,7 +557,7 @@ Examples:
 		exitWithError(cmd, err)
 		data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
 		if os.IsNotExist(err) {
-			exitWithError(cmd, fmt.Errorf("no instruction file at %s (types: analysis|plan|tasks|adr|architecture|worklog|notes|questions)", path))
+			exitWithError(cmd, fmt.Errorf("no instruction file at %s (types: analysis|plan|tasks|decision|architecture|worklog|notes|questions)", path))
 		}
 		exitWithError(cmd, err)
 		switch getFormat(cmd) {
@@ -555,8 +587,8 @@ func contextInstrPath(typ string) (string, error) {
 		name = "plan.md"
 	case ctxTypeTasks:
 		name = "tasks.md"
-	case ctxTypeAdr, "decision":
-		name = "adr.md"
+	case ctxTypeDecision:
+		name = "decision.md"
 	case "architecture":
 		name = "architecture.md"
 	case ctxTypeWorklog:
@@ -565,12 +597,14 @@ func contextInstrPath(typ string) (string, error) {
 		name = "notes.md"
 	case ctxTypeQuestions:
 		name = "questions.md"
-	case ctxTypeRFC:
-		name = "rfc.md"
+	case ctxTypeProposal:
+		name = "proposal.md"
 	case ctxTypePrompt:
 		name = "prompts.md"
+	case ctxTypeResearch:
+		name = "research.md"
 	default:
-		return "", fmt.Errorf("unknown type %q (use analysis|plan|tasks|adr|architecture|worklog|notes|questions|rfc|prompt)", typ)
+		return "", fmt.Errorf("unknown type %q (use analysis|plan|tasks|decision|architecture|worklog|notes|questions|proposal|prompt|research)", typ)
 	}
 	return filepath.Join(sdtInstrDir, name), nil
 }

@@ -42,8 +42,8 @@ func TestContextPath(t *testing.T) {
 		t.Errorf("expected %q, got %q", want, got)
 	}
 
-	out = execute(t, contextPathCmd, nil, "--type", "rfc", "--slug", "prompt-provenance")
-	want = filepath.Join("context", "rfcs", "20260806-070000-prompt-provenance.md")
+	out = execute(t, contextPathCmd, nil, "--type", "proposal", "--slug", "prompt-provenance")
+	want = filepath.Join("context", "proposals", "20260806-070000-prompt-provenance.md")
 	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
@@ -114,21 +114,26 @@ func TestContextNew(t *testing.T) {
 	}
 }
 
-func TestContextNewRFCAndPrompt(t *testing.T) {
+func TestContextNewProposalAndPrompt(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
-	execute(t, contextNewCmd, nil, "--type", "rfc", "--title", "prompt provenance")
-	rfcPath := filepath.Join(dir, "context", "rfcs", "20260806-070000-prompt-provenance.md")
-	rfc, err := os.ReadFile(rfcPath)
+	execute(t, contextNewCmd, nil, "--type", "proposal", "--title", "prompt provenance")
+	proposalPath := filepath.Join(dir, "context", "proposals", "20260806-070000-prompt-provenance.md")
+	proposal, err := os.ReadFile(proposalPath)
 	if err != nil {
-		t.Fatalf("expected RFC file: %v", err)
+		t.Fatalf("expected proposal file: %v", err)
 	}
-	for _, want := range []string{"kind: rfc", "title: prompt provenance", "status: draft", "## Proposed design", "## Decision outcome"} {
-		if !strings.Contains(string(rfc), want) {
-			t.Errorf("expected RFC content %q:\n%s", want, rfc)
+	for _, want := range []string{"kind: proposal", "title: prompt provenance", "status: draft", "## Proposed design", "## Decision outcome"} {
+		if !strings.Contains(string(proposal), want) {
+			t.Errorf("expected proposal content %q:\n%s", want, proposal)
 		}
 	}
+
+	// Unknown/removed type names are rejected on creation.
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextNewCmd, nil, "--type", "rfc", "--title", "unknown attempt"))
+	})
 
 	execute(t, contextNewCmd, nil, "--type", "prompt", "--title", "deepsearch")
 	promptPath := filepath.Join(dir, "context", "prompts", "20260806-070000-deepsearch.md")
@@ -140,6 +145,40 @@ func TestContextNewRFCAndPrompt(t *testing.T) {
 		if !strings.Contains(string(prompt), want) {
 			t.Errorf("expected prompt content %q:\n%s", want, prompt)
 		}
+	}
+}
+
+func TestContextNewResearch(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "research", "--title", "vector backends")
+	researchPath := filepath.Join(dir, "context", "research", "20260806-070000-vector-backends.md")
+	research, err := os.ReadFile(researchPath)
+	if err != nil {
+		t.Fatalf("expected research file: %v", err)
+	}
+	for _, want := range []string{
+		"kind: research",
+		"title: vector backends",
+		"subject: ",
+		"status: draft",
+		"created: 2026-08-06T07:00:00Z",
+		"updated: 2026-08-06T07:00:00Z",
+		"## Subject",
+		"## Findings",
+		"## Evidence",
+		"## Feeds",
+	} {
+		if !strings.Contains(string(research), want) {
+			t.Errorf("expected research content %q:\n%s", want, research)
+		}
+	}
+
+	out := execute(t, contextPathCmd, nil, "--type", "research", "--slug", "vector-backends")
+	want := filepath.Join("context", "research", "20260806-070000-vector-backends.md")
+	if got := strings.TrimSpace(string(out)); got != want {
+		t.Errorf("context path research = %q, want %q", got, want)
 	}
 }
 
@@ -349,12 +388,12 @@ func TestContextNewArchitectureRequiresSlug(t *testing.T) {
 	})
 }
 
-func TestNextAdrNumber(t *testing.T) {
+func TestNextDecisionNumber(t *testing.T) {
 	dir := runInTempDir(t)
 	dec := filepath.Join(dir, "context", "decisions")
 
 	// Empty / missing dir → 0001
-	n, err := nextAdrNumber()
+	n, err := nextDecisionNumber()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,11 +402,11 @@ func TestNextAdrNumber(t *testing.T) {
 	}
 
 	os.MkdirAll(dec, 0o750)
-	writeCtxDoc(t, filepath.Join(dec, "0002-auth.md"), "---\nkind: adr\nsummary: s\n---\n")
-	writeCtxDoc(t, filepath.Join(dec, "0004-temp.md"), "---\nkind: adr\nsummary: s\n---\n")
-	writeCtxDoc(t, filepath.Join(dec, "README.md"), "not an adr\n")
+	writeCtxDoc(t, filepath.Join(dec, "0002-auth.md"), "---\nkind: decision\nsummary: s\n---\n")
+	writeCtxDoc(t, filepath.Join(dec, "0004-temp.md"), "---\nkind: decision\nsummary: s\n---\n")
+	writeCtxDoc(t, filepath.Join(dec, "README.md"), "not a decision\n")
 
-	n, err = nextAdrNumber()
+	n, err = nextDecisionNumber()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,11 +415,11 @@ func TestNextAdrNumber(t *testing.T) {
 	}
 }
 
-func TestContextNewAdr(t *testing.T) {
+func TestContextNewDecision(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
-	out := execute(t, contextNewCmd, nil, "--type", "adr", "--title", "Auth choice", "--summary", "Use JWT for auth")
+	out := execute(t, contextNewCmd, nil, "--type", "decision", "--title", "Auth choice", "--summary", "Use JWT for auth")
 	path := strings.TrimSpace(string(out))
 	want := filepath.Join("context", "decisions", "0001-auth-choice.md")
 	if path != want {
@@ -388,7 +427,7 @@ func TestContextNewAdr(t *testing.T) {
 	}
 	content := mustReadFile(t, path)
 	for _, w := range []string{
-		"kind: adr",
+		"kind: decision",
 		"number: 0001",
 		"title: Auth choice",
 		"summary: Use JWT for auth",
@@ -402,12 +441,12 @@ func TestContextNewAdr(t *testing.T) {
 	}
 }
 
-func TestContextNewAdrAutoNumber(t *testing.T) {
+func TestContextNewDecisionAutoNumber(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
-	writeCtxDoc(t, filepath.Join("context", "decisions", "0003-legacy.md"), "---\nkind: adr\nsummary: l\n---\n")
+	writeCtxDoc(t, filepath.Join("context", "decisions", "0003-legacy.md"), "---\nkind: decision\nsummary: l\n---\n")
 
-	out := execute(t, contextNewCmd, nil, "--type", "adr", "--title", "Second", "--slug", "second-choice")
+	out := execute(t, contextNewCmd, nil, "--type", "decision", "--title", "Second", "--slug", "second-choice")
 	path := strings.TrimSpace(string(out))
 	want := filepath.Join("context", "decisions", "0004-second-choice.md")
 	if path != want {
@@ -418,34 +457,34 @@ func TestContextNewAdrAutoNumber(t *testing.T) {
 	}
 }
 
-func TestContextNewAdrNumberOverride(t *testing.T) {
+func TestContextNewDecisionNumberOverride(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
-	out := execute(t, contextNewCmd, nil, "--type", "adr", "--title", "M", "--slug", "m", "--number", "0007")
+	out := execute(t, contextNewCmd, nil, "--type", "decision", "--title", "M", "--slug", "m", "--number", "0007")
 	path := strings.TrimSpace(string(out))
 	if !strings.HasSuffix(path, "0007-m.md") {
 		t.Errorf("expected 0007-m.md, got %q", path)
 	}
 }
 
-func TestContextNewAdrRequiresSlug(t *testing.T) {
+func TestContextNewDecisionRequiresSlug(t *testing.T) {
 	runInTempDir(t)
 	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextNewCmd, nil, "--type", "adr"))
+		return string(execute(t, contextNewCmd, nil, "--type", "decision"))
 	})
 }
 
-func TestContextNewAdrBadNumber(t *testing.T) {
+func TestContextNewDecisionBadNumber(t *testing.T) {
 	runInTempDir(t)
 	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextNewCmd, nil, "--type", "adr", "--title", "X", "--slug", "x", "--number", "7"))
+		return string(execute(t, contextNewCmd, nil, "--type", "decision", "--title", "X", "--slug", "x", "--number", "7"))
 	})
 }
 
-func TestContextPathAdr(t *testing.T) {
+func TestContextPathDecision(t *testing.T) {
 	runInTempDir(t)
-	out := execute(t, contextPathCmd, nil, "--type", "adr", "--number", "0009", "--slug", "choice")
+	out := execute(t, contextPathCmd, nil, "--type", "decision", "--number", "0009", "--slug", "choice")
 	path := strings.TrimSpace(string(out))
 	want := filepath.Join("context", "decisions", "0009-choice.md")
 	if path != want {
@@ -453,17 +492,17 @@ func TestContextPathAdr(t *testing.T) {
 	}
 }
 
-func TestContextPathAdrRequiresNumber(t *testing.T) {
+func TestContextPathDecisionRequiresNumber(t *testing.T) {
 	runInTempDir(t)
 	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextPathCmd, nil, "--type", "adr", "--slug", "x"))
+		return string(execute(t, contextPathCmd, nil, "--type", "decision", "--slug", "x"))
 	})
 }
 
-func TestContextPathAdrBadNumber(t *testing.T) {
+func TestContextPathDecisionBadNumber(t *testing.T) {
 	runInTempDir(t)
 	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextPathCmd, nil, "--type", "adr", "--number", "42", "--slug", "x"))
+		return string(execute(t, contextPathCmd, nil, "--type", "decision", "--number", "42", "--slug", "x"))
 	})
 }
 
@@ -687,6 +726,44 @@ func TestTaskFileFor(t *testing.T) {
 	}
 }
 
+func TestContextTaskFileStatusTransitions(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	file := func() string {
+		return filepath.Join(dir, "context", "tasks", "20260806-070000-custom-phase-1.md")
+	}
+	status := func() string {
+		return frontmatterField(mustReadFile(t, file()), "status")
+	}
+
+	execute(t, contextTaskAddCmd, nil, "one", "--phase", "1", "--plan", "custom")
+	execute(t, contextTaskAddCmd, nil, "two", "--phase", "1", "--plan", "custom")
+	execute(t, contextTaskAddCmd, nil, "three", "--phase", "1", "--plan", "custom")
+	if got := status(); got != taskFileStatusPending {
+		t.Fatalf("create status = %q, want %q", got, taskFileStatusPending)
+	}
+
+	execute(t, contextTaskWipCmd, nil, "1", "--phase", "1", "--plan", "custom")
+	if got := status(); got != taskFileStatusInProgress {
+		t.Fatalf("wip status = %q, want %q", got, taskFileStatusInProgress)
+	}
+	execute(t, contextTaskDoneCmd, nil, "1", "--phase", "1", "--plan", "custom")
+	if got := status(); got != taskFileStatusInProgress {
+		t.Fatalf("done-while-open status = %q, want %q", got, taskFileStatusInProgress)
+	}
+	execute(t, contextTaskDoneCmd, nil, "2", "--phase", "1", "--plan", "custom")
+	execute(t, contextTaskDoneCmd, nil, "3", "--phase", "1", "--plan", "custom")
+	if got := status(); got != taskFileStatusCompleted {
+		t.Fatalf("done-all status = %q, want %q", got, taskFileStatusCompleted)
+	}
+
+	archiveOut := execute(t, contextTaskArchiveCmd, nil, "--phase", "1", "--plan", "custom")
+	archived := mustReadFile(t, strings.TrimSpace(string(archiveOut)))
+	if got := frontmatterField(archived, "status"); got != taskFileStatusArchived {
+		t.Fatalf("archive status = %q, want %q", got, taskFileStatusArchived)
+	}
+}
+
 func TestTaskSlugFromPlan(t *testing.T) {
 	for in, want := range map[string]string{
 		"20260911-062956-plan-llm-wiki-pipeline.md": "plan-llm-wiki-pipeline",
@@ -786,7 +863,7 @@ func TestContextTaskAddFrontmatterConvention(t *testing.T) {
 		"kind: tasks",
 		"summary: Demo checklist",
 		"objective: Demo objective",
-		"status: active",
+		"status: pending",
 		"created: 2026-08-06T07:00:00Z",
 		"updated: 2026-08-06T07:00:00Z",
 		"links:\n  - plan/20260912-000000-pipeline.md",

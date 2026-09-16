@@ -184,7 +184,7 @@ session: <session id>        # optional
   it as an open question in ` + "`context/questions/`" + `; keep the user in
   control of the decisions.
 - Track work via the 5-stage cycle: Analysis → Plan → Tasks per phase → Execution
-  (updates plan+task, creates architecture/ADRs) → Final reports.
+  (updates plan+task, creates architecture/decisions) → Final reports.
 - Verify-step before finishing: completeness, coherence, correctness; prioritize
   CRITICAL / WARNING / SUGGESTION and degrade gracefully.
 
@@ -193,7 +193,7 @@ session: <session id>        # optional
 On an established (brownfield) or new (greenfield) project, do an initial scan
 before changing anything: read the README, docs, code structure and ` + "`git log`" + `.
 Offer what to capture and ask confirmation before writing knowledge files
-(non auto-capturing). Populate ` + "`architecture/`" + ` and new ADRs in
+(non auto-capturing). Populate ` + "`architecture/`" + ` and new decisions in
 ` + "`decisions/`" + `; ` + "`worklog/`" + `/` + "`archive/`" + ` stay history.
 `
 
@@ -321,12 +321,12 @@ Every non-trivial piece of work follows this cycle; a plan is phase 2:
 2. **Plan** — created from the analysis; integrated/modified as needed.
 3. **Tasks** — from the plan create **one task file per phase** (see
    ` + "`instructions/tasks.md`" + `) so the agent can track done vs to-do.
-4. **Execution** — creates other documents (` + "`architecture/`" + `, ADRs) and
+4. **Execution** — creates other documents (` + "`architecture/`" + `, decisions) and
    develops the project; **updates the task and plan files** in place.
 5. **Final reports** — ` + "`worklog/`" + `, ` + "`notes/`" + `, etc.
 
-Plan and task files are updated during execution (not append-only); ADRs and
-` + "`architecture/`" + ` follow their own rules (` + "`instructions/adr.md`" + `,
+Plan and task files are updated during execution (not append-only); decisions and
+` + "`architecture/`" + ` follow their own rules (` + "`instructions/decision.md`" + `,
 ` + "`instructions/architecture.md`" + `).
 `
 
@@ -354,7 +354,7 @@ restarting; never modify a previous analysis/plan on your own.
 kind: tasks
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 objective: "<plan phase this task file belongs to>"
-status: active
+status: pending          # pending | in-progress | completed | archived
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:
@@ -400,7 +400,7 @@ sections handle that.
 | kind | yes | Document type, fixed value ` + "`tasks`" + `; index and lint depend on it. |
 | summary | yes | 1-2 sentence summary → index source. |
 | objective | yes | Plan phase this task file belongs to. |
-| status | yes | ` + "`active`" + ` / ` + "`completed`" + ` / ` + "`archived`" + `. |
+| status | yes | File state: ` + "`pending`" + ` (to work on) / ` + "`in-progress`" + ` / ` + "`completed`" + ` / ` + "`archived`" + `. The first three are always distinguishable — a task file is never stuck with fewer than three meaningful states. ` + "`active`" + ` is the legacy value accepted by lint. |
 | created | yes | ISO 8601 creation date. |
 | updated | yes | ISO 8601 last-edit date; refresh on every change. |
 | links | yes | Relative path to the plan this task file executes. |
@@ -413,6 +413,7 @@ sections handle that.
 
 - Status markers: ` + "`[ ]`" + ` todo · ` + "`[~]`" + ` in-progress · ` + "`[x]`" + ` done · ` + "`[!]`" + ` blocked.
 - Manage with ` + "`sdt context task <sub> --phase <n> [--plan <slug>]`" + ` (add/list/done/block/wip).
+- File status transitions: create → ` + "`pending`" + `; ` + "`wip`" + `/` + "`block`" + ` → ` + "`in-progress`" + `; ` + "`done`" + ` → ` + "`completed`" + ` when no ` + "`[ ]`" + `/` + "`[~]`" + ` item remains, else ` + "`in-progress`" + `; ` + "`archive`" + ` → ` + "`archived`" + `.
 - One plan phase per file: **single focus**, small checklist (~5-7 items); a
   >10-item checklist triggers a ` + "`sdt context lint`" + ` SUGGESTION to split.
 - Task files are **living**: updated during execution of the phase.
@@ -434,7 +435,7 @@ sections handle that.
 ## Stale task files
 
 At the start of any execution pass, scan ` + "`context/tasks/`" + ` for stale
-files: status ` + "`active`" + ` with ` + "`[~]`" + ` in-progress items that went
+files: status ` + "`in-progress`" + ` (or legacy ` + "`active`" + `) with ` + "`[~]`" + ` in-progress items that went
 unupdated for a long time (compare each file's ` + "`updated`" + ` with the current
 date and the recorded take-in). For each stale file:
 
@@ -464,18 +465,18 @@ At session end: note open tasks and questions in ` + "`context/tasks/`" + ` or
 ` + "`context/questions/`" + ` for continuity.
 `
 
-const instrAdrTemplate = `# ADR (Architecture Decision Records)
+const instrDecisionTemplate = `# Decision Records
 
-` + "`context/decisions/NNNN-<slug>.md`" + ` record a decision and its rationale.
+` + "`context/decisions/NNNN-<slug>.md`" + ` records a decision and its rationale.
 Numbered with 4 digits (0001, 0002, ...), in chronological order, append-only.
-A new decision creates a new ADR with the next number; existing ADRs are never
-rewritten in place.
+A new decision creates a new record with the next number; existing decision
+records are never rewritten in place.
 
 ## Structure
 
 ` + codeFence + `markdown
 ---
-kind: adr            # decision
+kind: decision
 number: NNNN
 title: "<one-line title>"
 summary: "<1-2 sentence summary — MANDATORY, index source>"
@@ -518,18 +519,18 @@ session: <session id>        # optional
   cons / why it was rejected. Include the leading runner-up even if clearly
   worse, so future readers don't re-litigate it.
 - **Consequences** — what becomes easier or harder. Be honest about trade-offs;
-  an ADR that only lists benefits isn't trustworthy. Split into **Positive**,
-  **Negative / trade-offs accepted** and **Follow-up required** (checkboxes, e.g.
-  update ` + "`architecture/`" + ` diagrams, migrate old usages).
+  a decision record that only lists benefits isn't trustworthy. Split into
+  **Positive**, **Negative / trade-offs accepted** and **Follow-up required**
+  (checkboxes, e.g. update ` + "`architecture/`" + ` diagrams, migrate old usages).
 - **Notes** — optional: links to benchmarks, discussion threads, prior art,
-  related ADRs.
+  related decisions.
 
 ## Rules
 
-- Append-only and incremental: a revision of a past decision is a NEW ADR with a
-  higher number (which may mark the old one ` + "`status: superseded`" + `).
+- Append-only and incremental: a revision of a past decision is a NEW record
+  with a higher number (which may mark the old one ` + "`status: superseded`" + `).
 - The ` + "`number`" + ` must match the filename prefix (` + "`NNNN-`" + `).
-- When an ADR changes the architecture, **sync it into the living
+- When a decision changes the architecture, **sync it into the living
   ` + "`architecture/`" + ` document** (merge intelligently: preserve untouched
   content, re-read from disk) — delta→main.
 
@@ -558,7 +559,7 @@ status: current            # draft | current | superseded
 component: "<slug>"        # e.g. config-loading, task-index
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
-links:                     # related docs (ADRs it depends on)
+links:                     # related docs (decisions it depends on)
   - decisions/0001-config
 project: <project>
 agent: <agent/tool>          # optional
@@ -600,14 +601,14 @@ session: <session id>        # optional
   (` + "`path/to/pkg`" + `).
 - **Data flow** — how data moves through the system for the main use case(s).
   Sequence-like description is often clearer than a diagram.
-- **Technology choices** — a table: Choice | Rationale (short) | ADR. Link the
-  full ADR for anything non-obvious; don't re-argue it here.
+- **Technology choices** — a table: Choice | Rationale (short) | decision. Link the
+  full decision record for anything non-obvious; don't re-argue it here.
 - **Quality attributes** — cross-cutting concerns: Scalability, Security,
   Observability, Failure modes. Only include rows actually relevant.
 - **Constraints** — things that shaped the design and aren't up for debate in
   scope: infra limits, org policy, external dependencies.
 - **Alternatives considered** — high-level rejected alternatives with why; a
-  summary/index, details go in the related ADR.
+  summary/index, details go in the related decision record.
 - **Evolution / migration notes** — how this architecture is expected to change,
   or how a past one migrated to this. Useful context for anyone tempted to
   "fix" a deliberate trade-off.
@@ -618,7 +619,7 @@ session: <session id>        # optional
 
 - **Naming**: kebab-case, **no date** in the filename.
 - **Living**: update in place when the architecture changes; updates can come
-  from new ADRs (sync — see ` + "`instructions/adr.md`" + `).
+  from new decisions (sync — see ` + "`instructions/decision.md`" + `).
 - **Mermaid**: embed diagrams in the markdown where useful and not too large; if
   large use separate ` + "`.mmd`" + ` files; an optional ` + "`architecture.mmd`" + `
   holds the whole-architecture graph.
@@ -672,7 +673,7 @@ session: <session id>        # optional
 
 **Decisions made**
 
-- <small local decision>: <why>   (architectural → its own ADR, linked here)
+- <small local decision>: <why>   (architectural → its own decision record, linked here)
 
 **Deviations from plan/task**
 
@@ -695,7 +696,7 @@ session: <session id>        # optional
 - **Summary** — 1-3 sentences on what was actually done.
 - **Changes made** — one line per file/module touched.
 - **Decisions made** — only small, local decisions that don't warrant a full
-  ADR; anything architecturally significant becomes an ADR and is linked here.
+  decision record; anything architecturally significant becomes a decision record and is linked here.
 - **Deviations from plan/task** — say explicitly when what was done differs from
   the task/plan. This is what keeps plan/task files trustworthy.
 - **Blockers encountered** — the blocker and how it was resolved (or that it's
@@ -1002,7 +1003,7 @@ Create it with ` + "`sdt agent init --project myapp --group platform`" + ` or
 
 Documents under ` + "`context/`" + ` are the project knowledge. Per-type
 instructions and templates in ` + "`context/instructions/`" + ` (analysis, plan,
-tasks, adr, architecture, worklog, notes, questions, rfc, prompts, project, scripts, cli
+tasks, decision, architecture, worklog, notes, questions, proposals, research, prompts, project, scripts, cli
 usage). Index and checks:
 ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` / ` + "`sdt context status`" + ` /
 ` + "`sdt context template --type <tipo>`" + `. Agent instruction contract:
@@ -1087,18 +1088,18 @@ sdt dns --host example.com --type A --format json
 ` + codeFence + `
 `
 
-const instrRFCTemplate = `# RFC Documents
+const instrProposalTemplate = `# Proposal Documents
 
-` + "`context/rfcs/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records a proposal before
+` + "`context/proposals/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records a proposal before
 an implementation or architectural decision. Read this file when creating or
-reviewing an RFC.
+reviewing a proposal.
 
 ## Contract
 
-Every RFC starts with frontmatter:
+Every proposal starts with frontmatter:
 
 ` + codeFence + `yaml
-kind: rfc
+kind: proposal
 title: "One-line proposal title"
 summary: "1-2 sentence index summary — MANDATORY"
 context: "Problem or opportunity"
@@ -1120,25 +1121,310 @@ Validation/evidence, Decision outcome, and Follow-up. Separate observed facts
 from the proposed choice and preserve links to analyses, procedures, prompts,
 and immutable evidence under ` + "`context/refs/`" + `.
 
-## RFC → ADR → architecture
+## Proposal → decision workflow
 
-An accepted RFC creates a new numbered ADR when it makes an architectural or
-policy decision. The ADR links back to the RFC and is authoritative for the
-decision. When the ADR changes the current system shape, update the relevant
-living ` + "`context/architecture/`" + ` document in the same execution phase and
-link it to the ADR. An accepted non-architectural RFC may record its outcome in
-the RFC without an ADR.
+An accepted proposal becomes a decision only through a numbered decision record.
+Follow this flow after the proposal reaches ` + "`status: accepted`" + `:
 
-RFCs propose; ADRs decide; architecture documents describe the current state.
-Do not treat research in ` + "`refs/`" + ` or an RFC status alone as an accepted
-decision.
+1. **Acceptance review** — confirm the proposal is complete: no open points,
+   alternatives considered, validation/evidence present.
+2. **Create the decision record** — run
+   ` + "`sdt context new --type decision --number <NNNN> --title \"<decision title>\"`" + `
+   (or omit ` + "`--number`" + ` to auto-assign the next NNNN). Write the decision,
+   recording the accepted alternative and its rationale.
+3. **Link both ways** — the decision record lists the proposal in ` + "`sources`" + ` and
+   ` + "`links`" + ` (` + "`proposals/<date>-<slug>.md`" + `); the proposal records the decision
+   in ` + "`links`" + ` and sets ` + "`status: accepted`" + ` (or ` + "`rejected`" + `/` + "`superseded`" + `
+   for the other outcomes).
+4. **Architectural impact** — when the decision changes the current system
+   shape, update the relevant living ` + "`context/architecture/`" + ` document in the
+   same execution phase and link it to the decision record. Non-architectural
+   decisions may be recorded by the decision record alone.
+5. **Reconcile** — run ` + "`sdt context reindex`" + ` and ` + "`sdt context lint`" + `; verify
+   the proposal → decision → architecture chain is clean before closing the phase.
+
+Proposals propose; decision records decide; architecture documents describe the
+current state. Do not treat research in ` + "`refs/`" + ` or a proposal status alone as
+an accepted decision.
+`
+
+const instrResearchTemplate = `# Research Documents
+
+` + "`context/research/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records the results of one
+research run (deepsearch, web/document sweep, spike) and its provenance. Read
+this file when running or writing up research that feeds an analysis, proposal
+or decision.
+
+## Contract
+
+Every research note starts with frontmatter:
+
+` + codeFence + `yaml
+kind: research
+title: "One-line research title"
+summary: "1-2 sentence index summary — MANDATORY"
+subject: "The question this run answers"
+context: "Why this research was requested"
+status: draft # draft | active | archived
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+sources:            # provenance: the driving prompt + evidence refs
+  - prompts/<driving-prompt>.md
+  - refs/<evidence>.md
+project: <project>
+agent: <agent/tool>          # optional
+model: <model id>            # optional
+session: <session id>        # optional
+` + codeFence + `
+
+Body sections: Subject, Method, Findings, Evidence, Limits and open points,
+Feeds.
+
+## Purpose and boundary
+
+- **Research = raw results, not a decision.** A research note gathers and
+  organizes evidence (with links) so an analysis or proposal can reason over
+  it — it never states an accepted choice.
+- **Research feeds analyses and proposals.** Link forward with
+  ` + "`links: analysis/…, proposals/…`" + ` once the consuming document exists; a
+  proposal or decision cites the research in its ` + "`sources`" + `.
+- **Boundary vs analysis.** An analysis interprets evidence to reach a
+  conclusion/recommendation; research merely collects and attributes it. When
+  interpretation starts, write/extend an analysis (or proposal) instead.
+- **Provenance is mandatory.** Every run names its driving prompt
+  (` + "`prompts/<…>.md`" + `) and the evidence it relied on under ` + "`sources`" + `.
+  Non-markdown evidence is converted first (anydoc, then docling — see
+  ` + "`instructions/ingestion.md`" + `) and the original kept in ` + "`context/refs/`" + `.
+
+## Deepsearch readiness
+
+- One run → one dated file, so a future ` + "`sdt deepsearch`" + ` integration can
+  append machine-produced runs and link them like any other source.
+- Keep findings atomic and citable (claim + source + scope + date) so a
+  downstream analysis or the wiki can reference them without re-reading the run.
+- Prefer ` + "`refs/`" + ` for immutable raw captures; the research note summarizes
+  and links, it does not duplicate the raw payload.
+`
+
+const instrIngestionTemplate = `# Ingestion → Wiki → Refs (knowledge pipeline)
+
+The three-stage knowledge pipeline on top of ` + "`context/`" + `: source material lands
+in ` + "`context/ingestion/`" + `, an **agent command** distils it into knowledge-graph
+pages under ` + "`context/wiki/`" + `, and consumed sources are archived to
+` + "`context/refs/`" + `. No CLI ingests files — placement is manual (user),
+distillation is agent work. This file is the **agent command**: read it when a
+new ingestion request arrives.
+
+## Files & lifecycle
+
+| Dir | Role | Owner | Kind | Status |
+|---|---|---|---|---|
+| ` + "`context/ingestion/`" + ` | raw source awaiting distillation | user (manual) | ` + "`reference`" + ` | ` + "`pending`" + ` |
+| ` + "`context/wiki/`" + ` | knowledge-graph pages | agent | ` + "`wiki`" + ` | ` + "`active`" + `/` + "`draft`" + `/` + "`archived`" + ` |
+| ` + "`context/refs/`" + ` | archived, immutable sources | agent (after approval) | ` + "`reference`" + ` | ` + "`archived`" + ` |
+
+> Marker enforcement: ` + "`sdt context wiki lint`" + ` enforces the ` + "`ingestion/`" + ` markers
+> (` + "`kind: reference`" + `, ` + "`status: pending`" + `). ` + "`refs/`" + ` is **excluded from lint** — its
+> markers are a convention only, since it holds large immutable external
+> captures that need not follow the frontmatter contract.
+
+` + codeFence + `
+user drops files → ingestion/ (pending)
+      │
+      ▼ agent command: distil → write/update wiki/ pages
+      │                                      │
+      ▼ (user approves write + archive plan) ▼
+agent moves sources → refs/ (archived)   sync node status
+` + codeFence + `
+
+- ` + "`ingestion/`" + ` and ` + "`refs/`" + ` are **immutable**: never edit, merge or refactor a
+  file there. The only legal mutation is the archive move (pending→archived)
+  performed by this command after approval. Anything else is a git-visible
+  violation.
+- Read-only: facts pulled from ` + "`refs/`" + ` must cite ` + "`file@SHA:lines`" + ` or the target
+  node id.
+
+## Invocation (scope)
+
+The user triggers ingestion with an **agent command**, opencode slash-command
+style, specifying one of:
+
+- ` + "`all`" + ` — every pending file in ` + "`context/ingestion/`" + ` (default when no scope).
+- ` + "`<file>`" + ` — a single pending source (path, name or id).
+- ` + "`<glob>`" + ` — a specific group of files.
+
+Only files inside the requested scope are considered; already-archived files
+are always skipped.
+
+## Operating sequence
+
+1. Resolve the invocation scope (above).
+2. List pending (` + "`status: pending`" + `) files in scope.
+3. Read each source: convert non-markdown to markdown (see Reading &
+   conversion), then split into atomic facts (distillation rules below).
+4. Match existing ` + "`wiki/`" + ` nodes by ` + "`title`" + `/` + "`id`" + `/` + "`tags`" + `: **reuse** a
+   same-slug + same-concept node (append/update in place, never duplicate),
+   or create a new one.
+5. Write or update distilled ` + "`wiki/`" + ` pages per the schema, the six invariants
+   and the concept budget.
+6. Wire ` + "`relations`" + ` + ` + "`tags`" + `; every claim carries its source citation.
+7. Present the **write + archive plan** to the user: pages touched (created/
+   updated), relations added/removed, and files to archive. **Wait for
+   approval**.
+8. On approval: archive processed sources to ` + "`context/refs/`" + ` with
+   ` + "`status: archived`" + `, append a ` + "`worklog/`" + ` entry, run ` + "`sdt context reindex`" + `.
+
+**Idempotence**: skip ` + "`status: archived`" + ` files; a re-run matches new candidates
+against existing nodes instead of re-reading archived sources as new input.
+**Existence guard**: before any write to ` + "`wiki/`" + `, check the target path. A
+same-slug file with the same concept is **updated in place** (append claims /
+` + "`refines #claim-n`" + `), never overwritten silently; creating a new node requires
+the slug to be free.
+
+## Reading & conversion (heterogeneous sources)
+
+Sources are frequently not plain markdown — convert first, then distil.
+
+- **anydoc** is the preferred converter (PDF/DOCX/HTML and other formats →
+  clean markdown). Use **docling** as the alternative when anydoc yields no
+  usable result.
+- **Fallbacks** by source type: ` + "`markitdown`" + ` (Office/web), ` + "`marker`" + `
+  (PDF-heavy), OCR for scans (e.g. tesseract) when the above yield no usable
+  text. Optional wrapper in ` + "`context/scripts/`" + ` (registered in
+  ` + "`scripts/index.md`" + `) keeps the invocation reproducible.
+- Conversion output is transient: write intermediate markdown to
+  ` + "`context/tmp/`" + ` while distilling — never into ` + "`context/ingestion/`" + `
+  (immutable) or directly into the wiki. Raw binaries stay untouched in
+  ` + "`context/ingestion/`" + ` until the archive step.
+- **Images** (diagrams, screenshots, scans): interpret via a vision-capable
+  model; distil the facts into the wiki page; optionally archive the original
+  in ` + "`context/refs/`" + ` on approval. Never embed binaries in wiki pages — point
+  to ` + "`refs/<file>@<sha>`" + ` instead.
+
+## Wiki page schema
+
+**Frontmatter** (the machine reading surface):
+
+| Field | Required | Notes |
+|---|---|---|
+| ` + "`kind`" + ` | yes | ` + "`wiki`" + ` |
+| ` + "`id`" + ` | yes | relative subpath of the file (` + "`wiki/backend/auth.md`" + ` → ` + "`backend/auth`" + `; flat ` + "`wiki/<slug>.md`" + ` → ` + "`<slug>`" + `) |
+| ` + "`title`" + ` | yes | unique across all ` + "`wiki/`" + ` pages (ambiguity = lint error) |
+| ` + "`type`" + ` | yes | ` + "`concept`" + ` · ` + "`entity`" + ` · ` + "`decision`" + ` · ` + "`pattern`" + ` · ` + "`module`" + ` |
+| ` + "`status`" + ` | yes | ` + "`draft`" + ` · ` + "`active`" + ` · ` + "`archived`" + ` |
+| ` + "`summary`" + ` | yes | 1-2 lines for the index |
+| ` + "`relations`" + ` | yes | ordered map: closed verbs → ` + "`[[id\\|label]]`" + ` |
+| ` + "`tags`" + ` | yes | hierarchical (` + "`backend/performance`" + `) |
+| ` + "`sources`" + ` | yes | ` + "`refs/`" + ` files this page cites |
+| ` + "`verified`" + ` | no | ` + "`false`" + ` for unverified/imported claims |
+| ` + "`supersedes`" + ` | no | node id replaced by this page |
+
+**Subdirectories** (optional, one level by default): ` + "`wiki/<context>/<slug>.md`" + `
+groups pages by context label — the subdir name is a kebab-case context
+label (` + "`backend`" + `, ` + "`infra`" + `, ` + "`product`" + `). ` + "`sdt context wiki lint`" + ` scans
+recursively; a page's ` + "`id`" + ` must equal its relative subpath (` + "`backend/auth`" + `),
+global ` + "`title`" + ` uniqueness and ` + "`[[id|label]]`" + `/` + "`[[verb::title]]`" + ` resolution
+still apply across subdirs. Flat ` + "`wiki/<slug>.md`" + ` pages (` + "`id: <slug>`" + `) are a
+valid special case and stay as-is.
+
+**Body** (the human reading surface):
+
+Page anatomy — every ` + "`wiki/`" + ` node keeps the **fixed body structure**:
+
+- ` + "`## Summary`" + ` — a 3-10 line TL;DR restating the knowledge in the KB's own
+  words; the primary human reading surface (frontmatter ` + "`summary`" + ` stays 1-2
+  lines for the index).
+- ` + "`## Claims`" + ` — numbered, **atomic** assertions; each is one fact, each cites
+  its source inline ` + "`(refs/<file>@<sha>:<lines>)`" + `, each carries an anchor
+  ` + "`{#claim-<n>}`" + ` so other pages can supersede/refine a single claim without
+  editing it.
+- ` + "`## Notes`" + ` — rationale, trade-offs, open points; opinion kept separate from
+  facts. Notes content varies by ` + "`type`" + `.
+
+**Dual readability:** the human path is ` + "`Summary`" + ` + claims-as-bullets + terse
+markdown structure; the agent/machine path is the frontmatter (` + "`relations`" + `/
+` + "`tags`" + `), claim anchors, typed wiki-links, and markdown-ld — the surface that
+lint parses and ` + "`export`" + ` uses. New pages must ship all three body sections.
+Pages written before this anatomy was frozen may stay as-is until touched.
+
+**Typed wiki-links** (Obsidian syntax): body ` + "`[[verb::title]]`" + `, relations
+` + "`[[id|label]]`" + `. ` + "`verb`" + ` is always one of the closed vocabulary below; titles
+must resolve uniquely.
+
+**markdown-ld** (optional): a JSON-LD block for machine-readable typing, used
+only where it adds real value (schema.org export, external/real entities).
+When present ` + "`wiki lint`" + ` validates JSON well-formedness and
+` + "`name`" + ` ↔ ` + "`title`" + `.
+
+**Relation vocabulary — closed set** (extending it is a schema change; a verb
+outside the set fails lint):
+
+| verb | semantics (this node → target) |
+|---|---|
+| ` + "`supersedes`" + ` | replaces target node/claim; reverse derived |
+| ` + "`depends_on`" + ` | requires target as prerequisite |
+| ` + "`refers_to`" + ` | points to a referenced concept/entity (default body verb) |
+| ` + "`refines`" + ` | narrows/corrects target (claim-level via ` + "`#claim-n`" + `) |
+| ` + "`implements`" + ` | realizes a spec/decision/record |
+| ` + "`conflicts_with`" + ` | stated contradiction (triggers verification) |
+| ` + "`part_of`" + ` | component of target |
+| ` + "`contains`" + ` | target is part of this node (mirror of ` + "`part_of`" + `) |
+
+Only ` + "`part_of`" + `/` + "`contains`" + ` is bi-directional; other edges keep one canonical
+direction (reverse forms derived, never written).
+
+**Concept budget** (invariant 6, kept schema-versioned): a page targets **one
+concept**. ` + "`wiki lint`" + ` raises a WARNING on pages exceeding ~120 lines or ~20
+claims as a **split signal**: the page likely spans several distinct concepts
+or incomparable material — split it into child/sibling nodes wired via
+` + "`part_of`" + `/` + "`depends_on`" + `/` + "`refers_to`" + `.
+
+## Distillation rules
+
+**Page anatomy** is the fixed body structure above (frontmatter + ` + "`## Summary`" + `
++ ` + "`## Claims`" + ` + ` + "`## Notes`" + `); the page must be **knowledge, not a copy**.
+
+**The six "not-a-copy" invariants:**
+
+1. **Re-express, never quote.** Own wording; quote only when a downstream
+   consumer depends on the exact value, naming the dependent.
+2. **Cite, don't paste.** Every claim cites its source; a page must be
+   re-derivable from ` + "`refs/`" + ` + git history. Un-expressible nuggets stay in
+   ` + "`refs/`" + ` and are cited, not pasted.
+3. **One fact, one claim.** Atomicity enables dedup, per-claim refine/
+   supersede, and lint checks; the same fact never lives in two nodes.
+4. **Shape, not value.** Describe structures/concepts/decisions; live values
+   stay in frontmatter or repo files, referenced by pointer.
+5. **Pointer, not copy, across nodes.** Cross-references go through
+   ` + "`relations`" + ` + typed wiki-links; never restate another node's content.
+6. **One concept, one page.** Exhaustive for its concept, never spanning many
+   distinct concepts — split instead (see concept budget).
+
+**Transformation algorithm** (per source):
+
+1. Read source in full; split into atomic facts.
+2. Group facts into candidate nodes by concept/entity/decision; split any
+   candidate spanning several distinct concepts (pre-wire child relations).
+3. Match existing ` + "`wiki/`" + ` nodes by ` + "`title`" + `/` + "`id`" + `/` + "`tags`" + `; reuse, split or create.
+4. Existing nodes: **append** claims; corrections add ` + "`refines #claim-<n>`" + ` —
+   never rewrite history in place.
+5. Set ` + "`relations`" + ` + ` + "`tags`" + `; verify every claim has a citation and ` + "`sources`" + `
+   lists the refs file.
+6. When all scoped files are handled: present plan → user approves → archive.
+
+## Verification
+
+- ` + "`sdt context wiki lint`" + ` — schema/graph checks on ` + "`wiki/`" + ` (scanned
+  recursively; ` + "`id`" + ` = relative subpath) plus ` + "`ingestion/`" + ` markers
+  (` + "`refs/`" + ` excluded). Separate from the general ` + "`sdt context lint`" + `.
+- After every run: ` + "`sdt context reindex`" + `.
 `
 
 const instrPromptsTemplate = `# Tracked Prompts
 
 ` + "`context/prompts/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records a reusable or
 executed prompt and its provenance. Read this file when creating, revising, or
-running a prompt that contributes to an analysis, procedure, RFC, or decision.
+running a prompt that contributes to an analysis, procedure, proposal, or decision.
 
 ## Contract
 
@@ -1161,7 +1447,7 @@ results:
 project: <project>
 ` + codeFence + `
 
-Keep the complete prompt text in the body. Link the analysis, RFC, instruction,
+Keep the complete prompt text in the body. Link the analysis, proposal, instruction,
 or procedure that produced it through ` + "`derived_from`" + ` and record deep-
 search outputs by relative pointers under ` + "`context/refs/`" + `. Do not copy
 large reports into the prompt record or modify files in ` + "`refs/`" + `.
@@ -1170,7 +1456,7 @@ large reports into the prompt record or modify files in ` + "`refs/`" + `.
 
 Use one ` + "`## Runs`" + ` section for repeated executions. Each row records at
 least date/time, model or tool, scope, status, and result references. Link
-resulting analyses, RFCs, ADRs, or other documents in ` + "`results`" + ` or the
+resulting analyses, proposals, decisions, or other documents in ` + "`results`" + ` or the
 run row. Split runs into separate files only through a later schema change.
 `
 

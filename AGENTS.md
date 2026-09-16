@@ -44,7 +44,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 
 - `context/index.md` — generated entry point
 - `context/architecture/` — living architecture docs (essential tier)
-- `context/decisions/` — ADRs (essential tier)
+- `context/decisions/` — decisions (essential tier)
 
 **On action** — read when you take that action:
 
@@ -54,12 +54,14 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/analysis.md` | Creating or modifying an analysis |
 | `context/instructions/plan.md` | Creating or modifying a plan |
 | `context/instructions/tasks.md` | Creating or modifying task files |
-| `context/instructions/adr.md` | Writing an ADR |
+| `context/instructions/decision.md` | Writing a decision record |
 | `context/instructions/architecture.md` | Updating architecture docs |
 | `context/instructions/worklog.md` | Writing a final report |
 | `context/instructions/notes.md` | Writing a note |
 | `context/instructions/questions.md` | Registering an open question |
-| `context/instructions/rfc.md` | Creating or reviewing an RFC |
+| `context/instructions/proposal.md` | Creating or reviewing a proposal |
+| `context/instructions/research.md` | Running or writing a research note |
+| `context/instructions/ingestion.md` | Ingesting sources; converting non-markdown (anydoc → docling) |
 | `context/instructions/prompts.md` | Creating or running a tracked prompt |
 | `context/instructions/reference.md` | Looking up a command |
 | `context/instructions/cli.md` | Looking up usage examples |
@@ -67,13 +69,13 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
 | `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
-| `context/docs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
+| `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
 
 Each agent-visible task gets **one file** under `context/commands/` (thin
 triggers; the durable contract stays under `context/instructions/`).
 
 Work directories live under `context/` (`plan/`, `analysis/`, `architecture/`,
-`decisions/`, `rfcs/`, `prompts/`, worklog/, notes/, tasks/, commands/,
+`decisions/`, `proposals/`, `research/`, `prompts/`, worklog/, notes/, tasks/, commands/,
 questions/, archive/, tmp/, `scripts/`). Keep all instruction files concise and technical. Bundled
 scripts in `context/scripts/` are listed in
 `context/scripts/index.md` and executed on demand, never read into context
@@ -95,7 +97,7 @@ Follow this cycle for any non-trivial task:
 4. **Execution** — work **one task file at a time**, never from the plan;
    **mark it in progress on take-in**, complete items as they finish, scan
    `context/tasks/` for stale in-progress files before starting; create
-   `context/architecture/` and `context/decisions/` (ADRs) as
+   `context/architecture/` and `context/decisions/` (decisions) as
    needed; **update the task and plan files** in place.
 5. **Final reports** — append `context/worklog/` and `notes/` entries.
 
@@ -118,12 +120,12 @@ none, record them in `context/instructions/project.md`.
 
 ### Communication (default)
 
-Code work: terse caveman ultra. Drop articles/filler/pleasantries/hedging.
-Fragments OK, short synonyms, technical terms exact, code unchanged.
+Code work: concise, direct. Drop filler/pleasantries/hedging, keep full sentences.
+No unnecessary preamble. Technical terms exact, code unchanged.
 Pattern: `[thing] [action] [reason]. [next step]`.
 Not: "Sure! I'd be happy to help you with that."
-Yes: "Bug in auth middleware. Fix:"
-Code only — user-requested docs written normal (concise).
+Yes: "Auth middleware has a bug. Fixing:"
+Code only — user-requested docs written normal (concise)
 
 Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase after
 type. Body only when "why" unclear. No period on subject.
@@ -141,7 +143,7 @@ missing or you are unsure, either:
    file with a checklist of open questions) and prompt the user to answer it.
 
 Every questions document, and any document that derives from or extends another
-(plan→analysis, tasks→plan, ADR→architecture/analysis, follow-up analysis, ...),
+(plan→analysis, tasks→plan, decision→architecture/analysis, follow-up analysis, ...),
 must keep a reference to its source document via the `sources` frontmatter
 array and/or inline body text, for bidirectional traceability.
 

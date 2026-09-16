@@ -53,14 +53,12 @@ Shape of the data store.
 1. DB stores rows. {#claim-1} (refs/spec.md@abc:3)
 `
 
-// wikiSourceDirs creates the empty immutable source dirs that a wiki lint run
-// expects (missing markers are a warning).
+// wikiSourceDirs creates the empty immutable source dir a wiki lint run
+// expects (a missing ingestion/ marker is a warning). refs/ is excluded.
 func wikiSourceDirs(t *testing.T) {
 	t.Helper()
-	for _, d := range []string{sdtIngestionDir, sdtRefsDir} {
-		if err := os.MkdirAll(d, 0o750); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.MkdirAll(sdtIngestionDir, 0o750); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -393,8 +391,9 @@ func TestWikiLintMarkers(t *testing.T) {
 	if !strings.Contains(out, `marker `+"`kind`"+` "wiki" must be "reference" in ingestion/`) {
 		t.Errorf("expected ingestion kind marker error:\n%s", out)
 	}
-	if !strings.Contains(out, `marker `+"`status`"+` "pending" must be "archived" in refs/`) {
-		t.Errorf("expected refs status marker error:\n%s", out)
+	// refs/ is excluded from lint: its markers are not enforced.
+	if strings.Contains(out, "refs/") {
+		t.Errorf("expected refs/ to be excluded from lint:\n%s", out)
 	}
 }
 

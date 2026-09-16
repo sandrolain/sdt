@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,11 +44,11 @@ func TestContextReindex(t *testing.T) {
 	}
 }
 
-func TestContextReindexRFCAndPrompt(t *testing.T) {
+func TestContextReindexProposalAndPrompt(t *testing.T) {
 	setupContextProject(t)
 	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/search.md", "---\nkind: reference\nstatus: archived\nsummary: Search evidence\n---\nsource\n")
-	writeCtxDoc(t, "context/rfcs/proposal.md", "---\nkind: rfc\ntitle: Proposal\nsummary: RFC summary\nstatus: review\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
+	writeCtxDoc(t, "context/proposals/proposal.md", "---\nkind: proposal\ntitle: Proposal\nsummary: Proposal summary\nstatus: review\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
 	writeCtxDoc(t, "context/prompts/search.md", "---\nkind: prompt\ntitle: Search prompt\nsummary: Prompt summary\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
 
 	execute(t, contextReindexCmd, nil)
@@ -55,13 +56,36 @@ func TestContextReindexRFCAndPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"[[rfcs/proposal.md]]", "RFC summary", "[[prompts/search.md]]", "Prompt summary"} {
+	for _, want := range []string{"[[proposals/proposal.md]]", "Proposal summary", "[[prompts/search.md]]", "Prompt summary"} {
 		if !strings.Contains(string(idx), want) {
 			t.Errorf("expected %q in index:\n%s", want, idx)
 		}
 	}
 	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
-		t.Fatalf("expected clean RFC/prompt lint, got:\n%s", out)
+		t.Fatalf("expected clean proposal/prompt lint, got:\n%s", out)
+	}
+}
+
+func TestContextReindexResearch(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/prompts/drive.md", "---\nkind: prompt\ntitle: Drive\nsummary: Driving prompt\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\n---\nbody\n")
+	writeCtxDoc(t, "context/refs/capture.md", "---\nkind: reference\nstatus: archived\nsummary: Raw capture\n---\nsource\n")
+	writeCtxDoc(t, "context/research/backends.md", "---\nkind: research\ntitle: Vector backends\nsummary: Compared vector backends\nsubject: Which vector backend fits? \nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - prompts/drive.md\n  - refs/capture.md\nproject: p\n---\n## Findings\nbody\n")
+
+	if tier := ctxTierForDir(sdtResearchDir); tier != ctxTierImportant {
+		t.Fatalf("research tier = %q, want %q", tier, ctxTierImportant)
+	}
+	execute(t, contextReindexCmd, nil)
+	idx, err := os.ReadFile(filepath.Join("context", "index.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(idx), "[[research/backends.md]]") || !strings.Contains(string(idx), "Compared vector backends") {
+		t.Errorf("expected research entry in index:\n%s", idx)
+	}
+	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
+		t.Fatalf("expected clean research lint, got:\n%s", out)
 	}
 }
 
@@ -74,14 +98,14 @@ func TestContextLintPromptProvenance(t *testing.T) {
 	}
 }
 
-func TestContextLintRFCADRArchitectureChain(t *testing.T) {
+func TestContextLintProposalDecisionArchitectureChain(t *testing.T) {
 	setupContextProject(t)
 	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\n---\nbody\n")
-	writeCtxDoc(t, "context/rfcs/decision.md", "---\nkind: rfc\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
-	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: adr\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - rfcs/decision.md\nproject: p\nsources:\n  - rfcs/decision.md\n---\n## Decision\nUse the proposal.\n")
+	writeCtxDoc(t, "context/proposals/decision.md", "---\nkind: proposal\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
+	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: decision\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - proposals/decision.md\nproject: p\nsources:\n  - proposals/decision.md\n---\n## Decision\nUse the proposal.\n")
 	writeCtxDoc(t, "context/architecture/decision.md", "---\nkind: architecture\nsummary: Current decision architecture\ncontext: Decision shape\nstatus: current\ncomponent: decision\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - decisions/0002-decision.md\nproject: p\n---\n# Architecture\n")
 	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
-		t.Fatalf("expected clean RFC/ADR/architecture chain, got:\n%s", out)
+		t.Fatalf("expected clean proposal/decision/architecture chain, got:\n%s", out)
 	}
 }
 
@@ -130,6 +154,39 @@ func TestContextLintOversizedTaskFileBoundary(t *testing.T) {
 	out := execute(t, contextLintCmd, nil, "--format", "json")
 	if strings.Contains(string(out), "consider splitting the phase") {
 		t.Errorf("expected no suggestion at exactly 10 items: %s", out)
+	}
+}
+
+func TestContextLintTaskFileStatusVocabulary(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/tasks/bad.md", "---\nkind: tasks\nsummary: bad status\nstatus: done\n---\n- [ ] step\n")
+	writeCtxDoc(t, "context/tasks/nostatus.md", "---\nkind: tasks\nsummary: no status\n---\n- [ ] step\n")
+	writeCtxDoc(t, "context/tasks/legacy.md", "---\nkind: tasks\nsummary: legacy active\nstatus: active\n---\n- [ ] step\n")
+	writeCtxDoc(t, "context/tasks/new.md", "---\nkind: tasks\nsummary: new vocab\nstatus: in-progress\n---\n- [~] step\n")
+	out := strings.TrimSpace(string(execute(t, contextLintCmd, nil, "--format", "json")))
+	var issues []ctxLintIssue
+	if err := json.Unmarshal([]byte(out), &issues); err != nil {
+		t.Fatalf("invalid lint JSON: %v\n%s", err, out)
+	}
+	statusFlagged := func(base, msg string) bool {
+		for _, it := range issues {
+			if filepath.Base(it.Path) == base && strings.Contains(it.Message, msg) {
+				return true
+			}
+		}
+		return false
+	}
+	if !statusFlagged("bad.md", "outside vocabulary") {
+		t.Errorf("expected `done` flagged as outside vocabulary, got issues: %s", out)
+	}
+	if !statusFlagged("nostatus.md", "missing frontmatter") {
+		t.Errorf("expected missing status flagged, got issues: %s", out)
+	}
+	if statusFlagged("legacy.md", "outside vocabulary") {
+		t.Errorf("legacy `active` must not be flagged, got issues: %s", out)
+	}
+	if statusFlagged("new.md", "outside vocabulary") {
+		t.Errorf("valid `in-progress` must not be flagged, got issues: %s", out)
 	}
 }
 
@@ -190,9 +247,9 @@ func TestContextStatus(t *testing.T) {
 
 func TestContextTemplate(t *testing.T) {
 	setupContextProject(t)
-	out := execute(t, contextTemplateCmd, nil, "--type", "adr")
-	if !strings.Contains(string(out), "decisions/") && !strings.Contains(string(out), "ADR") {
-		t.Errorf("expected ADR template content: %s", out)
+	out := execute(t, contextTemplateCmd, nil, "--type", "decision")
+	if !strings.Contains(string(out), "decisions/") && !strings.Contains(string(out), "Decision Records") {
+		t.Errorf("expected decision template content: %s", out)
 	}
 }
 
@@ -211,7 +268,7 @@ func TestContextListArchitectureAndDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	//#nosec G306 -- user work file
-	if err := os.WriteFile(filepath.Join(dir, "context/decisions/0001-x.md"), []byte("---\nkind: adr\nnumber: 0001\nsummary: x\n---\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "context/decisions/0001-x.md"), []byte("---\nkind: decision\nnumber: 0001\nsummary: x\n---\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := execute(t, contextListCmd, nil, "--type", "architecture")
@@ -230,7 +287,7 @@ func TestContextTaskPhaseFile(t *testing.T) {
 	execute(t, contextTaskAddCmd, nil, "step exec", "--phase", "execution", "--plan", "custom")
 	path := filepath.Join(dir, "context/tasks/20260806-070000-custom-phase-execution.md")
 	got := mustReadFile(t, path)
-	for _, want := range []string{"step exec", "summary: Task checklist for phase execution", "status: active"} {
+	for _, want := range []string{"step exec", "summary: Task checklist for phase execution", "status: pending"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("expected %q in task file:\n%s", want, got)
 		}

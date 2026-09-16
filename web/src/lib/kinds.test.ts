@@ -20,6 +20,15 @@ describe("entryKind", () => {
   it("treats canvas entries as canvas regardless of kind", () => {
     expect(entryKind(entry({ canvas: true, kind: "wiki" }))).toBe("canvas");
   });
+
+  it("uses proposal and research kinds", () => {
+    expect(entryKind(entry({ kind: "proposal" }))).toBe("proposal");
+    expect(entryKind(entry({ kind: "research" }))).toBe("research");
+  });
+
+  it("uses the decision kind for decision records", () => {
+    expect(entryKind(entry({ kind: "decision" }))).toBe("decision");
+  });
 });
 
 describe("kindLabel", () => {
@@ -42,5 +51,10 @@ describe("availableKinds", () => {
     expect(kinds.indexOf("analysis")).toBeLessThan(kinds.indexOf("worklog"));
     expect(kinds[kinds.length - 1]).toBe("canvas");
     expect(kinds).toContain("other");
+  });
+
+  it("orders proposal before research", () => {
+    const kinds = availableKinds([entry({ kind: "research" }), entry({ kind: "proposal" })]);
+    expect(kinds.indexOf("proposal")).toBeLessThan(kinds.indexOf("research"));
   });
 });

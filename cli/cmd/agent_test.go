@@ -42,11 +42,14 @@ func instructionFileNames() []string {
 		"analysis.md",
 		"plan.md",
 		"tasks.md",
-		"adr.md",
+		"decision.md",
 		"architecture.md",
 		"worklog.md",
 		"notes.md",
 		"questions.md",
+		"proposal.md",
+		"research.md",
+		"ingestion.md",
 		"reference.md",
 		"cli.md",
 		"scripts.md",
@@ -201,14 +204,15 @@ func TestAgentInit(t *testing.T) {
 		"context/instructions/analysis.md",
 		"context/instructions/plan.md",
 		"context/instructions/tasks.md",
-		"context/instructions/adr.md",
+		"context/instructions/decision.md",
 		"context/instructions/architecture.md",
 		"context/instructions/worklog.md",
 		"context/instructions/notes.md",
 		"context/instructions/reference.md",
 		"context/instructions/cli.md",
 		"context/instructions/questions.md",
-		"context/instructions/rfc.md",
+		"context/instructions/proposal.md",
+		"context/instructions/research.md",
 		"context/instructions/prompts.md",
 		"context/instructions/wiki.md",
 		"context/scripts/",
@@ -475,22 +479,22 @@ func TestAgentInitInstructionsDirError(t *testing.T) {
 func TestAgentInitPreservesInstructionFiles(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	writeTestFile(t, "context/instructions/adr.md", "custom")
+	writeTestFile(t, "context/instructions/decision.md", "custom")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	data, _ := os.ReadFile(filepath.Join(dir, "context/instructions/adr.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "context/instructions/decision.md"))
 	if !strings.Contains(string(data), "custom") {
-		t.Error("expected custom adr.md preserved without --force")
+		t.Error("expected custom decision.md preserved without --force")
 	}
 }
 
 func TestAgentInitForceRefreshesInstructions(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	writeTestFile(t, "context/instructions/adr.md", "custom")
+	writeTestFile(t, "context/instructions/decision.md", "custom")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	data, _ := os.ReadFile(filepath.Join(dir, "context/instructions/adr.md"))
+	data, _ := os.ReadFile(filepath.Join(dir, "context/instructions/decision.md"))
 	if strings.Contains(string(data), "custom") {
-		t.Error("expected adr.md refreshed with --force")
+		t.Error("expected decision.md refreshed with --force")
 	}
 }
 
@@ -511,8 +515,29 @@ func TestAgentInitForceRemovesObsoleteInstructions(t *testing.T) {
 	}
 }
 
-// ── .gitignore handling ────────────────────────────────────────────────────────
+func TestAgentInitForceRemovesObsoleteCommands(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	for _, name := range obsoleteCommandFiles {
+		writeTestFile(t, filepath.Join("context/commands", name), "obsolete")
+	}
+	// Without --force the stale command file is preserved.
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	if _, err := os.Stat(filepath.Join(dir, "context/commands", obsoleteCommandFiles[0])); err != nil {
+		t.Fatalf("expected stale command file preserved without --force: %v", err)
+	}
+	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
+	if !strings.Contains(string(out), "removed") {
+		t.Errorf("expected removed status for obsolete command files: %s", out)
+	}
+	for _, name := range obsoleteCommandFiles {
+		if _, err := os.Stat(filepath.Join(dir, "context/commands", name)); !os.IsNotExist(err) {
+			t.Errorf("expected obsolete command file %s to be removed with --force", name)
+		}
+	}
+}
 
+// ── .gitignore handling ────────────────────────────────────────────────────────
 func TestEnsureGitIgnoreNoParentResolution(t *testing.T) {
 	parent := runInTempDir(t)
 	writeTestFile(t, ".gitignore", "from-parent/\n")
@@ -1007,7 +1032,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"### SESSION START",
 		"**Always read**",
 		"**On action**",
-		"caveman ultra",
+		"concise, direct",
 		"[thing] [action] [reason]",
 		"Conventional Commits",
 		"≤50 chars",
@@ -1085,10 +1110,10 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		t.Errorf("expected reference.md to point to manifest:\n%s", ref)
 	}
 
-	adr, _ := os.ReadFile(filepath.Join(dir, "context/instructions/adr.md"))
+	dec, _ := os.ReadFile(filepath.Join(dir, "context/instructions/decision.md"))
 	for _, want := range []string{"decisions/", "NNNN-", "append-only", "sync", "architecture/"} {
-		if !strings.Contains(string(adr), want) {
-			t.Errorf("expected %q in adr.md:\n%s", want, adr)
+		if !strings.Contains(string(dec), want) {
+			t.Errorf("expected %q in decision.md:\n%s", want, dec)
 		}
 	}
 
@@ -1170,6 +1195,85 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 	} {
 		if !strings.Contains(block, want) {
 			t.Errorf("expected %q in instructions block:\n%s", want, block)
+		}
+	}
+}
+
+// TestAgentProposalTemplateCoherence guards the proposal instruction contract:
+// the rename vocabulary and the proposal → decision workflow must survive
+// template edits. The source-conversion clause lives in the ingestion contract.
+func TestAgentProposalTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Proposal Documents",
+		"context/proposals/<YYYYMMDD-HHMMSS>-<slug>.md",
+		"kind: proposal",
+		"## Proposal → decision workflow",
+		"sdt context new --type decision --number",
+		"status: accepted",
+		"reindex",
+	} {
+		if !strings.Contains(instrProposalTemplate, want) {
+			t.Errorf("expected %q in proposal template:\n%s", want, instrProposalTemplate)
+		}
+	}
+	if strings.Contains(instrProposalTemplate, "RFC") || strings.Contains(instrProposalTemplate, "kind: rfc") {
+		t.Error("proposal template must not retain legacy RFC wording")
+	}
+}
+
+// TestAgentIngestionTemplateCoherence guards the ingestion contract: the
+// anydoc-first/docling-fallback conversion clause and the pipeline lifecycle
+// must survive edits.
+func TestAgentIngestionTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Ingestion → Wiki → Refs",
+		"context/ingestion/",
+		"context/refs/",
+		"excluded from lint",
+		"## Reading & conversion",
+		"anydoc",
+		"docling",
+		"context/tmp/",
+		"status: pending",
+	} {
+		if !strings.Contains(instrIngestionTemplate, want) {
+			t.Errorf("expected %q in ingestion template:\n%s", want, instrIngestionTemplate)
+		}
+	}
+}
+
+// TestAgentDecisionTemplateCoherence guards the decision-record contract.
+func TestAgentDecisionTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Decision Records",
+		"context/decisions/NNNN-<slug>.md",
+		"kind: decision",
+		"append-only",
+		"## Decision",
+		"sync",
+	} {
+		if !strings.Contains(instrDecisionTemplate, want) {
+			t.Errorf("expected %q in decision template:\n%s", want, instrDecisionTemplate)
+		}
+	}
+}
+
+// TestAgentResearchTemplateCoherence guards the research instruction contract:
+// provenance, analysis boundary and deepsearch readiness must survive edits.
+func TestAgentResearchTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Research Documents",
+		"context/research/<YYYYMMDD-HHMMSS>-<slug>.md",
+		"kind: research",
+		"subject:",
+		"sources:",
+		"driving prompt",
+		"deepsearch",
+		"## Deepsearch readiness",
+		"Research = raw results, not a decision",
+	} {
+		if !strings.Contains(instrResearchTemplate, want) {
+			t.Errorf("expected %q in research template:\n%s", want, instrResearchTemplate)
 		}
 	}
 }

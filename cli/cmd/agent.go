@@ -99,7 +99,7 @@ tiers, planning and work logs, communication, patterns) in a tagged
 ` + "`instructions`" + ` block, plus a write-once ` + "`project`" + ` block for project-specific
 stack/build/test/lint/conventions. The instruction files under
 ` + "`context/instructions/`" + ` cover CLI usage plus per-type templates (analysis,
-plan, tasks, adr, architecture, worklog, notes, questions, rfc, prompts) and the command
+plan, tasks, decision, architecture, worklog, notes, questions, proposals, research, prompts) and the command
 reference.
 `,
 }
@@ -118,13 +118,15 @@ func instructionFiles(project, group string) []instructionFile {
 		{name: filepath.Base(sdtInstrAnalysis), body: instrAnalysisTemplate},
 		{name: filepath.Base(sdtInstrPlan), body: instrPlanTemplate},
 		{name: filepath.Base(sdtInstrTasks), body: instrTasksTemplate},
-		{name: filepath.Base(sdtInstrAdr), body: instrAdrTemplate},
+		{name: filepath.Base(sdtInstrDecision), body: instrDecisionTemplate},
 		{name: filepath.Base(sdtInstrArchitecture), body: instrArchitectureTemplate},
 		{name: filepath.Base(sdtInstrWorklog), body: instrWorklogTemplate},
 		{name: filepath.Base(sdtInstrNotes), body: instrNotesTemplate},
 		{name: filepath.Base(sdtInstrQuestions), body: instrQuestionsTemplate},
-		{name: filepath.Base(sdtInstrRFC), body: instrRFCTemplate},
+		{name: filepath.Base(sdtInstrProposal), body: instrProposalTemplate},
 		{name: filepath.Base(sdtInstrPrompts), body: instrPromptsTemplate},
+		{name: filepath.Base(sdtInstrResearch), body: instrResearchTemplate},
+		{name: filepath.Base(sdtInstrIngestion), body: instrIngestionTemplate},
 		{name: filepath.Base(sdtInstrReference), body: instrReferenceTemplate},
 		{name: filepath.Base(sdtInstrCli), body: instrCLITemplate},
 		{name: filepath.Base(sdtInstrScripts), body: instrScriptsTemplate},
@@ -143,6 +145,10 @@ var obsoleteInstructionFiles = []string{
 	"annotations.md",
 	"self-update.md",
 	"memory.md",
+	// Renamed rfcs → proposals: the contract is now generated as proposal.md.
+	"rfc.md",
+	// Renamed adr → decision: the contract is now generated as decision.md.
+	"adr.md",
 }
 
 // writeInstructionFiles creates the instruction files under context/instructions/.
@@ -210,9 +216,9 @@ func writeInstructionFiles(project, group string, force bool) []FileResult {
 // context/instructions/<id>.md; command files invoke/reference it, never move
 // or duplicate it.
 var agentCommandIDs = []string{
-	"ingestion", "wiki", ctxTypeAnalysis, ctxTypePlan, ctxTypeTasks, ctxTypeRFC,
-	ctxTypeAdr, ctxTypeArchitecture, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions,
-	"prompts", "reference",
+	"ingestion", "wiki", ctxTypeAnalysis, ctxTypePlan, ctxTypeTasks, ctxTypeProposal,
+	ctxTypeDecision, ctxTypeArchitecture, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions,
+	"prompts", "reference", ctxTypeResearch,
 }
 
 // commandFiles returns the generated command files under context/commands/:
@@ -225,6 +231,16 @@ func commandFiles(project string, now time.Time) []instructionFile {
 		files = append(files, instructionFile{name: id + ".md", body: instrCommandStubTemplate(id, project, now)})
 	}
 	return files
+}
+
+// obsoleteCommandFiles were generated as command stubs by older versions of
+// sdt agent init and are no longer part of the generated set. With --force they
+// are removed.
+var obsoleteCommandFiles = []string{
+	// Renamed rfcs → proposals: the trigger stub is now proposal.md.
+	"rfc.md",
+	// Renamed adr → decision: the trigger stub is now decision.md.
+	"adr.md",
 }
 
 // writeCommandFiles creates the command files under context/commands/. It is
@@ -269,6 +285,22 @@ func writeCommandFiles(project string, force bool) []FileResult {
 		}
 		results = append(results, res)
 	}
+	if force {
+		for _, name := range obsoleteCommandFiles {
+			path := filepath.Join(sdtCommandsDir, name)
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				continue
+			} else if err != nil {
+				results = append(results, FileResult{Path: path, Status: statusError, Reason: err.Error()})
+				continue
+			}
+			if err := os.Remove(path); err != nil {
+				results = append(results, FileResult{Path: path, Status: statusError, Reason: err.Error()})
+				continue
+			}
+			results = append(results, FileResult{Path: path, Status: statusRemoved, Reason: "obsolete (no longer generated)"})
+		}
+	}
 	return results
 }
 
@@ -281,7 +313,7 @@ var agentInitCmd = &cobra.Command{
   AGENTS.md                           instructions block + optional write-once project template
   context/plan|worklog|notes|tasks|archive|tmp|scripts  working directories
   context/architecture/      living architecture documentation (no date)
-  context/decisions/         numbered ADRs (NNNN-<slug>.md, append-only)
+  context/decisions/         numbered decisions (NNNN-<slug>.md, append-only)
   context/questions/         open questions awaiting a user decision
   context/analysis/          analysis documents and implementation plans
   context/instructions/      per-type instruction/template files
@@ -554,7 +586,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 
 // ensureWorkDirs creates the context/ working directory layout.
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtRFCsDir, sdtPromptsDir, sdtScriptsDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -619,7 +651,7 @@ instruction files and temporary files for this project.
 - ` + "`plan/`" + ` — plans written before starting non-trivial work
 - ` + "`analysis/`" + ` — analysis documents and implementation plans
 - ` + "`architecture/`" + ` — living architecture documentation (no date in name)
-- ` + "`decisions/`" + ` — numbered ADRs (` + "`NNNN-<slug>.md`" + `, append-only)
+- ` + "`decisions/`" + ` — numbered decisions (` + "`NNNN-<slug>.md`" + `, append-only)
 - ` + "`worklog/`" + ` — chronological log of completed work
 - ` + "`notes/`" + ` — free-form annotations
 - ` + "`questions/`" + ` — open questions / points awaiting user decision (` + "`sources`" + ` link back to origin)
@@ -639,7 +671,7 @@ instruction files and temporary files for this project.
   - ` + "`context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`context/tasks/<phase>.md`" + ` — checklist per plan phase
   - ` + "`context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` — archived task lists
-- ` + "`architecture/`" + ` files are living documents without a date; ADRs are
+- ` + "`architecture/`" + ` files are living documents without a date; decisions are
   append-only and numbered (` + "`decisions/0001-<slug>.md`" + `).
 - ` + "`context/`" + ` files use concise technical language. Cut fluff,
   keep meaning and readability (token-efficient).
@@ -659,7 +691,7 @@ project: <project>
 ---
 ` + "```" + `
 
-Store durable facts in ` + "`decisions/`" + ` (ADRs) and ` + "`architecture/`" + `; the rest of
+Store durable facts in ` + "`decisions/`" + ` (decisions) and ` + "`architecture/`" + `; the rest of
 the directory keeps the chronological work history.
 
 ## Commands
@@ -895,7 +927,7 @@ Read ` + "`context/index.md`" + ` first (single entry point, generated). Then th
 
 - ` + "`context/index.md`" + ` — generated entry point
 - ` + "`context/architecture/`" + ` — living architecture docs (essential tier)
-- ` + "`context/decisions/`" + ` — ADRs (essential tier)
+- ` + "`context/decisions/`" + ` — decisions (essential tier)
 
 **On action** — read when you take that action:
 
@@ -905,12 +937,14 @@ Read ` + "`context/index.md`" + ` first (single entry point, generated). Then th
 | ` + "`context/instructions/analysis.md`" + ` | Creating or modifying an analysis |
 | ` + "`context/instructions/plan.md`" + ` | Creating or modifying a plan |
 | ` + "`context/instructions/tasks.md`" + ` | Creating or modifying task files |
-| ` + "`context/instructions/adr.md`" + ` | Writing an ADR |
+| ` + "`context/instructions/decision.md`" + ` | Writing a decision record |
 | ` + "`context/instructions/architecture.md`" + ` | Updating architecture docs |
 | ` + "`context/instructions/worklog.md`" + ` | Writing a final report |
 | ` + "`context/instructions/notes.md`" + ` | Writing a note |
 | ` + "`context/instructions/questions.md`" + ` | Registering an open question |
-| ` + "`context/instructions/rfc.md`" + ` | Creating or reviewing an RFC |
+| ` + "`context/instructions/proposal.md`" + ` | Creating or reviewing a proposal |
+| ` + "`context/instructions/research.md`" + ` | Running or writing a research note |
+| ` + "`context/instructions/ingestion.md`" + ` | Ingesting sources; converting non-markdown (anydoc → docling) |
 | ` + "`context/instructions/prompts.md`" + ` | Creating or running a tracked prompt |
 | ` + "`context/instructions/reference.md`" + ` | Looking up a command |
 | ` + "`context/instructions/cli.md`" + ` | Looking up usage examples |
@@ -924,7 +958,7 @@ Each agent-visible task gets **one file** under ` + "`context/commands/`" + ` (t
 triggers; the durable contract stays under ` + "`context/instructions/`" + `).
 
 Work directories live under ` + "`context/`" + ` (` + "`plan/`" + `, ` + "`analysis/`" + `, ` + "`architecture/`" + `,
-` + "`decisions/`" + `, ` + "`rfcs/`" + `, ` + "`prompts/`" + `, worklog/, notes/, tasks/, commands/,
+` + "`decisions/`" + `, ` + "`proposals/`" + `, ` + "`research/`" + `, ` + "`prompts/`" + `, worklog/, notes/, tasks/, commands/,
 questions/, archive/, tmp/, ` + "`scripts/`" + `). Keep all instruction files concise and technical. Bundled
 scripts in ` + "`context/scripts/`" + ` are listed in
 ` + "`context/scripts/index.md`" + ` and executed on demand, never read into context
@@ -946,7 +980,7 @@ Follow this cycle for any non-trivial task:
 4. **Execution** — work **one task file at a time**, never from the plan;
    **mark it in progress on take-in**, complete items as they finish, scan
    ` + "`context/tasks/`" + ` for stale in-progress files before starting; create
-   ` + "`context/architecture/`" + ` and ` + "`context/decisions/`" + ` (ADRs) as
+   ` + "`context/architecture/`" + ` and ` + "`context/decisions/`" + ` (decisions) as
    needed; **update the task and plan files** in place.
 5. **Final reports** — append ` + "`context/worklog/`" + ` and ` + "`notes/`" + ` entries.
 
@@ -992,7 +1026,7 @@ missing or you are unsure, either:
    file with a checklist of open questions) and prompt the user to answer it.
 
 Every questions document, and any document that derives from or extends another
-(plan→analysis, tasks→plan, ADR→architecture/analysis, follow-up analysis, ...),
+(plan→analysis, tasks→plan, decision→architecture/analysis, follow-up analysis, ...),
 must keep a reference to its source document via the ` + "`sources`" + ` frontmatter
 array and/or inline body text, for bidirectional traceability.
 

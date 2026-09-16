@@ -40,8 +40,9 @@ const (
 	sdtArchitectureDir   = "context/architecture"
 	sdtDecisionsDir      = "context/decisions"
 	sdtQuestionsDir      = "context/questions"
-	sdtRFCsDir           = "context/rfcs"
+	sdtProposalsDir      = "context/proposals"
 	sdtPromptsDir        = "context/prompts"
+	sdtResearchDir       = "context/research"
 	sdtScriptsDir        = "context/scripts"
 	sdtInstrProject      = "context/instructions/project.md"
 	sdtInstrReference    = "context/instructions/reference.md"
@@ -49,13 +50,15 @@ const (
 	sdtInstrAnalysis     = "context/instructions/analysis.md"
 	sdtInstrPlan         = "context/instructions/plan.md"
 	sdtInstrTasks        = "context/instructions/tasks.md"
-	sdtInstrAdr          = "context/instructions/adr.md"
+	sdtInstrDecision     = "context/instructions/decision.md"
 	sdtInstrArchitecture = "context/instructions/architecture.md"
 	sdtInstrWorklog      = "context/instructions/worklog.md"
 	sdtInstrNotes        = "context/instructions/notes.md"
 	sdtInstrQuestions    = "context/instructions/questions.md"
-	sdtInstrRFC          = "context/instructions/rfc.md"
+	sdtInstrProposal     = "context/instructions/proposal.md"
 	sdtInstrPrompts      = "context/instructions/prompts.md"
+	sdtInstrResearch     = "context/instructions/research.md"
+	sdtInstrIngestion    = "context/instructions/ingestion.md"
 	sdtInstrScripts      = "context/instructions/scripts.md"
 	sdtInstrWiki         = "context/instructions/wiki.md"
 	sdtScriptsIndex      = "context/scripts/index.md"
@@ -87,6 +90,16 @@ const (
 	taskStatusBlocked   = "blocked"
 	taskStatusBlock     = "block"
 	ctxFrontmatterDelim = "---"
+
+	// Task FILE frontmatter status values (tasks.md contract). At least three
+	// states are always available: pending (to work on), in-progress,
+	// completed; archived closes the file. `active` is the legacy value
+	// accepted by lint for pre-change task files.
+	taskFileStatusPending    = "pending"
+	taskFileStatusInProgress = "in-progress"
+	taskFileStatusCompleted  = "completed"
+	taskFileStatusArchived   = "archived"
+	taskFileStatusLegacy     = "active"
 
 	// Canonical string literal for boolean-flag defaults.
 	flagValueFalse = "false"

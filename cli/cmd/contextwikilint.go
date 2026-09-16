@@ -268,14 +268,15 @@ func lintWikiMarkdownLD(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 
 var ctxWikiMarkdownLDPrag = regexp.MustCompile(`<!--\s*markdown-ld\s*-->`)
 
-// lintWikiMarkers validates the immutable source dirs (ingestion/ pending, refs/
-// archived, both kind: reference).
+// lintWikiMarkers validates the immutable source dirs that carry a required
+// marker (ingestion/ pending, kind: reference). refs/ is deliberately excluded
+// from lint: it holds large immutable external captures that are not required
+// to follow the marker contract.
 func lintWikiMarkers(b *wikiIssueBuilder) {
 	dirs := []struct {
 		dir, wantStatus string
 	}{
 		{sdtIngestionDir, contextwiki.MarkerPending},
-		{sdtRefsDir, contextwiki.StatusArchived},
 	}
 	for _, d := range dirs {
 		entries, err := os.ReadDir(d.dir)
@@ -361,8 +362,8 @@ var contextWikiLintCmd = &cobra.Command{
 	Long: `Validate the knowledge pipeline: wiki/ pages (schema, closed relation
 verbs, link resolution, unique titles, depends_on cycles, supersede semantics,
 claim citations, tags, concept budget, optional markdown-ld JSON), plus the
-immutable source markers under ingestion/ (status: pending) and refs/
-(status: archived).
+immutable source markers under ingestion/ (status: pending). refs/ is excluded
+from lint (immutable external captures).
 
 wiki/ is scanned recursively (wiki/<context>/<slug>.md allowed): a page's id
 must equal its relative subpath minus ".md" (wiki/backend/auth.md → id:

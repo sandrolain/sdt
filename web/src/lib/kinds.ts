@@ -7,10 +7,11 @@ export type EntryKind =
   | "tasks"
   | "plan"
   | "worklog"
-  | "decisions"
+  | "decision"
   | "questions"
-  | "rfc"
+  | "proposal"
   | "prompts"
+  | "research"
   | "architecture"
   | "other";
 export type EntryFilterKind = EntryKind | "canvas";
@@ -23,9 +24,11 @@ export const KIND_ORDER: EntryKind[] = [
   "plan",
   "tasks",
   "worklog",
-  "decisions",
+  "decision",
   "questions",
   "architecture",
+  "proposal",
+  "research",
   "other",
 ];
 
@@ -49,9 +52,10 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
   tasks: "checklist",
   plan: "map",
   worklog: "history",
-  decisions: "gavel",
+  decision: "gavel",
   questions: "help",
-  rfc: "description",
+  proposal: "description",
+  research: "travel_explore",
   prompts: "terminal",
   architecture: "account_tree",
   other: "description",
@@ -66,9 +70,10 @@ const KIND_COLORS: Record<EntryFilterKind, string> = {
   tasks: "var(--ctp-yellow)",
   plan: "var(--ctp-peach)",
   worklog: "var(--ctp-overlay1)",
-  decisions: "var(--ctp-red)",
+  decision: "var(--ctp-red)",
   questions: "var(--ctp-sky)",
-  rfc: "var(--ctp-sapphire)",
+  proposal: "var(--ctp-sapphire)",
+  research: "var(--ctp-pink)",
   prompts: "var(--ctp-teal)",
   architecture: "var(--ctp-lavender)",
   other: "var(--ctp-overlay0)",
