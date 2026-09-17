@@ -177,6 +177,8 @@ session: <session id>        # optional
 - **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
   the document title and the viewer renders it once — start the body at H2.
 - ` + "`summary`" + ` is mandatory and used by ` + "`sdt context reindex`" + `.
+- Timestamps: ` + "`created`" + `/` + "`updated`" + ` are UTC ISO 8601 — generate them with
+  ` + "`sdt time iso`" + `.
 - Dated files: integrate/modify the current analysis while it is the active one;
   a materially new line of investigation gets a new dated file (and sets
   ` + "`sources`" + ` back to the analysis it extends).
@@ -220,7 +222,9 @@ previous analysis/plan on your own.
 Follow strictly — the plan defines the work, the task files execute it:
 
 1. **Create the plan** — write Objective, Constraints and assumptions, Out of
-   scope, Phases, Verification and Completion criteria from the analysis.
+   scope, Phases, Verification and Completion criteria from the analysis, plus a
+   **Design contract** (style, architecture and dependency choices — see
+   ` + "`instructions/development.md`" + `).
 2. **Wait for plan approval** — stop after creating the plan and wait for
   explicit user approval before creating task files. Do not create task files
   as part of plan creation.
@@ -258,6 +262,7 @@ session: <session id>        # optional
 ## Objective
 ## Constraints and assumptions
 ## Out of scope
+## Design contract (style, architecture, dependencies)
 ## Phases (each maps to a task file)
 ## Dependency graph
 ## Completion criteria
@@ -276,6 +281,10 @@ session: <session id>        # optional
   resolve it before marking the plan approved instead of building tasks on it.
 - **Out of scope** — work explicitly excluded, to prevent scope creep. Be
   specific: not just "other things" but named areas.
+- **Design contract** — the style, architecture and dependency choices this
+  plan commits to, agreed with the user before tasks are created (see
+  ` + "`instructions/development.md`" + `). Each non-trivial choice is stated here so
+  execution never invents style, structure or libraries.
 - **Phases** — each phase maps to one task file. Checklists here are at TASK
   granularity (one line per task); step-level detail lives in the task file.
   Each phase has: **Goal** (one sentence), **Depends on** (none / Phase X), and
@@ -306,8 +315,8 @@ session: <session id>        # optional
 | summary | yes | 1-2 sentence summary → index source. |
 | context | yes | Objective / what triggered the plan. |
 | status | yes | ` + "`active`" + ` / ` + "`completed`" + ` / ` + "`abandoned`" + `. |
-| created | yes | ISO 8601 creation date. |
-| updated | yes | ISO 8601 last-edit date; refresh on every change. |
+| created | yes | ISO 8601 UTC creation date (use ` + "`sdt time iso`" + `). |
+| updated | yes | ISO 8601 UTC last-edit date; refresh on every change (use ` + "`sdt time iso`" + `). |
 | links | yes | Relative paths to source docs (analysis) and task files. |
 | project | yes | Project id from ` + "`.sdt.yaml`" + ` (e.g. ` + "`sdt_44f24890`" + `). |
 | agent | no | Agent/tool (AI or human) that created or last edited this file. |
@@ -402,8 +411,8 @@ sections handle that.
 | summary | yes | 1-2 sentence summary → index source. |
 | objective | yes | Plan phase this task file belongs to. |
 | status | yes | File state: ` + "`pending`" + ` (to work on) / ` + "`in-progress`" + ` / ` + "`completed`" + ` / ` + "`archived`" + `. The first three are always distinguishable — a task file is never stuck with fewer than three meaningful states. ` + "`active`" + ` is the legacy value accepted by lint. |
-| created | yes | ISO 8601 creation date. |
-| updated | yes | ISO 8601 last-edit date; refresh on every change. |
+| created | yes | ISO 8601 UTC creation date (use ` + "`sdt time iso`" + `). |
+| updated | yes | ISO 8601 UTC last-edit date; refresh on every change (use ` + "`sdt time iso`" + `). |
 | links | yes | Relative path to the plan this task file executes. |
 | project | yes | Project id from ` + "`.sdt.yaml`" + ` (e.g. ` + "`sdt_44f24890`" + `). |
 | agent | no | Agent/tool that picked up or last edited the file. |
@@ -1478,6 +1487,60 @@ Use one ` + "`## Runs`" + ` section for repeated executions. Each row records at
 least date/time, model or tool, scope, status, and result references. Link
 resulting analyses, proposals, decisions, or other documents in ` + "`results`" + ` or the
 run row. Split runs into separate files only through a later schema change.
+`
+
+const instrDevelopmentTemplate = `# Development (how to write code)
+
+` + "`context/instructions/development.md`" + ` is the coding contract: it tells the
+agent how to agree style and architecture with the user, escalate ambiguity,
+prefer existing libraries, and use library documentation. Read it before
+planning or writing any non-trivial code.
+
+## Style and architecture are agreed, not invented
+
+- For every non-trivial piece of work, propose — in the plan, before any code —
+  the architecture (components, boundaries, patterns) and style (naming, layout,
+  idioms, formatting). Get **explicit user approval** before writing code.
+- If a new aspect appears mid-work (a new module, a new subsystem), re-run the
+  agreement for that aspect; never extend the existing style silently.
+- Record the agreed conventions back into the AGENTS.md project block
+  (` + "`Conventions`" + ` / ` + "`Stack`" + `) once stable, and keep them in sync.
+
+## Every ambiguity is decided by the user
+
+- Any non-trivial choice — style, architecture, dependency, naming, data model,
+  API shape, error handling, logging, build tooling — defaults to the user.
+- Ask on the fly; if it needs tracking, register an open question in
+  ` + "`context/questions/`" + `. Never pick a "reasonable default" for anything that
+  shapes the project.
+
+## Library-first development
+
+- Before writing non-trivial code, evaluate existing libraries:
+  1. state the capability needed in one line;
+  2. search the web and the local docs under ` + "`context/refs/`" + ` for candidates;
+  3. shortlist 2-3 options with maintenance status, license, latest version,
+     footprint and API fit;
+  4. present the shortlist to the user and ask which to use; "write it ourselves"
+     is a valid outcome only with the user's explicit choice and a stated reason.
+- Never reinvent what a maintained library already provides. The rule targets
+  non-trivial functionality, not one-line helpers.
+
+## Library documentation — local, updated copy
+
+- For every library the project adopts, keep an updated local copy of its docs
+  under ` + "`context/refs/<lib>/`" + ` (fetch with
+  ` + "`sdt crawldown <docs-url> --output context/refs/<lib>`" + ` or the web-fetch
+  tool). Store a version marker (fetched version + date).
+- Before using a library, check its latest version (changelog/releases) against
+  what you know; APIs change — do not code against a stale API.
+- For an unfamiliar library, learn usage from its docs, not by reading its source.
+- Refresh the local docs when the version changes, or when unsure about the API.
+
+## Close out
+
+- Run the verify-step and ` + "`sdt context reindex`" + ` after the change (see
+  ` + "`context/instructions/tasks.md`" + ` for the claim vocabulary).
 `
 
 // instrCommandsIndexTemplate builds context/commands/index.md: the lookup

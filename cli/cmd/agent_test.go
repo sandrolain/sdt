@@ -244,7 +244,7 @@ func TestAgentInit(t *testing.T) {
 			t.Errorf("expected %q in AGENTS.md index", want)
 		}
 	}
-	if !strings.Contains(string(data), "update the relevant section in the `<!-- sdt:begin:project -->` block") {
+	if !strings.Contains(string(data), "write it back into the relevant") {
 		t.Error("expected Patterns to point at the project block")
 	}
 	if !strings.Contains(string(data), "Project: myapp") {
@@ -1175,6 +1175,8 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 		"Ask before touching AGENTS.md",
 		"Frontmatter",
 		"summary",
+		"Style & architecture agreed a priori",
+		"Library-first",
 		"### SESSION START",
 		"**Always read**",
 		"**On action**",
@@ -1301,6 +1303,26 @@ func TestAgentResearchTemplateCoherence(t *testing.T) {
 	} {
 		if !strings.Contains(instrResearchTemplate, want) {
 			t.Errorf("expected %q in research template:\n%s", want, instrResearchTemplate)
+		}
+	}
+}
+
+// TestAgentDevelopmentTemplateCoherence guards the development instruction
+// contract: style/architecture agreement, ambiguity escalation, library-first
+// and the refs/<lib>/ library-docs convention must survive edits.
+func TestAgentDevelopmentTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Development (how to write code)",
+		"Style and architecture are agreed, not invented",
+		"Every ambiguity is decided by the user",
+		"Library-first development",
+		"context/refs/<lib>/",
+		"sdt crawldown <docs-url> --output context/refs/<lib>",
+		"version marker",
+		"do not code against a stale API",
+	} {
+		if !strings.Contains(instrDevelopmentTemplate, want) {
+			t.Errorf("expected %q in development template:\n%s", want, instrDevelopmentTemplate)
 		}
 	}
 }

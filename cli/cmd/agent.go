@@ -131,6 +131,7 @@ func instructionFiles(project, group string) []instructionFile {
 		{name: filepath.Base(sdtInstrCli), body: instrCLITemplate},
 		{name: filepath.Base(sdtInstrScripts), body: instrScriptsTemplate},
 		{name: filepath.Base(sdtInstrWiki), body: instrWikiTemplate},
+		{name: filepath.Base(sdtInstrDevelopment), body: instrDevelopmentTemplate},
 	}
 }
 
@@ -916,6 +917,15 @@ This project is managed with SDT. This file carries two tagged blocks:
    YAML frontmatter (kind correct for the file type, mandatory ` + "`summary`" + `); the
    index (` + "`sdt context reindex`" + `) and lint depend on it. Each per-type
    instruction file specifies the exact frontmatter for that kind.
+7. **Style & architecture agreed a priori** — never invent style or architecture;
+   propose both (components, boundaries, patterns, naming, layout) in the plan and
+   get explicit user approval before writing code. Every non-trivial design
+   choice defaults to the user, not to a "reasonable default" (see
+   ` + "`context/instructions/development.md`" + `).
+8. **Library-first** — before writing non-trivial code, evaluate existing
+   libraries (web search + local docs), present a shortlist and ask the user
+   which to use; do not reinvent what a maintained library already provides
+   (see ` + "`context/instructions/development.md`" + `).
 
 ### SESSION START (always)
 
@@ -951,6 +961,7 @@ Read ` + "`context/index.md`" + ` first (single entry point, generated). Then th
 | ` + "`context/scripts/`" + ` | Running bundled scripts (see ` + "`instructions/scripts.md`" + `) |
 | ` + "`context/instructions/scripts.md`" + ` | Adding or reading scripts in ` + "`context/scripts/`" + ` |
 | ` + "`context/instructions/wiki.md`" + ` | Writing or updating wiki pages |
+| ` + "`context/instructions/development.md`" + ` | Writing code: style/architecture agreement, library-first, library docs |
 | ` + "`context/commands/`" + ` | Invoking an agent command: ` + "`>trigger`" + ` (e.g. ` + "`>ingestion`" + `) → ` + "`context/commands/<trigger>.md`" + ` → contract ` + "`context/instructions/<trigger>.md`" + ` (approve before write) |
 | ` + "`context/sdtdocs/README.md`" + ` | Needing per-command docs (` + "`sdt context docs`" + `, when present) |
 
@@ -1038,8 +1049,9 @@ question resolved.
 
 This AGENTS.md is the source of truth for project conventions. Whenever a
 decision is taken on a pattern to use in development, testing, documentation or
-workflows, update the relevant section in the ` + "`<!-- sdt:begin:project -->`" + ` block
-and record the change in
+workflows — including a style, architecture or dependency agreed with the user
+(see ` + "`context/instructions/development.md`" + `) — write it back into the relevant
+section of the ` + "`<!-- sdt:begin:project -->`" + ` block and record the change in
 ` + "`context/worklog/`" + `. Keep every section concise and technical.
 
 ### Keep the chain (recap)
