@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
 import {
@@ -15,6 +15,7 @@ import { Icon } from "../lib/icon";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
 import { useOpenDocsOptional } from "../lib/openDocsContext";
 import { lineNumbers } from "../lib/codeLines";
+import { useActiveHeading } from "../lib/useActiveHeading";
 import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
@@ -89,6 +90,10 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   );
 
   const docsApi = useOpenDocsOptional();
+  const renderedRef = useRef<HTMLDivElement | null>(null);
+
+  // publish the heading in view so the Sections sidebar can highlight it
+  useActiveHeading(renderedRef, path, mode === "render");
 
   const onRenderedClick = (event: MouseEvent<HTMLDivElement>) => {
     const copyButton = (event.target as HTMLElement | null)?.closest?.(".md-code__copy");
@@ -141,6 +146,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
         <>
           <div
             className="doc-rendered"
+            ref={renderedRef}
             onClick={onRenderedClick}
             dangerouslySetInnerHTML={{ __html: html }}
           />

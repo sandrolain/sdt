@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   displayTitle,
   fallbackTitle,
+  filenameDate,
   firstH1,
   formatFilename,
   frontmatterTitle,
@@ -69,6 +70,17 @@ describe("stripDatePrefix / formatFilename", () => {
 
   it("strips quotes and keeps non-date hyphens", () => {
     expect(formatFilename('context/wiki/"two-words".md')).toBe("Two words");
+  });
+});
+
+describe("filenameDate", () => {
+  it("reads compact and dashed date prefixes", () => {
+    expect(filenameDate("context/plan/20260915-195559-plan-foo.md")).toBe("2026-09-15");
+    expect(filenameDate("context/plan/2026-08-08-early.md")).toBe("2026-08-08");
+  });
+
+  it("returns empty when there is no date prefix", () => {
+    expect(filenameDate("context/notes/plain.md")).toBe("");
   });
 });
 

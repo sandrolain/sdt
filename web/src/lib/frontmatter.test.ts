@@ -4,8 +4,11 @@ import {
   booleanValue,
   fieldLabel,
   formatFieldDate,
+  formatFieldDateOnly,
+  isRelationVerb,
   parseFieldDate,
   parseFrontmatter,
+  verbLabel,
 } from "./frontmatter";
 
 describe("parseFrontmatter", () => {
@@ -32,6 +35,31 @@ describe("parseFrontmatter", () => {
   it("labels known keys and passes unknown keys through", () => {
     expect(fieldLabel("created")).toBe("Created");
     expect(fieldLabel("custom")).toBe("custom");
+  });
+
+  it("parses nested relation verbs into their own labelled field", () => {
+    const fm = [
+      "---",
+      "kind: wiki",
+      "relations:",
+      "  part_of:",
+      '    - "[[sdt-context-memory|SDT context memory]]"',
+      "tags: [a]",
+      "---",
+    ].join("\n");
+    const fields = parseFrontmatter(fm);
+    expect(fields.map((f) => f.key)).toEqual(["kind", "part_of", "tags"]);
+    const partOf = fields.find((f) => f.key === "part_of");
+    expect(partOf?.label).toBe("Part of");
+    expect(partOf?.values).toEqual(["[[sdt-context-memory|SDT context memory]]"]);
+    expect(isRelationVerb("part_of")).toBe(true);
+    expect(isRelationVerb("kind")).toBe(false);
+  });
+
+  it("humanises relation verbs", () => {
+    expect(verbLabel("part_of")).toBe("Part of");
+    expect(verbLabel("depends_on")).toBe("Depends on");
+    expect(verbLabel("custom_verb")).toBe("Custom verb");
   });
 
   it("returns an empty list without frontmatter", () => {
@@ -70,5 +98,12 @@ describe("dates", () => {
   it("includes the time in the formatted output", () => {
     const formatted = formatFieldDate("2026-09-15T14:45:00Z", "en-GB");
     expect(formatted).toMatch(/\d{2}:\d{2}/);
+  });
+
+  it("formats a date-only variant without the time", () => {
+    const formatted = formatFieldDateOnly("2026-09-15T14:45:00Z", "en-GB");
+    expect(formatted).toContain("2026");
+    expect(formatted).not.toMatch(/\d{2}:\d{2}/);
+    expect(formatFieldDateOnly("not-a-date")).toBe("not-a-date");
   });
 });

@@ -8,24 +8,66 @@ export interface FrontmatterField {
   values: string[];
 }
 
+/** Human labels for relation verbs (frontmatter `relations`/`part_of`/…). */
+const VERB_LABELS: Record<string, string> = {
+  part_of: "Part of",
+  contains: "Contains",
+  depends_on: "Depends on",
+  supersedes: "Supersedes",
+  replaces: "Replaces",
+  derives_from: "Derived from",
+  extends: "Extends",
+  implements: "Implements",
+  related_to: "Related to",
+  uses: "Uses",
+  references: "References",
+  produced_by: "Produced by",
+};
+
 /** Translated labels for the known SDT frontmatter keys; unknown keys pass through. */
 const LABELS: Record<string, string> = {
+  ...VERB_LABELS,
   kind: "Kind",
+  id: "Id",
   title: "Title",
   summary: "Summary",
   status: "Status",
   created: "Created",
+  created_at: "Created at",
   updated: "Updated",
   type: "Type",
   tags: "Tags",
   relations: "Relations",
   sources: "Sources",
   links: "Links",
+  image: "Image",
+  context: "Context",
+  component: "Component",
+  project: "Project",
+  group: "Group",
+  agent: "Agent",
+  model: "Model",
+  session: "Session",
 };
 
 /** Human label for a frontmatter key. */
 export function fieldLabel(key: string): string {
   return LABELS[key] ?? key;
+}
+
+/** Relation verbs whose values are document links. */
+const RELATION_VERBS = new Set(Object.keys(VERB_LABELS));
+
+/** True when a frontmatter key is a relation verb (its values are links). */
+export function isRelationVerb(key: string): boolean {
+  return RELATION_VERBS.has(key);
+}
+
+/** Human label for a relation verb; unknown verbs become "Title case" words. */
+export function verbLabel(verb: string): string {
+  if (VERB_LABELS[verb]) return VERB_LABELS[verb];
+  const words = verb.replace(/[_-]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : verb;
 }
 
 /** Strip a single wrapping pair of quotes and trim. */
@@ -51,8 +93,11 @@ function inlineValues(value: string): string[] {
 
 /**
  * Parse the frontmatter body into ordered fields. Supports `key: value`,
- * inline arrays and block sequences (`- item`); unknown/malformed lines are
- * skipped. The surrounding `---` delimiters and comments are ignored.
+ * inline arrays, block sequences (`- item`) and one level of nested maps, so a
+ * `relations:` block with a `part_of:` verb becomes a `part_of` field holding
+ * its targets. Unknown/malformed lines are skipped; fields that end up with no
+ * value (e.g. the now-empty `relations` parent) are dropped. The surrounding
+ * `---` delimiters and comments are ignored.
  */
 export function parseFrontmatter(frontmatter?: string): FrontmatterField[] {
   if (!frontmatter) return [];
@@ -68,13 +113,14 @@ export function parseFrontmatter(frontmatter?: string): FrontmatterField[] {
       if (value !== "") current.values.push(value);
       continue;
     }
-    const kv = /^([A-Za-z0-9_.-]+):\s*(.*)$/.exec(line);
+    // match on the trimmed line so nested keys (`  part_of:`) are recognised
+    const kv = /^([A-Za-z0-9_.-]+):\s*(.*)$/.exec(trimmed);
     if (!kv) continue;
     current = { key: kv[1], label: fieldLabel(kv[1]), values: [] };
     fields.push(current);
     current.values.push(...inlineValues(kv[2]));
   }
-  return fields;
+  return fields.filter((field) => field.values.length > 0);
 }
 
 /** Boolean field rendered as a check/close icon when the value is true/false. */
@@ -106,4 +152,11 @@ export function formatFieldDate(value: string, locale?: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+/** Local date-only for a frontmatter date value; raw value when unparseable. */
+export function formatFieldDateOnly(value: string, locale?: string): string {
+  const date = parseFieldDate(value);
+  if (!date) return value;
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(date);
 }

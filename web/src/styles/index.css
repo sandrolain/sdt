@@ -415,10 +415,32 @@
   }
   .dock-content.doc-tab {
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
   }
-  .dock-content.doc-tab .doc-view,
-  .dock-content.doc-tab article {
+  /* the document article fills the tab and hands a bounded area to its mode view */
+  .dock-content.doc-tab > article {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     padding: 0 1rem;
+  }
+  .dock-content.doc-tab .doc-view {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    padding: 0 1rem;
+  }
+  .dock-content.doc-tab .doc-markdown {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
   }
   .fallback-tabs {
     display: flex;
@@ -428,10 +450,20 @@
     background: var(--bg-mantle);
   }
   .fallback-tabs button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     padding: 0.2rem 0.5rem;
     border-radius: 6px;
     color: var(--fg-dim);
     font-size: 0.75rem;
+  }
+  .dock-doc-tab {
+    gap: 0.3rem;
+  }
+  .dock-doc-tab__icon {
+    font-size: 1rem;
+    flex: none;
   }
   .fallback-tabs button.is-active {
     background: var(--bg-rise);
@@ -609,20 +641,30 @@
   .tree-groups {
     display: flex;
     flex-direction: column;
-    padding: 0.25rem 0 0.75rem;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+  /* each kind folder reads as its own block, visually separated from the next */
+  .tree-folder {
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg-mantle);
+    overflow: hidden;
   }
   .tree-folder__header {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.3rem 0.6rem;
+    gap: 0.4rem;
+    padding: 0.45rem 0.6rem;
     cursor: pointer;
     list-style: none;
-    color: var(--fg-dim);
-    font-size: 0.8125rem;
+    color: var(--fg);
+    font-size: 0.875rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.01em;
+  }
+  .tree-folder[open] > .tree-folder__header {
+    border-bottom: 1px solid var(--border);
   }
   .tree-folder__header::-webkit-details-marker {
     display: none;
@@ -743,36 +785,52 @@
   .doc-header {
     margin-bottom: 1.25rem;
   }
-  .breadcrumbs {
+  /* corpus path bar: right-column breadcrumb surface with a copy affordance */
+  .doc-path {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    padding: 0.35rem 0.6rem;
+    gap: 0.4rem;
+    padding: 0.3rem 0.45rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg-mantle);
     font-size: 0.75rem;
     color: var(--fg-dim);
+    flex: none;
   }
-  .breadcrumbs__root {
+  .doc-path__home {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
     color: var(--accent);
+    flex: none;
   }
-  .breadcrumbs__seg {
+  .doc-path__value {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* keep the filename end visible, ellipsize the leading path segments */
+    direction: rtl;
+    text-align: left;
+    unicode-bidi: plaintext;
+    font-family: ui-monospace, "SF Mono", monospace;
+    color: var(--fg);
+  }
+  .doc-path__copy {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-  }
-  .breadcrumbs__sep {
-    font-size: 1rem;
+    flex: none;
+    padding: 0.1rem;
+    border-radius: 5px;
     color: var(--fg-faint);
   }
-  .breadcrumbs__seg--current {
+  .doc-path__copy:hover {
+    background: var(--bg-hover);
     color: var(--fg);
-    font-weight: 600;
+  }
+  .doc-path__copy .ms-icon {
+    font-size: 1rem;
   }
   .doc-header__title {
     font-size: 1.5rem;
@@ -880,6 +938,12 @@
   .meta-toc__link:hover {
     background: var(--bg-hover);
   }
+  .meta-toc__link.is-active {
+    background: var(--bg-rise);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
   .meta-links {
     list-style: none;
     margin: 0;
@@ -889,8 +953,32 @@
     gap: 0.2rem;
   }
   .meta-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     color: var(--accent);
     font-size: 0.8125rem;
+    padding: 0.05rem 0.3rem;
+    margin: -0.05rem -0.3rem;
+    border-radius: 5px;
+    text-decoration: none;
+  }
+  .meta-link__icon {
+    font-size: 1rem;
+    flex: none;
+  }
+  .meta-link:hover {
+    background: var(--bg-hover);
+    text-decoration: underline;
+  }
+  .meta-link:active {
+    background: var(--bg-rise);
+  }
+  .meta-link.is-current {
+    background: var(--bg-rise);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
   }
   .meta-link--muted {
     color: var(--fg-faint);
@@ -908,6 +996,7 @@
   .doc-modes {
     display: flex;
     align-items: center;
+    flex: none;
     gap: 0.35rem;
     margin-bottom: 0.9rem;
   }
@@ -986,9 +1075,10 @@
     display: flex;
     align-items: stretch;
     width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     background: var(--bg-mantle);
     overflow: auto;
-    overscroll-behavior: contain;
   }
   .doc-code__gutter {
     position: sticky;
@@ -1021,6 +1111,9 @@
 
   .doc-rendered {
     line-height: 1.65;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
   }
   .doc-rendered h1 {
     font-size: 1.5rem;
@@ -1396,6 +1489,17 @@
   }
   .related-item:hover {
     background: var(--bg-hover);
+    color: var(--fg);
+  }
+  .related-item:active {
+    background: var(--bg-rise);
+  }
+  .related-item.active,
+  .related-item[aria-current="page"] {
+    background: var(--bg-rise);
+    color: var(--fg);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
   }
   .related-item__arrow {
     color: var(--accent);

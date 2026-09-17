@@ -97,6 +97,23 @@ export function kindColor(k: EntryFilterKind): string {
   return KIND_COLORS[k] ?? KIND_COLORS.other;
 }
 
+/** Corpus folder names whose kind name differs (plural or renamed). */
+const FOLDER_KINDS: Record<string, EntryKind> = {
+  plans: "plan",
+  decisions: "decision",
+  proposals: "proposal",
+  prompts: "prompt",
+};
+
+/** Best-effort kind from a corpus path alone (`context/<folder>/…`). */
+export function kindFromPath(path: string): EntryFilterKind {
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length < 3) return "other";
+  const folder = segments[1];
+  const kind = FOLDER_KINDS[folder] ?? folder;
+  return (KIND_ORDER as string[]).includes(kind) ? (kind as EntryKind) : "other";
+}
+
 /** All kinds present in the tree, canvas represented specially, sorted by KIND_ORDER. */
 export function availableKinds(entries: TreeEntry[]): EntryFilterKind[] {
   const seen = new Set<EntryFilterKind>();

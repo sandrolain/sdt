@@ -38,8 +38,8 @@ describe("RelatedPanel", () => {
     renderPanel();
     expect(await screen.findByText("Beta")).toBeTruthy();
     expect(screen.getByText("Gamma")).toBeTruthy();
-    expect(screen.getByText("depends_on")).toBeTruthy();
-    expect(screen.getByText("part_of")).toBeTruthy();
+    expect(screen.getByText("Depends on")).toBeTruthy();
+    expect(screen.getByText("Part of")).toBeTruthy();
     expect(screen.getByLabelText("outbound")).toBeTruthy();
     expect(screen.getByLabelText("inbound")).toBeTruthy();
     expect(screen.getByText("1 out · 1 in")).toBeTruthy();

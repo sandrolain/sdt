@@ -250,7 +250,8 @@ func (s *server) walkTree() ([]treeEntry, error) {
 
 // mdEntry reads frontmatter fields (kind/title/summary/created) and the
 // modified timestamp (frontmatter `updated`, else the file mtime) for one .md
-// file.
+// file. `created` falls back to the legacy `created_at` key so pre-rename
+// documents still surface a creation date.
 func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 	data, err := os.ReadFile(path) //#nosec G304 -- corpus walk target
 	if err != nil {
@@ -258,6 +259,10 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 	}
 	fm, _ := contextwiki.SplitFrontmatter(string(data))
 	sources := append(contextwiki.FrontmatterList(fm, "sources"), contextwiki.FrontmatterList(fm, "links")...)
+	created := contextwiki.FrontmatterField(fm, "created")
+	if created == "" {
+		created = contextwiki.FrontmatterField(fm, "created_at")
+	}
 	e := treeEntry{
 		Path:     rel,
 		Kind:     contextwiki.FrontmatterField(fm, "kind"),
@@ -265,7 +270,7 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 		Summary:  contextwiki.FrontmatterField(fm, "summary"),
 		Status:   contextwiki.FrontmatterField(fm, "status"),
 		Sources:  sources,
-		Created:  contextwiki.FrontmatterField(fm, "created"),
+		Created:  created,
 		Modified: contextwiki.FrontmatterField(fm, "updated"),
 		Image:    contextwiki.FrontmatterField(fm, "image"),
 	}

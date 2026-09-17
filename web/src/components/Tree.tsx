@@ -141,7 +141,7 @@ export function Tree() {
                               alt=""
                             />
                           ) : (
-                            <Icon name="description" />
+                            <Icon name={kindIcon(entryKind(entry))} />
                           )}
                         </span>
                         <span className="tree-entry__text">

@@ -1,7 +1,6 @@
 import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
 import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
-import { Breadcrumbs } from "./Breadcrumbs";
 import { SkeletonLines } from "./Skeleton";
 
 interface DocDetailProps {
@@ -20,7 +19,6 @@ export function DocDetail({ path, doc, error, loading }: DocDetailProps) {
     return (
       <article>
         <header className="doc-header">
-          <Breadcrumbs path={doc.path} title={heading(doc)} />
           <h1 className="doc-header__title">{heading(doc)}</h1>
         </header>
         <pre className="doc-markdown">{JSON.stringify(doc.canvas, null, 2)}</pre>
@@ -31,7 +29,6 @@ export function DocDetail({ path, doc, error, loading }: DocDetailProps) {
   return (
     <article>
       <header className="doc-header">
-        <Breadcrumbs path={doc.path} title={heading(doc)} />
         <h1 className="doc-header__title">{heading(doc)}</h1>
       </header>
       <DocumentView path={doc.path} frontmatter={doc.frontmatter} markdown={doc.markdown} />

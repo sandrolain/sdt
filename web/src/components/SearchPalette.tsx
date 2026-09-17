@@ -10,6 +10,7 @@ import {
 } from "cmdk";
 import { fetchSearch } from "../lib/api";
 import { MAP_ICON } from "../lib/documentModes";
+import { formatFieldDateOnly } from "../lib/frontmatter";
 import { kindLabel } from "../lib/kinds";
 import { Icon } from "../lib/icon";
 import { SkeletonLines } from "./Skeleton";
@@ -151,7 +152,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
                   {r.isMap && <Icon name={MAP_ICON} className="map-icon" label="Map document" />}
                   <span className="search-result__meta">
                     {r.kind ?? "md"}
-                    {r.created ? ` · ${r.created}` : ""}
+                    {r.created ? ` · ${formatFieldDateOnly(r.created)}` : ""}
                   </span>
                 </div>
                 <span className="search-result__path">{r.path}</span>

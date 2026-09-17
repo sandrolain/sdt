@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { clearLayout, loadLayout, saveLayout } from "./layoutStore";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearLayout, loadLayout, resetLayout, saveLayout } from "./layoutStore";
 
 afterEach(() => localStorage.clear());
 
@@ -32,5 +32,13 @@ describe("layoutStore", () => {
     saveLayout("detail", { a: 1 });
     clearLayout("detail");
     expect(loadLayout("detail")).toBeNull();
+  });
+
+  it("resetLayout clears the layout and triggers the reload", () => {
+    saveLayout("workspace", { panels: ["a"] });
+    const reload = vi.fn();
+    resetLayout("workspace", reload);
+    expect(loadLayout("workspace")).toBeNull();
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });

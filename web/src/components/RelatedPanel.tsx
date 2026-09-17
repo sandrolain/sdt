@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { fetchWikiRel, type RelResponse } from "../lib/api";
 import { groupRelations, relationCounts } from "../lib/relations";
+import { verbLabel } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { displayTitle } from "../lib/titles";
 import { useReloadToken } from "../lib/useReloadToken";
@@ -51,7 +52,7 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
         <div className="related-groups">
           {groupRelations(resp).map((group) => (
             <section key={group.verb} className="related-group">
-              <h3 className="related-group__verb">{group.verb}</h3>
+              <h3 className="related-group__verb">{verbLabel(group.verb)}</h3>
               <ul className="related-list" role="list">
                 {group.outbound.map((item) => (
                   <li key={`out-${item.id}`}>
@@ -60,7 +61,7 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
                       <span className="related-item__title">
                         {displayTitle({ title: item.title, path: item.id })}
                       </span>
-                      <span className="related-item__kind">{item.kind}</span>
+                      <span className="related-item__kind">{verbLabel(item.kind)}</span>
                     </NavLink>
                   </li>
                 ))}
@@ -71,7 +72,7 @@ export function RelatedPanel({ id }: RelatedPanelProps) {
                       <span className="related-item__title">
                         {displayTitle({ title: item.title, path: item.id })}
                       </span>
-                      <span className="related-item__kind">{item.kind}</span>
+                      <span className="related-item__kind">{verbLabel(item.kind)}</span>
                     </NavLink>
                   </li>
                 ))}

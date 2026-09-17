@@ -62,6 +62,10 @@ describe("SearchPalette", () => {
     await userEvent.type(screen.getByLabelText("Search query"), "tokens");
     const item = await screen.findByText("Alpha module");
     expect(screen.getByText("1 result")).toBeTruthy();
+    // the ISO value is formatted for display, not shown raw
+    const meta = document.querySelector(".search-result__meta")?.textContent ?? "";
+    expect(meta).not.toContain("2026-09-10");
+    expect(meta).toMatch(/2026/);
 
     await userEvent.click(item);
     await waitFor(() => {

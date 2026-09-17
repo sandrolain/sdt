@@ -1,6 +1,6 @@
 /** Versioned localStorage persistence for dockview layouts. */
 
-const VERSION = 2;
+const VERSION = 3;
 const PREFIX = "sdt-layout:";
 
 interface StoredLayout {
@@ -45,4 +45,13 @@ export function clearLayout(id: string): void {
   } catch {
     // ignore
   }
+}
+
+/**
+ * Discard the stored layout and reload so the workspace rebuilds its default
+ * panels. The reload is injectable for tests.
+ */
+export function resetLayout(id: string, reload: () => void = () => window.location.reload()): void {
+  clearLayout(id);
+  reload();
 }

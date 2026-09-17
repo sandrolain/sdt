@@ -172,6 +172,17 @@ describe("Tree", () => {
     }
   });
 
+  it("uses the kind glyph, uncoloured, for entries without an image", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    const link = (await screen.findByText("Analysis")).closest(".tree-entry") as HTMLElement;
+    const glyph = link.querySelector(".tree-entry__glyph");
+    expect(glyph?.querySelector(".ms-icon")?.textContent).toBe("analytics");
+    expect(glyph?.getAttribute("style")).toBeNull();
+  });
+
   it("shows a date line from frontmatter or the filename prefix", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),

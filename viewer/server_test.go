@@ -69,6 +69,14 @@ created: 2026-09-12
 
 blue body
 `)
+	writeFixture(t, root, "context/notes/legacy.md", `---
+kind: notes
+title: Legacy note
+created_at: 2026-09-05
+---
+
+legacy body
+`)
 	writeFixture(t, root, "context/board.canvas", `{"nodes":[{"id":"a"}],"edges":[]}`)
 	writeFixture(t, root, "context/wiki/topic.map.md", `---
 kind: wiki
@@ -388,6 +396,7 @@ func TestTreeOutput(t *testing.T) {
 	} else if e.Kind != "analysis" {
 		t.Errorf("analysis kind wrong: %+v", e)
 	}
+
 	// canvas tagged
 	if e, ok := byPath["context/board.canvas"]; !ok {
 		t.Errorf("missing context/board.canvas in %v", byPath)
@@ -425,9 +434,36 @@ func TestTreeOutput(t *testing.T) {
 	if _, ok := byPath["../outside.md"]; ok {
 		t.Errorf("outside-corpus path present: ../outside.md")
 	}
-	if len(out.Entries) != 6 {
-		t.Errorf("expected 6 entries, got %d: %v", len(out.Entries), out.Entries)
+	if len(out.Entries) != 7 {
+		t.Errorf("expected 7 entries, got %d: %v", len(out.Entries), out.Entries)
 	}
+}
+
+// TestTreeLegacyCreatedAt checks the `created_at` fallback for pre-rename docs.
+func TestTreeLegacyCreatedAt(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Entries []treeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range out.Entries {
+		if e.Path != "context/notes/legacy.md" {
+			continue
+		}
+		if e.Created != "2026-09-05" {
+			t.Errorf("legacy created_at not surfaced: %+v", e)
+		}
+		return
+	}
+	t.Error("legacy entry not found")
 }
 
 func TestDocMarkdown(t *testing.T) {

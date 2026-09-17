@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
 import {
   booleanValue,
   formatFieldDate,
+  isRelationVerb,
   parseFrontmatter,
   type FrontmatterField,
 } from "../lib/frontmatter";
-import { collectBodyLinks, collectMetaLinks, type DocLink } from "../lib/docLinks";
+import { collectBodyLinks, collectMetaLinks, resolveDocLink, type DocLink } from "../lib/docLinks";
 import { imageUrl } from "../lib/images";
+import { kindColor, kindIcon, type EntryFilterKind } from "../lib/kinds";
+import { linkKind, loadCorpusIndex, type CorpusIndex } from "../lib/corpusIndex";
 import { parseOutline, type OutlineItem } from "../lib/outline";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import { useReloadToken } from "../lib/useReloadToken";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Icon } from "../lib/icon";
+import { setActiveSection, useActiveSection } from "../lib/activeSection";
+import { Breadcrumbs } from "./Breadcrumbs";
 import { RelatedPanel } from "./RelatedPanel";
 
 interface DocMetaPanelProps {
@@ -29,8 +35,25 @@ const IMAGE_KEYS = new Set(["image"]);
 /** Right-column metadata panel: frontmatter rows, heading sections, relations. */
 export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
+  const [corpus, setCorpus] = useState<CorpusIndex | undefined>(undefined);
+  const activeSection = useActiveSection();
   const markdownDoc = doc && !isCanvas(doc) ? doc : null;
   const reloadToken = useReloadToken();
+  const activeHeading = activeSection.path === doc?.path ? activeSection.key : null;
+
+  useEffect(() => {
+    let alive = true;
+    loadCorpusIndex()
+      .then((ix) => {
+        if (alive) setCorpus(ix);
+      })
+      .catch(() => {
+        // kind colours degrade to the folder-derived fallback
+      });
+    return () => {
+      alive = false;
+    };
+  }, [reloadToken]);
 
   useEffect(() => {
     if (relatedId || !markdownDoc) return;
@@ -67,6 +90,8 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
 
   return (
     <aside className="panel panel--meta" aria-label="Document metadata">
+      <Breadcrumbs path={doc.path} />
+
       <MetaCard title="Metadata" icon="info">
         {isCanvas(doc) ? (
           <CanvasMeta canvas={doc.canvas} />
@@ -75,7 +100,13 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
         ) : (
           <dl className="meta-rows" role="list">
             {fields.map((field) => (
-              <MetaRow key={field.key} field={field} basePath={doc.path} index={index} />
+              <MetaRow
+                key={field.key}
+                field={field}
+                basePath={doc.path}
+                index={index}
+                corpus={corpus}
+              />
             ))}
           </dl>
         )}
@@ -84,13 +115,24 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
       {headings.length > 0 && (
         <MetaCard title="Sections" icon="toc">
           <ul className="meta-toc" role="list">
-            {headings.map((h, i) => (
-              <li key={`${h.text}-${i}`} style={{ paddingLeft: `${(h.level - 1) * 0.6}rem` }}>
-                <button type="button" className="meta-toc__link" onClick={() => scrollToHeading(i)}>
-                  {h.text}
-                </button>
-              </li>
-            ))}
+            {headings.map((h, i) => {
+              const isActive = activeHeading === h.text;
+              return (
+                <li key={`${h.text}-${i}`} style={{ paddingLeft: `${(h.level - 1) * 0.6}rem` }}>
+                  <button
+                    type="button"
+                    className={`meta-toc__link${isActive ? " is-active" : ""}`}
+                    aria-current={isActive ? "true" : undefined}
+                    onClick={() => {
+                      setActiveSection(doc.path, h.text);
+                      scrollToHeading(i);
+                    }}
+                  >
+                    {h.text}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </MetaCard>
       )}
@@ -107,7 +149,7 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
             <ul className="meta-links" role="list">
               {dedupe(outLinks).map((link, i) => (
                 <li key={`${link.label}-${link.href ?? ""}-${i}`}>
-                  <MetaLink link={link} />
+                  <MetaLink link={link} corpus={corpus} />
                 </li>
               ))}
             </ul>
@@ -140,10 +182,12 @@ function MetaRow({
   field,
   basePath,
   index,
+  corpus,
 }: {
   field: FrontmatterField;
   basePath: string;
   index?: WikiIndex;
+  corpus?: CorpusIndex;
 }) {
   return (
     <div className="meta-row" role="listitem">
@@ -159,6 +203,7 @@ function MetaRow({
               value={value}
               basePath={basePath}
               index={index}
+              corpus={corpus}
             />
           ))
         )}
@@ -172,15 +217,20 @@ function MetaValue({
   value,
   basePath,
   index,
+  corpus,
 }: {
   field: FrontmatterField;
   value: string;
   basePath: string;
   index?: WikiIndex;
+  corpus?: CorpusIndex;
 }) {
   if (LINK_KEYS.has(field.key)) {
     const link = collectMetaLinks([{ key: field.key, values: [value] }], basePath, index)[0];
-    return <MetaLink link={link} />;
+    return <MetaLink link={link} corpus={corpus} />;
+  }
+  if (isRelationVerb(field.key)) {
+    return <MetaLink link={resolveDocLink(value, basePath, index)} corpus={corpus} />;
   }
   if (DATE_KEYS.has(field.key)) {
     return <span className="meta-row__text">{formatFieldDate(value)}</span>;
@@ -202,12 +252,24 @@ function MetaValue({
   return <span className="meta-row__text">{value}</span>;
 }
 
-function MetaLink({ link }: { link: DocLink | undefined }) {
+function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: CorpusIndex }) {
+  const location = useLocation();
   if (!link) return null;
   if (link.href) {
     const external = link.external ? { target: "_blank", rel: "noopener noreferrer" } : {};
+    const current =
+      !link.external &&
+      link.href.startsWith("#") &&
+      link.href.slice(1) === `${location.pathname}${location.search}`;
+    const kind = link.external ? undefined : linkKind(link.href, corpus);
     return (
-      <a className="meta-link" href={link.href} {...external}>
+      <a
+        className={`meta-link${current ? " is-current" : ""}`}
+        href={link.href}
+        aria-current={current ? "page" : undefined}
+        {...external}
+      >
+        {kind && <MetaKindIcon kind={kind} />}
         {link.label}
       </a>
     );
@@ -219,6 +281,18 @@ function MetaLink({ link }: { link: DocLink | undefined }) {
     >
       {link.label}
     </span>
+  );
+}
+
+/** Coloured kind glyph shown before a document link. */
+function MetaKindIcon({ kind }: { kind: EntryFilterKind }) {
+  return (
+    <Icon
+      name={kindIcon(kind)}
+      className="meta-link__icon"
+      style={{ color: kindColor(kind) }}
+      label={`kind: ${kind}`}
+    />
   );
 }
 

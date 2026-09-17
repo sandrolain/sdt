@@ -8,13 +8,18 @@ import {
   type IDockviewPanel,
 } from "dockview-react";
 import { useOpenDocs } from "../lib/openDocsContext";
-import { clearLayout, loadLayout, saveLayout } from "../lib/layoutStore";
+import { clearLayout, loadLayout, resetLayout, saveLayout } from "../lib/layoutStore";
+import { addSidePanels } from "../lib/workspaceLayout";
+import { tabContextMenuItems } from "../lib/workspaceTabs";
 import { displayTitle } from "../lib/titles";
 import { Icon } from "../lib/icon";
 import { useDoc } from "../lib/useDoc";
 import { Tree } from "./Tree";
 import { DocDetail } from "./DocDetail";
 import { DocMetaPanel } from "./DocMetaPanel";
+import { WorkspaceTab } from "./WorkspaceTab";
+import { DocTabHeader } from "./DocTabHeader";
+import { kindColor, kindFromPath, kindIcon } from "../lib/kinds";
 
 const STORAGE_KEY = "workspace";
 const DOC_PREFIX = "doc:";
@@ -61,22 +66,48 @@ function MetaTab() {
   return <DocMetaPanel doc={doc} />;
 }
 
-/** Close-all action rendered at the end of the document tabs bar. */
-function DocHeaderActions({ group }: IDockviewHeaderActionsProps) {
+/** Header actions: close-all on document tabs, collapse/reset on the side panels. */
+function DocHeaderActions({ group, api }: IDockviewHeaderActionsProps) {
   const { closeAll } = useOpenDocs();
   const hasDocs = group.panels.some((p) => p.id.startsWith(DOC_PREFIX));
-  if (!hasDocs) return null;
+  const hasSide = group.panels.some((p) => p.id === "tree" || p.id === "meta");
+  if (!hasDocs && !hasSide) return null;
+  const collapsed = hasSide && api.isCollapsed();
   return (
     <div className="doc-tab-actions">
-      <button
-        type="button"
-        className="doc-tab-actions__button"
-        title="Close all documents"
-        aria-label="Close all documents"
-        onClick={closeAll}
-      >
-        <Icon name="close_all" />
-      </button>
+      {hasSide && (
+        <>
+          <button
+            type="button"
+            className="doc-tab-actions__button"
+            title={collapsed ? "Expand panel" : "Collapse panel"}
+            aria-label={collapsed ? "Expand panel" : "Collapse panel"}
+            onClick={() => (collapsed ? api.expand() : api.collapse())}
+          >
+            <Icon name={collapsed ? "chevron_right" : "chevron_left"} />
+          </button>
+          <button
+            type="button"
+            className="doc-tab-actions__button"
+            title="Reset layout"
+            aria-label="Reset layout"
+            onClick={() => resetLayout(STORAGE_KEY)}
+          >
+            <Icon name="restart_alt" />
+          </button>
+        </>
+      )}
+      {hasDocs && (
+        <button
+          type="button"
+          className="doc-tab-actions__button"
+          title="Close all documents"
+          aria-label="Close all documents"
+          onClick={closeAll}
+        >
+          <Icon name="close" />
+        </button>
+      )}
     </div>
   );
 }
@@ -92,35 +123,17 @@ export function DocsWorkspace() {
       const api = event.api;
       apiRef.current = api;
 
-      let restored = false;
       const stored = loadLayout(STORAGE_KEY);
       if (stored) {
         try {
           api.fromJSON(stored as never);
-          restored = api.panels.length > 0;
         } catch {
           clearLayout(STORAGE_KEY);
         }
       }
-      if (!restored) {
-        api.addPanel({
-          id: "tree",
-          component: "tree",
-          title: "Tree",
-          initialWidth: 260,
-          minimumWidth: 170,
-          maximumWidth: 460,
-        });
-        api.addPanel({
-          id: "meta",
-          component: "meta",
-          title: "Metadata",
-          position: { direction: "right" },
-          initialWidth: 320,
-          minimumWidth: 190,
-          maximumWidth: 560,
-        });
-      }
+      // always ensure the side panels exist: recovers layouts persisted by
+      // older builds where tree/meta were closable
+      addSidePanels(api);
 
       api.onDidActivePanelChange((event) => {
         const panel = event.panel;
@@ -145,6 +158,7 @@ export function DocsWorkspace() {
       api.addPanel({
         id: docPanelId(path),
         component: "doc",
+        tabComponent: "doc",
         title: displayTitle({ path }),
         params: { path },
         position:
@@ -191,6 +205,9 @@ export function DocsWorkspace() {
     <DockviewReact
       className={className}
       components={components}
+      defaultTabComponent={WorkspaceTab}
+      tabComponents={{ doc: DocTabHeader }}
+      getTabContextMenuItems={(params) => tabContextMenuItems(params.panel.id)}
       onReady={onReady}
       rightHeaderActionsComponent={DocHeaderActions}
     />
@@ -211,18 +228,26 @@ function FallbackWorkspace() {
         ) : (
           <>
             <div className="fallback-tabs" role="tablist" aria-label="Open documents">
-              {state.docs.map((path) => (
-                <button
-                  key={path}
-                  type="button"
-                  role="tab"
-                  aria-selected={path === state.active}
-                  className={path === state.active ? "is-active" : ""}
-                  onClick={() => activate(path)}
-                >
-                  {displayTitle({ path })}
-                </button>
-              ))}
+              {state.docs.map((path) => {
+                const kind = kindFromPath(path);
+                return (
+                  <button
+                    key={path}
+                    type="button"
+                    role="tab"
+                    aria-selected={path === state.active}
+                    className={path === state.active ? "is-active" : ""}
+                    onClick={() => activate(path)}
+                  >
+                    <Icon
+                      name={kindIcon(kind)}
+                      className="dock-doc-tab__icon"
+                      style={{ color: kindColor(kind) }}
+                    />
+                    <span className="dock-doc-tab__label">{displayTitle({ path })}</span>
+                  </button>
+                );
+              })}
               <button
                 type="button"
                 className="doc-tab-actions__button"
@@ -230,7 +255,7 @@ function FallbackWorkspace() {
                 aria-label="Close all documents"
                 onClick={closeAll}
               >
-                <Icon name="close_all" />
+                <Icon name="close" />
               </button>
             </div>
             {state.active && <DocTab path={state.active} />}
