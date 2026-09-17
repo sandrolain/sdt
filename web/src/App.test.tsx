@@ -60,7 +60,7 @@ describe("app shell", () => {
   it("navigates from the tree to the doc detail", async () => {
     globalThis.fetch = mockFetch as typeof fetch;
     renderApp();
-    const entry = await screen.findByTitle("context/wiki/alpha.md");
+    const entry = await screen.findByTitle("context/wiki/alpha.md · wiki");
     await userEvent.click(entry);
     await screen.findByText(/Hello tokens/);
   });

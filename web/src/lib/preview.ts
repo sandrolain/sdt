@@ -22,12 +22,12 @@ export function clearPreviewCache(): void {
 
 /** Corpus path targeted by a previewable in-document link, or null. */
 export function previewPathFromHref(href: string): string | null {
-  if (href.startsWith("#/docs/")) {
-    const path = href.slice("#/docs/".length);
+  if (href.startsWith("/docs/")) {
+    const path = href.slice("/docs/".length);
     return path ? decodeURIComponent(path) : null;
   }
-  if (href.startsWith("#/wiki/")) {
-    const id = href.slice("#/wiki/".length);
+  if (href.startsWith("/wiki/")) {
+    const id = href.slice("/wiki/".length);
     if (!id || id === "graph" || id === "board") return null;
     return `context/wiki/${decodeURIComponent(id)}.md`;
   }

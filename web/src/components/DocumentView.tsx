@@ -16,9 +16,23 @@ import { fallbackTitle, frontmatterTitle } from "../lib/titles";
 import { useOpenDocsOptional } from "../lib/openDocsContext";
 import { lineNumbers } from "../lib/codeLines";
 import { useActiveHeading } from "../lib/useActiveHeading";
+import { setActiveSection } from "../lib/activeSection";
+import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
 import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
+
+/** Corpus path behind a rendered docs/wiki link, or null for non-document links. */
+function docsTargetFromHref(href: string): string | null {
+  const [pathname] = href.split(/[?#]/);
+  if (pathname.startsWith("/docs/")) return decodeURIComponent(pathname.slice("/docs/".length));
+  if (pathname.startsWith("/wiki/")) {
+    const id = pathname.slice("/wiki/".length);
+    if (!id || id === "graph" || id === "board") return null;
+    return `context/wiki/${decodeURIComponent(id)}.md`;
+  }
+  return null;
+}
 
 /** Copy the sibling `<code>` text and flash a success glyph on the button. */
 function copyCodeBlock(button: Element): void {
@@ -95,6 +109,27 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   // publish the heading in view so the Sections sidebar can highlight it
   useActiveHeading(renderedRef, path, mode === "render");
 
+  // a Sections click switches to render mode (if needed) then scrolls there
+  const sectionRequest = useSectionRequest();
+  useEffect(() => {
+    if (!sectionRequest || sectionRequest.path !== path) return;
+    if (mode !== "render") {
+      const nextParams = new URLSearchParams(params);
+      nextParams.set("view", "render");
+      setParams(nextParams, { replace: true });
+      return;
+    }
+    const root = renderedRef.current;
+    const target = root
+      ? Array.from(root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")).find(
+          (h) => h.textContent?.trim() === sectionRequest.text,
+        )
+      : undefined;
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setActiveSection(path, sectionRequest.text);
+    consumeSectionRequest(sectionRequest);
+  }, [sectionRequest, mode, path, params, setParams]);
+
   const onRenderedClick = (event: MouseEvent<HTMLDivElement>) => {
     const copyButton = (event.target as HTMLElement | null)?.closest?.(".md-code__copy");
     if (copyButton) {
@@ -105,14 +140,10 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     const anchor = (event.target as HTMLElement | null)?.closest?.("a");
     const href = anchor?.getAttribute("href") ?? "";
     if (!anchor || !docsApi) return;
-    const target = href.startsWith("#/docs/")
-      ? href.slice("#/docs/".length)
-      : href.startsWith("#/wiki/")
-        ? `context/wiki/${href.slice("#/wiki/".length)}.md`
-        : null;
+    const target = docsTargetFromHref(href);
     if (!target) return;
     event.preventDefault();
-    docsApi.open(decodeURIComponent(target));
+    docsApi.open(target);
   };
 
   return (

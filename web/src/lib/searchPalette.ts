@@ -89,7 +89,7 @@ export function isSearchable(query: string): boolean {
   return query.trim().length >= MIN_QUERY_LENGTH;
 }
 
-/** Document-detail hash route for a corpus path. */
+/** Document-detail browser route for a corpus path. */
 export function resultRoute(path: string): string {
   return `/docs/${path}`;
 }

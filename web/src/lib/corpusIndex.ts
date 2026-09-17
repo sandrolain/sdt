@@ -38,8 +38,8 @@ export function loadCorpusIndex(): Promise<CorpusIndex> {
 
 /** Corpus path behind a docs/wiki hash href, or null for external/other links. */
 export function hrefCorpusPath(href: string): string | null {
-  if (href.startsWith("#/docs/")) return decodeURIComponent(href.slice("#/docs/".length));
-  if (href.startsWith("#/wiki/")) return `context/wiki/${href.slice("#/wiki/".length)}.md`;
+  if (href.startsWith("/docs/")) return decodeURIComponent(href.slice("/docs/".length));
+  if (href.startsWith("/wiki/")) return `context/wiki/${href.slice("/wiki/".length)}.md`;
   return null;
 }
 

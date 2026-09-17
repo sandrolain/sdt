@@ -24,7 +24,7 @@ describe("openDocs persistence", () => {
     saveOpenDocs({ docs: ["a", "b"], active: "b", seen: [] });
     localStorage.setItem(
       "sdt-layout:open-docs",
-      JSON.stringify({ version: 3, layout: { docs: ["a", "b"], active: "zzz" } }),
+      JSON.stringify({ version: 5, layout: { docs: ["a", "b"], active: "zzz" } }),
     );
     expect(loadOpenDocs()?.active).toBe("b");
   });
@@ -32,7 +32,7 @@ describe("openDocs persistence", () => {
   it("ignores a corrupt stored shape", () => {
     localStorage.setItem(
       "sdt-layout:open-docs",
-      JSON.stringify({ version: 3, layout: { docs: "nope" } }),
+      JSON.stringify({ version: 5, layout: { docs: "nope" } }),
     );
     expect(loadOpenDocs()).toBeNull();
   });

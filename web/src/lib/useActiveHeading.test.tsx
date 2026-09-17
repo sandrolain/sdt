@@ -1,33 +1,17 @@
 // @vitest-environment jsdom
 import { useRef } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { resetActiveSection, useActiveSection } from "./activeSection";
 import { useActiveHeading } from "./useActiveHeading";
 
-type IOCallback = (entries: Array<{ target: Element; isIntersecting: boolean }>) => void;
-
-class IntersectionObserverStub {
-  static instances: IntersectionObserverStub[] = [];
-  elements: Element[] = [];
-  constructor(callback: IOCallback) {
-    this.callback = callback;
-    IntersectionObserverStub.instances.push(this);
-  }
-  private callback: IOCallback;
-  observe(element: Element) {
-    this.elements.push(element);
-  }
-  unobserve() {}
-  disconnect() {}
-  trigger() {
-    this.callback(this.elements.map((target) => ({ target, isIntersecting: true })));
-  }
+function rect(top: number): DOMRect {
+  return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top } as DOMRect;
 }
 
 function Probe() {
   const active = useActiveSection();
-  return <span data-testid="active">{`${active.path}|${active.key ?? ""}`}</span>;
+  return <span data-testid="active">{active.key ?? ""}</span>;
 }
 
 function Doc() {
@@ -41,27 +25,45 @@ function Doc() {
   );
 }
 
-beforeEach(() => {
-  IntersectionObserverStub.instances = [];
-  vi.stubGlobal("IntersectionObserver", IntersectionObserverStub);
-});
+/** Stub container + heading geometry, then simulate a scroll. */
+function layout(positions: number[]) {
+  const root = document.querySelector(".doc-rendered") as HTMLElement;
+  Object.defineProperty(root, "clientHeight", { value: 300, configurable: true });
+  root.getBoundingClientRect = () => rect(0);
+  const headings = Array.from(root.querySelectorAll<HTMLElement>("h1,h2"));
+  headings.forEach((h, i) => {
+    h.getBoundingClientRect = () => rect(positions[i] ?? 0);
+  });
+}
 
 afterEach(() => {
   cleanup();
-  vi.unstubAllGlobals();
   resetActiveSection();
 });
 
 describe("useActiveHeading", () => {
-  it("publishes the first heading in view", () => {
+  it("keeps a section selected when scrolling mid-section", () => {
     render(
       <>
         <Doc />
         <Probe />
       </>,
     );
-    const observer = IntersectionObserverStub.instances[0];
-    act(() => observer.trigger());
-    expect(screen.getByTestId("active").textContent).toBe("context/a.md|First");
+    // First above the threshold, Second well below it
+    layout([-120, 500]);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    expect(screen.getByTestId("active").textContent).toBe("First");
+  });
+
+  it("advances to the next section once its heading passes the threshold", () => {
+    render(
+      <>
+        <Doc />
+        <Probe />
+      </>,
+    );
+    layout([-500, 40]);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    expect(screen.getByTestId("active").textContent).toBe("Second");
   });
 });

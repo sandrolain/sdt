@@ -30,7 +30,7 @@ export interface FuseResult {
   stats: FuseStats;
 }
 
-const HREF_RE = /href="#\/(?:wiki|docs)\/([^"#?]+)(?:\?[^"]*)?"/g;
+const HREF_RE = /href="\/(?:wiki|docs)\/([^"#?]+)(?:\?[^"]*)?"/g;
 
 /** Map ids referenced by links in a single node's content. */
 function refsInContent(content: string, index: Map<string, { id: string }>): string[] {
@@ -45,7 +45,7 @@ function refsInContent(content: string, index: Map<string, { id: string }>): str
   return found;
 }
 
-/** Map ids referenced by `#/wiki/<id>` / `#/docs/<path>` links in a tree. */
+/** Map ids referenced by `/wiki/<id>` / `/docs/<path>` links in a tree. */
 export function extractMapRefs(root: MindNode, index: Map<string, { id: string }>): string[] {
   const found = new Set<string>();
   const visit = (node: MindNode) => {

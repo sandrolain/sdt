@@ -18,6 +18,7 @@ import { useReloadToken } from "../lib/useReloadToken";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Icon } from "../lib/icon";
 import { setActiveSection, useActiveSection } from "../lib/activeSection";
+import { requestSection } from "../lib/sectionRequests";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { RelatedPanel } from "./RelatedPanel";
 
@@ -125,7 +126,7 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
                     aria-current={isActive ? "true" : undefined}
                     onClick={() => {
                       setActiveSection(doc.path, h.text);
-                      scrollToHeading(i);
+                      requestSection(doc.path, h.text);
                     }}
                   >
                     {h.text}
@@ -171,7 +172,8 @@ function MetaCard({ title, icon, children }: MetaCardProps) {
     <details className="meta-card" open>
       <summary className="meta-card__title">
         <Icon name={icon} />
-        {title}
+        <span className="meta-card__label">{title}</span>
+        <Icon name="expand_more" className="meta-card__chevron" title={title} />
       </summary>
       <div className="meta-card__body">{children}</div>
     </details>
@@ -259,8 +261,8 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
     const external = link.external ? { target: "_blank", rel: "noopener noreferrer" } : {};
     const current =
       !link.external &&
-      link.href.startsWith("#") &&
-      link.href.slice(1) === `${location.pathname}${location.search}`;
+      link.href.startsWith("/") &&
+      link.href === `${location.pathname}${location.search}`;
     const kind = link.external ? undefined : linkKind(link.href, corpus);
     return (
       <a
@@ -292,6 +294,7 @@ function MetaKindIcon({ kind }: { kind: EntryFilterKind }) {
       className="meta-link__icon"
       style={{ color: kindColor(kind) }}
       label={`kind: ${kind}`}
+      title={kind}
     />
   );
 }
@@ -328,14 +331,6 @@ function headingToc(items: OutlineItem[]): HeadingRef[] {
   };
   walk(items);
   return out;
-}
-
-/** Scroll the nth rendered heading into view (Render mode only). */
-function scrollToHeading(index: number): void {
-  const node = document.querySelector(".doc-rendered")?.querySelectorAll("h1,h2,h3,h4,h5,h6")[
-    index
-  ];
-  node?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function dedupe(links: DocLink[]): DocLink[] {

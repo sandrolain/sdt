@@ -30,8 +30,10 @@ func spaHandler() (http.Handler, bool) {
 	return spaFileHandler(sub), true
 }
 
-// spaFileHandler serves static assets and falls back to index.html for
-// extension-less paths (hash routes never reach the server, but deep links do).
+// spaFileHandler serves static assets and falls back to index.html for the SPA
+// routes (browser-history deep links). Corpus document routes carry an
+// extension (`.md`/`.canvas`), so the /docs and /wiki prefixes fall back too,
+// while genuinely missing assets still 404.
 func spaFileHandler(sub fs.FS) http.Handler {
 	files := http.FileServerFS(sub)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,10 +45,17 @@ func spaFileHandler(sub fs.FS) http.Handler {
 			files.ServeHTTP(w, r)
 			return
 		}
-		if path.Ext(p) != "" {
-			http.NotFound(w, r)
+		if path.Ext(p) == "" || isSPARoute(r.URL.Path) {
+			http.ServeFileFS(w, r, sub, "index.html")
 			return
 		}
-		http.ServeFileFS(w, r, sub, "index.html")
+		http.NotFound(w, r)
 	})
+}
+
+// isSPARoute reports whether a request path belongs to the SPA's own routes
+// rather than a static asset.
+func isSPARoute(p string) bool {
+	return p == "/docs" || strings.HasPrefix(p, "/docs/") ||
+		p == "/wiki" || strings.HasPrefix(p, "/wiki/")
 }

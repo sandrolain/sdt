@@ -472,12 +472,15 @@
   .doc-tab-actions {
     display: flex;
     align-items: center;
-    padding: 0 0.25rem;
+    height: 100%;
+    padding: 0 0.35rem;
   }
   .doc-tab-actions__button {
     display: inline-flex;
     align-items: center;
-    padding: 0.2rem;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
     border-radius: 6px;
     color: var(--fg-dim);
   }
@@ -529,12 +532,36 @@
     color: var(--fg);
   }
 
+  .tree-sort-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
   .tree-sort-dir {
     display: inline-flex;
+    align-items: center;
+    padding: 0.1rem;
+    border-radius: 5px;
     color: var(--fg-dim);
   }
   .tree-sort-dir:hover {
+    background: var(--bg-hover);
     color: var(--fg);
+  }
+  .fallback-tree-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.35rem 0.5rem;
+  }
+  /* react-aria Tooltip surface */
+  .ui-tooltip {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-rise);
+    color: var(--fg);
+    font-size: 0.8125rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   }
 
   /* Untitled-UI-style controls (React Aria) styled with Catppuccin tokens. */
@@ -735,9 +762,18 @@
   .tree-entry:hover {
     background: var(--bg-hover);
   }
+  /* the open document must out-rank hover, which uses the lighter surface1 */
   .tree-entry.is-active {
-    background: var(--bg-rise);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
     border-left-color: var(--accent);
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .tree-entry.is-active:hover {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .tree-entry.is-active .tree-entry__glyph {
+    color: var(--accent);
   }
   .tree-entry__title {
     flex: 1;
@@ -856,7 +892,7 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.45rem 0.6rem;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -866,6 +902,17 @@
   }
   .meta-card__title::-webkit-details-marker {
     display: none;
+  }
+  .meta-card__label {
+    flex: 1;
+  }
+  .meta-card__chevron {
+    color: var(--fg-faint);
+    transition: transform 0.15s ease;
+    transform: rotate(-90deg);
+  }
+  .meta-card[open] .meta-card__chevron {
+    transform: rotate(0deg);
   }
   .meta-card__body {
     padding: 0 0.6rem 0.6rem;
@@ -880,11 +927,11 @@
     display: grid;
     grid-template-columns: 5.5rem 1fr;
     gap: 0.4rem;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
   }
   .meta-row__label {
     color: var(--fg-faint);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
   .meta-row__value {
     margin: 0;
@@ -928,7 +975,7 @@
     gap: 0.1rem;
   }
   .meta-toc__link {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: var(--fg);
     text-align: left;
     padding: 0.1rem 0.2rem;
@@ -957,7 +1004,7 @@
     align-items: center;
     gap: 0.25rem;
     color: var(--accent);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     padding: 0.05rem 0.3rem;
     margin: -0.05rem -0.3rem;
     border-radius: 5px;
@@ -1110,49 +1157,88 @@
   }
 
   .doc-rendered {
-    line-height: 1.65;
+    line-height: 1.75;
+    font-size: 0.9375rem;
+    color: var(--fg);
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
   }
-  .doc-rendered h1 {
-    font-size: 1.5rem;
-    margin: 1.2rem 0 0.6rem;
-  }
-  .doc-rendered h2 {
-    font-size: 1.25rem;
-    margin: 1.1rem 0 0.5rem;
-  }
+  .doc-rendered h1,
+  .doc-rendered h2,
   .doc-rendered h3,
   .doc-rendered h4,
   .doc-rendered h5,
   .doc-rendered h6 {
-    font-size: 1.05rem;
-    margin: 1rem 0 0.4rem;
+    color: var(--fg);
+    line-height: 1.3;
+  }
+  .doc-rendered h1 {
+    font-size: 1.6rem;
+    margin: 1.6rem 0 0.8rem;
+  }
+  .doc-rendered h2 {
+    font-size: 1.3rem;
+    margin: 1.5rem 0 0.7rem;
+    color: var(--ctp-lavender);
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .doc-rendered h3 {
+    font-size: 1.1rem;
+    margin: 1.3rem 0 0.5rem;
+    color: var(--ctp-sapphire);
+  }
+  .doc-rendered h4,
+  .doc-rendered h5,
+  .doc-rendered h6 {
+    font-size: 1.02rem;
+    margin: 1.1rem 0 0.4rem;
+    color: var(--ctp-teal);
   }
   .doc-rendered p,
   .doc-rendered ul,
   .doc-rendered ol,
   .doc-rendered blockquote,
   .doc-rendered table {
-    margin: 0.6rem 0;
+    margin: 0.85rem 0;
   }
   .doc-rendered ul,
   .doc-rendered ol {
-    padding-left: 1.5rem;
+    padding-left: 1.6rem;
+  }
+  .doc-rendered li + li {
+    margin-top: 0.3rem;
+  }
+  .doc-rendered strong {
+    color: var(--ctp-peach);
+    font-weight: 700;
+  }
+  .doc-rendered em {
+    color: var(--ctp-pink);
   }
   .doc-rendered a {
-    color: var(--accent);
+    color: var(--ctp-blue);
+    text-decoration-color: color-mix(in srgb, var(--ctp-blue) 50%, transparent);
+    text-underline-offset: 2px;
   }
   .doc-rendered a:hover {
+    color: var(--ctp-sky);
     text-decoration: underline;
+  }
+  .doc-rendered hr {
+    height: 0;
+    margin: 1.75rem 0;
+    border: none;
+    border-top: 1px solid var(--border);
   }
   .doc-rendered code {
     font-family: ui-monospace, "SF Mono", monospace;
     font-size: 0.85em;
-    padding: 0.1rem 0.3rem;
+    padding: 0.1rem 0.35rem;
     border-radius: 5px;
-    background: var(--bg-rise);
+    background: color-mix(in srgb, var(--ctp-mauve) 16%, transparent);
+    color: var(--ctp-mauve);
   }
   .doc-rendered pre.md-code {
     margin: 0.75rem 0;
@@ -1196,17 +1282,29 @@
     font-size: 1rem;
   }
   .doc-rendered blockquote {
-    padding-left: 0.9rem;
-    border-left: 3px solid var(--border);
+    padding: 0.15rem 0.9rem;
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
     color: var(--fg-dim);
   }
   .doc-rendered table {
     border-collapse: collapse;
+    width: 100%;
+    font-size: 0.9rem;
   }
   .doc-rendered th,
   .doc-rendered td {
     border: 1px solid var(--border);
-    padding: 0.3rem 0.6rem;
+    padding: 0.35rem 0.65rem;
+    text-align: left;
+  }
+  .doc-rendered th {
+    background: var(--ctp-surface0);
+    color: var(--fg);
+  }
+  .doc-rendered tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--ctp-surface0) 45%, transparent);
   }
   .wikilink-broken {
     color: var(--danger);
@@ -1485,7 +1583,7 @@
     padding: 0.2rem 0.35rem;
     border-radius: 6px;
     color: var(--fg);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
   }
   .related-item:hover {
     background: var(--bg-hover);

@@ -61,14 +61,14 @@ export function resolveWikiLink(link: ParsedWikiLink, index?: WikiIndex): string
     : (index.byTitle.get(link.target) ?? (link.verb ? null : link.target));
 }
 
-/** Hash route for a wiki page id. */
+/** Browser route for a wiki page id. */
 export function wikiHref(id: string): string {
-  return `#/wiki/${id}`;
+  return `/wiki/${id}`;
 }
 
-/** Hash route for a corpus document path. */
+/** Browser route for a corpus document path. */
 export function docHref(path: string): string {
-  return `#/docs/${path}`;
+  return `/docs/${path}`;
 }
 
 /**
@@ -93,7 +93,7 @@ export function resolveDocPath(href: string, basePath?: string): string {
 const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 const MD_LINK_RE = /\[([^\]]*)\]\(([^)\s]+\.md)(#[^)]*)?\)/g;
 
-/** Rewrite relative/absolute `.md` markdown links to the docs hash route. */
+/** Rewrite relative/absolute `.md` markdown links to the docs route. */
 export function rewriteDocLinks(md: string, basePath?: string): string {
   return md.replace(MD_LINK_RE, (_m, label: string, href: string, hash?: string) => {
     return `[${label}](${docHref(resolveDocPath(href, basePath))}${hash ?? ""})`;

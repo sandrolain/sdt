@@ -4,6 +4,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Tree } from "./Tree";
+import { TreeSortControls } from "./TreeSortControls";
+import { resetTreeSort } from "../lib/treeSortStore";
 
 const TREE = {
   entries: [
@@ -21,6 +23,7 @@ const TREE = {
 function renderTree() {
   render(
     <MemoryRouter>
+      <TreeSortControls />
       <Tree />
     </MemoryRouter>,
   );
@@ -28,6 +31,7 @@ function renderTree() {
 
 afterEach(() => {
   cleanup();
+  resetTreeSort();
   vi.restoreAllMocks();
 });
 
@@ -149,6 +153,10 @@ describe("Tree", () => {
       </MemoryRouter>,
     );
     await screen.findByText("Note");
+    // the open document is highlighted, not just its folder opened
+    await waitFor(() => {
+      expect(document.querySelector(".tree-entry.is-active")?.textContent).toContain("Note");
+    });
     const folder = (label: string) =>
       Array.from(document.querySelectorAll(".tree-folder")).find(
         (h) => h.querySelector(".tree-folder__label")?.textContent === label,
@@ -181,6 +189,8 @@ describe("Tree", () => {
     const glyph = link.querySelector(".tree-entry__glyph");
     expect(glyph?.querySelector(".ms-icon")?.textContent).toBe("analytics");
     expect(glyph?.getAttribute("style")).toBeNull();
+    // the hover title ends with the kind
+    expect(link.getAttribute("title")).toBe("context/analysis/a.md · analysis");
   });
 
   it("shows a date line from frontmatter or the filename prefix", async () => {

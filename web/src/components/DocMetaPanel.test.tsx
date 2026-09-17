@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { DocMetaPanel } from "./DocMetaPanel";
 import { resetActiveSection, setActiveSection } from "../lib/activeSection";
 import { resetCorpusIndexCache } from "../lib/corpusIndex";
+import { getSectionRequest, resetSectionRequest } from "../lib/sectionRequests";
 import { resetWikiIndexCache } from "../lib/wikiIndexLoader";
 
 const DOC = {
@@ -49,6 +50,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   resetActiveSection();
+  resetSectionRequest();
   vi.restoreAllMocks();
 });
 
@@ -61,29 +63,23 @@ describe("DocMetaPanel", () => {
     expect(screen.getByText("alpha")).toBeTruthy();
     expect(screen.getByText("beta")).toBeTruthy();
     const link = screen.getAllByText("A")[0];
-    expect(link.getAttribute("href")).toBe("#/docs/context/analysis/a.md");
+    expect(link.getAttribute("href")).toBe("/docs/context/analysis/a.md");
     // kind glyph + colour from the corpus path fallback
     expect(screen.getAllByLabelText("kind: analysis").length).toBeGreaterThan(0);
     const excluded = screen.getAllByText("C")[0];
     expect(excluded.getAttribute("href")).toBeNull();
     expect(excluded.getAttribute("title")).toBe("Excluded from the corpus");
+    // each meta card carries an open/collapsed chevron
+    const chevrons = document.querySelectorAll(".meta-card__chevron");
+    expect(chevrons.length).toBe(document.querySelectorAll(".meta-card").length);
+    expect(chevrons.length).toBeGreaterThan(0);
   });
 
-  it("lists heading sections and scrolls to the rendered heading", async () => {
+  it("requests the selected section (jump handled by the document panel)", async () => {
     mockFetch();
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
-    render(
-      <MemoryRouter>
-        <DocMetaPanel doc={DOC as never} />
-        <div className="doc-rendered">
-          <h1>First</h1>
-          <h2>Second</h2>
-        </div>
-      </MemoryRouter>,
-    );
+    renderPanel(DOC);
     await userEvent.click(screen.getByRole("button", { name: "Second" }));
-    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(getSectionRequest()).toMatchObject({ path: DOC.path, text: "Second" });
   });
 
   it("renders nested relation verbs with a human label", () => {

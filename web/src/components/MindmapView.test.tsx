@@ -81,7 +81,7 @@ describe("MindmapView", () => {
     globalThis.fetch = mockFetch() as unknown as typeof fetch;
     render(
       <MindmapView
-        markdown={"# Root\n\n- [Other](#/wiki/other.map)\n"}
+        markdown={"# Root\n\n- [Other](/wiki/other.map)\n"}
         basePath="context/wiki/topic.map.md"
         title="Topic"
       />,

@@ -9,14 +9,14 @@ afterEach(() => {
 
 describe("previewPathFromHref", () => {
   it("resolves docs and wiki routes", () => {
-    expect(previewPathFromHref("#/docs/context/wiki/a.md")).toBe("context/wiki/a.md");
-    expect(previewPathFromHref("#/wiki/backend")).toBe("context/wiki/backend.md");
+    expect(previewPathFromHref("/docs/context/wiki/a.md")).toBe("context/wiki/a.md");
+    expect(previewPathFromHref("/wiki/backend")).toBe("context/wiki/backend.md");
   });
 
   it("ignores non-document links", () => {
     expect(previewPathFromHref("https://example.com")).toBeNull();
-    expect(previewPathFromHref("#/wiki/graph")).toBeNull();
-    expect(previewPathFromHref("#/wiki/board")).toBeNull();
+    expect(previewPathFromHref("/wiki/graph")).toBeNull();
+    expect(previewPathFromHref("/wiki/board")).toBeNull();
   });
 });
 

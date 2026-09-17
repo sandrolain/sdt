@@ -40,13 +40,19 @@ func TestSpaFileHandlerAsset(t *testing.T) {
 	}
 }
 
-func TestSpaFileHandlerHashRouteFallback(t *testing.T) {
+func TestSpaFileHandlerRouteFallback(t *testing.T) {
 	h := spaFileHandler(spaFS())
-	for _, path := range []string{"/wiki/graph", "/deep/link/here"} {
+	for _, p := range []string{
+		"/wiki/graph",
+		"/docs",
+		"/deep/link/here",
+		"/docs/context/wiki/alpha.md", // corpus routes carry extensions
+		"/wiki/board?file=context/board.canvas",
+	} {
 		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, p, nil))
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "sdtviewer spa") {
-			t.Errorf("%s: status = %d body = %q", path, rec.Code, rec.Body.String())
+			t.Errorf("%s: status = %d body = %q", p, rec.Code, rec.Body.String())
 		}
 	}
 }

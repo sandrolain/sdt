@@ -8,7 +8,7 @@ import { SkeletonLines } from "./Skeleton";
 import { useReloadToken } from "../lib/useReloadToken";
 import { useOpenDocs } from "../lib/openDocsContext";
 
-/** #/wiki/board — read-only board from the graph default or a .canvas file. */
+/** /wiki/board — read-only board from the graph default or a .canvas file. */
 export function WikiBoardView() {
   const [params, setParams] = useSearchParams();
   const { open: openDoc } = useOpenDocs();

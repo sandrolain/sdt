@@ -9,7 +9,13 @@ import {
 } from "dockview-react";
 import { useOpenDocs } from "../lib/openDocsContext";
 import { clearLayout, loadLayout, resetLayout, saveLayout } from "../lib/layoutStore";
-import { addSidePanels } from "../lib/workspaceLayout";
+import {
+  addSidePanels,
+  COURTESY_PANEL_ID,
+  DOC_PANEL_PREFIX,
+  ensureCenterGroup,
+  type CenterGroup,
+} from "../lib/workspaceLayout";
 import { tabContextMenuItems } from "../lib/workspaceTabs";
 import { displayTitle } from "../lib/titles";
 import { Icon } from "../lib/icon";
@@ -19,11 +25,13 @@ import { DocDetail } from "./DocDetail";
 import { DocMetaPanel } from "./DocMetaPanel";
 import { WorkspaceTab } from "./WorkspaceTab";
 import { DocTabHeader } from "./DocTabHeader";
+import { TreeSortControls } from "./TreeSortControls";
+import { TooltipButton } from "./ui/Tooltip";
 import { kindColor, kindFromPath, kindIcon } from "../lib/kinds";
 
 const STORAGE_KEY = "workspace";
-const DOC_PREFIX = "doc:";
-const COURTESY_ID = "doc-courtesy";
+const DOC_PREFIX = DOC_PANEL_PREFIX;
+const COURTESY_ID = COURTESY_PANEL_ID;
 const docPanelId = (path: string) => `${DOC_PREFIX}${path}`;
 
 /** Dockview needs real layout measurement; tests use a plain columns fallback. */
@@ -70,43 +78,42 @@ function MetaTab() {
 function DocHeaderActions({ group, api }: IDockviewHeaderActionsProps) {
   const { closeAll } = useOpenDocs();
   const hasDocs = group.panels.some((p) => p.id.startsWith(DOC_PREFIX));
+  const hasTree = group.panels.some((p) => p.id === "tree");
   const hasSide = group.panels.some((p) => p.id === "tree" || p.id === "meta");
   if (!hasDocs && !hasSide) return null;
   const collapsed = hasSide && api.isCollapsed();
   return (
     <div className="doc-tab-actions">
+      {hasTree && <TreeSortControls />}
       {hasSide && (
         <>
-          <button
-            type="button"
+          <TooltipButton
             className="doc-tab-actions__button"
-            title={collapsed ? "Expand panel" : "Collapse panel"}
-            aria-label={collapsed ? "Expand panel" : "Collapse panel"}
-            onClick={() => (collapsed ? api.expand() : api.collapse())}
+            label={collapsed ? "Expand panel" : "Collapse panel"}
+            tooltip={collapsed ? "Expand panel" : "Collapse panel"}
+            onPress={() => (collapsed ? api.expand() : api.collapse())}
           >
             <Icon name={collapsed ? "chevron_right" : "chevron_left"} />
-          </button>
-          <button
-            type="button"
+          </TooltipButton>
+          <TooltipButton
             className="doc-tab-actions__button"
-            title="Reset layout"
-            aria-label="Reset layout"
-            onClick={() => resetLayout(STORAGE_KEY)}
+            label="Reset layout"
+            tooltip="Reset layout"
+            onPress={() => resetLayout(STORAGE_KEY)}
           >
             <Icon name="restart_alt" />
-          </button>
+          </TooltipButton>
         </>
       )}
       {hasDocs && (
-        <button
-          type="button"
+        <TooltipButton
           className="doc-tab-actions__button"
-          title="Close all documents"
-          aria-label="Close all documents"
-          onClick={closeAll}
+          label="Close all documents"
+          tooltip="Close all documents"
+          onPress={closeAll}
         >
           <Icon name="close" />
-        </button>
+        </TooltipButton>
       )}
     </div>
   );
@@ -116,6 +123,7 @@ function DocHeaderActions({ group, api }: IDockviewHeaderActionsProps) {
 export function DocsWorkspace() {
   const { state, activate, close } = useOpenDocs();
   const apiRef = useRef<DockviewApi | null>(null);
+  const centerRef = useRef<CenterGroup | null>(null);
   const [ready, setReady] = useState(false);
 
   const onReady = useCallback(
@@ -148,23 +156,32 @@ export function DocsWorkspace() {
     [activate, close],
   );
 
-  // state → panels: add/remove document tabs and follow the active document
+  // state → panels: document tabs (centre group) and follow the active document
   useEffect(() => {
     const api = apiRef.current;
     if (!ready || !api) return;
+    const center = ensureCenterGroup(api, centerRef);
+
+    // add the placeholder first so the centre group never goes empty while the
+    // last document is being removed (an empty grid group is torn down)
+    if (state.docs.length === 0 && !api.getPanel(COURTESY_ID)) {
+      api.addPanel({
+        id: COURTESY_ID,
+        component: "courtesy",
+        title: "No documents",
+        position: { referenceGroup: center.id },
+        minimumWidth: 320,
+      });
+    }
     for (const path of state.docs) {
       if (api.getPanel(docPanelId(path))) continue;
-      const first = state.docs[0];
       api.addPanel({
         id: docPanelId(path),
         component: "doc",
         tabComponent: "doc",
         title: displayTitle({ path }),
         params: { path },
-        position:
-          first && first !== path
-            ? { referencePanel: docPanelId(first), direction: "within" }
-            : { referencePanel: "meta", direction: "left" },
+        position: { referenceGroup: center.id },
         minimumWidth: 320,
       });
     }
@@ -177,19 +194,9 @@ export function DocsWorkspace() {
       }
     }
     // courtesy tab: shown only while no document is open
-    const courtesy = api.getPanel(COURTESY_ID);
-    if (state.docs.length === 0) {
-      if (!courtesy) {
-        api.addPanel({
-          id: COURTESY_ID,
-          component: "courtesy",
-          title: "No documents",
-          position: { referencePanel: "meta", direction: "left" },
-          minimumWidth: 320,
-        });
-      }
-    } else if (courtesy) {
-      api.removePanel(courtesy);
+    if (state.docs.length > 0) {
+      const courtesy = api.getPanel(COURTESY_ID);
+      if (courtesy) api.removePanel(courtesy);
     }
     if (state.active) {
       const panel = api.getPanel(docPanelId(state.active));
@@ -220,6 +227,9 @@ function FallbackWorkspace() {
   return (
     <div className="dock-layout dock-layout--fallback" data-testid="docs-workspace">
       <section className="dock-content" aria-label="Tree">
+        <div className="fallback-tree-header">
+          <TreeSortControls />
+        </div>
         <Tree />
       </section>
       <section className="dock-content doc-tab" aria-label="Document">
@@ -248,15 +258,14 @@ function FallbackWorkspace() {
                   </button>
                 );
               })}
-              <button
-                type="button"
+              <TooltipButton
                 className="doc-tab-actions__button"
-                title="Close all documents"
-                aria-label="Close all documents"
-                onClick={closeAll}
+                label="Close all documents"
+                tooltip="Close all documents"
+                onPress={closeAll}
               >
                 <Icon name="close" />
-              </button>
+              </TooltipButton>
             </div>
             {state.active && <DocTab path={state.active} />}
           </>

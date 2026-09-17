@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { DocumentView } from "./DocumentView";
+import { getSectionRequest, requestSection, resetSectionRequest } from "../lib/sectionRequests";
+import { resetActiveSection } from "../lib/activeSection";
 
 vi.mock("./MindmapView", () => ({
   MindmapView: ({ title }: { title?: string }) => (
@@ -33,6 +35,11 @@ function renderView(
     </MemoryRouter>,
   );
 }
+
+beforeEach(() => {
+  resetActiveSection();
+  resetSectionRequest();
+});
 
 afterEach(() => {
   cleanup();
@@ -83,6 +90,23 @@ describe("DocumentView", () => {
   it("renders exactly one pressed mode button (exclusive group)", () => {
     renderView({ path: "context/wiki/alpha.md" });
     expect(screen.getAllByRole("button", { pressed: true })).toHaveLength(1);
+  });
+
+  it("switches to render mode and scrolls when a section is requested", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    renderView(
+      { path: "context/notes/x.md", markdown: "# Alpha\n\n## Beta\n\ntext\n" },
+      "/docs/context/notes/x.md?view=code",
+    );
+    expect(screen.getByRole("button", { name: "Code", pressed: true })).toBeTruthy();
+
+    act(() => requestSection("context/notes/x.md", "Beta"));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Render", pressed: true })).toBeTruthy();
+    });
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    expect(getSectionRequest()).toBeNull();
   });
 
   it("renders a mindmap for plain prose in Map mode", async () => {

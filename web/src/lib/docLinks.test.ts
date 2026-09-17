@@ -12,11 +12,11 @@ describe("resolveDocLink", () => {
   it("resolves corpus paths to docs routes", () => {
     expect(resolveDocLink("context/analysis/a.md", "context/wiki/x.md")).toEqual({
       label: "A",
-      href: "#/docs/context/analysis/a.md",
+      href: "/docs/context/analysis/a.md",
     });
     expect(resolveDocLink("plan/20260915-195559-foo-bar.md", "context/x.md")).toEqual({
       label: "Foo bar",
-      href: "#/docs/context/plan/20260915-195559-foo-bar.md",
+      href: "/docs/context/plan/20260915-195559-foo-bar.md",
     });
   });
 
@@ -30,7 +30,7 @@ describe("resolveDocLink", () => {
   it("resolves wikilinks through the index", () => {
     expect(resolveDocLink("[[backend]]", "context/wiki/x.md", INDEX)).toEqual({
       label: "Backend",
-      href: "#/wiki/backend",
+      href: "/wiki/backend",
     });
     expect(resolveDocLink("[[Unknown]]", "context/wiki/x.md", INDEX)).toEqual({
       label: "Unknown",
@@ -56,7 +56,7 @@ describe("collectMetaLinks / collectBodyLinks", () => {
       "context/x.md",
     );
     expect(links).toHaveLength(1);
-    expect(links[0].href).toBe("#/docs/context/analysis/a.md");
+    expect(links[0].href).toBe("/docs/context/analysis/a.md");
   });
 
   it("collects body wikilinks and md links", () => {
@@ -65,6 +65,6 @@ describe("collectMetaLinks / collectBodyLinks", () => {
       "context/wiki/x.md",
       INDEX,
     );
-    expect(links.map((l) => l.href)).toEqual(["#/wiki/backend", "#/docs/context/notes/n.md"]);
+    expect(links.map((l) => l.href)).toEqual(["/wiki/backend", "/docs/context/notes/n.md"]);
   });
 });

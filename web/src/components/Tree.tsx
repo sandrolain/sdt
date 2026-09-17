@@ -8,22 +8,15 @@ import { Icon } from "../lib/icon";
 import { SkeletonLines } from "./Skeleton";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { formatFieldDate } from "../lib/frontmatter";
-import {
-  groupByKind,
-  sortEntries,
-  TREE_SORTS,
-  type TreeDir,
-  type TreeSortKey,
-} from "../lib/treeSort";
+import { groupByKind, sortEntries } from "../lib/treeSort";
+import { useTreeSort } from "../lib/treeSortStore";
 import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
 import { useReloadToken } from "../lib/useReloadToken";
-import { Select } from "./ui/Select";
 
 export function Tree() {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<TreeSortKey>("created");
-  const [dir, setDir] = useState<TreeDir>("desc");
+  const { key: sortKey, dir } = useTreeSort();
   const [openKinds, setOpenKinds] = useState<Set<EntryFilterKind>>(() => new Set());
   const reloadToken = useReloadToken();
   const location = useLocation();
@@ -68,25 +61,6 @@ export function Tree() {
 
   return (
     <aside className="panel panel--tree" aria-label="Corpus tree">
-      <div className="panel-header">
-        <span className="panel-header__title">Tree</span>
-        <Select
-          ariaLabel="Sort entries by"
-          className="ui-select--compact"
-          options={TREE_SORTS.map((s) => ({ id: s.id, label: s.label }))}
-          selectedKey={sortKey}
-          onSelectionChange={(key) => setSortKey(String(key) as TreeSortKey)}
-        />
-        <button
-          type="button"
-          className="tree-sort-dir"
-          aria-label={dir === "asc" ? "Sort ascending" : "Sort descending"}
-          title={dir === "asc" ? "Ascending" : "Descending"}
-          onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))}
-        >
-          <Icon name={dir === "asc" ? "arrow_upward" : "arrow_downward"} />
-        </button>
-      </div>
       {error ? (
         <p className="content__empty">Tree error: {error}</p>
       ) : !entries ? (
@@ -114,6 +88,7 @@ export function Tree() {
                   name={kindIcon(group.kind)}
                   className="tree-folder__icon"
                   style={{ color: kindColor(group.kind) }}
+                  title={kindLabel(group.kind)}
                 />
                 <span className="tree-folder__label">{kindLabel(group.kind)}</span>
                 <span className="tree-folder__count">{group.entries.length}</span>
@@ -121,6 +96,8 @@ export function Tree() {
               <ul role="list">
                 {group.entries.map((entry) => {
                   const dot = statusDot(entry, plannedAnalyses);
+                  const kind = entryKind(entry);
+                  const kindName = kindLabel(kind);
                   return (
                     <li key={entry.path}>
                       <NavLink
@@ -129,8 +106,8 @@ export function Tree() {
                             ? `/wiki/board?file=${encodeURIComponent(entry.path)}`
                             : `/docs/${entry.path}`
                         }
-                        className="tree-entry"
-                        title={entry.summary || entry.path}
+                        className={({ isActive }) => `tree-entry${isActive ? " is-active" : ""}`}
+                        title={`${entry.summary || entry.path} · ${kindName}`}
                         end
                       >
                         <span className="tree-entry__glyph">
@@ -141,7 +118,7 @@ export function Tree() {
                               alt=""
                             />
                           ) : (
-                            <Icon name={kindIcon(entryKind(entry))} />
+                            <Icon name={kindIcon(kind)} title={kindName} />
                           )}
                         </span>
                         <span className="tree-entry__text">

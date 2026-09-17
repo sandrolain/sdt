@@ -3,6 +3,7 @@ import { displayTitle } from "../lib/titles";
 import { useCorpusKind } from "../lib/corpusIndex";
 import { kindColor, kindIcon } from "../lib/kinds";
 import { Icon } from "../lib/icon";
+import { TooltipButton } from "./ui/Tooltip";
 
 /**
  * Tab for an open document: coloured kind glyph + title + close action. The
@@ -21,20 +22,17 @@ export function DocTabHeader(props: IDockviewPanelHeaderProps) {
         className="dock-doc-tab__icon"
         style={{ color: kindColor(kind) }}
         label={`kind: ${kind}`}
+        title={kind}
       />
       <span className="dv-default-tab-content">{displayTitle({ path })}</span>
-      <button
-        type="button"
+      <TooltipButton
         className="dv-default-tab-action"
-        aria-label="Close tab"
-        onPointerDown={(event) => event.preventDefault()}
-        onClick={(event) => {
-          event.preventDefault();
-          props.api.close();
-        }}
+        label="Close tab"
+        tooltip="Close tab"
+        onPress={() => props.api.close()}
       >
         <Icon name="close" />
-      </button>
+      </TooltipButton>
     </div>
   );
 }

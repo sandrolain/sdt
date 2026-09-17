@@ -93,8 +93,8 @@ describe("resolveDocPath", () => {
 
 describe("hrefs", () => {
   it("builds hash routes", () => {
-    expect(wikiHref("accounts")).toBe("#/wiki/accounts");
-    expect(docHref("context/notes/n.md")).toBe("#/docs/context/notes/n.md");
+    expect(wikiHref("accounts")).toBe("/wiki/accounts");
+    expect(docHref("context/notes/n.md")).toBe("/docs/context/notes/n.md");
   });
 });
 
@@ -103,17 +103,17 @@ describe("rewriteWikiLinks", () => {
 
   it("rewrites resolved links to wiki routes", () => {
     expect(rewriteWikiLinks("see [[accounts|Account Service]]", ix)).toBe(
-      "see [Account Service](#/wiki/accounts)",
+      "see [Account Service](/wiki/accounts)",
     );
     expect(rewriteWikiLinks("see [[refers_to::Account Service]]", ix)).toBe(
-      "see [Account Service](#/wiki/accounts)",
+      "see [Account Service](/wiki/accounts)",
     );
   });
 
   it("renders unresolved links as inert broken spans", () => {
     const out = rewriteWikiLinks("see [[refers_to::Nope]]", ix);
     expect(out).toContain('class="wikilink-broken"');
-    expect(out).not.toContain("#/wiki/");
+    expect(out).not.toContain("/wiki/");
   });
 
   it("leaves non-wikilink text untouched", () => {

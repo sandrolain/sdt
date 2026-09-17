@@ -117,7 +117,9 @@ function buildMarked(basePath?: string): Marked {
         let target = href;
         if (/^https?:\/\//i.test(href)) {
           attrs.push('target="_blank" rel="noopener noreferrer"');
-        } else if (!href.startsWith("#")) {
+        } else if (!href.startsWith("/")) {
+          // relative links resolve against the document; app routes (/docs,
+          // /wiki) and fragment links are already absolute
           target = docHref(resolveDocPath(href, basePath));
         }
         if (title) attrs.push(`title="${escapeHtml(title)}"`);

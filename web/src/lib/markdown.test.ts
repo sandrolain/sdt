@@ -47,8 +47,8 @@ describe("renderMarkdown", () => {
       basePath: "context/wiki/accounts.md",
       wikiIndex: INDEX,
     });
-    expect(html).toContain('href="#/wiki/accounts"');
-    expect(html).toContain('href="#/docs/context/notes/other.md"');
+    expect(html).toContain('href="/wiki/accounts"');
+    expect(html).toContain('href="/docs/context/notes/other.md"');
   });
 
   it("hardens external links with target and rel", () => {

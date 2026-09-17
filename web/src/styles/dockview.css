@@ -25,10 +25,11 @@
   --dv-border-radius: 0px;
 }
 
-/* Panel content paints the Catppuccin base so no area falls back to dockview's theme colour. */
+/* Panel content paints the Catppuccin base so no area falls back to dockview's
+   theme colour. `.dv-react-part` is intentionally left transparent: painting it
+   too produced a duplicated background band against `.dv-tab`. */
 .dv-groupview,
 .dv-content-container,
-.dv-react-part,
 .dock-content {
   background-color: var(--bg-base);
 }

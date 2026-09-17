@@ -25,7 +25,7 @@ function mockDoc() {
 function renderLink() {
   render(
     <div className="doc-rendered">
-      <a href="#/docs/context/b.md">Go B</a>
+      <a href="/docs/context/b.md">Go B</a>
     </div>,
   );
   render(<HoverPreview delay={0} leaveDelay={0} />);

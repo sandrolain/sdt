@@ -1,6 +1,6 @@
 /** Versioned localStorage persistence for dockview layouts. */
 
-const VERSION = 3;
+const VERSION = 5;
 const PREFIX = "sdt-layout:";
 
 interface StoredLayout {

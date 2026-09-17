@@ -16,8 +16,8 @@ afterEach(() => {
 
 describe("hrefCorpusPath", () => {
   it("maps docs and wiki hash routes to corpus paths", () => {
-    expect(hrefCorpusPath("#/docs/context/plan/a.md")).toBe("context/plan/a.md");
-    expect(hrefCorpusPath("#/wiki/sdt-dev-lifecycle")).toBe("context/wiki/sdt-dev-lifecycle.md");
+    expect(hrefCorpusPath("/docs/context/plan/a.md")).toBe("context/plan/a.md");
+    expect(hrefCorpusPath("/wiki/sdt-dev-lifecycle")).toBe("context/wiki/sdt-dev-lifecycle.md");
     expect(hrefCorpusPath("https://example.com")).toBeNull();
   });
 });
@@ -63,8 +63,8 @@ describe("loadCorpusIndex", () => {
 describe("linkKind", () => {
   it("prefers the index kind and falls back to the folder", () => {
     const index: CorpusIndex = new Map([["context/wiki/x.md", { kind: "wiki" }]]);
-    expect(linkKind("#/wiki/x", index)).toBe("wiki");
-    expect(linkKind("#/docs/context/notes/y.md", index)).toBe("notes");
+    expect(linkKind("/wiki/x", index)).toBe("wiki");
+    expect(linkKind("/docs/context/notes/y.md", index)).toBe("notes");
     expect(linkKind("https://example.com", index)).toBeUndefined();
   });
 });
