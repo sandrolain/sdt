@@ -5,7 +5,8 @@ import { HoverPreview } from "./HoverPreview";
 import { clearPreviewCache } from "../lib/preview";
 
 const DOC = {
-  frontmatter: "---\ntitle: Preview Title\nsummary: A short summary\ncreated: 2026-09-01\nupdated: 2026-09-10\n---\n",
+  frontmatter:
+    "---\ntitle: Preview Title\nsummary: A short summary\ncreated: 2026-09-01\nupdated: 2026-09-10\n---\n",
   markdown: "# Preview Title\n\nBody with <script>alert(1)</script>",
 };
 
@@ -41,6 +42,24 @@ describe("HoverPreview", () => {
     expect(tip.textContent).toContain("2026");
     expect(tip.textContent).toContain("context/b.md");
     expect(tip.parentElement).toBe(document.body);
+  });
+
+  it("shows the frontmatter image thumbnail", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            frontmatter: "---\ntitle: With image\nimage: context/assets/cover.png\n---\n",
+            markdown: "",
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderLink();
+    fireEvent.mouseOver(screen.getByText("Go B"));
+    const tip = await screen.findByRole("tooltip");
+    const img = tip.querySelector("img.hover-preview__image");
+    expect(img?.getAttribute("src")).toBe("/api/file?path=context%2Fassets%2Fcover.png");
   });
 
   it("stays open while the pointer is over the card", async () => {

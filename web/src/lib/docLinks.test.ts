@@ -60,10 +60,11 @@ describe("collectMetaLinks / collectBodyLinks", () => {
   });
 
   it("collects body wikilinks and md links", () => {
-    const links = collectBodyLinks("see [[backend]] and [x](notes/n.md)", "context/wiki/x.md", INDEX);
-    expect(links.map((l) => l.href)).toEqual([
-      "#/wiki/backend",
-      "#/docs/context/notes/n.md",
-    ]);
+    const links = collectBodyLinks(
+      "see [[backend]] and [x](notes/n.md)",
+      "context/wiki/x.md",
+      INDEX,
+    );
+    expect(links.map((l) => l.href)).toEqual(["#/wiki/backend", "#/docs/context/notes/n.md"]);
   });
 });

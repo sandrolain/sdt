@@ -15,7 +15,7 @@ describe("frontmatterTitle", () => {
   });
 
   it("strips surrounding quotes", () => {
-    expect(frontmatterTitle("---\ntitle: \"Quoted Title\"\n---\n")).toBe("Quoted Title");
+    expect(frontmatterTitle('---\ntitle: "Quoted Title"\n---\n')).toBe("Quoted Title");
     expect(frontmatterTitle("---\ntitle: 'Single'\n---\n")).toBe("Single");
   });
 
@@ -74,19 +74,21 @@ describe("stripDatePrefix / formatFilename", () => {
 
 describe("displayTitle", () => {
   it("prefers an explicit title", () => {
-    expect(
-      displayTitle({ title: "Frontmatter", markdown: "# H1", path: "context/a.md" }),
-    ).toBe("Frontmatter");
+    expect(displayTitle({ title: "Frontmatter", markdown: "# H1", path: "context/a.md" })).toBe(
+      "Frontmatter",
+    );
   });
 
   it("falls back to the first H1", () => {
-    expect(displayTitle({ title: "", markdown: "# H1 Title", path: "context/a.md" })).toBe("H1 Title");
+    expect(displayTitle({ title: "", markdown: "# H1 Title", path: "context/a.md" })).toBe(
+      "H1 Title",
+    );
   });
 
   it("falls back to the formatted filename", () => {
-    expect(displayTitle({ markdown: "no heading", path: "context/20260915-195559-foo-bar.md" })).toBe(
-      "Foo bar",
-    );
+    expect(
+      displayTitle({ markdown: "no heading", path: "context/20260915-195559-foo-bar.md" }),
+    ).toBe("Foo bar");
   });
 
   it("returns an empty string without any source", () => {

@@ -13,7 +13,7 @@ describe("parseFrontmatter", () => {
     const fm = [
       "---",
       "kind: analysis",
-      "title: \"Quoted Title\"",
+      'title: "Quoted Title"',
       "tags: [alpha, beta]",
       "sources:",
       "  - analysis/a.md",

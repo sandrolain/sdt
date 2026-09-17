@@ -7,6 +7,8 @@ export interface PreviewMeta {
   summary: string;
   created: string;
   modified: string;
+  /** frontmatter `image` value, unresolved (see `imageUrl`) */
+  image: string;
   path: string;
 }
 
@@ -41,6 +43,7 @@ export function previewMeta(path: string, frontmatter?: string): PreviewMeta {
     summary: value("summary"),
     created: value("created"),
     modified: value("updated"),
+    image: value("image"),
     path,
   };
 }

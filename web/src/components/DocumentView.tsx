@@ -3,9 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
 import {
   defaultMode,
-  DOCUMENT_MODES,
   isDocumentMode,
   isMapPath,
+  MAP_ICON,
+  modesFor,
   type DocumentMode,
 } from "../lib/documentModes";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
@@ -17,6 +18,22 @@ import { lineNumbers } from "../lib/codeLines";
 import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
+
+/** Copy the sibling `<code>` text and flash a success glyph on the button. */
+function copyCodeBlock(button: Element): void {
+  const code = button.closest(".md-code-block")?.querySelector("code");
+  if (!code || !navigator.clipboard) return;
+  void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
+    const glyph = button.querySelector(".ms-icon");
+    const previous = glyph?.textContent ?? "content_copy";
+    if (glyph) glyph.textContent = "check";
+    button.setAttribute("aria-label", "Copied");
+    window.setTimeout(() => {
+      if (glyph) glyph.textContent = previous;
+      button.setAttribute("aria-label", "Copy code");
+    }, 1200);
+  });
+}
 
 interface DocumentViewProps {
   path: string;
@@ -30,8 +47,12 @@ interface DocumentViewProps {
 export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentViewProps) {
   const [params, setParams] = useSearchParams();
   const mapDoc = isMap ?? isMapPath(path);
+  const modes = useMemo(() => modesFor(mapDoc), [mapDoc]);
   const paramMode = params.get("view");
-  const mode: DocumentMode = isDocumentMode(paramMode) ? paramMode : defaultMode(mapDoc);
+  const mode: DocumentMode =
+    isDocumentMode(paramMode) && modes.some((m) => m.id === paramMode)
+      ? paramMode
+      : defaultMode(mapDoc);
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
 
   useEffect(() => {
@@ -70,6 +91,12 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   const docsApi = useOpenDocsOptional();
 
   const onRenderedClick = (event: MouseEvent<HTMLDivElement>) => {
+    const copyButton = (event.target as HTMLElement | null)?.closest?.(".md-code__copy");
+    if (copyButton) {
+      event.preventDefault();
+      copyCodeBlock(copyButton);
+      return;
+    }
     const anchor = (event.target as HTMLElement | null)?.closest?.("a");
     const href = anchor?.getAttribute("href") ?? "";
     if (!anchor || !docsApi) return;
@@ -86,7 +113,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   return (
     <article className="doc-view">
       <div className="doc-modes" role="group" aria-label="Document view mode">
-        {DOCUMENT_MODES.map((m) => (
+        {modes.map((m) => (
           <button
             key={m.id}
             type="button"
@@ -98,7 +125,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
             {m.label}
           </button>
         ))}
-        {mapDoc && <span className="doc-badge doc-badge--map">map</span>}
+        {mapDoc && <Icon name={MAP_ICON} className="map-icon" label="Map document" />}
       </div>
       {mode === "code" && (
         <div className="doc-code-wrap">

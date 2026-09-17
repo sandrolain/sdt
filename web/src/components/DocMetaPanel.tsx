@@ -7,6 +7,7 @@ import {
   type FrontmatterField,
 } from "../lib/frontmatter";
 import { collectBodyLinks, collectMetaLinks, type DocLink } from "../lib/docLinks";
+import { imageUrl } from "../lib/images";
 import { parseOutline, type OutlineItem } from "../lib/outline";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import { useReloadToken } from "../lib/useReloadToken";
@@ -23,6 +24,7 @@ interface DocMetaPanelProps {
 const DATE_KEYS = new Set(["created", "updated"]);
 const CHIP_KEYS = new Set(["tags", "type"]);
 const LINK_KEYS = new Set(["links", "sources", "relations"]);
+const IMAGE_KEYS = new Set(["image"]);
 
 /** Right-column metadata panel: frontmatter rows, heading sections, relations. */
 export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
@@ -186,6 +188,9 @@ function MetaValue({
   if (CHIP_KEYS.has(field.key)) {
     return <span className="meta-chip">{value}</span>;
   }
+  if (IMAGE_KEYS.has(field.key)) {
+    return <img className="meta-row__image" src={imageUrl(value, basePath)} alt="" />;
+  }
   const bool = booleanValue(value);
   if (bool !== null) {
     return (
@@ -200,9 +205,7 @@ function MetaValue({
 function MetaLink({ link }: { link: DocLink | undefined }) {
   if (!link) return null;
   if (link.href) {
-    const external = link.external
-      ? { target: "_blank", rel: "noopener noreferrer" }
-      : {};
+    const external = link.external ? { target: "_blank", rel: "noopener noreferrer" } : {};
     return (
       <a className="meta-link" href={link.href} {...external}>
         {link.label}
@@ -255,7 +258,9 @@ function headingToc(items: OutlineItem[]): HeadingRef[] {
 
 /** Scroll the nth rendered heading into view (Render mode only). */
 function scrollToHeading(index: number): void {
-  const node = document.querySelector(".doc-rendered")?.querySelectorAll("h1,h2,h3,h4,h5,h6")[index];
+  const node = document.querySelector(".doc-rendered")?.querySelectorAll("h1,h2,h3,h4,h5,h6")[
+    index
+  ];
   node?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 

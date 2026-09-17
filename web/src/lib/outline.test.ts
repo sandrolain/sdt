@@ -45,14 +45,16 @@ kind: wiki
 ## Second
 `;
     const outline = parseOutline(md);
-    expect(outline).toHaveLength(1);
-    const top = outline[0];
-    expect(top.text).toBe("Top");
-    expect(top.children.map((c) => c.text)).toEqual(["Section", "Second"]);
-    const section = top.children[0];
+    // the leading `# Top` is the document title and is dropped
+    expect(outline.map((i) => i.text)).toEqual(["Section", "Second"]);
+    const section = outline[0];
     expect(section.children.map((c) => c.text)).toEqual(["item one", "item two"]);
     expect(section.children[0].children.map((c) => c.text)).toEqual(["nested item"]);
     expect(section.children[0].kind).toBe("list");
+  });
+
+  it("drops the leading h1 title from the outline", () => {
+    expect(parseOutline("# Title\n\n## Section\n").map((i) => i.text)).toEqual(["Section"]);
   });
 
   it("ignores fenced code and frontmatter", () => {

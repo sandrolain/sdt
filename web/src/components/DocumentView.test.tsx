@@ -34,26 +34,43 @@ function renderView(
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  Reflect.deleteProperty(navigator, "clipboard");
+});
 
 describe("DocumentView", () => {
   it("defaults ordinary markdown to Render mode", () => {
     renderView({ path: "context/wiki/alpha.md" });
     expect(screen.getByRole("button", { name: "Render", pressed: true })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Title" })).toBeTruthy();
+    expect(screen.getByText(/Hello/)).toBeTruthy();
+    // the leading `# Title` is the document title, not repeated in the body
+    expect(screen.queryByRole("heading", { name: "Title" })).toBeNull();
   });
 
-  it("defaults map documents to Map mode with a badge and renders the mindmap", async () => {
+  it("defaults map documents to Map mode with a map icon and renders the mindmap", async () => {
     renderView({ path: "context/wiki/topic.map.md", markdown: "# Top\n\n- item\n" });
     expect(screen.getByRole("button", { name: "Map", pressed: true })).toBeTruthy();
-    expect(screen.getByText("map")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Map document" })).toBeTruthy();
     expect(await screen.findByRole("img", { name: "Mindmap: topic.map" })).toBeTruthy();
   });
 
-  it("honours a `view` search-param override, rendering a mindmap for ordinary markdown", async () => {
+  it("offers Map mode only for .map.md documents", () => {
     renderView({ path: "context/wiki/alpha.md" }, "/docs/x?view=map");
-    expect(screen.getByRole("button", { name: "Map", pressed: true })).toBeTruthy();
-    expect(await screen.findByRole("img", { name: "Mindmap: alpha" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Map" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Render", pressed: true })).toBeTruthy();
+  });
+
+  it("copies a rendered code block from its copy button", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    renderView({ path: "context/wiki/alpha.md", markdown: "```js\nconst x = 1;\n```" });
+    await userEvent.click(screen.getByRole("button", { name: "Copy code" }));
+    expect(writeText).toHaveBeenCalledWith("const x = 1;");
+    expect(screen.getByRole("button", { name: "Copied" })).toBeTruthy();
   });
 
   it("switches to Code mode showing highlighted raw markdown", async () => {

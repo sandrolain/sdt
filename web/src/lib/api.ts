@@ -13,6 +13,8 @@ export interface TreeEntry {
   created?: string;
   /** frontmatter `updated`, else the file mtime (RFC3339) */
   modified?: string;
+  /** frontmatter `image` (corpus- or doc-relative), served via /api/file */
+  image?: string;
   canvas?: boolean;
   /** true for `.map.md` semantic map documents */
   isMap?: boolean;

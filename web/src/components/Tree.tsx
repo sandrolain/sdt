@@ -1,20 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
-import { kindColor, kindIcon, kindLabel } from "../lib/kinds";
+import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
+import { MAP_ICON } from "../lib/documentModes";
+import { imageUrl } from "../lib/images";
 import { Icon } from "../lib/icon";
 import { SkeletonLines } from "./Skeleton";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { formatFieldDate } from "../lib/frontmatter";
-import { groupByKind, sortEntries, TREE_SORTS, type TreeDir, type TreeSortKey } from "../lib/treeSort";
+import {
+  groupByKind,
+  sortEntries,
+  TREE_SORTS,
+  type TreeDir,
+  type TreeSortKey,
+} from "../lib/treeSort";
 import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
 import { useReloadToken } from "../lib/useReloadToken";
+import { Select } from "./ui/Select";
 
 export function Tree() {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<TreeSortKey>("name");
-  const [dir, setDir] = useState<TreeDir>("asc");
+  const [sortKey, setSortKey] = useState<TreeSortKey>("created");
+  const [dir, setDir] = useState<TreeDir>("desc");
+  const [openKinds, setOpenKinds] = useState<Set<EntryFilterKind>>(() => new Set());
   const reloadToken = useReloadToken();
   const location = useLocation();
 
@@ -32,13 +42,21 @@ export function Tree() {
     };
   }, [reloadToken]);
 
-  // reveal the active entry when navigation changes the current document
+  // kind section of the document currently open in the documents route
+  const activeKind = useMemo(() => {
+    if (!entries || !location.pathname.startsWith("/docs/")) return null;
+    const path = decodeURIComponent(location.pathname.slice("/docs/".length));
+    const entry = entries.find((e) => e.path === path);
+    return entry ? entryKind(entry) : null;
+  }, [entries, location.pathname]);
+
+  // reveal the active entry once its section is open (sections are derived-open)
   useEffect(() => {
-    if (!entries) return;
+    if (!entries || !activeKind) return;
     document
       .querySelector(".panel--tree .tree-entry.is-active")
       ?.scrollIntoView({ block: "nearest" });
-  }, [entries, location.pathname]);
+  }, [entries, location.pathname, activeKind]);
 
   const groups = entries
     ? groupByKind(entries).map((group) => ({
@@ -52,18 +70,13 @@ export function Tree() {
     <aside className="panel panel--tree" aria-label="Corpus tree">
       <div className="panel-header">
         <span className="panel-header__title">Tree</span>
-        <select
-          className="kind-filter"
-          aria-label="Sort entries by"
-          value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as TreeSortKey)}
-        >
-          {TREE_SORTS.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        <Select
+          ariaLabel="Sort entries by"
+          className="ui-select--compact"
+          options={TREE_SORTS.map((s) => ({ id: s.id, label: s.label }))}
+          selectedKey={sortKey}
+          onSelectionChange={(key) => setSortKey(String(key) as TreeSortKey)}
+        />
         <button
           type="button"
           className="tree-sort-dir"
@@ -81,7 +94,20 @@ export function Tree() {
       ) : (
         <div className="tree-groups">
           {groups.map((group) => (
-            <details key={group.kind} className="tree-folder">
+            <details
+              key={group.kind}
+              className="tree-folder"
+              open={openKinds.has(group.kind) || activeKind === group.kind}
+              onToggle={(e) => {
+                const open = e.currentTarget.open;
+                setOpenKinds((prev) => {
+                  const next = new Set(prev);
+                  if (open) next.add(group.kind);
+                  else next.delete(group.kind);
+                  return next;
+                });
+              }}
+            >
               <summary className="tree-folder__header">
                 <Icon name="expand_more" className="tree-folder__chevron" />
                 <Icon
@@ -108,7 +134,15 @@ export function Tree() {
                         end
                       >
                         <span className="tree-entry__glyph">
-                          <Icon name="description" />
+                          {entry.image ? (
+                            <img
+                              className="tree-entry__thumb"
+                              src={imageUrl(entry.image, entry.path)}
+                              alt=""
+                            />
+                          ) : (
+                            <Icon name="description" />
+                          )}
                         </span>
                         <span className="tree-entry__text">
                           <span className="tree-entry__title">{entryTitle(entry)}</span>
@@ -125,7 +159,9 @@ export function Tree() {
                           />
                         )}
                         {entry.isMap && (
-                          <span className="tree-entry__kind tree-entry__kind--map">map</span>
+                          <span className="tree-entry__map" title="Map document">
+                            <Icon name={MAP_ICON} label="Map document" />
+                          </span>
                         )}
                         <span
                           className={`tree-entry__kind${entry.canvas ? " tree-entry__kind--canvas" : ""}`}

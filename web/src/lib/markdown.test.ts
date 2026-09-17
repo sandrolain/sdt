@@ -17,10 +17,18 @@ describe("stripBoundaryMarkers", () => {
 });
 
 describe("renderMarkdown", () => {
-  it("renders standard markdown", () => {
+  it("renders standard markdown without the leading title h1", () => {
     const html = renderMarkdown("# Title\n\nHello **world**.");
-    expect(html).toContain("<h1>Title</h1>");
+    expect(html).not.toContain("<h1>");
     expect(html).toContain("<strong>world</strong>");
+  });
+
+  it("keeps real headings and adds a copy button to code blocks", () => {
+    const html = renderMarkdown("# Title\n\n## Section\n\n```js\nconst x = 1;\n```");
+    expect(html).not.toContain("<h1>");
+    expect(html).toContain(">Section<");
+    expect(html).toContain("md-code__copy");
+    expect(html).toContain("content_copy");
   });
 
   it("sanitizes raw HTML: strips scripts and event handlers, keeps safe tags", () => {

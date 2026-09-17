@@ -195,9 +195,7 @@ export function BoardView({ model, onOpen }: BoardViewProps) {
                     {cardText(node)}
                   </button>
                 ) : (
-                  <span className="board-card__text">
-                    {cardText(node)}
-                  </span>
+                  <span className="board-card__text">{cardText(node)}</span>
                 )}
               </div>
             );

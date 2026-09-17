@@ -2,6 +2,7 @@ import DOMPurify, { type Config } from "dompurify";
 import hljs from "highlight.js/lib/common";
 import { Marked, type Tokens } from "marked";
 import { docHref, resolveDocPath, rewriteWikiLinks, type WikiIndex } from "./wikiLinks";
+import { stripLeadingH1 } from "./headings";
 
 /** Raw-HTML policy: conservative allowlist, everything else is dropped. */
 const SANITIZE_CONFIG: Config = {
@@ -39,6 +40,8 @@ const SANITIZE_CONFIG: Config = {
     "sup",
     "sub",
     "input",
+    "div",
+    "button",
   ],
   ALLOWED_ATTR: [
     "href",
@@ -53,6 +56,7 @@ const SANITIZE_CONFIG: Config = {
     "checked",
     "disabled",
     "start",
+    "aria-label",
   ],
 };
 
@@ -99,7 +103,14 @@ function buildMarked(basePath?: string): Marked {
       code({ text, lang }: Tokens.Code): string {
         const language = lang && hljs.getLanguage(lang) ? lang : "plaintext";
         const body = highlightCode(text, lang);
-        return `<pre class="md-code"><code class="hljs language-${escapeHtml(language)}">${body}</code></pre>`;
+        return [
+          '<div class="md-code-block">',
+          '<button type="button" class="md-code__copy" aria-label="Copy code" title="Copy code">',
+          '<span class="ms-icon" aria-hidden="true">content_copy</span>',
+          "</button>",
+          `<pre class="md-code"><code class="hljs language-${escapeHtml(language)}">${body}</code></pre>`,
+          "</div>",
+        ].join("");
       },
       link({ href, title, text }: Tokens.Link): string {
         const attrs: string[] = [];
@@ -119,7 +130,7 @@ function buildMarked(basePath?: string): Marked {
 
 /** Render markdown to sanitized HTML: wikilink rewrite, marker strip, sanitize. */
 export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
-  const prepared = stripBoundaryMarkers(rewriteWikiLinks(md, opts.wikiIndex));
+  const prepared = stripBoundaryMarkers(rewriteWikiLinks(stripLeadingH1(md), opts.wikiIndex));
   const raw = buildMarked(opts.basePath).parse(prepared);
   return DOMPurify.sanitize(raw as string, SANITIZE_CONFIG) as unknown as string;
 }

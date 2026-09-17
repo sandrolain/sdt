@@ -50,6 +50,13 @@ describe("GraphToolsPanel", () => {
     expect(screen.getByRole("button", { name: "Clear" })).toHaveProperty("disabled", true);
   });
 
+  it("renders the Labels switch and the relation/edge multi-selects", () => {
+    renderPanel({});
+    expect(screen.getByRole("switch", { name: /Labels/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Visible relations/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Visible edge kinds/ })).toBeTruthy();
+  });
+
   it("invokes onClear from the button", async () => {
     const onClear = renderPanel({ focusedId: "a" });
     await userEvent.click(screen.getByRole("button", { name: "Clear" }));

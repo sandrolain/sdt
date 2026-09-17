@@ -30,6 +30,20 @@ const (
 	errNotFound = "not found"
 )
 
+// imageContentTypes allowlists the image extensions served by /api/file; any
+// other extension is a 404 so the endpoint cannot expose arbitrary corpus files.
+var imageContentTypes = map[string]string{
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+	".svg":  "image/svg+xml",
+	".avif": "image/avif",
+	".bmp":  "image/bmp",
+	".ico":  "image/x-icon",
+}
+
 // indexHTML is a minimal placeholder served at / until the Phase 11 go:embed
 // replaces it with the code-split web/ SPA.
 const indexHTML = `<!doctype html>
@@ -67,6 +81,7 @@ type treeEntry struct {
 	Sources  []string `json:"sources,omitempty"`
 	Created  string   `json:"created,omitempty"`
 	Modified string   `json:"modified,omitempty"`
+	Image    string   `json:"image,omitempty"`
 	Canvas   bool     `json:"canvas,omitempty"`
 	IsMap    bool     `json:"isMap,omitempty"`
 	MapID    string   `json:"mapId,omitempty"`
@@ -126,6 +141,7 @@ func (s *server) mux() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tree", s.handleTree)
 	mux.HandleFunc("/api/doc", s.handleDoc)
+	mux.HandleFunc("/api/file", s.handleFile)
 	mux.HandleFunc("/api/search", s.handleSearch)
 	mux.HandleFunc("/api/wiki/graph", s.handleWikiGraph)
 	mux.HandleFunc("/api/wiki/rel", s.handleWikiRel)
@@ -251,6 +267,7 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 		Sources:  sources,
 		Created:  contextwiki.FrontmatterField(fm, "created"),
 		Modified: contextwiki.FrontmatterField(fm, "updated"),
+		Image:    contextwiki.FrontmatterField(fm, "image"),
 	}
 	if e.Modified == "" {
 		if info, statErr := os.Stat(path); statErr == nil {
@@ -291,6 +308,43 @@ func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, canvasResponse{Path: rel, Canvas: json.RawMessage(data)})
 	default:
 		writeJSON(w, http.StatusNotFound, errResponse{Error: "unsupported file type"})
+	}
+}
+
+// handleFile serves an allowlisted image from the corpus (used for frontmatter
+// `image:` thumbnails and inline body images). Non-images, missing files and
+// paths outside the corpus are opaque 404s.
+func (s *server) handleFile(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("path")
+	full, ok := s.safePath(rel)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
+		return
+	}
+	info, err := os.Stat(full)
+	if err != nil || info.IsDir() {
+		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
+		return
+	}
+	contentType, ok := imageContentTypes[strings.ToLower(filepath.Ext(full))]
+	if !ok {
+		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
+		return
+	}
+	data, err := os.ReadFile(full) //#nosec G304 -- path validated against corpus
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if contentType == "image/svg+xml" {
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	}
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(data); err != nil {
+		slog.Error("sdtviewer: write image", "err", err)
 	}
 }
 

@@ -9,6 +9,9 @@ import {
   CommandList,
 } from "cmdk";
 import { fetchSearch } from "../lib/api";
+import { MAP_ICON } from "../lib/documentModes";
+import { kindLabel } from "../lib/kinds";
+import { Icon } from "../lib/icon";
 import { SkeletonLines } from "./Skeleton";
 import {
   isSearchable,
@@ -99,7 +102,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
             <option value="">any</option>
             {KIND_OPTIONS.map((k) => (
               <option key={k} value={k}>
-                {k}
+                {kindLabel(k)}
               </option>
             ))}
           </select>
@@ -145,9 +148,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
               >
                 <div className="search-result__head">
                   <span className="search-result__title">{resultTitle(r)}</span>
-                  {r.isMap && (
-                    <span className="search-result__meta search-result__meta--map">map</span>
-                  )}
+                  {r.isMap && <Icon name={MAP_ICON} className="map-icon" label="Map document" />}
                   <span className="search-result__meta">
                     {r.kind ?? "md"}
                     {r.created ? ` · ${r.created}` : ""}

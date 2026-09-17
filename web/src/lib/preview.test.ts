@@ -28,6 +28,7 @@ describe("previewMeta", () => {
       "summary: Short summary",
       "created: 2026-09-01",
       "updated: 2026-09-10",
+      "image: context/assets/cover.png",
       "---",
     ].join("\n");
     expect(previewMeta("context/notes/x.md", fm)).toEqual({
@@ -35,6 +36,7 @@ describe("previewMeta", () => {
       summary: "Short summary",
       created: "2026-09-01",
       modified: "2026-09-10",
+      image: "context/assets/cover.png",
       path: "context/notes/x.md",
     });
   });
@@ -49,7 +51,8 @@ describe("loadPreview", () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ frontmatter: "---\ntitle: Cached\n---\n", markdown: "# Cached" }),
+        json: () =>
+          Promise.resolve({ frontmatter: "---\ntitle: Cached\n---\n", markdown: "# Cached" }),
       }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;

@@ -19,8 +19,7 @@ describe("statusDot", () => {
   });
 
   it("marks tasks by execution state", () => {
-    const task = (status?: string) =>
-      entry({ path: "context/tasks/t.md", kind: "tasks", status });
+    const task = (status?: string) => entry({ path: "context/tasks/t.md", kind: "tasks", status });
     expect(statusDot(task("completed"), new Set())?.tone).toBe("ok");
     expect(statusDot(task("in-progress"), new Set())?.tone).toBe("warn");
     expect(statusDot(task("active"), new Set())?.tone).toBe("danger");

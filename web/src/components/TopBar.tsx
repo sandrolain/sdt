@@ -19,7 +19,6 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
       <nav className="top-bar__tabs" aria-label="Primary">
         <NavLink
           to="/docs"
-          end
           className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
         >
           <Icon name="description" />

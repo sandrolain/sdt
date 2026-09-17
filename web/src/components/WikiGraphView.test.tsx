@@ -70,7 +70,7 @@ describe("WikiGraphView", () => {
     expect(screen.getByLabelText("Graph tools")).toBeTruthy();
     expect(screen.getByRole("button", { name: "2D", pressed: true })).toBeTruthy();
     expect(screen.getByText("concept (1)")).toBeTruthy();
-    expect(screen.getByText("depends_on")).toBeTruthy();
+    expect(screen.getAllByText("depends_on").length).toBeGreaterThan(0);
   });
 
   it("selects a node, shows it and opens the detail route", async () => {

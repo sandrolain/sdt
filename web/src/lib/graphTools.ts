@@ -32,6 +32,8 @@ export type GraphToolsAction =
   | { type: "clusterKey"; value: ClusterKey }
   | { type: "toggleVerb"; value: string }
   | { type: "toggleKind"; value: string }
+  | { type: "setHiddenVerbs"; value: string[] }
+  | { type: "setHiddenKinds"; value: string[] }
   | { type: "labels"; value: boolean }
   | { type: "focus"; value: string | null }
   | { type: "reset" };
@@ -51,6 +53,10 @@ export function graphToolsReducer(
       return { ...state, hiddenVerbs: toggle(state.hiddenVerbs, action.value) };
     case "toggleKind":
       return { ...state, hiddenKinds: toggle(state.hiddenKinds, action.value) };
+    case "setHiddenVerbs":
+      return { ...state, hiddenVerbs: action.value };
+    case "setHiddenKinds":
+      return { ...state, hiddenKinds: action.value };
     case "labels":
       return { ...state, showLabels: action.value };
     case "focus":

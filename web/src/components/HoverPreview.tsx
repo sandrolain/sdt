@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { loadPreview, previewPathFromHref, type PreviewMeta } from "../lib/preview";
 import { formatFieldDate } from "../lib/frontmatter";
+import { imageUrl } from "../lib/images";
 
 interface HoverPreviewProps {
   /** debounce before fetching, in ms */
@@ -101,6 +102,9 @@ export function HoverPreview({ delay = 150, leaveDelay = 160 }: HoverPreviewProp
       onMouseEnter={cancelHide}
       onMouseLeave={scheduleHide}
     >
+      {meta.image && (
+        <img className="hover-preview__image" src={imageUrl(meta.image, meta.path)} alt="" />
+      )}
       <div className="hover-preview__title">{meta.title}</div>
       {meta.summary && <p className="hover-preview__summary">{meta.summary}</p>}
       <dl className="hover-preview__dates">

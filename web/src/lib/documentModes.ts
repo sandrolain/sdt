@@ -15,6 +15,17 @@ export const DOCUMENT_MODES: DocumentModeInfo[] = [
   { id: "map", label: "Map", icon: "account_tree" },
 ];
 
+/** Material Symbols glyph marking a `.map.md` document across the UI. */
+export const MAP_ICON = "account_tree";
+
+/**
+ * Modes offered for a document: Map mode exists only for `.map.md` semantic
+ * maps; every other document gets Code/Render.
+ */
+export function modesFor(isMap: boolean): DocumentModeInfo[] {
+  return isMap ? DOCUMENT_MODES : DOCUMENT_MODES.filter((m) => m.id !== "map");
+}
+
 export function isDocumentMode(value: string | null | undefined): value is DocumentMode {
   return value === "code" || value === "render" || value === "map";
 }

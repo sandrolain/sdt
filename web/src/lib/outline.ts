@@ -1,3 +1,5 @@
+import { stripLeadingH1 } from "./headings";
+
 /** One node in the Map-mode outline built from headings and list items. */
 export interface OutlineItem {
   /** abstract depth: 1-6 for headings, 7+ for list items by indentation */
@@ -41,7 +43,7 @@ function stripFences(md: string): string {
  * (depth = 7 + indentation level) for ordinary markdown Map mode.
  */
 export function parseOutline(md: string): OutlineItem[] {
-  const lines = stripFences(stripFrontmatter(md)).split("\n");
+  const lines = stripFences(stripLeadingH1(stripFrontmatter(md))).split("\n");
   const root: OutlineItem = { depth: 0, kind: "heading", text: "", children: [] };
   const stack: OutlineItem[] = [root];
   for (const line of lines) {

@@ -3,12 +3,14 @@ import {
   DockviewReact,
   type DockviewApi,
   type DockviewReadyEvent,
+  type IDockviewHeaderActionsProps,
   type IDockviewPanelProps,
   type IDockviewPanel,
 } from "dockview-react";
 import { useOpenDocs } from "../lib/openDocsContext";
 import { clearLayout, loadLayout, saveLayout } from "../lib/layoutStore";
 import { displayTitle } from "../lib/titles";
+import { Icon } from "../lib/icon";
 import { useDoc } from "../lib/useDoc";
 import { Tree } from "./Tree";
 import { DocDetail } from "./DocDetail";
@@ -16,6 +18,7 @@ import { DocMetaPanel } from "./DocMetaPanel";
 
 const STORAGE_KEY = "workspace";
 const DOC_PREFIX = "doc:";
+const COURTESY_ID = "doc-courtesy";
 const docPanelId = (path: string) => `${DOC_PREFIX}${path}`;
 
 /** Dockview needs real layout measurement; tests use a plain columns fallback. */
@@ -32,6 +35,11 @@ const components: Record<string, (props: IDockviewPanelProps) => ReactNode> = {
   meta: () => (
     <div className="dock-content">
       <MetaTab />
+    </div>
+  ),
+  courtesy: () => (
+    <div className="dock-content">
+      <p className="content__empty">No open documents. Select one from the tree.</p>
     </div>
   ),
 };
@@ -51,6 +59,26 @@ function MetaTab() {
   const { doc } = useDoc(path ?? "");
   if (!path) return <p className="content__empty">No document selected.</p>;
   return <DocMetaPanel doc={doc} />;
+}
+
+/** Close-all action rendered at the end of the document tabs bar. */
+function DocHeaderActions({ group }: IDockviewHeaderActionsProps) {
+  const { closeAll } = useOpenDocs();
+  const hasDocs = group.panels.some((p) => p.id.startsWith(DOC_PREFIX));
+  if (!hasDocs) return null;
+  return (
+    <div className="doc-tab-actions">
+      <button
+        type="button"
+        className="doc-tab-actions__button"
+        title="Close all documents"
+        aria-label="Close all documents"
+        onClick={closeAll}
+      >
+        <Icon name="close_all" />
+      </button>
+    </div>
+  );
 }
 
 /** Documents workspace: tree | document tabs | metadata, all dockview panels. */
@@ -134,6 +162,21 @@ export function DocsWorkspace() {
         api.removePanel(panel);
       }
     }
+    // courtesy tab: shown only while no document is open
+    const courtesy = api.getPanel(COURTESY_ID);
+    if (state.docs.length === 0) {
+      if (!courtesy) {
+        api.addPanel({
+          id: COURTESY_ID,
+          component: "courtesy",
+          title: "No documents",
+          position: { referencePanel: "meta", direction: "left" },
+          minimumWidth: 320,
+        });
+      }
+    } else if (courtesy) {
+      api.removePanel(courtesy);
+    }
     if (state.active) {
       const panel = api.getPanel(docPanelId(state.active));
       if (panel && !panel.api.isActive) panel.api.setActive();
@@ -144,12 +187,19 @@ export function DocsWorkspace() {
 
   if (!DOCKVIEW_ENABLED) return <FallbackWorkspace />;
 
-  return <DockviewReact className={className} components={components} onReady={onReady} />;
+  return (
+    <DockviewReact
+      className={className}
+      components={components}
+      onReady={onReady}
+      rightHeaderActionsComponent={DocHeaderActions}
+    />
+  );
 }
 
 /** Test-only stand-in: the same panels as a static grid (no layout measurement). */
 function FallbackWorkspace() {
-  const { state, activate } = useOpenDocs();
+  const { state, activate, closeAll } = useOpenDocs();
   return (
     <div className="dock-layout dock-layout--fallback" data-testid="docs-workspace">
       <section className="dock-content" aria-label="Tree">
@@ -157,7 +207,7 @@ function FallbackWorkspace() {
       </section>
       <section className="dock-content doc-tab" aria-label="Document">
         {state.docs.length === 0 ? (
-          <p className="content__empty">Select a document from the tree.</p>
+          <p className="content__empty">No open documents. Select one from the tree.</p>
         ) : (
           <>
             <div className="fallback-tabs" role="tablist" aria-label="Open documents">
@@ -173,6 +223,15 @@ function FallbackWorkspace() {
                   {displayTitle({ path })}
                 </button>
               ))}
+              <button
+                type="button"
+                className="doc-tab-actions__button"
+                title="Close all documents"
+                aria-label="Close all documents"
+                onClick={closeAll}
+              >
+                <Icon name="close_all" />
+              </button>
             </div>
             {state.active && <DocTab path={state.active} />}
           </>

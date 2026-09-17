@@ -17,6 +17,8 @@
   --dv-activegroup-hiddenpanel-tab-color: var(--fg-dim);
   --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-base);
   --dv-inactivegroup-visiblepanel-tab-color: var(--fg-dim);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-mantle);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-faint);
   --dv-separator-border: var(--border);
   --dv-sash-color: transparent;
   --dv-active-sash-color: var(--accent);

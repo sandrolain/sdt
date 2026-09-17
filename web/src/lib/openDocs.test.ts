@@ -1,14 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import {
-  initialOpenDocs,
-  OPEN_DOCS_CAP,
-  openDocsReducer,
-  type OpenDocsState,
-} from "./openDocs";
+import { initialOpenDocs, OPEN_DOCS_CAP, openDocsReducer, type OpenDocsState } from "./openDocs";
 
 function openMany(paths: string[]): OpenDocsState {
-  return paths.reduce((state, path) => openDocsReducer(state, { type: "open", path }), initialOpenDocs);
+  return paths.reduce(
+    (state, path) => openDocsReducer(state, { type: "open", path }),
+    initialOpenDocs,
+  );
 }
 
 describe("openDocsReducer", () => {
@@ -58,5 +56,27 @@ describe("openDocsReducer", () => {
     expect(s.docs).not.toContain("d0");
     expect(s.docs).not.toContain("d1");
     expect(s.active).toBe(`d${OPEN_DOCS_CAP + 1}`);
+  });
+
+  it("closes every doc", () => {
+    const s = openDocsReducer(openMany(["a", "b"]), { type: "closeAll" });
+    expect(s.docs).toEqual([]);
+    expect(s.active).toBeNull();
+  });
+
+  it("prunes docs missing from the corpus and fixes the active pointer", () => {
+    let s = openMany(["a", "b", "c"]);
+    s = openDocsReducer(s, { type: "prune", paths: ["a", "c"] });
+    expect(s.docs).toEqual(["a", "c"]);
+    expect(s.active).toBe("c");
+    expect(s.seen).toEqual(["a", "c"]);
+  });
+
+  it("keeps the active doc when pruning leaves it in the corpus", () => {
+    let s = openMany(["a", "b"]);
+    s = openDocsReducer(s, { type: "activate", path: "a" });
+    s = openDocsReducer(s, { type: "prune", paths: ["a", "b", "z"] });
+    expect(s.docs).toEqual(["a", "b"]);
+    expect(s.active).toBe("a");
   });
 });

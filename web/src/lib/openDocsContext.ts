@@ -10,6 +10,8 @@ export interface OpenDocsApi {
   activate: (path: string) => void;
   /** close a document tab, moving focus to a neighbour */
   close: (path: string) => void;
+  /** close every document tab and return to the documents workspace */
+  closeAll: () => void;
 }
 
 export const OpenDocsContext = createContext<OpenDocsApi | null>(null);

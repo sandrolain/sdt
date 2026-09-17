@@ -125,8 +125,6 @@ model: <model id>            # optional
 session: <session id>        # optional
 ---
 
-# <Title>
-
 ## Problem statement
 ## Current state
 ## Assumptions & Unknowns
@@ -176,6 +174,8 @@ session: <session id>        # optional
 
 ## Rules
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 - ` + "`summary`" + ` is mandatory and used by ` + "`sdt context reindex`" + `.
 - Dated files: integrate/modify the current analysis while it is the active one;
   a materially new line of investigation gets a new dated file (and sets
@@ -255,8 +255,6 @@ model: <model id>            # optional
 session: <session id>        # optional
 ---
 
-# <Title>
-
 ## Objective
 ## Constraints and assumptions
 ## Out of scope
@@ -265,6 +263,9 @@ session: <session id>        # optional
 ## Completion criteria
 ## Review log
 ` + codeFence + `
+
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 
 ## Section descriptions
 
@@ -411,6 +412,8 @@ sections handle that.
 
 ## Rules
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 - Status markers: ` + "`[ ]`" + ` todo · ` + "`[~]`" + ` in-progress · ` + "`[x]`" + ` done · ` + "`[!]`" + ` blocked.
 - Manage with ` + "`sdt context task <sub> --phase <n> [--plan <slug>]`" + ` (add/list/done/block/wip).
 - File status transitions: create → ` + "`pending`" + `; ` + "`wip`" + `/` + "`block`" + ` → ` + "`in-progress`" + `; ` + "`done`" + ` → ` + "`completed`" + ` when no ` + "`[ ]`" + `/` + "`[~]`" + ` item remains, else ` + "`in-progress`" + `; ` + "`archive`" + ` → ` + "`archived`" + `.
@@ -490,8 +493,6 @@ model: <model id>            # optional
 session: <session id>        # optional
 ---
 
-# NNNN. <Title>
-
 ## Status
 ## Context
 ## Decision
@@ -527,6 +528,8 @@ session: <session id>        # optional
 
 ## Rules
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 - Append-only and incremental: a revision of a past decision is a NEW record
   with a higher number (which may mark the old one ` + "`status: superseded`" + `).
 - The ` + "`number`" + ` must match the filename prefix (` + "`NNNN-`" + `).
@@ -566,8 +569,6 @@ agent: <agent/tool>          # optional
 model: <model id>            # optional
 session: <session id>        # optional
 ---
-
-# Architecture: <System / Component>
 
 ## Context
 ## Goals
@@ -617,6 +618,8 @@ session: <session id>        # optional
 
 ## Rules
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 - **Naming**: kebab-case, **no date** in the filename.
 - **Living**: update in place when the architecture changes; updates can come
   from new decisions (sync — see ` + "`instructions/decision.md`" + `).
@@ -706,6 +709,8 @@ session: <session id>        # optional
 
 ## Rules
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 - Append-only (nothing is edited retroactively); new entries are new dated
   entries.
 - Entry per change (final report phase of the 5-stage cycle).
@@ -735,6 +740,8 @@ project: <project>
 
 ## Rules
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 - Anything ephemeral-but-useful that is not a plan, analysis, worklog entry or
   task step.
 - Tier: **medium** (notes with context), indexed.
@@ -812,6 +819,8 @@ obvious-answer questions here.
 
 ## Rules
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 - Keep no open points in analysis/plan documents: ask on the fly or register the
   question here and prompt the user to answer.
 - The ` + "`sources`" + ` frontmatter array links back to the document(s) where each open
@@ -884,6 +893,8 @@ pipeline is owned by ` + "`context/instructions/ingestion.md`" + `).
 Every page keeps the stable machine envelope (frontmatter, provenance,
 relations, citations — see ` + "`ingestion.md`" + `):
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 - ` + "`kind`" + `: wiki · ` + "`id`" + `: relative subpath · ` + "`title`" + `: unique ·
   ` + "`type`" + ` (` + "`concept`" + `/` + "`entity`" + `/` + "`decision`" + `/` + "`pattern`" + `/` + "`module`" + `) ·
   ` + "`status`" + ` (` + "`draft`" + `/` + "`active`" + `/` + "`archived`" + `) · ` + "`summary`" + ` ·
@@ -1113,6 +1124,9 @@ sources:
 project: <project>
 ` + codeFence + `
 
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
+
 ## Template
 
 Use these sections: Problem statement, Goals, Non-goals, Constraints, Current
@@ -1176,6 +1190,9 @@ agent: <agent/tool>          # optional
 model: <model id>            # optional
 session: <session id>        # optional
 ` + codeFence + `
+
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 
 Body sections: Subject, Method, Findings, Evidence, Limits and open points,
 Feeds.
@@ -1446,6 +1463,9 @@ results:
   - analysis/<follow-up>.md
 project: <project>
 ` + codeFence + `
+
+- **No H1 title**: do not add an H1 heading in the body; the frontmatter title is
+  the document title and the viewer renders it once — start the body at H2.
 
 Keep the complete prompt text in the body. Link the analysis, proposal, instruction,
 or procedure that produced it through ` + "`derived_from`" + ` and record deep-

@@ -32,10 +32,13 @@ kind: wiki
 title: Auth wiki page
 summary: Wiki summary
 created: 2026-09-10
+image: context/assets/cover.png
 ---
 
 # wiki body
 `)
+	writeFixture(t, root, "context/assets/cover.png", "\x89PNG\r\n\x1a\nfake")
+	writeFixture(t, root, "context/assets/notes.txt", "not an image")
 	writeFixture(t, root, "context/analysis/analy-x.md", `---
 kind: analysis
 title: "Analysis X"
@@ -376,6 +379,8 @@ func TestTreeOutput(t *testing.T) {
 		t.Errorf("wiki entry wrong: %+v", e)
 	} else if e.Modified == "" {
 		t.Errorf("wiki entry missing modified mtime fallback: %+v", e)
+	} else if e.Image != "context/assets/cover.png" {
+		t.Errorf("wiki entry image = %q, want frontmatter image", e.Image)
 	}
 	// analysis page
 	if e, ok := byPath["context/analysis/analy-x.md"]; !ok {
@@ -471,6 +476,44 @@ func TestDocCanvas(t *testing.T) {
 	}
 	if raw["nodes"] == nil {
 		t.Errorf("canvas nodes missing: %v", raw)
+	}
+}
+
+func TestFileImage(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/file?path="+url.QueryEscape("context/assets/cover.png"), nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("content-type = %q, want image/png", ct)
+	}
+	if got := rec.Body.String(); got != "\x89PNG\r\n\x1a\nfake" {
+		t.Errorf("body = %q", got)
+	}
+}
+
+func TestFileRejects(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+	for _, rel := range []string{
+		"context/assets/notes.txt", // non-image extension
+		"context/assets",           // directory
+		"context/assets/missing.png",
+		"docs/sdt_tokens.md", // outside corpus
+		"../outside.md",      // traversal
+		"",                   // empty
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/api/file?path="+url.QueryEscape(rel), nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("path %q: status = %d, want 404", rel, rec.Code)
+		}
 	}
 }
 

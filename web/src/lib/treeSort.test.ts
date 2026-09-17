@@ -16,7 +16,12 @@ const ENTRIES: TreeEntry[] = [
     created: "2026-09-01",
     modified: "2026-09-10T10:00:00Z",
   }),
-  entry({ path: "context/notes/gamma.md", kind: "notes", title: "Gamma", modified: "2026-09-05T08:00:00Z" }),
+  entry({
+    path: "context/notes/gamma.md",
+    kind: "notes",
+    title: "Gamma",
+    modified: "2026-09-05T08:00:00Z",
+  }),
 ];
 
 describe("groupByKind", () => {

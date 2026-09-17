@@ -20,6 +20,16 @@ describe("graphToolsReducer", () => {
     expect(s.hiddenVerbs).toEqual([]);
   });
 
+  it("sets the hidden sets directly (multi-select)", () => {
+    let s = graphToolsReducer(initialGraphTools, {
+      type: "setHiddenVerbs",
+      value: ["refers_to"],
+    });
+    s = graphToolsReducer(s, { type: "setHiddenKinds", value: ["link", "relation"] });
+    expect(s.hiddenVerbs).toEqual(["refers_to"]);
+    expect(s.hiddenKinds).toEqual(["link", "relation"]);
+  });
+
   it("toggles labels, focuses and resets", () => {
     let s = graphToolsReducer(initialGraphTools, { type: "labels", value: false });
     expect(s.showLabels).toBe(false);

@@ -3,6 +3,9 @@ import { CLUSTER_KEYS, type ClusterKey } from "../lib/graphModel";
 import { LAYOUTS, type LayoutKind } from "../lib/graphLayout";
 import type { GraphToolsAction, GraphToolsState } from "../lib/graphTools";
 import { Icon } from "../lib/icon";
+import { Select } from "./ui/Select";
+import { MultiSelect } from "./ui/MultiSelect";
+import { Switch } from "./ui/Switch";
 
 interface GraphToolsPanelProps {
   tools: GraphToolsState;
@@ -55,76 +58,56 @@ export function GraphToolsPanel({
       <section className="graph-tools__section">
         <label className="graph-tools__field">
           <span className="graph-tools__label">Layout</span>
-          <select
-            className="graph-tools__control"
-            value={tools.layout}
-            onChange={(e) => onTools({ type: "layout", value: e.target.value as LayoutKind })}
-          >
-            {LAYOUTS.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+          <Select
+            ariaLabel="Layout"
+            options={LAYOUTS.map((l) => ({ id: l.id, label: l.label }))}
+            selectedKey={tools.layout}
+            onSelectionChange={(key) =>
+              onTools({ type: "layout", value: String(key) as LayoutKind })
+            }
+          />
         </label>
         <label className="graph-tools__field">
           <span className="graph-tools__label">Cluster</span>
-          <select
-            className="graph-tools__control"
-            value={tools.clusterKey}
-            onChange={(e) => onTools({ type: "clusterKey", value: e.target.value as ClusterKey })}
-          >
-            {CLUSTER_KEYS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="graph-tools__check">
-          <input
-            type="checkbox"
-            checked={tools.showLabels}
-            onChange={(e) => onTools({ type: "labels", value: e.target.checked })}
+          <Select
+            ariaLabel="Cluster"
+            options={CLUSTER_KEYS.map((c) => ({ id: c.id, label: c.label }))}
+            selectedKey={tools.clusterKey}
+            onSelectionChange={(key) =>
+              onTools({ type: "clusterKey", value: String(key) as ClusterKey })
+            }
           />
-          <span>Labels</span>
         </label>
+        <Switch
+          isSelected={tools.showLabels}
+          onChange={(isSelected) => onTools({ type: "labels", value: isSelected })}
+        >
+          Labels
+        </Switch>
       </section>
 
       <section className="graph-tools__section">
         <h3 className="graph-tools__title">Relations</h3>
-        <ul className="graph-tools__list" role="list">
-          {allVerbs.map((verb) => (
-            <li key={verb}>
-              <label className="graph-tools__check">
-                <input
-                  type="checkbox"
-                  checked={!tools.hiddenVerbs.includes(verb)}
-                  onChange={() => onTools({ type: "toggleVerb", value: verb })}
-                />
-                <span>{verb}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
+        <MultiSelect
+          ariaLabel="Visible relations"
+          options={allVerbs.map((verb) => ({ id: verb, label: verb }))}
+          selected={allVerbs.filter((v) => !tools.hiddenVerbs.includes(v))}
+          onChange={(ids) =>
+            onTools({ type: "setHiddenVerbs", value: allVerbs.filter((v) => !ids.includes(v)) })
+          }
+        />
       </section>
 
       <section className="graph-tools__section">
         <h3 className="graph-tools__title">Edge kind</h3>
-        <ul className="graph-tools__list" role="list">
-          {allKinds.map((kind) => (
-            <li key={kind}>
-              <label className="graph-tools__check">
-                <input
-                  type="checkbox"
-                  checked={!tools.hiddenKinds.includes(kind)}
-                  onChange={() => onTools({ type: "toggleKind", value: kind })}
-                />
-                <span>{kind}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
+        <MultiSelect
+          ariaLabel="Visible edge kinds"
+          options={allKinds.map((kind) => ({ id: kind, label: kind }))}
+          selected={allKinds.filter((k) => !tools.hiddenKinds.includes(k))}
+          onChange={(ids) =>
+            onTools({ type: "setHiddenKinds", value: allKinds.filter((k) => !ids.includes(k)) })
+          }
+        />
       </section>
 
       <section className="graph-tools__section">
@@ -142,7 +125,12 @@ export function GraphToolsPanel({
       </section>
 
       <section className="graph-tools__section graph-tools__section--actions">
-        <button type="button" className="graph-tools__button" onClick={onFit} title="Fit graph to view">
+        <button
+          type="button"
+          className="graph-tools__button"
+          onClick={onFit}
+          title="Fit graph to view"
+        >
           <Icon name="center_focus_strong" />
           Fit
         </button>

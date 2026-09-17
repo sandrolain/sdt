@@ -1258,6 +1258,33 @@ func TestAgentDecisionTemplateCoherence(t *testing.T) {
 	}
 }
 
+// TestAgentNoH1TitleRule guards that every document-type instruction tells the
+// agent to omit the body H1 (the frontmatter title is the title, rendered once
+// by the viewer).
+func TestAgentNoH1TitleRule(t *testing.T) {
+	for name, tpl := range map[string]string{
+		"analysis":     instrAnalysisTemplate,
+		"plan":         instrPlanTemplate,
+		"tasks":        instrTasksTemplate,
+		"decision":     instrDecisionTemplate,
+		"architecture": instrArchitectureTemplate,
+		"worklog":      instrWorklogTemplate,
+		"notes":        instrNotesTemplate,
+		"questions":    instrQuestionsTemplate,
+		"wiki":         instrWikiTemplate,
+		"proposal":     instrProposalTemplate,
+		"research":     instrResearchTemplate,
+		"prompts":      instrPromptsTemplate,
+	} {
+		if !strings.Contains(tpl, "**No H1 title**") {
+			t.Errorf("%s template missing the no-H1 title rule", name)
+		}
+		if strings.Contains(tpl, "# <Title>") || strings.Contains(tpl, "# NNNN. <Title>") {
+			t.Errorf("%s template must not example an H1 title", name)
+		}
+	}
+}
+
 // TestAgentResearchTemplateCoherence guards the research instruction contract:
 // provenance, analysis boundary and deepsearch readiness must survive edits.
 func TestAgentResearchTemplateCoherence(t *testing.T) {

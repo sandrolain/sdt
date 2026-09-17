@@ -30,7 +30,10 @@ export function fieldLabel(key: string): string {
 
 /** Strip a single wrapping pair of quotes and trim. */
 function scalar(value: string): string {
-  return value.trim().replace(/^["']|["']$/g, "").trim();
+  return value
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
 }
 
 /** Values from an inline scalar or `[a, b]` array. */

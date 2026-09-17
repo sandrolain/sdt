@@ -10,7 +10,7 @@ export type EntryKind =
   | "decision"
   | "questions"
   | "proposal"
-  | "prompts"
+  | "prompt"
   | "research"
   | "architecture"
   | "other";
@@ -28,9 +28,17 @@ export const KIND_ORDER: EntryKind[] = [
   "questions",
   "architecture",
   "proposal",
+  "prompt",
   "research",
   "other",
 ];
+
+/** Folder labels for kinds whose section name differs from the raw kind. */
+const KIND_LABELS: Partial<Record<EntryFilterKind, string>> = {
+  decision: "decisions",
+  proposal: "proposals",
+  prompt: "prompts",
+};
 
 /** Map a raw entry to a display kind. Canvas entries are treated as their own kind. */
 export function entryKind(e: TreeEntry): EntryFilterKind {
@@ -40,8 +48,9 @@ export function entryKind(e: TreeEntry): EntryFilterKind {
 }
 
 export function kindLabel(k: EntryFilterKind): string {
-  // Corpus kind names read naturally as labels; no pluralization needed.
-  return k;
+  // Most corpus kind names read naturally as labels; a few use an explicit
+  // section name (e.g. decisions/proposals/prompts).
+  return KIND_LABELS[k] ?? k;
 }
 
 /** Material Symbols glyph for a kind folder/entry. */
@@ -56,7 +65,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
   questions: "help",
   proposal: "description",
   research: "travel_explore",
-  prompts: "terminal",
+  prompt: "terminal",
   architecture: "account_tree",
   other: "description",
   canvas: "dashboard",
@@ -74,7 +83,7 @@ const KIND_COLORS: Record<EntryFilterKind, string> = {
   questions: "var(--ctp-sky)",
   proposal: "var(--ctp-sapphire)",
   research: "var(--ctp-pink)",
-  prompts: "var(--ctp-teal)",
+  prompt: "var(--ctp-teal)",
   architecture: "var(--ctp-lavender)",
   other: "var(--ctp-overlay0)",
   canvas: "var(--ctp-teal)",
