@@ -1,0 +1,63 @@
+package cmd
+
+const instrProposalTemplate = `# Proposal Documents
+
+` + "`context/proposals/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records a proposal before
+an implementation or architectural decision. Read this file when creating or
+reviewing a proposal.
+
+## Contract
+
+Every proposal starts with frontmatter:
+
+` + codeFence + `yaml
+kind: proposal
+title: "One-line proposal title"
+summary: "1-2 sentence index summary — MANDATORY"
+context: "Problem or opportunity"
+status: draft # draft | review | accepted | rejected | superseded
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+links:
+  - analysis/<source-analysis>.md
+sources:
+  - refs/<evidence>.md
+project: <project>
+` + codeFence + `
+
+- **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
+
+## Template
+
+Use these sections: Problem statement, Goals, Non-goals, Constraints, Current
+state, Proposed design, Alternatives considered, Impact and migration,
+Validation/evidence, Decision outcome, and Follow-up. Separate observed facts
+from the proposed choice and preserve links to analyses, procedures, prompts,
+and immutable evidence under ` + "`context/refs/`" + `.
+
+## Proposal → decision workflow
+
+An accepted proposal becomes a decision only through a numbered decision record.
+Follow this flow after the proposal reaches ` + "`status: accepted`" + `:
+
+1. **Acceptance review** — confirm the proposal is complete: no open points,
+   alternatives considered, validation/evidence present.
+2. **Create the decision record** — run
+   ` + "`sdt context new --type decision --number <NNNN> --title \"<decision title>\"`" + `
+   (or omit ` + "`--number`" + ` to auto-assign the next NNNN). Write the decision,
+   recording the accepted alternative and its rationale.
+3. **Link both ways** — the decision record lists the proposal in ` + "`sources`" + ` and
+   ` + "`links`" + ` (` + "`proposals/<date>-<slug>.md`" + `); the proposal records the decision
+   in ` + "`links`" + ` and sets ` + "`status: accepted`" + ` (or ` + "`rejected`" + `/` + "`superseded`" + `
+   for the other outcomes).
+4. **Architectural impact** — when the decision changes the current system
+   shape, update the relevant living ` + "`context/architecture/`" + ` document in the
+   same execution phase and link it to the decision record. Non-architectural
+   decisions may be recorded by the decision record alone.
+5. **Reconcile** — run ` + "`sdt context reindex`" + ` and ` + "`sdt context lint`" + `; verify
+   the proposal → decision → architecture chain is clean before closing the phase.
+
+Proposals propose; decision records decide; architecture documents describe the
+current state. Do not treat research in ` + "`refs/`" + ` or a proposal status alone as
+an accepted decision.
+`

@@ -170,6 +170,11 @@ workflows — including a style, architecture or dependency agreed with the user
 section of the `<!-- sdt:begin:project -->` block and record the change in
 `context/worklog/`. Keep every section concise and technical.
 
+### Document conventions
+
+- **No H1 title** — document bodies start at H2; the frontmatter title is the
+  document title, rendered once by the viewer.
+
 ### Keep the chain (recap)
 
 Remember the intent gate: non-trivial intent outside an existing analysis/plan

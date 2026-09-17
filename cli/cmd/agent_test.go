@@ -1139,7 +1139,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	}
 
 	cli, _ := os.ReadFile(filepath.Join(dir, "context/instructions/cli.md"))
-	for _, want := range []string{"--format text|json|yaml", "sdt conv --in json --out yaml", "sdt context new|path|list|task|docs", "sdt diff --a A --b B --diff-format", "sdt dns --host"} {
+	for _, want := range []string{"sdt conv --in json --out yaml", "sdt context new --type", "sdt context path|list|task|template|docs", "sdt diff --a A --b B --diff-format", "sdt dns --host", "context/instructions/reference.md"} {
 		if !strings.Contains(string(cli), want) {
 			t.Errorf("expected %q in cli.md:\n%s", want, cli)
 		}
@@ -1260,9 +1260,9 @@ func TestAgentDecisionTemplateCoherence(t *testing.T) {
 	}
 }
 
-// TestAgentNoH1TitleRule guards that every document-type instruction tells the
-// agent to omit the body H1 (the frontmatter title is the title, rendered once
-// by the viewer).
+// TestAgentNoH1TitleRule guards that every document-type instruction points at
+// the single AGENTS.md document convention (no H1 in the body) instead of
+// repeating the rule.
 func TestAgentNoH1TitleRule(t *testing.T) {
 	for name, tpl := range map[string]string{
 		"analysis":     instrAnalysisTemplate,
@@ -1278,8 +1278,8 @@ func TestAgentNoH1TitleRule(t *testing.T) {
 		"research":     instrResearchTemplate,
 		"prompts":      instrPromptsTemplate,
 	} {
-		if !strings.Contains(tpl, "**No H1 title**") {
-			t.Errorf("%s template missing the no-H1 title rule", name)
+		if !strings.Contains(tpl, "**No H1 title**") || !strings.Contains(tpl, "AGENTS.md (document conventions)") {
+			t.Errorf("%s template missing the no-H1 title pointer", name)
 		}
 		if strings.Contains(tpl, "# <Title>") || strings.Contains(tpl, "# NNNN. <Title>") {
 			t.Errorf("%s template must not example an H1 title", name)
@@ -1323,6 +1323,27 @@ func TestAgentDevelopmentTemplateCoherence(t *testing.T) {
 	} {
 		if !strings.Contains(instrDevelopmentTemplate, want) {
 			t.Errorf("expected %q in development template:\n%s", want, instrDevelopmentTemplate)
+		}
+	}
+}
+
+// TestGeneratedInstructionsMatchTemplates guards against drift between a
+// template and its committed generated file: context/instructions/<name>.md must
+// equal the template body. project.md is excluded (it substitutes project/group
+// identity). A failure means a template changed without `sdt agent init --force`.
+func TestGeneratedInstructionsMatchTemplates(t *testing.T) {
+	root := filepath.Join("..", "..")
+	for _, f := range instructionFiles("", "") {
+		if f.name == filepath.Base(sdtInstrProject) {
+			continue
+		}
+		path := filepath.Join(root, sdtInstrDir, f.name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read generated %s: %v", path, err)
+		}
+		if string(data) != f.body {
+			t.Errorf("drift in %s: template differs from the committed generated file (run sdt agent init --force)", path)
 		}
 	}
 }

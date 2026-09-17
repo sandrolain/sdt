@@ -1,0 +1,57 @@
+package cmd
+
+const instrReferenceTemplate = `# SDT — Command Reference
+
+SDT (Smart Developer Tools) is a pure-Go, offline-first CLI for AI agents.
+Every command is deterministic and machine-readable.
+
+## Input / Output
+
+- Input: stdin | ` + "`--input \"string\"`" + ` | ` + "`--file path`" + ` | ` + "`--inb64`" + `
+- Output: ` + "`--format text|json|yaml`" + ` (default text)
+- ` + "`--quiet`" + ` suppresses informational output; ` + "`--no-color`" + ` disables ANSI
+- Errors: message to stderr + non-zero exit code
+
+## Discover commands
+
+The full, always-current command reference is generated, not written by hand:
+
+` + codeFence + `
+sdt manifest --format json            # full command tree
+sdt schema --command "<command>"      # JSON Schema for one command
+sdt context docs                      # per-command docs in context/sdtdocs/
+sdt docs                              # full markdown docs per command (humans)
+sdt <command> --help                  # usage for a single command
+` + codeFence + `
+
+## Project configuration
+
+` + "`.sdt.yaml`" + ` holds project identity and is found by walking up from the
+current directory:
+
+` + codeFence + `yaml
+project: myapp_7f2b39e1
+group: platform
+` + codeFence + `
+
+Create it with ` + "`sdt agent init --project myapp --group platform`" + ` or
+` + "`sdt config init --project myapp`" + `; inspect with ` + "`sdt config show`" + `.
+
+## Context knowledge
+
+Documents under ` + "`context/`" + ` are the project knowledge. Per-type
+instructions and templates in ` + "`context/instructions/`" + ` (project, analysis, plan,
+tasks, decision, architecture, worklog, notes, questions, proposal, prompts,
+research, ingestion, reference, cli, scripts, wiki, development). Index and checks:
+` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` / ` + "`sdt context wiki lint`" + ` / ` + "`sdt context status`" + ` /
+` + "`sdt context template --type <type>`" + `. Agent instruction contract:
+` + "`sdt agent verify`" + `. Utility scripts live in ` + "`context/scripts/`" + `
+(usage conventions in ` + "`instructions/scripts.md`" + `, inventory in
+` + "`scripts/index.md`" + `; executed on demand, never read into context).
+Nothing is written by the CLI: the agent edits the Markdown files.
+
+## CLI usage & examples
+
+The curated command catalog, global flags and practical examples live in
+` + "`context/instructions/cli.md`" + `.
+`

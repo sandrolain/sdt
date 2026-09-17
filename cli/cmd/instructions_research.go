@@ -1,0 +1,61 @@
+package cmd
+
+const instrResearchTemplate = `# Research Documents
+
+` + "`context/research/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records the results of one
+research run (deepsearch, web/document sweep, spike) and its provenance. Read
+this file when running or writing up research that feeds an analysis, proposal
+or decision.
+
+## Contract
+
+Every research note starts with frontmatter:
+
+` + codeFence + `yaml
+kind: research
+title: "One-line research title"
+summary: "1-2 sentence index summary — MANDATORY"
+subject: "The question this run answers"
+context: "Why this research was requested"
+status: draft # draft | active | archived
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+sources:            # provenance: the driving prompt + evidence refs
+  - prompts/<driving-prompt>.md
+  - refs/<evidence>.md
+project: <project>
+agent: <agent/tool>          # optional
+model: <model id>            # optional
+session: <session id>        # optional
+` + codeFence + `
+
+- **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
+
+Body sections: Subject, Method, Findings, Evidence, Limits and open points,
+Feeds.
+
+## Purpose and boundary
+
+- **Research = raw results, not a decision.** A research note gathers and
+  organizes evidence (with links) so an analysis or proposal can reason over
+  it — it never states an accepted choice.
+- **Research feeds analyses and proposals.** Link forward with
+  ` + "`links: analysis/…, proposals/…`" + ` once the consuming document exists; a
+  proposal or decision cites the research in its ` + "`sources`" + `.
+- **Boundary vs analysis.** An analysis interprets evidence to reach a
+  conclusion/recommendation; research merely collects and attributes it. When
+  interpretation starts, write/extend an analysis (or proposal) instead.
+- **Provenance is mandatory.** Every run names its driving prompt
+  (` + "`prompts/<…>.md`" + `) and the evidence it relied on under ` + "`sources`" + `.
+  Non-markdown evidence is converted first (anydoc, then docling — see
+  ` + "`instructions/ingestion.md`" + `) and the original kept in ` + "`context/refs/`" + `.
+
+## Deepsearch readiness
+
+- One run → one dated file, so a future ` + "`sdt deepsearch`" + ` integration can
+  append machine-produced runs and link them like any other source.
+- Keep findings atomic and citable (claim + source + scope + date) so a
+  downstream analysis or the wiki can reference them without re-reading the run.
+- Prefer ` + "`refs/`" + ` for immutable raw captures; the research note summarizes
+  and links, it does not duplicate the raw payload.
+`
