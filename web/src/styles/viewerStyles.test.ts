@@ -23,6 +23,19 @@ describe("viewer styles", () => {
     expect(block(".tree-entry:hover")).not.toContain("color-mix");
   });
 
+  it("lets the meta panel and the path row shrink", () => {
+    expect(block(".panel--meta")).toContain("min-width: 0");
+    expect(block(".panel--meta")).toContain("overflow-x: hidden");
+    expect(block(".doc-path")).toContain("min-width: 0");
+    const value = block(".doc-path__value");
+    expect(value).toContain("min-width: 0");
+    expect(value).toContain("text-overflow: ellipsis");
+    // the RTL trick reported a large min-content width and blocked shrinking
+    expect(value).not.toContain("direction: rtl");
+    expect(block(".meta-row")).toContain("minmax(0, 1fr)");
+    expect(block(".doc-rendered")).toContain("min-width: 0");
+  });
+
   it("styles the rendered hr and richer typography", () => {
     expect(block(".doc-rendered hr")).toContain("border-top");
     expect(block(".doc-rendered a")).toContain("--ctp-blue");

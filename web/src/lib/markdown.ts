@@ -2,6 +2,12 @@ import DOMPurify, { type Config } from "dompurify";
 import hljs from "highlight.js/lib/common";
 import { Marked, type Tokens } from "marked";
 import { docHref, resolveDocPath, rewriteWikiLinks, type WikiIndex } from "./wikiLinks";
+import markedFootnote from "marked-footnote";
+import { imageSrc } from "./images";
+import { parseCodeInfo, wrapHighlightedLines } from "./codeLines";
+import { mathExtensions } from "./mathExtension";
+import { deflistExtension } from "./deflistExtension";
+import { FEATURES } from "./features";
 import { stripLeadingH1 } from "./headings";
 
 /** Raw-HTML policy: conservative allowlist, everything else is dropped. */
@@ -34,6 +40,12 @@ const SANITIZE_CONFIG: Config = {
     "th",
     "td",
     "img",
+    "figure",
+    "figcaption",
+    "dl",
+    "dt",
+    "dd",
+    "section",
     "details",
     "summary",
     "kbd",
@@ -94,21 +106,94 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** GitHub-style callout labels keyed by the `[!TYPE]` marker. */
+const CALLOUTS: Record<string, string> = {
+  note: "Note",
+  tip: "Tip",
+  important: "Important",
+  warning: "Warning",
+  caution: "Caution",
+};
+
+/** Lowercase dash slug for heading anchors. */
+function slugify(text: string): string {
+  const slug = text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+  return slug || "section";
+}
+
 /** Build a marked instance whose link renderer knows the base path. */
 function buildMarked(basePath?: string): Marked {
-  return new Marked({
+  // per-document slug counter so duplicate headings get unique ids
+  const slugs = new Map<string, number>();
+  const uniqueSlug = (text: string): string => {
+    const base = slugify(text);
+    const count = slugs.get(base) ?? 0;
+    slugs.set(base, count + 1);
+    return count === 0 ? base : `${base}-${count}`;
+  };
+
+  const marked = new Marked({
     gfm: true,
     breaks: false,
+    extensions: [...(FEATURES.katex ? mathExtensions() : []), ...deflistExtension()],
     renderer: {
+      heading(this: { parser: { parseInline(tokens: unknown): string } }, token: Tokens.Heading) {
+        const text = this.parser.parseInline(token.tokens);
+        const plain = text.replace(/<[^>]+>/g, "").trim();
+        const id = uniqueSlug(plain);
+        return [
+          `<h${token.depth} id="${id}" data-heading="${escapeHtml(plain)}">`,
+          text,
+          `<button type="button" class="md-anchor" data-anchor="${id}" aria-label="Copy link to section" title="Copy section link"><span class="ms-icon" aria-hidden="true">link</span></button>`,
+          `</h${token.depth}>`,
+        ].join("");
+      },
+      blockquote(
+        this: { parser: { parse(tokens: unknown): string } },
+        token: Tokens.Blockquote,
+      ): string {
+        let inner = this.parser.parse(token.tokens);
+        const match = /^\s*<p>\s*\[!([A-Za-z]+)\]\s*(?:<br\s*\/?>)?\s*/i.exec(inner);
+        const label = match ? CALLOUTS[match[1].toLowerCase()] : undefined;
+        if (!match || !label) return `<blockquote>${inner}</blockquote>`;
+        const type = match[1].toLowerCase();
+        inner = inner.slice(match[0].length);
+        // re-open a <p> so the sliced opening tag stays balanced
+        return [
+          `<div class="md-callout md-callout--${type}">`,
+          `<p class="md-callout__title">${label}</p>`,
+          `<div class="md-callout__body"><p>${inner}</div>`,
+          "</div>",
+        ].join("");
+      },
       code({ text, lang }: Tokens.Code): string {
-        const language = lang && hljs.getLanguage(lang) ? lang : "plaintext";
-        const body = highlightCode(text, lang);
+        if (FEATURES.mermaid && lang === "mermaid") {
+          // rendered client-side by mermaidRender; the source travels base64-free
+          // (URI-encoded) so DOMPurify keeps the data attribute untouched
+          return `<div class="md-mermaid" data-src="${escapeHtml(encodeURIComponent(text))}"></div>`;
+        }
+        const { language, highlighted } = parseCodeInfo(lang);
+        const known = language && hljs.getLanguage(language);
+        const highlightLang = known ? language : undefined;
+        const body = wrapHighlightedLines(highlightCode(text, highlightLang), highlighted);
         return [
           '<div class="md-code-block">',
+          language
+            ? `<span class="md-code__lang">${escapeHtml(language)}</span>`
+            : '<span class="md-code__lang md-code__lang--plain">text</span>',
+          '<button type="button" class="md-code__wrap" aria-label="Toggle line wrapping" title="Toggle line wrapping">',
+          '<span class="ms-icon" aria-hidden="true">wrap_text</span>',
+          "</button>",
           '<button type="button" class="md-code__copy" aria-label="Copy code" title="Copy code">',
           '<span class="ms-icon" aria-hidden="true">content_copy</span>',
           "</button>",
-          `<pre class="md-code"><code class="hljs language-${escapeHtml(language)}">${body}</code></pre>`,
+          `<pre class="md-code"><code class="hljs language-${escapeHtml(known ? language : "plaintext")}">${body}</code></pre>`,
           "</div>",
         ].join("");
       },
@@ -126,8 +211,35 @@ function buildMarked(basePath?: string): Marked {
         const attrStr = attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
         return `<a href="${escapeHtml(target)}"${attrStr}>${escapeHtml(text)}</a>`;
       },
+      table(
+        this: { parser: { parseInline(tokens: unknown): string } },
+        token: Tokens.Table,
+      ): string {
+        const alignClass = (index: number) => {
+          const align = token.align?.[index];
+          return align ? ` class="md-align-${align}"` : "";
+        };
+        const cell = (c: Tokens.TableCell, tag: "th" | "td", index: number) =>
+          `<${tag}${alignClass(index)}>${this.parser.parseInline(c.tokens)}</${tag}>`;
+        const head = `<thead><tr>${token.header
+          .map((c, i) => cell(c, "th", i))
+          .join("")}</tr></thead>`;
+        const body = `<tbody>${token.rows
+          .map((row) => `<tr>${row.map((c, i) => cell(c, "td", i)).join("")}</tr>`)
+          .join("")}</tbody>`;
+        return `<div class="md-table-wrap"><table>${head}${body}</table></div>`;
+      },
+      image({ href, title, text }: Tokens.Image): string {
+        const src = imageSrc(href, basePath);
+        const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+        const img = `<img src="${escapeHtml(src)}" alt="${escapeHtml(text ?? "")}"${titleAttr} />`;
+        // a title becomes a visible caption (figure/figcaption)
+        return title ? `<figure>${img}<figcaption>${escapeHtml(title)}</figcaption></figure>` : img;
+      },
     },
   });
+  marked.use(markedFootnote());
+  return marked;
 }
 
 /** Render markdown to sanitized HTML: wikilink rewrite, marker strip, sanitize. */

@@ -6,6 +6,19 @@ export function fileUrl(path: string): string {
 }
 
 /**
+ * Resolve a markdown body image `src` to a usable URL: remote/data URLs, the
+ * API itself and fragments pass through, everything else resolves like a
+ * frontmatter image (corpus- or document-relative).
+ */
+export function imageSrc(href: string, basePath?: string): string {
+  const raw = href.trim();
+  if (raw === "") return raw;
+  if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+  if (raw.startsWith("/api/") || raw.startsWith("#")) return raw;
+  return imageUrl(raw, basePath);
+}
+
+/**
  * Resolve a frontmatter `image:` value to an /api/file URL. Absolute http(s)
  * URLs pass through; corpus-relative and document-relative paths resolve under
  * `context/`.

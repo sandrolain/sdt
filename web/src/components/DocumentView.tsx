@@ -18,9 +18,37 @@ import { lineNumbers } from "../lib/codeLines";
 import { useActiveHeading } from "../lib/useActiveHeading";
 import { setActiveSection } from "../lib/activeSection";
 import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
+import { renderMath } from "../lib/katexRender";
+import { renderMermaid } from "../lib/mermaidRender";
+import { FEATURES } from "../lib/features";
 import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
+
+/** Serialize a rendered diagram's SVG and download it. */
+function downloadDiagramSvg(button: Element): void {
+  const svg = button.closest(".md-mermaid")?.querySelector("svg");
+  if (!svg) return;
+  const markup = new XMLSerializer().serializeToString(svg);
+  const url = URL.createObjectURL(new Blob([markup], { type: "image/svg+xml" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "diagram.svg";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Copy a deep link to a heading, flash the anchor and reveal the section. */
+function copyAnchor(button: Element): void {
+  const id = button.getAttribute("data-anchor") ?? "";
+  if (!id) return;
+  const url = `${window.location.origin}${window.location.pathname}#${id}`;
+  if (navigator.clipboard) void navigator.clipboard.writeText(url);
+  window.history.replaceState(null, "", `#${id}`);
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  button.classList.add("is-copied");
+  window.setTimeout(() => button.classList.remove("is-copied"), 1200);
+}
 
 /** Corpus path behind a rendered docs/wiki link, or null for non-document links. */
 function docsTargetFromHref(href: string): string | null {
@@ -109,6 +137,18 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   // publish the heading in view so the Sections sidebar can highlight it
   useActiveHeading(renderedRef, path, mode === "render");
 
+  // render $…$/$$…$$ math placeholders (lazy KaTeX chunk) after each render
+  useEffect(() => {
+    if (mode !== "render" || !FEATURES.katex) return;
+    void renderMath(renderedRef.current);
+  }, [mode, html]);
+
+  // render mermaid placeholders (lazy chunk, theme-aware) after each render
+  useEffect(() => {
+    if (mode !== "render" || !FEATURES.mermaid) return;
+    void renderMermaid(renderedRef.current);
+  }, [mode, html]);
+
   // a Sections click switches to render mode (if needed) then scrolls there
   const sectionRequest = useSectionRequest();
   useEffect(() => {
@@ -122,7 +162,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     const root = renderedRef.current;
     const target = root
       ? Array.from(root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")).find(
-          (h) => h.textContent?.trim() === sectionRequest.text,
+          (h) => (h.dataset.heading ?? h.textContent ?? "").trim() === sectionRequest.text,
         )
       : undefined;
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -131,6 +171,27 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   }, [sectionRequest, mode, path, params, setParams]);
 
   const onRenderedClick = (event: MouseEvent<HTMLDivElement>) => {
+    const anchorButton = (event.target as HTMLElement | null)?.closest?.(".md-anchor");
+    if (anchorButton) {
+      event.preventDefault();
+      copyAnchor(anchorButton);
+      return;
+    }
+    const downloadButton = (event.target as HTMLElement | null)?.closest?.(".md-mermaid__download");
+    if (downloadButton) {
+      event.preventDefault();
+      downloadDiagramSvg(downloadButton);
+      return;
+    }
+    const wrapButton = (event.target as HTMLElement | null)?.closest?.(".md-code__wrap");
+    if (wrapButton) {
+      event.preventDefault();
+      wrapButton
+        .closest(".md-code-block")
+        ?.querySelector("pre.md-code")
+        ?.classList.toggle("is-wrapped");
+      return;
+    }
     const copyButton = (event.target as HTMLElement | null)?.closest?.(".md-code__copy");
     if (copyButton) {
       event.preventDefault();

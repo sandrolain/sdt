@@ -92,6 +92,33 @@ describe("DocumentView", () => {
     expect(screen.getAllByRole("button", { pressed: true })).toHaveLength(1);
   });
 
+  it("toggles long-line wrapping on a code block", async () => {
+    renderView({ path: "context/wiki/alpha.md", markdown: "```js\nconst x = 1;\n```" });
+    const pre = document.querySelector("pre.md-code") as HTMLElement;
+    expect(pre.classList.contains("is-wrapped")).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Toggle line wrapping" }));
+    expect(pre.classList.contains("is-wrapped")).toBe(true);
+  });
+
+  it("copies a deep link from a heading anchor", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    renderView({
+      path: "context/notes/x.md",
+      markdown: "# Title\n\n## Section One\n\ntext\n",
+    });
+    await userEvent.click(screen.getAllByRole("button", { name: "Copy link to section" })[0]);
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("#section-one"));
+  });
+
+  it("renders inline math with KaTeX in render mode", async () => {
+    renderView({ path: "context/notes/m.md", markdown: "# Title\n\nInline $a^2 + b^2$ math.\n" });
+    await waitFor(() => expect(document.querySelector(".doc-rendered .katex")).toBeTruthy());
+  });
+
   it("switches to render mode and scrolls when a section is requested", async () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;

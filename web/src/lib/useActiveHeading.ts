@@ -32,7 +32,7 @@ export function useActiveHeading(
         if (heading.getBoundingClientRect().top <= limit) current = heading;
         else break;
       }
-      setActiveSection(path, current.textContent?.trim() ?? null);
+      setActiveSection(path, (current.dataset.heading ?? current.textContent ?? "").trim() || null);
     };
 
     compute();
