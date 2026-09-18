@@ -2,8 +2,15 @@ import type { TreeEntry } from "./api";
 import { KIND_ORDER, entryKind, type EntryFilterKind } from "./kinds";
 import { displayTitle } from "./titles";
 
-export type TreeSortKey = "name_asc" | "name_desc" | "title_asc" | "title_desc" | "created_asc" | "created_desc" | "modified_asc" | "modified_desc";
-export type TreeDir = "asc" | "desc";
+export type TreeSortKey =
+  | "name_asc"
+  | "name_desc"
+  | "title_asc"
+  | "title_desc"
+  | "created_asc"
+  | "created_desc"
+  | "modified_asc"
+  | "modified_desc";
 
 export const TREE_SORTS: { id: TreeSortKey; label: string }[] = [
   { id: "name_asc", label: "Name ASC" },

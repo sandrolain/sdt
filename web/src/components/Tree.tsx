@@ -6,7 +6,7 @@ import { formatFieldDate } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
-import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
+import { isDoneStatus, planReferencedAnalyses, statusDot } from "../lib/statusDot";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
 import { groupByKind, sortEntries } from "../lib/treeSort";
@@ -56,7 +56,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
 
   const plannedAnalyses = planReferencedAnalyses(entries ?? []);
   const visibleEntries =
-    entries && hideCompleted ? entries.filter((entry) => statusDot(entry, plannedAnalyses)) : entries;
+    entries && hideCompleted ? entries.filter((e) => !isDoneStatus(e.status)) : entries;
   const groups = visibleEntries
     ? groupByKind(visibleEntries).map((group) => ({
         kind: group.kind,

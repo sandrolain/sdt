@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { TreeDir, TreeSortKey } from "./treeSort";
+import type { TreeSortKey } from "./treeSort";
 
 /** Tree sort selection, shared between the list and the tab-bar controls. */
 export interface TreeSortState {

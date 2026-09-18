@@ -83,7 +83,6 @@ describe("Tree", () => {
     // newest wiki entry (Zeta, created 2026-09-02) first; entries without a
     // created date stay last
     expect(titles()[0]).toContain("Zeta");
-    expect(screen.getByLabelText("Sort descending")).toBeTruthy();
   });
 
   it("sorts by title ascending from the sort control", async () => {
@@ -95,12 +94,8 @@ describe("Tree", () => {
 
     const titles = () => screen.getAllByRole("link").map((el) => el.textContent ?? "");
     await userEvent.click(screen.getByRole("button", { name: /Sort entries by/ }));
-    await userEvent.click(await screen.findByRole("option", { name: "Title" }));
-    // direction is still descending: reverse-alphabetical first
-    expect(titles()[0]).toContain("Zeta");
-    await userEvent.click(screen.getByLabelText("Sort descending"));
+    await userEvent.click(await screen.findByRole("option", { name: "Title ASC" }));
     expect(titles()[0]).toContain("Alpha");
-    expect(screen.getByLabelText("Sort ascending")).toBeTruthy();
   });
 
   it("groups prompt-kind entries under the prompts section", async () => {

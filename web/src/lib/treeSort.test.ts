@@ -49,7 +49,7 @@ describe("groupByKind", () => {
 
 describe("sortEntries", () => {
   it("sorts by name ascending by default", () => {
-    const names = sortEntries(ENTRIES, "name", "asc").map((e) => e.path);
+    const names = sortEntries(ENTRIES, "name_asc").map((e) => e.path);
     expect(names).toEqual([
       "context/wiki/20260915-195559-alpha-plan.md",
       "context/wiki/beta.md",
@@ -58,23 +58,23 @@ describe("sortEntries", () => {
   });
 
   it("sorts by title descending", () => {
-    const titles = sortEntries(ENTRIES, "title", "desc").map((e) => e.title ?? e.path);
+    const titles = sortEntries(ENTRIES, "title_desc").map((e) => e.title ?? e.path);
     expect(titles).toEqual(["Gamma", "Beta", "Alpha"]);
   });
 
   it("sorts by created ascending with missing values last", () => {
-    const created = sortEntries(ENTRIES, "created", "asc").map((e) => e.created ?? "");
+    const created = sortEntries(ENTRIES, "created_asc").map((e) => e.created ?? "");
     expect(created).toEqual(["2026-09-01", "2026-09-02", ""]);
   });
 
   it("sorts by modified descending", () => {
-    const modified = sortEntries(ENTRIES, "modified", "desc").map((e) => e.modified ?? "");
+    const modified = sortEntries(ENTRIES, "modified_desc").map((e) => e.modified ?? "");
     expect(modified).toEqual(["2026-09-10T10:00:00Z", "2026-09-05T08:00:00Z", ""]);
   });
 
   it("does not mutate the input", () => {
     const before = ENTRIES.map((e) => e.path);
-    sortEntries(ENTRIES, "title", "asc");
+    sortEntries(ENTRIES, "title_asc");
     expect(ENTRIES.map((e) => e.path)).toEqual(before);
   });
 });

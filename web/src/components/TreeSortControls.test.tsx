@@ -6,8 +6,8 @@ import { TreeSortControls } from "./TreeSortControls";
 import { resetTreeSort, useTreeSort } from "../lib/treeSortStore";
 
 function Probe() {
-  const { key, dir } = useTreeSort();
-  return <span data-testid="sort">{`${key}|${dir}`}</span>;
+  const { key } = useTreeSort();
+  return <span data-testid="sort">{key}</span>;
 }
 
 function renderControls() {
@@ -27,15 +27,16 @@ afterEach(() => {
 describe("TreeSortControls", () => {
   it("changes the shared sort key", async () => {
     renderControls();
-    expect(screen.getByTestId("sort").textContent).toBe("created|desc");
+    expect(screen.getByTestId("sort").textContent).toBe("created_desc");
     await userEvent.click(screen.getByRole("button", { name: /Sort entries by/ }));
-    await userEvent.click(await screen.findByRole("option", { name: "Title" }));
-    expect(screen.getByTestId("sort").textContent).toBe("title|desc");
+    await userEvent.click(await screen.findByRole("option", { name: "Title ASC" }));
+    expect(screen.getByTestId("sort").textContent).toBe("title_asc");
   });
 
-  it("toggles the direction", async () => {
+  it("selects a descending variant", async () => {
     renderControls();
-    await userEvent.click(screen.getByLabelText("Sort descending"));
-    expect(screen.getByTestId("sort").textContent).toBe("created|asc");
+    await userEvent.click(screen.getByRole("button", { name: /Sort entries by/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Modified DESC" }));
+    expect(screen.getByTestId("sort").textContent).toBe("modified_desc");
   });
 });

@@ -140,7 +140,7 @@ function buildMarked(basePath?: string): Marked {
   const marked = new Marked({
     gfm: true,
     breaks: false,
-    extensions: [...(mathExtensions()), ...deflistExtension()],
+    extensions: [...mathExtensions(), ...deflistExtension()],
     renderer: {
       heading(this: { parser: { parseInline(tokens: unknown): string } }, token: Tokens.Heading) {
         const text = this.parser.parseInline(token.tokens);

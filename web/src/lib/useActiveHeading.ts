@@ -2,7 +2,7 @@ import { useEffect, type RefObject } from "react";
 import { clearActiveSection, setActiveSection } from "./activeSection";
 
 /** Fraction of the scroll viewport below which a heading becomes the active one. */
-const THRESHOLD = 0.10;
+const THRESHOLD = 0.1;
 
 /**
  * Publish the section currently in view for `path` while `active` is true.
