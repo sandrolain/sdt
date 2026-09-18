@@ -6,7 +6,7 @@ import { formatFieldDate } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
-import { isDoneStatus, planReferencedAnalyses, statusDot } from "../lib/statusDot";
+import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
 import { groupByKind, sortEntries } from "../lib/treeSort";
@@ -54,15 +54,15 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
       ?.scrollIntoView({ block: "nearest" });
   }, [entries, location.pathname, activeKind]);
 
+  const plannedAnalyses = planReferencedAnalyses(entries ?? []);
   const visibleEntries =
-    entries && hideCompleted ? entries.filter((e) => !isDoneStatus(e.status)) : entries;
+    entries && hideCompleted ? entries.filter((entry) => statusDot(entry, plannedAnalyses)) : entries;
   const groups = visibleEntries
     ? groupByKind(visibleEntries).map((group) => ({
         kind: group.kind,
         entries: sortEntries(group.entries, sortKey),
       }))
     : [];
-  const plannedAnalyses = planReferencedAnalyses(entries ?? []);
 
   return (
     <aside className="panel panel--tree" aria-label="Corpus tree">
