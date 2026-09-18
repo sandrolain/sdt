@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api";
+import { KIND_ORDER } from "./kinds";
 import { groupByKind, sortEntries } from "./treeSort";
 
 function entry(patch: Partial<TreeEntry>): TreeEntry {
@@ -25,14 +26,24 @@ const ENTRIES: TreeEntry[] = [
 ];
 
 describe("groupByKind", () => {
-  it("groups by kind in KIND_ORDER with canvas last", () => {
+  it("returns every known kind folder in KIND_ORDER, canvas last", () => {
     const groups = groupByKind([
       entry({ path: "context/board.canvas", canvas: true }),
       entry({ path: "context/notes/a.md", kind: "notes" }),
       entry({ path: "context/wiki/b.md", kind: "wiki" }),
     ]);
-    expect(groups.map((g) => g.kind)).toEqual(["wiki", "notes", "canvas"]);
-    expect(groups[1].entries).toHaveLength(1);
+    const expected = [...KIND_ORDER, "canvas"];
+    expect(groups.map((g) => g.kind)).toEqual(expected);
+    // empty folders are present with zero entries
+    expect(groups.find((g) => g.kind === "questions")?.entries).toHaveLength(0);
+    expect(groups.find((g) => g.kind === "commands")?.entries).toHaveLength(0);
+    expect(groups.find((g) => g.kind === "wiki")?.entries).toHaveLength(1);
+    expect(groups.find((g) => g.kind === "canvas")?.entries).toHaveLength(1);
+  });
+
+  it("omits the canvas group when no canvas entries exist", () => {
+    const groups = groupByKind([entry({ path: "context/notes/a.md", kind: "notes" })]);
+    expect(groups.map((g) => g.kind)).toEqual(KIND_ORDER);
   });
 });
 

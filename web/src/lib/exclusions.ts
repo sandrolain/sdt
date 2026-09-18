@@ -1,5 +1,6 @@
-/** Corpus paths excluded from tree/viewer/search (mirrors internal/corpus). */
-const EXCLUDED_DIRS = new Set(["tmp", "scripts", "refs", "commands", "instructions", "sdtdocs"]);
+/** Corpus paths excluded from tree/viewer/search (mirrors internal/corpus).
+ *  commands/ is corpus content; tmp/scripts/refs/instructions/sdtdocs stay out. */
+const EXCLUDED_DIRS = new Set(["tmp", "scripts", "refs", "instructions", "sdtdocs"]);
 
 /** Collapse `.`/`..` and normalize separators to a slash-separated relative path. */
 export function normalizeCorpusPath(rel: string): string {

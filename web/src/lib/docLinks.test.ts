@@ -21,10 +21,10 @@ describe("resolveDocLink", () => {
   });
 
   it("marks excluded targets name-only", () => {
-    const link = resolveDocLink("context/commands/index.md", "context/x.md");
+    const link = resolveDocLink("context/instructions/plan.md", "context/x.md");
     expect(link.href).toBeUndefined();
     expect(link.excluded).toBe(true);
-    expect(link.label).toBe("Index");
+    expect(link.label).toBe("Plan");
   });
 
   it("resolves wikilinks through the index", () => {

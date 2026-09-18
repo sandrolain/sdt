@@ -66,9 +66,10 @@ describe("DocMetaPanel", () => {
     expect(link.getAttribute("href")).toBe("/docs/context/analysis/a.md");
     // kind glyph + colour from the corpus path fallback
     expect(screen.getAllByLabelText("kind: analysis").length).toBeGreaterThan(0);
-    const excluded = screen.getAllByText("C")[0];
-    expect(excluded.getAttribute("href")).toBeNull();
-    expect(excluded.getAttribute("title")).toBe("Excluded from the corpus");
+    // sources under context/commands resolve as real corpus links (kind commands)
+    const cmd = screen.getAllByText("C")[0];
+    expect(cmd.getAttribute("href")).toBe("/docs/context/commands/c.md");
+    expect(cmd.getAttribute("title")).toBeNull();
     // each meta card carries an open/collapsed chevron
     const chevrons = document.querySelectorAll(".meta-card__chevron");
     expect(chevrons.length).toBe(document.querySelectorAll(".meta-card").length);
@@ -138,6 +139,46 @@ describe("DocMetaPanel", () => {
     mockFetch();
     renderPanel({ path: "context/notes/x.md", frontmatter: "", markdown: "body" });
     expect(screen.getByText("No frontmatter.")).toBeTruthy();
+  });
+
+  it("renders the status dot row for plans/tasks from the corpus index", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree") {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              entries: [
+                {
+                  path: "context/plan/p.md",
+                  kind: "plan",
+                  title: "P",
+                  status: "completed",
+                },
+              ],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderPanel({
+      path: "context/plan/p.md",
+      frontmatter: "---\nkind: plan\nstatus: completed\n---\n",
+      markdown: "body",
+    });
+    expect(await screen.findByText("Plan executed")).toBeTruthy();
+    expect(screen.getAllByText("Status").length).toBeGreaterThan(0);
+    expect(document.querySelector(".meta-status__dot--ok")).toBeTruthy();
+  });
+
+  it("omits the status row for kinds without a tree status", () => {
+    mockFetch();
+    renderPanel({
+      path: "context/notes/x.md",
+      frontmatter: "---\nkind: notes\n---\n",
+      markdown: "body",
+    });
+    expect(document.querySelector(".meta-status")).toBeNull();
   });
 
   it("renders the relations card for a wiki page", async () => {

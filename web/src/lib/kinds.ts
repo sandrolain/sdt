@@ -11,6 +11,7 @@ export type EntryKind =
   | "questions"
   | "proposal"
   | "prompt"
+  | "commands"
   | "research"
   | "architecture"
   | "other";
@@ -29,6 +30,7 @@ export const KIND_ORDER: EntryKind[] = [
   "architecture",
   "proposal",
   "prompt",
+  "commands",
   "research",
   "other",
 ];
@@ -66,6 +68,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
   proposal: "description",
   research: "travel_explore",
   prompt: "terminal",
+  commands: "bolt",
   architecture: "account_tree",
   other: "description",
   canvas: "dashboard",
@@ -84,6 +87,7 @@ const KIND_COLORS: Record<EntryFilterKind, string> = {
   proposal: "var(--ctp-sapphire)",
   research: "var(--ctp-pink)",
   prompt: "var(--ctp-teal)",
+  commands: "var(--ctp-maroon)",
   architecture: "var(--ctp-lavender)",
   other: "var(--ctp-overlay0)",
   canvas: "var(--ctp-teal)",
@@ -103,6 +107,7 @@ const FOLDER_KINDS: Record<string, EntryKind> = {
   decisions: "decision",
   proposals: "proposal",
   prompts: "prompt",
+  commands: "commands",
 };
 
 /** Best-effort kind from a corpus path alone (`context/<folder>/…`). */

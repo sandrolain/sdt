@@ -7,6 +7,7 @@ import {
   resetCorpusIndexCache,
   type CorpusIndex,
 } from "./corpusIndex";
+import type { TreeEntry } from "./api";
 import { kindFromPath } from "./kinds";
 
 afterEach(() => {
@@ -38,13 +39,17 @@ describe("loadCorpusIndex", () => {
     ) as unknown as typeof fetch;
   }
 
-  it("builds a path → kind map and caches it", async () => {
+  it("builds a path → entry map and caches it", async () => {
     mockTree([
       { path: "context/plan/p.md", kind: "plan", title: "Plan" },
-      { path: "context/board.canvas", canvas: true },
+      { path: "context/board.canvas", kind: "canvas", canvas: true },
     ]);
     const index = await loadCorpusIndex();
-    expect(index.get("context/plan/p.md")).toEqual({ kind: "plan", title: "Plan" });
+    expect(index.get("context/plan/p.md")).toEqual({
+      entry: { path: "context/plan/p.md", kind: "plan", title: "Plan" },
+      kind: "plan",
+    });
+    expect(index.get("context/board.canvas")?.entry.kind).toBe("canvas");
     expect(index.get("context/board.canvas")?.kind).toBe("canvas");
     await loadCorpusIndex();
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
@@ -62,7 +67,12 @@ describe("loadCorpusIndex", () => {
 
 describe("linkKind", () => {
   it("prefers the index kind and falls back to the folder", () => {
-    const index: CorpusIndex = new Map([["context/wiki/x.md", { kind: "wiki" }]]);
+    const index: CorpusIndex = new Map([
+      [
+        "context/wiki/x.md",
+        { entry: { path: "context/wiki/x.md", kind: "wiki" } as TreeEntry, kind: "wiki" },
+      ],
+    ]);
     expect(linkKind("/wiki/x", index)).toBe("wiki");
     expect(linkKind("/docs/context/notes/y.md", index)).toBe("notes");
     expect(linkKind("https://example.com", index)).toBeUndefined();

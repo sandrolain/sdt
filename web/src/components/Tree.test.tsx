@@ -42,9 +42,11 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     expect(await screen.findByText("Alpha")).toBeTruthy();
-    // folder headers (also present as entry kind badges, hence *AllBy*)
+    // folder headers carry the kind label (no per-entry badges anymore)
     expect(screen.getAllByText("wiki").length).toBeGreaterThan(0);
     expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
+    // per-entry kind badges are gone from the rows
+    expect(document.querySelector(".tree-entry__kind")).toBeNull();
     // folder counts live in the folder header
     const headers = Array.from(document.querySelectorAll(".tree-folder__header"));
     const countFor = (kind: string) =>
@@ -53,6 +55,10 @@ describe("Tree", () => {
         ?.querySelector(".tree-folder__count")?.textContent;
     expect(countFor("wiki")).toBe("3");
     expect(countFor("notes")).toBe("1");
+    // empty kind folders render at count 0 (questions/proposals/research/…)
+    expect(countFor("questions")).toBe("0");
+    expect(countFor("proposals")).toBe("0");
+    expect(countFor("commands")).toBe("0");
   });
 
   it("shows status dots for plans, tasks and unplanned analyses", async () => {

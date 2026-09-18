@@ -15,7 +15,6 @@ describe("isExcludedPath", () => {
       "context/tmp/x.md",
       "context/scripts/a.go",
       "context/refs/repo/a.md",
-      "context/commands/index.md",
       "context/instructions/plan.md",
       "context/sdtdocs/README.md",
     ]) {
@@ -29,7 +28,12 @@ describe("isExcludedPath", () => {
   });
 
   it("keeps ordinary paths", () => {
-    for (const p of ["context/wiki/topic.md", "context/wiki/commands.md", "context/plan/x.md"]) {
+    for (const p of [
+      "context/wiki/topic.md",
+      "context/wiki/commands.md",
+      "context/commands/index.md",
+      "context/plan/x.md",
+    ]) {
       expect(isExcludedPath(p)).toBe(false);
     }
   });

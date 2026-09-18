@@ -140,11 +140,6 @@ export function Tree() {
                             <Icon name={MAP_ICON} label="Map document" />
                           </span>
                         )}
-                        <span
-                          className={`tree-entry__kind${entry.canvas ? " tree-entry__kind--canvas" : ""}`}
-                        >
-                          {entry.canvas ? "canvas" : (entry.kind ?? "md")}
-                        </span>
                       </NavLink>
                     </li>
                   );

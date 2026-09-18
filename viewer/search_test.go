@@ -26,8 +26,8 @@ func TestSearchHandlerRanked(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Total != 3 {
-		t.Errorf("total = %d, want 3", out.Total)
+	if out.Total != 4 {
+		t.Errorf("total = %d, want 4", out.Total)
 	}
 	has := map[string]bool{}
 	for _, r := range out.Results {
@@ -36,7 +36,7 @@ func TestSearchHandlerRanked(t *testing.T) {
 			t.Errorf("empty snippet for %s", r.Path)
 		}
 	}
-	for _, p := range []string{"context/wiki/model.md", "context/wiki/api.md", "context/notes/note.md"} {
+	for _, p := range []string{"context/wiki/model.md", "context/wiki/api.md", "context/notes/note.md", "context/commands/cmd.md"} {
 		if !has[p] {
 			t.Errorf("missing %s in %v", p, has)
 		}

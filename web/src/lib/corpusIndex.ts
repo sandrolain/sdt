@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { fetchTree } from "./api";
+import { fetchTree, type TreeEntry } from "./api";
 import { entryKind, kindFromPath, type EntryFilterKind } from "./kinds";
 
-/** Kind + title for one corpus path, derived from `/api/tree`. */
+/** Full tree entry (plus derived kind) for one corpus path, from `/api/tree`. */
 export interface CorpusInfo {
+  entry: TreeEntry;
   kind: EntryFilterKind;
-  title?: string;
 }
 
 export type CorpusIndex = Map<string, CorpusInfo>;
@@ -24,7 +24,7 @@ export function loadCorpusIndex(): Promise<CorpusIndex> {
       .then((res) => {
         const map: CorpusIndex = new Map();
         for (const entry of res.entries ?? []) {
-          map.set(entry.path, { kind: entryKind(entry), title: entry.title });
+          map.set(entry.path, { entry, kind: entryKind(entry) });
         }
         return map;
       })

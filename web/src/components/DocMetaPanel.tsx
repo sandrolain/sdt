@@ -12,6 +12,7 @@ import { collectBodyLinks, collectMetaLinks, resolveDocLink, type DocLink } from
 import { imageUrl } from "../lib/images";
 import { kindColor, kindIcon, type EntryFilterKind } from "../lib/kinds";
 import { linkKind, loadCorpusIndex, type CorpusIndex } from "../lib/corpusIndex";
+import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
 import { parseOutline, type OutlineItem } from "../lib/outline";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import { useReloadToken } from "../lib/useReloadToken";
@@ -87,6 +88,18 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
     ];
   }, [markdownDoc, fields, index]);
 
+  // status dot for the current doc, matching the tree indicator (plans/tasks/
+  // analyses); needs the plan-referenced set from the full corpus index.
+  const status = useMemo(() => {
+    const treeEntry = doc ? corpus?.get(doc.path)?.entry : undefined;
+    if (!treeEntry || !corpus) return undefined;
+    if (treeEntry.kind !== "plan" && treeEntry.kind !== "tasks" && treeEntry.kind !== "analysis") {
+      return undefined;
+    }
+    const plannedAnalyses = planReferencedAnalyses([...corpus.values()].map((c) => c.entry));
+    return statusDot(treeEntry, plannedAnalyses) ?? undefined;
+  }, [doc, corpus]);
+
   if (!doc) return null;
 
   return (
@@ -94,6 +107,15 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
       <Breadcrumbs path={doc.path} />
 
       <MetaCard title="Metadata" icon="info">
+        {status && (
+          <div className="meta-status" role="listitem">
+            <span
+              className={`meta-status__dot meta-status__dot--${status.tone}`}
+              aria-hidden="true"
+            />
+            <span className="meta-status__label">{status.label}</span>
+          </div>
+        )}
         {isCanvas(doc) ? (
           <CanvasMeta canvas={doc.canvas} />
         ) : fields.length === 0 ? (

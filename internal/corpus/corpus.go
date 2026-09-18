@@ -14,13 +14,13 @@ const ContextDir = "context"
 
 // excludedDirs are corpus subdirectory names never served, indexed or watched.
 // tmp/ and scripts/ are working noise; refs/ is the large external clone;
-// commands/ and instructions/ are agent plumbing; sdtdocs/ is the generated
-// per-command reference.
+// instructions/ is agent plumbing; sdtdocs/ is the generated per-command
+// reference. commands/ is corpus content (command-trigger documents) and is
+// intentionally NOT excluded.
 var excludedDirs = map[string]struct{}{
 	"tmp":          {},
 	"scripts":      {},
 	"refs":         {},
-	"commands":     {},
 	"instructions": {},
 	"sdtdocs":      {},
 }

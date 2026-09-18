@@ -421,7 +421,6 @@ func TestTreeOutput(t *testing.T) {
 		"context/tmp/scratch.md",
 		"context/scripts/behind.md",
 		"context/refs/clone.md",
-		"context/commands/ingest.md",
 		"context/instructions/project.md",
 		"context/sdtdocs/README.md",
 		"context/README.md",
@@ -434,9 +433,32 @@ func TestTreeOutput(t *testing.T) {
 	if _, ok := byPath["../outside.md"]; ok {
 		t.Errorf("outside-corpus path present: ../outside.md")
 	}
-	if len(out.Entries) != 7 {
-		t.Errorf("expected 7 entries, got %d: %v", len(out.Entries), out.Entries)
+	if len(out.Entries) != 8 {
+		t.Errorf("expected 8 entries, got %d: %v", len(out.Entries), out.Entries)
 	}
+}
+
+// TestTreeCommandsEntry checks that context/commands is corpus content.
+func TestTreeCommandsEntry(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Entries []treeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range out.Entries {
+		if e.Path == "context/commands/ingest.md" {
+			return
+		}
+	}
+	t.Error("commands entry missing: context/commands/ingest.md")
 }
 
 // TestTreeLegacyCreatedAt checks the `created_at` fallback for pre-rename docs.
@@ -568,7 +590,6 @@ func TestDocExcludedCorpus(t *testing.T) {
 	root := makeCorpus(t)
 	h, _ := newHandler(root)
 	for _, path := range []string{
-		"context/commands/ingest.md",
 		"context/instructions/project.md",
 		"context/sdtdocs/README.md",
 		"context/README.md",
@@ -579,6 +600,15 @@ func TestDocExcludedCorpus(t *testing.T) {
 		h.ServeHTTP(rec, req)
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("path %q: status = %d, body = %s", path, rec.Code, rec.Body.String())
+		}
+	}
+	// commands are corpus content and must be servable now.
+	for _, path := range []string{"context/commands/ingest.md"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape(path), nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("path %q: status = %d, want 200", path, rec.Code)
 		}
 	}
 }

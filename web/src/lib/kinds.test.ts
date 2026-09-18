@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api";
-import { availableKinds, entryKind, kindLabel } from "./kinds";
+import { availableKinds, entryKind, kindFromPath, kindLabel } from "./kinds";
 
 function entry(patch: Partial<TreeEntry>): TreeEntry {
   return { path: "context/x/a.md", ...patch };
@@ -28,6 +28,21 @@ describe("entryKind", () => {
 
   it("uses the decision kind for decision records", () => {
     expect(entryKind(entry({ kind: "decision" }))).toBe("decision");
+  });
+
+  it("uses the commands kind for command-trigger files", () => {
+    expect(entryKind(entry({ kind: "commands" }))).toBe("commands");
+  });
+});
+
+describe("kindFromPath", () => {
+  it("maps corpus folders to kinds, including commands and plurals", () => {
+    expect(kindFromPath("context/commands/index.md")).toBe("commands");
+    expect(kindFromPath("context/proposals/p.md")).toBe("proposal");
+    expect(kindFromPath("context/questions/q.md")).toBe("questions");
+    expect(kindFromPath("context/research/r.md")).toBe("research");
+    expect(kindFromPath("context/wiki/a.md")).toBe("wiki");
+    expect(kindFromPath("context/unknown/x.md")).toBe("other");
   });
 });
 

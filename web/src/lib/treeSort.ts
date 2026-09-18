@@ -49,7 +49,9 @@ export function sortEntries(entries: TreeEntry[], key: TreeSortKey, dir: TreeDir
   return [...sorted.filter((e) => sortValue(e, key) !== "").reverse(), ...empty];
 }
 
-/** Group entries into kind folders, ordered by KIND_ORDER with canvas last. */
+/** Group entries into kind folders, ordered by KIND_ORDER with canvas last.
+ *  Every known kind is returned (empty groups allowed, count 0); the canvas
+ *  group appears only when the corpus actually contains .canvas files. */
 export function groupByKind(entries: TreeEntry[]): TreeGroup[] {
   const map = new Map<EntryFilterKind, TreeEntry[]>();
   for (const entry of entries) {
@@ -58,8 +60,8 @@ export function groupByKind(entries: TreeEntry[]): TreeGroup[] {
     if (bucket) bucket.push(entry);
     else map.set(kind, [entry]);
   }
-  const order: EntryFilterKind[] = [...KIND_ORDER, "canvas"];
-  return order
-    .filter((kind) => map.has(kind))
-    .map((kind) => ({ kind, entries: map.get(kind) ?? [] }));
+  return [
+    ...KIND_ORDER.map((kind) => ({ kind, entries: map.get(kind) ?? [] })),
+    ...(map.has("canvas") ? [{ kind: "canvas" as const, entries: map.get("canvas") ?? [] }] : []),
+  ];
 }

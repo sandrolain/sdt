@@ -23,13 +23,26 @@ describe("viewer styles", () => {
     expect(block(".tree-entry:hover")).not.toContain("color-mix");
   });
 
+  it("truncates tree entry titles and drops the per-entry kind badge", () => {
+    const title = block(".tree-entry__title");
+    expect(title).toContain("text-overflow: ellipsis");
+    expect(title).toContain("white-space: nowrap");
+    // kind identity lives in the folder header; the badge rules are removed
+    expect(css.indexOf(".tree-entry__kind {")).toBe(-1);
+    expect(css.indexOf(".tree-entry__kind--canvas")).toBe(-1);
+  });
+
   it("lets the meta panel and the path row shrink", () => {
     expect(block(".panel--meta")).toContain("min-width: 0");
     expect(block(".panel--meta")).toContain("overflow-x: hidden");
     expect(block(".doc-path")).toContain("min-width: 0");
     const value = block(".doc-path__value");
     expect(value).toContain("min-width: 0");
-    expect(value).toContain("text-overflow: ellipsis");
+    // the path wraps instead of ellipsizing; no single-line nowrap
+    expect(value).toContain("overflow-wrap: anywhere");
+    expect(value).toContain("white-space: normal");
+    expect(value).not.toContain("white-space: nowrap");
+    expect(value).not.toContain("text-overflow: ellipsis");
     // the RTL trick reported a large min-content width and blocked shrinking
     expect(value).not.toContain("direction: rtl");
     expect(block(".meta-row")).toContain("minmax(0, 1fr)");

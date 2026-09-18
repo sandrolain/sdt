@@ -3,12 +3,12 @@ package corpus
 import "testing"
 
 func TestExcludedDirName(t *testing.T) {
-	for _, name := range []string{"tmp", "scripts", "refs", "commands", "instructions", "sdtdocs"} {
+	for _, name := range []string{"tmp", "scripts", "refs", "instructions", "sdtdocs"} {
 		if !ExcludedDirName(name) {
 			t.Errorf("ExcludedDirName(%q) = false, want true", name)
 		}
 	}
-	for _, name := range []string{"wiki", "plan", "notes", "commandsx", "Tmp"} {
+	for _, name := range []string{"wiki", "plan", "notes", "commands", "commandsx", "Tmp"} {
 		if ExcludedDirName(name) {
 			t.Errorf("ExcludedDirName(%q) = true, want false", name)
 		}
@@ -23,7 +23,6 @@ func TestExcludedPath(t *testing.T) {
 		{"context/tmp/x.md", true},
 		{"context/scripts/a.go", true},
 		{"context/refs/repo/readme.md", true},
-		{"context/commands/index.md", true},
 		{"context/instructions/plan.md", true},
 		{"context/sdtdocs/sdt_context_docs.md", true},
 		{"context/README.md", true},
@@ -34,6 +33,8 @@ func TestExcludedPath(t *testing.T) {
 		{"context/plan/20260915-x.md", false},
 		{"context/notes/refs.md", false},
 		{"context/instructions.md", false},
+		{"context/commands/index.md", false},
+		{"context/commands/ingestion.md", false},
 	}
 	for _, c := range cases {
 		if got := ExcludedPath(c.rel); got != c.want {
