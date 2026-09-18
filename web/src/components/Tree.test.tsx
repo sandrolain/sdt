@@ -4,8 +4,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Tree } from "./Tree";
-import { TreeSortControls } from "./TreeSortControls";
 import { resetTreeSort } from "../lib/treeSortStore";
+import { resetTreeFilter, toggleHideCompleted } from "../lib/treeFilterStore";
 
 const TREE = {
   entries: [
@@ -23,7 +23,6 @@ const TREE = {
 function renderTree() {
   render(
     <MemoryRouter>
-      <TreeSortControls />
       <Tree />
     </MemoryRouter>,
   );
@@ -32,6 +31,7 @@ function renderTree() {
 afterEach(() => {
   cleanup();
   resetTreeSort();
+  resetTreeFilter();
   vi.restoreAllMocks();
 });
 
@@ -124,6 +124,37 @@ describe("Tree", () => {
     await screen.findByText("Topic map");
     expect(screen.getByRole("img", { name: "Map document" })).toBeTruthy();
     expect(document.querySelector(".tree-entry__kind--map")).toBeNull();
+  });
+
+  it("hides completed entries when the not-completed filter is on", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/plan/done.md",
+                kind: "plan",
+                title: "Done plan",
+                status: "completed",
+              },
+              {
+                path: "context/tasks/wip.md",
+                kind: "tasks",
+                title: "Wip task",
+                status: "in-progress",
+              },
+              { path: "context/notes/n.md", kind: "notes", title: "Note" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    toggleHideCompleted();
+    renderTree();
+    expect(await screen.findByText("Wip task")).toBeTruthy();
+    expect(screen.getByText("Note")).toBeTruthy();
+    expect(screen.queryByText("Done plan")).toBeNull();
   });
 
   it("shows a thumbnail for entries with a frontmatter image", async () => {

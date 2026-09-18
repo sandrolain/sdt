@@ -473,6 +473,18 @@
     background: var(--bg-rise);
     color: var(--fg);
   }
+  .tree-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    background: var(--bg-mantle);
+    border-bottom: 1px solid var(--border);
+  }
   .doc-tab-actions {
     display: flex;
     align-items: center;
@@ -504,6 +516,9 @@
   }
   .panel--tree {
     border-right: 1px solid var(--border);
+    /* let the edge group shrink below its content's min-content width */
+    min-width: 0;
+    overflow-x: hidden;
   }
 
   .panel-header {
@@ -551,11 +566,6 @@
   .tree-sort-dir:hover {
     background: var(--bg-hover);
     color: var(--fg);
-  }
-  .fallback-tree-header {
-    display: flex;
-    justify-content: flex-end;
-    padding: 0.35rem 0.5rem;
   }
   /* react-aria Tooltip surface */
   .ui-tooltip {

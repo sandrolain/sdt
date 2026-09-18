@@ -3,6 +3,9 @@
 const VERSION = 5;
 const PREFIX = "sdt-layout:";
 
+/** Layout id for the documents workspace. */
+export const WORKSPACE_STORAGE_KEY = "workspace";
+
 interface StoredLayout {
   version: number;
   layout: unknown;

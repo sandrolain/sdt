@@ -8,7 +8,13 @@ import {
   type IDockviewPanel,
 } from "dockview-react";
 import { useOpenDocs } from "../lib/openDocsContext";
-import { clearLayout, loadLayout, resetLayout, saveLayout } from "../lib/layoutStore";
+import {
+  clearLayout,
+  loadLayout,
+  resetLayout,
+  saveLayout,
+  WORKSPACE_STORAGE_KEY,
+} from "../lib/layoutStore";
 import {
   addSidePanels,
   COURTESY_PANEL_ID,
@@ -25,11 +31,9 @@ import { DocDetail } from "./DocDetail";
 import { DocMetaPanel } from "./DocMetaPanel";
 import { WorkspaceTab } from "./WorkspaceTab";
 import { DocTabHeader } from "./DocTabHeader";
-import { TreeSortControls } from "./TreeSortControls";
 import { TooltipButton } from "./ui/Tooltip";
 import { kindColor, kindFromPath, kindIcon } from "../lib/kinds";
 
-const STORAGE_KEY = "workspace";
 const DOC_PREFIX = DOC_PANEL_PREFIX;
 const COURTESY_ID = COURTESY_PANEL_ID;
 const docPanelId = (path: string) => `${DOC_PREFIX}${path}`;
@@ -41,7 +45,7 @@ const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
 const components: Record<string, (props: IDockviewPanelProps) => ReactNode> = {
   tree: () => (
     <div className="dock-content">
-      <Tree />
+      <Tree onResetLayout={() => resetLayout(WORKSPACE_STORAGE_KEY)} />
     </div>
   ),
   doc: (props: IDockviewPanelProps) => <DocTab path={String(props.params?.["path"] ?? "")} />,
@@ -74,47 +78,21 @@ function MetaTab() {
   return <DocMetaPanel doc={doc} />;
 }
 
-/** Header actions: close-all on document tabs, collapse/reset on the side panels. */
-function DocHeaderActions({ group, api }: IDockviewHeaderActionsProps) {
+/** Header actions: close-all on document tabs. */
+function DocHeaderActions({ group }: IDockviewHeaderActionsProps) {
   const { closeAll } = useOpenDocs();
   const hasDocs = group.panels.some((p) => p.id.startsWith(DOC_PREFIX));
-  const hasTree = group.panels.some((p) => p.id === "tree");
-  const hasSide = group.panels.some((p) => p.id === "tree" || p.id === "meta");
-  if (!hasDocs && !hasSide) return null;
-  const collapsed = hasSide && api.isCollapsed();
+  if (!hasDocs) return null;
   return (
     <div className="doc-tab-actions">
-      {hasTree && <TreeSortControls />}
-      {hasSide && (
-        <>
-          <TooltipButton
-            className="doc-tab-actions__button"
-            label={collapsed ? "Expand panel" : "Collapse panel"}
-            tooltip={collapsed ? "Expand panel" : "Collapse panel"}
-            onPress={() => (collapsed ? api.expand() : api.collapse())}
-          >
-            <Icon name={collapsed ? "chevron_right" : "chevron_left"} />
-          </TooltipButton>
-          <TooltipButton
-            className="doc-tab-actions__button"
-            label="Reset layout"
-            tooltip="Reset layout"
-            onPress={() => resetLayout(STORAGE_KEY)}
-          >
-            <Icon name="restart_alt" />
-          </TooltipButton>
-        </>
-      )}
-      {hasDocs && (
-        <TooltipButton
-          className="doc-tab-actions__button"
-          label="Close all documents"
-          tooltip="Close all documents"
-          onPress={closeAll}
-        >
-          <Icon name="close" />
-        </TooltipButton>
-      )}
+      <TooltipButton
+        className="doc-tab-actions__button"
+        label="Close all documents"
+        tooltip="Close all documents"
+        onPress={closeAll}
+      >
+        <Icon name="close" />
+      </TooltipButton>
     </div>
   );
 }
@@ -131,12 +109,12 @@ export function DocsWorkspace() {
       const api = event.api;
       apiRef.current = api;
 
-      const stored = loadLayout(STORAGE_KEY);
+      const stored = loadLayout(WORKSPACE_STORAGE_KEY);
       if (stored) {
         try {
           api.fromJSON(stored as never);
         } catch {
-          clearLayout(STORAGE_KEY);
+          clearLayout(WORKSPACE_STORAGE_KEY);
         }
       }
       // always ensure the side panels exist: recovers layouts persisted by
@@ -150,7 +128,7 @@ export function DocsWorkspace() {
       api.onDidRemovePanel((panel: IDockviewPanel) => {
         if (panel.id.startsWith(DOC_PREFIX)) close(panel.id.slice(DOC_PREFIX.length));
       });
-      api.onDidLayoutChange(() => saveLayout(STORAGE_KEY, api.toJSON()));
+      api.onDidLayoutChange(() => saveLayout(WORKSPACE_STORAGE_KEY, api.toJSON()));
       setReady(true);
     },
     [activate, close],
@@ -227,9 +205,6 @@ function FallbackWorkspace() {
   return (
     <div className="dock-layout dock-layout--fallback" data-testid="docs-workspace">
       <section className="dock-content" aria-label="Tree">
-        <div className="fallback-tree-header">
-          <TreeSortControls />
-        </div>
         <Tree />
       </section>
       <section className="dock-content doc-tab" aria-label="Document">

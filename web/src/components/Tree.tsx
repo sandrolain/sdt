@@ -6,17 +6,20 @@ import { MAP_ICON } from "../lib/documentModes";
 import { imageUrl } from "../lib/images";
 import { Icon } from "../lib/icon";
 import { SkeletonLines } from "./Skeleton";
+import { TreeToolbar } from "./TreeToolbar";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { formatFieldDate } from "../lib/frontmatter";
 import { groupByKind, sortEntries } from "../lib/treeSort";
 import { useTreeSort } from "../lib/treeSortStore";
-import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
+import { planReferencedAnalyses, statusDot, isDoneStatus } from "../lib/statusDot";
+import { useTreeFilter } from "../lib/treeFilterStore";
 import { useReloadToken } from "../lib/useReloadToken";
 
-export function Tree() {
+export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { key: sortKey, dir } = useTreeSort();
+  const { hideCompleted } = useTreeFilter();
   const [openKinds, setOpenKinds] = useState<Set<EntryFilterKind>>(() => new Set());
   const reloadToken = useReloadToken();
   const location = useLocation();
@@ -51,8 +54,10 @@ export function Tree() {
       ?.scrollIntoView({ block: "nearest" });
   }, [entries, location.pathname, activeKind]);
 
-  const groups = entries
-    ? groupByKind(entries).map((group) => ({
+  const visibleEntries =
+    entries && hideCompleted ? entries.filter((e) => !isDoneStatus(e.status)) : entries;
+  const groups = visibleEntries
+    ? groupByKind(visibleEntries).map((group) => ({
         kind: group.kind,
         entries: sortEntries(group.entries, sortKey, dir),
       }))
@@ -61,6 +66,7 @@ export function Tree() {
 
   return (
     <aside className="panel panel--tree" aria-label="Corpus tree">
+      <TreeToolbar onResetLayout={onResetLayout} />
       {error ? (
         <p className="content__empty">Tree error: {error}</p>
       ) : !entries ? (

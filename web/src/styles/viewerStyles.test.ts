@@ -32,6 +32,11 @@ describe("viewer styles", () => {
     expect(css.indexOf(".tree-entry__kind--canvas")).toBe(-1);
   });
 
+  it("lets the tree panel shrink below its content min-width", () => {
+    expect(block(".panel--tree")).toContain("min-width: 0");
+    expect(block(".panel--tree")).toContain("overflow-x: hidden");
+  });
+
   it("lets the meta panel and the path row shrink", () => {
     expect(block(".panel--meta")).toContain("min-width: 0");
     expect(block(".panel--meta")).toContain("overflow-x: hidden");
@@ -67,5 +72,12 @@ describe("viewer styles", () => {
     const actions = block(".doc-tab-actions");
     expect(actions).toContain("height: 100%");
     expect(actions).toContain("align-items: center");
+  });
+
+  it("sticks the tree toolbar above the folders", () => {
+    const toolbar = block(".tree-toolbar");
+    expect(toolbar).toContain("position: sticky");
+    expect(toolbar).toContain("top: 0");
+    expect(toolbar).toContain("flex-wrap: wrap");
   });
 });

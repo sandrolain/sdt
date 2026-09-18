@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api";
-import { planReferencedAnalyses, statusDot } from "./statusDot";
+import { isDoneStatus, planReferencedAnalyses, statusDot } from "./statusDot";
 
 function entry(patch: Partial<TreeEntry>): TreeEntry {
   return { path: "context/plan/x.md", kind: "plan", ...patch };
@@ -37,6 +37,28 @@ describe("statusDot", () => {
   it("has no dot for other kinds", () => {
     expect(statusDot(entry({ kind: "wiki" }), new Set())).toBeNull();
     expect(statusDot(entry({ kind: "notes" }), new Set())).toBeNull();
+  });
+});
+
+describe("isDoneStatus", () => {
+  it("matches the done vocabulary case-insensitively", () => {
+    for (const v of [
+      "completed",
+      "complete",
+      "done",
+      "executed",
+      "archived",
+      "Completed",
+      " DONE ",
+    ]) {
+      expect(isDoneStatus(v)).toBe(true);
+    }
+  });
+
+  it("is false for active/in-progress and absent statuses", () => {
+    for (const v of ["active", "in-progress", "wip", "pending", "", undefined]) {
+      expect(isDoneStatus(v)).toBe(false);
+    }
   });
 });
 

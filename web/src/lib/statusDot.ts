@@ -11,6 +11,12 @@ export interface StatusDot {
 const IN_PROGRESS = new Set(["in-progress", "in_progress", "wip", "progress", "doing"]);
 const DONE = new Set(["completed", "complete", "done", "executed", "archived"]);
 
+/** True when a frontmatter `status` value is a "done" state (completed/archived). */
+export function isDoneStatus(status?: string): boolean {
+  if (!status) return false;
+  return DONE.has(status.trim().toLowerCase());
+}
+
 /** Corpus-relative path of a frontmatter reference, normalised to `context/...md`. */
 function normalizeRef(ref: string): string {
   const clean = ref.trim().replace(/^\.\//, "").replace(/^\/+/, "");
@@ -37,7 +43,7 @@ export function statusDot(entry: TreeEntry, plannedAnalyses: Set<string>): Statu
   const status = (entry.status ?? "").trim().toLowerCase();
   if (entry.kind === "plan" || entry.kind === "tasks") {
     if (status === "") return null; // unknown state → no indicator
-    if (DONE.has(status)) {
+    if (isDoneStatus(status)) {
       return entry.kind === "plan"
         ? { tone: "ok", label: "Plan executed" }
         : { tone: "ok", label: "Task executed" };
