@@ -4,10 +4,9 @@ import type { TreeDir, TreeSortKey } from "./treeSort";
 /** Tree sort selection, shared between the list and the tab-bar controls. */
 export interface TreeSortState {
   key: TreeSortKey;
-  dir: TreeDir;
 }
 
-const DEFAULT: TreeSortState = { key: "created", dir: "desc" };
+const DEFAULT: TreeSortState = { key: "created_desc" };
 
 let current: TreeSortState = DEFAULT;
 const listeners = new Set<() => void>();
@@ -20,16 +19,6 @@ export function setTreeSortKey(key: TreeSortKey): void {
   if (current.key === key) return;
   current = { ...current, key };
   emit();
-}
-
-export function setTreeSortDir(dir: TreeDir): void {
-  if (current.dir === dir) return;
-  current = { ...current, dir };
-  emit();
-}
-
-export function toggleTreeSortDir(): void {
-  setTreeSortDir(current.dir === "asc" ? "desc" : "asc");
 }
 
 export function resetTreeSort(): void {

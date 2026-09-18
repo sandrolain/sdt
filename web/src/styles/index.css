@@ -679,6 +679,9 @@
   .ui-select__item[data-selected] {
     color: var(--accent);
   }
+  .dv-content-container {
+    overflow: hidden;
+  }
   .tree-groups {
     display: flex;
     flex-direction: column;

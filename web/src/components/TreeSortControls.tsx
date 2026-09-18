@@ -1,6 +1,5 @@
-import { Icon } from "../lib/icon";
 import { TREE_SORTS, type TreeSortKey } from "../lib/treeSort";
-import { setTreeSortKey, toggleTreeSortDir, useTreeSort } from "../lib/treeSortStore";
+import { setTreeSortKey, useTreeSort } from "../lib/treeSortStore";
 import { Select } from "./ui/Select";
 
 /**
@@ -9,7 +8,7 @@ import { Select } from "./ui/Select";
  * fallback), so the tree panel itself stays list-only.
  */
 export function TreeSortControls() {
-  const { key, dir } = useTreeSort();
+  const { key } = useTreeSort();
   return (
     <div className="tree-sort-controls">
       <Select
@@ -19,15 +18,6 @@ export function TreeSortControls() {
         selectedKey={key}
         onSelectionChange={(next) => setTreeSortKey(String(next) as TreeSortKey)}
       />
-      <button
-        type="button"
-        className="tree-sort-dir"
-        aria-label={dir === "asc" ? "Sort ascending" : "Sort descending"}
-        title={dir === "asc" ? "Ascending" : "Descending"}
-        onClick={toggleTreeSortDir}
-      >
-        <Icon name={dir === "asc" ? "arrow_upward" : "arrow_downward"} />
-      </button>
     </div>
   );
 }

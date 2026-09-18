@@ -2,14 +2,18 @@ import type { TreeEntry } from "./api";
 import { KIND_ORDER, entryKind, type EntryFilterKind } from "./kinds";
 import { displayTitle } from "./titles";
 
-export type TreeSortKey = "name" | "title" | "created" | "modified";
+export type TreeSortKey = "name_asc" | "name_desc" | "title_asc" | "title_desc" | "created_asc" | "created_desc" | "modified_asc" | "modified_desc";
 export type TreeDir = "asc" | "desc";
 
 export const TREE_SORTS: { id: TreeSortKey; label: string }[] = [
-  { id: "name", label: "Name" },
-  { id: "title", label: "Title" },
-  { id: "created", label: "Created" },
-  { id: "modified", label: "Modified" },
+  { id: "name_asc", label: "Name ASC" },
+  { id: "name_desc", label: "Name DESC" },
+  { id: "title_asc", label: "Title ASC" },
+  { id: "title_desc", label: "Title DESC" },
+  { id: "created_asc", label: "Created ASC" },
+  { id: "created_desc", label: "Created DESC" },
+  { id: "modified_asc", label: "Modified ASC" },
+  { id: "modified_desc", label: "Modified DESC" },
 ];
 
 export interface TreeGroup {
@@ -21,20 +25,25 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "bas
 
 function sortValue(entry: TreeEntry, key: TreeSortKey): string {
   switch (key) {
-    case "name":
+    case "name_asc":
+    case "name_desc":
       return entry.path.split("/").filter(Boolean).pop() ?? entry.path;
-    case "title":
+    case "title_asc":
+    case "title_desc":
       return displayTitle({ title: entry.title, path: entry.path });
-    case "created":
+    case "created_asc":
+    case "created_desc":
       return entry.created ?? "";
-    case "modified":
+    case "modified_asc":
+    case "modified_desc":
       return entry.modified ?? "";
   }
 }
 
 /** Sort entries with locale-aware collation; dates compare ISO-lexicographically.
  *  Entries missing the sort field stay last in both directions. */
-export function sortEntries(entries: TreeEntry[], key: TreeSortKey, dir: TreeDir): TreeEntry[] {
+export function sortEntries(entries: TreeEntry[], key: TreeSortKey): TreeEntry[] {
+  const dir = key.endsWith("_asc") ? "asc" : "desc";
   const sorted = [...entries].sort((a, b) => {
     const av = sortValue(a, key);
     const bv = sortValue(b, key);

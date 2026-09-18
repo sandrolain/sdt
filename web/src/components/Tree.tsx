@@ -1,24 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
-import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
 import { MAP_ICON } from "../lib/documentModes";
-import { imageUrl } from "../lib/images";
-import { Icon } from "../lib/icon";
-import { SkeletonLines } from "./Skeleton";
-import { TreeToolbar } from "./TreeToolbar";
-import { displayTitle, filenameDate } from "../lib/titles";
 import { formatFieldDate } from "../lib/frontmatter";
+import { Icon } from "../lib/icon";
+import { imageUrl } from "../lib/images";
+import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
+import { isDoneStatus, planReferencedAnalyses, statusDot } from "../lib/statusDot";
+import { displayTitle, filenameDate } from "../lib/titles";
+import { useTreeFilter } from "../lib/treeFilterStore";
 import { groupByKind, sortEntries } from "../lib/treeSort";
 import { useTreeSort } from "../lib/treeSortStore";
-import { planReferencedAnalyses, statusDot, isDoneStatus } from "../lib/statusDot";
-import { useTreeFilter } from "../lib/treeFilterStore";
 import { useReloadToken } from "../lib/useReloadToken";
+import { SkeletonLines } from "./Skeleton";
+import { TreeToolbar } from "./TreeToolbar";
 
 export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { key: sortKey, dir } = useTreeSort();
+  const { key: sortKey } = useTreeSort();
   const { hideCompleted } = useTreeFilter();
   const [openKinds, setOpenKinds] = useState<Set<EntryFilterKind>>(() => new Set());
   const reloadToken = useReloadToken();
@@ -59,7 +59,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   const groups = visibleEntries
     ? groupByKind(visibleEntries).map((group) => ({
         kind: group.kind,
-        entries: sortEntries(group.entries, sortKey, dir),
+        entries: sortEntries(group.entries, sortKey),
       }))
     : [];
   const plannedAnalyses = planReferencedAnalyses(entries ?? []);

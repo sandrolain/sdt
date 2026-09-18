@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 // Baseline icon references for the shell (kept minimal).
-const apiOrigin = process.env.SDT_VIEWER_ORIGIN ?? "http://127.0.0.1:8080";
+const apiOrigin = process.env.SDT_VIEWER_ORIGIN ?? "http://localhost:8443";
 
 export default defineConfig({
   plugins: [react()],
