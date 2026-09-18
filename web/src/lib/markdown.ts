@@ -1,14 +1,14 @@
 import DOMPurify, { type Config } from "dompurify";
 import hljs from "highlight.js/lib/common";
 import { Marked, type Tokens } from "marked";
-import { docHref, resolveDocPath, rewriteWikiLinks, type WikiIndex } from "./wikiLinks";
 import markedFootnote from "marked-footnote";
-import { imageSrc } from "./images";
 import { parseCodeInfo, wrapHighlightedLines } from "./codeLines";
-import { mathExtensions } from "./mathExtension";
 import { deflistExtension } from "./deflistExtension";
 import { FEATURES } from "./features";
 import { stripLeadingH1 } from "./headings";
+import { imageSrc } from "./images";
+import { mathExtensions } from "./mathExtension";
+import { docHref, resolveDocPath, rewriteWikiLinks, type WikiIndex } from "./wikiLinks";
 
 /** Raw-HTML policy: conservative allowlist, everything else is dropped. */
 const SANITIZE_CONFIG: Config = {
@@ -100,7 +100,7 @@ export function highlightCode(code: string, lang?: string): string {
 
 function escapeHtml(s: string): string {
   return s
-    .replace(/&/g, "&amp;")
+    .replace(/&(amp;)?/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");

@@ -2,7 +2,7 @@ import { useEffect, type RefObject } from "react";
 import { clearActiveSection, setActiveSection } from "./activeSection";
 
 /** Fraction of the scroll viewport below which a heading becomes the active one. */
-const THRESHOLD = 0.33;
+const THRESHOLD = 0.10;
 
 /**
  * Publish the section currently in view for `path` while `active` is true.
@@ -21,16 +21,20 @@ export function useActiveHeading(
       return;
     }
     const root = container.current;
-    if (!root) return;
+    if (!root || !root.isConnected) return;
     const headings = Array.from(root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6"));
     if (headings.length === 0) return;
 
     const compute = () => {
       const limit = root.getBoundingClientRect().top + root.clientHeight * THRESHOLD;
       let current = headings[0];
+      let dist = Infinity;
       for (const heading of headings) {
-        if (heading.getBoundingClientRect().top <= limit) current = heading;
-        else break;
+        const actDist = Math.abs(heading.getBoundingClientRect().top - limit);
+        if (actDist < dist) {
+          current = heading;
+          dist = actDist;
+        }
       }
       setActiveSection(path, (current.dataset.heading ?? current.textContent ?? "").trim() || null);
     };

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
+import { useActiveSection } from "../lib/activeSection";
 import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
+import { linkKind, loadCorpusIndex, type CorpusIndex } from "../lib/corpusIndex";
+import { collectBodyLinks, collectMetaLinks, resolveDocLink, type DocLink } from "../lib/docLinks";
 import {
   booleanValue,
   formatFieldDate,
@@ -8,18 +11,15 @@ import {
   parseFrontmatter,
   type FrontmatterField,
 } from "../lib/frontmatter";
-import { collectBodyLinks, collectMetaLinks, resolveDocLink, type DocLink } from "../lib/docLinks";
+import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import { kindColor, kindIcon, type EntryFilterKind } from "../lib/kinds";
-import { linkKind, loadCorpusIndex, type CorpusIndex } from "../lib/corpusIndex";
-import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
 import { parseOutline, type OutlineItem } from "../lib/outline";
-import { loadWikiIndex } from "../lib/wikiIndexLoader";
-import { useReloadToken } from "../lib/useReloadToken";
-import type { WikiIndex } from "../lib/wikiLinks";
-import { Icon } from "../lib/icon";
-import { setActiveSection, useActiveSection } from "../lib/activeSection";
 import { requestSection } from "../lib/sectionRequests";
+import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
+import { useReloadToken } from "../lib/useReloadToken";
+import { loadWikiIndex } from "../lib/wikiIndexLoader";
+import type { WikiIndex } from "../lib/wikiLinks";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { RelatedPanel } from "./RelatedPanel";
 
@@ -147,7 +147,6 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
                     className={`meta-toc__link${isActive ? " is-active" : ""}`}
                     aria-current={isActive ? "true" : undefined}
                     onClick={() => {
-                      setActiveSection(doc.path, h.text);
                       requestSection(doc.path, h.text);
                     }}
                   >

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
+import { setActiveSection } from "../lib/activeSection";
+import { lineNumbers } from "../lib/codeLines";
 import {
   defaultMode,
   isDocumentMode,
@@ -9,18 +10,17 @@ import {
   modesFor,
   type DocumentMode,
 } from "../lib/documentModes";
+import { FEATURES } from "../lib/features";
+import { Icon } from "../lib/icon";
+import { renderMath } from "../lib/katexRender";
+import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
+import { renderMermaid } from "../lib/mermaidRender";
+import { useOpenDocsOptional } from "../lib/openDocsContext";
+import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
+import { fallbackTitle, frontmatterTitle } from "../lib/titles";
+import { useActiveHeading } from "../lib/useActiveHeading";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
-import { Icon } from "../lib/icon";
-import { fallbackTitle, frontmatterTitle } from "../lib/titles";
-import { useOpenDocsOptional } from "../lib/openDocsContext";
-import { lineNumbers } from "../lib/codeLines";
-import { useActiveHeading } from "../lib/useActiveHeading";
-import { setActiveSection } from "../lib/activeSection";
-import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
-import { renderMath } from "../lib/katexRender";
-import { renderMermaid } from "../lib/mermaidRender";
-import { FEATURES } from "../lib/features";
 import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));

@@ -1020,9 +1020,11 @@
     font-size: 0.875rem;
     color: var(--fg);
     text-align: left;
-    padding: 0.1rem 0.2rem;
+    padding: 0.1rem 0.5rem;
     border-radius: 5px;
     width: 100%;
+    appearance: none;
+    display: inline-block;
   }
   .meta-toc__link:hover {
     background: var(--bg-hover);
@@ -1030,7 +1032,6 @@
   .meta-toc__link.is-active {
     background: var(--bg-rise);
     color: var(--accent);
-    font-weight: 600;
     box-shadow: inset 2px 0 0 var(--accent);
   }
   .meta-links {
