@@ -4,7 +4,6 @@ import { Marked, type Tokens } from "marked";
 import markedFootnote from "marked-footnote";
 import { parseCodeInfo, wrapHighlightedLines } from "./codeLines";
 import { deflistExtension } from "./deflistExtension";
-import { FEATURES } from "./features";
 import { stripLeadingH1 } from "./headings";
 import { imageSrc } from "./images";
 import { mathExtensions } from "./mathExtension";
@@ -141,7 +140,7 @@ function buildMarked(basePath?: string): Marked {
   const marked = new Marked({
     gfm: true,
     breaks: false,
-    extensions: [...(FEATURES.katex ? mathExtensions() : []), ...deflistExtension()],
+    extensions: [...(mathExtensions()), ...deflistExtension()],
     renderer: {
       heading(this: { parser: { parseInline(tokens: unknown): string } }, token: Tokens.Heading) {
         const text = this.parser.parseInline(token.tokens);
@@ -173,10 +172,13 @@ function buildMarked(basePath?: string): Marked {
         ].join("");
       },
       code({ text, lang }: Tokens.Code): string {
-        if (FEATURES.mermaid && lang === "mermaid") {
+        if (lang === "mermaid") {
           // rendered client-side by mermaidRender; the source travels base64-free
           // (URI-encoded) so DOMPurify keeps the data attribute untouched
           return `<div class="md-mermaid" data-src="${escapeHtml(encodeURIComponent(text))}"></div>`;
+        }
+        if (lang === "svg") {
+          return `<img alt="" src="data:image/svg+xml;utf8,${encodeURIComponent(text)}">`;
         }
         const { language, highlighted } = parseCodeInfo(lang);
         const known = language && hljs.getLanguage(language);

@@ -10,7 +10,6 @@ import {
   modesFor,
   type DocumentMode,
 } from "../lib/documentModes";
-import { FEATURES } from "../lib/features";
 import { Icon } from "../lib/icon";
 import { renderMath } from "../lib/katexRender";
 import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
@@ -139,13 +138,13 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
 
   // render $…$/$$…$$ math placeholders (lazy KaTeX chunk) after each render
   useEffect(() => {
-    if (mode !== "render" || !FEATURES.katex) return;
+    if (mode !== "render") return;
     void renderMath(renderedRef.current);
   }, [mode, html]);
 
   // render mermaid placeholders (lazy chunk, theme-aware) after each render
   useEffect(() => {
-    if (mode !== "render" || !FEATURES.mermaid) return;
+    if (mode !== "render") return;
     void renderMermaid(renderedRef.current);
   }, [mode, html]);
 
