@@ -121,7 +121,7 @@ describe("Tree", () => {
     expect(document.querySelector(".tree-entry__kind--map")).toBeNull();
   });
 
-  it("hides completed entries when the not-completed filter is on", async () => {
+  it("keeps only in-work plans/tasks and unplanned analyses when the not-completed filter is on", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
@@ -147,9 +147,10 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     toggleHideCompleted();
     renderTree();
+    // still-to-work indicators survive; done plans and status-less entries vanish
     expect(await screen.findByText("Wip task")).toBeTruthy();
-    expect(screen.getByText("Note")).toBeTruthy();
     expect(screen.queryByText("Done plan")).toBeNull();
+    expect(screen.queryByText("Note")).toBeNull();
   });
 
   it("shows a thumbnail for entries with a frontmatter image", async () => {

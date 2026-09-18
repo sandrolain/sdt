@@ -9,7 +9,7 @@ function entry(patch: Partial<TreeEntry>): TreeEntry {
 
 describe("statusDot", () => {
   it("marks plans by execution state", () => {
-    expect(statusDot(entry({ status: "completed" }), new Set())?.tone).toBe("ok");
+    expect(statusDot(entry({ status: "completed" }), new Set())).toBeNull();
     expect(statusDot(entry({ status: "active" }), new Set())?.tone).toBe("danger");
   });
 
@@ -20,7 +20,7 @@ describe("statusDot", () => {
 
   it("marks tasks by execution state", () => {
     const task = (status?: string) => entry({ path: "context/tasks/t.md", kind: "tasks", status });
-    expect(statusDot(task("completed"), new Set())?.tone).toBe("ok");
+    expect(statusDot(task("completed"), new Set())).toBeNull();
     expect(statusDot(task("in-progress"), new Set())?.tone).toBe("warn");
     expect(statusDot(task("active"), new Set())?.tone).toBe("danger");
   });

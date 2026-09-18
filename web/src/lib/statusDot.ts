@@ -40,6 +40,7 @@ export function planReferencedAnalyses(entries: TreeEntry[]): Set<string> {
  * no dot.
  */
 export function statusDot(entry: TreeEntry, plannedAnalyses: Set<string>): StatusDot | null {
+  if (isDoneStatus(entry.status)) return null;
   const status = (entry.status ?? "").trim().toLowerCase();
   if (entry.kind === "plan" || entry.kind === "tasks") {
     if (status === "") return null; // unknown state → no indicator

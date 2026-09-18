@@ -153,7 +153,7 @@ describe("DocMetaPanel", () => {
                   path: "context/plan/p.md",
                   kind: "plan",
                   title: "P",
-                  status: "completed",
+                  status: "active",
                 },
               ],
             }),
@@ -163,12 +163,12 @@ describe("DocMetaPanel", () => {
     }) as unknown as typeof fetch;
     renderPanel({
       path: "context/plan/p.md",
-      frontmatter: "---\nkind: plan\nstatus: completed\n---\n",
+      frontmatter: "---\nkind: plan\nstatus: active\n---\n",
       markdown: "body",
     });
-    expect(await screen.findByText("Plan executed")).toBeTruthy();
+    expect(await screen.findByText("Plan not executed")).toBeTruthy();
     expect(screen.getAllByText("Status").length).toBeGreaterThan(0);
-    expect(document.querySelector(".meta-status__dot--ok")).toBeTruthy();
+    expect(document.querySelector(".meta-status__dot--danger")).toBeTruthy();
   });
 
   it("omits the status row for kinds without a tree status", () => {
