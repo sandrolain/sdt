@@ -218,6 +218,10 @@ Examples:
 		if _, err := os.Stat(sdtContextIndex); err == nil {
 			issues = append(issues, lintDoc(sdtContextIndex)...)
 		}
+		// Notes-only dedup-before-write advisory (SUGGESTION, never a failure).
+		if files, err := dirFiles(sdtNotesDir); err == nil {
+			issues = append(issues, lintDuplicateNotes(files)...)
+		}
 		sort.Slice(issues, func(i, j int) bool {
 			if issues[i].Priority != issues[j].Priority {
 				prio := map[string]int{ctxLintCritical: 0, ctxLintWarning: 1, "SUGGESTION": 2}

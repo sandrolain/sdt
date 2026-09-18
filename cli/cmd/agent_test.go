@@ -46,6 +46,7 @@ func instructionFileNames() []string {
 		"architecture.md",
 		"worklog.md",
 		"notes.md",
+		"lessons.md",
 		"questions.md",
 		"proposal.md",
 		"research.md",
@@ -1323,6 +1324,84 @@ func TestAgentDevelopmentTemplateCoherence(t *testing.T) {
 	} {
 		if !strings.Contains(instrDevelopmentTemplate, want) {
 			t.Errorf("expected %q in development template:\n%s", want, instrDevelopmentTemplate)
+		}
+	}
+}
+
+// TestAgentLessonsTemplateCoherence guards the lessons instruction contract:
+// dated entries, the standardized confidence vocabulary, reinforcement and the
+// decision-log pointer must survive edits.
+func TestAgentLessonsTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Lessons, Do-Not-Repeat and Decision Log",
+		"context/notes/<YYYYMMDD-HHMMSS>-<slug>.md",
+		"context: lessons",
+		"## Key learnings",
+		"## Do-Not-Repeat",
+		"## Preferences",
+		"[<YYYY-MM-DD>]",
+		"(measured)", "(expected)", "(inferred)",
+		"context/decisions/",
+		"**Reinforce, do not duplicate**",
+		"**No H1 title**",
+		"AGENTS.md (document conventions)",
+	} {
+		if !strings.Contains(instrLessonsTemplate, want) {
+			t.Errorf("expected %q in lessons template:\n%s", want, instrLessonsTemplate)
+		}
+	}
+}
+
+// TestAgentDedupTemplateCoherence guards the dedup-before-write contract in
+// the notes and wiki instructions: search-first, reinforce-not-duplicate,
+// advisory lint and never-merge must survive edits.
+func TestAgentDedupTemplateCoherence(t *testing.T) {
+	for _, tc := range []struct {
+		name, template string
+		wants          []string
+	}{
+		{"notes", instrNotesTemplate, []string{
+			"## Dedup before write",
+			"**Search first**",
+			"**Reinforce, do not duplicate**",
+			"sdt context lint",
+			"SUGGESTION",
+			"never merged automatically",
+		}},
+		{"wiki", instrWikiTemplate, []string{
+			"## Dedup before write",
+			"same-slug/same-concept",
+			"never merge on similarity or co-occurrence",
+		}},
+	} {
+		for _, want := range tc.wants {
+			if !strings.Contains(tc.template, want) {
+				t.Errorf("%s: expected %q in template:\n%s", tc.name, want, tc.template)
+			}
+		}
+	}
+}
+
+// TestAgentWorklogCloseoutTemplateCoherence guards the crystallized closeout
+// contract: the record field set, the standardized claim vocabulary and the
+// idempotent append-only update path (complete, partial and repeated runs)
+// must survive edits.
+func TestAgentWorklogCloseoutTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"## Crystallized closeout (per phase/task)",
+		"instruction-level contract",
+		"no command generates it",
+		"**passed**", "**expected**", "**inferred**",
+		"one entry per task file identity",
+		"reuses the existing entry",
+		"**Corrections are append-only**",
+		"`updated <ISO 8601>`",
+		"never an edit of",
+		"silently rewriting history",
+		"## Rules",
+	} {
+		if !strings.Contains(instrWorklogTemplate, want) {
+			t.Errorf("expected %q in worklog template:\n%s", want, instrWorklogTemplate)
 		}
 	}
 }

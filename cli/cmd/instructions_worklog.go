@@ -72,6 +72,40 @@ session: <session id>        # optional
 - **Next steps** — what should happen next, if not already captured in a task
   file.
 
+## Crystallized closeout (per phase/task)
+
+At the end of every phase/task run (plan.md, 5-stage lifecycle) the worklog
+records a **crystallized closeout** entry that pins the delivered state, so a
+later agent can resume or audit without re-deriving it. This is a pure
+instruction-level contract: the shape below is the record, written manually —
+no command generates it.
+
+` + codeFence + `markdown
+### Closeout — <YYYY-MM-DD> — <task file name>
+
+- **Task ref**: ` + "`tasks/<date>-<plan-slug>-phase-<n>.md`" + ` — one entry per task file identity
+- **Plan ref**: ` + "`plan/<date>-<plan-slug>.md`" + `
+- **Outcome** (per checklist item, standardized claim vocabulary):
+  - [x] <item> — **passed** (ran and verified) | **expected** (written, not run) | **inferred** (static analysis only)
+- **Files affected**: <paths touched>
+- **Decisions**: <small local ones; architectural → decision record, linked>
+- **Lessons / Do-Not-Repeat candidates**: <→ the ` + "`context/notes/`" + ` lessons note, linked>
+- **Provenance**: <sources consumed, via what transformation>
+- **Deviations / blockers**: <explicit, with resolution or open status>
+` + codeFence + `
+
+Idempotency and updates:
+
+- **One closeout per task file identity**: a rerun reuses the existing entry
+  instead of writing a second one; nothing is duplicated.
+- **Corrections are append-only**: a further dated block under the same closeout
+  heading that quotes what changed (` + "`updated <ISO 8601>`" + `), never an edit of
+  the original record.
+- ` + "`expected`" + `/` + "`inferred`" + ` material stays labeled; a later ` + "`passed`" + ` run adds
+  a dated correction instead of silently rewriting history.
+- Lessons surfaced by the closeout are filed in the ` + "`lessons.md`" + ` note;
+  provenance follows the chain in ` + "`notes.md`" + ` / ` + "`wiki.md`" + `.
+
 ## Rules
 
 - **No H1 title** — body starts at H2; see AGENTS.md (document conventions).

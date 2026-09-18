@@ -67,6 +67,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/architecture.md` | Updating architecture docs |
 | `context/instructions/worklog.md` | Writing a final report |
 | `context/instructions/notes.md` | Writing a note |
+| `context/instructions/lessons.md` | Recording lessons, Do-Not-Repeat rules or a decision-log entry |
 | `context/instructions/questions.md` | Registering an open question |
 | `context/instructions/proposal.md` | Creating or reviewing a proposal |
 | `context/instructions/research.md` | Running or writing a research note |

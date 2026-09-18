@@ -54,6 +54,7 @@ const (
 	sdtInstrArchitecture = "context/instructions/architecture.md"
 	sdtInstrWorklog      = "context/instructions/worklog.md"
 	sdtInstrNotes        = "context/instructions/notes.md"
+	sdtInstrLessons      = "context/instructions/lessons.md"
 	sdtInstrQuestions    = "context/instructions/questions.md"
 	sdtInstrProposal     = "context/instructions/proposal.md"
 	sdtInstrPrompts      = "context/instructions/prompts.md"

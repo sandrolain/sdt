@@ -44,6 +44,27 @@ read that for the full schema.
 - ` + "`supersedes`" + `/` + "`conflicts_with`" + ` are graph signals that trigger human
   review; lint checks only their syntax and targets, not the interpretation.
 
+## Evidence and provenance
+
+- Claims and typed relations cite their evidence: a claim anchor in the source
+  page, an existing statement, or an explicit reference like
+  ` + "`refs/<file>@<sha>:<lines>`" + ` or the task/plan file that settled it.
+- When evidence conflicts, keep both sides visible with their source, scope and
+  date until reviewed — never silently drop the older authority
+  (` + "`supersedes`" + `/` + "`conflicts_with`" + `).
+- Derived pages keep the chain **source → transformation → derived page →
+  task/worklog**: ` + "`sources`" + ` carries the ingested source and the ingestion
+  task; broken ` + "`sources`" + ` are flagged by ` + "`sdt context lint`" + ` (WARNING).
+
+## Dedup before write
+
+- **Reuse the same-slug/same-concept page**: a new or updated page first checks
+  for an existing node (same ` + "`id`" + ` or concept) and extends it instead of
+  forking a sibling with a near-identical payload.
+- Similarities and contradictions stay visible on the page — never collapse
+  background knowledge or conflicting evidence into a merged statement, and
+  never merge on similarity or co-occurrence alone.
+
 ## Padding and quality
 
 - No empty headings, boilerplate restating frontmatter, or copied source
