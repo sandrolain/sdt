@@ -16,6 +16,11 @@ import (
 
 var ctxDecisionNumberRegexp = regexp.MustCompile(`^\d{4}$`)
 
+// ctxObjectiveRegexp is the kebab-case slug grammar for the optional
+// `objective` grouping key carried by analysis documents.
+
+var ctxObjectiveRegexp = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
 func validateDecisionNumber(n string) error {
 	if !ctxDecisionNumberRegexp.MatchString(n) {
 		return fmt.Errorf("decision number must be exactly 4 digits, got %q", n)
@@ -145,7 +150,7 @@ func yamlScalar(s string) string {
 // the file stays lint-parseable; title/component are emitted only where the
 // type requires them and the value is non-empty.
 
-func contextFrontmatter(typ, title, summary, note, project, component, created string) string {
+func contextFrontmatter(typ, title, summary, note, project, component, created, objective string) string {
 	if summary == "" {
 		summary = ctxSummaryPlaceholder
 	}
@@ -161,6 +166,9 @@ func contextFrontmatter(typ, title, summary, note, project, component, created s
 	}
 	if note != "" {
 		b.WriteString("context: " + yamlScalar(note) + "\n")
+	}
+	if typ == ctxTypeAnalysis && objective != "" {
+		b.WriteString("objective: " + yamlScalar(objective) + "\n")
 	}
 	if st, ok := ctxDefaultStatus[typ]; ok {
 		b.WriteString("status: " + st + "\n")
@@ -206,12 +214,13 @@ after creation.
 The slug is derived from --title when --slug is omitted; --summary is optional
 and falls back to a MANDATORY-fill placeholder so the file passes lint. For
 decision type the next NNNN number is auto-assigned (override with --number).
-The command prints the created file path (--format text|json|yaml).
+--objective attaches a kebab-case grouping key (analysis type only). The
+command prints the created file path (--format text|json|yaml).
 
 Examples:
   sdt context new --type worklog --title "review deps" --input "reviewed deps"
   sdt context new --type plan --title "ship memory" --force
-  sdt context new --type analysis --title "memory backend" --input "..."
+  sdt context new --type analysis --title "memory backend" --objective memory --input "..."
   sdt context new --type architecture --title "config loading" --summary "config loading component"
   sdt context new --type decision --title "Auth choice" --summary "Use JWT for auth"
 	sdt context new --type questions --title "open api questions"
@@ -236,6 +245,15 @@ Examples:
 		}
 		note := getStringFlag(cmd, "context", false)
 		summary := getStringFlag(cmd, "summary", false)
+		objective := getStringFlag(cmd, "objective", false)
+		if objective != "" {
+			if typ != ctxTypeAnalysis {
+				exitWithError(cmd, fmt.Errorf("--objective is only supported for --type analysis, got %q", typ))
+			}
+			if !ctxObjectiveRegexp.MatchString(objective) {
+				exitWithError(cmd, fmt.Errorf("--objective must be a kebab-case slug (lowercase alphanumeric and '-'), got %q", objective))
+			}
+		}
 		force := getBoolFlag(cmd, "force", false)
 		edit := getBoolFlag(cmd, "edit", false)
 		numberOverride := getStringFlag(cmd, "number", false)
@@ -269,7 +287,7 @@ Examples:
 			if typ == ctxTypeArchitecture {
 				component = slug
 			}
-			content = contextFrontmatter(typ, title, summary, note, project, component, created)
+			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective)
 			if body == "" {
 				body = contextDefaultBody(typ)
 			}

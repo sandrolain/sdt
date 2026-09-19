@@ -43,6 +43,7 @@ image: context/assets/cover.png
 kind: analysis
 title: "Analysis X"
 summary: "Analysis summary"
+objective: viewer
 status: active
 created: "2026-09-11"
 ---
@@ -393,8 +394,8 @@ func TestTreeOutput(t *testing.T) {
 	// analysis page
 	if e, ok := byPath["context/analysis/analy-x.md"]; !ok {
 		t.Errorf("missing context/analysis/analy-x.md")
-	} else if e.Kind != "analysis" {
-		t.Errorf("analysis kind wrong: %+v", e)
+	} else if e.Kind != "analysis" || e.Objective != "viewer" {
+		t.Errorf("analysis entry wrong: %+v", e)
 	}
 
 	// canvas tagged
@@ -417,6 +418,16 @@ func TestTreeOutput(t *testing.T) {
 		t.Errorf("plain doc flagged as map: %+v", e)
 	}
 	// corpus exclusions (shared set) plus anything outside the corpus.
+	assertExcludedPaths(t, byPath)
+	if len(out.Entries) != 8 {
+		t.Errorf("expected 8 entries, got %d: %v", len(out.Entries), out.Entries)
+	}
+}
+
+// assertExcludedPaths guards that dirs/files outside the corpus never appear in
+// the tree listing.
+func assertExcludedPaths(t *testing.T, byPath map[string]treeEntry) {
+	t.Helper()
 	for _, p := range []string{
 		"context/tmp/scratch.md",
 		"context/scripts/behind.md",
@@ -432,9 +443,6 @@ func TestTreeOutput(t *testing.T) {
 	}
 	if _, ok := byPath["../outside.md"]; ok {
 		t.Errorf("outside-corpus path present: ../outside.md")
-	}
-	if len(out.Entries) != 8 {
-		t.Errorf("expected 8 entries, got %d: %v", len(out.Entries), out.Entries)
 	}
 }
 

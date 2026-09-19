@@ -30,9 +30,15 @@ describe("paletteReducer", () => {
 
   it("composes filters independently", () => {
     let state = paletteReducer(initialPaletteState, { type: "kind", value: "wiki" });
+    state = paletteReducer(state, { type: "objective", value: "viewer" });
     state = paletteReducer(state, { type: "from", value: "2026-01-01" });
     state = paletteReducer(state, { type: "to", value: "2026-12-31" });
-    expect(state.filters).toEqual({ kind: "wiki", from: "2026-01-01", to: "2026-12-31" });
+    expect(state.filters).toEqual({
+      kind: "wiki",
+      objective: "viewer",
+      from: "2026-01-01",
+      to: "2026-12-31",
+    });
     state = paletteReducer(state, { type: "resetFilters" });
     expect(state.filters).toEqual(EMPTY_FILTERS);
   });
@@ -89,6 +95,12 @@ describe("buildSearchUrl", () => {
     expect(params.get("from")).toBe("2026-01-01");
     expect(params.get("to")).toBe("2026-12-31");
     expect(params.get("limit")).toBe("5");
+  });
+
+  it("includes the objective filter", () => {
+    const url = buildSearchUrl({ q: "tokens", objective: "viewer", limit: 5 });
+    const params = new URLSearchParams(url.split("?")[1]);
+    expect(params.get("objective")).toBe("viewer");
   });
 });
 

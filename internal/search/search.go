@@ -28,15 +28,16 @@ type Index struct {
 
 // Result is one ranked search hit returned to the caller.
 type Result struct {
-	Path    string  `json:"path"`
-	Kind    string  `json:"kind,omitempty"`
-	Title   string  `json:"title,omitempty"`
-	Summary string  `json:"summary,omitempty"`
-	Created string  `json:"created,omitempty"`
-	Score   float64 `json:"score"`
-	Snippet string  `json:"snippet"`
-	IsMap   bool    `json:"isMap,omitempty"`
-	MapID   string  `json:"mapId,omitempty"`
+	Path      string  `json:"path"`
+	Kind      string  `json:"kind,omitempty"`
+	Title     string  `json:"title,omitempty"`
+	Summary   string  `json:"summary,omitempty"`
+	Objective string  `json:"objective,omitempty"`
+	Created   string  `json:"created,omitempty"`
+	Score     float64 `json:"score"`
+	Snippet   string  `json:"snippet"`
+	IsMap     bool    `json:"isMap,omitempty"`
+	MapID     string  `json:"mapId,omitempty"`
 }
 
 // Results is the response body for /api/search.
@@ -53,6 +54,7 @@ type doc struct {
 	Kind        string
 	Title       string
 	Summary     string
+	Objective   string
 	Body        string
 	Frontmatter string
 	CreatedDays int64
@@ -67,6 +69,7 @@ func buildIndexMapping() (mapping.IndexMapping, error) {
 	dm.AddFieldMappingsAt("Path", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Title", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Summary", bleve.NewTextFieldMapping())
+	dm.AddFieldMappingsAt("Objective", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Body", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Frontmatter", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("CreatedDays", bleve.NewNumericFieldMapping())
@@ -223,6 +226,8 @@ func parseDoc(docID, path string) (doc, error) {
 			d.Title = strings.Trim(trimmedValue(line, "title"), `"`)
 		case strings.HasPrefix(line, "summary:"):
 			d.Summary = strings.Trim(trimmedValue(line, "summary"), `"`)
+		case strings.HasPrefix(line, "objective:"):
+			d.Objective = strings.Trim(trimmedValue(line, "objective"), `"`)
 		case strings.HasPrefix(line, "created:"):
 			d.RawCreated = strings.Trim(trimmedValue(line, "created"), `"`)
 			d.CreatedDays = parseCreatedDays(d.RawCreated)
@@ -254,10 +259,11 @@ func parseCreatedDays(raw string) int64 {
 	return 0
 }
 
-// Search runs a fulltext query with optional kind and from/to date filters,
-// returning up to max ranked hits. Query terms drive a match query; a non-empty
-// issue in the query is treated as an empty result set (never an error).
-func (ix *Index) Search(q, kind, from, to string, max int) (Results, error) {
+// Search runs a fulltext query with optional kind, objective and from/to date
+// filters, returning up to max ranked hits. Query terms drive a match query; a
+// non-empty issue in the query is treated as an empty result set (never an
+// error).
+func (ix *Index) Search(q, kind, objective, from, to string, max int) (Results, error) {
 	if max <= 0 || max > 100 {
 		max = 20
 	}
@@ -272,6 +278,11 @@ func (ix *Index) Search(q, kind, from, to string, max int) (Results, error) {
 		kindQ := bleve.NewTermQuery(kind)
 		kindQ.SetField("Kind")
 		must = append(must, kindQ)
+	}
+	if objective != "" {
+		objQ := bleve.NewTermQuery(objective)
+		objQ.SetField("Objective")
+		must = append(must, objQ)
 	}
 	epoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	if from != "" {
@@ -307,15 +318,16 @@ func (ix *Index) Search(q, kind, from, to string, max int) (Results, error) {
 		}
 		isMap := contextwiki.IsMapDoc(doc.Path)
 		out = append(out, Result{
-			Path:    doc.Path,
-			Kind:    doc.Kind,
-			Title:   doc.Title,
-			Summary: doc.Summary,
-			Created: doc.RawCreated,
-			Score:   hit.Score,
-			Snippet: Snippet(doc, q, 160),
-			IsMap:   isMap,
-			MapID:   mapID(doc.Path, isMap),
+			Path:      doc.Path,
+			Kind:      doc.Kind,
+			Title:     doc.Title,
+			Summary:   doc.Summary,
+			Objective: doc.Objective,
+			Created:   doc.RawCreated,
+			Score:     hit.Score,
+			Snippet:   Snippet(doc, q, 160),
+			IsMap:     isMap,
+			MapID:     mapID(doc.Path, isMap),
 		})
 	}
 	total := sr.Total

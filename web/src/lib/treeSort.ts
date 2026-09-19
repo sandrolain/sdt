@@ -81,3 +81,30 @@ export function groupByKind(entries: TreeEntry[]): TreeGroup[] {
     ...(map.has("canvas") ? [{ kind: "canvas" as const, entries: map.get("canvas") ?? [] }] : []),
   ];
 }
+
+export interface ObjectiveGroup {
+  /** frontmatter `objective` slug; "" collects entries without one */
+  objective: string;
+  entries: TreeEntry[];
+}
+
+/** Split analysis entries by their `objective` slug: named objectives come
+ *  first in lexicographic order, then the "" group holding entries without an
+ *  objective (they stay at the kind-folder root in the tree). */
+export function groupByObjective(entries: TreeEntry[]): ObjectiveGroup[] {
+  const map = new Map<string, TreeEntry[]>();
+  for (const entry of entries) {
+    const key = entry.objective ?? "";
+    const bucket = map.get(key);
+    if (bucket) bucket.push(entry);
+    else map.set(key, [entry]);
+  }
+  const slugs = [...map.keys()].filter((slug) => slug !== "").sort();
+  const groups: ObjectiveGroup[] = slugs.map((objective) => ({
+    objective,
+    entries: map.get(objective) ?? [],
+  }));
+  const ungrouped = map.get("");
+  if (ungrouped) groups.push({ objective: "", entries: ungrouped });
+  return groups;
+}

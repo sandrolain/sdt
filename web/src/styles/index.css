@@ -710,6 +710,23 @@
   .tree-folder[open] > .tree-folder__header {
     border-bottom: 1px solid var(--border);
   }
+  /* objective sub-folder inside the analysis kind folder: tinted background and
+     accent border so the group reads as a distinct container */
+  .tree-folder--objective {
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg-mantle));
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    margin: 0.4rem;
+  }
+  .tree-folder--objective > .tree-folder__header {
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+  .tree-folder--objective > .tree-folder__header .tree-folder__icon {
+    color: var(--accent);
+  }
+  .tree-folder--objective[open] > .tree-folder__header {
+    border-bottom-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
   .tree-folder__header::-webkit-details-marker {
     display: none;
   }

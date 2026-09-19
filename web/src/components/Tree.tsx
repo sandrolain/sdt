@@ -9,7 +9,7 @@ import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from 
 import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
-import { groupByKind, sortEntries } from "../lib/treeSort";
+import { groupByKind, groupByObjective, sortEntries } from "../lib/treeSort";
 import { useTreeSort } from "../lib/treeSortStore";
 import { useReloadToken } from "../lib/useReloadToken";
 import { SkeletonLines } from "./Skeleton";
@@ -101,63 +101,116 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
                 <span className="tree-folder__label">{kindLabel(group.kind)}</span>
                 <span className="tree-folder__count">{group.entries.length}</span>
               </summary>
-              <ul role="list">
-                {group.entries.map((entry) => {
-                  const dot = statusDot(entry, plannedAnalyses);
-                  const kind = entryKind(entry);
-                  const kindName = kindLabel(kind);
-                  return (
-                    <li key={entry.path}>
-                      <NavLink
-                        to={
-                          entry.canvas
-                            ? `/wiki/board?file=${encodeURIComponent(entry.path)}`
-                            : `/docs/${entry.path}`
-                        }
-                        className={({ isActive }) => `tree-entry${isActive ? " is-active" : ""}`}
-                        title={`${entry.summary || entry.path} · ${kindName}`}
-                        end
-                      >
-                        <span className="tree-entry__glyph">
-                          {entry.image ? (
-                            <img
-                              className="tree-entry__thumb"
-                              src={imageUrl(entry.image, entry.path)}
-                              alt=""
-                            />
-                          ) : (
-                            <Icon name={kindIcon(kind)} title={kindName} />
-                          )}
-                        </span>
-                        <span className="tree-entry__text">
-                          <span className="tree-entry__title">{entryTitle(entry)}</span>
-                          {entryDate(entry) && (
-                            <span className="tree-entry__date">{entryDate(entry)}</span>
-                          )}
-                        </span>
-                        {dot && (
-                          <span
-                            className={`tree-entry__dot tree-entry__dot--${dot.tone}`}
-                            title={dot.label}
-                            aria-label={dot.label}
-                            role="img"
-                          />
-                        )}
-                        {entry.isMap && (
-                          <span className="tree-entry__map" title="Map document">
-                            <Icon name={MAP_ICON} label="Map document" />
-                          </span>
-                        )}
-                      </NavLink>
-                    </li>
-                  );
-                })}
-              </ul>
+              {group.kind === "analysis" ? (
+                <AnalysisEntries entries={group.entries} plannedAnalyses={plannedAnalyses} />
+              ) : (
+                <EntryList entries={group.entries} plannedAnalyses={plannedAnalyses} />
+              )}
             </details>
           ))}
         </div>
       )}
     </aside>
+  );
+}
+
+type PlannedAnalyses = ReturnType<typeof planReferencedAnalyses>;
+
+/** Flat entry list for a kind folder. */
+function EntryList({
+  entries,
+  plannedAnalyses,
+}: {
+  entries: TreeEntry[];
+  plannedAnalyses: PlannedAnalyses;
+}) {
+  return (
+    <ul role="list">
+      {entries.map((entry) => (
+        <TreeEntryRow key={entry.path} entry={entry} plannedAnalyses={plannedAnalyses} />
+      ))}
+    </ul>
+  );
+}
+
+/** Analysis kind folder: named `objective` sub-folders, entries without an
+ *  objective stay at the folder root. */
+function AnalysisEntries({
+  entries,
+  plannedAnalyses,
+}: {
+  entries: TreeEntry[];
+  plannedAnalyses: PlannedAnalyses;
+}) {
+  return (
+    <>
+      {groupByObjective(entries).map((group) =>
+        group.objective === "" ? (
+          <EntryList key="__ungrouped" entries={group.entries} plannedAnalyses={plannedAnalyses} />
+        ) : (
+          <details key={group.objective} className="tree-folder tree-folder--objective">
+            <summary className="tree-folder__header">
+              <Icon name="expand_more" className="tree-folder__chevron" />
+              <Icon name="flag" className="tree-folder__icon" />
+              <span className="tree-folder__label">{group.objective}</span>
+              <span className="tree-folder__count">{group.entries.length}</span>
+            </summary>
+            <EntryList entries={group.entries} plannedAnalyses={plannedAnalyses} />
+          </details>
+        ),
+      )}
+    </>
+  );
+}
+
+function TreeEntryRow({
+  entry,
+  plannedAnalyses,
+}: {
+  entry: TreeEntry;
+  plannedAnalyses: PlannedAnalyses;
+}) {
+  const dot = statusDot(entry, plannedAnalyses);
+  const kind = entryKind(entry);
+  const kindName = kindLabel(kind);
+  return (
+    <li>
+      <NavLink
+        to={
+          entry.canvas
+            ? `/wiki/board?file=${encodeURIComponent(entry.path)}`
+            : `/docs/${entry.path}`
+        }
+        className={({ isActive }) => `tree-entry${isActive ? " is-active" : ""}`}
+        title={`${entry.summary || entry.path} · ${kindName}`}
+        end
+      >
+        <span className="tree-entry__glyph">
+          {entry.image ? (
+            <img className="tree-entry__thumb" src={imageUrl(entry.image, entry.path)} alt="" />
+          ) : (
+            <Icon name={kindIcon(kind)} title={kindName} />
+          )}
+        </span>
+        <span className="tree-entry__text">
+          <span className="tree-entry__title">{entryTitle(entry)}</span>
+          {entryDate(entry) && <span className="tree-entry__date">{entryDate(entry)}</span>}
+        </span>
+        {dot && (
+          <span
+            className={`tree-entry__dot tree-entry__dot--${dot.tone}`}
+            title={dot.label}
+            aria-label={dot.label}
+            role="img"
+          />
+        )}
+        {entry.isMap && (
+          <span className="tree-entry__map" title="Map document">
+            <Icon name={MAP_ICON} label="Map document" />
+          </span>
+        )}
+      </NavLink>
+    </li>
   );
 }
 

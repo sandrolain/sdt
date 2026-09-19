@@ -37,7 +37,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
   const [state, dispatch] = useReducer(paletteReducer, initialPaletteState);
   const debouncedQuery = useDebouncedValue(state.query, 200);
   const navigate = useNavigate();
-  const { kind, from, to } = state.filters;
+  const { kind, objective, from, to } = state.filters;
 
   useEffect(() => {
     if (!open) dispatch({ type: "cleared" });
@@ -50,7 +50,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
     }
     let alive = true;
     dispatch({ type: "load" });
-    fetchSearch({ q: debouncedQuery.trim(), kind, from, to, limit: SEARCH_LIMIT })
+    fetchSearch({ q: debouncedQuery.trim(), kind, objective, from, to, limit: SEARCH_LIMIT })
       .then((res) => {
         if (alive) dispatch({ type: "loaded", results: res.results ?? [], total: res.total });
       })
@@ -61,7 +61,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
     return () => {
       alive = false;
     };
-  }, [debouncedQuery, kind, from, to]);
+  }, [debouncedQuery, kind, objective, from, to]);
 
   const select = (path: string) => {
     onOpenChange(false);
@@ -107,6 +107,17 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
               </option>
             ))}
           </select>
+        </label>
+        <label className="search-filters__field">
+          <span className="search-filters__label">Objective</span>
+          <input
+            type="text"
+            className="search-filters__control"
+            placeholder="any"
+            value={objective}
+            onChange={(e) => dispatch({ type: "objective", value: e.target.value })}
+            aria-label="Objective filter"
+          />
         </label>
         <label className="search-filters__field">
           <span className="search-filters__label">From</span>

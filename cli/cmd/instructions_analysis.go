@@ -24,6 +24,8 @@ kind: analysis
 title: "<one-line title>"
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<objectives / what triggered the analysis>"
+objective: <slug>         # optional: kebab-case group key; same slug in every
+                          # analysis targeting the same objective
 status: active            # active | draft | archived
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
@@ -93,6 +95,9 @@ session: <session id>        # optional
 - Dated files: integrate/modify the current analysis while it is the active one;
   a materially new line of investigation gets a new dated file (and sets
   ` + "`sources`" + ` back to the analysis it extends).
+- ` + "`objective`" + ` (optional): kebab-case slug identifying the initiative; use the same
+  slug in every analysis that targets the same objective so
+  ` + "`sdt context reindex`" + ` and the viewer can group them.
 - Leave **no open points**: if a decision is missing, ask on the fly or register
   it as an open question in ` + "`context/questions/`" + `; keep the user in
   control of the decisions.

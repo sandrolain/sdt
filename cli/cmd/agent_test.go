@@ -88,6 +88,43 @@ func TestAgentMergeBlock(t *testing.T) {
 	}
 }
 
+func TestAgentReplaceSectionDriftParity(t *testing.T) {
+	name := "instructions/analysis"
+	body := "body line one\n\nbody line two"
+
+	// Standalone section file (no frontmatter): force-refresh must equal the
+	// pristine render so the drift guard keeps passing after regeneration.
+	standalone := sectionBlock(name, body)
+	if got := agentReplaceSection(standalone, name, "new body"); got != sectionBlock(name, "new body") {
+		t.Errorf("standalone refresh introduced drift:\n%q", got)
+	}
+
+	// Frontmatter-prefixed file: the merge must keep the fm and one blank line.
+	fmFile := "---\nkind: analysis\nsummary: s\n---\n\n" + sectionBlock(name, body)
+	got := agentReplaceSection(fmFile, name, "new body")
+	want := "---\nkind: analysis\nsummary: s\n---\n\n" + sectionBlock(name, "new body")
+	if got != want {
+		t.Errorf("frontmatter refresh drift:\n got %q\nwant %q", got, want)
+	}
+
+	// Header + two adjacent blocks (AGENTS.md shape): separators stay single.
+	header := "# SDT Project\n\n" + sectionBlock(name, body)
+	got2 := agentReplaceSection(header, name, "new body")
+	want2 := "# SDT Project\n\n" + sectionBlock(name, "new body")
+	if got2 != want2 {
+		t.Errorf("header refresh drift:\n got %q\nwant %q", got2, want2)
+	}
+
+	// Two adjacent blocks: refresh of the first keeps the second and the final
+	// trailing newline.
+	two := sectionBlock(name, body) + "\n" + sectionBlock("project/second", "pbody\n")
+	got3 := agentReplaceSection(two, name, "new body")
+	want3 := sectionBlock(name, "new body") + "\n" + "<!-- sdt:begin:project/second -->\n\npbody\n\n<!-- sdt:end:project/second -->\n"
+	if got3 != want3 {
+		t.Errorf("two-block refresh drift:\n got %q\nwant %q", got3, want3)
+	}
+}
+
 func TestAgentAppendIfMissing(t *testing.T) {
 	content := agentAppendIfMissing("# H\n", agentSectionNameProject, "body")
 	if !strings.Contains(content, "<!-- sdt:begin:"+agentSectionNameProject+" -->") {

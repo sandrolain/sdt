@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api";
 import { KIND_ORDER } from "./kinds";
-import { groupByKind, sortEntries } from "./treeSort";
+import { groupByKind, groupByObjective, sortEntries } from "./treeSort";
 
 function entry(patch: Partial<TreeEntry>): TreeEntry {
   return { path: "context/notes/x.md", ...patch };
@@ -44,6 +44,37 @@ describe("groupByKind", () => {
   it("omits the canvas group when no canvas entries exist", () => {
     const groups = groupByKind([entry({ path: "context/notes/a.md", kind: "notes" })]);
     expect(groups.map((g) => g.kind)).toEqual(KIND_ORDER);
+  });
+});
+
+describe("groupByObjective", () => {
+  it("buckets by slug with named groups sorted, ungrouped last", () => {
+    const groups = groupByObjective([
+      entry({ path: "context/analysis/a.md", objective: "viewer" }),
+      entry({ path: "context/analysis/b.md", objective: "memory" }),
+      entry({ path: "context/analysis/c.md", objective: "viewer" }),
+      entry({ path: "context/analysis/d.md" }),
+    ]);
+    expect(groups.map((g) => g.objective)).toEqual(["memory", "viewer", ""]);
+    expect(groups.find((g) => g.objective === "viewer")?.entries.map((e) => e.path)).toEqual([
+      "context/analysis/a.md",
+      "context/analysis/c.md",
+    ]);
+    expect(groups.find((g) => g.objective === "")?.entries.map((e) => e.path)).toEqual([
+      "context/analysis/d.md",
+    ]);
+  });
+
+  it("omits the ungrouped bucket when every entry has an objective", () => {
+    const groups = groupByObjective([
+      entry({ path: "context/analysis/a.md", objective: "viewer" }),
+    ]);
+    expect(groups.map((g) => g.objective)).toEqual(["viewer"]);
+  });
+
+  it("returns only the ungrouped bucket when no objective is set", () => {
+    const groups = groupByObjective([entry({ path: "context/analysis/a.md" })]);
+    expect(groups.map((g) => g.objective)).toEqual([""]);
   });
 });
 

@@ -44,9 +44,35 @@ func TestContextReindex(t *testing.T) {
 	}
 }
 
+func TestContextReindexObjectiveGroups(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/alpha.md", "---\nkind: analysis\nsummary: Alpha analysis\nobjective: memory-bench\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/beta.md", "---\nkind: analysis\nsummary: Beta analysis\nobjective: memory-bench\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/gam.md", "---\nkind: analysis\nsummary: Gamma analysis\nobjective: viewer-io\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/noobj.md", "---\nkind: analysis\nsummary: Ungrouped analysis\n---\nbody\n")
+	writeCtxDoc(t, "context/proposals/prop.md", "---\nkind: proposal\nsummary: Proposal not bucketed\n---\nbody\n")
+	execute(t, contextReindexCmd, nil)
+	idx, _ := os.ReadFile(filepath.Join(dir, "context/index.md"))
+	content := string(idx)
+	for _, want := range []string{"#### memory-bench", "#### viewer-io", "[[analysis/alpha.md]]", "[[analysis/beta.md]]", "[[analysis/gam.md]]", "[[analysis/noobj.md]]", "[[proposals/prop.md]]"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("expected %q in index:\n%s", want, content)
+		}
+	}
+	if strings.Count(content, "[[analysis/alpha.md]]") != 1 {
+		t.Errorf("bucketed analysis must appear exactly once:\n%s", content)
+	}
+	if strings.Count(content, "[[analysis/noobj.md]]") != 1 {
+		t.Errorf("unbucketed analysis must stay in the general list:\n%s", content)
+	}
+	if i, j := strings.Index(content, "#### memory-bench"), strings.Index(content, "#### viewer-io"); i == -1 || j == -1 || i > j {
+		t.Errorf("objective sections must be sorted lexicographically:\n%s", content)
+	}
+}
+
 func TestContextReindexProposalAndPrompt(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/search.md", "---\nkind: reference\nstatus: archived\nsummary: Search evidence\n---\nsource\n")
 	writeCtxDoc(t, "context/proposals/proposal.md", "---\nkind: proposal\ntitle: Proposal\nsummary: Proposal summary\nstatus: review\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
 	writeCtxDoc(t, "context/prompts/search.md", "---\nkind: prompt\ntitle: Search prompt\nsummary: Prompt summary\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
@@ -69,7 +95,7 @@ func TestContextReindexProposalAndPrompt(t *testing.T) {
 func TestContextReindexResearch(t *testing.T) {
 	setupContextProject(t)
 	writeCtxDoc(t, "context/prompts/drive.md", "---\nkind: prompt\ntitle: Drive\nsummary: Driving prompt\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\n---\nbody\n")
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/capture.md", "---\nkind: reference\nstatus: archived\nsummary: Raw capture\n---\nsource\n")
 	writeCtxDoc(t, "context/research/backends.md", "---\nkind: research\ntitle: Vector backends\nsummary: Compared vector backends\nsubject: Which vector backend fits? \nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - prompts/drive.md\n  - refs/capture.md\nproject: p\n---\n## Findings\nbody\n")
 
@@ -100,7 +126,7 @@ func TestContextLintPromptProvenance(t *testing.T) {
 
 func TestContextLintProposalDecisionArchitectureChain(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\n---\nbody\n")
 	writeCtxDoc(t, "context/proposals/decision.md", "---\nkind: proposal\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
 	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: decision\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - proposals/decision.md\nproject: p\nsources:\n  - proposals/decision.md\n---\n## Decision\nUse the proposal.\n")
 	writeCtxDoc(t, "context/architecture/decision.md", "---\nkind: architecture\nsummary: Current decision architecture\ncontext: Decision shape\nstatus: current\ncomponent: decision\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - decisions/0002-decision.md\nproject: p\n---\n# Architecture\n")
@@ -379,7 +405,7 @@ func TestContextReindexIncludesQuestions(t *testing.T) {
 
 func TestContextLintSourcesResolves(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/base.md", "---\nkind: analysis\nsummary: base\n---\n")
+	writeCtxDoc(t, "context/analysis/base.md", "---\nkind: analysis\nsummary: base\nobjective: test\n---\n")
 	writeCtxDoc(t, "context/questions/q.md", "---\nkind: questions\nsummary: q\nsources:\n  - analysis/base.md\n---\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
@@ -414,5 +440,50 @@ func TestContextLintSourcesBroken(t *testing.T) {
 	out := execute(t, contextLintCmd, nil, "--format", "json")
 	if !strings.Contains(string(out), "broken source") {
 		t.Errorf("expected broken source warning: %s", out)
+	}
+}
+
+// ── objective group key lint ──────────────────────────────────────────────────
+
+func TestContextLintObjectiveValid(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/ok.md", "---\nkind: analysis\nsummary: ok\nobjective: memory-1\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nsummary: no objective needed\n---\nbody\n")
+	idx := "---\nkind: index\nsummary: i\n---\n"
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
+	if strings.Contains(out, "`objective`") || strings.Contains(out, ctxLintSuggestion) {
+		t.Errorf("expected no objective issues for a valid key, got:\n%s", out)
+	}
+}
+
+func TestContextLintObjectiveMissing(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/missing.md", "---\nkind: analysis\nsummary: no group\n---\nbody\n")
+	idx := "---\nkind: index\nsummary: i\n---\n"
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
+	if !strings.Contains(out, ctxLintSuggestion) || !strings.Contains(out, "missing `objective`") {
+		t.Errorf("expected a SUGGESTION for the missing objective, got:\n%s", out)
+	}
+	if strings.Contains(out, `"CRITICAL"`) {
+		t.Errorf("missing objective must never be CRITICAL:\n%s", out)
+	}
+}
+
+func TestContextLintObjectiveBadSlug(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/bad.md", "---\nkind: analysis\nsummary: bad\nobjective: My Objective!\n---\nbody\n")
+	idx := "---\nkind: index\nsummary: i\n---\n"
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
+	if !strings.Contains(out, `"WARNING"`) || !strings.Contains(out, "must be a kebab-case slug") {
+		t.Errorf("expected a WARNING for the malformed objective, got:\n%s", out)
 	}
 }

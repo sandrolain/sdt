@@ -76,6 +76,32 @@ func TestSearchHandlerFilters(t *testing.T) {
 	}
 }
 
+func TestSearchHandlerObjectiveFilter(t *testing.T) {
+	root := makeSearchCorpus(t)
+	h, _ := newHandler(root)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/search?q=neutralword&objective=viewer", nil))
+	var out search.Results
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Total != 1 || len(out.Results) != 1 {
+		t.Fatalf("objective=viewer total = %+v, want 1", out)
+	}
+	if r := out.Results[0]; r.Objective != "viewer" || r.Path != "context/analysis/ana.md" {
+		t.Errorf("unexpected objective hit: %+v", out.Results[0])
+	}
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/api/search?q=neutralword&objective=missing", nil))
+	out2 := search.Results{}
+	if err := json.Unmarshal(rec2.Body.Bytes(), &out2); err != nil {
+		t.Fatal(err)
+	}
+	if out2.Total != 0 {
+		t.Errorf("objective=missing total = %d, want 0", out2.Total)
+	}
+}
+
 func TestSearchHandlerEmptyQ(t *testing.T) {
 	root := makeSearchCorpus(t)
 	h, _ := newHandler(root)
@@ -154,10 +180,11 @@ api body about tokens.
 kind: analysis
 title: Analysis
 summary: neutral wording
+objective: viewer
 created: 2026-09-11
 ---
 
-no matches here
+no matches here except neutralword
 `)
 	writeFixture(t, root, "context/notes/note.md", `---
 kind: notes

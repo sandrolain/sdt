@@ -51,12 +51,14 @@ func (s *server) index() *search.Index {
 }
 
 // handleSearch serves ranked fulltext results from the in-memory bleve index:
-// GET /api/search?q=&kind=&from=&to=&limit=. kind is an exact frontmatter kind
-// filter; from/to bound the frontmatter created date (inclusive). Empty or
-// missing q returns an empty result (never an error).
+// GET /api/search?q=&kind=&objective=&from=&to=&limit=. kind is an exact
+// frontmatter kind filter; objective is an exact frontmatter objective filter;
+// from/to bound the frontmatter created date (inclusive). Empty or missing q
+// returns an empty result (never an error).
 func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	kind := r.URL.Query().Get("kind")
+	objective := r.URL.Query().Get("objective")
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
 	max := 20
@@ -69,7 +71,7 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, search.Results{Results: []search.Result{}, Total: 0})
 		return
 	}
-	res, err := s.index().Search(q, kind, from, to, max)
+	res, err := s.index().Search(q, kind, objective, from, to, max)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
 		return

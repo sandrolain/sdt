@@ -15,13 +15,15 @@ export const KIND_OPTIONS: EntryKind[] = [...KIND_ORDER];
 export interface SearchFilters {
   /** exact frontmatter kind; "" = any */
   kind: string;
+  /** exact frontmatter objective; "" = any */
+  objective: string;
   /** inclusive created-date lower bound (YYYY-MM-DD); "" = none */
   from: string;
   /** inclusive created-date upper bound (YYYY-MM-DD); "" = none */
   to: string;
 }
 
-export const EMPTY_FILTERS: SearchFilters = { kind: "", from: "", to: "" };
+export const EMPTY_FILTERS: SearchFilters = { kind: "", objective: "", from: "", to: "" };
 
 export type PaletteStatus = "idle" | "loading" | "ready" | "error";
 
@@ -46,6 +48,7 @@ export const initialPaletteState: PaletteState = {
 export type PaletteAction =
   | { type: "query"; value: string }
   | { type: "kind"; value: string }
+  | { type: "objective"; value: string }
   | { type: "from"; value: string }
   | { type: "to"; value: string }
   | { type: "resetFilters" }
@@ -61,6 +64,8 @@ export function paletteReducer(state: PaletteState, action: PaletteAction): Pale
       return { ...state, query: action.value };
     case "kind":
       return { ...state, filters: { ...state.filters, kind: action.value } };
+    case "objective":
+      return { ...state, filters: { ...state.filters, objective: action.value } };
     case "from":
       return { ...state, filters: { ...state.filters, from: action.value } };
     case "to":

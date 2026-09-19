@@ -331,7 +331,7 @@ func TestContextNewFullFrontmatter(t *testing.T) {
 		forbid []string
 	}{
 		{typ: "plan", want: []string{"kind: plan", "status: active", "created: 2026-08-06T07:00:00Z", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
-		{typ: "analysis", flags: []string{"--title", "Backend Choice"}, want: []string{"kind: analysis", "title: Backend Choice", "status: active", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
+		{typ: "analysis", flags: []string{"--title", "Backend Choice", "--objective", "memory"}, want: []string{"kind: analysis", "title: Backend Choice", "objective: memory", "status: active", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
 		{typ: "worklog", want: []string{"kind: worklog", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:", "status:"}},
 		{typ: "notes", want: []string{"kind: notes", "created: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:", "status:", "updated:"}},
 		{typ: "questions", want: []string{"kind: questions", "status: active", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
@@ -355,6 +355,32 @@ func TestContextNewFullFrontmatter(t *testing.T) {
 			t.Errorf("[%s] expected placeholder summary:\n%s", c.typ, content)
 		}
 	}
+}
+
+func TestContextNewObjectiveFlag(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "x",
+		"--objective", "memory-backend")
+	content := mustReadFile(t, filepath.Join("context", "analysis", "20260806-070000-x.md"))
+	if !strings.Contains(content, "objective: memory-backend") {
+		t.Errorf("expected objective line:\n%s", content)
+	}
+}
+
+func TestContextNewObjectiveNotAnalysis(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextNewCmd, nil, "--type", "notes", "--slug", "x", "--objective", "viewer"))
+	})
+}
+
+func TestContextNewObjectiveBadSlug(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "x", "--objective", "Memory Backend"))
+	})
 }
 
 func TestContextNewArchitecture(t *testing.T) {

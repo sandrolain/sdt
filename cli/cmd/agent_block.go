@@ -25,11 +25,38 @@ func sectionEndMarker(name string) string {
 }
 
 func sectionRegexp(name string) *regexp.Regexp {
-	return regexp.MustCompile(`(?s)\n?` + regexp.QuoteMeta(sectionBeginMarker(name)) + `.*?` + regexp.QuoteMeta(sectionEndMarker(name)) + `\n?`)
+	return regexp.MustCompile(`(?s)` + regexp.QuoteMeta(sectionBeginMarker(name)) + `.*?` + regexp.QuoteMeta(sectionEndMarker(name)))
 }
 
 func hasSection(content, name string) bool {
 	return sectionRegexp(name).MatchString(content)
+}
+
+// agentReplaceSection rebuilds content around the named section after a force
+// refresh: the text before and after the markers is preserved (trimmed of stray
+// blank lines) and the section is re-inserted separated by a single blank line.
+// The output is deterministic and, for files whose only content is the section
+// (optionally prefixed by frontmatter), equals agentRenderGenerated.
+
+func agentReplaceSection(content, name, body string) string {
+	m := sectionRegexp(name).FindStringIndex(content)
+	if m == nil {
+		return content
+	}
+	var b strings.Builder
+	before := strings.TrimRight(content[:m[0]], "\n")
+	if before != "" {
+		b.WriteString(before + "\n\n")
+	}
+	b.WriteString(sectionBlock(name, body))
+	if rest := strings.Trim(content[m[1]:], "\n"); rest != "" {
+		b.WriteString("\n" + rest)
+	}
+	out := b.String()
+	if !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	return out
 }
 
 // agentMergeBlock ensures the named block exists in content. With force it is
@@ -39,7 +66,7 @@ func hasSection(content, name string) bool {
 func agentMergeBlock(content, name, body string, force bool) (string, bool) {
 	if hasSection(content, name) {
 		if force {
-			return sectionRegexp(name).ReplaceAllString(content, "\n"+sectionBlock(name, body)), true
+			return agentReplaceSection(content, name, body), true
 		}
 		return content, false
 	}
@@ -112,8 +139,8 @@ func agentWriteGeneratedFile(path, name, templateBody string, force bool) FileRe
 	}
 	content := string(data)
 	if exists && force && hasSection(content, name) {
-		_, body := contextwiki.SplitFrontmatter(templateBody)
-		content = sectionRegexp(name).ReplaceAllString(content, "\n"+sectionBlock(name, strings.TrimSpace(body)))
+		_, secBody := contextwiki.SplitFrontmatter(templateBody)
+		content = agentReplaceSection(content, name, strings.TrimSpace(secBody))
 	} else {
 		content = agentRenderGenerated(name, templateBody)
 	}

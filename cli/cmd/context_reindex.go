@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -21,29 +22,71 @@ func buildIndex() (string, error) {
 	b.WriteString("# context — Knowledge Index\n\n")
 	b.WriteString("_Managed by `sdt context reindex`. Each row lists the file and its frontmatter `summary`._\n\n")
 	for _, tier := range ctxTierOrder {
-		var rows []string
-		for _, dir := range ctxIndexDirs {
-			if ctxTierForDir(dir) != tier {
-				continue
-			}
-			files, err := dirFiles(dir)
-			if err != nil {
-				return "", err
-			}
-			for _, f := range files {
-				rows = append(rows, ctxIndexLine(dir, f))
-			}
+		rows, buckets, bucketSlugs, err := collectTierRows(tier)
+		if err != nil {
+			return "", err
 		}
-		if len(rows) == 0 {
+		if len(rows) == 0 && len(bucketSlugs) == 0 {
 			continue
 		}
 		b.WriteString("## " + cases.Title(language.English).String(tier) + "\n\n")
 		for _, r := range rows {
 			b.WriteString(r + "\n")
 		}
-		b.WriteString("\n")
+		if len(rows) > 0 && len(bucketSlugs) > 0 {
+			b.WriteString("\n")
+		}
+		sort.Strings(bucketSlugs)
+		for _, slug := range bucketSlugs {
+			b.WriteString("#### " + slug + "\n\n")
+			for _, r := range buckets[slug] {
+				b.WriteString(r + "\n")
+			}
+			b.WriteString("\n")
+		}
 	}
 	return b.String(), nil
+}
+
+// collectTierRows splits a relevance tier into the general rows and the
+// per-objective buckets: Important analyses carrying an `objective` group key
+// are bucketed, everything else stays in the general list.
+func collectTierRows(tier string) (rows []string, buckets map[string][]string, bucketSlugs []string, err error) {
+	buckets = map[string][]string{}
+	for _, dir := range ctxIndexDirs {
+		if ctxTierForDir(dir) != tier {
+			continue
+		}
+		files, ferr := dirFiles(dir)
+		if ferr != nil {
+			return nil, nil, nil, ferr
+		}
+		for _, f := range files {
+			line := ctxIndexLine(dir, f)
+			if tier == ctxTierImportant {
+				kind, objective := ctxDocObjective(f)
+				if kind == ctxTypeAnalysis && objective != "" {
+					if _, seen := buckets[objective]; !seen {
+						bucketSlugs = append(bucketSlugs, objective)
+					}
+					buckets[objective] = append(buckets[objective], line)
+					continue
+				}
+			}
+			rows = append(rows, line)
+		}
+	}
+	return rows, buckets, bucketSlugs, nil
+}
+
+// ctxDocObjective returns the frontmatter kind and the optional `objective`
+// group key of a context document.
+func ctxDocObjective(path string) (string, string) {
+	data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
+	if err != nil {
+		return "", ""
+	}
+	return parseFrontmatterField(string(data), "kind"), parseFrontmatterField(string(data), "objective")
 }
 
 func writeIndex(content string) error {

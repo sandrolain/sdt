@@ -206,6 +206,7 @@ func init() {
 	contextNewCmd.Flags().String("slug", "", "Slug (sanitized; overrides --title-derived slug)")
 	contextNewCmd.Flags().String("summary", "", "Summary for the frontmatter (default: MANDATORY-fill placeholder)")
 	contextNewCmd.Flags().String("context", "", "What triggered this entry")
+	contextNewCmd.Flags().String("objective", "", "Analysis group key (kebab-case slug; analysis only)")
 	contextNewCmd.Flags().String("number", "", "Override for the decision number (default: next NNNN from decisions/)")
 	contextNewCmd.Flags().Bool("force", false, "Overwrite existing file")
 	contextNewCmd.Flags().Bool("edit", false, "Open the file in $EDITOR after creation")

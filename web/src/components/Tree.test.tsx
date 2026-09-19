@@ -235,4 +235,40 @@ describe("Tree", () => {
     // filename date prefix on the notes entry (locale-safe: no year assumption)
     expect(screen.getAllByText(/2026/).length).toBeGreaterThan(0);
   });
+
+  it("nests analyses under their objective folder", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/analysis/a.md",
+                kind: "analysis",
+                title: "Alpha",
+                objective: "viewer",
+              },
+              {
+                path: "context/analysis/b.md",
+                kind: "analysis",
+                title: "Beta",
+                objective: "viewer",
+              },
+              { path: "context/analysis/c.md", kind: "analysis", title: "Gamma" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Alpha");
+    const objectiveFolders = Array.from(document.querySelectorAll(".tree-folder--objective"));
+    expect(objectiveFolders).toHaveLength(1);
+    expect(objectiveFolders[0].querySelector(".tree-folder__label")?.textContent).toBe("viewer");
+    expect(objectiveFolders[0].querySelector(".tree-folder__count")?.textContent).toBe("2");
+    expect(objectiveFolders[0].textContent).toContain("Alpha");
+    expect(objectiveFolders[0].textContent).toContain("Beta");
+    // the objective-less analysis stays at the analysis-folder root
+    expect(objectiveFolders[0].textContent).not.toContain("Gamma");
+  });
 });

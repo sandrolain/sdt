@@ -73,18 +73,19 @@ type server struct {
 
 // treeEntry is one corpus file in the /api/tree listing.
 type treeEntry struct {
-	Path     string   `json:"path"`
-	Kind     string   `json:"kind,omitempty"`
-	Title    string   `json:"title,omitempty"`
-	Summary  string   `json:"summary,omitempty"`
-	Status   string   `json:"status,omitempty"`
-	Sources  []string `json:"sources,omitempty"`
-	Created  string   `json:"created,omitempty"`
-	Modified string   `json:"modified,omitempty"`
-	Image    string   `json:"image,omitempty"`
-	Canvas   bool     `json:"canvas,omitempty"`
-	IsMap    bool     `json:"isMap,omitempty"`
-	MapID    string   `json:"mapId,omitempty"`
+	Path      string   `json:"path"`
+	Kind      string   `json:"kind,omitempty"`
+	Title     string   `json:"title,omitempty"`
+	Summary   string   `json:"summary,omitempty"`
+	Objective string   `json:"objective,omitempty"`
+	Status    string   `json:"status,omitempty"`
+	Sources   []string `json:"sources,omitempty"`
+	Created   string   `json:"created,omitempty"`
+	Modified  string   `json:"modified,omitempty"`
+	Image     string   `json:"image,omitempty"`
+	Canvas    bool     `json:"canvas,omitempty"`
+	IsMap     bool     `json:"isMap,omitempty"`
+	MapID     string   `json:"mapId,omitempty"`
 }
 
 // docResponse is the .md payload of /api/doc.
@@ -264,15 +265,16 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 		created = contextwiki.FrontmatterField(fm, "created_at")
 	}
 	e := treeEntry{
-		Path:     rel,
-		Kind:     contextwiki.FrontmatterField(fm, "kind"),
-		Title:    contextwiki.FrontmatterField(fm, "title"),
-		Summary:  contextwiki.FrontmatterField(fm, "summary"),
-		Status:   contextwiki.FrontmatterField(fm, "status"),
-		Sources:  sources,
-		Created:  created,
-		Modified: contextwiki.FrontmatterField(fm, "updated"),
-		Image:    contextwiki.FrontmatterField(fm, "image"),
+		Path:      rel,
+		Kind:      contextwiki.FrontmatterField(fm, "kind"),
+		Title:     contextwiki.FrontmatterField(fm, "title"),
+		Summary:   contextwiki.FrontmatterField(fm, "summary"),
+		Objective: contextwiki.FrontmatterField(fm, "objective"),
+		Status:    contextwiki.FrontmatterField(fm, "status"),
+		Sources:   sources,
+		Created:   created,
+		Modified:  contextwiki.FrontmatterField(fm, "updated"),
+		Image:     contextwiki.FrontmatterField(fm, "image"),
 	}
 	if e.Modified == "" {
 		if info, statErr := os.Stat(path); statErr == nil {

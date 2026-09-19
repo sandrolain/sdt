@@ -99,6 +99,8 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"task file status", "set `status` to pending | in-progress | completed | archived (legacy `active` is accepted)"},
 	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
 	{"prompt must declare", "add a `derived_from` frontmatter reference to the prompt that produced this document"},
+	{"analysis missing `objective`", "add `objective: <kebab-case-slug>`; reuse the same slug in every analysis of the same initiative so they group in the index"},
+	{"analysis `objective`", "set `objective` to a lowercase kebab-case slug (letters, digits and '-'), shared across analyses of the same initiative"},
 }
 
 // ctxLintHint returns the curated remediation for an issue message, or "" when
@@ -255,6 +257,10 @@ func lintDoc(path string) []ctxLintIssue {
 	if kind == ctxTypeTasks {
 		issues = append(issues, lintTaskFileStatus(path, parseFrontmatterField(content, "status"))...)
 	}
+	// Optional `objective` grouping key: WARNING on a non-kebab-case value,
+	// SUGGESTION on absence so the convention is adopted gradually without
+	// breaking existing analyses.
+	issues = append(issues, lintObjectiveField(path, content, kind, prio)...)
 	// resolve [[links]] and links: array to existing documents.
 	// Files under context dirs link relative to their own directory; the
 	// generated index.md links relative to the context/ root.
@@ -301,6 +307,21 @@ func lintDoc(path string) []ctxLintIssue {
 		}
 	}
 	return issues
+}
+
+// lintObjectiveField validates the optional `objective` grouping key carried by
+// analysis documents: WARNING on a non-kebab-case value, SUGGESTION when the
+// key is absent so the grouping convention is adopted gradually.
+func lintObjectiveField(path, content, kind string, prio func(string) string) []ctxLintIssue {
+	if kind != ctxTypeAnalysis {
+		return nil
+	}
+	if o := parseFrontmatterField(content, "objective"); o == "" {
+		return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "analysis missing `objective` group key (kebab-case slug)"}}
+	} else if !ctxObjectiveRegexp.MatchString(o) {
+		return []ctxLintIssue{{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("analysis `objective` %q must be a kebab-case slug (lowercase letters, digits and '-')", o)}}
+	}
+	return nil
 }
 
 var contextLintCmd = &cobra.Command{
