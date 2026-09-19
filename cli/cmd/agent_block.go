@@ -3,8 +3,12 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/sandrolain/sdt/internal/contextwiki"
 )
 
 func sectionBlock(name, body string) string {
@@ -59,6 +63,116 @@ func agentAppendIfMissing(content, name, body string) string {
 		content += "\n\n"
 	}
 	return content + sectionBlock(name, body)
+}
+
+// ── generated per-file markers ─────────────────────────────────────────────────
+
+// agentGeneratedMarkerName returns the marker name for a generated file, scoped
+// by its owning directory so instructions/analysis.md and commands/analysis.md
+// stay distinct.
+
+func agentGeneratedMarkerName(dir, name string) string {
+	return dir + "/" + strings.TrimSuffix(name, sdtMarkdownExt)
+}
+
+// agentRenderGenerated renders the on-disk form of a generated file from its
+// template body: the leading frontmatter block stays at the first line (the
+// context tools parse it from there) and the document body is wrapped in an
+// sdt:begin/end marker. The output is deterministic so the drift guard can
+// compare it byte-for-byte to the committed file.
+
+func agentRenderGenerated(name, templateBody string) string {
+	fm, body := contextwiki.SplitFrontmatter(templateBody)
+	body = strings.TrimSpace(body)
+	if fm = strings.TrimRight(fm, "\n"); fm != "" {
+		return fm + "\n\n" + sectionBlock(name, body)
+	}
+	return sectionBlock(name, body)
+}
+
+// agentWriteGeneratedFile creates or refreshes a single generated file whose
+// body comes from a template. Without --force an existing file is skipped
+// (write-once semantics). With --force a file that already carries the marker
+// is refreshed in place — content outside the markers survives; a legacy file
+// without the marker has no merge boundary, so it is rewritten wholesale.
+
+func agentWriteGeneratedFile(path, name, templateBody string, force bool) FileResult {
+	res := FileResult{Path: path}
+	data, err := os.ReadFile(path) //#nosec G304 -- fixed generated dir, user-chosen output
+	if err != nil && !os.IsNotExist(err) {
+		res.Status = statusError
+		res.Reason = err.Error()
+		return res
+	}
+	exists := err == nil
+	if exists && !force {
+		res.Status = statusSkipped
+		res.Reason = "file already exists (use --force to overwrite)"
+		return res
+	}
+	content := string(data)
+	if exists && force && hasSection(content, name) {
+		_, body := contextwiki.SplitFrontmatter(templateBody)
+		content = sectionRegexp(name).ReplaceAllString(content, "\n"+sectionBlock(name, strings.TrimSpace(body)))
+	} else {
+		content = agentRenderGenerated(name, templateBody)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil { //#nosec G301
+		res.Status = statusError
+		res.Reason = err.Error()
+		return res
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil { //#nosec G703 G306 -- user-chosen output
+		res.Status = statusError
+		res.Reason = err.Error()
+		return res
+	}
+	if exists {
+		res.Status = statusUpdated
+	} else {
+		res.Status = statusCreated
+	}
+	return res
+}
+
+// sdtArchiveDeprecatedDir is the subdirectory under context/archive/ where
+// --force moves obsolete generated files instead of deleting them.
+
+const sdtArchiveDeprecatedDir = "deprecated"
+
+// agentArchiveGenerated moves an obsolete generated file to
+// context/archive/deprecated/<base>-DEPRECATED-<stamp>.md with a loud header,
+// preserving history. It reports skipped when the file is already gone or
+// already archived, and error when either the archive write or the removal
+// fails.
+
+func agentArchiveGenerated(dir, name, reason string) FileResult {
+	path := filepath.Join(dir, name)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return FileResult{Path: path, Status: statusSkipped, Reason: "file does not exist"}
+	}
+	base := strings.TrimSuffix(name, filepath.Ext(name))
+	stamp := time.Now().Format("20060102-150405")
+	dst := filepath.Join(sdtArchiveDir, sdtArchiveDeprecatedDir, base+"-DEPRECATED-"+stamp+sdtMarkdownExt)
+	if _, err := os.Stat(dst); err == nil {
+		return FileResult{Path: path, Status: statusSkipped, Reason: "already archived"}
+	}
+	data, err := os.ReadFile(path) //#nosec G304 -- fixed generated dir, user-chosen output
+	if err != nil {
+		return FileResult{Path: path, Status: statusError, Reason: err.Error()}
+	}
+	header := fmt.Sprintf("# DEPRECATED — no longer generated\n\n*sdt agent init --force* archived this file from `%s` on %s: it no longer belongs to the generated set (%s). Keep it while the history matters, then remove it.\n\n---\n\n",
+		path, time.Now().Format(time.RFC3339), reason)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil { //#nosec G301
+		return FileResult{Path: path, Status: statusError, Reason: err.Error()}
+	}
+	if err := os.WriteFile(dst, []byte(header+string(data)), 0o644); err != nil { //#nosec G703 G306 -- user-chosen output
+		return FileResult{Path: path, Status: statusError, Reason: err.Error()}
+	}
+	if err := os.Remove(path); err != nil {
+		return FileResult{Path: path, Status: statusError, Reason: err.Error()}
+	}
+	return FileResult{Path: path, Status: statusArchived, Reason: "moved to " + dst}
 }
 
 // ── target file helpers ────────────────────────────────────────────────────────

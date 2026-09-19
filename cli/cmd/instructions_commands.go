@@ -59,6 +59,14 @@ invent a contract).
   mutation is the archive move after approval.
 - **Scope:** ` + "`all`" + ` (default) · single file · glob — see each command file.
 `)
+
+	b.WriteString(`
+## When not to use
+
+- For informational-only questions that need no write: answer inline instead.
+- When an active plan/analysis already covers the intent: integrate the
+  existing document instead of starting a new task chain.
+`)
 	return b.String()
 }
 
@@ -101,6 +109,12 @@ updated: "` + ts + `"
 - **Approve-before-write** — no write before user approval (see the contract).
 - Approve-before-archive where the contract moves sources
   (` + "`ingestion/ → refs/`" + `); ` + "`ingestion/`" + `/` + "`refs/`" + ` stay immutable.
+
+## When not to use
+
+- For informational-only questions that need no write: answer inline instead.
+- When an active plan already covers the intent: extend that plan instead of
+  opening a new task chain.
 
 ## Verify
 

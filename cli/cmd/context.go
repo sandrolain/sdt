@@ -27,6 +27,7 @@ const (
 	ctxTypeProposal     = "proposal"
 	ctxTypePrompt       = "prompt"
 	ctxTypeResearch     = "research"
+	ctxTypeCommands     = "commands"
 )
 
 var contextNow = time.Now

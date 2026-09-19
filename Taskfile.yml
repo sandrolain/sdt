@@ -28,6 +28,7 @@ tasks:
   # Build tasks
   build:
     desc: Build the CLI binary
+    deps: [verify:vars]
     sources:
       - "cli/**/*.go"
       - "go.mod"
@@ -76,7 +77,7 @@ tasks:
 
   build-viewer:
     desc: Build the sdtviewer binary with the embedded SPA
-    deps: [viewer-embed]
+    deps: [viewer-embed, verify:vars]
     cmds:
       - go build -ldflags="-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.date={{.BUILD_DATE}}" -o {{.VIEWER_BINARY}} "./viewer"
 
@@ -129,6 +130,23 @@ tasks:
     cmds:
       - go vet $(go list -e ./... | grep -v /context/)
 
+  verify:vars:
+    desc: Fail when a -X ldflags target no longer resolves in the main packages
+    cmds:
+      - |
+        fail=0
+        for entry in cli/main.go:version cli/main.go:commit cli/main.go:date viewer/main.go:version viewer/main.go:commit viewer/main.go:date; do
+          file="${entry%%:*}"; var="${entry##*:}"
+          if [ ! -f "$file" ]; then
+            echo "FAIL: main package file $file is missing"; fail=1; continue
+          fi
+          if ! grep -Eq "^[[:space:]]*${var}[[:space:]]*=" "$file"; then
+            echo "FAIL: -X main.${var} target is not declared in $file (go silently ignores stale -X targets)"
+            fail=1
+          fi
+        done
+        exit $fail
+
   govulncheck:
     desc: Run Go vulnerability check using govulncheck
     cmds:
@@ -141,6 +159,7 @@ tasks:
       - task: fmt
       - task: lint
       - task: vet
+      - task: verify:vars
       - task: tidy
       - task: test
       - task: govulncheck

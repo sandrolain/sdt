@@ -13,15 +13,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// ctxFrontmatterSources is the provenance field name shared by the reference
+// validation loop and the derived-document contract.
+const ctxFrontmatterSources = "sources"
+
+// ctxReferenceFields are the frontmatter list fields that carry document
+// references validated against the context tree.
+var ctxReferenceFields = []string{ctxFrontmatterSources, "links", "derived_from", "results"}
+
 func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
-	for _, field := range []string{"sources", "links", "derived_from", "results"} {
+	inCommands := filepath.Dir(path) == sdtCommandsDir
+	for _, field := range ctxReferenceFields {
 		for _, ref := range parseFrontmatterList(content, field) {
 			if _, ok := ctxResolvePath(sdtWorkDir, ref); ok {
 				continue
 			}
+			// Unresolvable instructions refs in command files are reported by
+			// lintCommandFile with a precise remediation hint; skip the generic
+			// message here to avoid a duplicate finding.
+			if inCommands && strings.HasPrefix(strings.TrimSpace(ref), "instructions/") {
+				continue
+			}
 			message := "broken " + field + " reference: " + ref
-			if field == "sources" {
+			if field == ctxFrontmatterSources {
 				message = "broken source reference: " + ref
 			}
 			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: message})
@@ -55,6 +70,54 @@ type ctxLintIssue struct {
 	Path     string `json:"path" yaml:"path"`
 	Priority string `json:"priority" yaml:"priority"`
 	Message  string `json:"message" yaml:"message"`
+	// Hint is the remediation next-action, derived from the message class (see
+	// ctxLintHints). It is empty for classes without a curated hint.
+	Hint string `json:"hint,omitempty" yaml:"hint,omitempty"`
+}
+
+// ctxLintHints are remediation next-actions keyed by message prefix. Longest,
+// most specific prefixes must come first so a command instruction reference is
+// matched before the generic broken-reference entry.
+var ctxLintHints = []struct{ prefix, hint string }{
+	{"unresolved instruction reference", "fix the target path in the command frontmatter so it resolves to an existing context/instructions/*.md file"},
+	{"command body lacks a `## When not to use`", "add a `## When not to use` section stating when the trigger does NOT apply"},
+	{"command `summary` is", "shorten the command `summary` to at most 1024 chars; it doubles as the trigger tooltip"},
+	{"command file `id` must be", "set `id` to `commands/<filename>` (the trigger identity) so links and lookup stay deterministic"},
+	{"command file `kind` must be", "set `kind: commands` so the trigger filenames and the frontmatter type agree"},
+	{"broken link [[", "fix the [[target]] so it resolves to an existing document (links resolve relative to the document dir; index.md resolves from context/)"},
+	{"broken source reference", "fix the `sources` frontmatter reference so it resolves to an existing context document"},
+	{"broken derived_from reference", "fix the `derived_from` frontmatter reference so it resolves to the prompt/analysis that produced this document"},
+	{"broken links reference", "fix the `links` frontmatter reference so it resolves to an existing context document"},
+	{"broken results reference", "fix the `results` frontmatter reference so it resolves to an existing context document"},
+	{"missing `sources`", "add a `sources` frontmatter reference to the document this one derives from or extends (bidirectional traceability)"},
+	{"frontmatter missing `kind`", "add `kind: <type>`; use `sdt context new --type <type>` to scaffold a compliant document"},
+	{"frontmatter missing mandatory `", "add the missing mandatory frontmatter key; use `sdt context new` to scaffold a compliant document"},
+	{"missing YAML frontmatter", "start the file with a YAML `---` frontmatter block carrying at least `kind` and `summary`; use `sdt context new --type <type>`"},
+	{"decision filename", "rename the file to NNNN-<slug>.md so the 4-digit number stays consistent"},
+	{"frontmatter number", "align `number` in the frontmatter with the 4-digit filename prefix"},
+	{"task file missing frontmatter `status`", "add `status: pending | in-progress | completed | archived` (legacy `active` is accepted)"},
+	{"task file status", "set `status` to pending | in-progress | completed | archived (legacy `active` is accepted)"},
+	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
+	{"prompt must declare", "add a `derived_from` frontmatter reference to the prompt that produced this document"},
+}
+
+// ctxLintHint returns the curated remediation for an issue message, or "" when
+// the message class has no curated hint.
+func ctxLintHint(message string) string {
+	for _, h := range ctxLintHints {
+		if strings.HasPrefix(message, h.prefix) {
+			return h.hint
+		}
+	}
+	return ""
+}
+
+// decorateLintHints attaches the curated Hint to every issue in place.
+func decorateLintHints(issues []ctxLintIssue) []ctxLintIssue {
+	for i := range issues {
+		issues[i].Hint = ctxLintHint(issues[i].Message)
+	}
+	return issues
 }
 
 // lint issue priorities.
@@ -64,10 +127,16 @@ const (
 	// ctxTasksOversizedItems is the soft checklist-size guard for task files:
 	// a phase whose checklist exceeds it triggers a SUGGESTION to split.
 	ctxTasksOversizedItems = 10
+	// ctxCommandSummaryMax caps the command-trigger description: the summary
+	// doubles as the trigger tooltip in CLI helpers and the viewer index.
+	ctxCommandSummaryMax = 1024
 )
 
 func (i ctxLintIssue) String() string {
-	return fmt.Sprintf("[%s] %s: %s", i.Priority, i.Path, i.Message)
+	if i.Hint == "" {
+		return fmt.Sprintf("[%s] %s: %s", i.Priority, i.Path, i.Message)
+	}
+	return fmt.Sprintf("[%s] %s: %s — hint: %s", i.Priority, i.Path, i.Message, i.Hint)
 }
 
 // ctxLinkRegexp matches a `[[path]]` wiki-style link or a plain relative path.
@@ -112,6 +181,41 @@ func lintTaskFileStatus(path, status string) []ctxLintIssue {
 		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("task file status %q outside vocabulary (pending | in-progress | completed | archived)", status)}}
 	}
 	return nil
+}
+
+// lintCommandFile validates the command-trigger contract for files under
+// context/commands/: kind must be `commands`, `id` must equal commands/<name>,
+// `summary` is capped (it doubles as the trigger tooltip), references to
+// instructions/<t>.md must resolve, and the body should state when the trigger
+// does NOT apply. Commands are standardized prompts: they may reference 0..n
+// instruction files, so no reverse (contract→command) check exists and a
+// self-contained command is valid.
+func lintCommandFile(path, content string, prio func(string) string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	if kind := parseFrontmatterField(content, "kind"); kind != "" && kind != ctxTypeCommands {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "command file `kind` must be `" + ctxTypeCommands + "`, got " + kind})
+	}
+	base := strings.TrimSuffix(filepath.Base(path), sdtMarkdownExt)
+	if got := parseFrontmatterField(content, "id"); got != ctxTypeCommands+"/"+base {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "command file `id` must be `" + ctxTypeCommands + "/" + base + "`"})
+	}
+	if s := parseFrontmatterField(content, "summary"); len([]rune(s)) > ctxCommandSummaryMax {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("command `summary` is %d chars (max %d)", len([]rune(s)), ctxCommandSummaryMax)})
+	}
+	for _, field := range []string{"sources", "links", "derived_from", "results"} {
+		for _, ref := range parseFrontmatterList(content, field) {
+			if !strings.HasPrefix(strings.TrimSpace(ref), "instructions/") {
+				continue
+			}
+			if _, ok := ctxResolvePath(sdtWorkDir, ref); !ok {
+				issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "unresolved instruction reference: " + ref + " (fix the target path in the command frontmatter)"})
+			}
+		}
+	}
+	if !strings.Contains(content, "## When not to use") {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "command body lacks a `## When not to use` section (state when the trigger does NOT apply)"})
+	}
+	return issues
 }
 
 // lintDoc validates one context document. priorityFn lowers CRITICAL to
@@ -170,7 +274,7 @@ func lintDoc(path string) []ctxLintIssue {
 		}
 	}
 	issues = append(issues, lintFrontmatterReferences(path, content, prio)...)
-	if ctxDerivedKinds[kind] && len(parseFrontmatterList(content, "sources")) == 0 {
+	if ctxDerivedKinds[kind] && len(parseFrontmatterList(content, ctxFrontmatterSources)) == 0 {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "document derives from/extend another; missing `sources` frontmatter"})
 	}
 	issues = append(issues, lintRFCAndPromptContract(path, content, kind, prio)...)
@@ -183,6 +287,11 @@ func lintDoc(path string) []ctxLintIssue {
 		} else if n := parseFrontmatterField(content, "number"); n != "" && n != m[1] {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: fmt.Sprintf("frontmatter number %s does not match filename %s", n, m[1])})
 		}
+	}
+	// Command dir: trigger contract (kind/id consistency, summary cap,
+	// resolvable instruction refs, when-not-to-use advisory).
+	if dir == sdtCommandsDir {
+		issues = append(issues, lintCommandFile(path, content, prio)...)
 	}
 	// Oversized task phases: a checklist beyond the soft bound gets a
 	// SUGGESTION to split the phase (never a failure).
@@ -229,6 +338,7 @@ Examples:
 			}
 			return issues[i].Path < issues[j].Path
 		})
+		decorateLintHints(issues)
 		switch getFormat(cmd) {
 		case fmtJSON:
 			out, err := json.MarshalIndent(issues, "", "  ")

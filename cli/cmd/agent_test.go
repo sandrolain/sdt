@@ -499,24 +499,25 @@ func TestAgentInitForceRefreshesInstructions(t *testing.T) {
 	}
 }
 
-func TestAgentInitForceRemovesObsoleteInstructions(t *testing.T) {
+func TestAgentInitForceArchivesObsoleteInstructions(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
 	for _, name := range obsoleteInstructionFiles {
 		writeTestFile(t, filepath.Join("context/instructions", name), "obsolete")
 	}
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	if !strings.Contains(string(out), "removed") {
-		t.Errorf("expected removed status for obsolete files: %s", out)
+	if !strings.Contains(string(out), "archived") {
+		t.Errorf("expected archived status for obsolete files: %s", out)
 	}
 	for _, name := range obsoleteInstructionFiles {
 		if _, err := os.Stat(filepath.Join(dir, "context/instructions", name)); !os.IsNotExist(err) {
-			t.Errorf("expected obsolete instruction file %s to be removed with --force", name)
+			t.Errorf("expected obsolete instruction file %s to leave context/instructions with --force", name)
 		}
+		assertArchived(t, dir, strings.TrimSuffix(name, ".md"))
 	}
 }
 
-func TestAgentInitForceRemovesObsoleteCommands(t *testing.T) {
+func TestAgentInitForceArchivesObsoleteCommands(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
 	for _, name := range obsoleteCommandFiles {
@@ -528,13 +529,112 @@ func TestAgentInitForceRemovesObsoleteCommands(t *testing.T) {
 		t.Fatalf("expected stale command file preserved without --force: %v", err)
 	}
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	if !strings.Contains(string(out), "removed") {
-		t.Errorf("expected removed status for obsolete command files: %s", out)
+	if !strings.Contains(string(out), "archived") {
+		t.Errorf("expected archived status for obsolete command files: %s", out)
 	}
 	for _, name := range obsoleteCommandFiles {
 		if _, err := os.Stat(filepath.Join(dir, "context/commands", name)); !os.IsNotExist(err) {
-			t.Errorf("expected obsolete command file %s to be removed with --force", name)
+			t.Errorf("expected obsolete command file %s to leave context/commands with --force", name)
 		}
+		assertArchived(t, dir, strings.TrimSuffix(name, ".md"))
+	}
+}
+
+// assertArchived asserts that context/archive/deprecated/<base>-DEPRECATED-<stamp>.md
+// exists with the loud header and the archived content.
+
+func assertArchived(t *testing.T, dir, base string) {
+	t.Helper()
+	ad := filepath.Join(dir, "context/archive", sdtArchiveDeprecatedDir)
+	entries, err := os.ReadDir(ad)
+	if err != nil {
+		t.Fatalf("expected archive dir %s: %v", ad, err)
+	}
+	var found string
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), base+"-DEPRECATED-") {
+			found = filepath.Join(ad, e.Name())
+		}
+	}
+	if found == "" {
+		t.Fatalf("expected archived %s under %s", base, ad)
+	}
+	data, err := os.ReadFile(found)
+	if err != nil {
+		t.Fatalf("read archive %s: %v", found, err)
+	}
+	for _, want := range []string{"# DEPRECATED", "no longer generated", "archived this file from"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("expected %q in archive header of %s", want, found)
+		}
+	}
+	if !strings.Contains(string(data), "obsolete") {
+		t.Errorf("expected archived content preserved in %s", found)
+	}
+}
+
+// TestAgentInitForcePreservesUserContent guards A4: content outside the
+// sdt:begin/end markers survives --force, both for instruction files and
+// command files.
+
+func TestAgentInitForcePreservesUserContent(t *testing.T) {
+	runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	note := "\n> User note outside the markers — must survive --force.\n"
+	for _, p := range []string{"context/instructions/analysis.md", "context/commands/analysis.md"} {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("read %s: %v", p, err)
+		}
+		if err := os.WriteFile(p, append(data, []byte(note)...), 0o644); err != nil { //#nosec G306 -- test fixture
+			t.Fatal(err)
+		}
+	}
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
+	for _, p := range []string{"context/instructions/analysis.md", "context/commands/analysis.md"} {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("read %s after --force: %v", p, err)
+		}
+		if !strings.Contains(string(data), note) {
+			t.Errorf("user note outside markers lost in %s after --force", p)
+		}
+		wantMarker := "sdt:begin:commands/"
+		if strings.Contains(p, "instructions/") {
+			wantMarker = "sdt:begin:instructions/"
+		}
+		if !strings.Contains(string(data), wantMarker) {
+			t.Errorf("expected marker %q preserved in %s after --force", wantMarker, p)
+		}
+	}
+}
+
+// TestAgentInitForceRefreshesMarkerBody guards A4: with --force the marker
+// body is refreshed even when the file was edited outside the markers.
+
+func TestAgentInitForceRefreshesMarkerBody(t *testing.T) {
+	runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	p := "context/instructions/analysis.md"
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := string(data)
+	stale = strings.Replace(stale, "# Analysis Documents", "# STALE", 1)
+	if err := os.WriteFile(p, []byte(stale), 0o644); err != nil { //#nosec G306 -- test fixture
+		t.Fatal(err)
+	}
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
+	data, err = os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "# STALE") {
+		t.Error("expected marker body refreshed with --force")
+	}
+	if !strings.Contains(string(data), "# Analysis Documents") {
+		t.Error("expected refreshed content present after --force")
 	}
 }
 
@@ -1408,8 +1508,9 @@ func TestAgentWorklogCloseoutTemplateCoherence(t *testing.T) {
 
 // TestGeneratedInstructionsMatchTemplates guards against drift between a
 // template and its committed generated file: context/instructions/<name>.md must
-// equal the template body. project.md is excluded (it substitutes project/group
-// identity). A failure means a template changed without `sdt agent init --force`.
+// equal the template body rendered with markers. project.md is excluded (it
+// substitutes project/group identity). A failure means a template changed
+// without `sdt agent init --force`.
 func TestGeneratedInstructionsMatchTemplates(t *testing.T) {
 	root := filepath.Join("..", "..")
 	for _, f := range instructionFiles("", "") {
@@ -1421,7 +1522,8 @@ func TestGeneratedInstructionsMatchTemplates(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read generated %s: %v", path, err)
 		}
-		if string(data) != f.body {
+		name := agentGeneratedMarkerName(filepath.Base(sdtInstrDir), f.name)
+		if string(data) != agentRenderGenerated(name, f.body) {
 			t.Errorf("drift in %s: template differs from the committed generated file (run sdt agent init --force)", path)
 		}
 	}

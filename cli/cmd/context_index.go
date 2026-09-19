@@ -40,7 +40,7 @@ func ctxTierForDir(dir string) string {
 		return ctxTierImportant
 	case sdtPlanDir, sdtNotesDir, sdtQuestionsDir, sdtPromptsDir:
 		return "medium"
-	case sdtTasksDir:
+	case sdtTasksDir, sdtCommandsDir:
 		return "operational"
 	case sdtWorklogDir, sdtArchiveDir:
 		return ctxTierHistory
@@ -63,6 +63,7 @@ var ctxIndexDirs = []string{
 	sdtQuestionsDir,
 	sdtPromptsDir,
 	sdtTasksDir,
+	sdtCommandsDir,
 	sdtWorklogDir,
 	sdtArchiveDir,
 }

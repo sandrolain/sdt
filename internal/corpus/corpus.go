@@ -17,6 +17,10 @@ const ContextDir = "context"
 // instructions/ is agent plumbing; sdtdocs/ is the generated per-command
 // reference. commands/ is corpus content (command-trigger documents) and is
 // intentionally NOT excluded.
+//
+// This set (and excludedFiles below) is mirrored in
+// web/src/lib/exclusions.ts; parity_test.go enforces that the two never
+// diverge.
 var excludedDirs = map[string]struct{}{
 	"tmp":          {},
 	"scripts":      {},

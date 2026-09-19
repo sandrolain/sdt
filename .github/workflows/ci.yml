@@ -80,6 +80,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Verify ldflags targets (D4 guard)
+        run: |
+          for f in cli/main.go viewer/main.go; do
+            for v in version commit date; do
+              grep -Eq "^[[:space:]]*${v}[[:space:]]*=" "$f" || { echo "FAIL: -X main.${v} target is not declared in $f"; exit 1; }
+            done
+          done
+
       - name: Build CLI
         run: |
           mkdir -p bin

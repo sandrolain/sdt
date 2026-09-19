@@ -73,13 +73,14 @@ const (
 	agentSectionNameProject      = "project"
 
 	// File result statuses.
-	statusCreated = "created"
-	statusSkipped = "skipped"
-	statusError   = "error"
-	statusWritten = "written"
-	statusUpdated = "updated"
-	statusRemoved = "removed"
-	statusDryRun  = "dry-run"
+	statusCreated  = "created"
+	statusSkipped  = "skipped"
+	statusError    = "error"
+	statusWritten  = "written"
+	statusUpdated  = "updated"
+	statusRemoved  = "removed"
+	statusArchived = "archived"
+	statusDryRun   = "dry-run"
 
 	// Cobra command Use strings shared across files.
 	useInit = "init"
