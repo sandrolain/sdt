@@ -61,6 +61,20 @@ describe("Tree", () => {
     expect(countFor("commands")).toBe("0");
   });
 
+  it("shows a No documents. message in an empty kind folder", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Alpha");
+    const folder = (label: string) =>
+      Array.from(document.querySelectorAll(".tree-folder")).find(
+        (h) => h.querySelector(".tree-folder__label")?.textContent === label,
+      );
+    expect(folder("questions")?.querySelector(".tree-empty")?.textContent).toBe("No documents.");
+    expect(folder("wiki")?.querySelector(".tree-empty")).toBeNull();
+  });
+
   it("shows status dots for plans, tasks and unplanned analyses", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
@@ -234,6 +248,66 @@ describe("Tree", () => {
     await screen.findByText("Alpha");
     // filename date prefix on the notes entry (locale-safe: no year assumption)
     expect(screen.getAllByText(/2026/).length).toBeGreaterThan(0);
+  });
+
+  it("nests wiki entries under path-derived folder subgroups", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              { path: "context/wiki/root.md", kind: "wiki", title: "Root" },
+              { path: "context/wiki/regulations/cra.md", kind: "wiki", title: "CRA" },
+              { path: "context/wiki/regulations/dora.md", kind: "wiki", title: "DORA" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Root");
+    const dir = document.querySelector(".tree-folder--dir");
+    expect(dir?.querySelector(".tree-folder__label")?.textContent).toBe("regulations");
+    expect(dir?.querySelector(".tree-folder__count")?.textContent).toBe("2");
+    expect(dir?.textContent).toContain("CRA");
+    // the wiki-root entry stays outside the folder subgroup
+    expect(dir?.textContent).not.toContain("Root");
+  });
+
+  it("groups tasks under their plan", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/plan/20260920-a-plan.md",
+                kind: "plan",
+                title: "Plan A",
+                created: "2026-09-20",
+                status: "active",
+              },
+              {
+                path: "context/tasks/t1.md",
+                kind: "tasks",
+                title: "T1",
+                status: "pending",
+                sources: ["plan/20260920-a-plan.md"],
+              },
+              { path: "context/tasks/t2.md", kind: "tasks", title: "T2", status: "pending" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("T1");
+    const plan = document.querySelector(".tree-folder--plan");
+    expect(plan?.querySelector(".tree-folder__label")?.textContent).toBe("Plan A");
+    expect(plan?.querySelector(".tree-folder__count")?.textContent).toBe("1");
+    expect(plan?.textContent).toContain("T1");
+    // the plan-less task stays at the tasks-folder root
+    expect(plan?.textContent).not.toContain("T2");
   });
 
   it("nests analyses under their objective folder", async () => {

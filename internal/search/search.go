@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -51,6 +52,7 @@ type Results struct {
 // restores display fields for search hits.
 type doc struct {
 	Path        string
+	Name        string
 	Kind        string
 	Title       string
 	Summary     string
@@ -61,12 +63,27 @@ type doc struct {
 	RawCreated  string
 }
 
+var (
+	datePrefixRe = regexp.MustCompile(`^\d{8}-\d{6}-`)
+	nameSepRe    = regexp.MustCompile(`[-_.]+`)
+)
+
+// docName derives the searchable filename stem: base name without the `.md`
+// extension, leading `YYYYMMDD-HHMMSS-` date prefix stripped and `-_.`
+// separators normalized to single spaces.
+func docName(path string) string {
+	base := strings.TrimSuffix(filepath.Base(path), ".md")
+	base = datePrefixRe.ReplaceAllString(base, "")
+	return strings.TrimSpace(nameSepRe.ReplaceAllString(base, " "))
+}
+
 // buildIndexMapping returns the bleve mapping for corpus-md docs.
 func buildIndexMapping() (mapping.IndexMapping, error) {
 	im := bleve.NewIndexMapping()
 	dm := bleve.NewDocumentMapping()
 	dm.AddFieldMappingsAt("Kind", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Path", bleve.NewKeywordFieldMapping())
+	dm.AddFieldMappingsAt("Name", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Title", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Summary", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Objective", bleve.NewKeywordFieldMapping())
@@ -201,7 +218,7 @@ func parseDoc(docID, path string) (doc, error) {
 		return doc{}, err
 	}
 	content := string(data)
-	d := doc{Path: docID, Body: content}
+	d := doc{Path: docID, Name: docName(docID), Body: content}
 	if i := strings.Index(content, fmStart); i == 0 {
 		end := strings.Index(content[len(fmStart):], fmEnd)
 		if end > 0 {
@@ -271,8 +288,23 @@ func (ix *Index) Search(q, kind, objective, from, to string, max int) (Results, 
 	if q == "" {
 		return Results{Results: []Result{}}, nil
 	}
-	base := bleve.NewMatchQuery(q)
-	must := []query.Query{base}
+	// Filename-aware scoring: a document whose filename matches the query
+	// outranks body-only matches. A disjunction of boosted sub-queries drives
+	// relevance while the filters below stay conjunctive (must).
+	namePhrase := bleve.NewMatchPhraseQuery(q)
+	namePhrase.SetField("Name")
+	namePhrase.SetBoost(8)
+	nameMatch := bleve.NewMatchQuery(q)
+	nameMatch.SetField("Name")
+	nameMatch.SetBoost(4)
+	titleMatch := bleve.NewMatchQuery(q)
+	titleMatch.SetField("Title")
+	titleMatch.SetBoost(2)
+	bodyMatch := bleve.NewMatchQuery(q)
+	bodyMatch.SetBoost(1)
+
+	scored := bleve.NewDisjunctionQuery(namePhrase, nameMatch, titleMatch, bodyMatch)
+	must := []query.Query{scored}
 
 	if kind != "" {
 		kindQ := bleve.NewTermQuery(kind)

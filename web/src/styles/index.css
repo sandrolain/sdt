@@ -710,22 +710,42 @@
   .tree-folder[open] > .tree-folder__header {
     border-bottom: 1px solid var(--border);
   }
-  /* objective sub-folder inside the analysis kind folder: tinted background and
+  /* objective/plan sub-folders inside a kind folder: tinted background and
      accent border so the group reads as a distinct container */
-  .tree-folder--objective {
+  .tree-folder--objective,
+  .tree-folder--plan {
     background: color-mix(in srgb, var(--accent) 8%, var(--bg-mantle));
     border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
     margin: 0.4rem;
   }
-  .tree-folder--objective > .tree-folder__header {
+  .tree-folder--objective > .tree-folder__header,
+  .tree-folder--plan > .tree-folder__header {
     font-size: 0.8125rem;
     font-weight: 500;
   }
-  .tree-folder--objective > .tree-folder__header .tree-folder__icon {
+  .tree-folder--objective > .tree-folder__header .tree-folder__icon,
+  .tree-folder--plan > .tree-folder__header .tree-folder__icon {
     color: var(--accent);
   }
-  .tree-folder--objective[open] > .tree-folder__header {
+  .tree-folder--objective[open] > .tree-folder__header,
+  .tree-folder--plan[open] > .tree-folder__header {
     border-bottom-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+  /* path-derived folder subgroup inside the wiki kind folder (recursive) */
+  .tree-folder--dir {
+    background: color-mix(in srgb, var(--fg) 5%, var(--bg-mantle));
+    border-color: color-mix(in srgb, var(--fg) 18%, var(--border));
+    margin: 0.4rem;
+  }
+  .tree-folder--dir > .tree-folder__header {
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+  .tree-folder--dir > .tree-folder__header .tree-folder__icon {
+    color: var(--fg-faint);
+  }
+  .tree-folder--dir[open] > .tree-folder__header {
+    border-bottom-color: color-mix(in srgb, var(--fg) 18%, var(--border));
   }
   .tree-folder__header::-webkit-details-marker {
     display: none;
@@ -838,6 +858,10 @@
     color: var(--fg-faint);
     text-align: center;
     margin-top: 4rem;
+  }
+  /* inside a tree kind folder the placeholder sits tight under the header */
+  .content__empty.tree-empty {
+    margin: 0.75rem 0.6rem;
   }
 
   .doc-header {

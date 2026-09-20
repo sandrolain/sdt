@@ -106,6 +106,30 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
     <aside className="panel panel--meta" aria-label="Document metadata">
       <Breadcrumbs path={doc.path} />
 
+      {headings.length > 0 && (
+        <MetaCard title="Sections" icon="toc">
+          <ul className="meta-toc" role="list">
+            {headings.map((h, i) => {
+              const isActive = activeHeading === h.text;
+              return (
+                <li key={`${h.text}-${i}`} style={{ paddingLeft: `${(h.level - 1) * 0.6}rem` }}>
+                  <button
+                    type="button"
+                    className={`meta-toc__link${isActive ? " is-active" : ""}`}
+                    aria-current={isActive ? "true" : undefined}
+                    onClick={() => {
+                      requestSection(doc.path, h.text);
+                    }}
+                  >
+                    {h.text}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </MetaCard>
+      )}
+
       <MetaCard title="Metadata" icon="info">
         {status && (
           <div className="meta-status" role="listitem">
@@ -134,30 +158,6 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
           </dl>
         )}
       </MetaCard>
-
-      {headings.length > 0 && (
-        <MetaCard title="Sections" icon="toc">
-          <ul className="meta-toc" role="list">
-            {headings.map((h, i) => {
-              const isActive = activeHeading === h.text;
-              return (
-                <li key={`${h.text}-${i}`} style={{ paddingLeft: `${(h.level - 1) * 0.6}rem` }}>
-                  <button
-                    type="button"
-                    className={`meta-toc__link${isActive ? " is-active" : ""}`}
-                    aria-current={isActive ? "true" : undefined}
-                    onClick={() => {
-                      requestSection(doc.path, h.text);
-                    }}
-                  >
-                    {h.text}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </MetaCard>
-      )}
 
       {relatedId ? (
         <MetaCard title="Related" icon="hub">

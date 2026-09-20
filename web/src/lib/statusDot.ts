@@ -18,7 +18,7 @@ export function isDoneStatus(status?: string): boolean {
 }
 
 /** Corpus-relative path of a frontmatter reference, normalised to `context/...md`. */
-function normalizeRef(ref: string): string {
+export function normalizeRef(ref: string): string {
   const clean = ref.trim().replace(/^\.\//, "").replace(/^\/+/, "");
   const withExt = clean.endsWith(".md") ? clean : `${clean}.md`;
   return withExt.startsWith("context/") ? withExt : `context/${withExt}`;

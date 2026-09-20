@@ -2,7 +2,14 @@
 import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api";
 import { KIND_ORDER } from "./kinds";
-import { groupByKind, groupByObjective, sortEntries } from "./treeSort";
+import {
+  folderCount,
+  groupByFolder,
+  groupByKind,
+  groupByObjective,
+  groupByPlan,
+  sortEntries,
+} from "./treeSort";
 
 function entry(patch: Partial<TreeEntry>): TreeEntry {
   return { path: "context/notes/x.md", ...patch };
@@ -75,6 +82,105 @@ describe("groupByObjective", () => {
   it("returns only the ungrouped bucket when no objective is set", () => {
     const groups = groupByObjective([entry({ path: "context/analysis/a.md" })]);
     expect(groups.map((g) => g.objective)).toEqual([""]);
+  });
+});
+
+describe("groupByFolder", () => {
+  it("nests deeper wiki entries under path-derived folders, root entries flat", () => {
+    const entries = [
+      entry({ path: "context/wiki/root.md", kind: "wiki" }),
+      entry({ path: "context/wiki/regulations/a.md", kind: "wiki" }),
+      entry({ path: "context/wiki/regulations/b.md", kind: "wiki" }),
+      entry({ path: "context/wiki/regulations/sub/c.md", kind: "wiki" }),
+    ];
+    const { rootEntries, folders } = groupByFolder(entries, "context/wiki/");
+    expect(rootEntries.map((e) => e.path)).toEqual(["context/wiki/root.md"]);
+    expect(folders.map((f) => f.name)).toEqual(["regulations"]);
+    const reg = folders[0];
+    expect(reg.entries.map((e) => e.path)).toEqual([
+      "context/wiki/regulations/a.md",
+      "context/wiki/regulations/b.md",
+    ]);
+    expect(reg.children.map((c) => c.name)).toEqual(["sub"]);
+    expect(reg.children[0].entries.map((e) => e.path)).toEqual([
+      "context/wiki/regulations/sub/c.md",
+    ]);
+    expect(folderCount(reg)).toBe(3);
+  });
+
+  it("keeps entries outside the prefix at the root", () => {
+    const { rootEntries } = groupByFolder(
+      [entry({ path: "context/notes/x.md", kind: "notes" })],
+      "context/wiki/",
+    );
+    expect(rootEntries.map((e) => e.path)).toEqual(["context/notes/x.md"]);
+  });
+});
+
+describe("groupByPlan", () => {
+  const plans = new Map<string, TreeEntry>([
+    [
+      "context/plan/20260920-a-plan.md",
+      entry({
+        path: "context/plan/20260920-a-plan.md",
+        kind: "plan",
+        title: "Plan A",
+        created: "2026-09-20",
+      }),
+    ],
+    [
+      "context/plan/20260919-b-plan.md",
+      entry({
+        path: "context/plan/20260919-b-plan.md",
+        kind: "plan",
+        title: "Plan B",
+        created: "2026-09-19",
+      }),
+    ],
+  ]);
+
+  it("groups tasks under their plan, ordered by plan created desc, ungrouped last", () => {
+    const groups = groupByPlan(
+      [
+        entry({ path: "context/tasks/t1.md", kind: "tasks", sources: ["plan/20260920-a-plan.md"] }),
+        entry({
+          path: "context/tasks/t2.md",
+          kind: "tasks",
+          sources: ["context/plan/20260919-b-plan.md"],
+        }),
+        entry({ path: "context/tasks/t3.md", kind: "tasks", sources: ["plan/20260920-a-plan.md"] }),
+        entry({ path: "context/tasks/t4.md", kind: "tasks" }),
+      ],
+      plans,
+    );
+    expect(groups.map((g) => g.label)).toEqual(["Plan A", "Plan B", ""]);
+    expect(groups[0].entries.map((e) => e.path)).toEqual([
+      "context/tasks/t1.md",
+      "context/tasks/t3.md",
+    ]);
+    expect(groups[2].entries.map((e) => e.path)).toEqual(["context/tasks/t4.md"]);
+  });
+
+  it("labels a plan group from the filename slug when the plan entry is absent", () => {
+    const groups = groupByPlan(
+      [entry({ path: "context/tasks/t1.md", kind: "tasks", sources: ["plan/20260920-a-plan.md"] })],
+      new Map(),
+    );
+    expect(groups.map((g) => g.label)).toEqual(["a-plan"]);
+  });
+
+  it("ignores non-plan references and leaves such tasks ungrouped", () => {
+    const groups = groupByPlan(
+      [
+        entry({
+          path: "context/tasks/t1.md",
+          kind: "tasks",
+          sources: ["analysis/20260920-a.md"],
+        }),
+      ],
+      plans,
+    );
+    expect(groups.map((g) => g.label)).toEqual([""]);
   });
 });
 

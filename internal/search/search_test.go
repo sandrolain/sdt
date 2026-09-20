@@ -101,6 +101,24 @@ created: 2026-09-13
 
 outsideonly unique term not in the corpus.
 `)
+	// filename-match ranking: the tasks doc's name carries the full query while
+	// the analysis only mentions the terms in its body
+	write("context/tasks/20260911-084500-plan-llm-wiki-pipeline-phase-1.md", `---
+kind: tasks
+title: LLM wiki pipeline phase 1
+created: 2026-09-15
+---
+
+Deliverable steps for the first stage.
+`)
+	write("context/analysis/pipeline-study.md", `---
+kind: analysis
+title: Pipeline study
+created: 2026-09-16
+---
+
+A review of the plan llm wiki pipeline phase 1 rollout.
+`)
 	return root
 }
 
@@ -111,9 +129,9 @@ func TestNewAndBulkIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	// wiki(2) + analysis(1) + notes(1) + map(1) = 5; tmp/scripts/refs/canvas/root-docs skipped
-	if len(ix.registry) != 5 {
-		t.Errorf("indexed %d docs, want 5", len(ix.registry))
+	// wiki(2) + analysis(2) + notes(1) + tasks(1) + map(1) = 7; tmp/scripts/refs/canvas/root-docs skipped
+	if len(ix.registry) != 7 {
+		t.Errorf("indexed %d docs, want 7", len(ix.registry))
 	}
 	if _, ok := ix.registry["docs/outside.md"]; ok {
 		t.Error("outside-corpus doc indexed")
@@ -202,6 +220,23 @@ func TestSearchRankedResults(t *testing.T) {
 	}
 	if scoreOf("context/wiki/alpha.md") <= scoreOf("context/wiki/beta.md") {
 		t.Errorf("alpha score %v not above beta %v", scoreOf("context/wiki/alpha.md"), scoreOf("context/wiki/beta.md"))
+	}
+}
+
+func TestSearchFilenameRanksFirst(t *testing.T) {
+	root := corpus(t)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	res, err := ix.Search("plan llm wiki pipeline phase 1", "", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "context/tasks/20260911-084500-plan-llm-wiki-pipeline-phase-1.md"
+	if len(res.Results) == 0 || res.Results[0].Path != want {
+		t.Fatalf("rank1 = %+v, want %s first", res.Results, want)
 	}
 }
 

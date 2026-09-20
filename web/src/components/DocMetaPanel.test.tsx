@@ -76,6 +76,16 @@ describe("DocMetaPanel", () => {
     expect(chevrons.length).toBeGreaterThan(0);
   });
 
+  it("renders the Sections card above the Metadata card", () => {
+    mockFetch();
+    renderPanel(DOC);
+    const titles = Array.from(document.querySelectorAll(".meta-card__label")).map(
+      (el) => el.textContent,
+    );
+    expect(titles.indexOf("Sections")).toBeGreaterThanOrEqual(0);
+    expect(titles.indexOf("Sections")).toBeLessThan(titles.indexOf("Metadata"));
+  });
+
   it("requests the selected section (jump handled by the document panel)", async () => {
     mockFetch();
     renderPanel(DOC);

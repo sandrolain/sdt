@@ -6,10 +6,18 @@ import { formatFieldDate } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
-import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
+import { planReferencedAnalyses, normalizeRef, statusDot } from "../lib/statusDot";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
-import { groupByKind, groupByObjective, sortEntries } from "../lib/treeSort";
+import {
+  folderCount,
+  groupByFolder,
+  groupByKind,
+  groupByObjective,
+  groupByPlan,
+  sortEntries,
+  type FolderGroup,
+} from "../lib/treeSort";
 import { useTreeSort } from "../lib/treeSortStore";
 import { useReloadToken } from "../lib/useReloadToken";
 import { SkeletonLines } from "./Skeleton";
@@ -65,6 +73,15 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
         entries: sortEntries(group.entries, sortKey),
       }))
     : [];
+  // plan lookup for task grouping (labels/order); uses every entry so a
+  // filtered-out completed plan still labels its tasks.
+  const planIndex = useMemo(() => {
+    const map = new Map<string, TreeEntry>();
+    for (const entry of entries ?? []) {
+      if (entryKind(entry) === "plan") map.set(normalizeRef(entry.path), entry);
+    }
+    return map;
+  }, [entries]);
 
   return (
     <aside className="panel panel--tree" aria-label="Corpus tree">
@@ -101,8 +118,18 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
                 <span className="tree-folder__label">{kindLabel(group.kind)}</span>
                 <span className="tree-folder__count">{group.entries.length}</span>
               </summary>
-              {group.kind === "analysis" ? (
+              {group.entries.length === 0 ? (
+                <p className="content__empty tree-empty">No documents.</p>
+              ) : group.kind === "analysis" ? (
                 <AnalysisEntries entries={group.entries} plannedAnalyses={plannedAnalyses} />
+              ) : group.kind === "wiki" ? (
+                <WikiEntries entries={group.entries} plannedAnalyses={plannedAnalyses} />
+              ) : group.kind === "tasks" ? (
+                <PlanEntries
+                  entries={group.entries}
+                  plans={planIndex}
+                  plannedAnalyses={plannedAnalyses}
+                />
               ) : (
                 <EntryList entries={group.entries} plannedAnalyses={plannedAnalyses} />
               )}
@@ -130,6 +157,86 @@ function EntryList({
         <TreeEntryRow key={entry.path} entry={entry} plannedAnalyses={plannedAnalyses} />
       ))}
     </ul>
+  );
+}
+
+/** Wiki kind folder: entries at the wiki root stay flat, deeper entries nest
+ *  under path-derived folder subgroups. */
+function WikiEntries({
+  entries,
+  plannedAnalyses,
+}: {
+  entries: TreeEntry[];
+  plannedAnalyses: PlannedAnalyses;
+}) {
+  const { rootEntries, folders } = groupByFolder(entries, "context/wiki/");
+  return (
+    <>
+      {rootEntries.length > 0 && (
+        <EntryList entries={rootEntries} plannedAnalyses={plannedAnalyses} />
+      )}
+      {folders.map((folder) => (
+        <FolderNodeView key={folder.path} node={folder} plannedAnalyses={plannedAnalyses} />
+      ))}
+    </>
+  );
+}
+
+/** One path-derived wiki folder (recursive), with a subtree count badge. */
+function FolderNodeView({
+  node,
+  plannedAnalyses,
+}: {
+  node: FolderGroup;
+  plannedAnalyses: PlannedAnalyses;
+}) {
+  return (
+    <details className="tree-folder tree-folder--dir">
+      <summary className="tree-folder__header">
+        <Icon name="expand_more" className="tree-folder__chevron" />
+        <Icon name="folder" className="tree-folder__icon" />
+        <span className="tree-folder__label">{node.name}</span>
+        <span className="tree-folder__count">{folderCount(node)}</span>
+      </summary>
+      {node.entries.length > 0 && (
+        <EntryList entries={node.entries} plannedAnalyses={plannedAnalyses} />
+      )}
+      {node.children.map((child) => (
+        <FolderNodeView key={child.path} node={child} plannedAnalyses={plannedAnalyses} />
+      ))}
+    </details>
+  );
+}
+
+/** Task kind folder: tasks grouped under the plan they reference, tasks
+ *  without a plan reference stay at the folder root. */
+function PlanEntries({
+  entries,
+  plans,
+  plannedAnalyses,
+}: {
+  entries: TreeEntry[];
+  plans: Map<string, TreeEntry>;
+  plannedAnalyses: PlannedAnalyses;
+}) {
+  return (
+    <>
+      {groupByPlan(entries, plans).map((group) =>
+        group.plan === "" ? (
+          <EntryList key="__ungrouped" entries={group.entries} plannedAnalyses={plannedAnalyses} />
+        ) : (
+          <details key={group.plan} className="tree-folder tree-folder--plan">
+            <summary className="tree-folder__header">
+              <Icon name="expand_more" className="tree-folder__chevron" />
+              <Icon name="map" className="tree-folder__icon" />
+              <span className="tree-folder__label">{group.label}</span>
+              <span className="tree-folder__count">{group.entries.length}</span>
+            </summary>
+            <EntryList entries={group.entries} plannedAnalyses={plannedAnalyses} />
+          </details>
+        ),
+      )}
+    </>
   );
 }
 
