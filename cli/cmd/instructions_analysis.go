@@ -98,6 +98,17 @@ session: <session id>        # optional
 - ` + "`objective`" + ` (optional): kebab-case slug identifying the initiative; use the same
   slug in every analysis that targets the same objective so
   ` + "`sdt context reindex`" + ` and the viewer can group them.
+- **Check the objective's dead ends first**: before opening an analysis for an
+  objective, review its ` + "`note_type: dead-end`" + ` notes (` + "`sdt context status`" + `
+  counts them; ` + "`sdt context reindex`" + ` groups them under the objective) and do
+  not re-run a rejected approach without new evidence.
+- **Declare how it relates to prior work.** Set ` + "`links`" + ` (generic
+  correlation), ` + "`supersedes`" + ` (this document replaces an older one) or
+  ` + "`contradicts`" + ` (it rebuts it), or state ` + "`links: none`" + ` with a reason when
+  there is genuinely no prior work. ` + "`sdt context lint`" + ` raises a SUGGESTION
+  when an analysis declares nothing, and another when two analyses of the same
+  ` + "`objective`" + ` have near-identical title/summary (possible duplicate — link
+  or differentiate them).
 - Leave **no open points**: if a decision is missing, ask on the fly or register
   it as an open question in ` + "`context/questions/`" + `; keep the user in
   control of the decisions.

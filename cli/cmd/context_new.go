@@ -150,7 +150,7 @@ func yamlScalar(s string) string {
 // the file stays lint-parseable; title/component are emitted only where the
 // type requires them and the value is non-empty.
 
-func contextFrontmatter(typ, title, summary, note, project, component, created, objective, id string) string {
+func contextFrontmatter(typ, title, summary, note, project, component, created, objective, id, agent, role, noteType string) string {
 	if summary == "" {
 		summary = ctxSummaryPlaceholder
 	}
@@ -170,8 +170,17 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	if note != "" {
 		b.WriteString("context: " + yamlScalar(note) + "\n")
 	}
-	if typ == ctxTypeAnalysis && objective != "" {
+	if (typ == ctxTypeAnalysis || typ == ctxTypeNotes) && objective != "" {
 		b.WriteString("objective: " + yamlScalar(objective) + "\n")
+	}
+	if typ == ctxTypeNotes && noteType != "" {
+		b.WriteString("note_type: " + yamlScalar(noteType) + "\n")
+	}
+	if agent != "" {
+		b.WriteString("agent: " + yamlScalar(agent) + "\n")
+	}
+	if role != "" {
+		b.WriteString("role: " + yamlScalar(role) + "\n")
 	}
 	if st, ok := ctxDefaultStatusFor(typ); ok {
 		b.WriteString("status: " + st + "\n")
@@ -219,9 +228,12 @@ after creation.
 The slug is derived from --title when --slug is omitted; --summary is optional
 and falls back to a MANDATORY-fill placeholder so the file passes lint. For
 decision type the next NNNN number is auto-assigned (override with --number).
---objective attaches a kebab-case grouping key (analysis type only). Wiki pages
+--objective attaches a kebab-case grouping key (analysis or notes; on a notes
+entry it ties a dead-end to its objective). Wiki pages
 accept subpath ids (` + "`--slug backend/auth`" + `) and carry ` + "`id`" + ` equal to that
-subpath. The command prints the created file path (--format text|json|yaml).
+subpath. --agent and --role record who produced a notes/worklog entry;
+--note-type sets the notes subtype (e.g. ` + "`dead-end`" + `). The
+command prints the created file path (--format text|json|yaml).
 
 Examples:
   sdt context new --type worklog --title "review deps" --input "reviewed deps"
@@ -256,12 +268,23 @@ Examples:
 		note := getStringFlag(cmd, "context", false)
 		summary := getStringFlag(cmd, "summary", false)
 		objective := getStringFlag(cmd, "objective", false)
+		agent := getStringFlag(cmd, "agent", false)
+		role := getStringFlag(cmd, "role", false)
+		noteType := getStringFlag(cmd, "note-type", false)
 		if objective != "" {
-			if typ != ctxTypeAnalysis {
-				exitWithError(cmd, fmt.Errorf("--objective is only supported for --type analysis, got %q", typ))
+			if typ != ctxTypeAnalysis && typ != ctxTypeNotes {
+				exitWithError(cmd, fmt.Errorf("--objective is only supported for --type analysis or --type notes, got %q", typ))
 			}
 			if !ctxObjectiveRegexp.MatchString(objective) {
 				exitWithError(cmd, fmt.Errorf("--objective must be a kebab-case slug (lowercase alphanumeric and '-'), got %q", objective))
+			}
+		}
+		if noteType != "" {
+			if typ != ctxTypeNotes {
+				exitWithError(cmd, fmt.Errorf("--note-type is only supported for --type notes, got %q", typ))
+			}
+			if !ctxObjectiveRegexp.MatchString(noteType) {
+				exitWithError(cmd, fmt.Errorf("--note-type must be a kebab-case slug (lowercase alphanumeric and '-'), got %q", noteType))
 			}
 		}
 		force := getBoolFlag(cmd, "force", false)
@@ -297,7 +320,7 @@ Examples:
 			if typ == ctxTypeArchitecture {
 				component = slug
 			}
-			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective, slug)
+			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective, slug, agent, role, noteType)
 			if body == "" {
 				body = contextDefaultBody(typ)
 			}

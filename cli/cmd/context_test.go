@@ -371,8 +371,10 @@ func TestContextNewObjectiveFlag(t *testing.T) {
 
 func TestContextNewObjectiveNotAnalysis(t *testing.T) {
 	runInTempDir(t)
+	// notes now accept --objective (dead-end grouping); a type that does not
+	// support it must still be rejected.
 	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextNewCmd, nil, "--type", "notes", "--slug", "x", "--objective", "viewer"))
+		return string(execute(t, contextNewCmd, nil, "--type", "questions", "--slug", "x", "--objective", "viewer"))
 	})
 }
 

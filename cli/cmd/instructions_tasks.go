@@ -79,7 +79,7 @@ sections handle that.
 
 - **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
 - Status markers: ` + "`[ ]`" + ` todo · ` + "`[~]`" + ` in-progress · ` + "`[x]`" + ` done · ` + "`[!]`" + ` blocked.
-- Manage with ` + "`sdt context task <sub> --phase <n> [--plan <slug>]`" + ` (add/list/done/block/wip).
+- Manage with ` + "`sdt context task <sub> --phase <n> [--plan <slug>]`" + ` (add/list/done/block/wip/review).
 - File status transitions: create → ` + "`pending`" + `; ` + "`wip`" + `/` + "`block`" + ` → ` + "`in-progress`" + `; ` + "`done`" + ` → ` + "`completed`" + ` when no ` + "`[ ]`" + `/` + "`[~]`" + ` item remains, else ` + "`in-progress`" + `; ` + "`archive`" + ` → ` + "`archived`" + `.
 - One plan phase per file: **single focus**, small checklist (~5-7 items); a
   >10-item checklist triggers a ` + "`sdt context lint`" + ` SUGGESTION to split.
@@ -123,4 +123,11 @@ Never leave ` + "`[~]`" + ` in-progress markers unattended across sessions.
 Run the verify-step before closing a phase (completeness, coherence,
 correctness) and use the standardized claim vocabulary (**passed** / **expected**
 / **inferred**) — see AGENTS.md (5-stage development lifecycle).
+
+Record it as a ` + "`## Review`" + ` block in the task file (write it with
+` + "`sdt context task review --phase <n>`" + `; a completed file without the block gets
+a lint SUGGESTION). Every finding ends as one of the closed verdicts
+**CONFIRMED**, **DISPROVED** or **UNVERIFIED**, with evidence (command output,
+file path). Findings are validated in an **independent pass**; the author of the
+phase does not self-approve.
 `

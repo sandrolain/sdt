@@ -211,5 +211,8 @@ or incomparable material — split it into child/sibling nodes wired via
 - ` + "`sdt context wiki lint`" + ` — schema/graph checks on ` + "`wiki/`" + ` (scanned
   recursively; ` + "`id`" + ` = relative subpath) plus ` + "`ingestion/`" + ` markers
   (` + "`refs/`" + ` excluded). Separate from the general ` + "`sdt context lint`" + `.
+- Security: ` + "`sdt context lint --security`" + ` flags prompt-injection phrases,
+  credential/secret literals and invisible/zero-width Unicode in the ingested
+  knowledge (advisory WARNING) before they can steer the agent.
 - After every run: ` + "`sdt context reindex`" + `.
 `

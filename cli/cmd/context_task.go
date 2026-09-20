@@ -315,7 +315,8 @@ func setTaskFileStatus(content, status string) string {
 
 // taskFileNextStatus derives the file status after applying one item
 // transition: wip/block always leaves the file in-progress; done completes the
-// file only when no [ ] or [~] item remains.
+// file only when no [ ] or [~] item remains, and — when the completion comes
+// from `task review` — only the review path records the verdict block.
 
 func taskFileNextStatus(itemStatus string, content string) string {
 	if itemStatus != taskStatusDone {
@@ -409,6 +410,41 @@ func taskSetStatusCmd(status string) *cobra.Command {
 	}
 }
 
+// contextTaskReviewCmd records the verify-step verdict. It appends the fixed
+// protocol reminder plus the caller's findings and, when every checklist item is
+// done, completes the file (a completed task file should carry a Review block).
+var contextTaskReviewCmd = &cobra.Command{
+	Use:   ctxReviewVerb,
+	Short: "Record the verify-step review verdicts in the phase task file",
+	Long: `Append the verify-step review block to the phase task file and, when every
+checklist item is done, mark the file completed.
+
+Each finding ends as one of the closed verdicts (` + ctxReviewVerdictHelp + `) with
+evidence; an independent pass validates findings and the phase author does not
+self-approve. Use --input/--file/piped stdin for the findings text.
+
+Examples:
+  sdt context task review --phase 1 --plan plan.md --input "all gates green (CONFIRMED)"`,
+	Args: cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		phase, plan, err := taskTarget(cmd)
+		exitWithError(cmd, err)
+		path := taskFileFor(phase, plan)
+		content, err := readTaskFile(phase, plan)
+		exitWithError(cmd, err)
+		body := getContextBody(cmd, args)
+		content = appendReviewBlock(content, body)
+		if !hasUnfinishedTaskItem(content) {
+			content = setTaskFileStatus(content, taskFileStatusCompleted)
+		}
+		//#nosec G306 -- user work file
+		if err := os.WriteFile(path, []byte(strings.TrimRight(content, "\n")+"\n"), 0o644); err != nil {
+			exitWithError(cmd, err)
+		}
+		outputString(cmd, path+"\n")
+	},
+}
+
 func taskArchiveSlug(content, flagSlug string) string {
 	if s := sanitizeSlug(flagSlug); s != "" {
 		return s
@@ -473,6 +509,7 @@ standalone checklist).
   sdt context task list [--phase <n>] [--plan <ref>]      show steps with ids
   sdt context task add "<step>" --phase <n> [--plan <ref>] [--objective] [--summary]
   sdt context task done|block|wip <id> --phase <n> [--plan <ref>]
+  sdt context task review --phase <n> [--plan <ref>]      record verdicts + complete
   sdt context task archive --phase <n> [--plan <ref>] [--slug]
 
 Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked`,

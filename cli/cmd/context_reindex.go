@@ -50,7 +50,9 @@ func buildIndex() (string, error) {
 
 // collectTierRows splits a relevance tier into the general rows and the
 // per-objective buckets: Important analyses carrying an `objective` group key
-// are bucketed, everything else stays in the general list.
+// are bucketed, and dead-end notes (`note_type: dead-end` + `objective`) are
+// surfaced in the same objective bucket. Everything else stays in the general
+// list, except dead-end notes, which are never duplicated in the notes list.
 func collectTierRows(tier string) (rows []string, buckets map[string][]string, bucketSlugs []string, err error) {
 	buckets = map[string][]string{}
 	for _, dir := range ctxIndexDirs {
@@ -62,31 +64,72 @@ func collectTierRows(tier string) (rows []string, buckets map[string][]string, b
 			return nil, nil, nil, ferr
 		}
 		for _, f := range files {
+			kind, objective, noteType := ctxDocMeta(f)
+			if kind == ctxTypeNotes && objective != "" && noteType == ctxNoteTypeDeadEnd {
+				// Surfaced under the objective bucket, not in the notes list.
+				continue
+			}
 			line := ctxIndexLine(dir, f)
-			if tier == ctxTierImportant {
-				kind, objective := ctxDocObjective(f)
-				if kind == ctxTypeAnalysis && objective != "" {
-					if _, seen := buckets[objective]; !seen {
-						bucketSlugs = append(bucketSlugs, objective)
-					}
-					buckets[objective] = append(buckets[objective], line)
-					continue
-				}
+			if tier == ctxTierImportant && kind == ctxTypeAnalysis && objective != "" {
+				bucketSlugs = addObjectiveBucket(buckets, bucketSlugs, objective, line)
+				continue
 			}
 			rows = append(rows, line)
+		}
+	}
+	if tier == ctxTierImportant {
+		bucketSlugs, err = collectDeadEndRows(buckets, bucketSlugs)
+		if err != nil {
+			return nil, nil, nil, err
 		}
 	}
 	return rows, buckets, bucketSlugs, nil
 }
 
-// ctxDocObjective returns the frontmatter kind and the optional `objective`
-// group key of a context document.
-func ctxDocObjective(path string) (string, string) {
+// collectDeadEndRows appends the dead-end notes to their objective buckets,
+// registering the bucket when no analysis opened it yet.
+func collectDeadEndRows(buckets map[string][]string, bucketSlugs []string) ([]string, error) {
+	files, err := dirFiles(sdtNotesDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		kind, objective, noteType := ctxDocMeta(f)
+		if kind != ctxTypeNotes || objective == "" || noteType != ctxNoteTypeDeadEnd {
+			continue
+		}
+		bucketSlugs = addObjectiveBucket(buckets, bucketSlugs, objective, ctxDeadEndLine(f))
+	}
+	return bucketSlugs, nil
+}
+
+// addObjectiveBucket appends a line to an objective bucket, registering the
+// slug once and returning the (possibly extended) ordered slug list.
+func addObjectiveBucket(buckets map[string][]string, bucketSlugs []string, objective, line string) []string {
+	if _, seen := buckets[objective]; !seen {
+		bucketSlugs = append(bucketSlugs, objective)
+	}
+	buckets[objective] = append(buckets[objective], line)
+	return bucketSlugs
+}
+
+// ctxDeadEndLine renders a dead-end note index row with an explicit marker.
+func ctxDeadEndLine(path string) string {
+	line := ctxIndexLine(sdtNotesDir, path)
+	return strings.Replace(line, " — ", " — **dead-end** ", 1)
+}
+
+// ctxDocMeta returns the frontmatter kind, optional `objective` group key and
+// optional `note_type` of a context document.
+func ctxDocMeta(path string) (kind, objective, noteType string) {
 	data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
 	if err != nil {
-		return "", ""
+		return "", "", ""
 	}
-	return parseFrontmatterField(string(data), "kind"), parseFrontmatterField(string(data), "objective")
+	content := string(data)
+	return parseFrontmatterField(content, "kind"),
+		parseFrontmatterField(content, "objective"),
+		parseFrontmatterField(content, "note_type")
 }
 
 func writeIndex(content string) error {

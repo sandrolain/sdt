@@ -73,8 +73,35 @@ Examples:
 		}
 		files, err := listContextFiles(t.dir)
 		exitWithError(cmd, err)
+		agent := getStringFlag(cmd, "agent", false)
+		role := getStringFlag(cmd, "role", false)
+		if agent != "" || role != "" {
+			files, err = filterContextFilesByProvenance(files, agent, role)
+			exitWithError(cmd, err)
+		}
 		outputStringList(cmd, files)
 	},
+}
+
+// filterContextFilesByProvenance keeps the files whose frontmatter `agent`
+// and/or `role` equals the requested value (an empty filter is ignored).
+func filterContextFilesByProvenance(files []string, agent, role string) ([]string, error) {
+	var out []string
+	for _, f := range files {
+		data, err := os.ReadFile(f) //#nosec G304 -- path from listContextFiles
+		if err != nil {
+			return nil, err
+		}
+		content := string(data)
+		if agent != "" && parseFrontmatterField(content, "agent") != agent {
+			continue
+		}
+		if role != "" && parseFrontmatterField(content, "role") != role {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out, nil
 }
 
 // ── context task ───────────────────────────────────────────────────────────────

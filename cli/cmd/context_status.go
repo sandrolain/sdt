@@ -3,6 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -57,7 +59,7 @@ func ctxStatusRows() []ctxStatusEntry {
 		{kind: ctxTypeDecision, next: read, ifClean: read},
 		{kind: ctxTypeAnalysis, next: "read if current", ifClean: "done"},
 		{kind: ctxTypePlan, next: "active plan", ifClean: gitIgnoreModeNone},
-		{kind: ctxTypeNotes, next: "review", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeNotes, next: ctxReviewVerb, ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeProposal, next: "review or draft", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypePrompt, next: "run or review", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeResearch, next: "read findings", ifClean: gitIgnoreModeNone},
@@ -83,7 +85,48 @@ func ctxStatusRows() []ctxStatusEntry {
 		}
 		rows = append(rows, ctxStatusEntry{Type: ctxKindLabel(t), Count: len(files), Next: next, IfClean: d.ifClean})
 	}
+	if row, ok := ctxStatusDeadEndRow(); ok {
+		rows = append(rows, row)
+	}
 	return rows
+}
+
+// ctxStatusDeadEndRow counts dead-end notes and summarizes which objectives they
+// belong to, so an agent reviews rejected approaches before reopening one.
+func ctxStatusDeadEndRow() (ctxStatusEntry, bool) {
+	files, err := dirFiles(sdtNotesDir)
+	if err != nil {
+		return ctxStatusEntry{}, false
+	}
+	counts := map[string]int{}
+	total := 0
+	for _, f := range files {
+		kind, objective, noteType := ctxDocMeta(f)
+		if kind != ctxTypeNotes || noteType != ctxNoteTypeDeadEnd {
+			continue
+		}
+		total++
+		if objective != "" {
+			counts[objective]++
+		}
+	}
+	if total == 0 {
+		return ctxStatusEntry{}, false
+	}
+	objectives := make([]string, 0, len(counts))
+	for o := range counts {
+		objectives = append(objectives, o)
+	}
+	sort.Strings(objectives)
+	parts := make([]string, 0, len(objectives))
+	for _, o := range objectives {
+		parts = append(parts, fmt.Sprintf("%s (%d)", o, counts[o]))
+	}
+	next := "read before reopening"
+	if len(parts) > 0 {
+		next += ": " + strings.Join(parts, ", ")
+	}
+	return ctxStatusEntry{Type: "dead-ends", Count: total, Next: next}, true
 }
 
 // ── context template ────────────────────────────────────────────────────────────

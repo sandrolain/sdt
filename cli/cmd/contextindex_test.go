@@ -72,7 +72,7 @@ func TestContextReindexObjectiveGroups(t *testing.T) {
 
 func TestContextReindexProposalAndPrompt(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/search.md", "---\nkind: reference\nstatus: archived\nsummary: Search evidence\n---\nsource\n")
 	writeCtxDoc(t, "context/proposals/proposal.md", "---\nkind: proposal\ntitle: Proposal\nsummary: Proposal summary\nstatus: review\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
 	writeCtxDoc(t, "context/prompts/search.md", "---\nkind: prompt\ntitle: Search prompt\nsummary: Prompt summary\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
@@ -95,7 +95,7 @@ func TestContextReindexProposalAndPrompt(t *testing.T) {
 func TestContextReindexResearch(t *testing.T) {
 	setupContextProject(t)
 	writeCtxDoc(t, "context/prompts/drive.md", "---\nkind: prompt\ntitle: Drive\nsummary: Driving prompt\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\n---\nbody\n")
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/capture.md", "---\nkind: reference\nstatus: archived\nsummary: Raw capture\n---\nsource\n")
 	writeCtxDoc(t, "context/research/backends.md", "---\nkind: research\ntitle: Vector backends\nsummary: Compared vector backends\nsubject: Which vector backend fits? \nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - prompts/drive.md\n  - refs/capture.md\nproject: p\n---\n## Findings\nbody\n")
 
@@ -126,7 +126,7 @@ func TestContextLintPromptProvenance(t *testing.T) {
 
 func TestContextLintProposalDecisionArchitectureChain(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\n---\nbody\n")
 	writeCtxDoc(t, "context/proposals/decision.md", "---\nkind: proposal\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
 	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: decision\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - proposals/decision.md\nproject: p\nsources:\n  - proposals/decision.md\n---\n## Decision\nUse the proposal.\n")
 	writeCtxDoc(t, "context/architecture/decision.md", "---\nkind: architecture\nsummary: Current decision architecture\ncontext: Decision shape\nstatus: current\ncomponent: decision\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - decisions/0002-decision.md\nproject: p\n---\n# Architecture\n")
@@ -447,7 +447,7 @@ func TestContextLintSourcesBroken(t *testing.T) {
 
 func TestContextLintObjectiveValid(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/ok.md", "---\nkind: analysis\nsummary: ok\nobjective: memory-1\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/ok.md", "---\nkind: analysis\nsummary: ok\nobjective: memory-1\nlinks: none\n---\nbody\n")
 	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nsummary: no objective needed\n---\nbody\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {

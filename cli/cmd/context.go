@@ -29,6 +29,12 @@ const (
 	ctxTypeResearch     = "research"
 	ctxTypeCommands     = "commands"
 	ctxTypeWiki         = "wiki"
+	// ctxTypeSupersedes is the forward-only relation field: a document names
+	// the older document it replaces (the reverse is computed, never written).
+	ctxTypeSupersedes = "supersedes"
+	// ctxNoteTypeDeadEnd marks a notes entry as a rejected/dead-end approach
+	// tied to an objective; reindex surfaces it in that objective's bucket.
+	ctxNoteTypeDeadEnd = "dead-end"
 )
 
 var contextNow = time.Now
@@ -162,11 +168,18 @@ func init() {
 	contextNewCmd.Flags().String("summary", "", "Summary for the frontmatter (default: MANDATORY-fill placeholder)")
 	contextNewCmd.Flags().String("context", "", "What triggered this entry")
 	contextNewCmd.Flags().String("objective", "", "Analysis group key (kebab-case slug; analysis only)")
+	contextNewCmd.Flags().String("agent", "", "Provenance: agent/tool that produced the entry (notes/worklog)")
+	contextNewCmd.Flags().String("role", "", "Provenance: role that produced the entry (notes/worklog)")
+	contextNewCmd.Flags().String("note-type", "", "Notes subtype, e.g. dead-end (notes only)")
 	contextNewCmd.Flags().String("number", "", "Override for the decision number (default: next NNNN from decisions/)")
 	contextNewCmd.Flags().Bool("force", false, "Overwrite existing file")
 	contextNewCmd.Flags().Bool("edit", false, "Open the file in $EDITOR after creation")
 
 	contextListCmd.Flags().String("type", "", "Type: "+ctxListHelpText())
+	contextListCmd.Flags().String("agent", "", "Filter by frontmatter `agent` provenance")
+	contextListCmd.Flags().String("role", "", "Filter by frontmatter `role` provenance")
+
+	contextLintCmd.Flags().Bool("security", false, "Also scan for prompt-injection, credential and invisible-Unicode patterns (advisory WARNING)")
 
 	contextTaskAddCmd.Flags().String("objective", "", "Objective for the task list (used when creating)")
 	contextTaskAddCmd.Flags().String("summary", "", "Summary for the checklist frontmatter (default: derived from phase/objective)")
@@ -175,6 +188,7 @@ func init() {
 	contextTaskDoneCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskBlockCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskWipCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskReviewCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskArchiveCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")
 	contextTaskArchiveCmd.Flags().String("slug", "", "Archive slug (default: from objective)")
@@ -183,11 +197,12 @@ func init() {
 	contextTaskDoneCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskBlockCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskWipCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
+	contextTaskReviewCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskArchiveCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 
 	contextTemplateCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxTemplateTypes()))
 
-	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskArchiveCmd)
+	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextTaskArchiveCmd)
 	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd)
 	rootCmd.AddCommand(contextCmd)
 }

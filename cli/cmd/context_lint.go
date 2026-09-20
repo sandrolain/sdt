@@ -17,15 +17,22 @@ import (
 // validation loop and the derived-document contract.
 const ctxFrontmatterSources = "sources"
 
+// ctxFrontmatterLinks is the generic-correlation reference field.
+const ctxFrontmatterLinks = "links"
+
 // ctxReferenceFields are the frontmatter list fields that carry document
 // references validated against the context tree.
-var ctxReferenceFields = []string{ctxFrontmatterSources, "links", "derived_from", "results"}
+var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", "results", ctxTypeSupersedes, "contradicts"}
 
 func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
 	inCommands := filepath.Dir(path) == sdtCommandsDir
 	for _, field := range ctxReferenceFields {
 		for _, ref := range parseFrontmatterList(content, field) {
+			// `links: none` is the explicit "no relation" opt-out, not a path.
+			if field == ctxFrontmatterLinks && strings.TrimSpace(ref) == "none" {
+				continue
+			}
 			if _, ok := ctxResolvePath(sdtWorkDir, ref); ok {
 				continue
 			}
@@ -88,6 +95,9 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"broken source reference", "fix the `sources` frontmatter reference so it resolves to an existing context document"},
 	{"broken derived_from reference", "fix the `derived_from` frontmatter reference so it resolves to the prompt/analysis that produced this document"},
 	{"broken links reference", "fix the `links` frontmatter reference so it resolves to an existing context document"},
+	{"broken supersedes reference", "fix the `supersedes` frontmatter reference so it resolves to an existing context document"},
+	{"broken contradicts reference", "fix the `contradicts` frontmatter reference so it resolves to an existing context document"},
+	{"analysis declares no relation", "add `links`, `supersedes` or `contradicts`, or state the reason with `links: none`; a new analysis should always declare how it relates to prior work"},
 	{"broken results reference", "fix the `results` frontmatter reference so it resolves to an existing context document"},
 	{"missing `sources`", "add a `sources` frontmatter reference to the document this one derives from or extends (bidirectional traceability)"},
 	{"frontmatter missing `kind`", "add `kind: <type>`; use `sdt context new --type <type>` to scaffold a compliant document"},
@@ -98,9 +108,14 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"task file missing frontmatter `status`", "add `status: pending | in-progress | completed | archived` (legacy `active` is accepted)"},
 	{"task file status", "set `status` to pending | in-progress | completed | archived (legacy `active` is accepted)"},
 	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
+	{"completed task file has no `## Review`", "record the verify-step verdicts with `sdt context task review --phase <n>` (CONFIRMED | DISPROVED | UNVERIFIED per finding)"},
+	{"task file status", "set `status` to pending | in-progress | completed | archived (legacy `active` is accepted)"},
 	{"prompt must declare", "add a `derived_from` frontmatter reference to the prompt that produced this document"},
 	{"analysis missing `objective`", "add `objective: <kebab-case-slug>`; reuse the same slug in every analysis of the same initiative so they group in the index"},
 	{"analysis `objective`", "set `objective` to a lowercase kebab-case slug (letters, digits and '-'), shared across analyses of the same initiative"},
+	{"notes entry missing `agent`", "add `agent: <tool/role>` to the notes frontmatter so the entry's provenance is recorded (`sdt context list --agent`)"},
+	{"security: possible", "review the flagged content, redact or remove it, and re-ingest from a trusted source before it can influence the agent"},
+	{"security: invisible", "strip the invisible/zero-width Unicode characters from the document; they can hide instructions from human review"},
 }
 
 // ctxLintHint returns the curated remediation for an issue message, or "" when
@@ -261,6 +276,14 @@ func lintDoc(path string) []ctxLintIssue {
 	// SUGGESTION on absence so the convention is adopted gradually without
 	// breaking existing analyses.
 	issues = append(issues, lintObjectiveField(path, content, kind, prio)...)
+	// Analyses must declare how they relate to prior work: a `links`,
+	// `supersedes` or `contradicts` reference, or an explicit `links: none`.
+	issues = append(issues, lintAnalysisRelations(path, content, kind, prio)...)
+	// Notes provenance: record who produced the entry. Advisory (SUGGESTION) so
+	// existing notes are never hard-flagged and no backfill is forced.
+	if kind == ctxTypeNotes && parseFrontmatterField(content, "agent") == "" {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "notes entry missing `agent` provenance (record who produced it)"})
+	}
 	// resolve [[links]] and links: array to existing documents.
 	// Files under context dirs link relative to their own directory; the
 	// generated index.md links relative to the context/ root.
@@ -305,6 +328,9 @@ func lintDoc(path string) []ctxLintIssue {
 		if n := len(parseTaskItems(content)); n > ctxTasksOversizedItems {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: fmt.Sprintf("task file has %d checklist items (>%d); consider splitting the phase", n, ctxTasksOversizedItems)})
 		}
+		if parseFrontmatterField(content, "status") == taskFileStatusCompleted && !hasReviewBlock(content) {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "completed task file has no `## Review` verify-step block (record verdicts; see `sdt context task review`)"})
+		}
 	}
 	return issues
 }
@@ -324,6 +350,25 @@ func lintObjectiveField(path, content, kind string, prio func(string) string) []
 	return nil
 }
 
+// lintAnalysisRelations requires an analysis to declare how it relates to prior
+// work: at least one of links/supersedes/contradicts, or an explicit
+// `links: none` opt-out. Advisory (SUGGESTION) so the convention is adopted
+// gradually.
+func lintAnalysisRelations(path, content, kind string, prio func(string) string) []ctxLintIssue {
+	if kind != ctxTypeAnalysis {
+		return nil
+	}
+	if parseFrontmatterField(content, "links") == "none" {
+		return nil
+	}
+	for _, field := range []string{ctxFrontmatterLinks, ctxTypeSupersedes, "contradicts"} {
+		if len(parseFrontmatterList(content, field)) > 0 {
+			return nil
+		}
+	}
+	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "analysis declares no relation to prior work (add `" + ctxFrontmatterLinks + "`, `supersedes`/`contradicts`, or `" + ctxFrontmatterLinks + ": none` with a reason)"}}
+}
+
 var contextLintCmd = &cobra.Command{
 	Use:   "lint",
 	Short: "Validate context frontmatter and links",
@@ -331,26 +376,42 @@ var contextLintCmd = &cobra.Command{
 summary), [[links]] resolve to existing files, and decision filenames/numbers are
 consistent. Exits non-zero when CRITICAL issues are found.
 
+With --security, additionally scan every document for prompt-injection phrases,
+credential/secret literals, invisible/zero-width Unicode and exfil patterns
+(advisory WARNING; the default scan is unchanged).
+
 Examples:
   sdt context lint
+  sdt context lint --security
   sdt context lint --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		var issues []ctxLintIssue
+		security := getBoolFlag(cmd, "security", false)
 		for _, dir := range ctxIndexDirs {
 			files, err := dirFiles(dir)
 			exitWithError(cmd, err)
 			for _, f := range files {
 				issues = append(issues, lintDoc(f)...)
+				if security {
+					issues = append(issues, lintSecurity(f)...)
+				}
 			}
 		}
 		// index.md itself is validated as a document too.
 		if _, err := os.Stat(sdtContextIndex); err == nil {
 			issues = append(issues, lintDoc(sdtContextIndex)...)
+			if security {
+				issues = append(issues, lintSecurity(sdtContextIndex)...)
+			}
 		}
 		// Notes-only dedup-before-write advisory (SUGGESTION, never a failure).
 		if files, err := dirFiles(sdtNotesDir); err == nil {
 			issues = append(issues, lintDuplicateNotes(files)...)
+		}
+		// Cross-analysis overlap advisory: same objective, similar title/summary.
+		if files, err := dirFiles(sdtAnalysisDir); err == nil {
+			issues = append(issues, lintOverlappingAnalyses(files)...)
 		}
 		sort.Slice(issues, func(i, j int) bool {
 			if issues[i].Priority != issues[j].Priority {

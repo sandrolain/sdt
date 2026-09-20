@@ -20,6 +20,7 @@ links:
   - tasks/<date>-<plan-slug>-phase-1.md
 project: <project>
 agent: <agent/tool>          # optional
+role: <role>                 # optional (backend, frontend, architect, reviewer, pm)
 model: <model id>            # optional
 session: <session id>        # optional
 ---
@@ -88,6 +89,7 @@ no command generates it.
 - **Outcome** (per checklist item, standardized claim vocabulary):
   - [x] <item> — **passed** (ran and verified) | **expected** (written, not run) | **inferred** (static analysis only)
 - **Files affected**: <paths touched>
+- **Review verdicts**: <per finding: CONFIRMED / DISPROVED / UNVERIFIED — mirrors the task file Review block>
 - **Decisions**: <small local ones; architectural → decision record, linked>
 - **Lessons / Do-Not-Repeat candidates**: <→ the ` + "`context/notes/`" + ` lessons note, linked>
 - **Provenance**: <sources consumed, via what transformation>
