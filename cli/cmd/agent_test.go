@@ -1544,12 +1544,19 @@ func TestAgentWorklogCloseoutTemplateCoherence(t *testing.T) {
 }
 
 // TestGeneratedInstructionsMatchTemplates guards against drift between a
-// template and its committed generated file: context/instructions/<name>.md must
-// equal the template body rendered with markers. project.md is excluded (it
+// template and its generated file: context/instructions/<name>.md must equal
+// the template body rendered with markers. project.md is excluded (it
 // substitutes project/group identity). A failure means a template changed
 // without `sdt agent init --force`.
+//
+// context/ is gitignored (the repo tracks code only), so the generated
+// workspace is absent on a fresh CI checkout; the guard is local-only and
+// skips when the directory is missing.
 func TestGeneratedInstructionsMatchTemplates(t *testing.T) {
 	root := filepath.Join("..", "..")
+	if _, err := os.Stat(filepath.Join(root, sdtInstrDir)); errors.Is(err, os.ErrNotExist) {
+		t.Skipf("%s not present (context/ is gitignored); drift guard is local-only", sdtInstrDir)
+	}
 	for _, f := range instructionFiles("", "") {
 		if f.name == filepath.Base(sdtInstrProject) {
 			continue
