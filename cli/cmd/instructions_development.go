@@ -56,3 +56,4 @@ planning or writing any non-trivial code.
 
 // instrCommandsIndexTemplate builds context/commands/index.md: the lookup
 // surface mapping each trigger to its command file and durable instruction.
+// The trigger set comes from the caller so user-created triggers stay listed.

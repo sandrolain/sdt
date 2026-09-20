@@ -56,7 +56,7 @@ var contextListCmd = &cobra.Command{
 	Long: `List existing work files under context/ for a type, sorted by name
 (chronological for timestamped files).
 
-Types: plan, analysis, worklog, notes, tasks, archive, architecture, decision.
+Types: ` + ctxListHelpText() + `.
 
 Examples:
   sdt context list --type worklog
@@ -64,15 +64,14 @@ Examples:
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
-		switch typ {
-		case "decisions", ctxTypeDecision:
+		if typ == ctxDocAliasDecision {
 			typ = ctxTypeDecision
 		}
-		dir, ok := contextDir(typ)
-		if !ok || typ == ctxTypeTmp {
-			exitWithError(cmd, fmt.Errorf("list supports type plan|analysis|worklog|notes|tasks|archive|architecture|decisions, got %q", typ))
+		t, ok := ctxTypeLookup(typ)
+		if !ok || !t.listSupported {
+			exitWithError(cmd, fmt.Errorf("list supports type %s, got %q", ctxListHelpText(), typ))
 		}
-		files, err := listContextFiles(dir)
+		files, err := listContextFiles(t.dir)
 		exitWithError(cmd, err)
 		outputStringList(cmd, files)
 	},

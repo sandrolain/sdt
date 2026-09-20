@@ -46,37 +46,42 @@ Examples:
 }
 
 func ctxStatusRows() []ctxStatusEntry {
-	type dirInfo struct {
-		typ     string
-		dir     string
+	type kindDescr struct {
+		kind    string
 		next    string
 		ifClean string
 	}
-	const (
-		read = "read"
-	)
-	infos := []dirInfo{
-		{typ: "architecture", dir: sdtArchitectureDir, next: read, ifClean: read},
-		{typ: "decisions", dir: sdtDecisionsDir, next: read, ifClean: read},
-		{typ: "analysis", dir: sdtAnalysisDir, next: "read if current", ifClean: "done"},
-		{typ: "plan", dir: sdtPlanDir, next: "active plan", ifClean: gitIgnoreModeNone},
-		{typ: "notes", dir: sdtNotesDir, next: "review", ifClean: gitIgnoreModeNone},
-		{typ: "questions", dir: sdtQuestionsDir, next: "answer open questions", ifClean: gitIgnoreModeNone},
-		{typ: "tasks", dir: sdtTasksDir, next: "track per-phase", ifClean: gitIgnoreModeNone},
-		{typ: "worklog", dir: sdtWorklogDir, next: ctxTierHistory, ifClean: ctxTierHistory},
-		{typ: "archive", dir: sdtArchiveDir, next: ctxTierHistory, ifClean: ctxTierHistory},
+	const read = "read"
+	descs := []kindDescr{
+		{kind: ctxTypeArchitecture, next: read, ifClean: read},
+		{kind: ctxTypeDecision, next: read, ifClean: read},
+		{kind: ctxTypeAnalysis, next: "read if current", ifClean: "done"},
+		{kind: ctxTypePlan, next: "active plan", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeNotes, next: "review", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeProposal, next: "review or draft", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypePrompt, next: "run or review", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeResearch, next: "read findings", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeQuestions, next: "answer open questions", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeTasks, next: "track per-phase", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeCommands, next: "review triggers", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeWorklog, next: ctxTierHistory, ifClean: ctxTierHistory},
+		{kind: ctxTypeArchive, next: ctxTierHistory, ifClean: ctxTierHistory},
 	}
 	var rows []ctxStatusEntry
-	for _, info := range infos {
-		files, err := dirFiles(info.dir)
+	for _, d := range descs {
+		t, ok := ctxTypeLookup(d.kind)
+		if !ok || !t.statusRow {
+			continue
+		}
+		files, err := dirFiles(t.dir)
 		if err != nil {
 			continue
 		}
-		next := info.next
+		next := d.next
 		if len(files) == 0 {
-			next = info.ifClean
+			next = d.ifClean
 		}
-		rows = append(rows, ctxStatusEntry{Type: info.typ, Count: len(files), Next: next, IfClean: info.ifClean})
+		rows = append(rows, ctxStatusEntry{Type: ctxKindLabel(t), Count: len(files), Next: next, IfClean: d.ifClean})
 	}
 	return rows
 }

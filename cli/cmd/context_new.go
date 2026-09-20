@@ -150,14 +150,17 @@ func yamlScalar(s string) string {
 // the file stays lint-parseable; title/component are emitted only where the
 // type requires them and the value is non-empty.
 
-func contextFrontmatter(typ, title, summary, note, project, component, created, objective string) string {
+func contextFrontmatter(typ, title, summary, note, project, component, created, objective, id string) string {
 	if summary == "" {
 		summary = ctxSummaryPlaceholder
 	}
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: " + typ + "\n")
-	if (typ == ctxTypeAnalysis || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch) && title != "" {
+	if typ == ctxTypeWiki {
+		b.WriteString("id: " + yamlScalar(id) + "\n")
+	}
+	if (typ == ctxTypeAnalysis || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki) && title != "" {
 		b.WriteString("title: " + yamlScalar(title) + "\n")
 	}
 	b.WriteString("summary: " + yamlScalar(summary) + "\n")
@@ -170,14 +173,14 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	if typ == ctxTypeAnalysis && objective != "" {
 		b.WriteString("objective: " + yamlScalar(objective) + "\n")
 	}
-	if st, ok := ctxDefaultStatus[typ]; ok {
+	if st, ok := ctxDefaultStatusFor(typ); ok {
 		b.WriteString("status: " + st + "\n")
 	}
 	if typ == ctxTypeArchitecture && component != "" {
 		b.WriteString("component: " + yamlScalar(component) + "\n")
 	}
 	b.WriteString("created: " + created + "\n")
-	if ctxHasUpdated[typ] {
+	if ctxHasUpdatedFor(typ) {
 		b.WriteString("updated: " + created + "\n")
 	}
 	if project != "" {
@@ -195,6 +198,8 @@ func contextDefaultBody(typ string) string {
 		return "## Purpose\n\n## Prompt\n\n## Runs\n\n| Date | Model/tool | Scope | Status | Results |\n|---|---|---|---|---|\n"
 	case ctxTypeResearch:
 		return "## Subject\n\n## Method\n\n## Findings\n\n## Evidence\n\n## Limits and open points\n\n## Feeds\n"
+	case ctxTypeWiki:
+		return "## Summary\n\n## Claims\n\n## Notes\n"
 	default:
 		return ""
 	}
@@ -204,7 +209,7 @@ var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a context/ work file with frontmatter",
 	Long: `Create a plan, analysis, worklog, notes, questions, proposal, prompt,
-research, architecture or decision
+research, architecture, decision or wiki
 file under context/ with the correct naming and the full per-type YAML
 frontmatter (kind, summary, context, status, created, updated, project plus
 per-type fields). The body comes from --input/--file or piped stdin. Existing
@@ -214,8 +219,9 @@ after creation.
 The slug is derived from --title when --slug is omitted; --summary is optional
 and falls back to a MANDATORY-fill placeholder so the file passes lint. For
 decision type the next NNNN number is auto-assigned (override with --number).
---objective attaches a kebab-case grouping key (analysis type only). The
-command prints the created file path (--format text|json|yaml).
+--objective attaches a kebab-case grouping key (analysis type only). Wiki pages
+accept subpath ids (` + "`--slug backend/auth`" + `) and carry ` + "`id`" + ` equal to that
+subpath. The command prints the created file path (--format text|json|yaml).
 
 Examples:
   sdt context new --type worklog --title "review deps" --input "reviewed deps"
@@ -230,17 +236,21 @@ Examples:
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
-		switch typ {
-		case ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions, ctxTypeProposal, ctxTypePrompt, ctxTypeArchitecture, ctxTypeDecision, ctxTypeResearch:
-		default:
-			exitWithError(cmd, fmt.Errorf("new supports type plan|analysis|worklog|notes|questions|proposal|prompt|architecture|decision|research, got %q", typ))
+		if t, ok := ctxTypeLookup(typ); !ok || !t.newSupported {
+			exitWithError(cmd, fmt.Errorf("new supports type %s, got %q", ctxTypeHelpText(ctxNewTypes()), typ))
 		}
-		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
+		rawSlug := getStringFlag(cmd, "slug", false)
+		slug := sanitizeSlug(rawSlug)
+		if typ == ctxTypeWiki && rawSlug != "" {
+			cleaned, err := ctxCleanSlug(rawSlug, true)
+			exitWithError(cmd, err)
+			slug = cleaned
+		}
 		title := getStringFlag(cmd, "title", false)
 		if slug == "" && title != "" {
 			slug = sanitizeSlug(title)
 		}
-		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch) && slug == "" {
+		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki) && slug == "" {
 			exitWithError(cmd, fmt.Errorf("--title or --slug is required for type %s", typ))
 		}
 		note := getStringFlag(cmd, "context", false)
@@ -287,7 +297,7 @@ Examples:
 			if typ == ctxTypeArchitecture {
 				component = slug
 			}
-			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective)
+			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective, slug)
 			if body == "" {
 				body = contextDefaultBody(typ)
 			}

@@ -36,10 +36,10 @@ var contextPathCmd = &cobra.Command{
 	Long: `Print the full path of a context/ work file with the correct date/time
 prefix. Does not create anything.
 
-Types: plan/analysis/worklog/notes/archive (<YYYYMMDD-HHMMSS>-<slug>.md),
-tasks (<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md with --phase <n> and
---plan), tmp (<slug>), architecture (<slug>.md),
-decision (<NNNN>-<slug>.md with --number).
+Types: plan/analysis/worklog/notes/questions/proposal/prompt/research/archive
+(<YYYYMMDD-HHMMSS>-<slug>.md), tasks (<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md
+with --phase <n> and --plan), tmp (<slug>), architecture (<slug>.md),
+wiki (<slug-or/subpath>.md), decision (<NNNN>-<slug>.md with --number).
 
 Examples:
   sdt context path --type worklog --slug review-deps
@@ -49,7 +49,13 @@ Examples:
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
-		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
+		rawSlug := getStringFlag(cmd, "slug", false)
+		slug := sanitizeSlug(rawSlug)
+		if typ == ctxTypeWiki && rawSlug != "" {
+			cleaned, err := ctxCleanSlug(rawSlug, true)
+			exitWithError(cmd, err)
+			slug = cleaned
+		}
 		phase := getStringFlag(cmd, "phase", false)
 		number := getStringFlag(cmd, "number", false)
 		switch typ {

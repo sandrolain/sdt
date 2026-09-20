@@ -133,15 +133,16 @@ var agentCommandIDs = []string{
 }
 
 // commandFiles returns the generated command files under context/commands/:
-// one index plus one thin trigger per agent-visible task.
+// one thin trigger per agent-visible task plus the index. The index is built
+// last from a directory scan so user-created triggers are listed too and
+// survive `sdt agent init --force`.
 
 func commandFiles(project string, now time.Time) []instructionFile {
-	files := []instructionFile{
-		{name: filepath.Base(sdtCommandsIndex), body: instrCommandsIndexTemplate(project, now)},
-	}
+	var files []instructionFile
 	for _, id := range agentCommandIDs {
-		files = append(files, instructionFile{name: id + ".md", body: instrCommandStubTemplate(id, project, now)})
+		files = append(files, instructionFile{name: id + ".md", body: instrCommandStubTemplate(id, id, project, now)})
 	}
+	files = append(files, instructionFile{name: filepath.Base(sdtCommandsIndex), body: commandsIndexContent(project, now)})
 	return files
 }
 
@@ -185,11 +186,16 @@ var agentInitCmd = &cobra.Command{
   .sdt.yaml                           project identity (project/group)
   AGENTS.md                           instructions block + optional write-once project template
   context/plan|worklog|notes|tasks|archive|tmp|scripts  working directories
-  context/architecture/      living architecture documentation (no date)
-  context/decisions/         numbered decisions (NNNN-<slug>.md, append-only)
-  context/questions/         open questions awaiting a user decision
-  context/analysis/          analysis documents and implementation plans
-  context/instructions/      per-type instruction/template files
+  context/proposals/     proposals awaiting review
+  context/prompts/       tracked prompts (run/review)
+  context/research/      research notes and findings
+  context/architecture/  living architecture documentation (no date)
+  context/decisions/     numbered decisions (NNNN-<slug>.md, append-only)
+  context/questions/     open questions awaiting a user decision
+  context/analysis/      analysis documents and implementation plans
+  context/wiki/          wiki pages (grouped in subpaths, no date)
+  context/commands/      thin per-trigger command files
+  context/instructions/  per-type instruction/template files
   .gitignore                          ignores chosen context dirs (current dir)
 
 The command is idempotent and non-destructive: a second run fills in missing
@@ -424,7 +430,7 @@ func ensureWorkDirs(force bool) []FileResult {
 		path    string
 		content string
 	}{
-		{sdtWorkReadme, sdtWorkReadmeTemplate},
+		{sdtWorkReadme, sdtWorkReadmeContent()},
 		{sdtScriptsIndex, scriptsIndexTemplate},
 	}
 	for _, f := range files {
@@ -457,13 +463,18 @@ instruction files and temporary files for this project.
 
 - ` + "`plan/`" + ` — plans written before starting non-trivial work
 - ` + "`analysis/`" + ` — analysis documents and implementation plans
+- ` + "`proposals/`" + ` — proposals waiting for review and a decision
+- ` + "`research/`" + ` — research notes and findings
+- ` + "`prompts/`" + ` — tracked prompts (created and re-run)
+- ` + "`wiki/`" + ` — wiki pages, named ` + "`<slug>`" + ` or ` + "`subpath/<slug>`" + ` (no date)
 - ` + "`architecture/`" + ` — living architecture documentation (no date in name)
 - ` + "`decisions/`" + ` — numbered decisions (` + "`NNNN-<slug>.md`" + `, append-only)
 - ` + "`worklog/`" + ` — chronological log of completed work
 - ` + "`notes/`" + ` — free-form annotations
 - ` + "`questions/`" + ` — open questions / points awaiting user decision (` + "`sources`" + ` link back to origin)
 - ` + "`tasks/`" + ` — per-phase task checklists
-- ` + "`archive/`" + ` — completed task lists (history)
+- ` + "`archive/`" + ` — archived documents (history)
+- ` + "`commands/`" + ` — thin agent-invokable trigger files (` + "`context/commands/<trigger>.md`" + `)
 - ` + "`instructions/`" + ` — agent instruction files (referenced by AGENTS.md)
 - ` + "`scripts/`" + ` — reusable utility scripts (` + "`index.md`" + ` lists them; see ` + "`instructions/scripts.md`" + `)
 - ` + "`index.md`" + ` — generated knowledge index (reindex/lint)
@@ -476,8 +487,8 @@ instruction files and temporary files for this project.
   - ` + "`context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
   - ` + "`context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`context/tasks/<phase>.md`" + ` — checklist per plan phase
-  - ` + "`context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` — archived task lists
+  - ` + "`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`" + ` — checklist per plan phase
+  - ` + "`context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` — archived documents
 - ` + "`architecture/`" + ` files are living documents without a date; decisions are
   append-only and numbered (` + "`decisions/0001-<slug>.md`" + `).
 - ` + "`context/`" + ` files use concise technical language. Cut fluff,
@@ -501,21 +512,29 @@ project: <project>
 Store durable facts in ` + "`decisions/`" + ` (decisions) and ` + "`architecture/`" + `; the rest of
 the directory keeps the chronological work history.
 
-## Commands
+`
+
+// sdtWorkReadmeContent renders the generated context/README.md, deriving the
+// command examples' type lists from the document-type registry so they never
+// drift from the surfaces they document.
+
+func sdtWorkReadmeContent() string {
+	return sdtWorkReadmeTemplate + `## Commands
 
 Create and manage work files with ` + "`sdt context`" + `:
 
-- ` + "`sdt context new --type plan|worklog|notes --slug <slug> [--input ...]`" + ` — create a
+- ` + "`sdt context new --type " + ctxTypeHelpText(ctxNewTypes()) + " --slug <slug> [--input ...]`" + ` — create a
   file with the correct name and frontmatter
 - ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` — regenerate ` + "`index.md`" + ` / validate
   frontmatter and links
 - ` + "`sdt context template --type <tipo>`" + ` — print the per-type instruction file
-- ` + "`sdt context path --type plan|worklog|notes|tasks|tmp|archive [--slug]`" + ` — print a
+- ` + "`sdt context path --type " + ctxTypeHelpText(ctxPathTypes()) + " [--slug]`" + ` — print a
   path without creating anything
-- ` + "`sdt context list --type plan|worklog|notes|tasks|archive`" + ` — list existing files
+- ` + "`sdt context list --type " + ctxListHelpText() + "`" + ` — list existing files
 - ` + "`sdt context task add --phase <phase> \"<step>\"`" + ` / ` + "`done|block|wip <id>`" + ` — manage a
   per-phase task checklist
 `
+}
 
 // gitIgnore modes for --gitignore and the interactive entries prompt.
 const (

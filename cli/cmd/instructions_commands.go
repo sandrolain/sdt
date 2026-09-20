@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func instrCommandsIndexTemplate(project string, now time.Time) string {
+func instrCommandsIndexTemplate(ids []string, project string, now time.Time) string {
 	ts := now.UTC().Format(time.RFC3339)
 	var b strings.Builder
 	b.WriteString(`---
@@ -41,7 +41,7 @@ Invocation method: an **agent command** — opencode slash-command style,
 | Trigger | Command file | Durable contract |
 |---|---|---|
 `)
-	for _, id := range agentCommandIDs {
+	for _, id := range ids {
 		fmt.Fprintf(&b, "| `>%s` | `context/commands/%s.md` | `context/instructions/%s.md` |\n", id, id, id)
 	}
 	b.WriteString(`
@@ -73,19 +73,19 @@ invent a contract).
 // instrCommandStubTemplate builds the thin command file for one trigger: it
 // resolves the trigger and delegates to the durable contract.
 
-func instrCommandStubTemplate(id, project string, now time.Time) string {
+func instrCommandStubTemplate(id, contract, project string, now time.Time) string {
 	ts := now.UTC().Format(time.RFC3339)
 	return `---
 kind: commands
 id: commands/` + id + `
 title: ">` + id + ` — agent-invokable task trigger"
-summary: "Thin agent command: invoked by the >` + id + ` trigger. Proceeds per context/instructions/` + id + `.md (the durable contract). Approve-before-write gate."
+summary: "Thin agent command: invoked by the >` + id + ` trigger. Proceeds per context/instructions/` + contract + `.md (the durable contract). Approve-before-write gate."
 status: active
 links:
   - commands/index.md
-  - instructions/` + id + `.md
+  - instructions/` + contract + `.md
 sources:
-  - instructions/` + id + `.md
+  - instructions/` + contract + `.md
 project: ` + project + `
 created: "` + ts + `"
 updated: "` + ts + `"
@@ -102,7 +102,7 @@ updated: "` + ts + `"
 - Scope: ` + "`all`" + ` (default) · single file · glob — see the contract for the
   task's scope semantics.
 - No settle: **resolve ` + "`context/commands/" + id + ".md`" + ` → read
-  ` + "`context/instructions/" + id + ".md`" + ` → proceed per that contract.**
+  ` + "`context/instructions/" + contract + ".md`" + ` → proceed per that contract.**
 
 ## Gates (non-negotiable)
 

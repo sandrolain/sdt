@@ -20,33 +20,22 @@ const sdtMarkdownExt = ".md"
 
 // map keys reused by reindex/lint/template output.
 const (
-	ctxMapPath       = "path"
-	ctxMapStatus     = "status"
-	ctxTierImportant = "important"
-	ctxTierHistory   = "history"
+	ctxMapPath         = "path"
+	ctxMapStatus       = "status"
+	ctxTierEssential   = "essential"
+	ctxTierImportant   = "important"
+	ctxTierMedium      = "medium"
+	ctxTierOperational = "operational"
+	ctxTierHistory     = "history"
 )
 
-var ctxTierOrder = []string{"essential", ctxTierImportant, "medium", "operational", ctxTierHistory}
+var ctxTierOrder = []string{ctxTierEssential, ctxTierImportant, ctxTierMedium, ctxTierOperational, ctxTierHistory}
 
 func ctxTierForDir(dir string) string {
-	switch dir {
-	case sdtArchitectureDir, sdtDecisionsDir:
-		return "essential"
-	case sdtAnalysisDir:
-		return ctxTierImportant
-	case sdtProposalsDir:
-		return ctxTierImportant
-	case sdtResearchDir:
-		return ctxTierImportant
-	case sdtPlanDir, sdtNotesDir, sdtQuestionsDir, sdtPromptsDir:
-		return "medium"
-	case sdtTasksDir, sdtCommandsDir:
-		return "operational"
-	case sdtWorklogDir, sdtArchiveDir:
-		return ctxTierHistory
-	default:
-		return ctxTierHistory
+	if t, ok := ctxTypeForDir(dir); ok && t.tier != "" {
+		return t.tier
 	}
+	return ctxTierHistory
 }
 
 // ctxIndexDirs lists the knowledge directories scanned by reindex, in a stable
