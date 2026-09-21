@@ -5,12 +5,14 @@
 package search
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -19,26 +21,46 @@ import (
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	corpuspkg "github.com/sandrolain/sdt/internal/corpus"
+	"github.com/sandrolain/sdt/internal/mdindex"
+	"github.com/sandrolain/sdt/internal/mdstruct"
+	"github.com/sandrolain/sdt/internal/semantic"
 )
 
 // Index is an in-memory bleve fulltext index over the corpus markdown.
 type Index struct {
 	idx      bleve.Index
 	registry map[string]doc
+	// sections holds the section metadata per document path, keyed by the
+	// stable section id `path#anchor`, for hybrid fusion and `show`-style reads.
+	sections map[string]SectionMeta
+}
+
+// SectionMeta is the section descriptor retained for hybrid fusion.
+type SectionMeta struct {
+	ID     string
+	Path   string
+	Anchor string
+	Text   string // embedding recipe text (title + summary + heading path + body)
 }
 
 // Result is one ranked search hit returned to the caller.
 type Result struct {
-	Path      string  `json:"path"`
-	Kind      string  `json:"kind,omitempty"`
-	Title     string  `json:"title,omitempty"`
-	Summary   string  `json:"summary,omitempty"`
-	Objective string  `json:"objective,omitempty"`
-	Created   string  `json:"created,omitempty"`
-	Score     float64 `json:"score"`
-	Snippet   string  `json:"snippet"`
-	IsMap     bool    `json:"isMap,omitempty"`
-	MapID     string  `json:"mapId,omitempty"`
+	// Section is the matched section id (`<anchor>`), when section-level hits
+	// are enabled; empty for whole-document hits.
+	Section   string   `json:"section,omitempty"`
+	Path      string   `json:"path"`
+	Kind      string   `json:"kind,omitempty"`
+	Status    string   `json:"status,omitempty"`
+	Title     string   `json:"title,omitempty"`
+	Summary   string   `json:"summary,omitempty"`
+	Objective string   `json:"objective,omitempty"`
+	Topics    []string `json:"topics,omitempty"`
+	Entities  []string `json:"entities,omitempty"`
+	Created   string   `json:"created,omitempty"`
+	Score     float64  `json:"score"`
+	Snippet   string   `json:"snippet"`
+	IsMap     bool     `json:"isMap,omitempty"`
+	MapID     string   `json:"mapId,omitempty"`
 }
 
 // Results is the response body for /api/search.
@@ -54,9 +76,12 @@ type doc struct {
 	Path        string
 	Name        string
 	Kind        string
+	Status      string
 	Title       string
 	Summary     string
 	Objective   string
+	Topics      []string
+	Entities    []string
 	Body        string
 	Frontmatter string
 	CreatedDays int64
@@ -82,11 +107,14 @@ func buildIndexMapping() (mapping.IndexMapping, error) {
 	im := bleve.NewIndexMapping()
 	dm := bleve.NewDocumentMapping()
 	dm.AddFieldMappingsAt("Kind", bleve.NewKeywordFieldMapping())
+	dm.AddFieldMappingsAt("Status", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Path", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Name", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Title", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Summary", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Objective", bleve.NewKeywordFieldMapping())
+	dm.AddFieldMappingsAt("Topics", bleve.NewKeywordFieldMapping())
+	dm.AddFieldMappingsAt("Entities", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Body", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Frontmatter", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("CreatedDays", bleve.NewNumericFieldMapping())
@@ -104,8 +132,8 @@ func skipDir(name string) bool { return corpuspkg.ExcludedDirName(name) }
 const corpusDirName = "context"
 
 // New builds an in-memory bleve index over the markdown corpus under
-// <root>/context, skipping tmp/, scripts/ and refs/. .canvas files are never
-// searchable. Doc IDs and result paths are project-root-relative
+// <root>/context, skipping the shared corpus exclusions. .canvas files are
+// never searchable. Doc IDs and result paths are project-root-relative
 // (context/<...>). Build time and doc count are logged. A missing root is a
 // fatal error; a missing corpus yields an empty index (non-fatal). Unreadable
 // docs are skipped with a warning.
@@ -117,8 +145,8 @@ func New(root string) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	corpusPath := filepath.Join(root, corpusDirName)
 	start := time.Now()
+	corpusPath := filepath.Join(root, corpusDirName)
 	indexed, err := ix.indexCorpus(corpusPath)
 	if err != nil {
 		ix.closeLog()
@@ -127,6 +155,79 @@ func New(root string) (*Index, error) {
 	log.Printf("sdtviewer: search index built in %s — %d docs (corpus %s)",
 		time.Since(start).Round(time.Millisecond), indexed, corpusPath)
 	return ix, nil
+}
+
+// NewFromEntries builds an in-memory bleve index from the shared mdindex entry
+// set, so the CLI and the viewer index exactly the same derived documents.
+// Entries reused from the manifest cache carry no body/name (they are not
+// cached), so LoadBody refreshes them from disk before indexing. Section
+// metadata is derived with the same fence-aware splitter, for hybrid fusion.
+func NewFromEntries(entries []*mdindex.Entry) (*Index, error) {
+	ix, err := newMemIndex()
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range entries {
+		if err := e.LoadBody(); err != nil {
+			continue // unreadable doc is skipped, never fatal
+		}
+		if err := ix.addDoc(docFromEntry(e)); err != nil {
+			return nil, err
+		}
+		ix.addSections(e)
+	}
+	return ix, nil
+}
+
+// addSections derives the embeddable sections of a document and stores their
+// metadata keyed by the stable id `path#anchor`.
+func (ix *Index) addSections(e *mdindex.Entry) {
+	for _, s := range mdstruct.SplitSections(e.Body) {
+		if s.Level == 0 && strings.TrimSpace(s.Body) == "" {
+			continue // empty preamble: nothing to embed
+		}
+		anchor := s.ID
+		id := e.ID + "#" + anchor
+		ix.sections[id] = SectionMeta{
+			ID:     id,
+			Path:   e.ID,
+			Anchor: anchor,
+			Text:   sectionRecipe(e, s),
+		}
+	}
+}
+
+// sectionRecipe composes the embedding text of a section: document title,
+// summary and the section heading plus its body (recipe v1).
+func sectionRecipe(e *mdindex.Entry, s mdstruct.Section) string {
+	parts := []string{}
+	if e.Title != "" {
+		parts = append(parts, e.Title)
+	}
+	if e.Summary != "" {
+		parts = append(parts, e.Summary)
+	}
+	if s.Heading != "" {
+		parts = append(parts, s.Heading)
+	}
+	parts = append(parts, strings.TrimSpace(s.Body))
+	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+// Sections returns the embeddable sections of the index (stable order).
+func (ix *Index) Sections() []SectionMeta {
+	out := make([]SectionMeta, 0, len(ix.sections))
+	for _, s := range ix.sections {
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// addDoc indexes one derived document into the in-memory index and registry.
+func (ix *Index) addDoc(d doc) error {
+	ix.registry[d.Path] = d
+	return ix.idx.Index(d.Path, d)
 }
 
 // newMemIndex allocates the in-memory bleve index with the corpus mapping.
@@ -139,7 +240,7 @@ func newMemIndex() (*Index, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bleve mem: %w", err)
 	}
-	return &Index{idx: idx, registry: map[string]doc{}}, nil
+	return &Index{idx: idx, registry: map[string]doc{}, sections: map[string]SectionMeta{}}, nil
 }
 
 // indexCorpus walks corpus indexing .md docs (skipping tmp/, scripts/ and
@@ -243,6 +344,8 @@ func parseDoc(docID, path string) (doc, error) {
 			d.Title = strings.Trim(trimmedValue(line, "title"), `"`)
 		case strings.HasPrefix(line, "summary:"):
 			d.Summary = strings.Trim(trimmedValue(line, "summary"), `"`)
+		case strings.HasPrefix(line, "status:"):
+			d.Status = strings.Trim(trimmedValue(line, "status"), `"`)
 		case strings.HasPrefix(line, "objective:"):
 			d.Objective = strings.Trim(trimmedValue(line, "objective"), `"`)
 		case strings.HasPrefix(line, "created:"):
@@ -250,7 +353,26 @@ func parseDoc(docID, path string) (doc, error) {
 			d.CreatedDays = parseCreatedDays(d.RawCreated)
 		}
 	}
+	d.Topics = contextwiki.FrontmatterList(content, "topics")
+	d.Entities = contextwiki.FrontmatterList(content, "entities")
 	return d, nil
+}
+
+// DocFromEntry builds a search doc from a shared mdindex entry, so the CLI and
+// the viewer index the same derived document model.
+func docFromEntry(e *mdindex.Entry) doc {
+	return doc{
+		Path:      e.ID,
+		Name:      e.Name,
+		Kind:      e.Kind,
+		Status:    e.Status,
+		Title:     e.Title,
+		Summary:   e.Summary,
+		Objective: e.Objective,
+		Topics:    e.Topics,
+		Entities:  e.Entities,
+		Body:      e.Body,
+	}
 }
 
 const (
@@ -280,7 +402,7 @@ func parseCreatedDays(raw string) int64 {
 // filters, returning up to max ranked hits. Query terms drive a match query; a
 // non-empty issue in the query is treated as an empty result set (never an
 // error).
-func (ix *Index) Search(q, kind, objective, from, to string, max int) (Results, error) {
+func (ix *Index) Search(q, kind, objective, status, topic, from, to string, max int) (Results, error) {
 	if max <= 0 || max > 100 {
 		max = 20
 	}
@@ -315,6 +437,16 @@ func (ix *Index) Search(q, kind, objective, from, to string, max int) (Results, 
 		objQ := bleve.NewTermQuery(objective)
 		objQ.SetField("Objective")
 		must = append(must, objQ)
+	}
+	if status != "" {
+		stQ := bleve.NewTermQuery(status)
+		stQ.SetField("Status")
+		must = append(must, stQ)
+	}
+	if topic != "" {
+		tpQ := bleve.NewTermQuery(topic)
+		tpQ.SetField("Topics")
+		must = append(must, tpQ)
 	}
 	epoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	if from != "" {
@@ -352,9 +484,12 @@ func (ix *Index) Search(q, kind, objective, from, to string, max int) (Results, 
 		out = append(out, Result{
 			Path:      doc.Path,
 			Kind:      doc.Kind,
+			Status:    doc.Status,
 			Title:     doc.Title,
 			Summary:   doc.Summary,
 			Objective: doc.Objective,
+			Topics:    doc.Topics,
+			Entities:  doc.Entities,
 			Created:   doc.RawCreated,
 			Score:     hit.Score,
 			Snippet:   Snippet(doc, q, 160),
@@ -367,6 +502,91 @@ func (ix *Index) Search(q, kind, objective, from, to string, max int) (Results, 
 		total = math.MaxInt64
 	}
 	return Results{Results: out, Total: int64(total)}, nil
+}
+
+// HybridOptions carries the optional semantic branch for SearchHybrid. When
+// Semantic is nil the result equals the lexical Search (graceful degradation).
+type HybridOptions struct {
+	Semantic *semantic.Index
+	// SemanticK is the number of semantic sections fetched before fusion.
+	SemanticK int
+}
+
+// SemanticSections returns the embeddable sections of the index, for building
+// the semantic collection.
+func (ix *Index) SemanticSections() []semantic.Section {
+	out := make([]semantic.Section, 0, len(ix.sections))
+	for _, s := range ix.sections {
+		out = append(out, semantic.Section{
+			ID:     s.ID,
+			Path:   s.Path,
+			Anchor: s.Anchor,
+			Text:   s.Text,
+			Meta:   map[string]string{"path": s.Path, "section": s.Anchor},
+		})
+	}
+	return out
+}
+
+// SearchHybrid runs the lexical search and, when a semantic index is supplied,
+// fuses the two rankings with RRF. Filters apply to the lexical branch; the
+// semantic branch is ranked and then fused, so its hits outside the filter set
+// are dropped when a filter is active.
+func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOptions) (Results, error) {
+	lexical, err := ix.Search(q.Q, q.Kind, q.Objective, q.Status, q.Topic, q.From, q.To, q.Max)
+	if err != nil || opts.Semantic == nil || !opts.Semantic.Available() {
+		if err != nil {
+			return lexical, err
+		}
+		return lexical, nil
+	}
+	k := opts.SemanticK
+	if k <= 0 {
+		k = 50
+	}
+	hits, err := opts.Semantic.Query(ctx, q.Q, k)
+	if err != nil {
+		return lexical, nil // semantic failure degrades to lexical-only
+	}
+	ids := make([]string, 0, len(hits))
+	for _, h := range hits {
+		ids = append(ids, h.ID)
+	}
+	fused := fuseHybrid(lexical.Results, ids)
+	// Enrich semantic-only hits (no lexical counterpart) with their registry
+	// display fields so every result is presented consistently.
+	for i := range fused {
+		if fused[i].Kind != "" || fused[i].Summary != "" {
+			continue
+		}
+		if d, ok := ix.registry[fused[i].Path]; ok {
+			fused[i].Kind = d.Kind
+			fused[i].Status = d.Status
+			fused[i].Title = d.Title
+			fused[i].Summary = d.Summary
+			fused[i].Objective = d.Objective
+			fused[i].Topics = d.Topics
+			fused[i].Entities = d.Entities
+			fused[i].Created = d.RawCreated
+			fused[i].Snippet = Snippet(d, q.Q, 160)
+		}
+	}
+	if len(fused) > q.Max && q.Max > 0 {
+		fused = fused[:q.Max]
+	}
+	return Results{Results: fused, Total: lexical.Total}, nil
+}
+
+// HybridQuery is the filter/size set shared by lexical and hybrid search.
+type HybridQuery struct {
+	Q         string
+	Kind      string
+	Objective string
+	Status    string
+	Topic     string
+	From      string
+	To        string
+	Max       int
 }
 
 // mapID returns the canonical map id for map documents, "" otherwise.

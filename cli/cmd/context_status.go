@@ -17,12 +17,49 @@ type ctxStatusEntry struct {
 	IfClean string `json:"clean" yaml:"clean"`
 }
 
+// ctxStoreVerdict is the store-completeness verdict shown by `context status`:
+// CLEAN when no CRITICAL or WARNING lint findings exist, INCOMPLETE otherwise.
+type ctxStoreVerdict struct {
+	Verdict     string `json:"verdict" yaml:"verdict"`
+	Critical    int    `json:"critical" yaml:"critical"`
+	Warnings    int    `json:"warnings" yaml:"warnings"`
+	Suggestions int    `json:"suggestions" yaml:"suggestions"`
+}
+
+// storeCompletenessVerdict runs the document lint and reduces the findings to a
+// verdict plus counts. It is read-only and never fails.
+func storeCompletenessVerdict() ctxStoreVerdict {
+	v := ctxStoreVerdict{Verdict: "CLEAN"}
+	for _, dir := range ctxIndexDirs {
+		files, err := dirFiles(dir)
+		if err != nil {
+			continue
+		}
+		for _, f := range files {
+			for _, it := range lintDoc(f) {
+				switch it.Priority {
+				case ctxLintCritical:
+					v.Critical++
+				case ctxLintWarning:
+					v.Warnings++
+				default:
+					v.Suggestions++
+				}
+			}
+		}
+	}
+	if v.Critical > 0 || v.Warnings > 0 {
+		v.Verdict = "INCOMPLETE"
+	}
+	return v
+}
+
 var contextStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Summarize context/ documents per type with next step",
 	Long: `Summarize the context/ knowledge: per-type document count and the
 recommended next step (read / write / verify). Useful at session start after
-reindex.
+reindex. Ends with a store-completeness verdict (INCOMPLETE vs CLEAN).
 
 Examples:
   sdt context status
@@ -30,19 +67,22 @@ Examples:
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		rows := ctxStatusRows()
+		verdict := storeCompletenessVerdict()
 		switch getFormat(cmd) {
 		case fmtJSON:
-			out, err := json.MarshalIndent(rows, "", "  ")
+			out, err := json.MarshalIndent(map[string]any{ctxFrontmatterResults: rows, "store": verdict}, "", "  ")
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		case fmtYAML:
-			out, err := yaml.Marshal(rows)
+			out, err := yaml.Marshal(map[string]any{ctxFrontmatterResults: rows, "store": verdict})
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		default:
 			for _, r := range rows {
 				outputString(cmd, fmt.Sprintf("%-12s %3d  %s\n", r.Type+":", r.Count, r.Next))
 			}
+			outputString(cmd, fmt.Sprintf("\nstore: %s (critical %d, warning %d, suggestion %d)\n",
+				verdict.Verdict, verdict.Critical, verdict.Warnings, verdict.Suggestions))
 		}
 	},
 }

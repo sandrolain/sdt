@@ -132,6 +132,11 @@ func ctxIndexLine(dir, path string) string {
 	if summary == "" {
 		summary = "<no summary>"
 	}
+	// Surface the controlled vocabulary in the index so topics/entities are
+	// discoverable and feed prior-art review.
+	if topics := parseFrontmatterList(string(data), "topics"); len(topics) > 0 {
+		summary += " `topics: " + strings.Join(topics, ", ") + "`"
+	}
 	return fmt.Sprintf("- [[%s]] — %s", rel, summary)
 }
 

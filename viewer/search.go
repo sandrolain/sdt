@@ -5,14 +5,19 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/sandrolain/sdt/internal/mdindex"
 	"github.com/sandrolain/sdt/internal/search"
 )
 
-// loadSearch builds the in-memory bleve index over the markdown corpus at
+// loadSearch builds the shared section index over the markdown corpus at
 // startup. A missing index (e.g. corpus-less root) is non-fatal: /api/search
 // then degrades to an empty result.
 func (s *server) loadSearch() error {
-	ix, err := search.New(s.root)
+	refresh, err := mdindex.EnsureFresh(s.root)
+	if err != nil {
+		return err
+	}
+	ix, err := search.NewFromEntries(refresh.Manifest.EntriesSorted())
 	if err != nil {
 		return err
 	}
@@ -25,7 +30,12 @@ func (s *server) loadSearch() error {
 // rebuildSearch rebuilds the index after a corpus change and publishes the
 // changed paths to SSE subscribers. The old index is released.
 func (s *server) rebuildSearch(paths []string) {
-	ix, err := search.New(s.root)
+	refresh, err := mdindex.EnsureFresh(s.root)
+	if err != nil {
+		slog.Warn("sdtviewer: search rebuild scan failed", "err", err)
+		return
+	}
+	ix, err := search.NewFromEntries(refresh.Manifest.EntriesSorted())
 	if err != nil {
 		slog.Warn("sdtviewer: search rebuild failed", "err", err)
 		return
@@ -59,6 +69,8 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	kind := r.URL.Query().Get("kind")
 	objective := r.URL.Query().Get("objective")
+	status := r.URL.Query().Get("status")
+	topic := r.URL.Query().Get("topic")
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
 	max := 20
@@ -71,7 +83,7 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, search.Results{Results: []search.Result{}, Total: 0})
 		return
 	}
-	res, err := s.index().Search(q, kind, objective, from, to, max)
+	res, err := s.index().Search(q, kind, objective, status, topic, from, to, max)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
 		return

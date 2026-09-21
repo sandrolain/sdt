@@ -145,7 +145,7 @@ func TestSearchMapResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, err := ix.Search("outlineword", "", "", "", "", 0)
+	res, err := ix.Search("outlineword", "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestSearchIgnoresOutsideCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, err := ix.Search("outsideonly", "", "", "", "", 0)
+	res, err := ix.Search("outsideonly", "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestSearchRankedResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, err := ix.Search("tokens", "", "", "", "", 0)
+	res, err := ix.Search("tokens", "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestSearchFilenameRanksFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, err := ix.Search("plan llm wiki pipeline phase 1", "", "", "", "", 0)
+	res, err := ix.Search("plan llm wiki pipeline phase 1", "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestSearchKindFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, _ := ix.Search("tokens", "wiki", "", "", "", 0)
+	res, _ := ix.Search("tokens", "wiki", "", "", "", "", "", 0)
 	if res.Total != 2 {
 		t.Errorf("kind=wiki total = %d, want 2", res.Total)
 	}
@@ -274,14 +274,14 @@ func TestSearchObjectiveFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, _ := ix.Search("neutral", "", "viewer", "", "", 0)
+	res, _ := ix.Search("neutral", "", "viewer", "", "", "", "", 0)
 	if res.Total != 1 || len(res.Results) != 1 {
 		t.Fatalf("objective=viewer total = %+v, want 1", res)
 	}
 	if r := res.Results[0]; r.Objective != "viewer" || r.Path != "context/analysis/analy.md" {
 		t.Errorf("unexpected objective hit: %+v", res.Results[0])
 	}
-	res, _ = ix.Search("neutral", "", "missing", "", "", 0)
+	res, _ = ix.Search("neutral", "", "missing", "", "", "", "", 0)
 	if res.Total != 0 {
 		t.Errorf("objective=missing total = %d, want 0", res.Total)
 	}
@@ -294,15 +294,15 @@ func TestSearchDateFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, _ := ix.Search("tokens", "", "", "2026-09-10", "2026-09-10", 0)
+	res, _ := ix.Search("tokens", "", "", "", "", "2026-09-10", "2026-09-10", 0)
 	if res.Total != 1 {
 		t.Errorf("from==to total = %d, want 1 (alpha only)", res.Total)
 	}
-	res, _ = ix.Search("tokens", "", "", "", "2026-09-01", 0)
+	res, _ = ix.Search("tokens", "", "", "", "", "", "2026-09-01", 0)
 	if res.Total != 1 {
 		t.Errorf("to=2026-09-01 total = %d, want 1 (notes only)", res.Total)
 	}
-	res, _ = ix.Search("tokens", "", "", "2026-09-12", "", 0)
+	res, _ = ix.Search("tokens", "", "", "", "", "2026-09-12", "", 0)
 	if res.Total != 0 {
 		t.Errorf("from=2026-09-12 total = %d, want 0", res.Total)
 	}
@@ -315,7 +315,7 @@ func TestSearchEmptyQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, err := ix.Search("", "", "", "", "", 0)
+	res, err := ix.Search("", "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,11 +328,11 @@ func TestSearchLimitAndMax(t *testing.T) {
 	root := corpus(t)
 	ix, _ := New(root)
 	defer ix.Close()
-	res, _ := ix.Search("tokens", "", "", "", "", 2)
+	res, _ := ix.Search("tokens", "", "", "", "", "", "", 2)
 	if len(res.Results) > 2 {
 		t.Errorf("limit 2 returned %d", len(res.Results))
 	}
-	res, _ = ix.Search("tokens", "", "", "", "", 999)
+	res, _ = ix.Search("tokens", "", "", "", "", "", "", 999)
 	if len(res.Results) > 20 {
 		t.Errorf("cap at 20 returned %d", len(res.Results))
 	}
@@ -353,7 +353,7 @@ func TestSearchMissingCorpus(t *testing.T) {
 	if len(ix.registry) != 0 {
 		t.Errorf("indexed %d docs for corpus-less root, want 0", len(ix.registry))
 	}
-	if res, _ := ix.Search("anything", "", "", "", "", 0); res.Total != 0 {
+	if res, _ := ix.Search("anything", "", "", "", "", "", "", 0); res.Total != 0 {
 		t.Errorf("search on empty index returned hits: %+v", res)
 	}
 }

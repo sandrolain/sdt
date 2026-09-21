@@ -24,6 +24,9 @@
 /viewer/dist/*
 !/viewer/dist/.gitkeep
 
+# Derived search cache (rebuildable from context/)
+/.sdt/
+
 # Result
 trivi-results.json
 /coverage.*

@@ -26,6 +26,8 @@ summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<objectives / what triggered the analysis>"
 objective: <slug>         # optional: kebab-case group key; same slug in every
                           # analysis targeting the same objective
+topics: [<topic>, ...]    # optional: controlled subjects from context/topics.yaml
+entities: [<entity>, ...] # optional: named things the analysis mentions
 status: active            # active | draft | archived
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
@@ -102,6 +104,16 @@ session: <session id>        # optional
   objective, review its ` + "`note_type: dead-end`" + ` notes (` + "`sdt context status`" + `
   counts them; ` + "`sdt context reindex`" + ` groups them under the objective) and do
   not re-run a rejected approach without new evidence.
+- ` + "`topics`" + ` / ` + "`entities`" + ` (optional): subjects and named things,
+  **distinct from ` + "`objective`" + `**. Topics come from the controlled list in
+  ` + "`context/topics.yaml`" + `; ` + "`sdt context lint`" + ` reports unknown topics
+  (SUGGESTION, with the canonical form for aliases) and they feed search filters
+  and prior-art detection.
+- **Find prior art before writing.** ` + "`sdt context new --type analysis --prior-art`" + `
+  searches the corpus on the objective/title/topics and proposes candidates in a
+  ` + "`## Prior art`" + ` section (add ` + "`--prior-art-links`" + ` to pre-fill ` + "`links`" + `).
+  Review every candidate, keep or discard it, and never leave the auto-generated
+  note in the final document.
 - **Declare how it relates to prior work.** Set ` + "`links`" + ` (generic
   correlation), ` + "`supersedes`" + ` (this document replaces an older one) or
   ` + "`contradicts`" + ` (it rebuts it), or state ` + "`links: none`" + ` with a reason when

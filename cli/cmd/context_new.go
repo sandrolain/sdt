@@ -150,7 +150,7 @@ func yamlScalar(s string) string {
 // the file stays lint-parseable; title/component are emitted only where the
 // type requires them and the value is non-empty.
 
-func contextFrontmatter(typ, title, summary, note, project, component, created, objective, id, agent, role, noteType string) string {
+func contextFrontmatter(typ, title, summary, note, project, component, created, objective, id, agent, role, noteType string, topics, entities []string) string {
 	if summary == "" {
 		summary = ctxSummaryPlaceholder
 	}
@@ -181,6 +181,18 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	}
 	if role != "" {
 		b.WriteString("role: " + yamlScalar(role) + "\n")
+	}
+	if topics != nil {
+		b.WriteString("topics:\n")
+		for _, t := range topics {
+			b.WriteString("  - " + yamlScalar(t) + "\n")
+		}
+	}
+	if entities != nil {
+		b.WriteString("entities:\n")
+		for _, e := range entities {
+			b.WriteString("  - " + yamlScalar(e) + "\n")
+		}
 	}
 	if st, ok := ctxDefaultStatusFor(typ); ok {
 		b.WriteString("status: " + st + "\n")
@@ -271,6 +283,8 @@ Examples:
 		agent := getStringFlag(cmd, "agent", false)
 		role := getStringFlag(cmd, "role", false)
 		noteType := getStringFlag(cmd, "note-type", false)
+		topics := sanitizeSlugList(getStringArrayFlag(cmd, "topic", false))
+		entities := sanitizeSlugList(getStringArrayFlag(cmd, "entity", false))
 		if objective != "" {
 			if typ != ctxTypeAnalysis && typ != ctxTypeNotes {
 				exitWithError(cmd, fmt.Errorf("--objective is only supported for --type analysis or --type notes, got %q", typ))
@@ -320,7 +334,24 @@ Examples:
 			if typ == ctxTypeArchitecture {
 				component = slug
 			}
-			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective, slug, agent, role, noteType)
+			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective, slug, agent, role, noteType, topics, entities)
+			// Prior-art prefill (analyses only, opt-in): propose related
+			// documents in the body and, with --prior-art-links, in `links`.
+			if typ == ctxTypeAnalysis && getBoolFlag(cmd, "prior-art", false) {
+				hits, perr := collectPriorArt(cmd, priorArtQuery(objective, title, topics), path, 8)
+				if perr != nil {
+					exitWithError(cmd, perr)
+				}
+				if sec := priorArtSection(hits); sec != "" {
+					body = sec + "\n" + body
+				}
+				if getBoolFlag(cmd, "prior-art-links", false) {
+					links := priorArtLinks(hits, 5)
+					if len(links) > 0 {
+						content = injectLinks(content, links)
+					}
+				}
+			}
 			if body == "" {
 				body = contextDefaultBody(typ)
 			}

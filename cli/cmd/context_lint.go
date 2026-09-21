@@ -20,9 +20,12 @@ const ctxFrontmatterSources = "sources"
 // ctxFrontmatterLinks is the generic-correlation reference field.
 const ctxFrontmatterLinks = "links"
 
+// ctxFrontmatterResults is the output-artifact reference field.
+const ctxFrontmatterResults = "results"
+
 // ctxReferenceFields are the frontmatter list fields that carry document
 // references validated against the context tree.
-var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", "results", ctxTypeSupersedes, "contradicts"}
+var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", ctxFrontmatterResults, ctxTypeSupersedes, "contradicts"}
 
 func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
@@ -114,6 +117,9 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"analysis missing `objective`", "add `objective: <kebab-case-slug>`; reuse the same slug in every analysis of the same initiative so they group in the index"},
 	{"analysis `objective`", "set `objective` to a lowercase kebab-case slug (letters, digits and '-'), shared across analyses of the same initiative"},
 	{"notes entry missing `agent`", "add `agent: <tool/role>` to the notes frontmatter so the entry's provenance is recorded (`sdt context list --agent`)"},
+	{"unknown topic", "use a canonical topic from context/topics.yaml (aliases are accepted too), or add the topic to the register"},
+	{"topic ", "use a kebab-case topic slug (lowercase letters, digits and '-')"},
+	{"entity ", "use a kebab-case entity slug (lowercase letters, digits and '-')"},
 	{"security: possible", "review the flagged content, redact or remove it, and re-ingest from a trusted source before it can influence the agent"},
 	{"security: invisible", "strip the invisible/zero-width Unicode characters from the document; they can hide instructions from human review"},
 }
@@ -279,6 +285,9 @@ func lintDoc(path string) []ctxLintIssue {
 	// Analyses must declare how they relate to prior work: a `links`,
 	// `supersedes` or `contradicts` reference, or an explicit `links: none`.
 	issues = append(issues, lintAnalysisRelations(path, content, kind, prio)...)
+	// Optional controlled vocabulary: `topics`/`entities` are validated against
+	// context/topics.yaml (alias canonicalization, advisory for unknown).
+	issues = append(issues, lintTopicFields(path, content, ctxTopicReg)...)
 	// Notes provenance: record who produced the entry. Advisory (SUGGESTION) so
 	// existing notes are never hard-flagged and no backfill is forced.
 	if kind == ctxTypeNotes && parseFrontmatterField(content, "agent") == "" {
@@ -388,6 +397,14 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		var issues []ctxLintIssue
 		security := getBoolFlag(cmd, "security", false)
+		// Load the controlled topic register once; a malformed file is reported
+		// as a lint issue on the register itself.
+		reg, regErr := loadTopicRegister()
+		if regErr != nil {
+			issues = append(issues, ctxLintIssue{Path: ctxTopicsFilePath, Priority: ctxLintWarning, Message: regErr.Error()})
+			reg = &ctxTopicRegister{Topics: map[string][]string{}, Aliases: map[string]string{}}
+		}
+		ctxTopicReg = reg
 		for _, dir := range ctxIndexDirs {
 			files, err := dirFiles(dir)
 			exitWithError(cmd, err)

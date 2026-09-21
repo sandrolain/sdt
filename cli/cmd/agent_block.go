@@ -363,7 +363,9 @@ Follow this cycle for any non-trivial task:
 Before closing a phase run the **verify-step**: completeness, coherence, correctness
 (prioritize CRITICAL / WARNING / SUGGESTION, degrade gracefully). Then reindex: run
 ` + "`sdt context reindex`" + ` and ` + "`sdt context lint`" + `; run ` + "`sdt context status`" + ` to
-detect stale in-progress files. Use a standardized claim vocabulary in task
+detect stale in-progress files; ` + "`sdt agent doctor`" + ` reports workspace health, and
+` + "`sdt agent gate`" + ` runs the strict delivery ladder (Build -> Vet -> Lint -> Test,
+fail-closed) when a hard gate is wanted. Use a standardized claim vocabulary in task
 files: **passed** (ran and verified), **expected** (written, not run),
 **inferred** (static analysis only).
 

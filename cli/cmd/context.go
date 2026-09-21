@@ -72,6 +72,22 @@ func sanitizeSlug(s string) string {
 	return s
 }
 
+// sanitizeSlugList normalizes a list of slugs, dropping empties and duplicates
+// while preserving order.
+func sanitizeSlugList(in []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, v := range in {
+		s := sanitizeSlug(v)
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
+}
+
 // contextDir returns the working directory for a context type.
 
 func contextDir(typ string) (string, bool) {
@@ -171,6 +187,10 @@ func init() {
 	contextNewCmd.Flags().String("agent", "", "Provenance: agent/tool that produced the entry (notes/worklog)")
 	contextNewCmd.Flags().String("role", "", "Provenance: role that produced the entry (notes/worklog)")
 	contextNewCmd.Flags().String("note-type", "", "Notes subtype, e.g. dead-end (notes only)")
+	contextNewCmd.Flags().StringArray("topic", nil, "Controlled topic slug (repeatable)")
+	contextNewCmd.Flags().StringArray("entity", nil, "Entity slug the document mentions (repeatable)")
+	contextNewCmd.Flags().Bool("prior-art", false, "Analysis: search and propose related documents in a Prior art section")
+	contextNewCmd.Flags().Bool("prior-art-links", false, "Analysis: also pre-fill `links` with the top prior-art candidates")
 	contextNewCmd.Flags().String("number", "", "Override for the decision number (default: next NNNN from decisions/)")
 	contextNewCmd.Flags().Bool("force", false, "Overwrite existing file")
 	contextNewCmd.Flags().Bool("edit", false, "Open the file in $EDITOR after creation")
@@ -180,6 +200,18 @@ func init() {
 	contextListCmd.Flags().String("role", "", "Filter by frontmatter `role` provenance")
 
 	contextLintCmd.Flags().Bool("security", false, "Also scan for prompt-injection, credential and invisible-Unicode patterns (advisory WARNING)")
+	contextSearchCmd.Flags().String("type", "", "Filter by frontmatter kind")
+	contextSearchCmd.Flags().String("status", "", "Filter by frontmatter status (default: active; use --all for any)")
+	contextSearchCmd.Flags().String("objective", "", "Filter by frontmatter objective")
+	contextSearchCmd.Flags().String("topic", "", "Filter by controlled topic")
+	contextSearchCmd.Flags().String("since", "", "Created on/after YYYY-MM-DD")
+	contextSearchCmd.Flags().String("until", "", "Created on/before YYYY-MM-DD")
+	contextSearchCmd.Flags().Int("limit", 10, "Maximum results (1-100)")
+	contextSearchCmd.Flags().Bool("all", false, "Include superseded/archived documents")
+	contextSearchCmd.Flags().Bool("semantic", false, "Fuse lexical with semantic (embeddings) via RRF; degrades to lexical if unavailable")
+	contextSearchCmd.Flags().String("semantic-model", "", "Embedding model for --semantic (default BASE8M)")
+	contextShowCmd.Flags().String("section", "", "Print only the section with this id/heading")
+	contextShowCmd.Flags().String("lines", "", "Print only this line range (from:to, 1-based)")
 
 	contextTaskAddCmd.Flags().String("objective", "", "Objective for the task list (used when creating)")
 	contextTaskAddCmd.Flags().String("summary", "", "Summary for the checklist frontmatter (default: derived from phase/objective)")
@@ -203,6 +235,6 @@ func init() {
 	contextTemplateCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxTemplateTypes()))
 
 	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextTaskArchiveCmd)
-	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd)
+	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd)
 	rootCmd.AddCommand(contextCmd)
 }
