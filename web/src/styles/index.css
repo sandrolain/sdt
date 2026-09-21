@@ -84,9 +84,17 @@
     border-bottom: 1px solid var(--border);
   }
   .top-bar__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     white-space: nowrap;
+  }
+  .top-bar__logo {
+    width: 1.75rem;
+    height: 1.75rem;
+    object-fit: contain;
   }
   .top-bar__tabs {
     display: flex;

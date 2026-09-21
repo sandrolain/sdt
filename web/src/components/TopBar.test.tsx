@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { TopBar } from "./TopBar";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "./ThemeProvider";
+import { TopBar } from "./TopBar";
 
 function renderTopBar(initial: string) {
   render(
@@ -18,6 +18,11 @@ function renderTopBar(initial: string) {
 afterEach(cleanup);
 
 describe("TopBar", () => {
+  it("renders the SDT brand mark", () => {
+    renderTopBar("/docs");
+    expect(screen.getByRole("img", { name: "SDT" }).getAttribute("src")).toBe("/sdt-logo.svg");
+  });
+
   it("highlights Documents on a full document path", () => {
     renderTopBar("/docs/context/analysis/foo.md");
     expect(screen.getByRole("link", { name: /Documents/ }).getAttribute("aria-current")).toBe(

@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
+import { Icon } from "../lib/icon";
 import { THEME_LABEL } from "../lib/theme";
 import { useTheme } from "../lib/useTheme";
-import { Icon } from "../lib/icon";
 
 interface TopBarProps {
   onOpenSearch: () => void;
@@ -15,7 +15,10 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
   const { pref, cycle } = useTheme();
   return (
     <header className="top-bar">
-      <span className="top-bar__brand">sdt viewer</span>
+      <div className="top-bar__brand">
+        <img src="/sdt-logo.svg" alt="SDT" className="top-bar__logo" />
+        <span>sdt viewer</span>
+      </div>
       <nav className="top-bar__tabs" aria-label="Primary">
         <NavLink
           to="/docs"

@@ -7,7 +7,7 @@
 
 **Smart Developer Tools** — a local-first toolkit for developers and AI agents.
 
-<img src="./sdt-gopher.png" height="480" />
+<img src="./web/public/sdt-lockup.svg" alt="SDT - Smart Developer Tools" width="460" />
 
 ## What is sdt
 
