@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/sandrolain/sdt/internal/search"
@@ -150,6 +153,58 @@ func TestSearchHandlerLimit(t *testing.T) {
 	}
 	if len(out.Results) != 1 {
 		t.Errorf("limit=1 returned %d", len(out.Results))
+	}
+}
+
+// TestSearchPersistentStoreWiring verifies the viewer backs its index with the
+// on-disk store: startup writes it, a corpus change updates it incrementally,
+// and a second server on the same root serves the stored index.
+func TestSearchPersistentStoreWiring(t *testing.T) {
+	root := makeSearchCorpus(t)
+	s, err := newServer(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storeDir := search.StorePath(root)
+	if st, err := os.Stat(storeDir); err != nil || !st.IsDir() {
+		t.Fatalf("store dir missing after loadSearch: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".sdt", "cache", "bleve.meta.json")); err != nil {
+		t.Fatalf("store meta missing: %v", err)
+	}
+
+	// Change one doc: replace "tokens" with a unique token, then rebuild.
+	model := filepath.Join(root, "context/wiki/model.md")
+	data, err := os.ReadFile(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(model, bytes.ReplaceAll(data, []byte("tokens"), []byte("goldentoken")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.rebuildSearch([]string{"context/wiki/model.md"})
+
+	res, err := s.index().Search("goldentoken", "", "", "", "", "", "", 20)
+	if err != nil || res.Total != 1 {
+		t.Fatalf("goldentoken search: total=%d err=%v", res.Total, err)
+	}
+	res, err = s.index().Search("tokens", "", "", "", "", "", "", 20)
+	if err != nil || res.Total != 3 {
+		t.Errorf("tokens after model change = %d, want 3 (api+note+cmd)", res.Total)
+	}
+
+	// A fresh server on the same root reuses the stored index.
+	s2, err := newServer(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, _ := s2.index().Search("goldentoken", "", "", "", "", "", "", 20); res.Total != 1 {
+		t.Errorf("reused store lookup total = %d, want 1", res.Total)
+	}
+
+	// The prebuilt store is re-served even with the corpus unchanged (no deltas).
+	if _, err := os.Stat(filepath.Join(storeDir, "index_meta.json")); err != nil {
+		t.Fatalf("store content missing: %v", err)
 	}
 }
 

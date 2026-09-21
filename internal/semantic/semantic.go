@@ -104,11 +104,43 @@ func (ix *Index) Model() Model {
 	return ix.model
 }
 
-// Add embeds and stores the given sections. Empty texts are skipped.
+// Add embeds and stores the given sections, reusing nothing (full embed).
+// Empty texts are skipped. See AddIncremental for snapshot-driven reuse.
 func (ix *Index) Add(ctx context.Context, sections []Section) error {
+	_, _, _, err := ix.AddIncremental(ctx, sections, nil, 0, nil)
+	return err
+}
+
+// AddIncremental embeds and stores the given sections, reusing stored vectors
+// from base for sections whose document content hash is unchanged. out is the
+// snapshot to persist afterwards. reused counts sections served from the
+// snapshot; embedded counts freshly encoded sections. On error out is nil so
+// the caller skips persistence.
+//
+// docHashes maps document id (Section.Path) -> its content hash; a section
+// whose path is absent from docHashes is always re-embedded. base must be
+// validated with Matches (or empty) before calling: any mismatch forces a full
+// re-embed via the model/recipe guard below.
+func (ix *Index) AddIncremental(ctx context.Context, sections []Section, docHashes map[string]string, manifestVersion int, base *Snapshot) (out *Snapshot, reused, embedded int, err error) {
 	if !ix.Available() {
-		return ErrUnavailable
+		return nil, 0, 0, ErrUnavailable
 	}
+	header := &Snapshot{
+		Version:         snapshotVersion,
+		Model:           ix.model,
+		RecipeVersion:   RecipeVersion,
+		ManifestVersion: manifestVersion,
+		DocHashes:       make(map[string]string, len(docHashes)),
+		SectionVectors:  make(map[string][]float32, len(sections)),
+	}
+	if len(docHashes) > 0 {
+		header.DocCount = len(docHashes)
+		for id, h := range docHashes {
+			header.DocHashes[id] = h
+		}
+	}
+	reuse := base.validFor(ix.model, RecipeVersion)
+
 	ids := make([]string, 0, len(sections))
 	vecs := make([][]float32, 0, len(sections))
 	metas := make([]map[string]string, 0, len(sections))
@@ -117,19 +149,43 @@ func (ix *Index) Add(ctx context.Context, sections []Section) error {
 		if s.Text == "" {
 			continue
 		}
-		vec, err := ix.enc.Encode(s.Text)
-		if err != nil {
-			return fmt.Errorf("semantic: encode %s: %w", s.ID, err)
+		var vec []float32
+		if reuse {
+			if v, ok := base.SectionVectors[s.ID]; ok && base.DocHashes[s.Path] == docHashes[s.Path] {
+				vec = v
+				reused++
+			}
+		}
+		if vec == nil {
+			v, err := ix.enc.Encode(s.Text)
+			if err != nil {
+				return nil, reused, embedded, fmt.Errorf("semantic: encode %s: %w", s.ID, err)
+			}
+			vec = v
+			embedded++
 		}
 		ids = append(ids, s.ID)
 		vecs = append(vecs, vec)
 		metas = append(metas, s.Meta)
 		docs = append(docs, s.Text)
+		header.SectionVectors[s.ID] = vec
 	}
 	if len(ids) == 0 {
-		return nil
+		return header, reused, embedded, nil
 	}
-	return ix.col.Add(ctx, ids, vecs, metas, docs)
+	if err := ix.col.Add(ctx, ids, vecs, metas, docs); err != nil {
+		return nil, reused, embedded, fmt.Errorf("semantic: add: %w", err)
+	}
+	return header, reused, embedded, nil
+}
+
+// validFor reports whether the snapshot vectors can be reused under the given
+// model and recipe; version and manifest are validated by Matches.
+func (s *Snapshot) validFor(model Model, recipeVersion int) bool {
+	return s != nil &&
+		s.Version == snapshotVersion &&
+		s.Model == model &&
+		s.RecipeVersion == recipeVersion
 }
 
 // Hit is one semantic result.

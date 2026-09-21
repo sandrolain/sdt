@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/sandrolain/sdt/internal/semantic"
 )
 
 var (
@@ -95,7 +97,19 @@ func newServeCmd() *cobra.Command {
 				return err
 			}
 			setupLogger(logFormat)
-			return serve(host, port, noOpen, root, listen)
+			var overrides semanticOverrides
+			if f := cmd.Flags().Lookup("semantic"); f != nil && f.Changed {
+				if v, err := cmd.Flags().GetBool("semantic"); err == nil {
+					overrides.enabled = &v
+				}
+			}
+			if f := cmd.Flags().Lookup("semantic-model"); f != nil && f.Changed {
+				if v, err := cmd.Flags().GetString("semantic-model"); err == nil && v != "" {
+					m := semantic.Model(v)
+					overrides.model = &m
+				}
+			}
+			return serve(host, port, noOpen, root, listen, overrides)
 		},
 	}
 	cmd.Flags().String("host", "127.0.0.1", "bind host")
@@ -103,6 +117,8 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().Bool("no-open", false, "do not open the browser")
 	cmd.Flags().String("root", "", "project root; defaults to the nearest ancestor of CWD holding "+sdtConfigFile)
 	cmd.Flags().String("log-format", "text", "log format: text|json")
+	cmd.Flags().Bool("semantic", false, "enable the semantic search branch (overrides .sdt.yaml search.semantic); /api/search?semantic=1 then serves RRF-fused results")
+	cmd.Flags().String("semantic-model", "", "embedding model for the semantic branch (default BASE8M; see `sdt models fetch` to prefetch)")
 	return cmd
 }
 
@@ -117,13 +133,18 @@ func setupLogger(format string) {
 }
 
 // serve resolves the root, builds the handler, optionally opens the browser and
-// blocks serving. listen is injectable for tests.
-func serve(host string, port int, noOpen bool, rootFlag string, listen func(addr string, h http.Handler) error) error {
+// blocks serving. listen is injectable for tests; overrides carries explicit
+// --semantic/--semantic-model flag values that win over the project config.
+func serve(host string, port int, noOpen bool, rootFlag string, listen func(addr string, h http.Handler) error, overrides ...semanticOverrides) error {
 	root, err := resolveRoot(rootFlag, "")
 	if err != nil {
 		return err
 	}
-	s, err := newServer(root)
+	var ov *semanticOverrides
+	if len(overrides) > 0 {
+		ov = &overrides[0]
+	}
+	s, err := newServerWith(root, semanticOptionsFromConfig(root), ov)
 	if err != nil {
 		return err
 	}

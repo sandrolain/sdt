@@ -18,9 +18,12 @@ import (
 	"github.com/sandrolain/sdt/internal/semantic"
 )
 
-// loadSemanticIndex builds the semantic index over the search index sections.
-// The model is loaded from the local cache; --semantic-model overrides the
-// default. A load failure is returned so the caller can degrade explicitly.
+// loadSemanticIndex builds the semantic index over the search index sections,
+// reusing the persisted vector snapshot (vectors.gob.gz under .sdt/cache) so an
+// unchanged corpus skips re-embedding. The model is loaded from the local
+// cache; --semantic-model overrides the default. A load failure is returned so
+// the caller can degrade explicitly; a snapshot read/write failure never is
+// (the snapshot is a derived cache, the search stays correct either way).
 func loadSemanticIndex(cmd *cobra.Command, ix *search.Index) (*semantic.Index, error) {
 	model := semantic.Model(getStringFlag(cmd, "semantic-model", false))
 	if model == "" {
@@ -30,16 +33,38 @@ func loadSemanticIndex(cmd *cobra.Command, ix *search.Index) (*semantic.Index, e
 	if err != nil {
 		return nil, err
 	}
-	if err := sem.Add(cmd.Context(), ix.SemanticSections()); err != nil {
+	root, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("determine project root: %w", err)
+	}
+	manifestV := mdindex.ManifestVersion
+	base := semantic.LoadSnapshot(root)
+	if !base.Matches(model, semantic.RecipeVersion, manifestV) {
+		base = &semantic.Snapshot{} // header mismatch: full re-embed
+	}
+	hashes := make(map[string]string)
+	if ctxSearchRefresh != nil {
+		for _, e := range ctxSearchRefresh.Manifest.EntriesSorted() {
+			hashes[e.ID] = e.Hash
+		}
+	}
+	out, _, _, err := sem.AddIncremental(cmd.Context(), ix.SemanticSections(), hashes, manifestV, base)
+	if err != nil {
 		return nil, err
 	}
+	// Best-effort persistence: a snapshot write failure must not fail the
+	// search (next run falls back to a full or incremental rebuild).
+	_ = semantic.SaveSnapshot(root, out) //nolint:errcheck // cache write, degrade on failure
 	return sem, nil
 }
 
-// ctxSearchIndex is built lazily per invocation from the shared mdindex scan:
-// short-lived CLI processes rebuild the (in-memory bleve) index on demand, while
-// the manifest makes the corpus scan incremental.
-var ctxSearchIndex *search.Index
+// ctxBuildSearchIndex builds the shared search index lazily per invocation.
+// The persistent store (if usable) backs it; the manifest scan is the change
+// signal and the in-memory build the fallback.
+var (
+	ctxSearchIndex   *search.Index
+	ctxSearchRefresh *mdindex.Refresh
+)
 
 func ctxBuildSearchIndex(cmd *cobra.Command) *search.Index {
 	if ctxSearchIndex != nil {
@@ -49,9 +74,10 @@ func ctxBuildSearchIndex(cmd *cobra.Command) *search.Index {
 	exitWithError(cmd, err)
 	refresh, err := mdindex.EnsureFresh(root)
 	exitWithError(cmd, err)
-	ix, err := search.NewFromEntries(refresh.Manifest.EntriesSorted())
+	ix, err := search.LoadOrRebuild(root, refresh.Manifest.EntriesSorted(), refresh.Changed, refresh.Removed)
 	exitWithError(cmd, err)
 	ctxSearchIndex = ix
+	ctxSearchRefresh = refresh
 	return ix
 }
 

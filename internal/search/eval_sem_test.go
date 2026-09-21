@@ -91,6 +91,47 @@ func TestSemanticSectionsAndRecipe(t *testing.T) {
 	}
 }
 
+// TestHybridFilterDropsOutOfSetSemanticHits pins the documented contract: when
+// a filter is active, semantic-only fused hits outside the filter set must be
+// dropped. No model needed — exercises the pure predicate.
+func TestHybridFilterDropsOutOfSetSemanticHits(t *testing.T) {
+	wiki := doc{Path: "context/wiki/a.md", Kind: "wiki", Status: "active", Objective: "", Topics: []string{"x"}, RawCreated: "2026-09-10", CreatedDays: parseCreatedDays("2026-09-10")}
+	note := doc{Path: "context/notes/b.md", Kind: "notes", Status: "active", RawCreated: "2026-09-11", CreatedDays: parseCreatedDays("2026-09-11")}
+
+	f := hybridFilter(HybridQuery{Kind: "wiki"})
+	if f == nil {
+		t.Fatal("kind filter must yield a predicate")
+	}
+	if !f(wiki.Path, &wiki) {
+		t.Error("wiki doc must pass the kind=wiki filter")
+	}
+	if f(note.Path, &note) {
+		t.Error("notes doc must fail the kind=wiki filter")
+	}
+
+	if hybridFilter(HybridQuery{}) != nil {
+		t.Error("no-filter query must yield nil predicate")
+	}
+
+	// date bounds: from inclusive, to inclusive of the whole day
+	df := hybridFilter(HybridQuery{From: "2026-09-11", To: "2026-09-11"})
+	if df == nil {
+		t.Fatal("date filter must yield a predicate")
+	}
+	if !df(note.Path, &note) {
+		t.Error("11 Sep created must pass from/to 2026-09-11..2026-09-11")
+	}
+	if df(wiki.Path, &wiki) {
+		t.Error("10 Sep created must fail from=2026-09-11")
+	}
+
+	// topic: exact per-token membership, matching the bleve TermQuery.
+	tf := hybridFilter(HybridQuery{Topic: "x"})
+	if tf == nil || !tf(wiki.Path, &wiki) || tf(note.Path, &note) {
+		t.Error("topic filter must match only the tagged doc")
+	}
+}
+
 func TestFuseHybridAnchorForAndTies(t *testing.T) {
 	lexical := []Result{{Path: "context/a.md", Kind: "analysis"}}
 	fused := fuseHybrid(lexical, []string{"context/b.md#beta", "context/a.md#alpha"})

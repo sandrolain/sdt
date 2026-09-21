@@ -17,6 +17,7 @@ import (
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/search"
+	"github.com/sandrolain/sdt/internal/semantic"
 )
 
 const (
@@ -66,6 +67,9 @@ type server struct {
 	wiki    *contextwiki.Builder
 	srch    *search.Index
 	srchMu  sync.RWMutex
+	semOpts semanticOptions
+	sem     *semantic.Index
+	semMu   sync.RWMutex
 	spa     http.Handler
 	broker  *broker
 	watcher *fsnotify.Watcher
@@ -115,8 +119,15 @@ func newHandler(root string) (http.Handler, error) {
 	return s.mux(), nil
 }
 
-// newServer stats the root and loads the in-memory caches.
+// newServer stats the root and loads the in-memory caches. Semantic search is
+// enabled from the root's .sdt.yaml (search.semantic/model), defaulting off.
 func newServer(root string) (*server, error) {
+	return newServerWith(root, semanticOptionsFromConfig(root), nil)
+}
+
+// newServerWith is newServer with explicit semantic options and optional flag
+// overrides (precedence: override > options).
+func newServerWith(root string, opts semanticOptions, overrides *semanticOverrides) (*server, error) {
 	info, err := os.Stat(root)
 	if err != nil {
 		return nil, err
@@ -124,7 +135,10 @@ func newServer(root string) (*server, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("%s is not a directory", root)
 	}
-	s := &server{root: root, corpus: filepath.Join(root, corpusDir), broker: newBroker()}
+	if overrides != nil {
+		overrides.apply(&opts)
+	}
+	s := &server{root: root, corpus: filepath.Join(root, corpusDir), broker: newBroker(), semOpts: opts}
 	if h, ok := spaHandler(); ok {
 		s.spa = h
 	}

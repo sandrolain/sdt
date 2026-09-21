@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -167,12 +168,27 @@ func NewFromEntries(entries []*mdindex.Entry) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
+	return buildFromEntries(ix.idx, entries, true)
+}
+
+// buildFromEntries populates a bleve index and the serving registry/sections
+// from the shared entry set. When indexDocs is true each document is written
+// into idx (used for in-memory and fresh stores); when false only the serving
+// structures are derived from entries (used when opening a prebuilt store whose
+// documents are already on disk).
+func buildFromEntries(idx bleve.Index, entries []*mdindex.Entry, indexDocs bool) (*Index, error) {
+	ix := &Index{idx: idx, registry: map[string]doc{}, sections: map[string]SectionMeta{}}
 	for _, e := range entries {
 		if err := e.LoadBody(); err != nil {
 			continue // unreadable doc is skipped, never fatal
 		}
-		if err := ix.addDoc(docFromEntry(e)); err != nil {
-			return nil, err
+		d := docFromEntry(e)
+		if indexDocs {
+			if err := ix.addDoc(d); err != nil {
+				return nil, err
+			}
+		} else {
+			ix.registry[e.ID] = d
 		}
 		ix.addSections(e)
 	}
@@ -571,10 +587,62 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 			fused[i].Snippet = Snippet(d, q.Q, 160)
 		}
 	}
+	// Filters apply to the lexical branch; drop semantic-only hits that fall
+	// outside the same filter set so the fused ranking honors the contract of
+	// the lexical branch.
+	if f := hybridFilter(q); f != nil {
+		kept := fused[:0]
+		for i := range fused {
+			if d, ok := ix.registry[fused[i].Path]; !ok || f(d.Path, &d) {
+				kept = append(kept, fused[i])
+			}
+		}
+		fused = kept
+	}
 	if len(fused) > q.Max && q.Max > 0 {
 		fused = fused[:q.Max]
 	}
 	return Results{Results: fused, Total: lexical.Total}, nil
+}
+
+// hybridFilter mirrors the conjunctive filters of Search against a doc's
+// registry facet values, so semantic-only fused hits are held to the same
+// filter contract as the lexical branch. Returns nil when no filter is active.
+func hybridFilter(q HybridQuery) func(path string, d *doc) bool {
+	if q.Kind == "" && q.Objective == "" && q.Status == "" && q.Topic == "" && q.From == "" && q.To == "" {
+		return nil
+	}
+	epoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	var loDays, hiDays *int64
+	if t, err := time.Parse("2006-01-02", q.From); err == nil {
+		v := int64(t.Sub(epoch).Hours() / 24)
+		loDays = &v
+	}
+	if t, err := time.Parse("2006-01-02", q.To); err == nil {
+		v := int64(t.AddDate(0, 0, 1).Sub(epoch).Hours() / 24)
+		hiDays = &v
+	}
+	return func(path string, d *doc) bool {
+		if q.Kind != "" && d.Kind != q.Kind {
+			return false
+		}
+		if q.Objective != "" && d.Objective != q.Objective {
+			return false
+		}
+		if q.Status != "" && d.Status != q.Status {
+			return false
+		}
+		if q.Topic != "" && !slices.Contains(d.Topics, q.Topic) {
+			return false
+		}
+		if loDays != nil && d.CreatedDays < *loDays {
+			return false
+		}
+		if hiDays != nil && d.CreatedDays >= *hiDays {
+			return false
+		}
+		return true
+	}
 }
 
 // HybridQuery is the filter/size set shared by lexical and hybrid search.
