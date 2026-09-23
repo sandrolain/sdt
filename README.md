@@ -65,6 +65,7 @@ SDT is useful when a project needs to:
 - **AI-agent tooling** — manifest discovery, command schemas, generated per-command docs, project work files and task lists
 - **Context management** — structured knowledge base with typed documents, a generated index (`sdt context reindex`), linting (`sdt context lint`), and agent instruction files in `context/instructions/`
 - **Agent instructions** — per-project conventions, CLI reference, and workflow guides generated and maintained under `context/instructions/`
+- **Role profiles** — closed role register with generated three-layer profiles under `context/roles/` (`sdt agent roles show|init|check`): project-layer facts derived from repo evidence, user preferences preserved across `--force`, deterministic check for profile set, drift and owned-path overlap
 - **Zero CGO** — pure-Go build, no C toolchain required
 - **Cross-platform** — Linux, macOS, Windows
 
@@ -116,6 +117,7 @@ Project knowledge lives under `context/` as versioned Markdown files:
 - `notes/` — free-form annotations
 - `questions/` — open questions with provenance
 - `instructions/` — agent instruction files and templates
+- `roles/` — generated role profiles (shared rules + one profile per role; `sdt agent roles init` / validated by `sdt agent roles check`)
 - `wiki/` — curated knowledge pages with links and relations
 - `refs/` — archived source material used during knowledge distillation
 - `index.md` — generated knowledge index (entry point)

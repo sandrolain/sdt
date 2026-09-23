@@ -120,6 +120,8 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"unknown topic", "use a canonical topic from context/topics.yaml (aliases are accepted too), or add the topic to the register"},
 	{"topic ", "use a kebab-case topic slug (lowercase letters, digits and '-')"},
 	{"entity ", "use a kebab-case entity slug (lowercase letters, digits and '-')"},
+	{"unknown role", "use a role slug from the closed register (`sdt agent roles show`); unknown `role:` values on worklog/notes entries lose the vocabulary contract"},
+	{"role profile", "run `sdt agent roles check`; fix register/profile mismatches (`sdt agent roles init`/`--force`)"},
 	{"security: possible", "review the flagged content, redact or remove it, and re-ingest from a trusted source before it can influence the agent"},
 	{"security: invisible", "strip the invisible/zero-width Unicode characters from the document; they can hide instructions from human review"},
 }
@@ -293,6 +295,10 @@ func lintDoc(path string) []ctxLintIssue {
 	if kind == ctxTypeNotes && parseFrontmatterField(content, "agent") == "" {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "notes entry missing `agent` provenance (record who produced it)"})
 	}
+	// Role provenance vocabulary: `role:` is validated against the closed
+	// register. An unknown slug is advisory (SUGGESTION) so historical entries
+	// never hard-fail the check.
+	issues = append(issues, lintRoleFrontmatter(path, content)...)
 	// resolve [[links]] and links: array to existing documents.
 	// Files under context dirs link relative to their own directory; the
 	// generated index.md links relative to the context/ root.
@@ -344,6 +350,20 @@ func lintDoc(path string) []ctxLintIssue {
 	return issues
 }
 
+// lintRoleFrontmatter validates a document's `role:` provenance field against
+// the closed role register. Unknown slugs are advisory (SUGGESTION) so no
+// historical entry hard-fails the check.
+func lintRoleFrontmatter(path, content string) []ctxLintIssue {
+	role := parseFrontmatterField(content, "role")
+	if role == "" {
+		return nil
+	}
+	if _, ok := roleLookup(role); ok {
+		return nil
+	}
+	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "unknown role " + role + " in `role:` frontmatter (closed register: " + strings.Join(roleSlugs(), ", ") + ")"}}
+}
+
 // lintObjectiveField validates the optional `objective` grouping key carried by
 // analysis documents: WARNING on a non-kebab-case value, SUGGESTION when the
 // key is absent so the grouping convention is adopted gradually.
@@ -379,7 +399,7 @@ func lintAnalysisRelations(path, content, kind string, prio func(string) string)
 }
 
 var contextLintCmd = &cobra.Command{
-	Use:   "lint",
+	Use:   gateStepLint,
 	Short: "Validate context frontmatter and links",
 	Long: `Validate the context/ documents: frontmatter well-formed (kind, mandatory
 summary), [[links]] resolve to existing files, and decision filenames/numbers are
@@ -430,6 +450,10 @@ Examples:
 		if files, err := dirFiles(sdtAnalysisDir); err == nil {
 			issues = append(issues, lintOverlappingAnalyses(files)...)
 		}
+		// Role-profile advisory: mirror the deterministic role checks as
+		// SUGGESTIONs (never failing), so profile health is visible in lint
+		// while `agent roles check` remains the strict gate.
+		issues = append(issues, lintRoleProfiles()...)
 		sort.Slice(issues, func(i, j int) bool {
 			if issues[i].Priority != issues[j].Priority {
 				prio := map[string]int{ctxLintCritical: 0, ctxLintWarning: 1, "SUGGESTION": 2}

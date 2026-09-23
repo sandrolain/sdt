@@ -10,6 +10,8 @@ generated command reference, see ` + "`context/instructions/reference.md`" + `.
 
 - ` + "`sdt context new --type <t>`" + ` — create a work file (plan|analysis|worklog|notes|questions|proposal|prompt|architecture|decision|research)
 - ` + "`sdt context path|list|task|template|docs`" + ` — locate/list work files, per-phase task checklists, print instruction, generated docs
+- ` + "`sdt agent roles show|init|check`" + ` — list the closed role register; generate the role profiles under ` + "`context/roles/`" + `; validate profile set, drift and owned-path overlap
+- ` + "`sdt agent doctor`" + ` — read-only workspace health; ` + "`sdt agent verify`" + ` — instruction contract; ` + "`sdt agent gate`" + ` — Build→Vet→Lint→Test
 - ` + "`sdt template --tmpl`" + ` — render Go templates from JSON/YAML data
 - ` + "`sdt extract --type urls|emails|ips|json-blocks|code-blocks|dates`" + `
 - ` + "`sdt env parse|get|set|merge`" + ` — .env handling

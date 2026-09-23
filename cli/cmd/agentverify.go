@@ -33,6 +33,7 @@ var agentVerifyWorkDirs = []string{
 	sdtInstrDir,
 	sdtCommandsDir,
 	sdtScriptsDir,
+	sdtRolesDir,
 }
 
 // agentVerifyChecks validates the AGENTS.md instruction contract:

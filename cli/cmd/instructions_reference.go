@@ -42,7 +42,9 @@ Create it with ` + "`sdt agent init --project myapp --group platform`" + ` or
 Documents under ` + "`context/`" + ` are the project knowledge. Per-type
 instructions and templates in ` + "`context/instructions/`" + ` (project, analysis, plan,
 tasks, decision, architecture, worklog, notes, questions, proposal, prompts,
-research, ingestion, reference, cli, scripts, wiki, development). Index and checks:
+research, ingestion, reference, cli, scripts, wiki, development). Role profiles
+under ` + "`context/roles/`" + ` (shared rules + one profile per role) are generated and
+validated with ` + "`sdt agent roles init|check`" + `. Index and checks:
 ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` / ` + "`sdt context wiki lint`" + ` / ` + "`sdt context status`" + ` /
 ` + "`sdt context template --type <type>`" + `. Agent instruction contract:
 ` + "`sdt agent verify`" + `. Utility scripts live in ` + "`context/scripts/`" + `

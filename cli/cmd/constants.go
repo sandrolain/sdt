@@ -44,6 +44,7 @@ const (
 	sdtPromptsDir        = "context/prompts"
 	sdtResearchDir       = "context/research"
 	sdtScriptsDir        = "context/scripts"
+	sdtRolesDir          = "context/roles"
 	sdtInstrProject      = "context/instructions/project.md"
 	sdtInstrReference    = "context/instructions/reference.md"
 	sdtInstrCli          = "context/instructions/cli.md"
@@ -83,8 +84,21 @@ const (
 	statusDryRun   = "dry-run"
 
 	// Cobra command Use strings shared across files.
-	useInit = "init"
-	useList = "list"
+	useInit  = "init"
+	useList  = "list"
+	useShow  = "show"
+	useCheck = "check"
+	cmdDocs  = "docs"
+
+	// Role slugs, the closed register namespace. Kept as constants so the same
+	// literal is never repeated across register/templates/derivation.
+	roleSlugPM        = "pm"
+	roleSlugBackend   = "backend"
+	roleSlugFrontend  = "frontend"
+	roleSlugArchitect = "architect"
+	roleSlugReviewer  = "reviewer"
+	roleSlugQA        = "qa"
+	roleSlugDevops    = "devops"
 
 	// Context work file task status values.
 	taskStatusTodo      = "todo"

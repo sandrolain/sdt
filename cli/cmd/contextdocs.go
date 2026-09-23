@@ -182,7 +182,7 @@ func listContextDocsStale(out string, files map[string]string) ([]string, error)
 }
 
 var contextDocsCmd = &cobra.Command{
-	Use:   "docs",
+	Use:   cmdDocs,
 	Short: "Generate agent docs in context/sdtdocs/",
 	Long: `Generate a per-command reference under context/sdtdocs/ (gitignored) for AI
 agents: a README index plus one markdown file per leaf command. The output is

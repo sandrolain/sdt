@@ -80,6 +80,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
 | `context/instructions/development.md` | Writing code: style/architecture agreement, library-first, library docs |
 | `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
+| `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
 
 Each agent-visible task gets **one file** under `context/commands/` (thin
@@ -87,7 +88,7 @@ triggers; the durable contract stays under `context/instructions/`).
 
 Work directories live under `context/` (`plan/`, `analysis/`, `architecture/`,
 `decisions/`, `proposals/`, `research/`, `prompts/`, worklog/, notes/, tasks/, commands/,
-questions/, archive/, tmp/, `scripts/`). Keep all instruction files concise and technical. Bundled
+questions/, archive/, tmp/, `scripts/`, `roles/`). Keep all instruction files concise and technical. Bundled
 scripts in `context/scripts/` are listed in
 `context/scripts/index.md` and executed on demand, never read into context
 (see `instructions/scripts.md`).

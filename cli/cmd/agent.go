@@ -127,7 +127,7 @@ func writeInstructionFiles(project, group string, force bool) []FileResult {
 // or duplicate it.
 
 var agentCommandIDs = []string{
-	"ingestion", "wiki", ctxTypeAnalysis, ctxTypePlan, ctxTypeTasks, ctxTypeProposal,
+	"ingestion", ctxTypeWiki, ctxTypeAnalysis, ctxTypePlan, ctxTypeTasks, ctxTypeProposal,
 	ctxTypeDecision, ctxTypeArchitecture, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions,
 	"prompts", "reference", ctxTypeResearch,
 }
@@ -196,6 +196,7 @@ var agentInitCmd = &cobra.Command{
   context/wiki/          wiki pages (grouped in subpaths, no date)
   context/commands/      thin per-trigger command files
   context/instructions/  per-type instruction/template files
+  context/roles/         generated role profiles (sdt agent roles init)
   .gitignore                          ignores chosen context dirs (current dir)
 
 The command is idempotent and non-destructive: a second run fills in missing
@@ -399,7 +400,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 // ensureWorkDirs creates the context/ working directory layout.
 
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -477,6 +478,7 @@ instruction files and temporary files for this project.
 - ` + "`archive/`" + ` — archived documents (history)
 - ` + "`commands/`" + ` — thin agent-invokable trigger files (` + "`context/commands/<trigger>.md`" + `)
 - ` + "`instructions/`" + ` — agent instruction files (referenced by AGENTS.md)
+- ` + "`roles/`" + ` — generated role profiles (` + "`<slug>.md`" + `) + ` + "`shared.md`" + ` (see ` + "`sdt agent roles`" + `)
 - ` + "`scripts/`" + ` — reusable utility scripts (` + "`index.md`" + ` lists them; see ` + "`instructions/scripts.md`" + `)
 - ` + "`index.md`" + ` — generated knowledge index (reindex/lint)
 - ` + "`tmp/`" + ` — temporary and scratch files (never outside this project)

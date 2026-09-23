@@ -357,7 +357,7 @@ func extractJSONAt(s string, from int) string {
 }
 
 var contextWikiLintCmd = &cobra.Command{
-	Use:   "lint",
+	Use:   gateStepLint,
 	Short: "Validate the wiki knowledge graph and source markers",
 	Long: `Validate the knowledge pipeline: wiki/ pages (schema, closed relation
 verbs, link resolution, unique titles, depends_on cycles, supersede semantics,
@@ -421,7 +421,7 @@ Examples:
 }
 
 var contextWikiCmd = &cobra.Command{
-	Use:   "wiki",
+	Use:   ctxTypeWiki,
 	Short: "Knowledge graph operations (wiki lint)",
 	Long: `Knowledge-pipeline commands for the wiki/ knowledge graph under context/.
 Currently provides "lint": recursive schema/graph validation of wiki pages

@@ -8,7 +8,7 @@ import (
 )
 
 var docCmd = &cobra.Command{
-	Use:   "docs",
+	Use:   cmdDocs,
 	Short: "Generate CLI docs",
 	Long:  `Generate CLI documentation`,
 	Run: func(cmd *cobra.Command, args []string) {

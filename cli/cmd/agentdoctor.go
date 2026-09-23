@@ -57,11 +57,11 @@ Examples:
 			for _, c := range checks {
 				mark := "ok  "
 				switch c.Status {
-				case "fail":
+				case doctorStatusFail:
 					mark = "FAIL"
 					fails++
-				case "warn":
-					mark = "warn"
+				case doctorStatusWarn:
+					mark = doctorStatusWarn
 					warns++
 				}
 				line := fmt.Sprintf("[%s] %-22s %s", mark, c.Name, c.Detail)
@@ -87,13 +87,13 @@ func agentDoctorChecks() []doctorCheck {
 	agents, err := os.ReadFile(agentTargetDefault) //#nosec G304 -- fixed repo-path check
 	switch {
 	case os.IsNotExist(err):
-		add("agents.md", "fail", "AGENTS.md not found", "run `sdt agent init`")
+		add("agents.md", doctorStatusFail, "AGENTS.md not found", "run `sdt agent init`")
 	case err != nil:
-		add("agents.md", "fail", err.Error(), "check file permissions")
+		add("agents.md", doctorStatusFail, err.Error(), "check file permissions")
 	case !hasSection(string(agents), agentSectionNameInstructions):
-		add("agents.md", "fail", "missing instructions block", "run `sdt agent init`")
+		add("agents.md", doctorStatusFail, "missing instructions block", "run `sdt agent init`")
 	default:
-		add("agents.md", "ok", "present with instructions block", "")
+		add("agents.md", doctorStatusOK, "present with instructions block", "")
 	}
 
 	// Generated instruction files: missing and obsolete.
@@ -109,15 +109,19 @@ func agentDoctorChecks() []doctorCheck {
 		}
 	}
 	if missing > 0 {
-		add("instructions", "fail", fmt.Sprintf("%d missing generated file(s)", missing), "run `sdt agent init --force`")
+		add("instructions", doctorStatusFail, fmt.Sprintf("%d missing generated file(s)", missing), "run `sdt agent init --force`")
 	} else {
-		add("instructions", "ok", "all generated files present", "")
+		add("instructions", doctorStatusOK, "all generated files present", "")
 	}
 	if obsolete > 0 {
-		add("obsolete", "warn", fmt.Sprintf("%d obsolete file(s)", obsolete), "run `sdt agent init --force` to archive them")
+		add("obsolete", doctorStatusWarn, fmt.Sprintf("%d obsolete file(s)", obsolete), "run `sdt agent init --force` to archive them")
 	} else {
-		add("obsolete", "ok", "no obsolete files", "")
+		add("obsolete", doctorStatusOK, "no obsolete files", "")
 	}
+
+	// Role profiles: surface role health from the deterministic checks
+	// (read-only; never fails the shell).
+	checks = append(checks, roleDoctorCheck())
 
 	// Working directories.
 	missingDirs := []string{}
@@ -127,42 +131,66 @@ func agentDoctorChecks() []doctorCheck {
 		}
 	}
 	if len(missingDirs) > 0 {
-		add("work-dirs", "warn", fmt.Sprintf("missing: %s", strings.Join(missingDirs, ", ")), "run `sdt agent init`")
+		add("work-dirs", doctorStatusWarn, fmt.Sprintf("missing: %s", strings.Join(missingDirs, ", ")), "run `sdt agent init`")
 	} else {
-		add("work-dirs", "ok", "all present", "")
+		add("work-dirs", doctorStatusOK, "all present", "")
 	}
 
 	// .sdt.yaml project identity.
 	if cfg, err := findProjectConfig(); err != nil || cfg == nil {
-		add("project-config", "fail", ".sdt.yaml not found", "run `sdt agent init --project <p> --group <g> --yes`")
+		add("project-config", doctorStatusFail, ".sdt.yaml not found", "run `sdt agent init --project <p> --group <g> --yes`")
 	} else if cfg.Project == "" {
-		add("project-config", "warn", ".sdt.yaml has no project id", "set `project:` in .sdt.yaml")
+		add("project-config", doctorStatusWarn, ".sdt.yaml has no project id", "set `project:` in .sdt.yaml")
 	} else {
-		add("project-config", "ok", "project "+cfg.Project, "")
+		add("project-config", doctorStatusOK, "project "+cfg.Project, "")
 	}
 
 	// Derived search cache: report-only staleness (missing is fine).
 	if _, err := os.Stat(filepath.Join(mdindex.ManifestFile)); os.IsNotExist(err) {
-		add("search-cache", "ok", "no cache yet (built on first search)", "")
+		add("search-cache", doctorStatusOK, "no cache yet (built on first search)", "")
 	} else if err != nil {
-		add("search-cache", "warn", err.Error(), "delete .sdt/cache to rebuild")
+		add("search-cache", doctorStatusWarn, err.Error(), "delete .sdt/cache to rebuild")
 	} else {
-		add("search-cache", "ok", "manifest present", "")
+		add("search-cache", doctorStatusOK, "manifest present", "")
 	}
 
 	// Corpus exclusions parity is enforced in code; surface the corpus size.
 	root, err := os.Getwd()
 	if err != nil {
-		add("corpus", "warn", err.Error(), "check the working directory")
+		add("corpus", doctorStatusWarn, err.Error(), "check the working directory")
 		return checks
 	}
 	if res, err := mdindex.Scan(root, nil); err == nil {
-		add("corpus", "ok", fmt.Sprintf("%d document(s) indexed", len(res.Manifest.Entries)), "")
+		add("corpus", doctorStatusOK, fmt.Sprintf("%d document(s) indexed", len(res.Manifest.Entries)), "")
 	} else {
-		add("corpus", "warn", err.Error(), "check the context/ tree")
+		add("corpus", doctorStatusWarn, err.Error(), "check the context/ tree")
 	}
 
 	return checks
+}
+
+// roleDoctorCheck surfaces role-profile health as a read-only doctor check:
+// presence, drift and owned-path overlap mirror `agent roles check` findings
+// without ever failing the shell.
+func roleDoctorCheck() doctorCheck {
+	findings := roleCheckFindings()
+	critical, warns := 0, 0
+	for _, f := range findings {
+		switch f.Priority {
+		case ctxLintCritical:
+			critical++
+		case ctxLintWarning:
+			warns++
+		}
+	}
+	switch {
+	case critical > 0:
+		return doctorCheck{Name: doctorNameRoles, Status: doctorStatusFail, Detail: fmt.Sprintf("%d role check finding(s)", critical), Hint: "run `sdt agent roles check` and fix the profile set/drift"}
+	case warns > 0:
+		return doctorCheck{Name: doctorNameRoles, Status: doctorStatusWarn, Detail: fmt.Sprintf("%d role check warning(s)", warns), Hint: "run `sdt agent roles check` and review the flagged profiles"}
+	default:
+		return doctorCheck{Name: doctorNameRoles, Status: doctorStatusOK, Detail: "profile set, drift and owned paths clean"}
+	}
 }
 
 // ── delivery gate ──────────────────────────────────────────────────────────────
@@ -178,8 +206,19 @@ type gateStep struct {
 	UseShell bool
 }
 
-// gateStepLint is the lint-step name, reused by the doctor hint and the gate.
+// gateStepLint is the lint-step name and gateStepTest the test-step name,
+// reused by the doctor hint, the gate and the roles project-layer commands.
 const gateStepLint = "lint"
+const gateStepTest = "test"
+
+// doctor status + check-name vocabulary shared by agentDoctorChecks and
+// roleDoctorCheck (goconst: keep the literals centralized).
+const (
+	doctorStatusOK   = "ok"
+	doctorStatusWarn = "warn"
+	doctorStatusFail = "fail"
+	doctorNameRoles  = "roles"
+)
 
 // gateGoListExpr resolves the project Go packages, excluding context/ refs
 // (the reference clones hold C/broken-Go fixtures), exactly as Taskfile does.
@@ -191,7 +230,7 @@ var deliveryGateSteps = []gateStep{
 	{"build", "go", []string{"go build", gateGoListExpr}, true},
 	{"vet", "go", []string{"go vet", gateGoListExpr}, true},
 	{gateStepLint, "golangci-lint", []string{"run", "./cli/...", "./viewer/...", "./internal/...", "."}, false},
-	{"test", "go", []string{"go test", gateGoListExpr}, true},
+	{gateStepTest, "go", []string{"go test", gateGoListExpr}, true},
 }
 
 var agentGateCmd = &cobra.Command{
@@ -229,7 +268,7 @@ Examples:
 				if len(detail) > 400 {
 					detail = detail[:400] + "…"
 				}
-				results = append(results, gateResult{Step: step.Name, Status: "fail", Detail: detail})
+				results = append(results, gateResult{Step: step.Name, Status: doctorStatusFail, Detail: detail})
 				failed = step.Name
 				break
 			}
