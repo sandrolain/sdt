@@ -14,7 +14,7 @@ import (
 	"text/template"
 )
 
-//go:embed workspace instructions commands roles
+//go:embed workspace instructions commands roles agents
 var templatesFS embed.FS
 
 // The embed pattern is extended with each populated top-level directory

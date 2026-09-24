@@ -49,6 +49,7 @@ func TestTemplateRenderRoundTrip(t *testing.T) {
 	static := []string{
 		"workspace/topics.yaml.tmpl",
 		"workspace/scripts-index.md.tmpl",
+		"agents/project.md.tmpl",
 		"instructions/analysis.md.tmpl",
 		"instructions/architecture.md.tmpl",
 		"instructions/decision.md.tmpl",
