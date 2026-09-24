@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"bytes"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -18,8 +19,74 @@ var parseFuncs = template.FuncMap{
 	"tagged":    func(string) string { return "" },
 }
 
-// TestEmbeddedTemplatesParse parses every embedded .tmpl file. A parse error
-// means a template is syntactically broken (action syntax, unknown func).
+// renderCases holds the representative data blob for each dynamic template so
+// the parse guard below can also *execute* every template. Static templates
+// (no actions) render with nil data and are covered here too. Missing or
+// wrong-typed fields fail execution, so no action is skipped silently.
+var renderCases = map[string]any{
+	"agents/instructions.md.tmpl": map[string]any{
+		"Project": "p",
+		"Group":   "g",
+	},
+	"commands/index.md.tmpl": map[string]any{
+		"Project":  "p",
+		"Now":      "2026-09-24T00:00:00Z",
+		"Triggers": []string{"analysis", "ingestion"},
+	},
+	"commands/stub.md.tmpl": map[string]any{
+		"ID":       "ingestion",
+		"Contract": "ingestion",
+		"Project":  "p",
+		"Now":      "2026-09-24T00:00:00Z",
+	},
+	"instructions/project.md.tmpl": map[string]any{
+		"Project": "p",
+		"Group":   "g",
+	},
+	"roles/shared.md.tmpl": map[string]any{
+		"Rows": []map[string]any{{
+			"Slug":        "pm",
+			"Title":       "Project manager",
+			"Coordinator": true,
+			"Owned":       []string{"context/plan", "context/tasks"},
+		}},
+	},
+	"roles/project-layer.md.tmpl": map[string]any{
+		"Slug":        "backend",
+		"Stack":       "Go 1.27",
+		"Build":       "task build",
+		"Test":        "go test ./cli/...",
+		"Lint":        "golangci-lint run",
+		"Layout":      []string{"cli/cmd", "internal/templates"},
+		"OwnedPaths":  []string{"cli/cmd"},
+		"Conventions": []string{"table-driven tests"},
+		"UserAnswers": []string{"Deploys weekly"},
+		"Assumptions": []string{"Uses Makefile"},
+	},
+	"workspace/readme.md.tmpl": map[string]any{
+		"CommandsSection": "## Commands\n(registry-driven)\n",
+	},
+}
+
+// renderCasesDataFor resolves the sample data for one template path, applying
+// the shared blob to every roles/core/<slug>.md.tmpl file.
+func renderCasesDataFor(path string) any {
+	if d, ok := renderCases[path]; ok {
+		return d
+	}
+	if strings.HasPrefix(path, "roles/core/") {
+		return map[string]any{
+			"Slug":  "backend",
+			"Title": "Backend engineer",
+		}
+	}
+	return nil
+}
+
+// TestEmbeddedTemplatesParse parses AND executes every embedded .tmpl file. A
+// parse error means the template is syntactically broken (action syntax,
+// unknown func); an execution error means a referenced field/func is missing
+// or mis-typed — the representative renderCases data exercises every action.
 func TestEmbeddedTemplatesParse(t *testing.T) {
 	seen := 0
 	err := fs.WalkDir(templatesFS, ".", func(path string, d fs.DirEntry, err error) error {
@@ -30,8 +97,14 @@ func TestEmbeddedTemplatesParse(t *testing.T) {
 			return nil
 		}
 		seen++
-		if _, perr := template.New(filepath.Base(path)).Funcs(parseFuncs).ParseFS(templatesFS, path); perr != nil {
+		tmpl, perr := template.New(filepath.Base(path)).Funcs(parseFuncs).ParseFS(templatesFS, path)
+		if perr != nil {
 			t.Errorf("parse %s: %v", path, perr)
+			return nil
+		}
+		var buf bytes.Buffer
+		if xerr := tmpl.Execute(&buf, renderCasesDataFor(path)); xerr != nil {
+			t.Errorf("execute %s: %v", path, xerr)
 		}
 		return nil
 	})
