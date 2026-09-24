@@ -85,7 +85,9 @@ created: 2026-08-01
 
 refs tokens
 `)
-	write("context/wiki/board.canvas", `{"nodes":[]}`)
+	write("context/wiki/board.canvas", `{"nodes":[{"id":"n1","type":"text","text":"canvasword"}]}`)
+	// standalone mermaid document: unique term so it does not disturb ranking
+	write("context/wiki/flow.mmd", "flowchart TD\n  A --> B\n  %% mermaidword\n")
 	// map document: unique term so it does not disturb ranked/kind/date tests
 	write("context/wiki/topic.map.md", `---
 kind: wiki
@@ -132,9 +134,10 @@ func TestNewAndBulkIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	// wiki(2) + analysis(2) + notes(1) + tasks(1) + map(1) = 7; tmp/scripts/refs/canvas/root-docs skipped
-	if len(ix.registry) != 7 {
-		t.Errorf("indexed %d docs, want 7", len(ix.registry))
+	// wiki(2) + analysis(2) + notes(1) + tasks(1) + map(1) + canvas(1) + mmd(1) = 9;
+	// tmp/scripts/refs/root-docs skipped
+	if len(ix.registry) != 9 {
+		t.Errorf("indexed %d docs, want 9", len(ix.registry))
 	}
 	if _, ok := ix.registry["docs/outside.md"]; ok {
 		t.Error("outside-corpus doc indexed")
@@ -158,6 +161,69 @@ func TestSearchMapResult(t *testing.T) {
 	r := res.Results[0]
 	if !r.IsMap || r.MapID != "topic.map" {
 		t.Errorf("map flags wrong: %+v", r)
+	}
+}
+
+func TestSearchMermaidResult(t *testing.T) {
+	root := corpus(t)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	res, err := ix.Search("mermaidword", "", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 1 || len(res.Results) != 1 {
+		t.Fatalf("mermaid search: %+v", res)
+	}
+	r := res.Results[0]
+	if r.Kind != "mermaid" || !r.IsMermaid || r.MermaidID != "context/wiki/flow" {
+		t.Errorf("mermaid flags wrong: %+v", r)
+	}
+}
+
+func TestSearchCanvasResult(t *testing.T) {
+	root := corpus(t)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	res, err := ix.Search("canvasword", "", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 1 || len(res.Results) != 1 {
+		t.Fatalf("canvas search: %+v", res)
+	}
+	r := res.Results[0]
+	if r.Kind != "canvas" || !r.IsCanvas {
+		t.Errorf("canvas flags wrong: %+v", r)
+	}
+}
+
+func TestSearchKindFilterAux(t *testing.T) {
+	root := corpus(t)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	res, err := ix.Search("board", "canvas", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 1 || res.Results[0].Path != "context/wiki/board.canvas" {
+		t.Errorf("canvas kind filter: %+v", res)
+	}
+	res, err = ix.Search("flow", "mermaid", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 1 || res.Results[0].Path != "context/wiki/flow.mmd" {
+		t.Errorf("mermaid kind filter: %+v", res)
 	}
 }
 

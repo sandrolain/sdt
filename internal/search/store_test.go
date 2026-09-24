@@ -54,8 +54,8 @@ func TestStoreRebuildAndOpen(t *testing.T) {
 	}
 	ix := reopen(t, root)
 	defer ix.Close()
-	if len(ix.registry) != 7 {
-		t.Errorf("stored registry has %d docs, want 7", len(ix.registry))
+	if len(ix.registry) != 9 {
+		t.Errorf("stored registry has %d docs, want 9", len(ix.registry))
 	}
 	res, err := ix.Search("x9y8z7", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -102,8 +102,8 @@ func TestStoreIncrementalDelta(t *testing.T) {
 
 	ix := reopen(t, root)
 	defer ix.Close()
-	if len(ix.registry) != 6 {
-		t.Errorf("stored registry has %d docs, want 6", len(ix.registry))
+	if len(ix.registry) != 8 {
+		t.Errorf("stored registry has %d docs, want 8", len(ix.registry))
 	}
 	// The new token is searchable, the superseded one is gone.
 	if res, _ := ix.Search("zz9", "", "", "", "", "", "", 0); res.Total != 1 {
@@ -137,7 +137,7 @@ func TestStoreSchemaMismatchFallsBack(t *testing.T) {
 	if err := RebuildStore(root, entries, nil, nil); err != nil {
 		t.Fatalf("rebuild after schema change: %v", err)
 	}
-	if ix := reopen(t, root); ix == nil || len(ix.registry) != 7 {
+	if ix := reopen(t, root); ix == nil || len(ix.registry) != 9 {
 		t.Errorf("store unusable after rebuild: %v", ix)
 	} else {
 		ix.Close()

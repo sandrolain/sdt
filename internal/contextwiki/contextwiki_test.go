@@ -350,6 +350,35 @@ func TestDocID(t *testing.T) {
 	}
 }
 
+func TestIsMermaidDoc(t *testing.T) {
+	cases := map[string]bool{
+		"context/wiki/flow.mmd":     true,
+		"context/notes/seq.mmd":     true,
+		"context/wiki/flow.md":      false,
+		"context/wiki/flow.map.md":  false,
+		"context/wiki/flow.mmd.bak": false,
+		"context/wiki/mmd":          false,
+	}
+	for path, want := range cases {
+		if got := IsMermaidDoc(path); got != want {
+			t.Errorf("IsMermaidDoc(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestMermaidID(t *testing.T) {
+	cases := map[string]string{
+		"context/wiki/flow.mmd":  "context/wiki/flow",
+		"context/notes/seq.mmd":  "context/notes/seq",
+		"context/analysis/x.mmd": "context/analysis/x",
+	}
+	for path, want := range cases {
+		if got := MermaidID(path); got != want {
+			t.Errorf("MermaidID(%q) = %q, want %q", path, got, want)
+		}
+	}
+}
+
 func TestFrontmatterFieldStripsQuotes(t *testing.T) {
 	fm := "---\ntitle: \"Quoted title\"\ncreated: '2026-09-15'\nplain: value\n---\n"
 	cases := map[string]string{

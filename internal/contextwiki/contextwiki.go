@@ -36,6 +36,8 @@ const (
 	MarkdownExt = ".md"
 	// MapSuffix marks a document as a semantic map (`.map.md`).
 	MapSuffix = ".map.md"
+	// MermaidSuffix marks a standalone mermaid diagram document (`.mmd`).
+	MermaidSuffix = ".mmd"
 	// WikiDirPrefix is the corpus-relative wiki directory prefix.
 	WikiDirPrefix = "context/wiki/"
 	// frontmatterDelim delimits a YAML frontmatter block.
@@ -87,6 +89,12 @@ func IsMapDoc(path string) bool {
 	return strings.HasSuffix(filepath.ToSlash(path), MapSuffix)
 }
 
+// IsMermaidDoc reports whether a corpus path is a standalone mermaid diagram
+// document (`.mmd`).
+func IsMermaidDoc(path string) bool {
+	return strings.HasSuffix(filepath.ToSlash(path), MermaidSuffix)
+}
+
 // DocID returns the canonical document id for a corpus path: for wiki pages
 // the dir-relative path minus ".md" (matching Page.FileID, e.g.
 // "context/wiki/topic.map.md" -> "topic.map"); otherwise the slash path minus
@@ -97,6 +105,12 @@ func DocID(path string) string {
 		return strings.TrimPrefix(p, WikiDirPrefix)
 	}
 	return p
+}
+
+// MermaidID returns the canonical id for a standalone mermaid document, the
+// slash path minus ".mmd" ("context/wiki/flow.mmd" -> "context/wiki/flow").
+func MermaidID(path string) string {
+	return strings.TrimSuffix(filepath.ToSlash(path), MermaidSuffix)
 }
 
 // Page is one parsed wiki knowledge-graph node.

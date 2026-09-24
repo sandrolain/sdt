@@ -61,6 +61,22 @@ describe("Tree", () => {
     expect(countFor("commands")).toBe("0");
   });
 
+  it("renders mermaid documents in their own folder, linked to the docs route", async () => {
+    const data = {
+      entries: [{ path: "context/wiki/flow.mmd", kind: "mermaid", title: "Flow", mermaid: true }],
+    };
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(data) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    expect(await screen.findByText("Flow")).toBeTruthy();
+    const labels = Array.from(document.querySelectorAll(".tree-folder__label")).map(
+      (h) => h.textContent,
+    );
+    expect(labels).toContain("mermaid");
+    expect(document.querySelector('a[href="/docs/context/wiki/flow.mmd"]')).toBeTruthy();
+  });
+
   it("shows a No documents. message in an empty kind folder", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
@@ -449,6 +465,17 @@ describe("Tree", () => {
     const dateSpans = Array.from(document.querySelectorAll(".tree-folder__date"));
     expect(dateSpans).toHaveLength(2);
     expect(dateSpans[0].textContent).toContain("2026");
+
+    // the date sits on its own line (outside the title row); the count stays in
+    // the title row alongside the label
+    const group = document.querySelector(".tree-folder--objective");
+    expect(group?.querySelector(".tree-folder__title-row .tree-folder__date")).toBeNull();
+    expect(group?.querySelector(".tree-folder__title-row .tree-folder__count")).toBeTruthy();
+    const text = group?.querySelector(".tree-folder__text");
+    expect(Array.from(text?.children ?? []).map((c) => c.className)).toEqual([
+      "tree-folder__title-row",
+      "tree-folder__date",
+    ]);
 
     act(() => setTreeSortKey("name_asc"));
     await waitFor(() => expect(objectiveNames()).toEqual(["alpha", "zeta"]));

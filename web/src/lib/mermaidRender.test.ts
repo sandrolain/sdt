@@ -14,6 +14,19 @@ vi.mock("mermaid", () => ({
   },
 }));
 
+const panZoom = vi.hoisted(() => ({
+  instance: {
+    zoomIn: vi.fn(),
+    zoomOut: vi.fn(),
+    reset: vi.fn(),
+    destroy: vi.fn(),
+  },
+}));
+
+vi.mock("svg-pan-zoom", () => ({
+  default: vi.fn(() => panZoom.instance),
+}));
+
 function mermaidNode(source: string): HTMLElement {
   const div = document.createElement("div");
   div.className = "md-mermaid";
@@ -45,6 +58,7 @@ describe("renderMermaid", () => {
     expect(node.dataset.rendered).toBe("1");
     expect(node.querySelector("svg")).toBeTruthy();
     expect(node.querySelector(".md-mermaid__download")).toBeTruthy();
+    expect(node.querySelector(".md-mermaid__controls")).toBeTruthy();
   });
 
   it("falls back to the source when rendering fails", async () => {

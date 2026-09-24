@@ -13,6 +13,10 @@ vi.mock("./MindmapView", () => ({
   ),
 }));
 
+vi.mock("../lib/mermaidRender", () => ({
+  renderMermaid: vi.fn(() => Promise.resolve()),
+}));
+
 function renderView(
   props: Partial<Parameters<typeof DocumentView>[0]> & { path: string },
   initial = "/docs/x",
@@ -66,6 +70,23 @@ describe("DocumentView", () => {
     renderView({ path: "context/wiki/alpha.md" }, "/docs/x?view=map");
     expect(screen.queryByRole("button", { name: "Map" })).toBeNull();
     expect(screen.getByRole("button", { name: "Render", pressed: true })).toBeTruthy();
+  });
+
+  it("defaults .mmd documents to Mermaid mode with Code, no Render/Map", () => {
+    renderView({ path: "context/wiki/flow.mmd", markdown: "flowchart TD\n  A-->B\n" });
+    expect(screen.getByRole("button", { name: "Mermaid", pressed: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Code" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Render" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Map" })).toBeNull();
+    expect(screen.getByRole("img", { name: "Mermaid document" })).toBeTruthy();
+    expect(document.querySelector(".doc-rendered--mermaid .md-mermaid")).toBeTruthy();
+  });
+
+  it("shows the raw mermaid source in Code mode for .mmd documents", async () => {
+    renderView({ path: "context/wiki/flow.mmd", markdown: "flowchart TD\n  A-->B\n" });
+    await userEvent.click(screen.getByRole("button", { name: "Code" }));
+    expect(screen.getByRole("button", { name: "Code", pressed: true })).toBeTruthy();
+    expect(screen.getByText(/flowchart TD/)).toBeTruthy();
   });
 
   it("copies a rendered code block from its copy button", async () => {

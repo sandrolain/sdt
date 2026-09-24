@@ -21,9 +21,10 @@ import (
 )
 
 const (
-	// markdownExt and canvasExt are the served corpus extensions.
+	// markdownExt, canvasExt and mermaidExt are the served corpus extensions.
 	markdownExt = ".md"
 	canvasExt   = ".canvas"
+	mermaidExt  = ".mmd"
 	// corpusDir is the served knowledge base subdirectory under the project
 	// root; everything outside it (refs/, docs/, root-level files) is private.
 	corpusDir = "context"
@@ -88,6 +89,7 @@ type treeEntry struct {
 	Modified  string   `json:"modified,omitempty"`
 	Image     string   `json:"image,omitempty"`
 	Canvas    bool     `json:"canvas,omitempty"`
+	Mermaid   bool     `json:"mermaid,omitempty"`
 	IsMap     bool     `json:"isMap,omitempty"`
 	MapID     string   `json:"mapId,omitempty"`
 }
@@ -103,6 +105,12 @@ type docResponse struct {
 type canvasResponse struct {
 	Path   string          `json:"path"`
 	Canvas json.RawMessage `json:"canvas"`
+}
+
+// mermaidResponse is the .mmd payload of /api/doc (raw mermaid source).
+type mermaidResponse struct {
+	Path   string `json:"path"`
+	Source string `json:"source"`
 }
 
 // errResponse mirrors errorResponse in sdt CLI responses across the API root.
@@ -199,7 +207,8 @@ func (s *server) handleTree(w http.ResponseWriter, _ *http.Request) {
 
 // walkTree walks the corpus, skipping the corpus-excluded directories (tmp/,
 // scripts/, refs/, commands/, instructions/, sdtdocs/) and the excluded
-// context/README.md (corpus noise), collecting .md entries and .canvas entries.
+// context/README.md (corpus noise), collecting .md entries, .canvas entries and
+// .mmd mermaid documents.
 // Paths are project-root-relative (context/...), matching doc/search/wiki
 // endpoints.
 func (s *server) walkTree() ([]treeEntry, error) {
@@ -248,6 +257,17 @@ func (s *server) walkTree() ([]treeEntry, error) {
 				Kind:   "canvas",
 				Title:  strings.TrimSuffix(d.Name(), canvasExt),
 				Canvas: true,
+			}
+			if info, statErr := d.Info(); statErr == nil {
+				entry.Modified = info.ModTime().UTC().Format(time.RFC3339)
+			}
+			entries = append(entries, entry)
+		case mermaidExt:
+			entry := treeEntry{
+				Path:    rel,
+				Kind:    "mermaid",
+				Title:   strings.TrimSuffix(d.Name(), mermaidExt),
+				Mermaid: true,
 			}
 			if info, statErr := d.Info(); statErr == nil {
 				entry.Modified = info.ModTime().UTC().Format(time.RFC3339)
@@ -303,7 +323,8 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 }
 
 // handleDoc serves a validated corpus file: frontmatter+markdown for .md, raw
-// JSON Canvas content for .canvas. Missing/outside-corpus/unsupported = 404.
+// JSON Canvas content for .canvas, raw mermaid source for .mmd.
+// Missing/outside-corpus/unsupported = 404.
 func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
 	full, ok := s.safePath(rel)
@@ -327,6 +348,8 @@ func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, docResponse{Path: rel, Frontmatter: fm, Markdown: body})
 	case canvasExt:
 		writeJSON(w, http.StatusOK, canvasResponse{Path: rel, Canvas: json.RawMessage(data)})
+	case mermaidExt:
+		writeJSON(w, http.StatusOK, mermaidResponse{Path: rel, Source: string(data)})
 	default:
 		writeJSON(w, http.StatusNotFound, errResponse{Error: "unsupported file type"})
 	}

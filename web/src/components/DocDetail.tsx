@@ -1,12 +1,20 @@
-import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
+import {
+  isCanvas,
+  isMermaid,
+  type CanvasResponse,
+  type DocResponse,
+  type MermaidResponse,
+} from "../lib/api";
 import { displayTitle, frontmatterTitle } from "../lib/titles";
 import { DocumentView } from "./DocumentView";
 import { SkeletonLines } from "./Skeleton";
 
+type AnyDoc = DocResponse | CanvasResponse | MermaidResponse;
+
 interface DocDetailProps {
   /** corpus-relative path from the URL, e.g. context/wiki/foo.md */
   path: string;
-  doc: DocResponse | CanvasResponse | null;
+  doc: AnyDoc | null;
   error: string | null;
   loading: boolean;
 }
@@ -19,9 +27,20 @@ export function DocDetail({ path, doc, error, loading }: DocDetailProps) {
     return (
       <article>
         <header className="doc-header">
-          <h1 className="doc-header__title">{heading(doc)}</h1>
+          <h1 className="doc-header__title">{displayTitle({ path: doc.path })}</h1>
         </header>
         <pre className="doc-markdown">{JSON.stringify(doc.canvas, null, 2)}</pre>
+      </article>
+    );
+  }
+
+  if (isMermaid(doc)) {
+    return (
+      <article>
+        <header className="doc-header">
+          <h1 className="doc-header__title">{displayTitle({ path: doc.path })}</h1>
+        </header>
+        <DocumentView path={doc.path} markdown={doc.source} />
       </article>
     );
   }
@@ -36,8 +55,7 @@ export function DocDetail({ path, doc, error, loading }: DocDetailProps) {
   );
 }
 
-function heading(doc: DocResponse | CanvasResponse): string {
-  if (!("frontmatter" in doc)) return displayTitle({ path: doc.path });
+function heading(doc: DocResponse): string {
   return displayTitle({
     title: frontmatterTitle(doc.frontmatter),
     markdown: doc.markdown,

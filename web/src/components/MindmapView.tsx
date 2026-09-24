@@ -10,7 +10,7 @@ import {
   type MapRef,
 } from "../lib/fuse";
 import { transformMindmap, type MindNode } from "../lib/mindmap";
-import { fetchDoc, isCanvas } from "../lib/api";
+import { fetchDoc, isCanvas, isMermaid } from "../lib/api";
 import { isMapPath } from "../lib/documentModes";
 import { Icon } from "../lib/icon";
 import { loadMapIndex, loadWikiIndex, type MapIndexEntry } from "../lib/wikiIndexLoader";
@@ -76,7 +76,7 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
         const entry = mapIndex.get(id);
         if (!entry) continue;
         const doc = await fetchDoc(entry.path);
-        if (isCanvas(doc)) continue;
+        if (isCanvas(doc) || isMermaid(doc)) continue;
         refs.set(entry.id, {
           id: entry.id,
           title: entry.title,

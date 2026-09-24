@@ -130,8 +130,12 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
                   style={{ color: kindColor(group.kind) }}
                   title={kindLabel(group.kind)}
                 />
-                <span className="tree-folder__label">{kindLabel(group.kind)}</span>
-                <span className="tree-folder__count">{group.entries.length}</span>
+                <span className="tree-folder__text">
+                  <span className="tree-folder__title-row">
+                    <span className="tree-folder__label">{kindLabel(group.kind)}</span>
+                    <span className="tree-folder__count">{group.entries.length}</span>
+                  </span>
+                </span>
               </summary>
               {group.entries.length === 0 ? (
                 <p className="content__empty tree-empty">No documents.</p>
@@ -244,9 +248,13 @@ function FolderNodeView({
       <summary className="tree-folder__header">
         <Icon name="expand_more" className="tree-folder__chevron" />
         <Icon name="folder" className="tree-folder__icon" />
-        <span className="tree-folder__label">{node.name}</span>
-        <GroupHeaderDate entries={folderEntries(node)} />
-        <span className="tree-folder__count">{folderCount(node)}</span>
+        <span className="tree-folder__text">
+          <span className="tree-folder__title-row">
+            <span className="tree-folder__label">{node.name}</span>
+            <span className="tree-folder__count">{folderCount(node)}</span>
+          </span>
+          <GroupHeaderDate entries={folderEntries(node)} />
+        </span>
       </summary>
       {node.entries.length > 0 && (
         <EntryList entries={node.entries} plannedAnalyses={plannedAnalyses} taskIndex={taskIndex} />
@@ -314,10 +322,14 @@ function PlanEntries({
             <summary className="tree-folder__header">
               <Icon name="expand_more" className="tree-folder__chevron" />
               <Icon name="map" className="tree-folder__icon" />
-              <span className="tree-folder__label">{group.label}</span>
-              <GroupProgressDot entries={group.entries} />
-              <GroupHeaderDate entries={group.entries} />
-              <span className="tree-folder__count">{group.entries.length}</span>
+              <span className="tree-folder__text">
+                <span className="tree-folder__title-row">
+                  <span className="tree-folder__label">{group.label}</span>
+                  <GroupProgressDot entries={group.entries} />
+                  <span className="tree-folder__count">{group.entries.length}</span>
+                </span>
+                <GroupHeaderDate entries={group.entries} />
+              </span>
             </summary>
             <EntryList
               entries={group.entries}
@@ -359,9 +371,13 @@ function AnalysisEntries({
             <summary className="tree-folder__header">
               <Icon name="expand_more" className="tree-folder__chevron" />
               <Icon name="flag" className="tree-folder__icon" />
-              <span className="tree-folder__label">{group.objective}</span>
-              <GroupHeaderDate entries={group.entries} />
-              <span className="tree-folder__count">{group.entries.length}</span>
+              <span className="tree-folder__text">
+                <span className="tree-folder__title-row">
+                  <span className="tree-folder__label">{group.objective}</span>
+                  <span className="tree-folder__count">{group.entries.length}</span>
+                </span>
+                <GroupHeaderDate entries={group.entries} />
+              </span>
             </summary>
             <EntryList
               entries={group.entries}

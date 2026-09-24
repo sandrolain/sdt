@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultMode, isDocumentMode, isMapPath } from "./documentModes";
+import { defaultMode, isDocumentMode, isMapPath, isMermaidPath, modesFor } from "./documentModes";
 import { parseOutline, stripFrontmatter } from "./outline";
 
 describe("documentModes", () => {
@@ -8,9 +8,14 @@ describe("documentModes", () => {
     expect(defaultMode(false)).toBe("render");
   });
 
+  it("defaults mermaid docs to Mermaid", () => {
+    expect(defaultMode(false, true)).toBe("mermaid");
+  });
+
   it("guards mode values", () => {
     expect(isDocumentMode("code")).toBe(true);
     expect(isDocumentMode("map")).toBe(true);
+    expect(isDocumentMode("mermaid")).toBe(true);
     expect(isDocumentMode("bogus")).toBe(false);
     expect(isDocumentMode(null)).toBe(false);
   });
@@ -18,6 +23,17 @@ describe("documentModes", () => {
   it("detects the .map.md convention", () => {
     expect(isMapPath("context/wiki/topic.map.md")).toBe(true);
     expect(isMapPath("context/wiki/topic.md")).toBe(false);
+  });
+
+  it("detects the .mmd convention", () => {
+    expect(isMermaidPath("context/wiki/flow.mmd")).toBe(true);
+    expect(isMermaidPath("context/wiki/flow.md")).toBe(false);
+  });
+
+  it("offers Code+Mermaid for mermaid docs and no Mermaid elsewhere", () => {
+    expect(modesFor(false, true).map((m) => m.id)).toEqual(["code", "mermaid"]);
+    expect(modesFor(true).map((m) => m.id)).toEqual(["code", "render", "map"]);
+    expect(modesFor(false).map((m) => m.id)).toEqual(["code", "render"]);
   });
 });
 

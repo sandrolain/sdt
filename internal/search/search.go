@@ -63,6 +63,9 @@ type Result struct {
 	Snippet   string   `json:"snippet"`
 	IsMap     bool     `json:"isMap,omitempty"`
 	MapID     string   `json:"mapId,omitempty"`
+	IsMermaid bool     `json:"isMermaid,omitempty"`
+	MermaidID string   `json:"mermaidId,omitempty"`
+	IsCanvas  bool     `json:"isCanvas,omitempty"`
 }
 
 // Results is the response body for /api/search.
@@ -96,11 +99,12 @@ var (
 	nameSepRe    = regexp.MustCompile(`[-_.]+`)
 )
 
-// docName derives the searchable filename stem: base name without the `.md`
+// docName derives the searchable filename stem: base name without its
 // extension, leading `YYYYMMDD-HHMMSS-` date prefix stripped and `-_.`
 // separators normalized to single spaces.
 func docName(path string) string {
-	base := strings.TrimSuffix(filepath.Base(path), ".md")
+	base := filepath.Base(path)
+	base = strings.TrimSuffix(base, filepath.Ext(base))
 	base = datePrefixRe.ReplaceAllString(base, "")
 	return strings.TrimSpace(nameSepRe.ReplaceAllString(base, " "))
 }
@@ -133,6 +137,9 @@ func skipDir(name string) bool { return corpuspkg.ExcludedDirName(name) }
 
 // corpusDirName is the served corpus subdirectory under the project root.
 const corpusDirName = "context"
+
+// canvasKind is the synthesized kind of `.canvas` board resources.
+const canvasKind = "canvas"
 
 // New builds an in-memory bleve index over the markdown corpus under
 // <root>/context, skipping the shared corpus exclusions. .canvas files are
@@ -192,7 +199,11 @@ func buildFromEntries(idx bleve.Index, entries []*mdindex.Entry, indexDocs bool)
 		} else {
 			ix.registry[e.ID] = d
 		}
-		ix.addSections(e)
+		// Section metadata/embeddings are markdown-only: viewable .canvas/.mmd
+		// resources carry raw text, not headings.
+		if filepath.Ext(e.ID) == contextwiki.MarkdownExt {
+			ix.addSections(e)
+		}
 	}
 	return ix, nil
 }
@@ -301,7 +312,9 @@ func (ix *Index) addEntry(dir, path string, d os.DirEntry, err error) error {
 		return nil
 	}
 	if filepath.Ext(d.Name()) != ".md" {
-		return nil
+		if _, ok := auxKind(d.Name()); !ok {
+			return nil
+		}
 	}
 	rel, rerr := filepath.Rel(dir, path)
 	if rerr != nil {
@@ -382,7 +395,26 @@ func parseDoc(docID, path string) (doc, error) {
 	}
 	d.Topics = contextwiki.FrontmatterList(content, "topics")
 	d.Entities = contextwiki.FrontmatterList(content, "entities")
+	// Non-markdown viewable resources (.canvas/.mmd): synthesize kind from the
+	// extension and use the raw file text as the searchable body.
+	if kind, ok := auxKind(docID); ok {
+		d.Kind = kind
+		d.Title = strings.TrimSuffix(filepath.Base(docID), filepath.Ext(docID))
+		d.Body = content
+	}
 	return d, nil
+}
+
+// auxKind maps a non-markdown corpus extension to its synthesized kind.
+func auxKind(path string) (string, bool) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".canvas":
+		return canvasKind, true
+	case contextwiki.MermaidSuffix:
+		return "mermaid", true
+	default:
+		return "", false
+	}
 }
 
 // DocFromEntry builds a search doc from a shared mdindex entry, so the CLI and
@@ -516,6 +548,7 @@ func (ix *Index) Search(q, kind, objective, status, topic, from, to string, max 
 			continue
 		}
 		isMap := contextwiki.IsMapDoc(doc.Path)
+		isMermaid := contextwiki.IsMermaidDoc(doc.Path)
 		out = append(out, Result{
 			Path:      doc.Path,
 			Kind:      doc.Kind,
@@ -531,6 +564,9 @@ func (ix *Index) Search(q, kind, objective, status, topic, from, to string, max 
 			Snippet:   Snippet(doc, q, 160),
 			IsMap:     isMap,
 			MapID:     mapID(doc.Path, isMap),
+			IsMermaid: isMermaid,
+			MermaidID: mermaidID(doc.Path, isMermaid),
+			IsCanvas:  doc.Kind == canvasKind,
 		})
 	}
 	total := sr.Total
@@ -606,6 +642,11 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 			fused[i].Created = d.RawCreated
 			fused[i].Modified = d.Modified
 			fused[i].Snippet = Snippet(d, q.Q, 160)
+			fused[i].IsMap = contextwiki.IsMapDoc(d.Path)
+			fused[i].MapID = mapID(d.Path, fused[i].IsMap)
+			fused[i].IsMermaid = contextwiki.IsMermaidDoc(d.Path)
+			fused[i].MermaidID = mermaidID(d.Path, fused[i].IsMermaid)
+			fused[i].IsCanvas = d.Kind == canvasKind
 		}
 	}
 	// Filters apply to the lexical branch; drop semantic-only hits that fall
@@ -684,6 +725,14 @@ func mapID(path string, isMap bool) string {
 		return ""
 	}
 	return contextwiki.DocID(path)
+}
+
+// mermaidID returns the canonical id for mermaid documents, "" otherwise.
+func mermaidID(path string, isMermaid bool) string {
+	if !isMermaid {
+		return ""
+	}
+	return contextwiki.MermaidID(path)
 }
 
 // Snippet extracts a context window around the first match of the query terms

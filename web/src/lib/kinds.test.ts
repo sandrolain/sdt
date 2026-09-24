@@ -33,6 +33,11 @@ describe("entryKind", () => {
   it("uses the commands kind for command-trigger files", () => {
     expect(entryKind(entry({ kind: "commands" }))).toBe("commands");
   });
+
+  it("treats mermaid entries as their own kind", () => {
+    expect(entryKind(entry({ mermaid: true, kind: "mermaid" }))).toBe("mermaid");
+    expect(entryKind(entry({ mermaid: true }))).toBe("mermaid");
+  });
 });
 
 describe("kindFromPath", () => {
@@ -43,6 +48,10 @@ describe("kindFromPath", () => {
     expect(kindFromPath("context/research/r.md")).toBe("research");
     expect(kindFromPath("context/wiki/a.md")).toBe("wiki");
     expect(kindFromPath("context/unknown/x.md")).toBe("other");
+  });
+
+  it("maps .mmd paths to the mermaid kind", () => {
+    expect(kindFromPath("context/wiki/flow.mmd")).toBe("mermaid");
   });
 });
 

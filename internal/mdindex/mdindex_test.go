@@ -68,6 +68,39 @@ body one
 	}
 }
 
+func TestScanViewsAuxResources(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "context/wiki/flow.mmd", "flowchart TD\n  A --> B\n")
+	writeDoc(t, root, "context/wiki/board.canvas", `{"nodes":[],"edges":[]}`)
+
+	res, err := Scan(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mmd, ok := res.Manifest.Entries["context/wiki/flow.mmd"]
+	if !ok {
+		t.Fatalf("mermaid entry missing: %+v", res.Manifest.Entries)
+	}
+	if mmd.Kind != "mermaid" || mmd.Title != "flow" || mmd.Name != "flow" {
+		t.Errorf("mermaid entry wrong: %+v", mmd)
+	}
+	if mmd.Body != "flowchart TD\n  A --> B\n" || len(mmd.Sections) != 0 {
+		t.Errorf("mermaid body/sections wrong: %q / %+v", mmd.Body, mmd.Sections)
+	}
+	canvas, ok := res.Manifest.Entries["context/wiki/board.canvas"]
+	if !ok {
+		t.Fatalf("canvas entry missing: %+v", res.Manifest.Entries)
+	}
+	if canvas.Kind != "canvas" || canvas.Title != "board" || canvas.Name != "board" {
+		t.Errorf("canvas entry wrong: %+v", canvas)
+	}
+	// Synthesized kinds surface in the facet summary for filter dropdowns.
+	kinds := res.Manifest.Facets().Kinds
+	if len(kinds) != 2 || kinds[0] != "canvas" || kinds[1] != "mermaid" {
+		t.Errorf("facet kinds wrong: %v", kinds)
+	}
+}
+
 func TestScanSkipsExcludedDirs(t *testing.T) {
 	root := t.TempDir()
 	writeDoc(t, root, "context/analysis/keep.md", "---\nkind: analysis\n---\nbody\n")

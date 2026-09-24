@@ -18,6 +18,8 @@ export interface TreeEntry {
   /** frontmatter `image` (corpus- or doc-relative), served via /api/file */
   image?: string;
   canvas?: boolean;
+  /** true for `.mmd` standalone mermaid documents */
+  mermaid?: boolean;
   /** true for `.map.md` semantic map documents */
   isMap?: boolean;
   /** canonical map id, present when isMap */
@@ -37,6 +39,12 @@ export interface DocResponse {
 export interface CanvasResponse {
   path: string;
   canvas: unknown;
+}
+
+/** Raw mermaid source payload natively returned by /api/doc for `.mmd` files. */
+export interface MermaidResponse {
+  path: string;
+  source: string;
 }
 
 export interface ErrorResponse {
@@ -118,6 +126,12 @@ export interface SearchResult {
   isMap?: boolean;
   /** canonical map id, present when isMap */
   mapId?: string;
+  /** true for `.mmd` mermaid documents */
+  isMermaid?: boolean;
+  /** canonical mermaid id, present when isMermaid */
+  mermaidId?: string;
+  /** true for `.canvas` board documents */
+  isCanvas?: boolean;
 }
 
 export interface SearchResponse {
@@ -145,7 +159,7 @@ export function fetchTree(): Promise<TreeResponse> {
   return getJSON("/api/tree");
 }
 
-export function fetchDoc(path: string): Promise<DocResponse | CanvasResponse> {
+export function fetchDoc(path: string): Promise<DocResponse | CanvasResponse | MermaidResponse> {
   return getJSON(`/api/doc?path=${encodeURIComponent(path)}`);
 }
 
@@ -175,6 +189,14 @@ export function fetchWikiBoard(file?: string): Promise<unknown> {
   return getJSON<unknown>(`/api/wiki/board${suffix}`);
 }
 
-export function isCanvas(res: DocResponse | CanvasResponse): res is CanvasResponse {
+export function isCanvas(
+  res: DocResponse | CanvasResponse | MermaidResponse,
+): res is CanvasResponse {
   return "canvas" in res;
+}
+
+export function isMermaid(
+  res: DocResponse | CanvasResponse | MermaidResponse,
+): res is MermaidResponse {
+  return "source" in res;
 }

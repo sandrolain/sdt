@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import { fetchDoc, type CanvasResponse, type DocResponse } from "./api";
+import { fetchDoc, type CanvasResponse, type DocResponse, type MermaidResponse } from "./api";
 
 export interface DocState {
-  doc: DocResponse | CanvasResponse | null;
+  doc: DocResponse | CanvasResponse | MermaidResponse | null;
   error: string | null;
   loading: boolean;
 }
 
 interface Fetched {
   path: string;
-  doc: DocResponse | CanvasResponse | null;
+  doc: DocResponse | CanvasResponse | MermaidResponse | null;
   error: string | null;
 }
 

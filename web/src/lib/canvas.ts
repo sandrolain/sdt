@@ -1,3 +1,5 @@
+import { displayTitle } from "./titles";
+
 export type CanvasNodeType = "text" | "file" | "link" | "group";
 
 export interface BoardNode {
@@ -112,6 +114,14 @@ export function boardBounds(model: BoardModel): BoardBounds {
 /** Center point of a node, for edge routing. */
 export function nodeCenter(node: BoardNode): { x: number; y: number } {
   return { x: node.x + node.width / 2, y: node.y + node.height / 2 };
+}
+
+/** Card label: explicit canvas text first, else a formatted file title / id. */
+export function cardText(node: BoardNode): string {
+  if (node.label) return node.label;
+  if (node.text) return node.text;
+  if (node.file) return displayTitle({ path: node.file });
+  return node.id;
 }
 
 /** Resolve the navigation target for a board card. */

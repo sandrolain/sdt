@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useActiveSection } from "../lib/activeSection";
-import { isCanvas, type CanvasResponse, type DocResponse } from "../lib/api";
+import {
+  isCanvas,
+  isMermaid,
+  type CanvasResponse,
+  type DocResponse,
+  type MermaidResponse,
+} from "../lib/api";
 import { linkKind, loadCorpusIndex, type CorpusIndex } from "../lib/corpusIndex";
 import { collectBodyLinks, collectMetaLinks, resolveDocLink, type DocLink } from "../lib/docLinks";
 import {
@@ -24,7 +30,7 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { RelatedPanel } from "./RelatedPanel";
 
 interface DocMetaPanelProps {
-  doc?: DocResponse | CanvasResponse | null;
+  doc?: DocResponse | CanvasResponse | MermaidResponse | null;
   /** wiki page id; enables the relations card instead of the links-out card */
   relatedId?: string;
 }
@@ -39,7 +45,7 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
   const [corpus, setCorpus] = useState<CorpusIndex | undefined>(undefined);
   const activeSection = useActiveSection();
-  const markdownDoc = doc && !isCanvas(doc) ? doc : null;
+  const markdownDoc = doc && !isCanvas(doc) && !isMermaid(doc) ? doc : null;
   const reloadToken = useReloadToken();
   const activeHeading = activeSection.path === doc?.path ? activeSection.key : null;
 
@@ -146,6 +152,8 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
         )}
         {isCanvas(doc) ? (
           <CanvasMeta canvas={doc.canvas} />
+        ) : isMermaid(doc) ? (
+          <MermaidMeta source={doc.source} />
         ) : fields.length === 0 ? (
           <p className="content__empty">No frontmatter.</p>
         ) : (
@@ -335,6 +343,18 @@ function CanvasMeta({ canvas }: { canvas: unknown }) {
       <div className="meta-row" role="listitem">
         <dt className="meta-row__label">Edges</dt>
         <dd className="meta-row__value">{file.edges?.length ?? 0}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function MermaidMeta({ source }: { source: string }) {
+  const lines = source === "" ? 0 : source.split("\n").length;
+  return (
+    <dl className="meta-rows" role="list">
+      <div className="meta-row" role="listitem">
+        <dt className="meta-row__label">Lines</dt>
+        <dd className="meta-row__value">{lines}</dd>
       </div>
     </dl>
   );

@@ -14,6 +14,7 @@ export type EntryKind =
   | "commands"
   | "research"
   | "architecture"
+  | "mermaid"
   | "other";
 export type EntryFilterKind = EntryKind | "canvas";
 
@@ -32,6 +33,7 @@ export const KIND_ORDER: EntryKind[] = [
   "prompt",
   "commands",
   "research",
+  "mermaid",
   "other",
 ];
 
@@ -45,6 +47,7 @@ const KIND_LABELS: Partial<Record<EntryFilterKind, string>> = {
 /** Map a raw entry to a display kind. Canvas entries are treated as their own kind. */
 export function entryKind(e: TreeEntry): EntryFilterKind {
   if (e.canvas) return "canvas";
+  if (e.mermaid) return "mermaid";
   const k = e.kind ?? "other";
   return (KIND_ORDER as string[]).includes(k) ? (k as EntryKind) : "other";
 }
@@ -72,6 +75,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
   architecture: "account_tree",
   other: "description",
   canvas: "dashboard",
+  mermaid: "polyline",
 };
 
 /** Catppuccin token (CSS var reference) for a kind. */
@@ -91,6 +95,7 @@ const KIND_COLORS: Record<EntryFilterKind, string> = {
   architecture: "var(--ctp-lavender)",
   other: "var(--ctp-overlay0)",
   canvas: "var(--ctp-teal)",
+  mermaid: "var(--ctp-flamingo)",
 };
 
 export function kindIcon(k: EntryFilterKind): string {
@@ -112,6 +117,7 @@ const FOLDER_KINDS: Record<string, EntryKind> = {
 
 /** Best-effort kind from a corpus path alone (`context/<folder>/…`). */
 export function kindFromPath(path: string): EntryFilterKind {
+  if (path.endsWith(".mmd")) return "mermaid";
   const segments = path.split("/").filter(Boolean);
   if (segments.length < 3) return "other";
   const folder = segments[1];

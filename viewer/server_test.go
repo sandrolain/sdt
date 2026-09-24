@@ -90,6 +90,8 @@ updated: 2026-09-14T09:30:00Z
 
 - item
 `)
+	writeFixture(t, root, "context/wiki/flow.mmd", "flowchart TD\n  A-->B\n")
+	writeFixture(t, root, "context/refs/clone.mmd", "flowchart LR\n  X-->Y\n")
 	writeFixture(t, root, "context/tmp/scratch.md", `---
 kind: wiki
 title: Scratch
@@ -419,8 +421,40 @@ func TestTreeOutput(t *testing.T) {
 	}
 	// corpus exclusions (shared set) plus anything outside the corpus.
 	assertExcludedPaths(t, byPath)
-	if len(out.Entries) != 8 {
-		t.Errorf("expected 8 entries, got %d: %v", len(out.Entries), out.Entries)
+	if len(out.Entries) != 9 {
+		t.Errorf("expected 9 entries, got %d: %v", len(out.Entries), out.Entries)
+	}
+}
+
+// TestTreeMermaidEntry checks the .mmd listing flags: kind, mermaid tag and the
+// file-mtime modified fallback.
+func TestTreeMermaidEntry(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Entries []treeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]treeEntry{}
+	for _, e := range out.Entries {
+		byPath[e.Path] = e
+	}
+	e, ok := byPath["context/wiki/flow.mmd"]
+	if !ok {
+		t.Fatalf("missing context/wiki/flow.mmd in %v", byPath)
+	}
+	if !e.Mermaid || e.Kind != "mermaid" || e.Title != "flow" {
+		t.Errorf("mermaid entry wrong: %+v", e)
+	}
+	if e.Modified == "" {
+		t.Errorf("mermaid entry missing modified mtime: %+v", e)
 	}
 }
 
@@ -542,6 +576,42 @@ func TestDocCanvas(t *testing.T) {
 	}
 	if raw["nodes"] == nil {
 		t.Errorf("canvas nodes missing: %v", raw)
+	}
+}
+
+func TestDocMermaid(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+	req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape("context/wiki/flow.mmd"), nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var out mermaidResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Path != "context/wiki/flow.mmd" {
+		t.Errorf("path = %q", out.Path)
+	}
+	if !strings.Contains(out.Source, "flowchart TD") {
+		t.Errorf("source missing mermaid body: %q", out.Source)
+	}
+}
+
+// TestDocMermaidRejects guards the path-safety contract for .mmd files: an
+// excluded and an escaping path are opaque 404s.
+func TestDocMermaidRejects(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+	for _, path := range []string{"context/refs/clone.mmd", "../outside.mmd"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape(path), nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("path %q: status = %d, want 404", path, rec.Code)
+		}
 	}
 }
 

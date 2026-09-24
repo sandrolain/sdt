@@ -27,7 +27,7 @@ import (
 )
 
 // ManifestVersion invalidates a cached manifest when the scan model changes.
-const ManifestVersion = 1
+const ManifestVersion = 2
 
 // ContextDir is the served knowledge base subdirectory under the project root.
 const ContextDir = "context"
@@ -171,7 +171,7 @@ func scanEntry(root, dir, path string, d fs.DirEntry, werr error, prev map[strin
 		}
 		return nil
 	}
-	if filepath.Ext(d.Name()) != ".md" {
+	if !indexedExt(d.Name()) {
 		return nil
 	}
 	id := walkID(root, path)
@@ -236,16 +236,48 @@ func parseEntry(root, id, path string) (*Entry, error) {
 		Body:      body,
 		Name:      docName(id),
 	}
+	// Non-markdown viewable resources (.canvas/.mmd) carry no frontmatter: their
+	// kind is synthesized from the extension and the body is the raw file text.
+	if kind, ok := auxKind(id); ok {
+		e.Kind = kind
+		e.Title = strings.TrimSuffix(filepath.Base(id), filepath.Ext(id))
+		e.Body = content
+	}
 	e.Hash = shortHash(content)
 	e.Indexed = true
 	if info, serr := os.Stat(path); serr == nil {
 		e.Size = info.Size()
 		e.ModTimeNS = info.ModTime().UnixNano()
 	}
-	for _, s := range mdstruct.SplitSections(body) {
-		e.Sections = append(e.Sections, SectionRef{ID: s.ID, Heading: s.Heading, Level: s.Level})
+	if filepath.Ext(id) == contextwiki.MarkdownExt {
+		for _, s := range mdstruct.SplitSections(body) {
+			e.Sections = append(e.Sections, SectionRef{ID: s.ID, Heading: s.Heading, Level: s.Level})
+		}
 	}
 	return e, nil
+}
+
+// indexedExt reports whether a file extension belongs to the indexed corpus:
+// markdown documents plus the viewable `.canvas` and `.mmd` resources.
+func indexedExt(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case contextwiki.MarkdownExt, ".canvas", contextwiki.MermaidSuffix:
+		return true
+	default:
+		return false
+	}
+}
+
+// auxKind maps a non-markdown corpus extension to its synthesized kind.
+func auxKind(id string) (string, bool) {
+	switch strings.ToLower(filepath.Ext(id)) {
+	case ".canvas":
+		return "canvas", true
+	case contextwiki.MermaidSuffix:
+		return "mermaid", true
+	default:
+		return "", false
+	}
 }
 
 // collectFacets derives the distinct facet values from the entries.
@@ -362,10 +394,11 @@ func (m *Manifest) SetRoot(root string) {
 	}
 }
 
-// docName derives the searchable filename stem: base name without the `.md`
+// docName derives the searchable filename stem: base name without its
 // extension, leading `YYYYMMDD-HHMMSS-` date prefix stripped, `-_.` normalized.
 func docName(id string) string {
-	base := strings.TrimSuffix(filepath.Base(id), ".md")
+	base := filepath.Base(id)
+	base = strings.TrimSuffix(base, filepath.Ext(base))
 	if len(base) > 16 && base[8] == '-' && base[15] == '-' {
 		base = base[16:]
 	}

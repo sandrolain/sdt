@@ -1,3 +1,5 @@
+import { destroyMermaidZoom, enhanceMermaid } from "./mermaidZoom";
+
 type MermaidModule = typeof import("mermaid");
 
 let loader: Promise<MermaidModule> | null = null;
@@ -43,6 +45,7 @@ function signature(): string {
 /** Reset rendered nodes so a theme change re-renders every diagram. */
 function resetRendered(root: HTMLElement): void {
   for (const node of root.querySelectorAll<HTMLElement>(".md-mermaid[data-rendered]")) {
+    destroyMermaidZoom(node);
     node.removeAttribute("data-rendered");
     node.classList.remove("md-mermaid--error");
     node.innerHTML = "";
@@ -94,6 +97,7 @@ export async function renderMermaid(root: HTMLElement | null): Promise<void> {
         button.append(icon);
         node.append(button);
       }
+      enhanceMermaid(node);
     } catch {
       node.classList.add("md-mermaid--error");
       const pre = document.createElement("pre");

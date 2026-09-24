@@ -6,13 +6,15 @@ import {
   defaultMode,
   isDocumentMode,
   isMapPath,
+  isMermaidPath,
   MAP_ICON,
+  MERMAID_ICON,
   modesFor,
   type DocumentMode,
 } from "../lib/documentModes";
 import { Icon } from "../lib/icon";
 import { renderMath } from "../lib/katexRender";
-import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
+import { highlightCode, highlightMarkdown, renderMarkdown } from "../lib/markdown";
 import { renderMermaid } from "../lib/mermaidRender";
 import { useOpenDocsOptional } from "../lib/openDocsContext";
 import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
@@ -87,16 +89,22 @@ interface DocumentViewProps {
   isMap?: boolean;
 }
 
-/** Code / Render / Map surface shared by the docs and wiki detail routes. */
+/** Placeholder consumed by `renderMermaid` for a standalone `.mmd` document. */
+function mermaidPlaceholder(source: string): string {
+  return `<div class="md-mermaid" data-src="${encodeURIComponent(source)}"></div>`;
+}
+
+/** Code / Render / Map / Mermaid surface shared by the docs and wiki detail routes. */
 export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentViewProps) {
   const [params, setParams] = useSearchParams();
   const mapDoc = isMap ?? isMapPath(path);
-  const modes = useMemo(() => modesFor(mapDoc), [mapDoc]);
+  const mermaidDoc = isMermaidPath(path);
+  const modes = useMemo(() => modesFor(mapDoc, mermaidDoc), [mapDoc, mermaidDoc]);
   const paramMode = params.get("view");
   const mode: DocumentMode =
     isDocumentMode(paramMode) && modes.some((m) => m.id === paramMode)
       ? paramMode
-      : defaultMode(mapDoc);
+      : defaultMode(mapDoc, mermaidDoc);
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
 
   useEffect(() => {
@@ -120,12 +128,22 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   };
 
   const html = useMemo(
-    () => (mode === "render" ? renderMarkdown(markdown, { basePath: path, wikiIndex: index }) : ""),
+    () =>
+      mode === "render"
+        ? renderMarkdown(markdown, { basePath: path, wikiIndex: index })
+        : mode === "mermaid"
+          ? mermaidPlaceholder(markdown)
+          : "",
     [mode, markdown, path, index],
   );
   const code = useMemo(
-    () => (mode === "code" ? highlightMarkdown(markdown) : ""),
-    [mode, markdown],
+    () =>
+      mode === "code"
+        ? mermaidDoc
+          ? highlightCode(markdown, "mermaid")
+          : highlightMarkdown(markdown)
+        : "",
+    [mode, markdown, mermaidDoc],
   );
   const title = useMemo(
     () => frontmatterTitle(frontmatter) || fallbackTitle(path),
@@ -148,7 +166,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
 
   // render mermaid placeholders (lazy chunk, theme-aware) after each render
   useEffect(() => {
-    if (mode !== "render") return;
+    if (mode !== "render" && mode !== "mermaid") return;
     void renderMermaid(renderedRef.current);
   }, [mode, html]);
 
@@ -229,6 +247,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
           </button>
         ))}
         {mapDoc && <Icon name={MAP_ICON} className="map-icon" label="Map document" />}
+        {mermaidDoc && <Icon name={MERMAID_ICON} className="map-icon" label="Mermaid document" />}
       </div>
       {mode === "code" && (
         <div className="doc-code-wrap">
@@ -240,15 +259,15 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
           </pre>
         </div>
       )}
-      {mode === "render" && (
+      {(mode === "render" || mode === "mermaid") && (
         <>
           <div
-            className="doc-rendered"
+            className={mode === "mermaid" ? "doc-rendered doc-rendered--mermaid" : "doc-rendered"}
             ref={renderedRef}
             onClick={onRenderedClick}
             dangerouslySetInnerHTML={{ __html: html }}
           />
-          <HoverPreview />
+          {mode === "render" && <HoverPreview />}
         </>
       )}
       {mode === "map" && (
