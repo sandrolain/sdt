@@ -1,27 +1,10 @@
 package cmd
 
+import "github.com/sandrolain/sdt/internal/templates"
+
 // topicsRegisterTemplate seeds context/topics.yaml: the controlled vocabulary
 // for the `topics` frontmatter field. Canonical topics are kebab-case slugs;
 // aliases are accepted by lint and canonicalized in hints. It is generated at
 // init and, like the rest of the workspace, user-editable thereafter.
-const topicsRegisterTemplate = `# context/topics.yaml — controlled vocabulary for the ` + "`topics`" + ` frontmatter field.
-#
-# Canonical topics are kebab-case slugs. Aliases are accepted by ` + "`sdt context lint`" + `
-# and reported with the canonical form. Keep the list small and meaningful; a
-# topic is a subject, not an initiative (that is ` + "`objective`" + `).
-#
-# topics:
-#   context-search:
-#     - search
-#     - retrieval
-#   agent-harness:
-#     - harness
-#   knowledge-management:
-#     - knowledge
-#   document-management:
-#     - docs
-#   viewer:
-#     - web
-#   cli:
-#     - commands
-`
+
+var topicsRegisterTemplate = templates.Must("workspace/topics.yaml.tmpl", nil, nil)

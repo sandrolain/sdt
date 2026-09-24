@@ -13,7 +13,7 @@ import (
 	"text/template"
 )
 
-//go:embed workspace instructions
+//go:embed workspace instructions commands
 var templatesFS embed.FS
 
 // The embed pattern is extended with each populated top-level directory

@@ -13,6 +13,8 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
+
+	"github.com/sandrolain/sdt/internal/templates"
 )
 
 const (
@@ -457,73 +459,12 @@ func ensureWorkDirs(force bool) []FileResult {
 	return results
 }
 
-const sdtWorkReadmeTemplate = `# context/ — Working Directory
+// sdtWorkCommandsSection builds the registry-driven Commands block appended to
+// the work README; the type lists derive from the document-type registry so
+// they never drift from the surfaces they document.
 
-This directory holds the agent's planning, work logs, task lists, notes,
-instruction files and temporary files for this project.
-
-## Layout
-
-- ` + "`plan/`" + ` — plans written before starting non-trivial work
-- ` + "`analysis/`" + ` — analysis documents and implementation plans
-- ` + "`proposals/`" + ` — proposals waiting for review and a decision
-- ` + "`research/`" + ` — research notes and findings
-- ` + "`prompts/`" + ` — tracked prompts (created and re-run)
-- ` + "`wiki/`" + ` — wiki pages, named ` + "`<slug>`" + ` or ` + "`subpath/<slug>`" + ` (no date)
-- ` + "`architecture/`" + ` — living architecture documentation (no date in name)
-- ` + "`decisions/`" + ` — numbered decisions (` + "`NNNN-<slug>.md`" + `, append-only)
-- ` + "`worklog/`" + ` — chronological log of completed work
-- ` + "`notes/`" + ` — free-form annotations
-- ` + "`questions/`" + ` — open questions / points awaiting user decision (` + "`sources`" + ` link back to origin)
-- ` + "`tasks/`" + ` — per-phase task checklists
-- ` + "`archive/`" + ` — archived documents (history)
-- ` + "`commands/`" + ` — thin agent-invokable trigger files (` + "`context/commands/<trigger>.md`" + `)
-- ` + "`instructions/`" + ` — agent instruction files (referenced by AGENTS.md)
-- ` + "`roles/`" + ` — generated role profiles (` + "`<slug>.md`" + `) + ` + "`shared.md`" + ` (see ` + "`sdt agent roles`" + `)
-- ` + "`scripts/`" + ` — reusable utility scripts (` + "`index.md`" + ` lists them; see ` + "`instructions/scripts.md`" + `)
-- ` + "`index.md`" + ` — generated knowledge index (reindex/lint)
-- ` + "`tmp/`" + ` — temporary and scratch files (never outside this project)
-
-## Conventions
-
-- Files are prefixed with date/time so they sort naturally and keep history:
-  - ` + "`context/plan/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`" + `
-  - ` + "`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`" + ` — checklist per plan phase
-  - ` + "`context/archive/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` — archived documents
-- ` + "`architecture/`" + ` files are living documents without a date; decisions are
-  append-only and numbered (` + "`decisions/0001-<slug>.md`" + `).
-- ` + "`context/`" + ` files use concise technical language. Cut fluff,
-  keep meaning and readability (token-efficient).
-- Every work file starts with YAML frontmatter:
-
-` + "```yaml" + `
----
-kind: worklog      # plan | worklog | notes | tasks
-summary: <one-line description>   # mandatory (index source)
-context: what triggered this entry
-status: active
-created: <ISO 8601>
-updated: <ISO 8601>
-links:                            # optional array of related docs
-  - decisions/0001-something
-project: <project>
----
-` + "```" + `
-
-Store durable facts in ` + "`decisions/`" + ` (decisions) and ` + "`architecture/`" + `; the rest of
-the directory keeps the chronological work history.
-
-`
-
-// sdtWorkReadmeContent renders the generated context/README.md, deriving the
-// command examples' type lists from the document-type registry so they never
-// drift from the surfaces they document.
-
-func sdtWorkReadmeContent() string {
-	return sdtWorkReadmeTemplate + `## Commands
+func sdtWorkCommandsSection() string {
+	return `## Commands
 
 Create and manage work files with ` + "`sdt context`" + `:
 
@@ -538,6 +479,14 @@ Create and manage work files with ` + "`sdt context`" + `:
 - ` + "`sdt context task add --phase <phase> \"<step>\"`" + ` / ` + "`done|block|wip <id>`" + ` — manage a
   per-phase task checklist
 `
+}
+
+// sdtWorkReadmeContent renders the generated context/README.md: the static
+// layout/conventions prose from workspace/readme.md.tmpl (shell of the file)
+// plus the registry-driven Commands block.
+
+func sdtWorkReadmeContent() string {
+	return templates.Must("workspace/readme.md.tmpl", struct{ CommandsSection string }{CommandsSection: sdtWorkCommandsSection()}, nil)
 }
 
 // gitIgnore modes for --gitignore and the interactive entries prompt.

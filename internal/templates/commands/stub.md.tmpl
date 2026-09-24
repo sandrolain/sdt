@@ -1,0 +1,44 @@
+---
+kind: commands
+id: commands/{{.ID}}
+title: ">{{.ID}} — agent-invokable task trigger"
+summary: "Thin agent command: invoked by the >{{.ID}} trigger. Proceeds per context/instructions/{{.Contract}}.md (the durable contract). Approve-before-write gate."
+status: active
+links:
+  - commands/index.md
+  - instructions/{{.Contract}}.md
+sources:
+  - instructions/{{.Contract}}.md
+project: {{.Project}}
+created: "{{.Now}}"
+updated: "{{.Now}}"
+---
+
+# `>{{.ID}}` — read this when the command fires
+
+**Do not re-implement the task here.** The durable contract lives in
+`context/instructions/{{.ID}}.md`; this file is the thin trigger.
+
+## Invocation
+
+- Canonical trigger: `>{{.ID}}` (see `context/commands/index.md`).
+- Scope: `all` (default) · single file · glob — see the contract for the
+  task's scope semantics.
+- No settle: **resolve `context/commands/{{.ID}}.md` → read
+  `context/instructions/{{.Contract}}.md` → proceed per that contract.**
+
+## Gates (non-negotiable)
+
+- **Approve-before-write** — no write before user approval (see the contract).
+- Approve-before-archive where the contract moves sources
+  (`ingestion/ → refs/`); `ingestion/`/`refs/` stay immutable.
+
+## When not to use
+
+- For informational-only questions that need no write: answer inline instead.
+- When an active plan already covers the intent: extend that plan instead of
+  opening a new task chain.
+
+## Verify
+
+- Per the contract; `sdt context wiki lint` + `sdt context reindex` clean after writes.
