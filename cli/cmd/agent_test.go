@@ -1174,6 +1174,10 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"[thing] [action] [reason]",
 		"Conventional Commits",
 		"≤50 chars",
+		"ask before committing",
+		"context/instructions/git.md",
+		"**Validation phase**",
+		"`## Design`",
 		"context/",
 		"context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md",
 		"context/architecture/",
@@ -1539,6 +1543,81 @@ func TestAgentWorklogCloseoutTemplateCoherence(t *testing.T) {
 	} {
 		if !strings.Contains(instrWorklogTemplate, want) {
 			t.Errorf("expected %q in worklog template:\n%s", want, instrWorklogTemplate)
+		}
+	}
+}
+
+// TestAgentPlanTemplateCoherence guards the plan contract: the mandatory final
+// Validation phase, the per-phase analysis-objective mapping and the task-file
+// Design study pointer must survive edits.
+func TestAgentPlanTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Plan Documents",
+		"**Validation phase**",
+		"always the last phase",
+		"**analysis objectives**",
+		"`## Design`",
+		"instructions/tasks.md",
+	} {
+		if !strings.Contains(instrPlanTemplate, want) {
+			t.Errorf("expected %q in plan template:\n%s", want, instrPlanTemplate)
+		}
+	}
+}
+
+// TestAgentGitTemplateCoherence guards the git/commit contract: the commit
+// gate, the Conventional Commits format and the branch policy must survive
+// edits.
+func TestAgentGitTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Git — commits and branches",
+		"## The commit gate (ask before you commit)",
+		"ask the user whether to commit",
+		"Never commit without explicit approval",
+		"Conventional Commits v1.0.0",
+		"<type>[optional scope]: <description>",
+		"BREAKING CHANGE",
+		"## Branches",
+		"work on the current branch",
+		"Never force-push a shared branch",
+	} {
+		if !strings.Contains(instrGitTemplate, want) {
+			t.Errorf("expected %q in git template:\n%s", want, instrGitTemplate)
+		}
+	}
+}
+
+// TestAgentTasksTemplateCoherence guards the task contract: the per-objective
+// Design study, the ask-before-commit gate and the git.md pointer must survive
+// edits.
+func TestAgentTasksTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Task Files (one per plan phase)",
+		"## Design section (study of the task objectives)",
+		"## Design",
+		"## Execution workflow",
+		"**Commit gate**",
+		"ask the user whether to commit",
+		"instructions/git.md",
+	} {
+		if !strings.Contains(instrTasksTemplate, want) {
+			t.Errorf("expected %q in tasks template:\n%s", want, instrTasksTemplate)
+		}
+	}
+}
+
+// TestAgentAnalysisTemplateCoherence guards the analysis contract: the
+// objective-to-task mapping and the task-file Design pointer must survive edits.
+func TestAgentAnalysisTemplateCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Analysis Documents",
+		"**Map objectives to tasks.**",
+		"`## Design`",
+		"instructions/tasks.md",
+		"Validation phase",
+	} {
+		if !strings.Contains(instrAnalysisTemplate, want) {
+			t.Errorf("expected %q in analysis template:\n%s", want, instrAnalysisTemplate)
 		}
 	}
 }

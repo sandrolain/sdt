@@ -124,6 +124,11 @@ session: <session id>        # optional
 - Leave **no open points**: if a decision is missing, ask on the fly or register
   it as an open question in ` + "`context/questions/`" + `; keep the user in
   control of the decisions.
+- **Map objectives to tasks.** List the objectives the work must satisfy; when
+  the analysis feeds a plan, state which objective each phase/task covers, so
+  every task file can carry a ` + "`## Design`" + ` study of those objectives (see
+  ` + "`instructions/tasks.md`" + `) and the plan's final Validation phase can verify
+  them.
 - Track work via the 5-stage development lifecycle — see AGENTS.md.
 - Verify-step before finishing — see AGENTS.md (5-stage development lifecycle).
 

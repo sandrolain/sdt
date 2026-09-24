@@ -64,6 +64,7 @@ const (
 	sdtInstrScripts      = "context/instructions/scripts.md"
 	sdtInstrWiki         = "context/instructions/wiki.md"
 	sdtInstrDevelopment  = "context/instructions/development.md"
+	sdtInstrGit          = "context/instructions/git.md"
 	sdtScriptsIndex      = "context/scripts/index.md"
 	sdtWikiDir           = "context/wiki"
 	sdtIngestionDir      = "context/ingestion"

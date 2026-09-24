@@ -20,7 +20,8 @@ restart the chain.
 Follow strictly — the plan defines the work, the task files execute it:
 
 1. **Create the plan** — write Objective, Constraints and assumptions, Out of
-   scope, Phases, Verification and Completion criteria from the analysis, plus a
+   scope, Phases (ending with a Validation phase), Verification and Completion
+   criteria from the analysis, plus a
    **Design contract** (style, architecture and dependency choices — see
    ` + "`instructions/development.md`" + `).
 2. **Wait for plan approval** — stop after creating the plan and wait for
@@ -84,8 +85,9 @@ session: <session id>        # optional
   execution never invents style, structure or libraries.
 - **Phases** — each phase maps to one task file. Checklists here are at TASK
   granularity (one line per task); step-level detail lives in the task file.
-  Each phase has: **Goal** (one sentence), **Depends on** (none / Phase X), and
-  a task list. **Phase rules** (user-mandated):
+  Each phase has: **Goal** (one sentence), **Depends on** (none / Phase X),
+  the **analysis objectives** it covers, and a task list. **Phase rules**
+  (user-mandated):
   1. one phase = **one deliverable/concern**, stated in its Goal sentence;
   2. **no cap on the number of phases** — a plan may have any count;
   3. keep phases **small**: aim for ~5-7 checklist items; a >10-item checklist
@@ -93,14 +95,21 @@ session: <session id>        # optional
   4. a phase must be completable by a **single agent in one focused session**
      without re-reading the whole plan;
   5. when refining an existing phase, use alphanumeric sub-phase suffixes
-     (` + "`1a`" + `, ` + "`1b`" + `) instead of widening it.
+     (` + "`1a`" + `, ` + "`1b`" + `) instead of widening it;
+  6. every plan ends with a dedicated final **Validation phase** that verifies
+     the delivered changes (run the project's build/test/lint and
+     ` + "`sdt context reindex`" + `/` + "`lint`" + `) — it is always the last phase, even when a
+     previous phase already ran checks;
+  7. each phase names the **analysis objectives** it covers; the task file for
+     that phase carries a ` + "`## Design`" + ` study of those objectives (see
+     ` + "`instructions/tasks.md`" + `).
 - **Good vs bad splitting** — bad: one "Implement feature" phase with 15 mixed
   items (schema + backend + CLI + tests in one file). Good: split into phases,
   each with a single deliverable and ≤ ~5 items: schema → backend → CLI → tests.
 - **Dependency graph** — only needed when there are more than ~3 tasks or
   non-obvious ordering. Use a simple ASCII diagram.
 - **Completion criteria** — checkboxes for global exit conditions (all phases
-  completed, full test suite green, etc.).
+  completed — including the final Validation phase — full test suite green, etc.).
 - **Review log** — only if the plan is revised after approval. Not for execution
   progress (that lives in task files). Format: ` + "`- <YYYY-MM-DD>: <what changed and why>`" + `.
 

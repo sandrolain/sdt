@@ -33,11 +33,29 @@ model: <model id>            # optional
 session: <session id>        # optional
 ---
 
+## Design
+
+- <analysis objective this task covers> — approach: <how>;
+  verify: <command or signal>
+- <analysis objective this task covers> — approach: <how>;
+  verify: <command or signal>
+
+## Checklist
+
 - [ ] step one
 - [~] step two (in progress)
 - [x] step three (done)
 - [!] step four (blocked)
 ` + codeFence + `
+
+## Design section (study of the task objectives)
+
+Before executing, add a ` + "`## Design`" + ` section: one short block per objective the
+phase/task covers. Each block names the objective (from the plan phase and the
+analysis it derives from), the approach/design chosen for it, and how it will be
+verified. Keep it short — it studies *this task's* objectives; the full style,
+architecture and dependency contract lives in the plan (see
+` + "`instructions/plan.md`" + `), so do not duplicate it here.
 
 ## Checklist item detail
 
@@ -93,11 +111,16 @@ sections handle that.
 2. **Take in charge** — before any work, mark the file in progress: set the
    current item to ` + "`[~]`" + ` and refresh the frontmatter (at least
    ` + "`updated`" + `; record ` + "`agent`" + ` / ` + "`model`" + ` / ` + "`session`" + ` when
-   available). Log the take-in in the worklog.
+   available). Study the task's objectives in the ` + "`## Design`" + ` section (fill it
+   from the plan and analysis if missing). Log the take-in in the worklog.
 3. **Execute** — work items top to bottom; update markers as you go. Any
    deviation goes back into this file or the plan — never silently.
 4. **Complete** — ` + "`[x]`" + ` every item, run the **verify-step** below, then
    archive or remove the file and update the linked plan phase.
+5. **Commit gate** — if the task produced tracked changes, propose a
+   Conventional Commits message (see ` + "`instructions/git.md`" + `) scoped to this
+   task and **ask the user whether to commit**; commit only on explicit
+   approval.
 
 ## Stale task files
 

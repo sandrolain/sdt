@@ -79,6 +79,7 @@ func instructionFiles(project, group string) []instructionFile {
 		{name: filepath.Base(sdtInstrScripts), body: instrScriptsTemplate},
 		{name: filepath.Base(sdtInstrWiki), body: instrWikiTemplate},
 		{name: filepath.Base(sdtInstrDevelopment), body: instrDevelopmentTemplate},
+		{name: filepath.Base(sdtInstrGit), body: instrGitTemplate},
 	}
 }
 

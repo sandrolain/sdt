@@ -79,6 +79,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
 | `context/instructions/development.md` | Writing code: style/architecture agreement, library-first, library docs |
+| `context/instructions/git.md` | Committing or branching: the commit gate, Conventional Commits and branch rules |
 | `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
@@ -97,20 +98,27 @@ scripts in `context/scripts/` are listed in
 
 Follow this cycle for any non-trivial task:
 
-1. **Analysis** — perform it; integrate/modify existing analysis files.
-2. **Plan** — create from the analysis; integrate/modify as needed.
+1. **Analysis** — perform it; integrate/modify existing analysis files. Map the
+   objectives the work must satisfy to the phases/tasks they become.
+2. **Plan** — create from the analysis; integrate/modify as needed. Every plan
+   ends with a dedicated final **Validation phase** (see
+   `context/instructions/plan.md`).
 3. **Tasks** — after the plan is explicitly approved, create **one task file per phase** in
 	`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md` (`sdt context task`); do not
 	create task files while creating the plan or before that approval. A plan without
 	task files has no execution value. Phases are **unbounded in count**,
    **small** and each targets **exactly one deliverable/concern** — split a phase
    further the moment it grows beyond a single agent session (full rules in
-   `instructions/plan.md`).
+   `instructions/plan.md`). Each task file carries a `## Design` study of the
+   phase's objectives (see `instructions/tasks.md`).
 4. **Execution** — work **one task file at a time**, never from the plan;
    **mark it in progress on take-in**, complete items as they finish, scan
    `context/tasks/` for stale in-progress files before starting; create
    `context/architecture/` and `context/decisions/` (decisions) as
-   needed; **update the task and plan files** in place.
+   needed; **update the task and plan files** in place. When a task completes and
+   produced tracked changes, **propose a Conventional Commits message and ask
+   whether to commit** (see `context/instructions/git.md`) — never commit
+   without explicit approval.
 5. **Final reports** — append `context/worklog/` and `notes/` entries.
 
 Before closing a phase run the **verify-step**: completeness, coherence, correctness
@@ -141,7 +149,9 @@ Not: "Sure! I'd be happy to help you with that."
 Yes: "Auth middleware has a bug. Fixing:"
 Code only — user-requested docs written normal (concise)
 
-Commits: Conventional Commits. Subject ≤50 chars, imperative, lowercase after
+Commits: after each completed task, propose a Conventional Commits message and
+**ask before committing** — never commit without explicit user approval (see
+`context/instructions/git.md`). Subject ≤50 chars, imperative, lowercase after
 type. Body only when "why" unclear. No period on subject.
 
 Files in `context/`: concise technical language. Cut fluff, keep meaning
