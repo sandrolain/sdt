@@ -110,6 +110,8 @@ export interface SearchResult {
   /** frontmatter `objective` grouping key (kebab-case slug) */
   objective?: string;
   created?: string;
+  /** frontmatter `updated` date, else file mtime (fallback) */
+  modified?: string;
   score: number;
   snippet: string;
   /** true for `.map.md` semantic map documents */

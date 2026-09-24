@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { DocumentsPage } from "./DocumentsPage";
@@ -83,6 +83,32 @@ describe("DocumentsPage", () => {
     await userEvent.click(screen.getByText("open a"));
     expect(await screen.findByText(/Alpha body text/)).toBeTruthy();
     expect(screen.queryByText(/No open documents/)).toBeNull();
+  });
+
+  it("opens the find-in-document bar with Cmd/Ctrl+F and highlights matches", async () => {
+    mockFetch();
+    render(
+      <MemoryRouter initialEntries={["/docs/context/a.md"]}>
+        <OpenDocsProvider>
+          <Routes>
+            <Route path="/docs/*" element={<DocumentsPage />} />
+          </Routes>
+        </OpenDocsProvider>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText(/Alpha body text/);
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true });
+    const input = await screen.findByRole("textbox", { name: "Find in document" });
+    await userEvent.type(input, "Alpha body");
+    await waitFor(() => {
+      const hits = document.querySelectorAll("mark.find-hit");
+      expect(hits.length).toBeGreaterThan(0);
+    });
+    fireEvent.keyDown(input, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Find in document" })).toBeNull(),
+    );
   });
 
   it("closes every tab with the close-all action", async () => {

@@ -58,6 +58,7 @@ type Result struct {
 	Topics    []string `json:"topics,omitempty"`
 	Entities  []string `json:"entities,omitempty"`
 	Created   string   `json:"created,omitempty"`
+	Modified  string   `json:"modified,omitempty"`
 	Score     float64  `json:"score"`
 	Snippet   string   `json:"snippet"`
 	IsMap     bool     `json:"isMap,omitempty"`
@@ -87,6 +88,7 @@ type doc struct {
 	Frontmatter string
 	CreatedDays int64
 	RawCreated  string
+	Modified    string
 }
 
 var (
@@ -367,6 +369,15 @@ func parseDoc(docID, path string) (doc, error) {
 		case strings.HasPrefix(line, "created:"):
 			d.RawCreated = strings.Trim(trimmedValue(line, "created"), `"`)
 			d.CreatedDays = parseCreatedDays(d.RawCreated)
+		case strings.HasPrefix(line, "updated:"):
+			d.Modified = strings.Trim(trimmedValue(line, "updated"), `"`)
+		}
+	}
+	// Modified defaults to the file modification time when the frontmatter
+	// carries no updated date, mirroring the tree's date semantics.
+	if d.Modified == "" {
+		if info, serr := os.Stat(path); serr == nil {
+			d.Modified = info.ModTime().UTC().Format(time.RFC3339)
 		}
 	}
 	d.Topics = contextwiki.FrontmatterList(content, "topics")
@@ -377,7 +388,7 @@ func parseDoc(docID, path string) (doc, error) {
 // DocFromEntry builds a search doc from a shared mdindex entry, so the CLI and
 // the viewer index the same derived document model.
 func docFromEntry(e *mdindex.Entry) doc {
-	return doc{
+	d := doc{
 		Path:      e.ID,
 		Name:      e.Name,
 		Kind:      e.Kind,
@@ -389,6 +400,14 @@ func docFromEntry(e *mdindex.Entry) doc {
 		Entities:  e.Entities,
 		Body:      e.Body,
 	}
+	d.RawCreated = e.Created
+	d.CreatedDays = parseCreatedDays(e.Created)
+	if e.Updated != "" {
+		d.Modified = e.Updated
+	} else if e.ModTimeNS > 0 {
+		d.Modified = time.Unix(0, e.ModTimeNS).UTC().Format(time.RFC3339)
+	}
+	return d
 }
 
 const (
@@ -507,6 +526,7 @@ func (ix *Index) Search(q, kind, objective, status, topic, from, to string, max 
 			Topics:    doc.Topics,
 			Entities:  doc.Entities,
 			Created:   doc.RawCreated,
+			Modified:  doc.Modified,
 			Score:     hit.Score,
 			Snippet:   Snippet(doc, q, 160),
 			IsMap:     isMap,
@@ -584,6 +604,7 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 			fused[i].Topics = d.Topics
 			fused[i].Entities = d.Entities
 			fused[i].Created = d.RawCreated
+			fused[i].Modified = d.Modified
 			fused[i].Snippet = Snippet(d, q.Q, 160)
 		}
 	}

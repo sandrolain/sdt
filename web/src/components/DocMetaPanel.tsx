@@ -16,7 +16,7 @@ import { imageUrl } from "../lib/images";
 import { kindColor, kindIcon, type EntryFilterKind } from "../lib/kinds";
 import { parseOutline, type OutlineItem } from "../lib/outline";
 import { requestSection } from "../lib/sectionRequests";
-import { planReferencedAnalyses, statusDot } from "../lib/statusDot";
+import { planReferencedAnalyses, statusDot, tasksByPlan } from "../lib/statusDot";
 import { useReloadToken } from "../lib/useReloadToken";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
@@ -89,7 +89,11 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
   }, [markdownDoc, fields, index]);
 
   // status dot for the current doc, matching the tree indicator (plans/tasks/
-  // analyses); needs the plan-referenced set from the full corpus index.
+  // analyses); needs the plan-referenced set and task index from the corpus.
+  const taskIndex = useMemo(
+    () => (corpus ? tasksByPlan([...corpus.values()].map((c) => c.entry)) : new Map()),
+    [corpus],
+  );
   const status = useMemo(() => {
     const treeEntry = doc ? corpus?.get(doc.path)?.entry : undefined;
     if (!treeEntry || !corpus) return undefined;
@@ -97,8 +101,8 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
       return undefined;
     }
     const plannedAnalyses = planReferencedAnalyses([...corpus.values()].map((c) => c.entry));
-    return statusDot(treeEntry, plannedAnalyses) ?? undefined;
-  }, [doc, corpus]);
+    return statusDot(treeEntry, plannedAnalyses, taskIndex) ?? undefined;
+  }, [doc, corpus, taskIndex]);
 
   if (!doc) return null;
 

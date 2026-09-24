@@ -8,6 +8,9 @@ import {
   groupByKind,
   groupByObjective,
   groupByPlan,
+  groupDate,
+  groupSort,
+  latestDate,
   sortEntries,
 } from "./treeSort";
 
@@ -181,6 +184,140 @@ describe("groupByPlan", () => {
       plans,
     );
     expect(groups.map((g) => g.label)).toEqual([""]);
+  });
+});
+
+describe("groupSort", () => {
+  it("returns a date descriptor only for date sort keys", () => {
+    expect(groupSort("created_asc")).toEqual({ field: "created", dir: "asc" });
+    expect(groupSort("created_desc")).toEqual({ field: "created", dir: "desc" });
+    expect(groupSort("modified_asc")).toEqual({ field: "modified", dir: "asc" });
+    expect(groupSort("modified_desc")).toEqual({ field: "modified", dir: "desc" });
+    expect(groupSort("name_asc")).toBeNull();
+    expect(groupSort("title_desc")).toBeNull();
+  });
+});
+
+describe("latestDate / groupDate", () => {
+  it("returns the max raw date for a field, empty when none", () => {
+    const entries = [
+      entry({ path: "context/notes/a.md", created: "2026-09-02", modified: "2026-09-03" }),
+      entry({
+        path: "context/notes/b.md",
+        created: "2026-09-05T10:00:00Z",
+        modified: "2026-09-04",
+      }),
+      entry({ path: "context/notes/c.md" }),
+    ];
+    expect(latestDate(entries, "created")).toBe("2026-09-05T10:00:00Z");
+    expect(latestDate(entries, "modified")).toBe("2026-09-04");
+    expect(latestDate([entry({}), entry({})], "created")).toBe("");
+  });
+
+  it("groupDate mirrors the per-entry line: created, else filename date prefix", () => {
+    const entries = [
+      entry({ path: "context/wiki/20260910-000000-no-created.md" }),
+      entry({ path: "context/wiki/with-created.md", created: "2026-09-12" }),
+    ];
+    expect(groupDate(entries)).toBe("2026-09-12");
+    expect(groupDate([entry({ path: "context/wiki/20260910-000000-no-created.md" })])).toBe(
+      "2026-09-10",
+    );
+    expect(groupDate([entry({ path: "context/wiki/no-date.md" })])).toBe("");
+  });
+});
+
+describe("date-ranked group ordering", () => {
+  it("groupByObjective orders named groups by the latest created, ungrouped last", () => {
+    const groups = groupByObjective(
+      [
+        entry({ path: "context/analysis/a.md", objective: "old", created: "2026-09-01" }),
+        entry({ path: "context/analysis/b.md", objective: "new", created: "2026-09-20" }),
+        entry({ path: "context/analysis/c.md", objective: "old", created: "2026-09-02" }),
+        entry({ path: "context/analysis/d.md" }),
+      ],
+      { field: "created", dir: "desc" },
+    );
+    expect(groups.map((g) => g.objective)).toEqual(["new", "old", ""]);
+  });
+
+  it("groupByObjective keeps name order without a sort descriptor", () => {
+    const groups = groupByObjective([
+      entry({ path: "context/analysis/a.md", objective: "viewer" }),
+      entry({ path: "context/analysis/b.md", objective: "memory" }),
+    ]);
+    expect(groups.map((g) => g.objective)).toEqual(["memory", "viewer"]);
+  });
+
+  it("groupByPlan orders named groups by the latest task date under a date sort", () => {
+    const plans = new Map<string, TreeEntry>([
+      [
+        "context/plan/20260920-a-plan.md",
+        entry({
+          path: "context/plan/20260920-a-plan.md",
+          kind: "plan",
+          title: "Plan A",
+          created: "2026-09-20",
+        }),
+      ],
+      [
+        "context/plan/20260919-b-plan.md",
+        entry({
+          path: "context/plan/20260919-b-plan.md",
+          kind: "plan",
+          title: "Plan B",
+          created: "2026-09-19",
+        }),
+      ],
+    ]);
+    const groups = groupByPlan(
+      [
+        entry({
+          path: "context/tasks/t1.md",
+          kind: "tasks",
+          sources: ["plan/20260920-a-plan.md"],
+          created: "2026-09-30",
+        }),
+        entry({
+          path: "context/tasks/t2.md",
+          kind: "tasks",
+          sources: ["context/plan/20260919-b-plan.md"],
+          created: "2026-09-10",
+        }),
+      ],
+      plans,
+      { field: "created", dir: "asc" },
+    );
+    // oldest latest-task-date first, overturning the plan-created-desc default
+    expect(groups.map((g) => g.label)).toEqual(["Plan B", "Plan A"]);
+  });
+
+  it("groupByFolder orders folders by the latest date across their subtree", () => {
+    const entries = [
+      entry({ path: "context/wiki/zzz/a.md", kind: "wiki", created: "2026-09-05" }),
+      entry({ path: "context/wiki/aaa/b.md", kind: "wiki", created: "2026-09-20" }),
+      entry({ path: "context/wiki/aaa/sub/c.md", kind: "wiki", created: "2026-09-25" }),
+    ];
+    const { folders } = groupByFolder(entries, "context/wiki/", { field: "created", dir: "desc" });
+    expect(folders.map((f) => f.name)).toEqual(["aaa", "zzz"]);
+  });
+
+  it("groupByFolder keeps name order without a sort descriptor", () => {
+    const entries = [
+      entry({ path: "context/wiki/zzz/a.md", kind: "wiki", created: "2026-09-05" }),
+      entry({ path: "context/wiki/aaa/b.md", kind: "wiki", created: "2026-09-20" }),
+    ];
+    const { folders } = groupByFolder(entries, "context/wiki/");
+    expect(folders.map((f) => f.name)).toEqual(["aaa", "zzz"]);
+  });
+
+  it("date-ranked ordering keeps groups with no date last", () => {
+    const entries = [
+      entry({ path: "context/wiki/aaa/b.md", kind: "wiki", created: "2026-09-20" }),
+      entry({ path: "context/wiki/zzz/a.md", kind: "wiki" }),
+    ];
+    const { folders } = groupByFolder(entries, "context/wiki/", { field: "created", dir: "desc" });
+    expect(folders.map((f) => f.name)).toEqual(["aaa", "zzz"]);
   });
 });
 

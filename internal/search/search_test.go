@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sandrolain/sdt/internal/mdindex"
 )
 
 // corpus creates a temp corpus with known .md docs, excluded dirs and a
@@ -36,6 +38,7 @@ Alpha body with a special unique-term-x9y8z7 mention.
 kind: wiki
 title: Beta module
 created: 2026-09-11
+updated: 2026-09-20
 ---
 
 Beta body talks about tokens too.
@@ -369,6 +372,89 @@ func TestSearchCorpusNotDir(t *testing.T) {
 	}
 }
 
+func TestSearchResultModified(t *testing.T) {
+	root := corpus(t)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	res, err := ix.Search("tokens", "", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var beta, alpha *Result
+	for i := range res.Results {
+		switch res.Results[i].Path {
+		case "context/wiki/beta.md":
+			beta = &res.Results[i]
+		case "context/wiki/alpha.md":
+			alpha = &res.Results[i]
+		}
+	}
+	if beta == nil {
+		t.Fatal("beta not in results")
+	}
+	if beta.Modified != "2026-09-20" {
+		t.Errorf("beta modified = %q, want 2026-09-20", beta.Modified)
+	}
+	if beta.Created != "2026-09-11" {
+		t.Errorf("beta created = %q, want 2026-09-11", beta.Created)
+	}
+	// A doc without an updated frontmatter falls back to the file mtime.
+	if alpha == nil || alpha.Modified == "" {
+		t.Errorf("alpha modified = %q, want a non-empty mtime fallback", alpha.Modified)
+	}
+}
+
+func TestSearchResultModifiedEntryPath(t *testing.T) {
+	root := corpus(t)
+	_, entries := scanEntries(t, root)
+	ix, err := NewFromEntries(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	res, err := ix.Search("tokens", "", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range res.Results {
+		switch r.Path {
+		case "context/wiki/beta.md":
+			if r.Modified != "2026-09-20" {
+				t.Errorf("entry beta modified = %q, want 2026-09-20", r.Modified)
+			}
+			if r.Created != "2026-09-11" {
+				t.Errorf("entry beta created = %q, want 2026-09-11", r.Created)
+			}
+		case "context/wiki/alpha.md":
+			if r.Modified == "" {
+				t.Error("entry alpha modified empty, want mtime fallback")
+			}
+		}
+	}
+}
+
+func TestDocFromEntryDates(t *testing.T) {
+	e := &mdindex.Entry{ID: "context/plan/plan.md", Created: "2026-09-10", Updated: "2026-09-12"}
+	d := docFromEntry(e)
+	if d.RawCreated != "2026-09-10" {
+		t.Errorf("RawCreated = %q, want 2026-09-10", d.RawCreated)
+	}
+	if got := parseCreatedDays(d.RawCreated); got == 0 || d.CreatedDays != got {
+		t.Errorf("CreatedDays = %d, want %d", d.CreatedDays, got)
+	}
+	if d.Modified != "2026-09-12" {
+		t.Errorf("Modified = %q, want 2026-09-12", d.Modified)
+	}
+	// No updated: fall back to the mtime.
+	e2 := &mdindex.Entry{ID: "context/plan/other.md", Created: "2026-09-10", ModTimeNS: 1780000000000000000}
+	if d2 := docFromEntry(e2); d2.Modified == "" {
+		t.Error("Modified empty without updated, want mtime fallback")
+	}
+}
+
 func TestParseDocFields(t *testing.T) {
 	dir := t.TempDir()
 	raw := `---
@@ -376,6 +462,7 @@ kind: wiki
 title: "Quoted Title"
 summary: "A summary"
 created: 2026-09-10
+updated: 2026-09-11
 ---
 
 # Body
@@ -391,8 +478,29 @@ created: 2026-09-10
 	if d.CreatedDays == 0 {
 		t.Error("created days not parsed")
 	}
+	if d.RawCreated != "2026-09-10" || d.Modified != "2026-09-11" {
+		t.Errorf("dates parsed: created=%q modified=%q", d.RawCreated, d.Modified)
+	}
 	if !strings.Contains(d.Body, "# Body") {
 		t.Errorf("body not separated: %q", d.Body)
+	}
+}
+
+func TestParseDocModifiedMtimeFallback(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "x.md")
+	if err := os.WriteFile(p, []byte("---\nkind: wiki\ncreated: 2026-09-10\n---\n\nBody\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d, err := parseDoc("context/wiki/x.md", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Modified == "" {
+		t.Error("Modified empty, want file mtime fallback")
+	}
+	if _, err := time.Parse(time.RFC3339, d.Modified); err != nil {
+		t.Errorf("Modified %q not RFC3339: %v", d.Modified, err)
 	}
 }
 

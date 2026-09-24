@@ -176,7 +176,7 @@ describe("DocMetaPanel", () => {
       frontmatter: "---\nkind: plan\nstatus: active\n---\n",
       markdown: "body",
     });
-    expect(await screen.findByText("Plan not executed")).toBeTruthy();
+    expect(await screen.findByText("Plan not started")).toBeTruthy();
     expect(screen.getAllByText("Status").length).toBeGreaterThan(0);
     expect(document.querySelector(".meta-status__dot--danger")).toBeTruthy();
   });

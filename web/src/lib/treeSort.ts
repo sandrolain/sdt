@@ -1,7 +1,7 @@
 import type { TreeEntry } from "./api";
 import { KIND_ORDER, entryKind, type EntryFilterKind } from "./kinds";
-import { normalizeRef } from "./statusDot";
-import { displayTitle } from "./titles";
+import { tasksByPlan } from "./statusDot";
+import { displayTitle, filenameDate } from "./titles";
 
 export type TreeSortKey =
   | "name_asc"
@@ -91,8 +91,12 @@ export interface ObjectiveGroup {
 
 /** Split analysis entries by their `objective` slug: named objectives come
  *  first in lexicographic order, then the "" group holding entries without an
- *  objective (they stay at the kind-folder root in the tree). */
-export function groupByObjective(entries: TreeEntry[]): ObjectiveGroup[] {
+ *  objective (they stay at the kind-folder root in the tree). Under a date
+ *  sort the named groups order among themselves by the latest date in each. */
+export function groupByObjective(
+  entries: TreeEntry[],
+  sort: GroupSort | null = null,
+): ObjectiveGroup[] {
   const map = new Map<string, TreeEntry[]>();
   for (const entry of entries) {
     const key = entry.objective ?? "";
@@ -105,6 +109,7 @@ export function groupByObjective(entries: TreeEntry[]): ObjectiveGroup[] {
     objective,
     entries: map.get(objective) ?? [],
   }));
+  if (sort) groups.sort((a, b) => dateGroupCompare(a.entries, b.entries, sort));
   const ungrouped = map.get("");
   if (ungrouped) groups.push({ objective: "", entries: ungrouped });
   return groups;
@@ -122,10 +127,12 @@ export interface FolderGroup {
 
 /** Split entries by the folder structure under `basePrefix`: entries directly
  *  in the base (or outside it) stay in `rootEntries`, deeper entries nest under
- *  `folders` (sorted by name, recursively). */
+ *  `folders` (sorted by name, recursively; under a date sort folders order by
+ *  the latest date across their subtree, name as tie-break). */
 export function groupByFolder(
   entries: TreeEntry[],
   basePrefix: string,
+  sort: GroupSort | null = null,
 ): { rootEntries: TreeEntry[]; folders: FolderGroup[] } {
   const prefix = basePrefix.endsWith("/") ? basePrefix : `${basePrefix}/`;
   const rootEntries: TreeEntry[] = [];
@@ -159,7 +166,13 @@ export function groupByFolder(
     node?.entries.push(entry);
   }
   const sortFolders = (nodes: FolderGroup[]) => {
-    nodes.sort((a, b) => collator.compare(a.name, b.name));
+    nodes.sort((a, b) => {
+      if (sort) {
+        const byDate = dateGroupCompare(folderEntries(a), folderEntries(b), sort);
+        if (byDate !== 0) return byDate;
+      }
+      return collator.compare(a.name, b.name);
+    });
     for (const n of nodes) sortFolders(n.children);
   };
   sortFolders(folders);
@@ -171,6 +184,73 @@ export function folderCount(node: FolderGroup): number {
   return node.entries.length + node.children.reduce((sum, child) => sum + folderCount(child), 0);
 }
 
+/** Every entry in a folder subtree (direct + descendants). */
+export function folderEntries(node: FolderGroup): TreeEntry[] {
+  return [...node.entries, ...node.children.flatMap(folderEntries)];
+}
+
+export type DateField = "created" | "modified";
+
+/** Optional group-order descriptor: date sorts pass it, other keys pass null. */
+export interface GroupSort {
+  field: DateField;
+  dir: "asc" | "desc";
+}
+
+/** The date sort descriptor for a tree sort key; null for name/title sorts. */
+export function groupSort(sortKey: TreeSortKey): GroupSort | null {
+  switch (sortKey) {
+    case "created_asc":
+      return { field: "created", dir: "asc" };
+    case "created_desc":
+      return { field: "created", dir: "desc" };
+    case "modified_asc":
+      return { field: "modified", dir: "asc" };
+    case "modified_desc":
+      return { field: "modified", dir: "desc" };
+    default:
+      return null;
+  }
+}
+
+/** Latest (max, ISO-lexicographic) raw date for the field across entries; "" when none. */
+export function latestDate(entries: TreeEntry[], field: DateField): string {
+  let max = "";
+  for (const entry of entries) {
+    const value = field === "created" ? entry.created : entry.modified;
+    if (value && value > max) max = value;
+  }
+  return max;
+}
+
+/** Latest display date for a group header, mirroring the per-entry line:
+ *  frontmatter `created`, else the filename date prefix. */
+export function groupDate(entries: TreeEntry[], field: DateField = "created"): string {
+  let max = "";
+  for (const entry of entries) {
+    if (field !== "created") {
+      const value = entry.modified;
+      if (value && value > max) max = value;
+      continue;
+    }
+    const value = entry.created || filenameDate(entry.path);
+    if (value && value > max) max = value;
+  }
+  return max;
+}
+
+/** Base comparator for date-ordered groups: missing dates last in both
+ *  directions, ties preserved (return 0 so the stable sort keeps current order). */
+function dateGroupCompare(entriesA: TreeEntry[], entriesB: TreeEntry[], sort: GroupSort): number {
+  const av = latestDate(entriesA, sort.field);
+  const bv = latestDate(entriesB, sort.field);
+  if (av === "" || bv === "") {
+    if (av === bv) return 0;
+    return av === "" ? 1 : -1;
+  }
+  return sort.dir === "asc" ? (av < bv ? -1 : 1) : av < bv ? 1 : -1;
+}
+
 export interface PlanGroup {
   /** normalized plan corpus path; "" collects tasks without a plan reference */
   plan: string;
@@ -180,15 +260,15 @@ export interface PlanGroup {
 
 /** Group task entries under the plan they reference (`sources`/`links`).
  *  Named plan groups come first, ordered by plan `created` descending, then the
- *  "" group holding tasks without a plan reference (they stay at the root). */
-export function groupByPlan(tasks: TreeEntry[], plans: Map<string, TreeEntry>): PlanGroup[] {
-  const map = new Map<string, TreeEntry[]>();
-  for (const task of tasks) {
-    const ref = (task.sources ?? []).map(normalizeRef).find((p) => p.includes("/plan/")) ?? "";
-    const bucket = map.get(ref);
-    if (bucket) bucket.push(task);
-    else map.set(ref, [task]);
-  }
+ *  "" group holding tasks without a plan reference (they stay at the root).
+ *  Under a date sort the named groups order among themselves by the latest task
+ *  date in each (ties keep the plan-created-desc order). */
+export function groupByPlan(
+  tasks: TreeEntry[],
+  plans: Map<string, TreeEntry>,
+  sort: GroupSort | null = null,
+): PlanGroup[] {
+  const map = tasksByPlan(tasks);
   const planPaths = [...map.keys()].filter((p) => p !== "");
   planPaths.sort((a, b) => {
     const ac = plans.get(a)?.created ?? "";
@@ -203,6 +283,7 @@ export function groupByPlan(tasks: TreeEntry[], plans: Map<string, TreeEntry>): 
     label: planLabel(plan, plans.get(plan)),
     entries: map.get(plan) ?? [],
   }));
+  if (sort) groups.sort((a, b) => dateGroupCompare(a.entries, b.entries, sort));
   const ungrouped = map.get("");
   if (ungrouped) groups.push({ plan: "", label: "", entries: ungrouped });
   return groups;

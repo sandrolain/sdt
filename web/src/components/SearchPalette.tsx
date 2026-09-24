@@ -164,6 +164,9 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
                   <span className="search-result__meta">
                     {r.kind ?? "md"}
                     {r.created ? ` · ${formatFieldDateOnly(r.created)}` : ""}
+                    {r.modified && r.modified !== r.created
+                      ? ` · updated ${formatFieldDateOnly(r.modified)}`
+                      : ""}
                   </span>
                 </div>
                 <span className="search-result__path">{r.path}</span>

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Tree } from "./Tree";
-import { resetTreeSort } from "../lib/treeSortStore";
+import { resetTreeSort, setTreeSortKey } from "../lib/treeSortStore";
 import { resetTreeFilter, toggleHideCompleted } from "../lib/treeFilterStore";
 
 const TREE = {
@@ -81,7 +81,8 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Plan");
-    expect(screen.getByLabelText("Plan not executed")).toBeTruthy();
+    // a plan without referenced tasks reads as not started
+    expect(screen.getByLabelText("Plan not started")).toBeTruthy();
     expect(screen.getByLabelText("Task in progress")).toBeTruthy();
     expect(screen.getByLabelText("Analysis without a plan")).toBeTruthy();
   });
@@ -135,7 +136,7 @@ describe("Tree", () => {
     expect(document.querySelector(".tree-entry__kind--map")).toBeNull();
   });
 
-  it("keeps only in-work plans/tasks and unplanned analyses when the not-completed filter is on", async () => {
+  it("hides only completed entries when the not-completed filter is on", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
@@ -143,16 +144,34 @@ describe("Tree", () => {
           Promise.resolve({
             entries: [
               {
-                path: "context/plan/done.md",
-                kind: "plan",
-                title: "Done plan",
+                path: "context/analysis/done-a.md",
+                kind: "analysis",
+                title: "Done analysis",
                 status: "completed",
+              },
+              {
+                path: "context/analysis/open-api.md",
+                kind: "analysis",
+                title: "Open analysis",
               },
               {
                 path: "context/tasks/wip.md",
                 kind: "tasks",
                 title: "Wip task",
                 status: "in-progress",
+              },
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                title: "All-done plan",
+                status: "active",
+              },
+              {
+                path: "context/tasks/done.md",
+                kind: "tasks",
+                title: "Done task",
+                status: "completed",
+                sources: ["plan/p.md"],
               },
               { path: "context/notes/n.md", kind: "notes", title: "Note" },
             ],
@@ -161,10 +180,15 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     toggleHideCompleted();
     renderTree();
-    // still-to-work indicators survive; done plans and status-less entries vanish
+    // completed entries (by status, or any plan whose tasks are all done) vanish
     expect(await screen.findByText("Wip task")).toBeTruthy();
-    expect(screen.queryByText("Done plan")).toBeNull();
-    expect(screen.queryByText("Note")).toBeNull();
+    expect(screen.queryByText("Done analysis")).toBeNull();
+    expect(screen.queryByText("All-done plan")).toBeNull();
+    expect(screen.queryByText("Done task")).toBeNull();
+    // unfinished items and non-done kinds stay: a plan without completed tasks
+    // is kept, and dot-less entries (notes) are no longer hidden as a side effect
+    expect(screen.getByText("Open analysis")).toBeTruthy();
+    expect(screen.getByText("Note")).toBeTruthy();
   });
 
   it("shows a thumbnail for entries with a frontmatter image", async () => {
@@ -310,6 +334,47 @@ describe("Tree", () => {
     expect(plan?.textContent).not.toContain("T2");
   });
 
+  it("renders a task-progress dot on the plan task-group header", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/plan/20260920-a-plan.md",
+                kind: "plan",
+                title: "Plan A",
+                created: "2026-09-20",
+                status: "active",
+              },
+              {
+                path: "context/tasks/t1.md",
+                kind: "tasks",
+                title: "T1 done",
+                status: "completed",
+                sources: ["plan/20260920-a-plan.md"],
+              },
+              {
+                path: "context/tasks/t2.md",
+                kind: "tasks",
+                title: "T2 open",
+                status: "pending",
+                sources: ["plan/20260920-a-plan.md"],
+              },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("T1 done");
+    const dot = document.querySelector(".tree-folder--plan .tree-folder__dot");
+    expect(dot?.classList.contains("tree-folder__dot--warn")).toBe(true);
+    expect(dot?.getAttribute("aria-label")).toBe("1/2 tasks completed");
+    // the plan entry row itself shows the same aggregate tone
+    expect(screen.getByLabelText("Plan in progress")).toBeTruthy();
+  });
+
   it("nests analyses under their objective folder", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
@@ -344,5 +409,50 @@ describe("Tree", () => {
     expect(objectiveFolders[0].textContent).toContain("Beta");
     // the objective-less analysis stays at the analysis-folder root
     expect(objectiveFolders[0].textContent).not.toContain("Gamma");
+  });
+
+  it("shows the latest created date in objective group headers and orders groups by it under a date sort", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/analysis/a.md",
+                kind: "analysis",
+                title: "Alpha",
+                objective: "alpha",
+                created: "2026-09-01",
+              },
+              {
+                path: "context/analysis/b.md",
+                kind: "analysis",
+                title: "Zeta",
+                objective: "zeta",
+                created: "2026-09-20",
+              },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Alpha");
+    const objectiveNames = () =>
+      Array.from(document.querySelectorAll(".tree-folder--objective")).map(
+        (f) => f.querySelector(".tree-folder__label")?.textContent,
+      );
+    // default created_desc: the group with the latest created comes first
+    expect(objectiveNames()).toEqual(["zeta", "alpha"]);
+
+    // header dates mirror the latest created, shown regardless of the sort
+    const dateSpans = Array.from(document.querySelectorAll(".tree-folder__date"));
+    expect(dateSpans).toHaveLength(2);
+    expect(dateSpans[0].textContent).toContain("2026");
+
+    act(() => setTreeSortKey("name_asc"));
+    await waitFor(() => expect(objectiveNames()).toEqual(["alpha", "zeta"]));
+    // header dates remain under a name sort
+    expect(document.querySelectorAll(".tree-folder__date")).toHaveLength(2);
   });
 });

@@ -8,6 +8,7 @@ import {
   type IDockviewPanel,
 } from "dockview-react";
 import { useOpenDocs } from "../lib/openDocsContext";
+import { openFind } from "../lib/findInDocStore";
 import {
   clearLayout,
   loadLayout,
@@ -103,6 +104,19 @@ export function DocsWorkspace() {
   const apiRef = useRef<DockviewApi | null>(null);
   const centerRef = useRef<CenterGroup | null>(null);
   const [ready, setReady] = useState(false);
+
+  // Cmd/Ctrl+F opens the find-in-document bar; native find is kept when no
+  // document is open (the /docs landing shell has nothing to scan).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f" && state.docs.length > 0) {
+        e.preventDefault();
+        openFind();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [state.docs.length]);
 
   const onReady = useCallback(
     (event: DockviewReadyEvent) => {

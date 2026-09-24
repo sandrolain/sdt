@@ -16,10 +16,12 @@ import { highlightMarkdown, renderMarkdown } from "../lib/markdown";
 import { renderMermaid } from "../lib/mermaidRender";
 import { useOpenDocsOptional } from "../lib/openDocsContext";
 import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
+import { useFindInDoc } from "../lib/findInDocStore";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
 import { useActiveHeading } from "../lib/useActiveHeading";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
+import { FindInDoc } from "./FindInDoc";
 import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
@@ -132,6 +134,8 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
 
   const docsApi = useOpenDocsOptional();
   const renderedRef = useRef<HTMLDivElement | null>(null);
+  const [articleEl, setArticleEl] = useState<HTMLElement | null>(null);
+  const { open: findOpen } = useFindInDoc();
 
   // publish the heading in view so the Sections sidebar can highlight it
   useActiveHeading(renderedRef, path, mode === "render");
@@ -207,7 +211,10 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   };
 
   return (
-    <article className="doc-view">
+    <article className="doc-view" ref={setArticleEl}>
+      {findOpen && (mode === "render" || mode === "code") && (
+        <FindInDoc root={articleEl} mode={mode} />
+      )}
       <div className="doc-modes" role="group" aria-label="Document view mode">
         {modes.map((m) => (
           <button

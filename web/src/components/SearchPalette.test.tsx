@@ -74,6 +74,29 @@ describe("SearchPalette", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("renders the modified date when present and different from created", async () => {
+    globalThis.fetch = mockSearch({
+      results: [
+        {
+          path: "context/wiki/beta.md",
+          kind: "wiki",
+          title: "Beta module",
+          created: "2026-09-11",
+          modified: "2026-09-20",
+          score: 2,
+          snippet: "beta handles tokens",
+        },
+      ],
+      total: 1,
+    }) as unknown as typeof fetch;
+    renderPalette();
+    await userEvent.type(screen.getByLabelText("Search query"), "tokens");
+    await screen.findByText("Beta module");
+    const meta = document.querySelector(".search-result__meta")?.textContent ?? "";
+    expect(meta).toContain("updated");
+    expect(meta).not.toContain("2026-09-20T");
+  });
+
   it("shows a no-results state", async () => {
     globalThis.fetch = mockSearch({ results: [], total: 0 }) as unknown as typeof fetch;
     renderPalette();

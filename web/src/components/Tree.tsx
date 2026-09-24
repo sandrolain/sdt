@@ -6,17 +6,29 @@ import { formatFieldDate } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
-import { planReferencedAnalyses, normalizeRef, statusDot } from "../lib/statusDot";
+import {
+  entryCompleted,
+  normalizeRef,
+  planReferencedAnalyses,
+  statusDot,
+  taskProgress,
+  taskProgressLabel,
+  tasksByPlan,
+} from "../lib/statusDot";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
 import {
   folderCount,
+  folderEntries,
   groupByFolder,
   groupByKind,
   groupByObjective,
   groupByPlan,
+  groupDate,
+  groupSort,
   sortEntries,
   type FolderGroup,
+  type GroupSort,
 } from "../lib/treeSort";
 import { useTreeSort } from "../lib/treeSortStore";
 import { useReloadToken } from "../lib/useReloadToken";
@@ -63,9 +75,12 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   }, [entries, location.pathname, activeKind]);
 
   const plannedAnalyses = planReferencedAnalyses(entries ?? []);
+  const gsort = groupSort(sortKey);
+  // task→plan index for hide filtering, plan dots and task-group header dots
+  const taskIndex = useMemo(() => tasksByPlan(entries ?? []), [entries]);
   const visibleEntries =
     entries && hideCompleted
-      ? entries.filter((entry) => statusDot(entry, plannedAnalyses))
+      ? entries.filter((entry) => !entryCompleted(entry, taskIndex))
       : entries;
   const groups = visibleEntries
     ? groupByKind(visibleEntries).map((group) => ({
@@ -121,17 +136,33 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
               {group.entries.length === 0 ? (
                 <p className="content__empty tree-empty">No documents.</p>
               ) : group.kind === "analysis" ? (
-                <AnalysisEntries entries={group.entries} plannedAnalyses={plannedAnalyses} />
+                <AnalysisEntries
+                  entries={group.entries}
+                  plannedAnalyses={plannedAnalyses}
+                  taskIndex={taskIndex}
+                  sort={gsort}
+                />
               ) : group.kind === "wiki" ? (
-                <WikiEntries entries={group.entries} plannedAnalyses={plannedAnalyses} />
+                <WikiEntries
+                  entries={group.entries}
+                  plannedAnalyses={plannedAnalyses}
+                  taskIndex={taskIndex}
+                  sort={gsort}
+                />
               ) : group.kind === "tasks" ? (
                 <PlanEntries
                   entries={group.entries}
                   plans={planIndex}
                   plannedAnalyses={plannedAnalyses}
+                  taskIndex={taskIndex}
+                  sort={gsort}
                 />
               ) : (
-                <EntryList entries={group.entries} plannedAnalyses={plannedAnalyses} />
+                <EntryList
+                  entries={group.entries}
+                  plannedAnalyses={plannedAnalyses}
+                  taskIndex={taskIndex}
+                />
               )}
             </details>
           ))}
@@ -147,14 +178,21 @@ type PlannedAnalyses = ReturnType<typeof planReferencedAnalyses>;
 function EntryList({
   entries,
   plannedAnalyses,
+  taskIndex,
 }: {
   entries: TreeEntry[];
   plannedAnalyses: PlannedAnalyses;
+  taskIndex: Map<string, TreeEntry[]>;
 }) {
   return (
     <ul role="list">
       {entries.map((entry) => (
-        <TreeEntryRow key={entry.path} entry={entry} plannedAnalyses={plannedAnalyses} />
+        <TreeEntryRow
+          key={entry.path}
+          entry={entry}
+          plannedAnalyses={plannedAnalyses}
+          taskIndex={taskIndex}
+        />
       ))}
     </ul>
   );
@@ -165,18 +203,27 @@ function EntryList({
 function WikiEntries({
   entries,
   plannedAnalyses,
+  taskIndex,
+  sort,
 }: {
   entries: TreeEntry[];
   plannedAnalyses: PlannedAnalyses;
+  taskIndex: Map<string, TreeEntry[]>;
+  sort: GroupSort | null;
 }) {
-  const { rootEntries, folders } = groupByFolder(entries, "context/wiki/");
+  const { rootEntries, folders } = groupByFolder(entries, "context/wiki/", sort);
   return (
     <>
       {rootEntries.length > 0 && (
-        <EntryList entries={rootEntries} plannedAnalyses={plannedAnalyses} />
+        <EntryList entries={rootEntries} plannedAnalyses={plannedAnalyses} taskIndex={taskIndex} />
       )}
       {folders.map((folder) => (
-        <FolderNodeView key={folder.path} node={folder} plannedAnalyses={plannedAnalyses} />
+        <FolderNodeView
+          key={folder.path}
+          node={folder}
+          plannedAnalyses={plannedAnalyses}
+          taskIndex={taskIndex}
+        />
       ))}
     </>
   );
@@ -186,9 +233,11 @@ function WikiEntries({
 function FolderNodeView({
   node,
   plannedAnalyses,
+  taskIndex,
 }: {
   node: FolderGroup;
   plannedAnalyses: PlannedAnalyses;
+  taskIndex: Map<string, TreeEntry[]>;
 }) {
   return (
     <details className="tree-folder tree-folder--dir">
@@ -196,15 +245,42 @@ function FolderNodeView({
         <Icon name="expand_more" className="tree-folder__chevron" />
         <Icon name="folder" className="tree-folder__icon" />
         <span className="tree-folder__label">{node.name}</span>
+        <GroupHeaderDate entries={folderEntries(node)} />
         <span className="tree-folder__count">{folderCount(node)}</span>
       </summary>
       {node.entries.length > 0 && (
-        <EntryList entries={node.entries} plannedAnalyses={plannedAnalyses} />
+        <EntryList entries={node.entries} plannedAnalyses={plannedAnalyses} taskIndex={taskIndex} />
       )}
       {node.children.map((child) => (
-        <FolderNodeView key={child.path} node={child} plannedAnalyses={plannedAnalyses} />
+        <FolderNodeView
+          key={child.path}
+          node={child}
+          plannedAnalyses={plannedAnalyses}
+          taskIndex={taskIndex}
+        />
       ))}
     </details>
+  );
+}
+
+/** Latest created date for a group header; hidden when the group has no dates. */
+function GroupHeaderDate({ entries }: { entries: TreeEntry[] }) {
+  const date = groupDate(entries);
+  if (!date) return null;
+  return <span className="tree-folder__date">{formatFieldDate(date)}</span>;
+}
+
+/** Task-progress dot for a task-group header (red none done / yellow partial /
+ *  green all done), labeled with the done/total count. */
+function GroupProgressDot({ entries }: { entries: TreeEntry[] }) {
+  const progress = taskProgress(entries);
+  return (
+    <span
+      className={`tree-folder__dot tree-folder__dot--${progress.tone}`}
+      title={taskProgressLabel(progress)}
+      aria-label={taskProgressLabel(progress)}
+      role="img"
+    />
   );
 }
 
@@ -214,25 +290,40 @@ function PlanEntries({
   entries,
   plans,
   plannedAnalyses,
+  taskIndex,
+  sort,
 }: {
   entries: TreeEntry[];
   plans: Map<string, TreeEntry>;
   plannedAnalyses: PlannedAnalyses;
+  taskIndex: Map<string, TreeEntry[]>;
+  sort: GroupSort | null;
 }) {
   return (
     <>
-      {groupByPlan(entries, plans).map((group) =>
+      {groupByPlan(entries, plans, sort).map((group) =>
         group.plan === "" ? (
-          <EntryList key="__ungrouped" entries={group.entries} plannedAnalyses={plannedAnalyses} />
+          <EntryList
+            key="__ungrouped"
+            entries={group.entries}
+            plannedAnalyses={plannedAnalyses}
+            taskIndex={taskIndex}
+          />
         ) : (
           <details key={group.plan} className="tree-folder tree-folder--plan">
             <summary className="tree-folder__header">
               <Icon name="expand_more" className="tree-folder__chevron" />
               <Icon name="map" className="tree-folder__icon" />
               <span className="tree-folder__label">{group.label}</span>
+              <GroupProgressDot entries={group.entries} />
+              <GroupHeaderDate entries={group.entries} />
               <span className="tree-folder__count">{group.entries.length}</span>
             </summary>
-            <EntryList entries={group.entries} plannedAnalyses={plannedAnalyses} />
+            <EntryList
+              entries={group.entries}
+              plannedAnalyses={plannedAnalyses}
+              taskIndex={taskIndex}
+            />
           </details>
         ),
       )}
@@ -245,24 +336,38 @@ function PlanEntries({
 function AnalysisEntries({
   entries,
   plannedAnalyses,
+  taskIndex,
+  sort,
 }: {
   entries: TreeEntry[];
   plannedAnalyses: PlannedAnalyses;
+  taskIndex: Map<string, TreeEntry[]>;
+  sort: GroupSort | null;
 }) {
   return (
     <>
-      {groupByObjective(entries).map((group) =>
+      {groupByObjective(entries, sort).map((group) =>
         group.objective === "" ? (
-          <EntryList key="__ungrouped" entries={group.entries} plannedAnalyses={plannedAnalyses} />
+          <EntryList
+            key="__ungrouped"
+            entries={group.entries}
+            plannedAnalyses={plannedAnalyses}
+            taskIndex={taskIndex}
+          />
         ) : (
           <details key={group.objective} className="tree-folder tree-folder--objective">
             <summary className="tree-folder__header">
               <Icon name="expand_more" className="tree-folder__chevron" />
               <Icon name="flag" className="tree-folder__icon" />
               <span className="tree-folder__label">{group.objective}</span>
+              <GroupHeaderDate entries={group.entries} />
               <span className="tree-folder__count">{group.entries.length}</span>
             </summary>
-            <EntryList entries={group.entries} plannedAnalyses={plannedAnalyses} />
+            <EntryList
+              entries={group.entries}
+              plannedAnalyses={plannedAnalyses}
+              taskIndex={taskIndex}
+            />
           </details>
         ),
       )}
@@ -273,11 +378,13 @@ function AnalysisEntries({
 function TreeEntryRow({
   entry,
   plannedAnalyses,
+  taskIndex,
 }: {
   entry: TreeEntry;
   plannedAnalyses: PlannedAnalyses;
+  taskIndex: Map<string, TreeEntry[]>;
 }) {
-  const dot = statusDot(entry, plannedAnalyses);
+  const dot = statusDot(entry, plannedAnalyses, taskIndex);
   const kind = entryKind(entry);
   const kindName = kindLabel(kind);
   return (
