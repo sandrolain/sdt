@@ -1,0 +1,82 @@
+# Open Questions
+
+`context/questions/<YYYYMMDD-HHMMSS>-<slug>.md` collect open questions and
+unresolved points that need the user's decision before a piece of work can
+proceed. Analysis and plan documents must NOT contain open points: surface them
+here instead.
+
+## Structure
+
+```markdown
+---
+kind: questions
+summary: "<1-2 sentence summary — MANDATORY, index source>"
+context: "<objective / what triggered the open points>"
+status: active            # active | resolved
+sources:                  # document(s) where the points surfaced
+  - analysis/<date>-<slug>.md
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+project: <project>
+agent: <agent/tool>          # optional
+model: <model id>            # optional
+session: <session id>        # optional
+---
+
+## Open questions
+
+One subsection per question (Q1, Q2, ...). Reserve this file for decisions
+that would be expensive to get wrong or reverse; don't put low-stakes,
+obvious-answer questions here.
+
+<summary checklist, one line per question>
+
+- [ ] Q1: <question> — decision needed by <who>, blocks <what>
+
+<detail per question>
+
+### Q1: <Short question title>
+
+- **Status**: open            # open | answered
+- **Raised**: <YYYY-MM-DD> by <agent-id / human>
+- **Confidence without an answer**: low   # the assumption this replaced had
+                                           # confidence: low, or the action is
+                                           # irreversible/costly
+- **Blocks**: <task file / plan phase / free text>
+- **Context**: <why this question exists — what triggered it>
+- **Impact if unanswered**: <what happens if it stays open — e.g. "task-03
+  cannot start", "architecture decision deferred">
+- **Options**:
+  1. <option 1> — <brief implication>
+  2. <option 2> — <brief implication>
+- **Suggested default**: <assumed if no answer arrives; only if a safe default
+  genuinely exists, else "no safe default, hard blocker">
+
+**Answer**: _(leave empty until answered)_
+
+**Answered by / date**: _(fill in when answered)_
+```
+
+## Section descriptions
+
+- **Summary checklist** — one line per open question for a quick status view,
+  kept in sync with the detailed entries below.
+- **Per-question detail** — each question carries its own Status; Raised (by
+  whom); Confidence without an answer (the cost of guessing); what it Blocks;
+  Context (why it exists); Impact if unanswered; Options with implications; and
+  a Suggested default that makes the cost of silence explicit (omit when there's
+  no safe default). Answers are recorded in place, not in new files — answered
+  questions stay as a record of decisions made.
+
+## Rules
+
+- **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
+- Keep no open points in analysis/plan documents: ask on the fly or register the
+  question here and prompt the user to answer.
+- The `sources` frontmatter array links back to the document(s) where each open
+  point surfaced (bidirectional traceability: from the questions doc you find the
+  analysis, and from the analysis you find its open points).
+- Help the user cover the open points, but keep the user in control of the
+  decisions. Once answered, resolve the point in the analysis/plan and mark the
+  question resolved (`status: resolved`).
+- Tier: **medium** — see `architecture/stack.md` for the tier taxonomy.

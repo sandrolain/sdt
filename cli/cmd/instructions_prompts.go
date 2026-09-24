@@ -1,42 +1,5 @@
 package cmd
 
-const instrPromptsTemplate = `# Tracked Prompts
+import "github.com/sandrolain/sdt/internal/templates"
 
-` + "`context/prompts/<YYYYMMDD-HHMMSS>-<slug>.md`" + ` records a reusable or
-executed prompt and its provenance. Read this file when creating, revising, or
-running a prompt that contributes to an analysis, procedure, proposal, or decision.
-
-## Contract
-
-Every prompt starts with frontmatter:
-
-` + codeFence + `yaml
-kind: prompt
-title: "Prompt title"
-summary: "1-2 sentence index summary — MANDATORY"
-status: draft # draft | active | archived
-created: "<ISO 8601>"
-updated: "<ISO 8601>"
-derived_from:
-  - analysis/<analysis>.md
-sources:
-  - refs/<deepsearch-result>.md
-results:
-  - analysis/<follow-up>.md
-project: <project>
-` + codeFence + `
-
-- **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
-
-Keep the complete prompt text in the body. Link the analysis, proposal, or
-instruction that produced it through ` + "`derived_from`" + ` and record deep-
-search outputs by relative pointers under ` + "`context/refs/`" + `. Do not copy
-large reports into the prompt record or modify files in ` + "`refs/`" + `.
-
-## Runs
-
-Use one ` + "`## Runs`" + ` section for repeated executions. Each row records at
-least date/time, model or tool, scope, status, and result references. Link
-resulting analyses, proposals, decisions, or other documents in ` + "`results`" + ` or the
-run row. Split runs into separate files only through a later schema change.
-`
+var instrPromptsTemplate = templates.Must("instructions/prompts.md.tmpl", nil, nil)

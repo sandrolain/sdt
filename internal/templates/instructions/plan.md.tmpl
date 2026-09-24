@@ -1,0 +1,138 @@
+# Plan Documents
+
+`context/plan/<YYYYMMDD-HHMMSS>-<slug>.md` hold the plan for a piece of
+work, derived from the related analysis. Plans are **living documents**: they are
+updated during execution, not frozen. A plan exists to produce task files; a plan
+without tasks has no execution value.
+
+## Intent first
+
+A plan is required before implementation and derives from an analysis; the
+analysis → plan → tasks → execution chain and its approval gates are defined in
+AGENTS.md (HARD RULE 1). The plan is built on top of the analysis (set
+`sources`); within a running plan, integrate/modify in place — do not
+restart the chain.
+
+## Workflow (plan → tasks → execution)
+
+Follow strictly — the plan defines the work, the task files execute it:
+
+1. **Create the plan** — write Objective, Constraints and assumptions, Out of
+   scope, Phases (ending with a Validation phase), Verification and Completion
+   criteria from the analysis, plus a
+   **Design contract** (style, architecture and dependency choices — see
+   `instructions/development.md`).
+2. **Wait for plan approval** — stop after creating the plan and wait for
+  explicit user approval before creating task files. Do not create task files
+  as part of plan creation.
+3. **Create task files after approval** — create **one task file per phase**
+  (`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md`, see
+  `instructions/tasks.md`). Every phase maps to a task file; link in both
+  directions (plan frontmatter → task files, task file frontmatter → plan).
+4. **Wait for task approval** — stop after creating the task files and wait for
+  explicit user approval before implementation.
+5. **Execute one task file at a time** — never work from the plan itself. Pick
+   a task file with no pending dependencies, mark it **in progress** on
+   take-in, complete items as they finish, then move to the next.
+6. **Update in place** — plan and task files are **living**: reflect progress,
+   decisions and deviations as they happen; keep `updated` current.
+
+## Structure
+
+```markdown
+---
+kind: plan
+summary: "<1-2 sentence summary — MANDATORY, index source>"
+context: "<objective / what triggered the plan>"
+status: active
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+links:
+  - analysis/20260905-...-analysis-slug.md
+  - tasks/<date>-<plan-slug>-phase-1.md
+project: <project>
+agent: <agent/tool>          # optional
+model: <model id>            # optional
+session: <session id>        # optional
+---
+
+## Objective
+## Constraints and assumptions
+## Out of scope
+## Design contract (style, architecture, dependencies)
+## Phases (each maps to a task file)
+## Dependency graph
+## Completion criteria
+## Review log
+```
+
+- **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
+
+## Section descriptions
+
+- **Objective** — 1-3 sentences: what this plan achieves and why. Must be
+  clear enough that someone reading only this section understands the goal.
+- **Constraints and assumptions** — explicit limitations and assumptions. If an
+  assumption is a guess (low confidence) and getting it wrong would be costly,
+  resolve it before marking the plan approved instead of building tasks on it.
+- **Out of scope** — work explicitly excluded, to prevent scope creep. Be
+  specific: not just "other things" but named areas.
+- **Design contract** — the style, architecture and dependency choices this
+  plan commits to, agreed with the user before tasks are created (see
+  `instructions/development.md`). Each non-trivial choice is stated here so
+  execution never invents style, structure or libraries.
+- **Phases** — each phase maps to one task file. Checklists here are at TASK
+  granularity (one line per task); step-level detail lives in the task file.
+  Each phase has: **Goal** (one sentence), **Depends on** (none / Phase X),
+  the **analysis objectives** it covers, and a task list. **Phase rules**
+  (user-mandated):
+  1. one phase = **one deliverable/concern**, stated in its Goal sentence;
+  2. **no cap on the number of phases** — a plan may have any count;
+  3. keep phases **small**: aim for ~5-7 checklist items; a >10-item checklist
+     triggers a `sdt context lint` SUGGESTION to split the phase;
+  4. a phase must be completable by a **single agent in one focused session**
+     without re-reading the whole plan;
+  5. when refining an existing phase, use alphanumeric sub-phase suffixes
+     (`1a`, `1b`) instead of widening it;
+  6. every plan ends with a dedicated final **Validation phase** that verifies
+     the delivered changes (run the project's build/test/lint and
+     `sdt context reindex`/`lint`) — it is always the last phase, even when a
+     previous phase already ran checks;
+  7. each phase names the **analysis objectives** it covers; the task file for
+     that phase carries a `## Design` study of those objectives (see
+     `instructions/tasks.md`).
+- **Good vs bad splitting** — bad: one "Implement feature" phase with 15 mixed
+  items (schema + backend + CLI + tests in one file). Good: split into phases,
+  each with a single deliverable and ≤ ~5 items: schema → backend → CLI → tests.
+- **Dependency graph** — only needed when there are more than ~3 tasks or
+  non-obvious ordering. Use a simple ASCII diagram.
+- **Completion criteria** — checkboxes for global exit conditions (all phases
+  completed — including the final Validation phase — full test suite green, etc.).
+- **Review log** — only if the plan is revised after approval. Not for execution
+  progress (that lives in task files). Format: `- <YYYY-MM-DD>: <what changed and why>`.
+
+## Frontmatter properties
+
+| Property | Mandatory | Description |
+|----------|-----------|-------------|
+| kind | yes | Document type, fixed value `plan`; index and lint depend on it. |
+| summary | yes | 1-2 sentence summary → index source. |
+| context | yes | Objective / what triggered the plan. |
+| status | yes | `active` / `completed` / `abandoned`. |
+| created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
+| updated | yes | ISO 8601 UTC last-edit date; refresh on every change (use `sdt time iso`). |
+| links | yes | Relative paths to source docs (analysis) and task files. |
+| project | yes | Project id from `.sdt.yaml` (e.g. `sdt_44f24890`). |
+| agent | no | Agent/tool (AI or human) that created or last edited this file. |
+| model | no | Model id of that agent (e.g. `opencode/big-pickle`) — provenance. |
+| session | no | Session id for traceability across edits. |
+
+## 5-stage development lifecycle
+
+A plan is stage 2 of the 5-stage development lifecycle (Analysis → Plan → Tasks
+per phase → Execution → Final reports) — the full cycle and its rules live in
+AGENTS.md.
+
+Plan and task files are updated during execution (not append-only); decisions and
+`architecture/` follow their own rules (`instructions/decision.md`,
+`instructions/architecture.md`).

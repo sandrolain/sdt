@@ -1,0 +1,115 @@
+# Work Logs
+
+`context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md` append one dated entry per
+completed change: what changed and why. Append-only history; do not rewrite
+existing entries.
+
+## Structure
+
+```markdown
+---
+kind: worklog
+summary: "<1-2 sentence summary — MANDATORY, index source>"
+context: "<what triggered this entry>"
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+links:
+  - plan/<date>-<plan-slug>.md
+  - tasks/<date>-<plan-slug>-phase-1.md
+project: <project>
+agent: <agent/tool>          # optional
+role: <role>                 # optional (backend, frontend, architect, reviewer, pm)
+model: <model id>            # optional
+session: <session id>        # optional
+---
+
+## <YYYY-MM-DD HH:MM> — <session title>
+
+- **Actor**: <agent-id / human name>
+- **Task ref**: <task file, if applicable>
+- **Plan ref**: <plan file, if applicable>
+- **Duration**: <approx, optional>
+
+**Summary**
+
+<1-3 sentences: what was actually done this session.>
+
+**Changes made**
+
+- <file/module touched, one line each>
+
+**Decisions made**
+
+- <small local decision>: <why>   (architectural → its own decision record, linked here)
+
+**Deviations from plan/task**
+
+- <deviation, and reason>         (silent deviations are the main source of
+                                   plan/reality drift — say so explicitly)
+
+**Blockers encountered**
+
+- <blocker> → <resolved how / still open>
+
+**Next steps**
+
+- <what should happen next, if not already in a task file>
+```
+
+## Section descriptions
+
+- **Actor / Task ref / Plan ref / Duration** — metadata block identifying who
+  (or which agent) worked, on what task and plan, for how long.
+- **Summary** — 1-3 sentences on what was actually done.
+- **Changes made** — one line per file/module touched.
+- **Decisions made** — only small, local decisions that don't warrant a full
+  decision record; anything architecturally significant becomes a decision record and is linked here.
+- **Deviations from plan/task** — say explicitly when what was done differs from
+  the task/plan. This is what keeps plan/task files trustworthy.
+- **Blockers encountered** — the blocker and how it was resolved (or that it's
+  still open, pointing to task status).
+- **Next steps** — what should happen next, if not already captured in a task
+  file.
+
+## Crystallized closeout (per phase/task)
+
+At the end of every phase/task run (plan.md, 5-stage lifecycle) the worklog
+records a **crystallized closeout** entry that pins the delivered state, so a
+later agent can resume or audit without re-deriving it. This is a pure
+instruction-level contract: the shape below is the record, written manually —
+no command generates it.
+
+```markdown
+### Closeout — <YYYY-MM-DD> — <task file name>
+
+- **Task ref**: `tasks/<date>-<plan-slug>-phase-<n>.md` — one entry per task file identity
+- **Plan ref**: `plan/<date>-<plan-slug>.md`
+- **Outcome** (per checklist item, standardized claim vocabulary):
+  - [x] <item> — **passed** (ran and verified) | **expected** (written, not run) | **inferred** (static analysis only)
+- **Files affected**: <paths touched>
+- **Review verdicts**: <per finding: CONFIRMED / DISPROVED / UNVERIFIED — mirrors the task file Review block>
+- **Decisions**: <small local ones; architectural → decision record, linked>
+- **Lessons / Do-Not-Repeat candidates**: <→ the `context/notes/` lessons note, linked>
+- **Provenance**: <sources consumed, via what transformation>
+- **Deviations / blockers**: <explicit, with resolution or open status>
+```
+
+Idempotency and updates:
+
+- **One closeout per task file identity**: a rerun reuses the existing entry
+  instead of writing a second one; nothing is duplicated.
+- **Corrections are append-only**: a further dated block under the same closeout
+  heading that quotes what changed (`updated <ISO 8601>`), never an edit of
+  the original record.
+- `expected`/`inferred` material stays labeled; a later `passed` run adds
+  a dated correction instead of silently rewriting history.
+- Lessons surfaced by the closeout are filed in the `lessons.md` note;
+  provenance follows the chain in `notes.md` / `wiki.md`.
+
+## Rules
+
+- **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
+- Append-only (nothing is edited retroactively); new entries are new dated
+  entries.
+- Entry per change (final report phase of the 5-stage cycle).
+- Tier: **history** — see `architecture/stack.md` for the tier taxonomy.

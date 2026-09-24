@@ -1,0 +1,59 @@
+# Lessons, Do-Not-Repeat and Decision Log
+
+`context/notes/<YYYYMMDD-HHMMSS>-<slug>.md` hosts dated, reusable
+lessons, Do-Not-Repeat rules and user preferences; the Decision Log is the
+existing ADR records under `context/decisions/`. Read this file when
+recording a lesson, a preference, a "do not repeat" rule or a decision.
+
+## Where things live
+
+| Item | Where | Kind |
+|---|---|---|
+| Key learnings | `context/notes/` lessons note | `notes` |
+| Do-Not-Repeat rules | same lessons note | `notes` |
+| User preferences | same lessons note | `notes` |
+| Decision log | `context/decisions/` ADR records | `decision` |
+
+## Lessons note structure
+
+A note dedicated to lessons uses `context: lessons` in the frontmatter
+and dated entries in the body:
+
+```markdown
+---
+kind: notes
+summary: "<1-2 sentence summary — MANDATORY, index source>"
+context: lessons
+created: "<ISO 8601>"
+project: <project>
+---
+
+## Key learnings
+
+- [<YYYY-MM-DD>] (<confidence>) <the lesson, one line> — <why it matters>
+
+## Do-Not-Repeat
+
+- [<YYYY-MM-DD>] (<confidence>) <what not to do again> — <what to do instead>
+
+## Preferences
+
+- [<YYYY-MM-DD>] (<confidence>) <stable working style or explicit preference>
+```
+
+## Rules
+
+- **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
+- **Reinforce, do not duplicate**: repeat a lesson by appending a new dated
+  line to the existing note, never by creating a second note (dedup-before-write,
+  see `notes.md`).
+- **Confidence labels** add provenance when useful, using the standardized
+  claim vocabulary verbatim: `(measured)` (verified),
+  `(expected)` (written, not run), `(inferred)` (static
+  analysis only). Omit the label when a plain fact suffices.
+- A rule becomes a Do-Not-Repeat entry only when it bit more than once; keep
+  the list short and actionable.
+- Architecturally significant decisions belong in `context/decisions/`
+  (ADR records), not in the lessons note; link the ADR from the lesson that
+  motivated it.
+- Tier: **medium** — see `context/architecture/stack.md` for the tier taxonomy.

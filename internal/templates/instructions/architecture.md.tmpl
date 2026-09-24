@@ -1,0 +1,89 @@
+# Architecture (living documents)
+
+`context/architecture/` holds the living architecture documentation:
+`stack.md`, `map.md`, `flows.md`, `components.md`, ...
+
+## Structure
+
+One file per system/component. Every file is self-sufficient: assume the reader
+has zero prior context.
+
+```markdown
+---
+kind: architecture
+summary: "<1-2 sentence summary — MANDATORY, index source>"
+context: "<what this architecture covers and why>"
+status: current            # draft | current | superseded
+component: "<slug>"        # e.g. config-loading, task-index
+created: "<ISO 8601>"
+updated: "<ISO 8601>"
+links:                     # related docs (decisions it depends on)
+  - decisions/0001-config
+project: <project>
+agent: <agent/tool>          # optional
+model: <model id>            # optional
+session: <session id>        # optional
+---
+
+## Context
+## Goals
+## Non-goals
+## High-level overview        (ASCII or mermaid diagram)
+## Components
+### <Component 1>
+### <Component 2>
+## Data flow
+## Technology choices         (table)
+## Quality attributes
+## Constraints
+## Alternatives considered
+## Evolution / migration notes
+## Open risks
+```
+
+## Section descriptions
+
+- **Context** — what this system/component does and why it exists, in a few
+  sentences. Self-sufficient: no assumed prior knowledge.
+- **Goals** — quality attributes or capabilities it must deliver (e.g.
+  "sub-200ms p95 query latency").
+- **Non-goals** — explicitly out of scope; as important as goals, prevents scope
+  creep and misaligned expectations.
+- **High-level overview** — short narrative followed by a diagram. Use a
+  text-based diagram (ASCII or mermaid) so it stays diffable in git and
+  readable by agents without image rendering.
+- **Components** — one subsection per component: **Responsibility** (what it
+  owns), **Depends on** (other components), **Key files/packages**
+  (`path/to/pkg`).
+- **Data flow** — how data moves through the system for the main use case(s).
+  Sequence-like description is often clearer than a diagram.
+- **Technology choices** — a table: Choice | Rationale (short) | decision. Link the
+  full decision record for anything non-obvious; don't re-argue it here.
+- **Quality attributes** — cross-cutting concerns: Scalability, Security,
+  Observability, Failure modes. Only include rows actually relevant.
+- **Constraints** — things that shaped the design and aren't up for debate in
+  scope: infra limits, org policy, external dependencies.
+- **Alternatives considered** — high-level rejected alternatives with why; a
+  summary/index, details go in the related decision record.
+- **Evolution / migration notes** — how this architecture is expected to change,
+  or how a past one migrated to this. Useful context for anyone tempted to
+  "fix" a deliberate trade-off.
+- **Open risks** — architectural risks not yet mitigated (e.g. single point of
+  failure at X).
+
+## Rules
+
+- **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
+- **Naming**: kebab-case, **no date** in the filename.
+- **Living**: update in place when the architecture changes; updates can come
+  from new decisions (sync — see `instructions/decision.md`).
+- **Mermaid**: embed diagrams in the markdown where useful and not too large; if
+  large use separate `.mmd` files; an optional `architecture.mmd`
+  holds the whole-architecture graph.
+- Keep frontmatter: `kind: architecture`, mandatory `summary`, optional
+  `links`.
+
+## Tier
+
+`architecture/` and `decisions/` are in the **essential** tier — see
+`architecture/stack.md` for the full tier taxonomy.

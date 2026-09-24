@@ -41,8 +41,28 @@ func TestEmbeddedTemplatesParse(t *testing.T) {
 // TestTemplateRenderRoundTrip guards the static-template guarantee: rendering
 // a template with no actions and nil data returns its file content unchanged.
 func TestTemplateRenderRoundTrip(t *testing.T) {
-	names := []string{"workspace/topics.yaml.tmpl"}
-	for _, name := range names {
+	static := []string{
+		"workspace/topics.yaml.tmpl",
+		"instructions/analysis.md.tmpl",
+		"instructions/architecture.md.tmpl",
+		"instructions/decision.md.tmpl",
+		"instructions/development.md.tmpl",
+		"instructions/git.md.tmpl",
+		"instructions/ingestion.md.tmpl",
+		"instructions/lessons.md.tmpl",
+		"instructions/notes.md.tmpl",
+		"instructions/plan.md.tmpl",
+		"instructions/prompts.md.tmpl",
+		"instructions/proposal.md.tmpl",
+		"instructions/questions.md.tmpl",
+		"instructions/reference.md.tmpl",
+		"instructions/research.md.tmpl",
+		"instructions/scripts.md.tmpl",
+		"instructions/tasks.md.tmpl",
+		"instructions/wiki.md.tmpl",
+		"instructions/worklog.md.tmpl",
+	}
+	for _, name := range static {
 		want, err := templatesFS.ReadFile(name)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
@@ -57,5 +77,54 @@ func TestTemplateRenderRoundTrip(t *testing.T) {
 		if !strings.HasSuffix(got, "\n") {
 			t.Errorf("%s must end with a trailing newline", name)
 		}
+	}
+}
+
+// TestCLITemplateEscapesUserExample checks that the template-escaping example
+// embedded in the cli instruction file renders back to a literal {{.user}},
+// so init output keeps the illustrative action intact.
+func TestCLITemplateEscapesUserExample(t *testing.T) {
+	got, err := Render("instructions/cli.md.tmpl", nil, nil)
+	if err != nil {
+		t.Fatalf("render cli.md.tmpl: %v", err)
+	}
+	if !strings.Contains(got, `Hi {{.user}}`) {
+		t.Errorf("expected literal `Hi {{.user}}` example, got:\n%s", got)
+	}
+	if strings.Contains(got, `{{"{{"}}`) {
+		t.Errorf("escaped action leaked into rendered output:\n%s", got)
+	}
+}
+
+// TestProjectTemplateIdentity covers the four project/group identity combos.
+func TestProjectTemplateIdentity(t *testing.T) {
+	cases := []struct {
+		name    string
+		project string
+		group   string
+		want    string
+	}{
+		{"both", "p1", "g1", "# Project\n\n- Project: p1\n- Group: g1\n\nThis project"},
+		{"project-only", "p1", "", "# Project\n\n- Project: p1\n\nThis project"},
+		{"group-only", "", "g1", "# Project\n- Group: g1\n\nThis project"},
+		{"none", "", "", "# Project\n\nThis project"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := struct {
+				Project string
+				Group   string
+			}{Project: tc.project, Group: tc.group}
+			got, err := Render("instructions/project.md.tmpl", data, nil)
+			if err != nil {
+				t.Fatalf("render project.md.tmpl: %v", err)
+			}
+			if !strings.HasPrefix(got, tc.want) {
+				t.Errorf("head mismatch\ngot:  %q\nwant: %q", got[:len(tc.want)], tc.want)
+			}
+			if !strings.HasSuffix(got, "\n") {
+				t.Errorf("project.md.tmpl must end with a trailing newline")
+			}
+		})
 	}
 }
