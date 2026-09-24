@@ -1,0 +1,89 @@
+# Shared Role Rules
+
+**Every profile in `context/roles/` references this file. Read it before
+any role profile.** It is the shared layer: rules common to all roles live here
+once, profiles never restate them. Generated from the same closed register the
+CLI uses, so the table below cannot drift from `sdt agent roles show`.
+
+## Role register (closed)
+
+The set is **closed and curated**: adding a role is a deliberate change that
+touches the register, the templates and `roles check`. `pm` is the
+coordinator: it owns planning/sequencing and handoffs over the seven
+execution/review roles.
+
+| slug | title | coordinator | owned (default context/ spaces) |
+|---|---|---|---|
+{{range .Rows}}| `{{.Slug}}` | {{.Title}} | {{yesNo .Coordinator}} | {{ownedList .Owned}} |
+{{end}}
+
+Every role owns a default set of `context/` document spaces (column
+"owned"); repo code paths are added by the project layer, never invented here.
+Two roles must never own the same path: where work areas touch, one role owns
+and another reviews (`roles check` enforces owner/reviewer pairing).
+
+## Three layers per profile
+
+Each profile is three marker-delimited layers:
+
+1. **`core`** — role-generic: mission, responsibilities, working mode,
+   handoff, definition of done, anti-patterns. Stable, generated once.
+2. **`project`** — role-relevant project facts: stack, repo layout, real
+   build/test/lint commands, conventions with concrete paths. Derived from repo
+   evidence or answered by the user (≤3 targeted questions). Regenerated
+   independently by `sdt agent roles init --force`.
+3. **`preferences`** — user-owned. `--force` never overwrites it;
+   only the user edits it. Keep it short and role-relevant.
+
+Layers are additive: a repo change refreshes only the project layer, never the
+core, and never user preferences.
+
+## Source tags and assumptions
+
+Generated lines in the project layer are tagged with their source:
+
+- `(repo)` — derived from repo evidence (AGENTS.md project block,
+  project.md, real commands, layout).
+- `(user)` — answered by the user.
+- `(assumption)` — not derivable and not asked; a best-effort guess.
+
+Never invent: a fact that cannot be derived becomes a tagged `(assumption)`
+line, **never** a silent rule. Every assumption is surfaced in the profile's
+"Open assumptions" footer, kept there until resolved with evidence.
+
+## Capability contract (advisory)
+
+A profile's "Responsibilities / non-responsibilities" is a **declared contract**,
+not a sandbox: SDT cannot enforce it inside third-party runtimes. Enforcement is
+two deterministic checks — closed register and owner/reviewer overlap — plus
+honest discipline. Escalation order is `job > plan > global`: a task-level
+instruction wins over the plan, which wins over this shared layer.
+
+## Handoff protocol
+
+Every deliverable crosses roles with a defined format (each profile's 9-point
+structure, point 7):
+
+- who receives, who delivers, in what format (`context/decisions/NNNN-<slug>.md`,
+  task-file `## Review` block, worklog entry, ...)
+- owner/reviewer pairs: the reviewer never self-approves (independent pass).
+- a handoff is complete only when the receiving role acknowledges it in the same
+  format it was delivered.
+
+## Verification vocabulary
+
+Use the standardized claims: **passed** (ran and verified), **expected**
+(written, not run), **inferred** (static analysis only). Close phases with the
+verify-step and record verdicts in the task-file `## Review` block
+(CONFIRMED / DISPROVED / UNVERIFIED). Deterministic gates: `sdt agent verify`,
+`sdt agent doctor`, `sdt agent gate`.
+
+## Profile body rules
+
+- **No H1** — bodies start at H2 (AGENTS.md document conventions).
+- ≤ ~80 lines per core; split overflow into per-role ref files loaded on demand.
+- Reference `shared.md`, AGENTS.md and the project layer instead of
+  restating them.
+- Every claim is verifiable or actionable; anchor rules to real paths/commands.
+- Profiles are advisory content: they shape behaviour, they do not grant
+  permissions.

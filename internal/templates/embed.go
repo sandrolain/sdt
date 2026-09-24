@@ -9,16 +9,23 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"text/template"
 )
 
-//go:embed workspace instructions commands
+//go:embed workspace instructions commands roles
 var templatesFS embed.FS
 
 // The embed pattern is extended with each populated top-level directory
 // (agents, commands, instructions, roles) as later migration phases land their
 // template files.
+
+// Exists reports whether a template file is present under templates/.
+func Exists(name string) bool {
+	_, err := fs.Stat(templatesFS, name)
+	return err == nil
+}
 
 // Render parses the embedded template at name (a path under templates/) and
 // executes it with data. funcs adds template functions and may be nil for

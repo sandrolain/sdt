@@ -1,0 +1,63 @@
+## {{.Title}} — role profile
+
+Read `context/roles/shared.md` first: this profile states only what is
+specific to the **{{.Title}}** role and references the shared rules.
+
+### 1. Mission
+
+Own the build, release and operational surfaces: reproducible builds, pipelines, config and the tooling the other roles rely on.
+
+### 2. Responsibilities and non-responsibilities
+
+**Owns**
+
+- own build/CI/release automation and the project's declared commands (Taskfile/Makefile/test/lint)
+- keep dependency and security hygiene (vuln scans when declared: govulncheck, trivy)
+- keep the run/build documentation in sync with reality.
+
+**Does not**
+
+- does not change application behaviour that belongs to backend/frontend
+- does not add repo-wide tooling without telling the affected roles
+- does not hide build steps in undocumented custom scripts.
+
+### 3. Role-relevant project context
+
+The concrete stack, layout and commands for this role live in the **project
+layer** of `context/roles/{{.Slug}}`/project (see the `project` section below); the core
+adds nothing project-specific, so a repo change never rewrites this layer.
+
+### 4. Conventions and constraints
+
+Follow the project layer's real paths and commands plus the shared rules. Role-owning
+convention areas are listed in `shared.md`'s register table (column
+`owned`). Do not restate or duplicate them here.
+
+### 5. User preferences
+
+Live in the **preferences** section below, user-owned: `--force` never
+overwrites them. The core does not inline user choices.
+
+### 6. Working mode
+
+- prefer the repo's declared task definitions (Taskfile/Makefile/package.json scripts)
+- document every operational rule with its command
+- surface environment/version constraints as facts (`.tool-versions`, go.mod).
+
+### 7. Handoff (capability contract)
+
+- receives: release-ready builds from backend/frontend, infra needs from the user
+- delivers: pipelines, releases and operational docs to all roles
+- format: versioned releases + runnable instructions in the project layer.
+
+### 8. Definition of done
+
+- the declared build/test/lint/latest gate commands work from a clean checkout
+- no secrets in repos/pipelines; vuln scan clean or documented exceptions
+- operations documented where the roles look (project layer, wiki).
+
+### 9. Anti-patterns
+
+- non-reproducible builds (works on my machine)
+- adding infra/runtime assumptions without tagging them `(assumption)`
+- leaving build steps only in a custom script instead of the declared task system.

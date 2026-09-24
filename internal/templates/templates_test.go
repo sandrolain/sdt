@@ -11,7 +11,12 @@ import (
 // parseFuncs supplies the func names referenced by dynamic templates built in
 // later migration phases; parse-only validation needs them defined. Stubs are
 // replaced by the real funcMap in cmd's render path, never here.
-var parseFuncs = template.FuncMap{}
+var parseFuncs = template.FuncMap{
+	"yesNo":     func(bool) string { return "" },
+	"ownedList": func([]string) string { return "" },
+	"join":      func([]string) string { return "" },
+	"tagged":    func(string) string { return "" },
+}
 
 // TestEmbeddedTemplatesParse parses every embedded .tmpl file. A parse error
 // means a template is syntactically broken (action syntax, unknown func).
@@ -78,6 +83,17 @@ func TestTemplateRenderRoundTrip(t *testing.T) {
 		if !strings.HasSuffix(got, "\n") {
 			t.Errorf("%s must end with a trailing newline", name)
 		}
+	}
+}
+
+// TestTemplateExists checks the presence probe used by optional template lookup
+// (e.g. role core files keyed by register slug).
+func TestTemplateExists(t *testing.T) {
+	if !Exists("instructions/plan.md.tmpl") {
+		t.Error("expected existing template to be reported present")
+	}
+	if Exists("instructions/nope.md.tmpl") {
+		t.Error("expected missing template to be reported absent")
 	}
 }
 
