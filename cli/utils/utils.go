@@ -42,7 +42,10 @@ func Encrypt(value []byte, passPhrase []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	nonce := make([]byte, aesGCM.NonceSize())
+	nonce, err := RandomBytes(aesGCM.NonceSize())
+	if err != nil {
+		return nil, err
+	}
 	return aesGCM.Seal(nonce, nonce, value, nil), nil
 }
 
