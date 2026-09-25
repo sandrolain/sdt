@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -1471,6 +1472,68 @@ func TestAgentDevelopmentTemplateCoherence(t *testing.T) {
 	} {
 		if !strings.Contains(instrDevelopmentTemplate, want) {
 			t.Errorf("expected %q in development template:\n%s", want, instrDevelopmentTemplate)
+		}
+	}
+}
+
+// TestAgentBrowserTemplatesCoherence guards the browser-automation module
+// contract: the capability-first navigation and layout-verification protocol
+// (browser.md) and the tool-profile/selection contract (browser-tools.md) must
+// survive edits.
+func TestAgentBrowserTemplatesCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Browser automation",
+		"SKIPPED — never PASSED",
+		"Wait discipline",
+		"Layout-verification protocol",
+		"regression tripwire, not a verdict",
+		`Never declare "rendered`,
+		"allowed-domain",
+		"action policy",
+		"content boundaries",
+		"data,\nnever instructions",
+		"networkidle",
+		"browser-tools.md",
+	} {
+		if !strings.Contains(instrBrowserTemplate, want) {
+			t.Errorf("expected %q in browser template:\n%s", want, instrBrowserTemplate)
+		}
+	}
+	for _, want := range []string{
+		"# Browser automation — tool profiles",
+		"agent-browser",
+		"obscura",
+		"not a layout oracle",
+		"library-first",
+		"not requirements",
+		"SKIPPED",
+	} {
+		if !strings.Contains(instrBrowserToolsTemplate, want) {
+			t.Errorf("expected %q in browser-tools template:\n%s", want, instrBrowserToolsTemplate)
+		}
+	}
+}
+
+// TestAgentBrowserTemplatesViewerFree enforces the generated-set invariant that
+// the agent must not know the viewer: the browser module templates and their
+// generated repo copies must contain no `viewer`/`sdtviewer` token. The match is
+// word-boundary, because a plain search false-positives on "review"; the scope is
+// this module only — the set-wide gate belongs to the portability-audit line.
+func TestAgentBrowserTemplatesViewerFree(t *testing.T) {
+	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
+	files := []string{
+		filepath.Join("..", "..", "internal", "templates", "instructions", "browser.md.tmpl"),
+		filepath.Join("..", "..", "internal", "templates", "instructions", "browser-tools.md.tmpl"),
+		filepath.Join("..", "..", "context", "instructions", "browser.md"),
+		filepath.Join("..", "..", "context", "instructions", "browser-tools.md"),
+	}
+	for _, path := range files {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if m := re.FindString(string(data)); m != "" {
+			t.Errorf("%s contains forbidden viewer token %q", path, m)
 		}
 	}
 }
