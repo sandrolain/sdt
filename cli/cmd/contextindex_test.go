@@ -72,7 +72,7 @@ func TestContextReindexObjectiveGroups(t *testing.T) {
 
 func TestContextReindexProposalAndPrompt(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/search.md", "---\nkind: reference\nstatus: archived\nsummary: Search evidence\n---\nsource\n")
 	writeCtxDoc(t, "context/proposals/proposal.md", "---\nkind: proposal\ntitle: Proposal\nsummary: Proposal summary\nstatus: review\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
 	writeCtxDoc(t, "context/prompts/search.md", "---\nkind: prompt\ntitle: Search prompt\nsummary: Prompt summary\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
@@ -95,7 +95,7 @@ func TestContextReindexProposalAndPrompt(t *testing.T) {
 func TestContextReindexResearch(t *testing.T) {
 	setupContextProject(t)
 	writeCtxDoc(t, "context/prompts/drive.md", "---\nkind: prompt\ntitle: Drive\nsummary: Driving prompt\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\n---\nbody\n")
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/capture.md", "---\nkind: reference\nstatus: archived\nsummary: Raw capture\n---\nsource\n")
 	writeCtxDoc(t, "context/research/backends.md", "---\nkind: research\ntitle: Vector backends\nsummary: Compared vector backends\nsubject: Which vector backend fits? \nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - prompts/drive.md\n  - refs/capture.md\nproject: p\n---\n## Findings\nbody\n")
 
@@ -126,7 +126,7 @@ func TestContextLintPromptProvenance(t *testing.T) {
 
 func TestContextLintProposalDecisionArchitectureChain(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
 	writeCtxDoc(t, "context/proposals/decision.md", "---\nkind: proposal\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
 	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: decision\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - proposals/decision.md\nproject: p\nsources:\n  - proposals/decision.md\n---\n## Decision\nUse the proposal.\n")
 	writeCtxDoc(t, "context/architecture/decision.md", "---\nkind: architecture\nsummary: Current decision architecture\ncontext: Decision shape\nstatus: current\ncomponent: decision\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - decisions/0002-decision.md\nproject: p\n---\n# Architecture\n")
@@ -213,6 +213,80 @@ func TestContextLintTaskFileStatusVocabulary(t *testing.T) {
 	}
 	if statusFlagged("new.md", "outside vocabulary") {
 		t.Errorf("valid `in-progress` must not be flagged, got issues: %s", out)
+	}
+}
+
+// lintIssueContains reports whether the JSON lint output contains an issue
+// whose message carries the given substring.
+func lintIssueContains(out, substr string) bool {
+	var issues []ctxLintIssue
+	if err := json.Unmarshal([]byte(out), &issues); err != nil {
+		return false
+	}
+	for _, it := range issues {
+		if strings.Contains(it.Message, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestContextLintStatusVocabularyAllKinds covers the generic per-type status
+// check across several status-bearing kinds: valid vocabularies pass, an
+// out-of-vocab value is a WARNING, and a missing status is flagged.
+func TestContextLintStatusVocabularyAllKinds(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/plan/okp.md", "---\nkind: plan\nsummary: good\nstatus: active\n---\nbody\n")
+	writeCtxDoc(t, "context/proposals/bad.md", "---\nkind: proposal\ntitle: Bad\nsummary: bad\nstatus: shipped\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/missing.md", "---\nkind: analysis\nsummary: none\nobjective: t\n---\nbody\n")
+	writeCtxDoc(t, "context/architecture/good.md", "---\nkind: architecture\nsummary: good\nstatus: current\n---\nbody\n")
+	out := strings.TrimSpace(string(execute(t, contextLintCmd, nil, "--format", "json")))
+	if lintIssueContains(out, "outside vocabulary") == false {
+		t.Errorf("expected out-of-vocab proposal flagged, got: %s", out)
+	}
+	if lintIssueContains(out, "missing frontmatter `status`") == false {
+		t.Errorf("expected missing analysis status flagged, got: %s", out)
+	}
+	for _, base := range []string{"okp.md", "good.md"} {
+		if strings.Contains(strings.ToLower(out), `"`+base+`": "frontmatter`) {
+			t.Errorf("valid status in %s must not be flagged, got: %s", base, out)
+		}
+	}
+}
+
+// TestContextLintArchivedInPlaceHint covers the SUGGESTION when a
+// status-bearing document carries `status: archived` outside context/archive/;
+// documents under archive/ and non-archived statuses stay silent.
+func TestContextLintArchivedInPlaceHint(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/kept.md", "---\nkind: analysis\nsummary: kept in place\nstatus: archived\n---\nbody\n")
+	writeCtxDoc(t, "context/research/live.md", "---\nkind: research\nsummary: still live\nstatus: active\n---\nbody\n")
+	out := strings.TrimSpace(string(execute(t, contextLintCmd, nil, "--format", "json")))
+	if lintIssueContains(out, "status-only `archived` set in place") == false {
+		t.Errorf("expected archived-in-place SUGGESTION, got: %s", out)
+	}
+	if lintIssueContains(out, "research/live.md") {
+		t.Errorf("non-archived status must not be hinted, got: %s", out)
+	}
+}
+
+// TestContextLintTimestampFormat covers decision D4: a present but
+// non-RFC3339 `created`/`updated` is a WARNING, RFC3339 values pass, and
+// missing fields are not flagged.
+func TestContextLintTimestampFormat(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/badtime.md", "---\nkind: analysis\nsummary: bad timestamp\nobjective: t\nstatus: active\ncreated: 2026-01-01\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/goodtime.md", "---\nkind: analysis\nsummary: good timestamp\nobjective: t\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-02T00:00:00Z\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/notime.md", "---\nkind: analysis\nsummary: no timestamp\nobjective: t\nstatus: active\n---\nbody\n")
+	out := strings.TrimSpace(string(execute(t, contextLintCmd, nil, "--format", "json")))
+	if lintIssueContains(out, "does not parse as RFC3339 UTC") == false {
+		t.Errorf("expected bad timestamp flagged, got: %s", out)
+	}
+	if lintIssueContains(out, "goodtime.md") {
+		t.Errorf("valid RFC3339 timestamps must not be flagged, got: %s", out)
+	}
+	if lintIssueContains(out, "notime.md") {
+		t.Errorf("missing timestamps must not be flagged, got: %s", out)
 	}
 }
 

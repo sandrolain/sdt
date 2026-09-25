@@ -3,7 +3,8 @@ kind: commands
 id: commands/{{.ID}}
 title: ">{{.ID}} — agent-invokable task trigger"
 summary: "Thin agent command: invoked by the >{{.ID}} trigger. Proceeds per context/instructions/{{.Contract}}.md (the durable contract). Approve-before-write gate."
-status: active # statuses for the commands kind are defined in the matrix (architecture/stack.md)
+# statuses for the commands kind are defined in the matrix (architecture/stack.md)
+status: active
 links:
   - commands/index.md
   - instructions/{{.Contract}}.md

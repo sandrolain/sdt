@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -108,11 +109,12 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"missing YAML frontmatter", "start the file with a YAML `---` frontmatter block carrying at least `kind` and `summary`; use `sdt context new --type <type>`"},
 	{"decision filename", "rename the file to NNNN-<slug>.md so the 4-digit number stays consistent"},
 	{"frontmatter number", "align `number` in the frontmatter with the 4-digit filename prefix"},
-	{"task file missing frontmatter `status`", "add `status: pending | in-progress | completed | archived` (legacy `active` is accepted)"},
-	{"task file status", "set `status` to pending | in-progress | completed | archived (legacy `active` is accepted)"},
+	{"outside vocabulary for kind", "set `status` to a value from the kind's vocabulary (see the status matrix: context/architecture/stack.md)"},
+	{"missing frontmatter `status` for kind", "add `status: <vocab value>`; see the per-type vocabularies in the status matrix (context/architecture/stack.md)"},
+	{"status-only `archived` set in place", "keep the status-only transition, or move the file with `sdt context archive` (either is allowed)"},
+	{"does not parse as RFC3339 UTC", "format `created`/`updated` as RFC3339 UTC (e.g. `2026-09-25T05:00:00Z`; see `sdt time iso`)"},
 	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
 	{"completed task file has no `## Review`", "record the verify-step verdicts with `sdt context task review --phase <n>` (CONFIRMED | DISPROVED | UNVERIFIED per finding)"},
-	{"task file status", "set `status` to pending | in-progress | completed | archived (legacy `active` is accepted)"},
 	{"prompt must declare", "add a `derived_from` frontmatter reference to the prompt that produced this document"},
 	{"analysis missing `objective`", "add `objective: <kebab-case-slug>`; reuse the same slug in every analysis of the same initiative so they group in the index"},
 	{"analysis `objective`", "set `objective` to a lowercase kebab-case slug (letters, digits and '-'), shared across analyses of the same initiative"},
@@ -182,30 +184,62 @@ var ctxDerivedKinds = map[string]bool{
 	ctxTypeQuestions: true,
 }
 
-// ctxTaskFileStatuses is the accepted task-file frontmatter status vocabulary:
-// pending (to work on), in-progress, completed, archived — plus the legacy
-// `active` value kept for pre-change task lists.
+// lintStatusField flags a status-bearing document whose frontmatter status is
+// missing or outside the kind's closed vocabulary (from the shared registry).
+// Non-status-bearing kinds (worklog, notes, tmp) and kinds outside the registry
+// (reference) are skipped. WARNING so historical documents never hard-fail.
 
-var ctxTaskFileStatuses = map[string]bool{
-	taskFileStatusPending:    true,
-	taskFileStatusInProgress: true,
-	taskFileStatusCompleted:  true,
-	taskFileStatusArchived:   true,
-	taskFileStatusLegacy:     true,
-}
-
-// lintTaskFileStatus flags task files whose frontmatter status is outside the
-// pending | in-progress | completed | archived vocabulary (legacy `active`
-// accepted). WARNING so historical lists never hard-fail the check.
-
-func lintTaskFileStatus(path, status string) []ctxLintIssue {
-	if status == "" {
-		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "task file missing frontmatter `status` (pending | in-progress | completed | archived)"}}
+func lintStatusField(path, content, kind string) []ctxLintIssue {
+	t, ok := ctxTypeLookup(kind)
+	if !ok || !ctxStatusBearing(t) {
+		return nil
 	}
-	if !ctxTaskFileStatuses[status] {
-		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("task file status %q outside vocabulary (pending | in-progress | completed | archived)", status)}}
+	vocab := strings.Join(t.statuses, " | ")
+	status := parseFrontmatterField(content, "status")
+	if status == "" {
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("missing frontmatter `status` for kind %s (%s)", kind, vocab)}}
+	}
+	if !ctxStatusInVocab(t, status) {
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("frontmatter `status` %q outside vocabulary for kind %s (%s)", status, kind, vocab)}}
 	}
 	return nil
+}
+
+// lintArchivedInPlace hints when a status-bearing document carries a
+// status-only `archived` transition while living outside context/archive/.
+// Both are legal (decision D2): set in place, or moved with `sdt context
+// archive`. SUGGESTION so no existing document hard-fails.
+
+func lintArchivedInPlace(path, content, kind string) []ctxLintIssue {
+	t, ok := ctxTypeLookup(kind)
+	if !ok || !ctxStatusBearing(t) {
+		return nil
+	}
+	if parseFrontmatterField(content, "status") != statusArchived {
+		return nil
+	}
+	if filepath.Dir(path) == sdtArchiveDir {
+		return nil
+	}
+	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "status-only `archived` set in place; `sdt context archive` moves the file under archive/ (either is allowed)"}}
+}
+
+// lintTimestampFields flags a present `created`/`updated` that does not parse
+// as RFC3339 UTC (decision D4). Missing fields are not flagged; offsets that
+// still parse as RFC3339 are tolerated (no historical hard-fail).
+
+func lintTimestampFields(path, content string, prio func(string) string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	for _, key := range []string{statusCreated, statusUpdated} {
+		v := parseFrontmatterField(content, key)
+		if v == "" {
+			continue
+		}
+		if _, err := time.Parse(time.RFC3339, v); err != nil {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("frontmatter `%s` %q does not parse as RFC3339 UTC", key, v)})
+		}
+	}
+	return issues
 }
 
 // lintCommandFile validates the command-trigger contract for files under
@@ -277,9 +311,11 @@ func lintDoc(path string) []ctxLintIssue {
 	if summary == "" {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintCritical), Message: "frontmatter missing mandatory `summary`"})
 	}
-	if kind == ctxTypeTasks {
-		issues = append(issues, lintTaskFileStatus(path, parseFrontmatterField(content, "status"))...)
-	}
+	// Generic per-type status vocabulary check for every status-bearing kind
+	// (from the shared registry); documented in the stack.md status matrix.
+	issues = append(issues, lintStatusField(path, content, kind)...)
+	issues = append(issues, lintArchivedInPlace(path, content, kind)...)
+	issues = append(issues, lintTimestampFields(path, content, prio)...)
 	// Optional `objective` grouping key: WARNING on a non-kebab-case value,
 	// SUGGESTION on absence so the convention is adopted gradually without
 	// breaking existing analyses.
