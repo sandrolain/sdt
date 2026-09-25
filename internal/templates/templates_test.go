@@ -43,6 +43,11 @@ var renderCases = map[string]any{
 		"Project": "p",
 		"Group":   "g",
 	},
+	"instructions/cli.md.tmpl": map[string]any{
+		"NewTypes":  "plan|analysis",
+		"PathTypes": "plan|analysis",
+		"ListTypes": "plan|analysis",
+	},
 	"roles/shared.md.tmpl": map[string]any{
 		"Rows": []map[string]any{{
 			"Slug":        "pm",
@@ -175,7 +180,12 @@ func TestTemplateExists(t *testing.T) {
 // embedded in the cli instruction file renders back to a literal {{.user}},
 // so init output keeps the illustrative action intact.
 func TestCLITemplateEscapesUserExample(t *testing.T) {
-	got, err := Render("instructions/cli.md.tmpl", nil, nil)
+	data := map[string]any{
+		"NewTypes":  "plan|analysis",
+		"PathTypes": "plan|analysis",
+		"ListTypes": "plan|analysis",
+	}
+	got, err := Render("instructions/cli.md.tmpl", data, nil)
 	if err != nil {
 		t.Fatalf("render cli.md.tmpl: %v", err)
 	}

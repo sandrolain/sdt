@@ -472,7 +472,7 @@ Create and manage work files with ` + "`sdt context`" + `:
   file with the correct name and frontmatter
 - ` + "`sdt context reindex`" + ` / ` + "`sdt context lint`" + ` — regenerate ` + "`index.md`" + ` / validate
   frontmatter and links
-- ` + "`sdt context template --type <tipo>`" + ` — print the per-type instruction file
+- ` + "`sdt context template --type " + ctxTypeHelpText(ctxTemplateTypes()) + "`" + ` — print the per-type instruction file
 - ` + "`sdt context path --type " + ctxTypeHelpText(ctxPathTypes()) + " [--slug]`" + ` — print a
   path without creating anything
 - ` + "`sdt context list --type " + ctxListHelpText() + "`" + ` — list existing files

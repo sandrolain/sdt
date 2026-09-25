@@ -1281,7 +1281,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	}
 
 	cli, _ := os.ReadFile(filepath.Join(dir, "context/instructions/cli.md"))
-	for _, want := range []string{"sdt conv --in json --out yaml", "sdt context new --type", "sdt context path|list|task|template|docs", "sdt diff --a A --b B --diff-format", "sdt dns --host", "context/instructions/reference.md"} {
+	for _, want := range []string{"sdt conv --in json --out yaml", "sdt context new --type", "sdt context path --type", "sdt context status get|set", "sdt context rename <ref> --slug <new>", "sdt context archive <ref>", "sdt diff --a A --b B --diff-format", "sdt dns --host", "context/instructions/reference.md"} {
 		if !strings.Contains(string(cli), want) {
 			t.Errorf("expected %q in cli.md:\n%s", want, cli)
 		}

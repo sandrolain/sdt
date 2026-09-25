@@ -42,10 +42,9 @@ instruction files and temporary files for this project.
 
 ```yaml
 ---
-kind: worklog      # plan | worklog | notes | tasks
+kind: worklog      # plan | analysis | worklog | notes | questions | proposal | prompt | research | architecture | decision | tasks
 summary: <one-line description>   # mandatory (index source)
 context: what triggered this entry
-status: active
 created: <ISO 8601>
 updated: <ISO 8601>
 links:                            # optional array of related docs
@@ -65,7 +64,7 @@ Create and manage work files with `sdt context`:
   file with the correct name and frontmatter
 - `sdt context reindex` / `sdt context lint` — regenerate `index.md` / validate
   frontmatter and links
-- `sdt context template --type <tipo>` — print the per-type instruction file
+- `sdt context template --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki` — print the per-type instruction file
 - `sdt context path --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|archive|wiki [--slug]` — print a
   path without creating anything
 - `sdt context list --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|archive|commands` — list existing files
