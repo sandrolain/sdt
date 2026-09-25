@@ -1,6 +1,7 @@
 import type { TreeEntry } from "./api";
 
-export type StatusTone = "danger" | "warn" | "ok";
+export type StatusTone = "danger" | "warn" | "ok" | "neutral";
+type ActiveStatusTone = Exclude<StatusTone, "neutral">;
 
 export interface StatusDot {
   tone: StatusTone;
@@ -9,7 +10,7 @@ export interface StatusDot {
 }
 
 export interface TaskProgress {
-  tone: StatusTone;
+  tone: ActiveStatusTone;
   done: number;
   total: number;
 }
@@ -38,6 +39,24 @@ export function planReferencedAnalyses(entries: TreeEntry[]): Set<string> {
     for (const ref of entry.sources ?? []) referenced.add(normalizeRef(ref));
   }
   return referenced;
+}
+
+/** Plans indexed by each analysis path referenced in their sources/links. */
+export function plansByAnalysis(entries: TreeEntry[]): Map<string, TreeEntry[]> {
+  const index = new Map<string, TreeEntry[]>();
+  for (const entry of entries) {
+    if (entry.kind !== "plan") continue;
+    for (const ref of entry.sources ?? []) {
+      const analysisPath = normalizeRef(ref);
+      const plans = index.get(analysisPath);
+      if (plans) {
+        if (!plans.some((plan) => plan.path === entry.path)) plans.push(entry);
+      } else {
+        index.set(analysisPath, [entry]);
+      }
+    }
+  }
+  return index;
 }
 
 /** Task entries indexed by the normalized plan path they reference ("" = none). */
@@ -72,14 +91,10 @@ export function taskProgressLabel(progress: TaskProgress): string {
   return progress.total === 0 ? "No tasks started" : "No tasks completed yet";
 }
 
-/**
- * Status dot for a tree entry: plans report the progress of their referenced
- * tasks; tasks report their own execution state; an analysis not referenced by
- * any plan (and not done) reports "no plan yet"; other kinds have no dot.
- */
+/** Status dot for plans, tasks, analyses and questions, including derived progress. */
 export function statusDot(
   entry: TreeEntry,
-  plannedAnalyses: Set<string>,
+  analysisPlans: Map<string, TreeEntry[]>,
   taskIndex: Map<string, TreeEntry[]> = new Map(),
 ): StatusDot | null {
   if (entry.kind === "plan") {
@@ -97,11 +112,44 @@ export function statusDot(
     return { tone: "danger", label: "Task not executed" };
   }
   if (entry.kind === "analysis") {
-    if (isDoneStatus(entry.status)) return null;
-    if (plannedAnalyses.has(entry.path)) return null;
-    return { tone: "warn", label: "Analysis without a plan" };
+    const status = (entry.status ?? "").trim().toLowerCase();
+    if (isDoneStatus(status) || status === "resolved") {
+      return { tone: "neutral", label: "Analysis archived" };
+    }
+    const plans = analysisPlans.get(entry.path) ?? [];
+    if (plans.length === 0) return { tone: "danger", label: "Analysis without a plan" };
+    const allPlanTasksDone = plans.every((plan) => {
+      const tasks = taskIndex.get(normalizeRef(plan.path)) ?? [];
+      return tasks.length > 0 && tasks.every((task) => isDoneStatus(task.status));
+    });
+    if (allPlanTasksDone) return { tone: "ok", label: "Analysis completed" };
+    return { tone: "warn", label: "Analysis plan in progress" };
+  }
+  if (entry.kind === "questions") {
+    const status = (entry.status ?? "").trim().toLowerCase();
+    if (status === "active") return { tone: "danger", label: "Question unresolved" };
+    if (status === "resolved") return { tone: "ok", label: "Question resolved" };
+    return null;
   }
   return null;
+}
+
+/** Aggregate non-neutral analysis dots: none completed = red, some = yellow, all = green. */
+export function groupDot(
+  entries: TreeEntry[],
+  analysisPlans: Map<string, TreeEntry[]>,
+  taskIndex: Map<string, TreeEntry[]> = new Map(),
+): StatusDot | null {
+  const dots = entries
+    .filter((entry) => entry.kind === "analysis")
+    .map((entry) => statusDot(entry, analysisPlans, taskIndex))
+    .filter((dot): dot is StatusDot => dot !== null && dot.tone !== "neutral");
+  if (dots.length === 0) return null;
+
+  const done = dots.filter((dot) => dot.tone === "ok").length;
+  const tone: ActiveStatusTone = done === 0 ? "danger" : done === dots.length ? "ok" : "warn";
+  const label = `${done}/${dots.length} analyses completed`;
+  return { tone, label };
 }
 
 /** True when the entry counts as completed for the hide filter. A plan is

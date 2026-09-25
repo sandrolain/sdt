@@ -427,6 +427,105 @@ describe("Tree", () => {
     expect(objectiveFolders[0].textContent).not.toContain("Gamma");
   });
 
+  it("aggregates objective dots over visible analyses and styles archived/question dots", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/analysis/unplanned.md",
+                kind: "analysis",
+                title: "Unplanned",
+                objective: "viewer",
+                status: "active",
+              },
+              {
+                path: "context/analysis/planned.md",
+                kind: "analysis",
+                title: "Planned",
+                objective: "viewer",
+                status: "active",
+              },
+              {
+                path: "context/analysis/archived.md",
+                kind: "analysis",
+                title: "Archived",
+                objective: "viewer",
+                status: "archived",
+              },
+              {
+                path: "context/analysis/retired.md",
+                kind: "analysis",
+                title: "Retired",
+                objective: "retired",
+                status: "archived",
+              },
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                sources: ["analysis/planned.md"],
+              },
+              {
+                path: "context/tasks/t.md",
+                kind: "tasks",
+                status: "completed",
+                sources: ["plan/p.md"],
+              },
+              {
+                path: "context/questions/open.md",
+                kind: "questions",
+                title: "Open question",
+                status: "active",
+              },
+              {
+                path: "context/questions/resolved.md",
+                kind: "questions",
+                title: "Resolved question",
+                status: "resolved",
+              },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+
+    expect(await screen.findByText("Unplanned")).toBeTruthy();
+    const viewer = Array.from(document.querySelectorAll(".tree-folder--objective")).find(
+      (folder) => folder.querySelector(".tree-folder__label")?.textContent === "viewer",
+    ) as HTMLElement;
+    expect(viewer.querySelector(".tree-folder__label")?.textContent).toBe("viewer");
+    expect(viewer.querySelector(".tree-folder__dot--warn")?.getAttribute("aria-label")).toBe(
+      "1/2 analyses completed",
+    );
+    expect(
+      document.querySelector(
+        'a[href="/docs/context/analysis/archived.md"] .tree-entry__dot--neutral',
+      ),
+    ).toBeTruthy();
+    const retired = Array.from(document.querySelectorAll(".tree-folder--objective")).find(
+      (folder) => folder.querySelector(".tree-folder__label")?.textContent === "retired",
+    );
+    expect(retired?.querySelector(".tree-folder__dot")).toBeNull();
+    expect(screen.getByLabelText("Question unresolved")).toBeTruthy();
+    expect(screen.getByLabelText("Question resolved")).toBeTruthy();
+
+    act(() => toggleHideCompleted());
+    await waitFor(() => {
+      expect(viewer.querySelector(".tree-folder__count")?.textContent).toBe("2");
+      expect(document.querySelector('a[href="/docs/context/analysis/archived.md"]')).toBeNull();
+      expect(viewer.querySelector(".tree-folder__dot--warn")?.getAttribute("aria-label")).toBe(
+        "1/2 analyses completed",
+      );
+      expect(
+        Array.from(document.querySelectorAll(".tree-folder--objective")).some(
+          (folder) => folder.querySelector(".tree-folder__label")?.textContent === "retired",
+        ),
+      ).toBe(false);
+    });
+  });
+
   it("shows the latest created date in objective group headers and orders groups by it under a date sort", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({

@@ -8,12 +8,14 @@ import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
 import {
   entryCompleted,
+  groupDot,
   normalizeRef,
-  planReferencedAnalyses,
+  plansByAnalysis,
   statusDot,
   taskProgress,
   taskProgressLabel,
   tasksByPlan,
+  type StatusDot,
 } from "../lib/statusDot";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
@@ -74,7 +76,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
       ?.scrollIntoView({ block: "nearest" });
   }, [entries, location.pathname, activeKind]);
 
-  const plannedAnalyses = planReferencedAnalyses(entries ?? []);
+  const plannedAnalyses = plansByAnalysis(entries ?? []);
   const gsort = groupSort(sortKey);
   // task→plan index for hide filtering, plan dots and task-group header dots
   const taskIndex = useMemo(() => tasksByPlan(entries ?? []), [entries]);
@@ -176,7 +178,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   );
 }
 
-type PlannedAnalyses = ReturnType<typeof planReferencedAnalyses>;
+type PlannedAnalyses = ReturnType<typeof plansByAnalysis>;
 
 /** Flat entry list for a kind folder. */
 function EntryList({
@@ -278,18 +280,22 @@ function GroupHeaderDate({ entries }: { entries: TreeEntry[] }) {
   return <span className="tree-folder__date">{formatFieldDate(date)}</span>;
 }
 
-/** Task-progress dot for a task-group header (red none done / yellow partial /
- *  green all done), labeled with the done/total count. */
-function GroupProgressDot({ entries }: { entries: TreeEntry[] }) {
-  const progress = taskProgress(entries);
+/** Status dot shared by plan and objective group headers. */
+function GroupProgressDot({ dot }: { dot: StatusDot | null }) {
+  if (!dot) return null;
   return (
     <span
-      className={`tree-folder__dot tree-folder__dot--${progress.tone}`}
-      title={taskProgressLabel(progress)}
-      aria-label={taskProgressLabel(progress)}
+      className={`tree-folder__dot tree-folder__dot--${dot.tone}`}
+      title={dot.label}
+      aria-label={dot.label}
       role="img"
     />
   );
+}
+
+function taskGroupDot(entries: TreeEntry[]): StatusDot {
+  const progress = taskProgress(entries);
+  return { tone: progress.tone, label: taskProgressLabel(progress) };
 }
 
 /** Task kind folder: tasks grouped under the plan they reference, tasks
@@ -325,7 +331,7 @@ function PlanEntries({
               <span className="tree-folder__text">
                 <span className="tree-folder__title-row">
                   <span className="tree-folder__label">{group.label}</span>
-                  <GroupProgressDot entries={group.entries} />
+                  <GroupProgressDot dot={taskGroupDot(group.entries)} />
                   <span className="tree-folder__count">{group.entries.length}</span>
                 </span>
                 <GroupHeaderDate entries={group.entries} />
@@ -374,6 +380,7 @@ function AnalysisEntries({
               <span className="tree-folder__text">
                 <span className="tree-folder__title-row">
                   <span className="tree-folder__label">{group.objective}</span>
+                  <GroupProgressDot dot={groupDot(group.entries, plannedAnalyses, taskIndex)} />
                   <span className="tree-folder__count">{group.entries.length}</span>
                 </span>
                 <GroupHeaderDate entries={group.entries} />

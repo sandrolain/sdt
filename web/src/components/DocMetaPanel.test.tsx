@@ -181,6 +181,50 @@ describe("DocMetaPanel", () => {
     expect(document.querySelector(".meta-status__dot--danger")).toBeTruthy();
   });
 
+  it("renders question lifecycle status in the metadata panel", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree") {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              entries: [{ path: "context/questions/q.md", kind: "questions", status: "active" }],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderPanel({
+      path: "context/questions/q.md",
+      frontmatter: "---\nkind: questions\nstatus: active\n---\n",
+      markdown: "body",
+    });
+    expect(await screen.findByText("Question unresolved")).toBeTruthy();
+    expect(document.querySelector(".meta-status__dot--danger")).toBeTruthy();
+  });
+
+  it("uses the neutral tone for an archived analysis metadata dot", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree") {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              entries: [{ path: "context/analysis/a.md", kind: "analysis", status: "archived" }],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderPanel({
+      path: "context/analysis/a.md",
+      frontmatter: "---\nkind: analysis\nstatus: archived\n---\n",
+      markdown: "body",
+    });
+    expect(await screen.findByText("Analysis archived")).toBeTruthy();
+    expect(document.querySelector(".meta-status__dot--neutral")).toBeTruthy();
+  });
+
   it("omits the status row for kinds without a tree status", () => {
     mockFetch();
     renderPanel({
