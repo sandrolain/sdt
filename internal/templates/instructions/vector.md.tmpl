@@ -1,0 +1,88 @@
+# Vector graphics — authoring doctrine
+
+`context/instructions/vector.md` is the contract for drawing a vector artefact
+(icon, logo, illustration, diagram) by hand or from code. It is format-agnostic:
+when the format is SVG, read it together with
+`context/instructions/vector-svg.md` (the SVG format contract) and
+`context/instructions/development.md` (library-first tool choice, simplicity,
+surgical changes).
+
+## When this applies (no-op rule)
+
+- Use it when the project draws or revises a vector artefact. If the project has
+  none, this file does not apply — say so and stop.
+- **SVG cannot be verified by reading it.** Every quality claim — legibility at
+  16 px, balance, whether a gradient works — needs a raster. Do not claim a
+  drawing is finished without having looked at one.
+
+## The loop (before declaring an artefact done)
+
+BRIEF → CONCEPT → BUILD → **RENDER → INSPECT → CRITIQUE → FIX → REPEAT** → EXPORT.
+
+1. **Brief** — settle the use case, where the artefact appears, at what size and
+   on what background before drawing anything.
+2. **Concept** — describe the subject, composition and palette in a few lines;
+   sketch complex subjects from simple shapes and a list of elements first.
+3. **Build** — in layers: large shapes first, then volumes, then details, then
+   accents (the format file covers the markup mechanics).
+4. **Render** — rasterise at the sizes it will be seen at (16/24/64 px for an
+   icon) with a tool the project already has: a browser, or `resvg`,
+   `rsvg-convert`, Inkscape from the command line.
+5. **Inspect** — look at the raster, not the markup. This is the step no amount of
+   written rules replaces.
+6. **Critique** — compare against the brief: proportions, balance, legibility at
+   small size, stroke consistency. Fix every failure.
+7. **Repeat** — two or three rounds beat one "perfect" first generation.
+8. **Export** — optimise, and keep a readable source (see `vector-svg.md`).
+
+## No rasteriser? Degrade honestly
+
+- If no rasteriser is available, run nothing, report the render step as
+  **SKIPPED — never PASSED**, and mark the quality claim `expected`, never
+  `passed`. State which claim is therefore unverified.
+- Do not install a tool unprompted. Choosing and installing one is a library-first
+  decision (`context/instructions/development.md`): propose a shortlist, get the
+  user's choice, and record the adopted tool in the project's own
+  `context/instructions/project.md`. A browser is usually the cheapest renderer
+  already present.
+
+## Concept before construction
+
+- Start from use case and dimensions, not from markup: what is this for, where
+  does it appear, at what size, on what background.
+- A logo, an icon and an inline diagram have different answers to "how much detail
+  survives at 16 px". Decide the level of detail from the smallest size it must
+  read at.
+- Choose one coordinate space and a grid up front, and choose **one** visual
+  philosophy (geometric, linear, flat, isometric, hand-drawn, textured) and
+  execute it fully; do not mix styles within one artefact.
+
+## Anti-slop (named defaults, not a style guide)
+
+These read as generated defaults. Treat the list as a smell detector: a
+deliberate, stated exception is legitimate; an unthinking default is not.
+
+- Purple→blue gradient family (`#6366f1` → `#8b5cf6`), or any gradient as a
+  reflex.
+- `font-family="Inter"` as a display face; template copy ("WELCOME TO",
+  "GET STARTED", "LEARN MORE").
+- Everything rounded (all `rect rx`), everything centred (`text-anchor="middle"`
+  for more than a few lines), three equal columns.
+- More than five colours, near-identical colours, or inconsistent stroke widths.
+- Floating card + glow + bokeh; paths with more than about ten nodes where ten
+  suffice; arbitrary coordinates with no grid.
+
+## Source fidelity
+
+- Never fabricate a reference, brand value or source. Extract exact brand colours,
+  fonts and shapes from what the user provided, and flag anything you add.
+- Do not invent a "reasonable" palette for a brand whose values you were given.
+
+## Boundary
+
+- Tool choice/install and code changes defer to
+  `context/instructions/development.md` (library-first, simplicity, surgical
+  changes).
+- The SVG-specific mechanics — skeleton, ids, accessibility, security,
+  optimisation, document management and size budgets — live in
+  `context/instructions/vector-svg.md`.
