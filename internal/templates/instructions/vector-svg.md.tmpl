@@ -1,0 +1,108 @@
+# SVG — format contract
+
+`context/instructions/vector-svg.md` is the markup contract for the SVG format.
+Read it together with `context/instructions/vector.md` (the authoring doctrine:
+concept first, then the render-inspect-critique-fix loop) whenever the vector
+artefact is SVG. Where this file and the project's existing SVG convention
+disagree, the project's convention wins.
+
+## Skeleton
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t d">
+  <title id="t">Short title</title>
+  <desc id="d">Description for a reader who cannot see it.</desc>
+  <!-- content -->
+</svg>
+```
+
+## Scaling
+
+- Always declare a `viewBox`; avoid fixed root `width`/`height` so the SVG adapts
+  to its container.
+- Choose a simple coordinate space (`24×24` for icons, `512×512` or `1000×1000`
+  for illustrations) and use integer or low-precision coordinates.
+- Declare `xmlns` on standalone files.
+- Documented exception: when physical size is the point (print), a fixed
+  `width`/`height` is legitimate.
+
+## Structure and ids
+
+- **Semantic, not positional, ids**: `logo-group`, `headline-text`,
+  `decorative-stripe-1`. Edit by id; never regenerate the whole file for a small
+  fix.
+- Group with `<g>` and put shared attributes on the group, not on every element.
+- Reuse what repeats (shapes, gradients, patterns) through `<defs>`, `<symbol>`
+  and `<use>`.
+
+## Drawing rules
+
+- Prefer primitives (`rect`, `circle`, `ellipse`, `line`, `polygon`) to `path`
+  when they suffice; in a `path`, use the fewest nodes that keep the curve smooth,
+  keep absolute/relative commands consistent, and close shapes with `Z`.
+- Constant stroke width per family; consistent `stroke-linecap`/`stroke-linejoin`;
+  `vector-effect="non-scaling-stroke"` when a stroke must not scale.
+- Colour: a limited, defined palette; `currentColor` for monochrome icons; CSS
+  variables with a fallback for a themed inline SVG; gradients only when they serve
+  a purpose, defined once in `<defs>` and reused; check contrast on light and dark
+  backgrounds.
+- Text: avoid `<text>` with external fonts (not guaranteed). If text is part of
+  the drawing, convert it to paths; if it must stay text, give a system-font
+  fallback list.
+- Effects: filters and masks cost rendering and support varies — use them
+  sparingly and check the result. Never embed a base64 raster in an SVG that must
+  stay vector.
+
+## Accessibility
+
+- Informative image: `role="img"` plus `<title>` and `<desc>`.
+- Decorative image: `aria-hidden="true"`.
+- Never carry meaning by colour alone.
+
+## Security (trust boundary)
+
+- No `<script>`, no event handlers (`onclick`, …), no `<foreignObject>` unless
+  justified, no references to external resources (remote `href`, `@import`).
+- Sanitise any third-party or user-supplied SVG before inlining it into a page.
+
+## Optimisation
+
+- Run the file through an optimiser (for example SVGO), preserving the `viewBox`
+  and the ids that are referenced.
+- Strip metadata, comments, editor attributes (Inkscape/Illustrator), empty groups
+  and unused defs; reduce numeric precision to one or two decimals.
+- Keep a readable source (groups + ids) and a separate optimised production copy.
+- Verify well-formed XML, and render in a browser **and** one independent
+  renderer.
+
+## Document management
+
+- Place an asset where the project's corpus keeps its assets; if there is no
+  existing convention, an `assets/` directory beside the documents that use it is
+  the default. Name files semantically (`brand-mark.svg`, not `final-v2.svg`).
+- Reference an asset by a path relative to the document that uses it, or through
+  the project's existing image/frontmatter convention — do not invent a new one.
+- Review an asset at the sizes it is actually shown at (16/24/64 px for icons)
+  before publishing it.
+
+## Size budgets (defaults, not laws)
+
+- Icon: under ~2 KB.
+- Simple illustration: under ~20–30 KB.
+- These are review signals with a reason (transferred bytes, parse cost); a
+  complex illustration legitimately exceeds them. Override knowingly by recording
+  the project's own budget.
+
+## Self-check (pass/fail, no score)
+
+State each rule as its own pass or fail — never collapse them into a score,
+because a score lets a file with a missing `viewBox` pass.
+
+- `viewBox` present; no unnecessary fixed root size.
+- Palette defined and respected; themes considered where relevant.
+- Render inspected visually, including at reduced size.
+- Style, strokes and detail level consistent (see `vector.md`).
+- Groups carry clear ids; repeated elements are reused.
+- `<title>`/`<desc>` or `aria-hidden` set.
+- No script, event handler, external reference or external font.
+- Optimised and still well-formed after optimisation.

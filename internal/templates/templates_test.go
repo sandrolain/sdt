@@ -147,6 +147,7 @@ func TestTemplateRenderRoundTrip(t *testing.T) {
 		"instructions/scripts.md.tmpl",
 		"instructions/tasks.md.tmpl",
 		"instructions/vector.md.tmpl",
+		"instructions/vector-svg.md.tmpl",
 		"instructions/wiki.md.tmpl",
 		"instructions/worklog.md.tmpl",
 	}
