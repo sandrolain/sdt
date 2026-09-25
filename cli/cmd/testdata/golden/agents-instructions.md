@@ -80,6 +80,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/browser-tools.md` | Choosing or using a browser-automation tool |
 | `context/instructions/vector.md` | Drawing or reviewing a vector artefact (icon, logo, illustration) |
 | `context/instructions/vector-svg.md` | Writing or optimising SVG markup |
+| `context/instructions/vector-tools.md` | Choosing or using an SVG render/verification tool |
 | `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |

@@ -1,0 +1,62 @@
+# Vector graphics — render tooling
+
+`context/instructions/vector-tools.md` profiles the external rasterisers that
+satisfy the render step of `context/instructions/vector.md` (the
+render-inspect-critique-fix loop) and states how to choose between them. The
+profiles are **defaults, not requirements**: a project may use any faithful
+renderer, and the choice is recorded in its own
+`context/instructions/project.md` (library-first, see
+`context/instructions/development.md`).
+
+## Why an external tool
+
+SVG cannot be verified by reading it, and no rasteriser is bundled with the
+project: rendering shells out to a tool the machine already has. Nothing here is
+installed automatically, and nothing is added to the CLI or to project scripts.
+
+## How to choose
+
+- **Faithful rendering** (legibility at 16 px, gradients, filters) → `resvg`, the
+  profiled default.
+- **Fallbacks** if `resvg` is absent → `rsvg-convert` (librsvg), Inkscape, then
+  ImageMagick; a headless browser screenshot or a manual browser look also counts
+  as a view.
+- **None present** → degrade: report the render step as **SKIPPED** (see
+  `vector.md`), never PASSED; do not install a tool unprompted.
+
+## Render recipe
+
+1. Rasterise the artefact at the sizes it is actually shown at — 16/24/64 px for
+   an icon or mark, the display width for an illustration.
+2. Write one PNG per size into a temporary review directory outside version
+   control (the project's scratch area), then **look** at them, on both a light
+   and a dark background.
+3. Optional: assemble the sizes into one contact sheet (for example with
+   ImageMagick `montage`) so a single glance compares them.
+4. Record what the look reveals, fix every failure, and render again.
+
+## `resvg` — default
+
+- Shape: a single self-contained Rust binary (also a library); no CGO, no browser.
+- Typical use: `resvg --width 64 icon.svg icon-64.png` (or `--zoom`); check
+  `resvg --help` for the installed version's flags.
+- Faithful for the shapes, strokes, gradients and text of ordinary UI and brand
+  SVG: it renders what the file contains rather than a browser's approximation.
+
+## Fallbacks
+
+- `rsvg-convert` (librsvg): `rsvg-convert -w 64 -h 64 icon.svg -o icon-64.png`.
+- Inkscape: `inkscape icon.svg --export-width=64 --export-filename=icon-64.png`.
+- ImageMagick: `magick icon.svg -resize 64x64 icon-64.png` — adequate for a quick
+  look, but its built-in SVG renderer is approximate; prefer a real SVG renderer
+  for a faithful check.
+- A headless browser screenshot of the SVG at the target size also produces the
+  raster to inspect.
+
+## Version scope
+
+- Bind to the installed tool, not to this profile: run its `--help` and re-verify
+  flags before relying on them. These tools evolve; this file is a starting point,
+  not a frozen contract.
+- No install recipe lives here. A project that adopts a renderer records how it is
+  installed and invoked in its own `context/instructions/project.md`.

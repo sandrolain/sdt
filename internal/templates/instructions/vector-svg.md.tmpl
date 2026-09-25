@@ -2,7 +2,8 @@
 
 `context/instructions/vector-svg.md` is the markup contract for the SVG format.
 Read it together with `context/instructions/vector.md` (the authoring doctrine:
-concept first, then the render-inspect-critique-fix loop) whenever the vector
+concept first, then the render-inspect-critique-fix loop) and
+`context/instructions/vector-tools.md` (the render tooling) whenever the vector
 artefact is SVG. Where this file and the project's existing SVG convention
 disagree, the project's convention wins.
 
@@ -73,7 +74,8 @@ disagree, the project's convention wins.
   and unused defs; reduce numeric precision to one or two decimals.
 - Keep a readable source (groups + ids) and a separate optimised production copy.
 - Verify well-formed XML, and render in a browser **and** one independent
-  renderer.
+  renderer (see `context/instructions/vector-tools.md` for the profiled tools and
+  the render recipe).
 
 ## Document management
 

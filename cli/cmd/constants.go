@@ -69,6 +69,7 @@ const (
 	sdtInstrBrowserTools = "context/instructions/browser-tools.md"
 	sdtInstrVector       = "context/instructions/vector.md"
 	sdtInstrVectorSvg    = "context/instructions/vector-svg.md"
+	sdtInstrVectorTools  = "context/instructions/vector-tools.md"
 	sdtScriptsIndex      = "context/scripts/index.md"
 	sdtWikiDir           = "context/wiki"
 	sdtIngestionDir      = "context/ingestion"

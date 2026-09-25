@@ -3,7 +3,8 @@
 `context/instructions/vector.md` is the contract for drawing a vector artefact
 (icon, logo, illustration, diagram) by hand or from code. It is format-agnostic:
 when the format is SVG, read it together with
-`context/instructions/vector-svg.md` (the SVG format contract) and
+`context/instructions/vector-svg.md` (the SVG format contract),
+`context/instructions/vector-tools.md` (the render tooling) and
 `context/instructions/development.md` (library-first tool choice, simplicity,
 surgical changes).
 
@@ -27,7 +28,9 @@ BRIEF → CONCEPT → BUILD → **RENDER → INSPECT → CRITIQUE → FIX → RE
    accents (the format file covers the markup mechanics).
 4. **Render** — rasterise at the sizes it will be seen at (16/24/64 px for an
    icon) with a tool the project already has: a browser, or `resvg`,
-   `rsvg-convert`, Inkscape from the command line.
+   `rsvg-convert`, Inkscape from the command line. See
+   `context/instructions/vector-tools.md` for the profiled choices, the recipe and
+   the honest-degradation rule.
 5. **Inspect** — look at the raster, not the markup. This is the step no amount of
    written rules replaces.
 6. **Critique** — compare against the brief: proportions, balance, legibility at
@@ -39,7 +42,8 @@ BRIEF → CONCEPT → BUILD → **RENDER → INSPECT → CRITIQUE → FIX → RE
 
 - If no rasteriser is available, run nothing, report the render step as
   **SKIPPED — never PASSED**, and mark the quality claim `expected`, never
-  `passed`. State which claim is therefore unverified.
+  `passed`. State which claim is therefore unverified (see
+  `context/instructions/vector-tools.md` for the fallback chain).
 - Do not install a tool unprompted. Choosing and installing one is a library-first
   decision (`context/instructions/development.md`): propose a shortlist, get the
   user's choice, and record the adopted tool in the project's own

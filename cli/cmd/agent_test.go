@@ -1576,6 +1576,30 @@ func TestAgentVectorTemplatesCoherence(t *testing.T) {
 	}
 }
 
+// TestAgentVectorToolsTemplatesCoherence guards the vector render-tooling
+// contract: the tool-profile file keeps the external-renderer default, the
+// fallback chain, the render recipe, the honest-degradation rule and the
+// no-install-recipe boundary.
+func TestAgentVectorToolsTemplatesCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Vector graphics — render tooling",
+		"resvg",
+		"rsvg-convert",
+		"Inkscape",
+		"ImageMagick",
+		"SKIPPED",
+		"never PASSED",
+		"not requirements",
+		"16/24/64 px",
+		"library-first",
+		"vector.md",
+	} {
+		if !strings.Contains(instrVectorToolsTemplate, want) {
+			t.Errorf("expected %q in vector-tools template:\n%s", want, instrVectorToolsTemplate)
+		}
+	}
+}
+
 // TestAgentVectorTemplatesViewerFree enforces the generated-set invariant that
 // the agent must not know the viewer: the vector module templates and their
 // generated repo copies must contain no `viewer`/`sdtviewer` token. The match is
@@ -1586,8 +1610,10 @@ func TestAgentVectorTemplatesViewerFree(t *testing.T) {
 	files := []string{
 		filepath.Join("..", "..", "internal", "templates", "instructions", "vector.md.tmpl"),
 		filepath.Join("..", "..", "internal", "templates", "instructions", "vector-svg.md.tmpl"),
+		filepath.Join("..", "..", "internal", "templates", "instructions", "vector-tools.md.tmpl"),
 		filepath.Join("..", "..", "context", "instructions", "vector.md"),
 		filepath.Join("..", "..", "context", "instructions", "vector-svg.md"),
+		filepath.Join("..", "..", "context", "instructions", "vector-tools.md"),
 	}
 	for _, path := range files {
 		data, err := os.ReadFile(path)

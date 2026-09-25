@@ -86,6 +86,7 @@ func instructionFiles(project, group string) []instructionFile {
 		{name: filepath.Base(sdtInstrBrowserTools), body: instrBrowserToolsTemplate},
 		{name: filepath.Base(sdtInstrVector), body: instrVectorTemplate},
 		{name: filepath.Base(sdtInstrVectorSvg), body: instrVectorSvgTemplate},
+		{name: filepath.Base(sdtInstrVectorTools), body: instrVectorToolsTemplate},
 	}
 }
 
