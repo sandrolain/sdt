@@ -1,0 +1,56 @@
+# Browser automation — tool profiles
+
+`context/instructions/browser-tools.md` profiles the browser-automation drivers
+that fit SDT's protocol (`context/instructions/browser.md`) and states how to
+choose between them. The profiles are **defaults, not requirements**: a project
+may use any driver with the same capabilities, and the choice is recorded in its
+own `context/instructions/project.md` (library-first, see
+`context/instructions/development.md`).
+
+## How to choose
+
+- **Layout truth** (pixel geometry, computed styles, both color schemes) → a
+  real-engine driver. `agent-browser` is the profiled default.
+- **Read-only extraction / eval / parallel scrape** (no layout assertion) → a
+  self-contained engine. `obscura` is the profiled default.
+- **Neither present** → degrade: report the render step as **SKIPPED** (see
+  `browser.md`), never PASSED; do not install a driver unprompted.
+- Both drivers share the wait-by-outcome discipline and the
+  pixel-diff-is-a-tripwire rule from `browser.md`.
+
+## `agent-browser` (Vercel Labs) — default for layout truth
+
+- Shape: a Rust CLI over a native daemon that drives **real Chrome/Chromium via
+  CDP**; the daemon auto-starts, persists between commands and idle-times out.
+- Agent-first interface: `snapshot` returns a compact accessibility tree with
+  stable refs; `screenshot --annotate` overlays numbered labels that map 1:1 onto
+  refs; `diff snapshot|screenshot|url` gives structural/pixel diffs with a
+  threshold and dimension-mismatch detection.
+- Verification primitives: `set viewport` / `set device` / `--color-scheme`,
+  `get box`, `get styles`, `a11y` (embedded axe-core, no CDN), `vitals`
+  (LCP/CLS/TTFB/FCP/INP), `record`.
+- Security controls (opt-in): allowed domains, per-category action policy,
+  confirmation prompts, output cap, content boundaries.
+- Costs: a Chromium download and a persistent daemon — set an idle timeout and
+  run `doctor` before blaming the tool.
+
+## `obscura` (Apache-2.0) — default for read-only extraction
+
+- Shape: a self-contained Rust engine with **no Chromium**; it owns the DOM,
+  layout and paint and runs JS through V8. It ships a CLI, a CDP server and an
+  MCP server.
+- Interface: `fetch --dump html|text|links|markdown|assets|original|cookies`,
+  `--eval`, `--screenshot`, `--wait-until`, parallel `scrape`, `serve`.
+- Its own docs state that long-tail CSS, some Web APIs, media and platform font
+  rasterization may differ from Chromium: it is **not a layout oracle**.
+- Fit: quick content dumps, resource/SSR debugging, cheap checks and parallel
+  extraction before deciding a real browser session is needed.
+
+## Version scope
+
+- Bind to the installed driver, not to this profile: run the tool's own help or
+  CLI-served skills (`--help`, `skills get ...`) and re-verify flags before
+  relying on them. Both tools evolve quickly; this file is a starting point, not
+  a frozen contract.
+- No install recipe lives here. A project that adopts a driver records how it is
+  installed and invoked in its own `context/instructions/project.md`.
