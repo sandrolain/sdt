@@ -4,6 +4,18 @@
 executed prompt and its provenance. Read this file when creating, revising, or
 running a prompt that contributes to an analysis, procedure, proposal, or decision.
 
+## Create
+
+Create a new prompt record with the CLI (scaffolds the dated path and
+frontmatter):
+
+```bash
+sdt context new --type prompt --title "<title>"
+```
+
+Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below.
+
 ## Contract
 
 Every prompt starts with frontmatter:
@@ -12,7 +24,7 @@ Every prompt starts with frontmatter:
 kind: prompt
 title: "Prompt title"
 summary: "1-2 sentence index summary — MANDATORY"
-status: draft # draft | active | archived
+status: draft # draft | active | archived — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 derived_from:

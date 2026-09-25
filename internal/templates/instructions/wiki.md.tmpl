@@ -5,6 +5,18 @@ sources. Read this file when **writing or updating** a wiki page — including
 plain editing of an existing page, not only the full ingestion pipeline (that
 pipeline is owned by `context/instructions/ingestion.md`).
 
+## Create
+
+Create a new wiki page with the CLI (scaffolds the subpath and frontmatter):
+
+```bash
+sdt context new --type wiki --slug "<subpath>" --title "<title>"
+```
+
+Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below; the full page schema lives in
+`context/instructions/ingestion.md`.
+
 ## Page contract
 
 Every page keeps the stable machine envelope. The frontmatter fields, body
@@ -12,6 +24,9 @@ anatomy (`## Summary`/`## Claims`/`## Notes`), the closed relation verb
 vocabulary and the concept budget are defined in `context/instructions/ingestion.md` —
 read that for the full schema.
 
+- Wiki page `status` (`draft`/`active`/`archived`) is defined in the status
+  matrix `context/architecture/stack.md`; archive semantics stay in
+  `context/instructions/ingestion.md`.
 - **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
 - Body anatomy is **adaptive**: the page body takes the form that best fits the
   material (prose, procedure, comparison, timeline...). Summary / Claims / Notes

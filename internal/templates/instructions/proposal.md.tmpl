@@ -4,6 +4,17 @@
 an implementation or architectural decision. Read this file when creating or
 reviewing a proposal.
 
+## Create
+
+Create a new proposal with the CLI (scaffolds the dated path and frontmatter):
+
+```bash
+sdt context new --type proposal --title "<title>"
+```
+
+Timestamps (`created`/`updated`) come from `sdt time iso` (ISO 8601 UTC).
+Or hand-write the file from the template below.
+
 ## Contract
 
 Every proposal starts with frontmatter:
@@ -13,7 +24,7 @@ kind: proposal
 title: "One-line proposal title"
 summary: "1-2 sentence index summary — MANDATORY"
 context: "Problem or opportunity"
-status: draft # draft | review | accepted | rejected | superseded
+status: draft # draft | review | accepted | rejected | superseded — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:

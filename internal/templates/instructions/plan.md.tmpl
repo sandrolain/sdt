@@ -5,6 +5,17 @@ work, derived from the related analysis. Plans are **living documents**: they ar
 updated during execution, not frozen. A plan exists to produce task files; a plan
 without tasks has no execution value.
 
+## Create
+
+Create a new plan with the CLI (scaffolds the dated path and frontmatter):
+
+```bash
+sdt context new --type plan --title "<title>"
+```
+
+Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below.
+
 ## Intent first
 
 A plan is required before implementation and derives from an analysis; the
@@ -44,7 +55,7 @@ Follow strictly — the plan defines the work, the task files execute it:
 kind: plan
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<objective / what triggered the plan>"
-status: active
+status: active            # active | completed | abandoned — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:

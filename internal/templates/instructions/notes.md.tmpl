@@ -3,6 +3,17 @@
 `context/notes/<YYYYMMDD-HHMMSS>-<slug>.md` hold free-form annotations that
 do not fit plan/web log/task files.
 
+## Create
+
+Create a new note with the CLI (scaffolds the dated path and frontmatter):
+
+```bash
+sdt context new --type notes --slug <slug>
+```
+
+`created` comes from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below.
+
 ## Structure
 
 Low ceremony: frontmatter header + free-form body.

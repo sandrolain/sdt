@@ -5,6 +5,17 @@ Numbered with 4 digits (0001, 0002, ...), in chronological order, append-only.
 A new decision creates a new record with the next number; existing decision
 records are never rewritten in place.
 
+## Create
+
+Create a new decision record with the CLI (auto-assigns the next NNNN):
+
+```bash
+sdt context new --type decision --title "<title>" [--number NNNN]
+```
+
+`created` comes from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below.
+
 ## Structure
 
 ```markdown
@@ -13,7 +24,7 @@ kind: decision
 number: NNNN
 title: "<one-line title>"
 summary: "<1-2 sentence summary — MANDATORY, index source>"
-status: proposed   # proposed | accepted | rejected | deprecated | superseded
+status: proposed   # proposed | accepted | rejected | deprecated | superseded — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 links:
   - architecture/stack.md

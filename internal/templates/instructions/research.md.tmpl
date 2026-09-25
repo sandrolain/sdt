@@ -5,6 +5,18 @@ research run (deepsearch, web/document sweep, spike) and its provenance. Read
 this file when running or writing up research that feeds an analysis, proposal
 or decision.
 
+## Create
+
+Create a new research note with the CLI (scaffolds the dated path and
+frontmatter):
+
+```bash
+sdt context new --type research --title "<title>"
+```
+
+Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below.
+
 ## Contract
 
 Every research note starts with frontmatter:
@@ -15,7 +27,7 @@ title: "One-line research title"
 summary: "1-2 sentence index summary — MANDATORY"
 subject: "The question this run answers"
 context: "Why this research was requested"
-status: draft # draft | active | archived
+status: draft # draft | active | archived — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 sources:            # provenance: the driving prompt + evidence refs

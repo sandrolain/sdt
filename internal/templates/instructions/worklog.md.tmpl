@@ -4,6 +4,18 @@
 completed change: what changed and why. Append-only history; do not rewrite
 existing entries.
 
+## Create
+
+Create a new worklog entry with the CLI (scaffolds the dated path and
+frontmatter):
+
+```bash
+sdt context new --type worklog --title "<title>"
+```
+
+Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below.
+
 ## Structure
 
 ```markdown

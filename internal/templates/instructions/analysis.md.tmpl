@@ -3,6 +3,17 @@
 `context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md` hold investigation and
 implementation plans. They are important while open, less once implemented.
 
+## Create
+
+Create a new analysis with the CLI (scaffolds the dated path and frontmatter):
+
+```bash
+sdt context new --type analysis --title "<title>" [--objective <slug>] [--prior-art]
+```
+
+Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below.
+
 ## Purpose
 
 - Record a reasoning/decision process: what was examined, what was decided, why.
@@ -26,7 +37,7 @@ objective: <slug>         # optional: kebab-case group key; same slug in every
                           # analysis targeting the same objective
 topics: [<topic>, ...]    # optional: controlled subjects from context/topics.yaml
 entities: [<entity>, ...] # optional: named things the analysis mentions
-status: active            # active | draft | archived
+status: active            # active | draft | archived — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:                    # optional related documents

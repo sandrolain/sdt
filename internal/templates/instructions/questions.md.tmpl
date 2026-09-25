@@ -5,6 +5,18 @@ unresolved points that need the user's decision before a piece of work can
 proceed. Analysis and plan documents must NOT contain open points: surface them
 here instead.
 
+## Create
+
+Create a new open-questions doc with the CLI (scaffolds the dated path and
+frontmatter):
+
+```bash
+sdt context new --type questions --title "<title>"
+```
+
+Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
+Or hand-write the file from the template below.
+
 ## Structure
 
 ```markdown
@@ -12,7 +24,7 @@ here instead.
 kind: questions
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<objective / what triggered the open points>"
-status: active            # active | resolved
+status: active            # active | resolved — statuses defined in the matrix (architecture/stack.md)
 sources:                  # document(s) where the points surfaced
   - analysis/<date>-<slug>.md
 created: "<ISO 8601>"

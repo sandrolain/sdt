@@ -16,7 +16,7 @@ kind: commands
 id: commands/triage
 title: ">triage — agent-invokable task trigger"
 summary: "Thin agent command: invoked by the >triage trigger. Proceeds per context/instructions/research.md (the durable contract). Approve-before-write gate."
-status: active
+status: active # statuses for the commands kind are defined in the matrix (architecture/stack.md)
 links:
   - commands/index.md
   - instructions/research.md

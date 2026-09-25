@@ -188,6 +188,14 @@ section of the `<!-- sdt:begin:project -->` block and record the change in
 
 - **No H1 title** — document bodies start at H2; the frontmatter title is the
   document title, rendered once by the viewer.
+- **Statuses** — per-type `status` vocabularies (defaults, `draft`/`active`/
+  `archived` semantics, `reference` kind) are defined once in the status matrix:
+  `context/architecture/stack.md`. Validate before setting.
+- **Create with the CLI first** — every `context/` work file is scaffolded
+  with `sdt context new --type <t>` (or `sdt context task` for per-phase task
+  lists); hand-write only what the CLI does not cover. Timestamps
+  (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC). See the
+  per-type files for exact commands.
 
 ### Keep the chain (recap)
 

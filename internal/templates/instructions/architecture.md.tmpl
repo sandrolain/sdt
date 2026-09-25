@@ -3,6 +3,19 @@
 `context/architecture/` holds the living architecture documentation:
 `stack.md`, `map.md`, `flows.md`, `components.md`, ...
 
+## Create
+
+Create a new architecture file with the CLI (scaffolds the kebab-case path and
+frontmatter):
+
+```bash
+sdt context new --type architecture --title "<title>"
+```
+
+For `stack.md` itself (when it does not exist yet) or updates to existing
+documents, hand-edit the file. Timestamps (`created`/`updated`) come from
+`sdt time iso` (RFC3339 UTC).
+
 ## Structure
 
 One file per system/component. Every file is self-sufficient: assume the reader
@@ -13,7 +26,7 @@ has zero prior context.
 kind: architecture
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<what this architecture covers and why>"
-status: current            # draft | current | superseded
+status: draft             # draft | current | superseded — statuses defined in the matrix (architecture/stack.md)
 component: "<slug>"        # e.g. config-loading, task-index
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
