@@ -1538,6 +1538,68 @@ func TestAgentBrowserTemplatesViewerFree(t *testing.T) {
 	}
 }
 
+// TestAgentVectorTemplatesCoherence guards the vector/SVG authoring module
+// contract: the loop-first doctrine (vector.md) and the exact SVG format
+// contract (vector-svg.md) must survive edits.
+func TestAgentVectorTemplatesCoherence(t *testing.T) {
+	for _, want := range []string{
+		"# Vector graphics — authoring doctrine",
+		"BRIEF → CONCEPT → BUILD",
+		"SKIPPED — never PASSED",
+		"Anti-slop",
+		"deliberate, stated exception is legitimate",
+		"Source fidelity",
+		"do not mix styles within one artefact",
+		"vector-svg.md",
+	} {
+		if !strings.Contains(instrVectorTemplate, want) {
+			t.Errorf("expected %q in vector template:\n%s", want, instrVectorTemplate)
+		}
+	}
+	for _, want := range []string{
+		"# SVG — format contract",
+		"viewBox",
+		"Semantic, not positional, ids",
+		`role="img"`,
+		`aria-hidden="true"`,
+		"No `<script>`",
+		"Sanitise any third-party",
+		"SVGO",
+		"defaults, not laws",
+		"no score",
+		"Document management",
+		"vector.md",
+	} {
+		if !strings.Contains(instrVectorSvgTemplate, want) {
+			t.Errorf("expected %q in vector-svg template:\n%s", want, instrVectorSvgTemplate)
+		}
+	}
+}
+
+// TestAgentVectorTemplatesViewerFree enforces the generated-set invariant that
+// the agent must not know the viewer: the vector module templates and their
+// generated repo copies must contain no `viewer`/`sdtviewer` token. The match is
+// word-boundary, because a plain search false-positives on "review"; the scope is
+// this module only — the set-wide gate belongs to the portability-audit line.
+func TestAgentVectorTemplatesViewerFree(t *testing.T) {
+	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
+	files := []string{
+		filepath.Join("..", "..", "internal", "templates", "instructions", "vector.md.tmpl"),
+		filepath.Join("..", "..", "internal", "templates", "instructions", "vector-svg.md.tmpl"),
+		filepath.Join("..", "..", "context", "instructions", "vector.md"),
+		filepath.Join("..", "..", "context", "instructions", "vector-svg.md"),
+	}
+	for _, path := range files {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if m := re.FindString(string(data)); m != "" {
+			t.Errorf("%s contains forbidden viewer token %q", path, m)
+		}
+	}
+}
+
 // TestAgentLessonsTemplateCoherence guards the lessons instruction contract:
 // dated entries, the standardized confidence vocabulary, reinforcement and the
 // decision-log pointer must survive edits.
