@@ -60,7 +60,7 @@ describe("app shell", () => {
   it("navigates from the tree to the doc detail", async () => {
     globalThis.fetch = mockFetch as typeof fetch;
     renderApp();
-    const entry = await screen.findByTitle("context/wiki/alpha.md · wiki");
+    const entry = await screen.findByTitle("context/wiki/alpha.md · Wiki");
     await userEvent.click(entry);
     await screen.findByText(/Hello tokens/);
   });
@@ -70,8 +70,9 @@ describe("app shell", () => {
     renderApp();
     await screen.findByText("A note");
     const tree = screen.getByRole("complementary", { name: "Corpus tree" });
-    // both canvas badge and the canvas entry exist
-    expect(within(tree).getAllByText("canvas").length).toBeGreaterThan(0);
+    // both the canvas folder and the wiki folder exist with human labels
+    expect(within(tree).getAllByText("Canvas").length).toBeGreaterThan(0);
+    expect(within(tree).getAllByText("Wiki").length).toBeGreaterThan(0);
   });
 
   it("cycles the theme preference on toggle", async () => {

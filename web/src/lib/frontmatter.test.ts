@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   booleanValue,
@@ -8,6 +9,8 @@ import {
   isRelationVerb,
   parseFieldDate,
   parseFrontmatter,
+  STATUS_VALUES,
+  valueLabel,
   verbLabel,
 } from "./frontmatter";
 
@@ -32,9 +35,12 @@ describe("parseFrontmatter", () => {
     expect(fields[3].values).toEqual(["analysis/a.md", "plan/b.md"]);
   });
 
-  it("labels known keys and passes unknown keys through", () => {
+  it("labels known keys and title-cases unknown keys", () => {
     expect(fieldLabel("created")).toBe("Created");
-    expect(fieldLabel("custom")).toBe("custom");
+    expect(fieldLabel("objective")).toBe("Objective");
+    expect(fieldLabel("topics")).toBe("Topics");
+    expect(fieldLabel("custom")).toBe("Custom");
+    expect(fieldLabel("some_custom_key")).toBe("Some custom key");
   });
 
   it("parses nested relation verbs into their own labelled field", () => {
@@ -65,6 +71,57 @@ describe("parseFrontmatter", () => {
   it("returns an empty list without frontmatter", () => {
     expect(parseFrontmatter(undefined)).toEqual([]);
     expect(parseFrontmatter("")).toEqual([]);
+  });
+});
+
+describe("valueLabel", () => {
+  it("resolves known closed-vocabulary values", () => {
+    expect(valueLabel("analysis", "archived")?.tone).toBe("neutral");
+    expect(valueLabel("plan", "completed")?.label).toBe("Completed");
+    expect(valueLabel("questions", "active")?.tone).toBe("danger");
+  });
+
+  it("normalises case and whitespace", () => {
+    expect(valueLabel("analysis", " ARCHIVED ")?.tone).toBe("neutral");
+  });
+
+  it("returns null for an unknown value or kind", () => {
+    expect(valueLabel("analysis", "completed")).toBeNull();
+    expect(valueLabel("nope", "active")).toBeNull();
+  });
+});
+
+describe("status vocabulary drift guard", () => {
+  // The status matrix in context/architecture/stack.md is the prose source of
+  // truth; this guards the hand-maintained frontend table against drift.
+  const matrix = readFileSync(
+    new URL("../../../context/architecture/stack.md", import.meta.url),
+    "utf8",
+  );
+
+  /** Parse the `| kind | default | \`a\` · \`b\` | meaning |` rows. */
+  function matrixVocab(): Map<string, string[]> {
+    const rows = new Map<string, string[]>();
+    for (const line of matrix.split("\n")) {
+      const m = /^\|\s*([a-z]+)\s*\|[^|]*\|([^|]*)\|/.exec(line);
+      if (!m) continue;
+      const statuses = [...m[2].matchAll(/`([a-z-]+)`/g)].map((x) => x[1]);
+      // `reference` describes fan-in sources outside the registry; excluded.
+      if (m[1] === "reference" || statuses.length === 0) continue;
+      rows.set(m[1], statuses);
+    }
+    return rows;
+  }
+
+  it("matches the frontend table per kind", () => {
+    const rows = matrixVocab();
+    expect(rows.size).toBeGreaterThan(5);
+    for (const [kind, statuses] of rows) {
+      const frontend = Object.keys(STATUS_VALUES)
+        .filter((key) => key.startsWith(`${kind}.`))
+        .map((key) => key.slice(kind.length + 1));
+      expect(frontend.sort(), `kind ${kind}`).toEqual([...statuses].sort());
+    }
   });
 });
 

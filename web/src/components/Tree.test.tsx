@@ -42,23 +42,23 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     expect(await screen.findByText("Alpha")).toBeTruthy();
-    // folder headers carry the kind label (no per-entry badges anymore)
-    expect(screen.getAllByText("wiki").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
+    // folder headers carry the human kind label (no per-entry badges anymore)
+    expect(screen.getAllByText("Wiki").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Notes").length).toBeGreaterThan(0);
     // per-entry kind badges are gone from the rows
     expect(document.querySelector(".tree-entry__kind")).toBeNull();
     // folder counts live in the folder header
     const headers = Array.from(document.querySelectorAll(".tree-folder__header"));
-    const countFor = (kind: string) =>
+    const countFor = (label: string) =>
       headers
-        .find((h) => h.querySelector(".tree-folder__label")?.textContent === kind)
+        .find((h) => h.querySelector(".tree-folder__label")?.textContent === label)
         ?.querySelector(".tree-folder__count")?.textContent;
-    expect(countFor("wiki")).toBe("3");
-    expect(countFor("notes")).toBe("1");
+    expect(countFor("Wiki")).toBe("3");
+    expect(countFor("Notes")).toBe("1");
     // empty kind folders render at count 0 (questions/proposals/research/…)
-    expect(countFor("questions")).toBe("0");
-    expect(countFor("proposals")).toBe("0");
-    expect(countFor("commands")).toBe("0");
+    expect(countFor("Questions")).toBe("0");
+    expect(countFor("Proposals")).toBe("0");
+    expect(countFor("Commands")).toBe("0");
   });
 
   it("renders mermaid documents in their own folder, linked to the docs route", async () => {
@@ -73,7 +73,7 @@ describe("Tree", () => {
     const labels = Array.from(document.querySelectorAll(".tree-folder__label")).map(
       (h) => h.textContent,
     );
-    expect(labels).toContain("mermaid");
+    expect(labels).toContain("Diagrams");
     expect(document.querySelector('a[href="/docs/context/wiki/flow.mmd"]')).toBeTruthy();
   });
 
@@ -87,8 +87,8 @@ describe("Tree", () => {
       Array.from(document.querySelectorAll(".tree-folder")).find(
         (h) => h.querySelector(".tree-folder__label")?.textContent === label,
       );
-    expect(folder("questions")?.querySelector(".tree-empty")?.textContent).toBe("No documents.");
-    expect(folder("wiki")?.querySelector(".tree-empty")).toBeNull();
+    expect(folder("Questions")?.querySelector(".tree-empty")?.textContent).toBe("No documents.");
+    expect(folder("Wiki")?.querySelector(".tree-empty")).toBeNull();
   });
 
   it("shows status dots for plans, tasks and unplanned analyses", async () => {
@@ -137,7 +137,7 @@ describe("Tree", () => {
     await screen.findByText("Prompt");
     const headers = Array.from(document.querySelectorAll(".tree-folder__header"));
     const prompts = headers.find(
-      (h) => h.querySelector(".tree-folder__label")?.textContent === "prompts",
+      (h) => h.querySelector(".tree-folder__label")?.textContent === "Prompts",
     );
     expect(prompts?.querySelector(".tree-folder__count")?.textContent).toBe("1");
   });
@@ -249,9 +249,9 @@ describe("Tree", () => {
         (h) => h.querySelector(".tree-folder__label")?.textContent === label,
       );
     await waitFor(() => {
-      expect(folder("notes")?.hasAttribute("open")).toBe(true);
+      expect(folder("Notes")?.hasAttribute("open")).toBe(true);
     });
-    expect(folder("wiki")?.hasAttribute("open")).toBe(false);
+    expect(folder("Wiki")?.hasAttribute("open")).toBe(false);
   });
 
   it("starts kind folders collapsed", async () => {
@@ -277,7 +277,7 @@ describe("Tree", () => {
     expect(glyph?.querySelector(".ms-icon")?.textContent).toBe("analytics");
     expect(glyph?.getAttribute("style")).toBeNull();
     // the hover title ends with the kind
-    expect(link.getAttribute("title")).toBe("context/analysis/a.md · analysis");
+    expect(link.getAttribute("title")).toBe("context/analysis/a.md · Analyses");
   });
 
   it("shows a date line from frontmatter or the filename prefix", async () => {

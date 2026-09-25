@@ -37,11 +37,24 @@ export const KIND_ORDER: EntryKind[] = [
   "other",
 ];
 
-/** Folder labels for kinds whose section name differs from the raw kind. */
-const KIND_LABELS: Partial<Record<EntryFilterKind, string>> = {
-  decision: "decisions",
-  proposal: "proposals",
-  prompt: "prompts",
+/** Human plural labels for every kind's tree section header. */
+const KIND_LABELS: Record<EntryFilterKind, string> = {
+  wiki: "Wiki",
+  analysis: "Analyses",
+  notes: "Notes",
+  tasks: "Tasks",
+  plan: "Plans",
+  worklog: "Work log",
+  decision: "Decisions",
+  questions: "Questions",
+  architecture: "Architecture",
+  proposal: "Proposals",
+  prompt: "Prompts",
+  commands: "Commands",
+  research: "Research",
+  mermaid: "Diagrams",
+  other: "Other",
+  canvas: "Canvas",
 };
 
 /** Map a raw entry to a display kind. Canvas entries are treated as their own kind. */
@@ -53,9 +66,7 @@ export function entryKind(e: TreeEntry): EntryFilterKind {
 }
 
 export function kindLabel(k: EntryFilterKind): string {
-  // Most corpus kind names read naturally as labels; a few use an explicit
-  // section name (e.g. decisions/proposals/prompts).
-  return KIND_LABELS[k] ?? k;
+  return KIND_LABELS[k] ?? KIND_LABELS.other;
 }
 
 /** Material Symbols glyph for a kind folder/entry. */

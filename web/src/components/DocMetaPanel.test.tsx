@@ -59,13 +59,13 @@ describe("DocMetaPanel", () => {
     mockFetch();
     renderPanel(DOC);
     expect(screen.getByText("Kind")).toBeTruthy();
-    expect(screen.getByText("notes")).toBeTruthy();
+    expect(screen.getByText("Notes")).toBeTruthy();
     expect(screen.getByText("alpha")).toBeTruthy();
     expect(screen.getByText("beta")).toBeTruthy();
     const link = screen.getAllByText("A")[0];
     expect(link.getAttribute("href")).toBe("/docs/context/analysis/a.md");
-    // kind glyph + colour from the corpus path fallback
-    expect(screen.getAllByLabelText("kind: analysis").length).toBeGreaterThan(0);
+    // kind glyph + colour from the corpus path fallback, with the human label
+    expect(screen.getAllByLabelText("Analyses").length).toBeGreaterThan(0);
     // sources under context/commands resolve as real corpus links (kind commands)
     const cmd = screen.getAllByText("C")[0];
     expect(cmd.getAttribute("href")).toBe("/docs/context/commands/c.md");
@@ -177,8 +177,32 @@ describe("DocMetaPanel", () => {
       markdown: "body",
     });
     expect(await screen.findByText("Plan not started")).toBeTruthy();
-    expect(screen.getAllByText("Status").length).toBeGreaterThan(0);
+    expect(screen.getByText("Progress")).toBeTruthy();
     expect(document.querySelector(".meta-status__dot--danger")).toBeTruthy();
+  });
+
+  it("decorates the declared status with its label and meaning tooltip", async () => {
+    mockFetch();
+    renderPanel({
+      path: "context/analysis/a.md",
+      frontmatter: "---\nkind: analysis\nstatus: archived\n---\n",
+      markdown: "body",
+    });
+    expect(screen.getByText("Status")).toBeTruthy();
+    const value = screen.getByText("Archived");
+    expect(value.getAttribute("title")).toBe("Superseded and closed");
+    expect(document.querySelector(".meta-status__dot--neutral")).toBeTruthy();
+  });
+
+  it("degrades an out-of-vocabulary status to neutral with the raw value", () => {
+    mockFetch();
+    renderPanel({
+      path: "context/analysis/a.md",
+      frontmatter: "---\nkind: analysis\nstatus: completed\n---\n",
+      markdown: "body",
+    });
+    const value = screen.getByText("completed");
+    expect(value.getAttribute("title")).toBe("completed");
   });
 
   it("renders question lifecycle status in the metadata panel", async () => {
@@ -200,6 +224,7 @@ describe("DocMetaPanel", () => {
       markdown: "body",
     });
     expect(await screen.findByText("Question unresolved")).toBeTruthy();
+    expect(screen.getByText("Progress")).toBeTruthy();
     expect(document.querySelector(".meta-status__dot--danger")).toBeTruthy();
   });
 
@@ -222,17 +247,19 @@ describe("DocMetaPanel", () => {
       markdown: "body",
     });
     expect(await screen.findByText("Analysis archived")).toBeTruthy();
+    expect(screen.getByText("Progress")).toBeTruthy();
     expect(document.querySelector(".meta-status__dot--neutral")).toBeTruthy();
   });
 
-  it("omits the status row for kinds without a tree status", () => {
+  it("shows the declared status but no derived progress row without a tree status", () => {
     mockFetch();
     renderPanel({
       path: "context/notes/x.md",
-      frontmatter: "---\nkind: notes\n---\n",
+      frontmatter: "---\nkind: notes\nstatus: active\n---\n",
       markdown: "body",
     });
-    expect(document.querySelector(".meta-status")).toBeNull();
+    expect(screen.getByText("Status")).toBeTruthy();
+    expect(screen.queryByText("Progress")).toBeNull();
   });
 
   it("renders the relations card for a wiki page", async () => {

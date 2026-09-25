@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api";
-import { availableKinds, entryKind, kindFromPath, kindLabel } from "./kinds";
+import { availableKinds, entryKind, KIND_ORDER, kindFromPath, kindLabel } from "./kinds";
 
 function entry(patch: Partial<TreeEntry>): TreeEntry {
   return { path: "context/x/a.md", ...patch };
@@ -56,10 +56,20 @@ describe("kindFromPath", () => {
 });
 
 describe("kindLabel", () => {
-  it("labels kinds verbatim, canvas singular", () => {
-    expect(kindLabel("analysis")).toBe("analysis");
-    expect(kindLabel("notes")).toBe("notes");
-    expect(kindLabel("canvas")).toBe("canvas");
+  it("labels kinds with human plurals", () => {
+    expect(kindLabel("analysis")).toBe("Analyses");
+    expect(kindLabel("notes")).toBe("Notes");
+    expect(kindLabel("plan")).toBe("Plans");
+    expect(kindLabel("worklog")).toBe("Work log");
+    expect(kindLabel("decision")).toBe("Decisions");
+    expect(kindLabel("mermaid")).toBe("Diagrams");
+    expect(kindLabel("other")).toBe("Other");
+  });
+
+  it("has a label for every kind", () => {
+    for (const kind of KIND_ORDER) {
+      expect(kindLabel(kind)).toBeTruthy();
+    }
   });
 });
 

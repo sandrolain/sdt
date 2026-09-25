@@ -15,11 +15,20 @@ import {
   formatFieldDate,
   isRelationVerb,
   parseFrontmatter,
+  valueLabel,
   type FrontmatterField,
+  type ValueTone,
 } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
-import { kindColor, kindIcon, type EntryFilterKind } from "../lib/kinds";
+import {
+  entryKind,
+  kindColor,
+  kindIcon,
+  kindLabel,
+  kindFromPath,
+  type EntryFilterKind,
+} from "../lib/kinds";
 import { parseOutline, type OutlineItem } from "../lib/outline";
 import { requestSection } from "../lib/sectionRequests";
 import { plansByAnalysis, statusDot, tasksByPlan } from "../lib/statusDot";
@@ -100,7 +109,7 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
     () => (corpus ? tasksByPlan([...corpus.values()].map((c) => c.entry)) : new Map()),
     [corpus],
   );
-  const status = useMemo(() => {
+  const progress = useMemo(() => {
     const treeEntry = doc ? corpus?.get(doc.path)?.entry : undefined;
     if (!treeEntry || !corpus) return undefined;
     if (
@@ -114,6 +123,24 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
     const plannedAnalyses = plansByAnalysis([...corpus.values()].map((c) => c.entry));
     return statusDot(treeEntry, plannedAnalyses, taskIndex) ?? undefined;
   }, [doc, corpus, taskIndex]);
+
+  // the document's own kind: frontmatter `kind` first, corpus/folder fallback,
+  // so the metadata row shows the same icon and label as the tree.
+  const docKind = useMemo<EntryFilterKind>(() => {
+    if (!doc) return "other";
+    const declared = fields.find((f) => f.key === "kind")?.values[0];
+    if (declared) return entryKind({ kind: declared, path: doc.path } as never);
+    return kindFromPath(doc.path);
+  }, [doc, fields]);
+
+  // declared lifecycle status from the frontmatter, decorated with the value
+  // vocabulary shared with the tree (label + tone), independent of the derived
+  // progress dot above.
+  const declaredStatus = useMemo(() => {
+    const value = fields.find((f) => f.key === "status")?.values[0];
+    if (!value) return undefined;
+    return { value, valueInfo: valueLabel(docKind, value) };
+  }, [docKind, fields]);
 
   if (!doc) return null;
 
@@ -146,13 +173,22 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
       )}
 
       <MetaCard title="Metadata" icon="info">
-        {status && (
+        {declaredStatus && (
+          <MetaStatusRow
+            label="Status"
+            dotTone={declaredStatus.valueInfo?.tone ?? "neutral"}
+            value={declaredStatus.valueInfo?.label ?? declaredStatus.value}
+            title={declaredStatus.valueInfo?.meaning ?? declaredStatus.value}
+          />
+        )}
+        {progress && (
+          <MetaStatusRow label="Progress" dotTone={progress.tone} value={progress.label} />
+        )}
+        {docKind && (
           <div className="meta-status" role="listitem">
-            <span
-              className={`meta-status__dot meta-status__dot--${status.tone}`}
-              aria-hidden="true"
-            />
-            <span className="meta-status__label">{status.label}</span>
+            <MetaKindIcon kind={docKind} />
+            <span className="meta-status__label">Kind</span>
+            <span className="meta-status__value">{kindLabel(docKind)}</span>
           </div>
         )}
         {isCanvas(doc) ? (
@@ -163,15 +199,17 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
           <p className="content__empty">No frontmatter.</p>
         ) : (
           <dl className="meta-rows" role="list">
-            {fields.map((field) => (
-              <MetaRow
-                key={field.key}
-                field={field}
-                basePath={doc.path}
-                index={index}
-                corpus={corpus}
-              />
-            ))}
+            {fields
+              .filter((field) => field.key !== "status" && field.key !== "kind")
+              .map((field) => (
+                <MetaRow
+                  key={field.key}
+                  field={field}
+                  basePath={doc.path}
+                  index={index}
+                  corpus={corpus}
+                />
+              ))}
           </dl>
         )}
       </MetaCard>
@@ -215,6 +253,29 @@ function MetaCard({ title, icon, children }: MetaCardProps) {
       </summary>
       <div className="meta-card__body">{children}</div>
     </details>
+  );
+}
+
+/** One declared/derived status line: tone dot, label prefix and value. */
+function MetaStatusRow({
+  label,
+  dotTone,
+  value,
+  title,
+}: {
+  label: string;
+  dotTone: ValueTone;
+  value: string;
+  title?: string;
+}) {
+  return (
+    <div className="meta-status" role="listitem">
+      <span className={`meta-status__dot meta-status__dot--${dotTone}`} aria-hidden="true" />
+      <span className="meta-status__label">{label}</span>
+      <span className="meta-status__value" title={title}>
+        {value}
+      </span>
+    </div>
   );
 }
 
@@ -324,15 +385,15 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
   );
 }
 
-/** Coloured kind glyph shown before a document link. */
+/** Coloured kind glyph shown before a document link or the kind row. */
 function MetaKindIcon({ kind }: { kind: EntryFilterKind }) {
   return (
     <Icon
       name={kindIcon(kind)}
       className="meta-link__icon"
       style={{ color: kindColor(kind) }}
-      label={`kind: ${kind}`}
-      title={kind}
+      label={kindLabel(kind)}
+      title={kindLabel(kind)}
     />
   );
 }
