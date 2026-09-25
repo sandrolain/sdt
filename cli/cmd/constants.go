@@ -65,6 +65,8 @@ const (
 	sdtInstrWiki         = "context/instructions/wiki.md"
 	sdtInstrDevelopment  = "context/instructions/development.md"
 	sdtInstrGit          = "context/instructions/git.md"
+	sdtInstrBrowser      = "context/instructions/browser.md"
+	sdtInstrBrowserTools = "context/instructions/browser-tools.md"
 	sdtScriptsIndex      = "context/scripts/index.md"
 	sdtWikiDir           = "context/wiki"
 	sdtIngestionDir      = "context/ingestion"
