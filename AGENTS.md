@@ -78,7 +78,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/scripts/` | Running bundled scripts (see `instructions/scripts.md`) |
 | `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
-| `context/instructions/development.md` | Writing code: style/architecture agreement, library-first, library docs |
+| `context/instructions/development.md` | Writing code: style/architecture agreement, library-first, coding behavior (simplicity, diff-discipline), library docs |
 | `context/instructions/git.md` | Committing or branching: the commit gate, Conventional Commits and branch rules |
 | `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |

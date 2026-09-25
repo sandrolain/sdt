@@ -46,6 +46,32 @@ planning or writing any non-trivial code.
 - For an unfamiliar library, learn usage from its docs, not by reading its source.
 - Refresh the local docs when the version changes, or when unsure about the API.
 
+## Simplicity first
+
+- Write the minimum code that solves the problem; nothing speculative.
+- No features beyond the ask, no single-use abstractions, no unrequested
+  configurability, no error handling for impossible scenarios.
+- If a solution can be much shorter, rewrite it — over-engineering is a defect,
+  not thoroughness. This mirrors library-first from the other direction: don't
+  reinvent what exists, and don't over-build what is new.
+
+## Surgical changes
+
+- Touch only what the task requires: every changed line traces to the request.
+- Do not refactor what is not broken, and do not tidy adjacent code, comments or
+  formatting; match the existing style.
+- Mention unrelated dead code instead of deleting it; clean up only your own
+  mess.
+
+## Goal-driven execution
+
+- Before coding, state the success criteria and express the plan as
+  `step → verify` per line (tests-first where feasible).
+- Report the outcome with the standardized claim vocabulary (passed / expected /
+  inferred) from `context/instructions/tasks.md`.
+- **Tradeoff:** these coding-behavior rules bias toward caution; use judgement on
+  trivial tasks.
+
 ## Close out
 
 - Run the verify-step and `sdt context reindex` after the change (see

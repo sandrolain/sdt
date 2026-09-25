@@ -1462,6 +1462,12 @@ func TestAgentDevelopmentTemplateCoherence(t *testing.T) {
 		"sdt crawldown <docs-url> --output context/refs/<lib>",
 		"version marker",
 		"do not code against a stale API",
+		"Simplicity first",
+		"Surgical changes",
+		"Goal-driven execution",
+		"step → verify",
+		"standardized claim vocabulary",
+		"Tradeoff",
 	} {
 		if !strings.Contains(instrDevelopmentTemplate, want) {
 			t.Errorf("expected %q in development template:\n%s", want, instrDevelopmentTemplate)
