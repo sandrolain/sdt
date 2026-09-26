@@ -51,22 +51,37 @@ func TestContextReindexObjectiveGroups(t *testing.T) {
 	writeCtxDoc(t, "context/analysis/gam.md", "---\nkind: analysis\nsummary: Gamma analysis\nobjective: viewer-io\n---\nbody\n")
 	writeCtxDoc(t, "context/analysis/noobj.md", "---\nkind: analysis\nsummary: Ungrouped analysis\n---\nbody\n")
 	writeCtxDoc(t, "context/proposals/prop.md", "---\nkind: proposal\nsummary: Proposal not bucketed\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/planx.md", "---\nkind: plan\nsummary: Plan for memory bench\nobjective: memory-bench\nsources:\n  - analysis/alpha.md\n---\nbody\n")
+	writeCtxDoc(t, "context/tasks/phase1.md", "---\nkind: tasks\nsummary: Task phase one\nphase: \"1\"\nstatus: pending\nsources:\n  - plan/planx.md\n---\nbody\n")
+	writeCtxDoc(t, "context/notes/deadend.md", "---\nkind: notes\nsummary: Tried and rejected\nobjective: memory-bench\nnote_type: dead-end\n---\nbody\n")
 	execute(t, contextReindexCmd, nil)
 	idx, _ := os.ReadFile(filepath.Join(dir, "context/index.md"))
 	content := string(idx)
-	for _, want := range []string{"#### memory-bench", "#### viewer-io", "[[analysis/alpha.md]]", "[[analysis/beta.md]]", "[[analysis/gam.md]]", "[[analysis/noobj.md]]", "[[proposals/prop.md]]"} {
+	for _, want := range []string{
+		"### memory-bench", "### viewer-io",
+		"[[analysis/alpha.md]]", "[[analysis/beta.md]]", "[[analysis/gam.md]]",
+		"[[analysis/noobj.md]]", "[[proposals/prop.md]]",
+		"[[plan/planx.md]]", "[[tasks/phase1.md]]", "[[notes/deadend.md]]",
+	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("expected %q in index:\n%s", want, content)
 		}
 	}
-	if strings.Count(content, "[[analysis/alpha.md]]") != 1 {
-		t.Errorf("bucketed analysis must appear exactly once:\n%s", content)
+	for _, path := range []string{"[[analysis/alpha.md]]", "[[plan/planx.md]]", "[[tasks/phase1.md]]", "[[notes/deadend.md]]"} {
+		if strings.Count(content, path) != 1 {
+			t.Errorf("bucketed doc %s must appear exactly once:\n%s", path, content)
+		}
 	}
 	if strings.Count(content, "[[analysis/noobj.md]]") != 1 {
 		t.Errorf("unbucketed analysis must stay in the general list:\n%s", content)
 	}
-	if i, j := strings.Index(content, "#### memory-bench"), strings.Index(content, "#### viewer-io"); i == -1 || j == -1 || i > j {
+	if i, j := strings.Index(content, "### memory-bench"), strings.Index(content, "### viewer-io"); i == -1 || j == -1 || i > j {
 		t.Errorf("objective sections must be sorted lexicographically:\n%s", content)
+	}
+	// Objective-tagged docs must leave the tier lists (they appear only in the
+	// cross-tier Objectives section).
+	if rest := content[strings.Index(content, "## Important"):]; strings.Contains(rest, "[[plan/planx.md]]") || strings.Contains(rest, "[[tasks/phase1.md]]") {
+		t.Errorf("objective-tagged docs must leave the tier lists:\n%s", content)
 	}
 }
 

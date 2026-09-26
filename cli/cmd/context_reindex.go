@@ -21,86 +21,145 @@ func buildIndex() (string, error) {
 	b.WriteString("---\n\n")
 	b.WriteString("# context — Knowledge Index\n\n")
 	b.WriteString("_Managed by `sdt context reindex`. Each row lists the file and its frontmatter `summary`._\n\n")
+
+	// Cross-tier objective section: every document whose effective objective
+	// resolves (analysis/plan `objective`, or a task inheriting its plan's) is
+	// grouped here instead of its tier list.
+	objectives, slugs, err := collectObjectiveBuckets()
+	if err != nil {
+		return "", err
+	}
+	sort.Strings(slugs)
+	if len(slugs) > 0 {
+		b.WriteString("## Objectives\n\n")
+		for _, slug := range slugs {
+			b.WriteString("### " + slug + "\n\n")
+			for _, r := range objectives[slug] {
+				b.WriteString(r + "\n")
+			}
+			b.WriteString("\n")
+		}
+	}
+
 	for _, tier := range ctxTierOrder {
-		rows, buckets, bucketSlugs, err := collectTierRows(tier)
+		rows, err := collectTierRows(tier)
 		if err != nil {
 			return "", err
 		}
-		if len(rows) == 0 && len(bucketSlugs) == 0 {
+		if len(rows) == 0 {
 			continue
 		}
 		b.WriteString("## " + cases.Title(language.English).String(tier) + "\n\n")
 		for _, r := range rows {
 			b.WriteString(r + "\n")
 		}
-		if len(rows) > 0 && len(bucketSlugs) > 0 {
-			b.WriteString("\n")
-		}
-		sort.Strings(bucketSlugs)
-		for _, slug := range bucketSlugs {
-			b.WriteString("#### " + slug + "\n\n")
-			for _, r := range buckets[slug] {
-				b.WriteString(r + "\n")
-			}
-			b.WriteString("\n")
-		}
 	}
 	return b.String(), nil
 }
 
-// collectTierRows splits a relevance tier into the general rows and the
-// per-objective buckets: Important analyses carrying an `objective` group key
-// are bucketed, and dead-end notes (`note_type: dead-end` + `objective`) are
-// surfaced in the same objective bucket. Everything else stays in the general
-// list, except dead-end notes, which are never duplicated in the notes list.
-func collectTierRows(tier string) (rows []string, buckets map[string][]string, bucketSlugs []string, err error) {
-	buckets = map[string][]string{}
+// collectObjectiveBuckets groups every objective-tagged document (analysis,
+// plan, or a task inheriting its plan's objective, plus dead-end notes tied to
+// an objective) into one bucket per slug, regardless of tier. Bucket rows are
+// sorted so the section is deterministic.
+func collectObjectiveBuckets() (map[string][]string, []string, error) {
+	buckets := map[string][]string{}
+	var slugs []string
+	for _, dir := range ctxIndexDirs {
+		files, err := dirFiles(dir)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, f := range files {
+			kind, objective, noteType := ctxDocMeta(f)
+			eff := ctxEffectiveObjective(f, kind, objective, noteType)
+			if eff == "" {
+				continue
+			}
+			line := ctxIndexLine(dir, f)
+			if kind == ctxTypeNotes && noteType == ctxNoteTypeDeadEnd {
+				line = ctxDeadEndLine(f)
+			}
+			slugs = addObjectiveBucket(buckets, slugs, eff, line)
+		}
+	}
+	for slug := range buckets {
+		sort.Strings(buckets[slug])
+	}
+	return buckets, slugs, nil
+}
+
+// ctxEffectiveObjective resolves the objective a document groups under:
+// analysis/plan read their own `objective`; a task inherits its plan's; a note
+// only when it is a dead-end. Other kinds (and ungrouped docs) return "".
+func ctxEffectiveObjective(path, kind, objective, noteType string) string {
+	switch kind {
+	case ctxTypeAnalysis, ctxTypePlan:
+		return objective
+	case ctxTypeTasks:
+		return ctxTaskPlanObjective(path)
+	case ctxTypeNotes:
+		if noteType == ctxNoteTypeDeadEnd {
+			return objective
+		}
+	}
+	return ""
+}
+
+// ctxTaskPlanObjective reads the objective of the plan a task file sources
+// (`sources`, falling back to `links`); "" when the plan is missing or carries
+// none.
+func ctxTaskPlanObjective(path string) string {
+	data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
+	if err != nil {
+		return ""
+	}
+	content := string(data)
+	refs := parseFrontmatterList(content, ctxFrontmatterSources)
+	if len(refs) == 0 {
+		refs = parseFrontmatterList(content, ctxFrontmatterLinks)
+	}
+	for _, ref := range refs {
+		abs, ok := ctxResolvePath(sdtWorkDir, ref)
+		if !ok {
+			continue
+		}
+		pdata, perr := os.ReadFile(abs) //#nosec G304 -- path resolved within context/
+		if perr != nil {
+			continue
+		}
+		pc := string(pdata)
+		if parseFrontmatterField(pc, "kind") != ctxTypePlan {
+			continue
+		}
+		if o := parseFrontmatterField(pc, "objective"); o != "" {
+			return o
+		}
+	}
+	return ""
+}
+
+// collectTierRows returns the general rows of a relevance tier: documents
+// without an effective objective. Objective-tagged documents are rendered by
+// collectObjectiveBuckets instead, so they never appear in a tier list.
+func collectTierRows(tier string) ([]string, error) {
+	var rows []string
 	for _, dir := range ctxIndexDirs {
 		if ctxTierForDir(dir) != tier {
 			continue
 		}
-		files, ferr := dirFiles(dir)
-		if ferr != nil {
-			return nil, nil, nil, ferr
+		files, err := dirFiles(dir)
+		if err != nil {
+			return nil, err
 		}
 		for _, f := range files {
 			kind, objective, noteType := ctxDocMeta(f)
-			if kind == ctxTypeNotes && objective != "" && noteType == ctxNoteTypeDeadEnd {
-				// Surfaced under the objective bucket, not in the notes list.
+			if ctxEffectiveObjective(f, kind, objective, noteType) != "" {
 				continue
 			}
-			line := ctxIndexLine(dir, f)
-			if tier == ctxTierImportant && kind == ctxTypeAnalysis && objective != "" {
-				bucketSlugs = addObjectiveBucket(buckets, bucketSlugs, objective, line)
-				continue
-			}
-			rows = append(rows, line)
+			rows = append(rows, ctxIndexLine(dir, f))
 		}
 	}
-	if tier == ctxTierImportant {
-		bucketSlugs, err = collectDeadEndRows(buckets, bucketSlugs)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-	}
-	return rows, buckets, bucketSlugs, nil
-}
-
-// collectDeadEndRows appends the dead-end notes to their objective buckets,
-// registering the bucket when no analysis opened it yet.
-func collectDeadEndRows(buckets map[string][]string, bucketSlugs []string) ([]string, error) {
-	files, err := dirFiles(sdtNotesDir)
-	if err != nil {
-		return nil, err
-	}
-	for _, f := range files {
-		kind, objective, noteType := ctxDocMeta(f)
-		if kind != ctxTypeNotes || objective == "" || noteType != ctxNoteTypeDeadEnd {
-			continue
-		}
-		bucketSlugs = addObjectiveBucket(buckets, bucketSlugs, objective, ctxDeadEndLine(f))
-	}
-	return bucketSlugs, nil
+	return rows, nil
 }
 
 // addObjectiveBucket appends a line to an objective bucket, registering the

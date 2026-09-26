@@ -31,7 +31,7 @@ func TestReindexGroupsDeadEndNotesUnderObjective(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(content, "#### obj-x") {
+	if !strings.Contains(content, "### obj-x") {
 		t.Errorf("expected an obj-x objective bucket:\n%s", content)
 	}
 	if !strings.Contains(content, "**dead-end** tried X, failed") {
