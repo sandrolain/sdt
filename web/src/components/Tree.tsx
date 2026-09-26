@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
 import { MAP_ICON } from "../lib/documentModes";
@@ -42,7 +42,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { key: sortKey } = useTreeSort();
-  const { hideCompleted } = useTreeFilter();
+  const { hideCompleted, grouped } = useTreeFilter();
   const [openKinds, setOpenKinds] = useState<Set<EntryFilterKind>>(() => new Set());
   const reloadToken = useReloadToken();
   const location = useLocation();
@@ -148,6 +148,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
                   plannedAnalyses={plannedAnalyses}
                   taskIndex={taskIndex}
                   sort={gsort}
+                  grouped={grouped}
                 />
               ) : group.kind === "plan" ? (
                 <PlanKindEntries
@@ -155,6 +156,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
                   plannedAnalyses={plannedAnalyses}
                   taskIndex={taskIndex}
                   sort={gsort}
+                  grouped={grouped}
                 />
               ) : group.kind === "wiki" ? (
                 <WikiEntries
@@ -170,7 +172,10 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
                   plannedAnalyses={plannedAnalyses}
                   taskIndex={taskIndex}
                   sort={gsort}
+                  grouped={grouped}
                 />
+              ) : group.kind === "notes" ? (
+                <NotesKindEntries entries={group.entries} sort={gsort} grouped={grouped} />
               ) : (
                 <EntryList
                   entries={group.entries}
@@ -188,15 +193,16 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
 
 type PlannedAnalyses = ReturnType<typeof plansByAnalysis>;
 
-/** Flat entry list for a kind folder. */
+/** Flat entry list for a kind folder. The dot indexes are optional: kinds
+ *  without a derived dot (notes) pass neither. */
 function EntryList({
   entries,
   plannedAnalyses,
   taskIndex,
 }: {
   entries: TreeEntry[];
-  plannedAnalyses: PlannedAnalyses;
-  taskIndex: Map<string, TreeEntry[]>;
+  plannedAnalyses?: PlannedAnalyses;
+  taskIndex?: Map<string, TreeEntry[]>;
 }) {
   return (
     <ul role="list">
@@ -314,19 +320,57 @@ function plansGroupDot(plans: TreeEntry[], taskIndex: Map<string, TreeEntry[]>):
   return taskGroupDot(tasks);
 }
 
+/** One `objective` sub-folder inside a kind folder: label, aggregate progress
+ *  dot, entry count and the latest date. `dot` is null for kinds without a
+ *  derived aggregate (notes). */
+function ObjectiveFolder({
+  objective,
+  dot,
+  entries,
+  children,
+}: {
+  objective: string;
+  dot: StatusDot | null;
+  entries: TreeEntry[];
+  children: ReactNode;
+}) {
+  return (
+    <details className="tree-folder tree-folder--objective">
+      <summary className="tree-folder__header">
+        <Icon name="expand_more" className="tree-folder__chevron" />
+        <Icon name="flag" className="tree-folder__icon" />
+        <span className="tree-folder__text">
+          <span className="tree-folder__title-row">
+            <span className="tree-folder__label">{objective}</span>
+            <GroupProgressDot dot={dot} />
+            <span className="tree-folder__count">{entries.length}</span>
+          </span>
+          <GroupHeaderDate entries={entries} />
+        </span>
+      </summary>
+      {children}
+    </details>
+  );
+}
+
 /** Plan kind folder: named `objective` sub-folders; plans without an objective
- *  stay at the folder root. */
+ *  stay at the folder root. Flat list when grouping is off. */
 function PlanKindEntries({
   entries,
   plannedAnalyses,
   taskIndex,
   sort,
+  grouped,
 }: {
   entries: TreeEntry[];
   plannedAnalyses: PlannedAnalyses;
   taskIndex: Map<string, TreeEntry[]>;
   sort: GroupSort | null;
+  grouped: boolean;
 }) {
+  if (!grouped) {
+    return <EntryList entries={entries} plannedAnalyses={plannedAnalyses} taskIndex={taskIndex} />;
+  }
   return (
     <>
       {groupByObjective(entries, sort).map((group) =>
@@ -338,25 +382,18 @@ function PlanKindEntries({
             taskIndex={taskIndex}
           />
         ) : (
-          <details key={group.objective} className="tree-folder tree-folder--objective">
-            <summary className="tree-folder__header">
-              <Icon name="expand_more" className="tree-folder__chevron" />
-              <Icon name="flag" className="tree-folder__icon" />
-              <span className="tree-folder__text">
-                <span className="tree-folder__title-row">
-                  <span className="tree-folder__label">{group.objective}</span>
-                  <GroupProgressDot dot={plansGroupDot(group.entries, taskIndex)} />
-                  <span className="tree-folder__count">{group.entries.length}</span>
-                </span>
-                <GroupHeaderDate entries={group.entries} />
-              </span>
-            </summary>
+          <ObjectiveFolder
+            key={group.objective}
+            objective={group.objective}
+            dot={plansGroupDot(group.entries, taskIndex)}
+            entries={group.entries}
+          >
             <EntryList
               entries={group.entries}
               plannedAnalyses={plannedAnalyses}
               taskIndex={taskIndex}
             />
-          </details>
+          </ObjectiveFolder>
         ),
       )}
     </>
@@ -365,20 +402,26 @@ function PlanKindEntries({
 
 /** Task kind folder: named `objective` sub-folders (inherited from the plan)
  *  with tasks nested under their plan inside each one; tasks without an
- *  objective stay at the folder root and keep the plan nesting. */
+ *  objective stay at the folder root and keep the plan nesting. Flat list when
+ *  grouping is off. */
 function TaskKindEntries({
   entries,
   plans,
   plannedAnalyses,
   taskIndex,
   sort,
+  grouped,
 }: {
   entries: TreeEntry[];
   plans: Map<string, TreeEntry>;
   plannedAnalyses: PlannedAnalyses;
   taskIndex: Map<string, TreeEntry[]>;
   sort: GroupSort | null;
+  grouped: boolean;
 }) {
+  if (!grouped) {
+    return <EntryList entries={entries} plannedAnalyses={plannedAnalyses} taskIndex={taskIndex} />;
+  }
   const withObjective = withTaskObjectives(entries, plans);
   return (
     <>
@@ -393,19 +436,12 @@ function TaskKindEntries({
             sort={sort}
           />
         ) : (
-          <details key={group.objective} className="tree-folder tree-folder--objective">
-            <summary className="tree-folder__header">
-              <Icon name="expand_more" className="tree-folder__chevron" />
-              <Icon name="flag" className="tree-folder__icon" />
-              <span className="tree-folder__text">
-                <span className="tree-folder__title-row">
-                  <span className="tree-folder__label">{group.objective}</span>
-                  <GroupProgressDot dot={taskGroupDot(group.entries)} />
-                  <span className="tree-folder__count">{group.entries.length}</span>
-                </span>
-                <GroupHeaderDate entries={group.entries} />
-              </span>
-            </summary>
+          <ObjectiveFolder
+            key={group.objective}
+            objective={group.objective}
+            dot={taskGroupDot(group.entries)}
+            entries={group.entries}
+          >
             <PlanEntries
               entries={group.entries}
               plans={plans}
@@ -413,7 +449,7 @@ function TaskKindEntries({
               taskIndex={taskIndex}
               sort={sort}
             />
-          </details>
+          </ObjectiveFolder>
         ),
       )}
     </>
@@ -472,18 +508,23 @@ function PlanEntries({
 }
 
 /** Analysis kind folder: named `objective` sub-folders, entries without an
- *  objective stay at the folder root. */
+ *  objective stay at the folder root. Flat list when grouping is off. */
 function AnalysisEntries({
   entries,
   plannedAnalyses,
   taskIndex,
   sort,
+  grouped,
 }: {
   entries: TreeEntry[];
   plannedAnalyses: PlannedAnalyses;
   taskIndex: Map<string, TreeEntry[]>;
   sort: GroupSort | null;
+  grouped: boolean;
 }) {
+  if (!grouped) {
+    return <EntryList entries={entries} plannedAnalyses={plannedAnalyses} taskIndex={taskIndex} />;
+  }
   return (
     <>
       {groupByObjective(entries, sort).map((group) =>
@@ -495,25 +536,54 @@ function AnalysisEntries({
             taskIndex={taskIndex}
           />
         ) : (
-          <details key={group.objective} className="tree-folder tree-folder--objective">
-            <summary className="tree-folder__header">
-              <Icon name="expand_more" className="tree-folder__chevron" />
-              <Icon name="flag" className="tree-folder__icon" />
-              <span className="tree-folder__text">
-                <span className="tree-folder__title-row">
-                  <span className="tree-folder__label">{group.objective}</span>
-                  <GroupProgressDot dot={groupDot(group.entries, plannedAnalyses, taskIndex)} />
-                  <span className="tree-folder__count">{group.entries.length}</span>
-                </span>
-                <GroupHeaderDate entries={group.entries} />
-              </span>
-            </summary>
+          <ObjectiveFolder
+            key={group.objective}
+            objective={group.objective}
+            dot={groupDot(group.entries, plannedAnalyses, taskIndex)}
+            entries={group.entries}
+          >
             <EntryList
               entries={group.entries}
               plannedAnalyses={plannedAnalyses}
               taskIndex={taskIndex}
             />
-          </details>
+          </ObjectiveFolder>
+        ),
+      )}
+    </>
+  );
+}
+
+/** Notes kind folder: named `objective` sub-folders (mostly dead-end notes tied
+ *  to their objective, as reindex buckets them), notes without an objective stay
+ *  at the folder root. Flat list when grouping is off. No progress dot: notes
+ *  carry no derived aggregate. */
+function NotesKindEntries({
+  entries,
+  sort,
+  grouped,
+}: {
+  entries: TreeEntry[];
+  sort: GroupSort | null;
+  grouped: boolean;
+}) {
+  if (!grouped) {
+    return <EntryList entries={entries} />;
+  }
+  return (
+    <>
+      {groupByObjective(entries, sort).map((group) =>
+        group.objective === "" ? (
+          <EntryList key="__ungrouped" entries={group.entries} />
+        ) : (
+          <ObjectiveFolder
+            key={group.objective}
+            objective={group.objective}
+            dot={null}
+            entries={group.entries}
+          >
+            <EntryList entries={group.entries} />
+          </ObjectiveFolder>
         ),
       )}
     </>
@@ -526,10 +596,10 @@ function TreeEntryRow({
   taskIndex,
 }: {
   entry: TreeEntry;
-  plannedAnalyses: PlannedAnalyses;
-  taskIndex: Map<string, TreeEntry[]>;
+  plannedAnalyses?: PlannedAnalyses;
+  taskIndex?: Map<string, TreeEntry[]>;
 }) {
-  const dot = statusDot(entry, plannedAnalyses, taskIndex);
+  const dot = statusDot(entry, plannedAnalyses ?? new Map(), taskIndex ?? new Map());
   const kind = entryKind(entry);
   const kindName = kindLabel(kind);
   return (

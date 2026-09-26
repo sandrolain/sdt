@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from "react";
 
-/** Tree filter selection: hide entries whose status is a "done" state. */
+/** Tree filter selection: hide entries whose status is a "done" state, and
+ *  group entries into objective (and, for tasks, plan) sub-folders. */
 export interface TreeFilterState {
   hideCompleted: boolean;
+  grouped: boolean;
 }
 
-const DEFAULT: TreeFilterState = { hideCompleted: false };
+const DEFAULT: TreeFilterState = { hideCompleted: false, grouped: true };
 
 let current: TreeFilterState = DEFAULT;
 const listeners = new Set<() => void>();
@@ -15,7 +17,14 @@ function emit(): void {
 }
 
 export function toggleHideCompleted(): void {
-  current = { hideCompleted: !current.hideCompleted };
+  current = { hideCompleted: !current.hideCompleted, grouped: current.grouped };
+  emit();
+}
+
+/** Toggle the grouping of the kind folders into sub-folders. Grouping off
+ *  flattens them; the wiki folder hierarchy mirrors the corpus and is kept. */
+export function toggleGrouped(): void {
+  current = { hideCompleted: current.hideCompleted, grouped: !current.grouped };
   emit();
 }
 

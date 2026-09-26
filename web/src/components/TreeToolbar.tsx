@@ -2,7 +2,7 @@ import { Switch } from "./ui/Switch";
 import { TreeSortControls } from "./TreeSortControls";
 import { TooltipButton } from "./ui/Tooltip";
 import { Icon } from "../lib/icon";
-import { toggleHideCompleted, useTreeFilter } from "../lib/treeFilterStore";
+import { toggleGrouped, toggleHideCompleted, useTreeFilter } from "../lib/treeFilterStore";
 
 interface TreeToolbarProps {
   /** When provided, a reset-layout button is rendered (dockview mode only). */
@@ -11,16 +11,20 @@ interface TreeToolbarProps {
 
 /**
  * Toolbar above the tree kind folders: sort controls plus a "not completed"
- * filter toggle, and an optional reset-layout action. Replaces the tab-strip
- * header actions that were hidden by the vertical edge-group tab bar.
+ * filter toggle, a grouping toggle and an optional reset-layout action. Replaces
+ * the tab-strip header actions that were hidden by the vertical edge-group tab
+ * bar.
  */
 export function TreeToolbar({ onResetLayout }: TreeToolbarProps) {
-  const { hideCompleted } = useTreeFilter();
+  const { hideCompleted, grouped } = useTreeFilter();
   return (
     <div className="tree-toolbar">
       <TreeSortControls />
       <Switch isSelected={hideCompleted} onChange={toggleHideCompleted}>
         Not completed
+      </Switch>
+      <Switch isSelected={grouped} onChange={toggleGrouped}>
+        Grouped
       </Switch>
       {onResetLayout && (
         <TooltipButton

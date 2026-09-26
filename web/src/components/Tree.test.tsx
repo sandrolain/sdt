@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Tree } from "./Tree";
 import { resetTreeSort, setTreeSortKey } from "../lib/treeSortStore";
-import { resetTreeFilter, toggleHideCompleted } from "../lib/treeFilterStore";
+import { resetTreeFilter, toggleGrouped, toggleHideCompleted } from "../lib/treeFilterStore";
 
 const TREE = {
   entries: [
@@ -205,6 +205,17 @@ describe("Tree", () => {
     // is kept, and dot-less entries (notes) are no longer hidden as a side effect
     expect(screen.getByText("Open analysis")).toBeTruthy();
     expect(screen.getByText("Note")).toBeTruthy();
+  });
+
+  it("renders the not-completed and grouped switches in the tree toolbar", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    expect(await screen.findByText("Alpha")).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "Not completed" })).toBeTruthy();
+    // grouping defaults on, so the switch starts selected
+    expect(screen.getByRole("switch", { name: "Grouped" })).toHaveProperty("checked", true);
   });
 
   it("shows a thumbnail for entries with a frontmatter image", async () => {
@@ -649,5 +660,121 @@ describe("Tree", () => {
     expect(planSubGroup?.textContent).toContain("Task two");
     // the loose task (no plan, no objective) stays at the task-folder root
     expect(folder("Tasks")?.textContent).toContain("Loose task");
+  });
+
+  it("flattens the grouped kind folders when the grouped switch is off, keeping the wiki folders", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/analysis/a.md",
+                kind: "analysis",
+                title: "Analysis",
+                objective: "viewer",
+              },
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                title: "Plan",
+                status: "active",
+                objective: "viewer",
+              },
+              {
+                path: "context/tasks/t1.md",
+                kind: "tasks",
+                title: "Task one",
+                status: "pending",
+                sources: ["plan/p.md"],
+              },
+              {
+                path: "context/tasks/t2.md",
+                kind: "tasks",
+                title: "Task two",
+                status: "completed",
+                sources: ["plan/p.md"],
+              },
+              { path: "context/wiki/sub/deep.md", kind: "wiki", title: "Deep wiki" },
+              { path: "context/notes/n.md", kind: "notes", title: "Note" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Analysis");
+    // grouped on: the objective folders exist under analyses, plans and tasks
+    expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(3);
+    expect(document.querySelectorAll(".tree-folder--plan")).toHaveLength(1);
+
+    // the two flags are independent: the not-completed filter drops the done
+    // task, so the task objective group counts 1 instead of 2
+    const taskObjectiveCount = () => {
+      const tasks = Array.from(document.querySelectorAll(".tree-folder")).find(
+        (f) => f.querySelector(".tree-folder__label")?.textContent === "Tasks",
+      );
+      const objective = Array.from(tasks?.querySelectorAll(".tree-folder--objective") ?? []).find(
+        (f) => f.querySelector(".tree-folder__label")?.textContent === "viewer",
+      );
+      return objective?.querySelector(".tree-folder__count")?.textContent;
+    };
+    expect(taskObjectiveCount()).toBe("2");
+    toggleHideCompleted();
+    await waitFor(() => expect(taskObjectiveCount()).toBe("1"));
+
+    toggleGrouped();
+    await waitFor(() =>
+      expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(0),
+    );
+    // the plan nesting is gone too, and every entry is still listed
+    expect(document.querySelectorAll(".tree-folder--plan")).toHaveLength(0);
+    for (const title of ["Analysis", "Plan", "Task one", "Note"]) {
+      expect(screen.getByText(title)).toBeTruthy();
+    }
+    // the wiki folder hierarchy mirrors the corpus and is never collapsed
+    expect(document.querySelectorAll(".tree-folder--dir")).toHaveLength(1);
+    expect(document.querySelector(".tree-folder--dir")?.textContent).toContain("Deep wiki");
+  });
+
+  it("groups notes by objective when grouping is on and flattens them when off", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/notes/dead-end.md",
+                kind: "notes",
+                title: "Dead end",
+                objective: "viewer",
+              },
+              { path: "context/notes/plain.md", kind: "notes", title: "Plain note" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Dead end");
+
+    const notesFolder = Array.from(document.querySelectorAll(".tree-folder")).find(
+      (f) => f.querySelector(".tree-folder__label")?.textContent === "Notes",
+    );
+    const objective = Array.from(
+      notesFolder?.querySelectorAll(".tree-folder--objective") ?? [],
+    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "viewer");
+    expect(objective?.querySelector(".tree-folder__count")?.textContent).toBe("1");
+    expect(objective?.textContent).toContain("Dead end");
+    // the objective-less note stays at the notes-folder root
+    expect(objective?.textContent).not.toContain("Plain note");
+    expect(notesFolder?.textContent).toContain("Plain note");
+
+    toggleGrouped();
+    await waitFor(() =>
+      expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(0),
+    );
+    expect(notesFolder?.textContent).toContain("Dead end");
+    expect(notesFolder?.textContent).toContain("Plain note");
   });
 });
