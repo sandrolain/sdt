@@ -27,7 +27,7 @@ import (
 )
 
 // ManifestVersion invalidates a cached manifest when the scan model changes.
-const ManifestVersion = 2
+const ManifestVersion = 3
 
 // ContextDir is the served knowledge base subdirectory under the project root.
 const ContextDir = "context"
@@ -47,6 +47,10 @@ type Entry struct {
 	Summary   string   `json:"summary,omitempty"`
 	Topics    []string `json:"topics,omitempty"`
 	Entities  []string `json:"entities,omitempty"`
+	// PlanRef is the corpus id of the plan a task file sources (tasks only,
+	// derived from `sources`/`links`). A task's Objective is resolved from the
+	// referenced plan after the scan, never from its own frontmatter.
+	PlanRef string `json:"plan_ref,omitempty"`
 	// Created is the raw frontmatter created value; Updated likewise.
 	Created string `json:"created,omitempty"`
 	Updated string `json:"updated,omitempty"`
@@ -154,6 +158,7 @@ func Scan(root string, prev *Manifest) (*ScanResult, error) {
 	}
 	sort.Strings(res.Changed)
 	sort.Strings(res.Removed)
+	resolveTaskObjectives(m.Entries)
 	m.facets = collectFacets(m.Entries)
 	return res, nil
 }
@@ -243,6 +248,12 @@ func parseEntry(root, id, path string) (*Entry, error) {
 		e.Title = strings.TrimSuffix(filepath.Base(id), filepath.Ext(id))
 		e.Body = content
 	}
+	// Tasks carry no objective of their own: record the plan they source and
+	// let resolveTaskObjectives inherit its objective after the scan.
+	if e.Kind == "tasks" {
+		e.PlanRef = taskPlanRef(content)
+		e.Objective = ""
+	}
 	e.Hash = shortHash(content)
 	e.Indexed = true
 	if info, serr := os.Stat(path); serr == nil {
@@ -255,6 +266,49 @@ func parseEntry(root, id, path string) (*Entry, error) {
 		}
 	}
 	return e, nil
+}
+
+// taskPlanRef resolves the corpus id of the plan a task file sources, from its
+// `sources` list (falling back to `links`); "" when none points under plan/.
+func taskPlanRef(content string) string {
+	refs := contextwiki.FrontmatterList(content, "sources")
+	if len(refs) == 0 {
+		refs = contextwiki.FrontmatterList(content, "links")
+	}
+	for _, ref := range refs {
+		clean := strings.TrimPrefix(strings.TrimSpace(ref), "./")
+		clean = strings.TrimSuffix(clean, contextwiki.MarkdownExt)
+		if clean == "" {
+			continue
+		}
+		if !strings.HasPrefix(clean, ContextDir+"/") {
+			clean = ContextDir + "/" + clean
+		}
+		clean += contextwiki.MarkdownExt
+		if strings.Contains(clean, "/plan/") {
+			return clean
+		}
+	}
+	return ""
+}
+
+// resolveTaskObjectives assigns each task entry the objective of the plan it
+// references, ignoring any legacy `objective` on the task itself. It runs after
+// the walk so a plan-objective edit refreshes its tasks even when their own
+// files are unchanged.
+func resolveTaskObjectives(entries map[string]*Entry) {
+	planObjective := map[string]string{}
+	for id, e := range entries {
+		if e != nil && e.Kind == "plan" {
+			planObjective[id] = e.Objective
+		}
+	}
+	for _, e := range entries {
+		if e == nil || e.Kind != "tasks" {
+			continue
+		}
+		e.Objective = planObjective[e.PlanRef]
+	}
 }
 
 // indexedExt reports whether a file extension belongs to the indexed corpus:

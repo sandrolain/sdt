@@ -274,3 +274,93 @@ func TestManifestSetRootAndLoadBody(t *testing.T) {
 		t.Errorf("second LoadBody: %v", err)
 	}
 }
+
+func TestScanResolvesTaskObjectiveFromPlan(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "context/plan/p.md", `---
+kind: plan
+objective: obj-x
+---
+
+body
+`)
+	writeDoc(t, root, "context/tasks/t.md", `---
+kind: tasks
+status: pending
+sources:
+  - plan/p.md
+---
+
+body
+`)
+	writeDoc(t, root, "context/tasks/legacy.md", `---
+kind: tasks
+status: pending
+objective: should-be-ignored
+links:
+  - plan/p.md
+---
+
+body
+`)
+	writeDoc(t, root, "context/tasks/loose.md", `---
+kind: tasks
+status: pending
+---
+
+body
+`)
+
+	res, err := Scan(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Manifest.Entries["context/tasks/t.md"].Objective; got != "obj-x" {
+		t.Errorf("sourced task objective = %q, want obj-x", got)
+	}
+	if got := res.Manifest.Entries["context/tasks/legacy.md"].Objective; got != "obj-x" {
+		t.Errorf("legacy task objective must be ignored and inherited: %q", got)
+	}
+	if got := res.Manifest.Entries["context/tasks/loose.md"].Objective; got != "" {
+		t.Errorf("loose task objective = %q, want empty", got)
+	}
+	if got := res.Manifest.Entries["context/tasks/t.md"].PlanRef; got != "context/plan/p.md" {
+		t.Errorf("plan ref = %q, want context/plan/p.md", got)
+	}
+}
+
+func TestScanRefreshesTaskObjectiveOnPlanChange(t *testing.T) {
+	root := t.TempDir()
+	plan := `---
+kind: plan
+objective: obj-x
+---
+
+body
+`
+	writeDoc(t, root, "context/plan/p.md", plan)
+	writeDoc(t, root, "context/tasks/t.md", `---
+kind: tasks
+sources:
+  - plan/p.md
+---
+
+body
+`)
+	first, err := Scan(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := first.Manifest.Entries["context/tasks/t.md"].Objective; got != "obj-x" {
+		t.Fatalf("first objective = %q, want obj-x", got)
+	}
+
+	writeDoc(t, root, "context/plan/p.md", strings.Replace(plan, "obj-x", "obj-y", 1))
+	second, err := Scan(root, first.Manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := second.Manifest.Entries["context/tasks/t.md"].Objective; got != "obj-y" {
+		t.Errorf("task objective after plan edit = %q, want obj-y", got)
+	}
+}

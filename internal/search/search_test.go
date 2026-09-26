@@ -356,6 +356,74 @@ func TestSearchObjectiveFilter(t *testing.T) {
 	}
 }
 
+// writePlanAndTask adds a plan with an objective plus a task sourcing it, the
+// fixture for objective-inheritance search tests.
+func writePlanAndTask(t *testing.T, root string) {
+	t.Helper()
+	write := func(rel, content string) {
+		t.Helper()
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("context/plan/objplan.md", `---
+kind: plan
+title: Objective plan
+objective: obj-inherit
+created: 2026-09-10
+---
+
+Plan body with inheritword.
+`)
+	write("context/tasks/objtask.md", `---
+kind: tasks
+title: Inheriting task
+objective: legacy-label-ignored
+sources:
+  - plan/objplan.md
+created: 2026-09-11
+---
+
+Task body with inheritword step.
+`)
+}
+
+func TestSearchObjectiveInheritedByTasks(t *testing.T) {
+	root := corpus(t)
+	writePlanAndTask(t, root)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+
+	res, _ := ix.Search("inheritword", "", "obj-inherit", "", "", "", "", 0)
+	var sawPlan, sawTask bool
+	for _, r := range res.Results {
+		if r.Objective != "obj-inherit" {
+			t.Errorf("non-inherit result under objective filter: %+v", r)
+		}
+		switch r.Kind {
+		case "plan":
+			sawPlan = true
+		case "tasks":
+			sawTask = true
+		}
+	}
+	if !sawPlan || !sawTask {
+		t.Errorf("objective filter must return the plan and its task, got %+v", res.Results)
+	}
+	// the legacy task label must never surface as an objective
+	res, _ = ix.Search("inheritword", "", "legacy-label-ignored", "", "", "", "", 0)
+	if res.Total != 0 {
+		t.Errorf("legacy task objective leaked into the facet: %+v", res.Results)
+	}
+}
+
 func TestSearchDateFilter(t *testing.T) {
 	root := corpus(t)
 	ix, err := New(root)

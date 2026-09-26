@@ -185,13 +185,40 @@ func NewFromEntries(entries []*mdindex.Entry) (*Index, error) {
 // into idx (used for in-memory and fresh stores); when false only the serving
 // structures are derived from entries (used when opening a prebuilt store whose
 // documents are already on disk).
+// planObjectivesByID maps each plan entry id to its objective, so a task entry
+// can inherit the objective of the plan it sources (the task's own legacy
+// `objective`, if any, is ignored).
+func planObjectivesByID(entries []*mdindex.Entry) map[string]string {
+	m := map[string]string{}
+	for _, e := range entries {
+		if e != nil && e.Kind == "plan" && e.Objective != "" {
+			m[e.ID] = e.Objective
+		}
+	}
+	return m
+}
+
+// docForEntry derives the search doc for an entry, applying the task-objective
+// inheritance rule (tasks read their plan's objective).
+func docForEntry(e *mdindex.Entry, planObjective map[string]string) doc {
+	d := docFromEntry(e)
+	if e.Kind == "tasks" {
+		d.Objective = planObjective[e.PlanRef]
+	}
+	return d
+}
+
 func buildFromEntries(idx bleve.Index, entries []*mdindex.Entry, indexDocs bool) (*Index, error) {
 	ix := &Index{idx: idx, registry: map[string]doc{}, sections: map[string]SectionMeta{}}
+	// A task inherits its plan's objective: the indexer recomputes it from the
+	// entry set so both fresh and cached manifests agree (never the task's own
+	// legacy `objective`).
+	planObjective := planObjectivesByID(entries)
 	for _, e := range entries {
 		if err := e.LoadBody(); err != nil {
 			continue // unreadable doc is skipped, never fatal
 		}
-		d := docFromEntry(e)
+		d := docForEntry(e, planObjective)
 		if indexDocs {
 			if err := ix.addDoc(d); err != nil {
 				return nil, err
@@ -293,7 +320,61 @@ func (ix *Index) indexCorpus(dir string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("search walk: %w", err)
 	}
+	ix.applyTaskObjectives()
 	return len(ix.registry), nil
+}
+
+// applyTaskObjectives recomputes each task's inherited objective from the plan
+// it sources (never the task's own legacy `objective`), so legacy
+// corpus-walking indexes match the entry-based path (NewFromEntries/store).
+func (ix *Index) applyTaskObjectives() {
+	plans := map[string]string{}
+	for id, d := range ix.registry {
+		if d.Kind == "plan" && d.Objective != "" {
+			plans[id] = d.Objective
+		}
+	}
+	for id, d := range ix.registry {
+		if d.Kind != "tasks" {
+			continue
+		}
+		d.Objective = plans[taskPlanRefFromRegistry(d)]
+		ix.registry[id] = d
+		if ierr := ix.idx.Index(id, d); ierr != nil {
+			log.Printf("sdtviewer: search index %s: %v", id, ierr)
+		}
+	}
+}
+
+// taskPlanRefFromRegistry resolves the plan corpus id for a task registry doc
+// from the plan/ reference recorded in its frontmatter.
+func taskPlanRefFromRegistry(d doc) string {
+	for _, ref := range contextwiki.FrontmatterList(d.Frontmatter, "sources") {
+		if r := normalizePlanRef(ref); r != "" {
+			return r
+		}
+	}
+	for _, ref := range contextwiki.FrontmatterList(d.Frontmatter, "links") {
+		if r := normalizePlanRef(ref); r != "" {
+			return r
+		}
+	}
+	return ""
+}
+
+func normalizePlanRef(ref string) string {
+	clean := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(ref), "./"), contextwiki.MarkdownExt)
+	if clean == "" {
+		return ""
+	}
+	if !strings.HasPrefix(clean, corpusDirName+"/") {
+		clean = corpusDirName + "/" + clean
+	}
+	clean += contextwiki.MarkdownExt
+	if !strings.Contains(clean, "/plan/") {
+		return ""
+	}
+	return clean
 }
 
 // addEntry indexes one .md file from the corpus walk, skipping excluded dirs,
@@ -334,6 +415,7 @@ func (ix *Index) addEntry(dir, path string, d os.DirEntry, err error) error {
 		log.Printf("sdtviewer: search index %s: %v", docID, ierr)
 	}
 	return nil
+
 }
 
 // closeLog releases the mem index; a close failure is logged, not fatal.

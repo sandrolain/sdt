@@ -251,7 +251,7 @@ func rebuildInto(root, dir string, entries []*mdindex.Entry, changed, removed []
 		if err := e.LoadBody(); err != nil {
 			continue // unreadable doc is skipped, never fatal
 		}
-		if err := idx.Index(e.ID, docFromEntry(e)); err != nil {
+		if err := idx.Index(e.ID, docForEntry(e, planObjectivesByID(entries))); err != nil {
 			return fmt.Errorf("search: store index %s: %w", e.ID, err)
 		}
 	}
@@ -273,6 +273,7 @@ func applyDelta(dir string, entries []*mdindex.Entry, changed, removed []string)
 	for _, e := range entries {
 		byID[e.ID] = e
 	}
+	planObjective := planObjectivesByID(entries)
 	for _, id := range removed {
 		if err := idx.Delete(id); err != nil {
 			return fmt.Errorf("search: store delete %s: %w", id, err)
@@ -286,7 +287,7 @@ func applyDelta(dir string, entries []*mdindex.Entry, changed, removed []string)
 		if err := e.LoadBody(); err != nil {
 			continue // unreadable doc is skipped, never fatal
 		}
-		if err := idx.Index(id, docFromEntry(e)); err != nil {
+		if err := idx.Index(id, docForEntry(e, planObjective)); err != nil {
 			return fmt.Errorf("search: store index %s: %w", id, err)
 		}
 	}
