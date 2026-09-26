@@ -740,6 +740,102 @@ func contextLintCorpusPath(path string) bool {
 	return false
 }
 
+// ctxDoneStatuses mirrors the viewer's "done" vocabulary
+// (web/src/lib/statusDot.ts DONE) so lint and the dot agree on completion.
+var ctxDoneStatuses = map[string]bool{
+	taskFileStatusCompleted: true,
+	"complete":              true,
+	"done":                  true,
+	"executed":              true,
+	taskFileStatusArchived:  true,
+}
+
+// normalizeContextRef mirrors web/src/lib/statusDot.ts normalizeRef: strip a
+// leading ./ or /, add .md, and prefix context/ when absent.
+func normalizeContextRef(ref string) string {
+	clean := strings.TrimSpace(ref)
+	clean = strings.TrimPrefix(clean, "./")
+	clean = strings.TrimLeft(clean, "/")
+	if !strings.HasSuffix(clean, sdtMarkdownExt) {
+		clean += sdtMarkdownExt
+	}
+	if !strings.HasPrefix(clean, sdtWorkDir+"/") {
+		clean = sdtWorkDir + "/" + clean
+	}
+	return clean
+}
+
+// taskPlanRef mirrors the viewer's tasksByPlan: the first normalized `sources`
+// reference containing "/plan/", else "". The heuristic (not a resolved kind
+// lookup) is intentional so the guard sees exactly the viewer's association;
+// F5's archive/ orphaning stays out of scope pending questions/20260926-200920.
+func taskPlanRef(content string) string {
+	for _, ref := range parseFrontmatterList(content, ctxFrontmatterSources) {
+		if normalized := normalizeContextRef(ref); strings.Contains(normalized, "/plan/") {
+			return normalized
+		}
+	}
+	return ""
+}
+
+// lintPlanTaskAgreement reports a plan declaring `completed` whose referenced
+// tasks are not all done, and distinguishes a plan with no resolvable task
+// reference. WARNING so a plan completed in the same change that archives its
+// tasks never hard-fails lint.
+func lintPlanTaskAgreement(planFiles, taskFiles []string) []ctxLintIssue {
+	type taskDoc struct {
+		path   string
+		status string
+	}
+	tasksByPlan := map[string][]taskDoc{}
+	for _, path := range taskFiles {
+		data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		if parseFrontmatterField(content, "kind") != ctxTypeTasks {
+			continue
+		}
+		ref := taskPlanRef(content)
+		if ref == "" {
+			continue
+		}
+		tasksByPlan[ref] = append(tasksByPlan[ref], taskDoc{path: path, status: strings.ToLower(strings.TrimSpace(parseFrontmatterField(content, "status")))})
+	}
+
+	var issues []ctxLintIssue
+	for _, path := range planFiles {
+		data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		if parseFrontmatterField(content, "kind") != ctxTypePlan {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(parseFrontmatterField(content, "status"))) != taskFileStatusCompleted {
+			continue
+		}
+		tasks := tasksByPlan[normalizeContextRef(path)]
+		if len(tasks) == 0 {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: "plan declares completed but no task file references it (cannot verify completion)"})
+			continue
+		}
+		var unfinished []string
+		for _, task := range tasks {
+			if !ctxDoneStatuses[task.status] {
+				unfinished = append(unfinished, filepath.Base(task.path))
+			}
+		}
+		if len(unfinished) > 0 {
+			sort.Strings(unfinished)
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("plan declares completed but %d task(s) are not done: %s", len(unfinished), strings.Join(unfinished, ", "))})
+		}
+	}
+	return issues
+}
+
 var contextLintCmd = &cobra.Command{
 	Use:   gateStepLint,
 	Short: "Validate context frontmatter and links",
@@ -807,6 +903,16 @@ Examples:
 			if files, err := dirFiles(sdtAnalysisDir); err == nil {
 				issues = append(issues, lintOverlappingAnalyses(files)...)
 			}
+			// Plan/task disagreement guard (D4): needs both document sets, and it
+			// scans archive/ too so archived task files still associate with the
+			// plan they close, mirroring the viewer's tree.
+			planFiles, err := dirFiles(sdtPlanDir)
+			exitWithError(cmd, err)
+			taskFiles, err := dirFiles(sdtTasksDir)
+			exitWithError(cmd, err)
+			archivedFiles, err := dirFiles(sdtArchiveDir)
+			exitWithError(cmd, err)
+			issues = append(issues, lintPlanTaskAgreement(append(planFiles, archivedFiles...), append(taskFiles, archivedFiles...))...)
 			// Role-profile advisory: mirror deterministic role checks as SUGGESTIONs.
 			issues = append(issues, lintRoleProfiles()...)
 		}
