@@ -139,6 +139,46 @@ describe("statusDot", () => {
     expect(statusDot(entry({ kind: "wiki" }), new Map())).toBeNull();
     expect(statusDot(entry({ kind: "notes" }), new Map())).toBeNull();
   });
+
+  it("lets a plan's terminal declared status decide the dot over its tasks (D4)", () => {
+    // Declared completed wins even when the referenced tasks are unfinished.
+    const completed = plan();
+    completed.status = "completed";
+    const unfinished = new Map<string, TreeEntry[]>([
+      ["context/plan/x.md", [task("context/tasks/a.md", "pending")]],
+    ]);
+    expect(statusDot(completed, new Map(), unfinished)).toEqual({
+      tone: "ok",
+      label: "Plan completed",
+    });
+
+    const abandoned = plan();
+    abandoned.status = "abandoned";
+    expect(statusDot(abandoned, new Map(), unfinished)).toEqual({
+      tone: "neutral",
+      label: "Plan abandoned",
+    });
+
+    // A non-terminal declared status still derives from the task set.
+    const active = plan();
+    active.status = "active";
+    expect(statusDot(active, new Map(), unfinished)?.tone).toBe("danger");
+  });
+
+  it("distinguishes a plan with no tasks from one with unfinished tasks", () => {
+    const noneStarted = statusDot(plan(), new Map(), new Map());
+    expect(noneStarted).toEqual({ tone: "danger", label: "Plan not started" });
+
+    const unfinished = new Map<string, TreeEntry[]>([
+      [
+        "context/plan/x.md",
+        [task("context/tasks/a.md", "in-progress"), task("context/tasks/b.md", "pending")],
+      ],
+    ]);
+    const inFlight = statusDot(plan(), new Map(), unfinished);
+    expect(inFlight).toEqual({ tone: "danger", label: "No tasks completed yet" });
+    expect(inFlight?.label).not.toBe(noneStarted?.label);
+  });
 });
 
 describe("groupDot", () => {
@@ -232,8 +272,14 @@ describe("entryCompleted", () => {
     expect(entryCompleted(entry({ kind: "wiki", status: "completed" }))).toBe(false);
   });
 
-  it("a plan without task references is never completed (not hidden)", () => {
+  it("a plan without task references is not completed unless its status says so", () => {
     expect(entryCompleted(plan(), new Map())).toBe(false);
+    const done = plan();
+    done.status = "completed";
+    expect(entryCompleted(done, new Map())).toBe(true);
+    const abandoned = plan();
+    abandoned.status = "abandoned";
+    expect(entryCompleted(abandoned, new Map())).toBe(false);
   });
 });
 

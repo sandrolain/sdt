@@ -1,4 +1,5 @@
 import type { TreeEntry } from "./api";
+import { valueLabel } from "./frontmatter";
 
 export type StatusTone = "danger" | "warn" | "ok" | "neutral";
 type ActiveStatusTone = Exclude<StatusTone, "neutral">;
@@ -17,6 +18,9 @@ export interface TaskProgress {
 
 const IN_PROGRESS = new Set(["in-progress", "in_progress", "wip", "progress", "doing"]);
 const DONE = new Set(["completed", "complete", "done", "executed", "archived"]);
+
+/** A plan's terminal declared statuses: they decide the dot over the task set. */
+const PLAN_TERMINAL = new Set(["completed", "abandoned"]);
 
 /** True when a frontmatter `status` value is a "done" state (completed/archived). */
 export function isDoneStatus(status?: string): boolean {
@@ -117,11 +121,27 @@ export function statusDot(
   taskIndex: Map<string, TreeEntry[]> = new Map(),
 ): StatusDot | null {
   if (entry.kind === "plan") {
+    // A terminal declared status (completed/abandoned) decides the dot; only a
+    // non-terminal plan derives it from its referenced task set (D4).
+    const declared = (entry.status ?? "").trim().toLowerCase();
+    if (PLAN_TERMINAL.has(declared)) {
+      const value = valueLabel("plan", declared);
+      return {
+        tone: value?.tone ?? "neutral",
+        label: `Plan ${(value?.label ?? declared).toLowerCase()}`,
+      };
+    }
     const tasks = taskIndex.get(normalizeRef(entry.path)) ?? [];
-    const { tone } = taskProgress(tasks);
+    const progress = taskProgress(tasks);
     const label =
-      tone === "ok" ? "Plan completed" : tone === "warn" ? "Plan in progress" : "Plan not started";
-    return { tone, label };
+      progress.tone === "ok"
+        ? "Plan completed"
+        : progress.tone === "warn"
+          ? "Plan in progress"
+          : progress.total === 0
+            ? "Plan not started"
+            : taskProgressLabel(progress);
+    return { tone: progress.tone, label };
   }
   if (entry.kind === "tasks") {
     const status = (entry.status ?? "").trim().toLowerCase();
@@ -181,6 +201,9 @@ export function entryCompleted(
   if (entry.kind === "tasks") return isDoneStatus(entry.status);
   if (entry.kind === "analysis") return isDoneStatus(entry.status);
   if (entry.kind === "plan") {
+    // A terminal declared status counts the plan as completed regardless of its
+    // referenced tasks (D4, aligning the hide filter with the dot model).
+    if (isDoneStatus(entry.status)) return true;
     const tasks = taskIndex.get(normalizeRef(entry.path)) ?? [];
     return tasks.length > 0 && tasks.every((t) => isDoneStatus(t.status));
   }
