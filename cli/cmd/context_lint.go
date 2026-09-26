@@ -118,6 +118,9 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"prompt must declare", "add a `derived_from` frontmatter reference to the prompt that produced this document"},
 	{"analysis missing `objective`", "add `objective: <kebab-case-slug>`; reuse the same slug in every analysis of the same initiative so they group in the index"},
 	{"analysis `objective`", "set `objective` to a lowercase kebab-case slug (letters, digits and '-'), shared across analyses of the same initiative"},
+	{"plan missing `objective`", "add `objective: <kebab-case-slug>` matching the analysis this plan derives from so plans, tasks and analyses group in the index"},
+	{"plan `objective`", "set `objective` to the lowercase kebab-case slug shared with the analysis this plan derives from"},
+	{"task file carries legacy `objective`", "rename the field to `phase`; the task inherits the plan objective and never declares `objective`"},
 	{"notes entry missing `agent`", "add `agent: <tool/role>` to the notes frontmatter so the entry's provenance is recorded (`sdt context list --agent`)"},
 	{"unknown topic", "use a canonical topic from context/topics.yaml (aliases are accepted too), or add the topic to the register"},
 	{"topic ", "use a kebab-case topic slug (lowercase letters, digits and '-')"},
@@ -318,8 +321,10 @@ func lintDoc(path string) []ctxLintIssue {
 	issues = append(issues, lintTimestampFields(path, content, prio)...)
 	// Optional `objective` grouping key: WARNING on a non-kebab-case value,
 	// SUGGESTION on absence so the convention is adopted gradually without
-	// breaking existing analyses.
+	// breaking existing analyses; a plan's objective must match its analysis.
 	issues = append(issues, lintObjectiveField(path, content, kind, prio)...)
+	issues = append(issues, lintPlanObjectiveConsistency(path, content, kind, prio)...)
+	issues = append(issues, lintTaskObjectiveLegacy(path, content, kind)...)
 	// Analyses must declare how they relate to prior work: a `links`,
 	// `supersedes` or `contradicts` reference, or an explicit `links: none`.
 	issues = append(issues, lintAnalysisRelations(path, content, kind, prio)...)
@@ -401,18 +406,58 @@ func lintRoleFrontmatter(path, content string) []ctxLintIssue {
 }
 
 // lintObjectiveField validates the optional `objective` grouping key carried by
-// analysis documents: WARNING on a non-kebab-case value, SUGGESTION when the
-// key is absent so the grouping convention is adopted gradually.
+// analysis and plan documents: WARNING on a non-kebab-case value, SUGGESTION
+// when the key is absent so the grouping convention is adopted gradually.
 func lintObjectiveField(path, content, kind string, prio func(string) string) []ctxLintIssue {
-	if kind != ctxTypeAnalysis {
+	if kind != ctxTypeAnalysis && kind != ctxTypePlan {
 		return nil
 	}
 	if o := parseFrontmatterField(content, "objective"); o == "" {
-		return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "analysis missing `objective` group key (kebab-case slug)"}}
+		return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: kind + " missing `objective` group key (kebab-case slug)"}}
 	} else if !ctxObjectiveRegexp.MatchString(o) {
-		return []ctxLintIssue{{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("analysis `objective` %q must be a kebab-case slug (lowercase letters, digits and '-')", o)}}
+		return []ctxLintIssue{{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("%s `objective` %q must be a kebab-case slug (lowercase letters, digits and '-')", kind, o)}}
 	}
 	return nil
+}
+
+// lintPlanObjectiveConsistency warns when a plan's `objective` differs from the
+// objective of the analysis it sources (advisory so it never blocks).
+func lintPlanObjectiveConsistency(path, content, kind string, prio func(string) string) []ctxLintIssue {
+	if kind != ctxTypePlan {
+		return nil
+	}
+	o := parseFrontmatterField(content, "objective")
+	if o == "" {
+		return nil
+	}
+	for _, ref := range parseFrontmatterList(content, ctxFrontmatterSources) {
+		abs, ok := ctxResolvePath(sdtWorkDir, ref)
+		if !ok {
+			continue // broken source references are reported elsewhere
+		}
+		data, err := os.ReadFile(abs) //#nosec G304 -- path resolved within context/
+		if err != nil {
+			continue
+		}
+		if parseFrontmatterField(string(data), "kind") != ctxTypeAnalysis {
+			continue
+		}
+		if ao := parseFrontmatterField(string(data), "objective"); ao != "" && ao != o {
+			return []ctxLintIssue{{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("plan `objective` %q differs from its analysis %s objective %q", o, ref, ao)}}
+		}
+		return nil
+	}
+	return nil
+}
+
+// lintTaskObjectiveLegacy flags a task file still carrying the legacy
+// `objective` field (renamed to `phase`; the objective is inherited from the
+// plan, never declared on the task).
+func lintTaskObjectiveLegacy(path, content, kind string) []ctxLintIssue {
+	if kind != ctxTypeTasks || parseFrontmatterField(content, "objective") == "" {
+		return nil
+	}
+	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "task file carries legacy `objective`; rename it to `phase` (the plan objective is inherited, not declared)"}}
 }
 
 // lintAnalysisRelations requires an analysis to declare how it relates to prior

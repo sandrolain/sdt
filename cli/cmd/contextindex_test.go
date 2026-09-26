@@ -522,7 +522,7 @@ func TestContextLintSourcesBroken(t *testing.T) {
 func TestContextLintObjectiveValid(t *testing.T) {
 	dir := setupContextProject(t)
 	writeCtxDoc(t, "context/analysis/ok.md", "---\nkind: analysis\nsummary: ok\nobjective: memory-1\nlinks: none\n---\nbody\n")
-	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nsummary: no objective needed\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nsummary: plan with objective\nobjective: memory-1\nsources:\n  - analysis/ok.md\n---\nbody\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)
@@ -559,5 +559,65 @@ func TestContextLintObjectiveBadSlug(t *testing.T) {
 	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
 	if !strings.Contains(out, `"WARNING"`) || !strings.Contains(out, "must be a kebab-case slug") {
 		t.Errorf("expected a WARNING for the malformed objective, got:\n%s", out)
+	}
+}
+
+// writeObjectiveFixture writes an analysis with an objective plus an index, the
+// shared base for the plan/task objective lint cases.
+func writeObjectiveFixture(t *testing.T, analysisObjective, planBody, taskBody string) {
+	t.Helper()
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/a.md",
+		"---\nkind: analysis\nsummary: a\nobjective: "+analysisObjective+"\nlinks: none\n---\nbody\n")
+	if planBody != "" {
+		writeCtxDoc(t, "context/plan/p.md", planBody)
+	}
+	if taskBody != "" {
+		writeCtxDoc(t, "context/tasks/t.md", taskBody)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte("---\nkind: index\nsummary: i\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestContextLintPlanObjectiveMissing(t *testing.T) {
+	writeObjectiveFixture(t, "obj", "---\nkind: plan\nsummary: p\nsources:\n  - analysis/a.md\n---\nbody\n", "")
+	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
+	if !strings.Contains(out, "plan missing `objective`") || !strings.Contains(out, ctxLintSuggestion) {
+		t.Errorf("expected plan missing objective SUGGESTION:\n%s", out)
+	}
+}
+
+func TestContextLintPlanObjectiveBadSlug(t *testing.T) {
+	writeObjectiveFixture(t, "obj", "---\nkind: plan\nsummary: p\nobjective: Bad Obj!\nsources:\n  - analysis/a.md\n---\nbody\n", "")
+	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
+	if !strings.Contains(out, `"WARNING"`) || !strings.Contains(out, "must be a kebab-case slug") {
+		t.Errorf("expected plan bad-slug WARNING:\n%s", out)
+	}
+}
+
+func TestContextLintPlanObjectiveMismatch(t *testing.T) {
+	writeObjectiveFixture(t, "obj", "---\nkind: plan\nsummary: p\nobjective: other-obj\nsources:\n  - analysis/a.md\n---\nbody\n", "")
+	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
+	if !strings.Contains(out, `"WARNING"`) || !strings.Contains(out, "differs from its analysis") {
+		t.Errorf("expected plan objective mismatch WARNING:\n%s", out)
+	}
+}
+
+func TestContextLintPlanObjectiveMatches(t *testing.T) {
+	writeObjectiveFixture(t, "obj", "---\nkind: plan\nsummary: p\nobjective: obj\nsources:\n  - analysis/a.md\n---\nbody\n", "")
+	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
+	if strings.Contains(out, "differs from its analysis") || strings.Contains(out, "plan missing `objective`") {
+		t.Errorf("matching plan objective must not be flagged:\n%s", out)
+	}
+}
+
+func TestContextLintTaskLegacyObjective(t *testing.T) {
+	writeObjectiveFixture(t, "obj",
+		"---\nkind: plan\nsummary: p\nobjective: obj\nsources:\n  - analysis/a.md\n---\nbody\n",
+		"---\nkind: tasks\nsummary: t\nphase: \"1\"\nstatus: pending\nobjective: legacy label\nsources:\n  - plan/p.md\n---\nbody\n")
+	out := string(execute(t, contextLintCmd, nil, "--format", "json"))
+	if !strings.Contains(out, "task file carries legacy `objective`") {
+		t.Errorf("expected legacy task objective SUGGESTION:\n%s", out)
 	}
 }
