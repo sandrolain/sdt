@@ -30,7 +30,7 @@ func TestContextLintHintByClass(t *testing.T) {
 
 func TestContextLintHintTextJSONYAML(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/plan/badlink.md", "---\nkind: plan\nsummary: x\n[[missing-file]]\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/badlink.md", "---\nkind: plan\nsummary: x\n---\n[[missing-file]]\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
 	if err := os.WriteFile("context/index.md", []byte(idx), 0o644); err != nil {
 		t.Fatal(err)

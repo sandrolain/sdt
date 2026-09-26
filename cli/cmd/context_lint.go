@@ -291,9 +291,8 @@ func lintDoc(path string) []ctxLintIssue {
 		return []ctxLintIssue{{Path: path, Priority: ctxLintCritical, Message: err.Error()}}
 	}
 	content := string(data)
-	// frontmatter: must start with --- and contain kind + summary.
-	if !strings.HasPrefix(content, "---\n") {
-		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "missing YAML frontmatter"}}
+	if issue := lintFrontmatterSyntax(path, data); issue != nil {
+		return []ctxLintIssue{*issue}
 	}
 	kind := parseFrontmatterField(content, "kind")
 	summary := parseFrontmatterField(content, "summary")
@@ -389,6 +388,51 @@ func lintDoc(path string) []ctxLintIssue {
 		}
 	}
 	return issues
+}
+
+// validateFrontmatter verifies that a document starts with a closed YAML
+// frontmatter block whose root value is a mapping. Missing frontmatter is
+// returned separately so lint can preserve its legacy warning; malformed
+// blocks are errors and therefore CRITICAL.
+func validateFrontmatter(data []byte) error {
+	lines := strings.Split(string(data), "\n")
+	if len(lines) == 0 || strings.TrimSpace(strings.TrimSuffix(lines[0], "\r")) != ctxFrontmatterDelim {
+		return fmt.Errorf("missing YAML frontmatter")
+	}
+
+	closing := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(strings.TrimSuffix(lines[i], "\r")) == ctxFrontmatterDelim {
+			closing = i
+			break
+		}
+	}
+	if closing < 0 {
+		return fmt.Errorf("unterminated YAML frontmatter")
+	}
+
+	var value any
+	if err := yaml.Unmarshal([]byte(strings.Join(lines[1:closing], "\n")), &value); err != nil {
+		return fmt.Errorf("invalid YAML frontmatter: %w", err)
+	}
+	if _, ok := value.(map[string]any); !ok {
+		return fmt.Errorf("YAML frontmatter must be a mapping")
+	}
+	return nil
+}
+
+func lintFrontmatterSyntax(path string, data []byte) *ctxLintIssue {
+	err := validateFrontmatter(data)
+	if err == nil {
+		return nil
+	}
+	priority := ctxLintCritical
+	if err.Error() == "missing YAML frontmatter" {
+		// Preserve the historical advisory for legacy documents that have no
+		// frontmatter at all. A present but malformed block is a hard failure.
+		priority = ctxLintWarning
+	}
+	return &ctxLintIssue{Path: path, Priority: priority, Message: err.Error()}
 }
 
 // lintRoleFrontmatter validates a document's `role:` provenance field against

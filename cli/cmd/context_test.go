@@ -707,6 +707,23 @@ func TestFrontmatterField(t *testing.T) {
 	if got := frontmatterField("no frontmatter\n", "objective"); got != "" {
 		t.Errorf("expected empty, got %q", got)
 	}
+	if got := frontmatterField("---\nstatus completed\n---\nstatus in body\n", "status"); got != "completed" {
+		t.Errorf("malformed frontmatter status = %q, want completed", got)
+	}
+}
+
+func TestSetTaskFileStatusRepairsMalformedFrontmatterOnly(t *testing.T) {
+	content := "---\nkind: tasks\nstatus completed\nupdated: 2026-01-01T00:00:00Z\n---\nstatus in body\n"
+	got := setTaskFileStatus(content, taskFileStatusArchived)
+	if want := "status: archived"; !strings.Contains(got, want) {
+		t.Fatalf("status update did not repair malformed frontmatter: %s", got)
+	}
+	if frontmatterField(got, "status") != taskFileStatusArchived {
+		t.Fatalf("frontmatter status = %q, want %q", frontmatterField(got, "status"), taskFileStatusArchived)
+	}
+	if !strings.HasSuffix(got, "---\nstatus in body\n") {
+		t.Fatalf("status update changed body prose: %q", got)
+	}
 }
 
 func TestTaskArchiveSlug(t *testing.T) {
@@ -839,6 +856,22 @@ func TestContextTaskFileStatusTransitions(t *testing.T) {
 	archived := mustReadFile(t, strings.TrimSpace(string(archiveOut)))
 	if got := frontmatterField(archived, "status"); got != taskFileStatusArchived {
 		t.Fatalf("archive status = %q, want %q", got, taskFileStatusArchived)
+	}
+}
+
+func TestContextTaskArchiveRepairsMalformedStatus(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	path := taskFileFor("1", "custom")
+	writeCtxDoc(t, path, "---\nkind: tasks\nsummary: malformed status fixture\nstatus completed\nupdated: 2026-01-01T00:00:00Z\n---\nstatus in body\n")
+
+	out := execute(t, contextTaskArchiveCmd, nil, "--phase", "1", "--plan", "custom")
+	archived := mustReadFile(t, strings.TrimSpace(string(out)))
+	if got := frontmatterField(archived, "status"); got != taskFileStatusArchived {
+		t.Fatalf("archived malformed status = %q, want %q", got, taskFileStatusArchived)
+	}
+	if !strings.HasSuffix(archived, "---\nstatus in body\n") {
+		t.Fatalf("archive changed body prose: %q", archived)
 	}
 }
 

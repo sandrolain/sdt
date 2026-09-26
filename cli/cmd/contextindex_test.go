@@ -309,9 +309,9 @@ func TestContextLintClean(t *testing.T) {
 	dir := setupContextProject(t)
 	writeCtxDoc(t, "context/plan/good.md", "---\nkind: plan\nsummary: Good plan\nlinks:\n  - notes/other.md\n---\nbody\n")
 	writeCtxDoc(t, "context/notes/other.md", "---\nkind: notes\nsummary: Other\n---\nbody\n")
-	idx := "---\nkind: index\nsummary: index\n"
+	idx := "---\nkind: index\nsummary: index\n---\n"
 	idx += "[[plan/good.md]]\n"
-	idx += "[[notes/other.md]]\n---\n"
+	idx += "[[notes/other.md]]\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -338,9 +338,9 @@ func TestContextLintMissingSummary(t *testing.T) {
 
 func TestContextLintBrokenLink(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "context/plan/nosearch.md", "---\nkind: plan\nsummary: x\n[[missing-file]]\n---\nbody\n")
-	idx := "---\nkind: index\nsummary: i\n"
-	idx += "[[plan/nosearch.md]]\n---\n"
+	writeCtxDoc(t, "context/plan/nosearch.md", "---\nkind: plan\nsummary: x\n---\n[[missing-file]]\n")
+	idx := "---\nkind: index\nsummary: i\n---\n"
+	idx += "[[plan/nosearch.md]]\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)
 	}

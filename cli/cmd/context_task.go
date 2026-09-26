@@ -292,9 +292,21 @@ var contextTaskAddCmd = &cobra.Command{
 
 func setTaskFileStatus(content, status string) string {
 	lines := strings.Split(content, "\n")
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
+		return content
+	}
 	changed := false
-	for i, line := range lines {
+	for i := 1; i < len(lines); i++ {
+		line := lines[i]
+		if strings.TrimSpace(line) == ctxFrontmatterDelim {
+			break
+		}
 		if strings.HasPrefix(line, "status:") {
+			lines[i] = "status: " + status
+			changed = true
+		} else if strings.HasPrefix(line, "status ") {
+			// Recover the malformed legacy shape instead of silently preserving
+			// it when a task is archived or its status changes.
 			lines[i] = "status: " + status
 			changed = true
 		} else if strings.HasPrefix(line, "updated:") {
@@ -461,6 +473,9 @@ func frontmatterField(content, key string) string {
 		}
 		if strings.HasPrefix(line, key+":") {
 			return strings.TrimSpace(strings.TrimPrefix(line, key+":"))
+		}
+		if strings.HasPrefix(line, key+" ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, key+" "))
 		}
 	}
 	return ""
