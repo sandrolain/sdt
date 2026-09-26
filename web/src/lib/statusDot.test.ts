@@ -8,8 +8,10 @@ import {
   planReferencedAnalyses,
   plansByAnalysis,
   statusDot,
+  taskObjective,
   taskProgress,
   tasksByPlan,
+  withTaskObjectives,
 } from "./statusDot";
 
 function entry(patch: Partial<TreeEntry>): TreeEntry {
@@ -266,5 +268,44 @@ describe("planReferencedAnalyses", () => {
     expect(planReferencedAnalyses(entries)).toEqual(
       new Set(["context/analysis/a.md", "context/analysis/b.md", "context/analysis/c.md"]),
     );
+  });
+});
+
+describe("taskObjective", () => {
+  const plans = () =>
+    new Map<string, TreeEntry>([
+      [
+        "context/plan/x.md",
+        entry({ path: "context/plan/x.md", kind: "plan", objective: "viewer" }),
+      ],
+    ]);
+
+  it("inherits the objective of the plan a task sources", () => {
+    expect(taskObjective(task("context/tasks/t.md", "pending", ["plan/x.md"]), plans())).toBe(
+      "viewer",
+    );
+  });
+
+  it("returns empty when the plan is missing or carries no objective", () => {
+    expect(taskObjective(task("context/tasks/t.md", "pending", ["plan/missing.md"]), plans())).toBe(
+      "",
+    );
+    expect(taskObjective(task("context/tasks/t.md", "pending"), new Map())).toBe("");
+  });
+
+  it("keeps a task's own objective when it carries one", () => {
+    const own = task("context/tasks/t.md", "pending", ["plan/x.md"]);
+    own.objective = "own-obj";
+    expect(taskObjective(own, plans())).toBe("own-obj");
+  });
+
+  it("withTaskObjectives annotates only inherited tasks", () => {
+    const map = plans();
+    const tasks = withTaskObjectives(
+      [task("context/tasks/a.md", "pending", ["plan/x.md"]), task("context/tasks/b.md", "pending")],
+      map,
+    );
+    expect(tasks[0].objective).toBe("viewer");
+    expect(tasks[1].objective).toBeUndefined();
   });
 });

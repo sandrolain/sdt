@@ -72,6 +72,25 @@ export function tasksByPlan(entries: TreeEntry[]): Map<string, TreeEntry[]> {
   return map;
 }
 
+/** Objective a task inherits from the plan it references (its own `objective`
+ *  wins when present, e.g. a standalone checklist). "" when unresolved. */
+export function taskObjective(entry: TreeEntry, plans: Map<string, TreeEntry>): string {
+  if (entry.objective) return entry.objective;
+  if (entry.kind !== "tasks") return "";
+  const planRef = (entry.sources ?? []).map(normalizeRef).find((p) => p.includes("/plan/")) ?? "";
+  return (planRef && plans.get(planRef)?.objective) || "";
+}
+
+/** Copy of the task entries carrying their inherited objective, so
+ *  groupByObjective can bucket them like analyses and plans. */
+export function withTaskObjectives(tasks: TreeEntry[], plans: Map<string, TreeEntry>): TreeEntry[] {
+  return tasks.map((task) => {
+    if (task.objective) return task;
+    const objective = taskObjective(task, plans);
+    return objective ? { ...task, objective } : task;
+  });
+}
+
 /** Progress of a task list: red none done (or no tasks), green all done, else yellow. */
 export function taskProgress(tasks: TreeEntry[]): TaskProgress {
   const list = tasks.filter((t) => t.kind === "tasks");

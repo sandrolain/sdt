@@ -581,4 +581,73 @@ describe("Tree", () => {
     // header dates remain under a name sort
     expect(document.querySelectorAll(".tree-folder__date")).toHaveLength(2);
   });
+
+  it("groups plans and inherited tasks by objective with tasks nested under their plan", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/analysis/a.md",
+                kind: "analysis",
+                title: "Analysis",
+                objective: "viewer",
+              },
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                title: "Plan",
+                status: "active",
+                objective: "viewer",
+              },
+              {
+                path: "context/tasks/t1.md",
+                kind: "tasks",
+                title: "Task one",
+                status: "pending",
+                sources: ["plan/p.md"],
+              },
+              {
+                path: "context/tasks/t2.md",
+                kind: "tasks",
+                title: "Task two",
+                status: "completed",
+                sources: ["plan/p.md"],
+              },
+              {
+                path: "context/plan/other.md",
+                kind: "plan",
+                title: "Other plan",
+                status: "active",
+              },
+              { path: "context/tasks/u.md", kind: "tasks", title: "Loose task", status: "pending" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Task one");
+
+    const folder = (label: string) =>
+      Array.from(document.querySelectorAll(".tree-folder")).find(
+        (f) => f.querySelector(".tree-folder__label")?.textContent === label,
+      );
+    const planObjective = Array.from(
+      folder("Plans")?.querySelectorAll(".tree-folder--objective") ?? [],
+    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "viewer");
+    expect(planObjective?.textContent).toContain("Plan");
+    // the objective-less plan stays at the plan-folder root
+    expect(planObjective?.textContent).not.toContain("Other plan");
+
+    const taskObjective = Array.from(
+      folder("Tasks")?.querySelectorAll(".tree-folder--objective") ?? [],
+    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "viewer");
+    const planSubGroup = taskObjective?.querySelector(".tree-folder--plan");
+    expect(planSubGroup?.textContent).toContain("Task one");
+    expect(planSubGroup?.textContent).toContain("Task two");
+    // the loose task (no plan, no objective) stays at the task-folder root
+    expect(folder("Tasks")?.textContent).toContain("Loose task");
+  });
 });

@@ -15,6 +15,7 @@ import {
   taskProgress,
   taskProgressLabel,
   tasksByPlan,
+  withTaskObjectives,
   type StatusDot,
 } from "../lib/statusDot";
 import { displayTitle, filenameDate } from "../lib/titles";
@@ -148,6 +149,13 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
                   taskIndex={taskIndex}
                   sort={gsort}
                 />
+              ) : group.kind === "plan" ? (
+                <PlanKindEntries
+                  entries={group.entries}
+                  plannedAnalyses={plannedAnalyses}
+                  taskIndex={taskIndex}
+                  sort={gsort}
+                />
               ) : group.kind === "wiki" ? (
                 <WikiEntries
                   entries={group.entries}
@@ -156,7 +164,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
                   sort={gsort}
                 />
               ) : group.kind === "tasks" ? (
-                <PlanEntries
+                <TaskKindEntries
                   entries={group.entries}
                   plans={planIndex}
                   plannedAnalyses={plannedAnalyses}
@@ -296,6 +304,120 @@ function GroupProgressDot({ dot }: { dot: StatusDot | null }) {
 function taskGroupDot(entries: TreeEntry[]): StatusDot {
   const progress = taskProgress(entries);
   return { tone: progress.tone, label: taskProgressLabel(progress) };
+}
+
+/** Aggregate task-progress dot for a group of plans (none started / partial /
+ *  all done), derived from each plan's referenced tasks. */
+function plansGroupDot(plans: TreeEntry[], taskIndex: Map<string, TreeEntry[]>): StatusDot | null {
+  const tasks = plans.flatMap((plan) => taskIndex.get(normalizeRef(plan.path)) ?? []);
+  if (tasks.length === 0) return null;
+  return taskGroupDot(tasks);
+}
+
+/** Plan kind folder: named `objective` sub-folders; plans without an objective
+ *  stay at the folder root. */
+function PlanKindEntries({
+  entries,
+  plannedAnalyses,
+  taskIndex,
+  sort,
+}: {
+  entries: TreeEntry[];
+  plannedAnalyses: PlannedAnalyses;
+  taskIndex: Map<string, TreeEntry[]>;
+  sort: GroupSort | null;
+}) {
+  return (
+    <>
+      {groupByObjective(entries, sort).map((group) =>
+        group.objective === "" ? (
+          <EntryList
+            key="__ungrouped"
+            entries={group.entries}
+            plannedAnalyses={plannedAnalyses}
+            taskIndex={taskIndex}
+          />
+        ) : (
+          <details key={group.objective} className="tree-folder tree-folder--objective">
+            <summary className="tree-folder__header">
+              <Icon name="expand_more" className="tree-folder__chevron" />
+              <Icon name="flag" className="tree-folder__icon" />
+              <span className="tree-folder__text">
+                <span className="tree-folder__title-row">
+                  <span className="tree-folder__label">{group.objective}</span>
+                  <GroupProgressDot dot={plansGroupDot(group.entries, taskIndex)} />
+                  <span className="tree-folder__count">{group.entries.length}</span>
+                </span>
+                <GroupHeaderDate entries={group.entries} />
+              </span>
+            </summary>
+            <EntryList
+              entries={group.entries}
+              plannedAnalyses={plannedAnalyses}
+              taskIndex={taskIndex}
+            />
+          </details>
+        ),
+      )}
+    </>
+  );
+}
+
+/** Task kind folder: named `objective` sub-folders (inherited from the plan)
+ *  with tasks nested under their plan inside each one; tasks without an
+ *  objective stay at the folder root and keep the plan nesting. */
+function TaskKindEntries({
+  entries,
+  plans,
+  plannedAnalyses,
+  taskIndex,
+  sort,
+}: {
+  entries: TreeEntry[];
+  plans: Map<string, TreeEntry>;
+  plannedAnalyses: PlannedAnalyses;
+  taskIndex: Map<string, TreeEntry[]>;
+  sort: GroupSort | null;
+}) {
+  const withObjective = withTaskObjectives(entries, plans);
+  return (
+    <>
+      {groupByObjective(withObjective, sort).map((group) =>
+        group.objective === "" ? (
+          <PlanEntries
+            key="__ungrouped"
+            entries={group.entries}
+            plans={plans}
+            plannedAnalyses={plannedAnalyses}
+            taskIndex={taskIndex}
+            sort={sort}
+          />
+        ) : (
+          <details key={group.objective} className="tree-folder tree-folder--objective">
+            <summary className="tree-folder__header">
+              <Icon name="expand_more" className="tree-folder__chevron" />
+              <Icon name="flag" className="tree-folder__icon" />
+              <span className="tree-folder__text">
+                <span className="tree-folder__title-row">
+                  <span className="tree-folder__label">{group.objective}</span>
+                  <GroupProgressDot dot={taskGroupDot(group.entries)} />
+                  <span className="tree-folder__count">{group.entries.length}</span>
+                </span>
+                <GroupHeaderDate entries={group.entries} />
+              </span>
+            </summary>
+            <PlanEntries
+              entries={group.entries}
+              plans={plans}
+              plannedAnalyses={plannedAnalyses}
+              taskIndex={taskIndex}
+              sort={sort}
+            />
+          </details>
+        ),
+      )}
+    </>
+  );
 }
 
 /** Task kind folder: tasks grouped under the plan they reference, tasks
