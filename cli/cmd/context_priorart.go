@@ -120,25 +120,5 @@ func filepathSlash(p string) string {
 // none, preserving the rest of the frontmatter. It is only used on a
 // just-generated file (never on an existing document).
 func injectLinks(content string, links []string) string {
-	if !strings.HasPrefix(content, "---\n") {
-		return content
-	}
-	end := strings.Index(content[4:], "\n---\n")
-	if end < 0 {
-		return content
-	}
-	end += 4
-	fm := content[:end]
-	rest := content[end:]
-	if strings.Contains(fm, "\nlinks:") {
-		return content // never rewrite an existing links block
-	}
-	var b strings.Builder
-	b.WriteString(fm)
-	b.WriteString("\nlinks:\n")
-	for _, l := range links {
-		b.WriteString("  - " + l + "\n")
-	}
-	b.WriteString(rest)
-	return b.String()
+	return injectReferenceList(content, ctxFrontmatterLinks, links)
 }

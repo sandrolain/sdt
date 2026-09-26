@@ -11,18 +11,21 @@ import (
 // resetCmdFlags recursively resets all flag values to their defaults so that
 // shared cobra.Command instances don't accumulate state between Execute() calls.
 func resetCmdFlags(cmd *cobra.Command) {
-	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		if f.Changed {
-			_ = f.Value.Set(f.DefValue)
-			f.Changed = false
+	reset := func(f *pflag.Flag) {
+		if !f.Changed {
+			return
 		}
-	})
-	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
-		if f.Changed {
+		// StringArray/StringSlice values append on Set, so restoring the
+		// "[]" DefValue would inject a literal entry; replace them instead.
+		if sv, ok := f.Value.(pflag.SliceValue); ok {
+			_ = sv.Replace(nil)
+		} else {
 			_ = f.Value.Set(f.DefValue)
-			f.Changed = false
 		}
-	})
+		f.Changed = false
+	}
+	cmd.Flags().VisitAll(reset)
+	cmd.PersistentFlags().VisitAll(reset)
 	for _, sub := range cmd.Commands() {
 		resetCmdFlags(sub)
 	}

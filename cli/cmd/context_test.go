@@ -385,6 +385,53 @@ func TestContextNewObjectiveBadSlug(t *testing.T) {
 	})
 }
 
+func TestContextNewPlanObjective(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "plan", "--slug", "ship-memory", "--objective", "memory-backend")
+	content := mustReadFile(t, filepath.Join("context", "plan", "20260806-070000-ship-memory.md"))
+	if !strings.Contains(content, "objective: memory-backend") {
+		t.Errorf("expected objective line on plan:\n%s", content)
+	}
+}
+
+func TestContextNewPlanObjectiveFromSource(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "choice", "--objective", "memory-backend")
+	execute(t, contextNewCmd, nil, "--type", "plan", "--slug", "ship-memory",
+		"--source", "analysis/20260806-070000-choice.md")
+	content := mustReadFile(t, filepath.Join("context", "plan", "20260806-070000-ship-memory.md"))
+	for _, want := range []string{
+		"objective: memory-backend",
+		"links:\n  - analysis/20260806-070000-choice.md",
+		"sources:\n  - analysis/20260806-070000-choice.md",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("expected %q in plan:\n%s", want, content)
+		}
+	}
+}
+
+func TestContextNewSourceWritesReferences(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "plan", "--slug", "p",
+		"--source", "analysis/a.md", "--source", "analysis/b.md", "--objective", "obj")
+	content := mustReadFile(t, filepath.Join("context", "plan", "20260806-070000-p.md"))
+	for _, want := range []string{
+		"links:\n  - analysis/a.md\n  - analysis/b.md",
+		"sources:\n  - analysis/a.md\n  - analysis/b.md",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("expected %q in plan:\n%s", want, content)
+		}
+	}
+}
+
 func TestContextNewArchitecture(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))

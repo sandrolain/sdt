@@ -10,11 +10,14 @@ without tasks has no execution value.
 Create a new plan with the CLI (scaffolds the dated path and frontmatter):
 
 ```bash
-sdt context new --type plan --title "<title>"
+sdt context new --type plan --title "<title>" [--objective <slug>] [--source <analysis-ref>]
 ```
 
 Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
 Or hand-write the file from the template below.
+
+When `--objective` is omitted and `--source` points to an analysis carrying an
+`objective`, the plan inherits that slug.
 
 ## Intent first
 
@@ -55,6 +58,8 @@ Follow strictly — the plan defines the work, the task files execute it:
 kind: plan
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<objective / what triggered the plan>"
+objective: <slug>         # optional: kebab-case group key shared with the
+                          # analysis; inherited by this plan's task files
 status: active            # active | completed | abandoned — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
@@ -129,6 +134,7 @@ session: <session id>        # optional
 | kind | yes | Document type, fixed value `plan`; index and lint depend on it. |
 | summary | yes | 1-2 sentence summary → index source. |
 | context | yes | Objective / what triggered the plan. |
+| objective | no | Kebab-case group key shared with the analysis; analyses, plans and tasks group by it (task files inherit it). |
 | status | yes | `active` / `completed` / `abandoned`. |
 | created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
 | updated | yes | ISO 8601 UTC last-edit date; refresh on every change (use `sdt time iso`). |

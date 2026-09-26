@@ -170,7 +170,7 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	if note != "" {
 		b.WriteString("context: " + yamlScalar(note) + "\n")
 	}
-	if (typ == ctxTypeAnalysis || typ == ctxTypeNotes) && objective != "" {
+	if (typ == ctxTypeAnalysis || typ == ctxTypeNotes || typ == ctxTypePlan) && objective != "" {
 		b.WriteString("objective: " + yamlScalar(objective) + "\n")
 	}
 	if typ == ctxTypeNotes && noteType != "" {
@@ -211,6 +211,70 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	return b.String()
 }
 
+// sanitizeReferenceList trims references, drops empties and de-duplicates them
+// while preserving order (the --source input for `context new`).
+
+func sanitizeReferenceList(in []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, v := range in {
+		ref := strings.TrimSpace(v)
+		if ref == "" || seen[ref] {
+			continue
+		}
+		seen[ref] = true
+		out = append(out, ref)
+	}
+	return out
+}
+
+// injectReferenceList adds a frontmatter list field (sources/links) to
+// generated content that has none, preserving the rest of the frontmatter. It
+// is only used on a just-generated file (never on an existing document).
+
+func injectReferenceList(content, field string, refs []string) string {
+	if len(refs) == 0 {
+		return content
+	}
+	if !strings.HasPrefix(content, "---\n") {
+		return content
+	}
+	end := strings.Index(content[4:], "\n---\n")
+	if end < 0 {
+		return content
+	}
+	end += 4
+	fm := content[:end]
+	rest := content[end:]
+	if strings.Contains(fm, "\n"+field+":") {
+		return content
+	}
+	var b strings.Builder
+	b.WriteString(fm)
+	b.WriteString("\n" + field + ":\n")
+	for _, r := range refs {
+		b.WriteString("  - " + r + "\n")
+	}
+	b.WriteString(rest)
+	return b.String()
+}
+
+// ctxObjectiveFromSource reads the `objective` frontmatter of a referenced
+// context document (resolved relative to context/), returning "" when the
+// reference does not resolve or carries no objective.
+
+func ctxObjectiveFromSource(ref string) string {
+	abs, ok := ctxResolvePath(sdtWorkDir, ref)
+	if !ok {
+		return ""
+	}
+	data, err := os.ReadFile(abs) //#nosec G304 -- path resolved within context/
+	if err != nil {
+		return ""
+	}
+	return parseFrontmatterField(string(data), "objective")
+}
+
 func contextDefaultBody(typ string) string {
 	switch typ {
 	case ctxTypeProposal:
@@ -240,8 +304,10 @@ after creation.
 The slug is derived from --title when --slug is omitted; --summary is optional
 and falls back to a MANDATORY-fill placeholder so the file passes lint. For
 decision type the next NNNN number is auto-assigned (override with --number).
---objective attaches a kebab-case grouping key (analysis or notes; on a notes
-entry it ties a dead-end to its objective). Wiki pages
+--objective attaches a kebab-case grouping key (analysis, notes or plan; on a
+notes entry it ties a dead-end to its objective); a plan defaults its objective
+from the analysis named by --source. --source records a derivation reference in
+` + "`sources`" + ` and ` + "`links`" + ` (repeatable). Wiki pages
 accept subpath ids (` + "`--slug backend/auth`" + `) and carry ` + "`id`" + ` equal to that
 subpath. --agent and --role record who produced a notes/worklog entry;
 --note-type sets the notes subtype (e.g. ` + "`dead-end`" + `). The
@@ -280,18 +346,24 @@ Examples:
 		note := getStringFlag(cmd, "context", false)
 		summary := getStringFlag(cmd, "summary", false)
 		objective := getStringFlag(cmd, "objective", false)
+		sources := sanitizeReferenceList(getStringArrayFlag(cmd, "source", false))
 		agent := getStringFlag(cmd, "agent", false)
 		role := getStringFlag(cmd, "role", false)
 		noteType := getStringFlag(cmd, "note-type", false)
 		topics := sanitizeSlugList(getStringArrayFlag(cmd, "topic", false))
 		entities := sanitizeSlugList(getStringArrayFlag(cmd, "entity", false))
 		if objective != "" {
-			if typ != ctxTypeAnalysis && typ != ctxTypeNotes {
-				exitWithError(cmd, fmt.Errorf("--objective is only supported for --type analysis or --type notes, got %q", typ))
+			if typ != ctxTypeAnalysis && typ != ctxTypeNotes && typ != ctxTypePlan {
+				exitWithError(cmd, fmt.Errorf("--objective is only supported for --type analysis, notes or plan, got %q", typ))
 			}
 			if !ctxObjectiveRegexp.MatchString(objective) {
 				exitWithError(cmd, fmt.Errorf("--objective must be a kebab-case slug (lowercase alphanumeric and '-'), got %q", objective))
 			}
+		}
+		// A plan inherits the objective of the analysis it sources when
+		// --objective is omitted.
+		if objective == "" && typ == ctxTypePlan && len(sources) > 0 {
+			objective = ctxObjectiveFromSource(sources[0])
 		}
 		if noteType != "" {
 			if typ != ctxTypeNotes {
@@ -354,6 +426,12 @@ Examples:
 			}
 			if body == "" {
 				body = contextDefaultBody(typ)
+			}
+			// --source records the derivation in both `sources` and `links`
+			// (never rewriting an existing block set by prior-art prefill).
+			if len(sources) > 0 {
+				content = injectReferenceList(content, ctxFrontmatterLinks, sources)
+				content = injectReferenceList(content, ctxFrontmatterSources, sources)
 			}
 		}
 
