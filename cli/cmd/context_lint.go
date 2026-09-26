@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,7 +12,10 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/spf13/cobra"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/parser"
 )
 
 // ctxFrontmatterSources is the provenance field name shared by the reference
@@ -280,9 +284,9 @@ func lintCommandFile(path, content string, prio func(string) string) []ctxLintIs
 	return issues
 }
 
-// lintDoc validates one context document. priorityFn lowers CRITICAL to
-// WARNING when the file is legacy (no new-style frontmatter) so old history
-// does not fail the whole check.
+// lintDoc validates the shared, per-document contract used by both corpus-wide
+// and positional lint. Legacy documents without frontmatter keep the advisory
+// behavior so old history does not fail the whole check.
 
 func lintDoc(path string) []ctxLintIssue {
 	var issues []ctxLintIssue
@@ -291,8 +295,8 @@ func lintDoc(path string) []ctxLintIssue {
 		return []ctxLintIssue{{Path: path, Priority: ctxLintCritical, Message: err.Error()}}
 	}
 	content := string(data)
-	if issue := lintFrontmatterSyntax(path, data); issue != nil {
-		return []ctxLintIssue{*issue}
+	if issues := lintFrontmatterAndLegacyBody(path, data); issues != nil {
+		return issues
 	}
 	kind := parseFrontmatterField(content, "kind")
 	summary := parseFrontmatterField(content, "summary")
@@ -387,6 +391,7 @@ func lintDoc(path string) []ctxLintIssue {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "completed task file has no `## Review` verify-step block (record verdicts; see `sdt context task review`)"})
 		}
 	}
+	issues = append(issues, lintMarkdownBody(path, frontmatterBody(data))...)
 	return issues
 }
 
@@ -433,6 +438,168 @@ func lintFrontmatterSyntax(path string, data []byte) *ctxLintIssue {
 		priority = ctxLintWarning
 	}
 	return &ctxLintIssue{Path: path, Priority: priority, Message: err.Error()}
+}
+
+func lintFrontmatterAndLegacyBody(path string, data []byte) []ctxLintIssue {
+	issue := lintFrontmatterSyntax(path, data)
+	if issue == nil {
+		return nil
+	}
+	issues := []ctxLintIssue{*issue}
+	if issue.Priority == ctxLintWarning {
+		// A legacy document without frontmatter still has a Markdown body.
+		issues = append(issues, lintMarkdownBody(path, data)...)
+	}
+	return issues
+}
+
+func frontmatterBody(data []byte) []byte {
+	lines := bytes.SplitAfter(data, []byte{'\n'})
+	seenOpening := false
+	for i, line := range lines {
+		line = bytes.TrimSuffix(line, []byte{'\n'})
+		line = bytes.TrimSuffix(line, []byte{'\r'})
+		if !seenOpening {
+			seenOpening = true
+			continue
+		}
+		if strings.TrimSpace(string(line)) == ctxFrontmatterDelim {
+			return bytes.Join(lines[i+1:], nil)
+		}
+	}
+	return nil
+}
+
+func lintMarkdownBody(path string, body []byte) []ctxLintIssue {
+	root := parser.New().Parse(body)
+	var issues []ctxLintIssue
+	if err := ast.Walk(root, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		if heading, ok := node.(*ast.Heading); ok && heading.Level == 1 {
+			line := markdownLineNumber(body, heading.Pos())
+			issues = append(issues, ctxLintIssue{
+				Path: path, Priority: ctxLintWarning,
+				Message: fmt.Sprintf("markdown H1 heading at line %d; document bodies start at H2", line),
+			})
+		}
+		if block, ok := node.(*ast.CodeBlock); ok && block.CodeBlockKind == ast.CodeBlockKindFenced && !codeBlockHasFenceCloser(body, block) {
+			line := markdownLineNumber(body, block.Pos())
+			issues = append(issues, ctxLintIssue{
+				Path: path, Priority: ctxLintCritical,
+				Message: fmt.Sprintf("unbalanced fenced code block opened at line %d", line),
+			})
+		}
+		return ast.WalkContinue, nil
+	}); err != nil {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: "markdown AST traversal failed: " + err.Error()})
+	}
+	return issues
+}
+
+func markdownLineNumber(source []byte, pos int) int {
+	if pos < 0 {
+		return 1
+	}
+	if pos > len(source) {
+		pos = len(source)
+	}
+	return bytes.Count(source[:pos], []byte{'\n'}) + 1
+}
+
+func codeBlockHasFenceCloser(source []byte, block *ast.CodeBlock) bool {
+	pos := block.Pos()
+	if pos < 0 || pos >= len(source) {
+		return false
+	}
+	openLineEnd := bytes.IndexByte(source[pos:], '\n')
+	if openLineEnd < 0 {
+		openLineEnd = len(source)
+	} else {
+		openLineEnd += pos
+	}
+	marker, length, ok := openingFence(source[pos:openLineEnd])
+	if !ok {
+		return false
+	}
+
+	lineStart, ok := nextMarkdownLine(source, openLineEnd)
+	if !ok {
+		return false
+	}
+	segments := block.Value.Segments()
+	if len(segments) > 0 {
+		lineStart, ok = nextMarkdownLine(source, segments[len(segments)-1].Stop)
+		if !ok {
+			return false
+		}
+	}
+	if lineStart >= len(source) {
+		return false
+	}
+	lineEnd := bytes.IndexByte(source[lineStart:], '\n')
+	if lineEnd < 0 {
+		lineEnd = len(source)
+	} else {
+		lineEnd += lineStart
+	}
+	line := bytes.TrimSuffix(source[lineStart:lineEnd], []byte{'\r'})
+	return closingFence(line, marker, length)
+}
+
+func openingFence(line []byte) (byte, int, bool) {
+	for i := 0; i < len(line); i++ {
+		if line[i] != '`' && line[i] != '~' {
+			continue
+		}
+		marker := line[i]
+		j := i + 1
+		for j < len(line) && line[j] == marker {
+			j++
+		}
+		if j-i >= 3 {
+			return marker, j - i, true
+		}
+		i = j - 1
+	}
+	return 0, 0, false
+}
+
+func closingFence(line []byte, marker byte, minimum int) bool {
+	for {
+		line = bytes.TrimLeft(line, " \t")
+		if len(line) == 0 || line[0] != '>' {
+			break
+		}
+		line = line[1:]
+		if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
+			line = line[1:]
+		}
+	}
+	line = bytes.TrimLeft(line, " \t")
+	i := 0
+	for i < len(line) && line[i] == marker {
+		i++
+	}
+	if i < minimum {
+		return false
+	}
+	return len(bytes.Trim(line[i:], " \t")) == 0
+}
+
+func nextMarkdownLine(source []byte, offset int) (int, bool) {
+	if offset < 0 || offset >= len(source) {
+		return 0, false
+	}
+	if offset > 0 && source[offset-1] == '\n' {
+		return offset, true
+	}
+	n := bytes.IndexByte(source[offset:], '\n')
+	if n < 0 {
+		return 0, false
+	}
+	return offset + n + 1, true
 }
 
 // lintRoleFrontmatter validates a document's `role:` provenance field against
@@ -523,22 +690,77 @@ func lintAnalysisRelations(path, content, kind string, prio func(string) string)
 	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "analysis declares no relation to prior work (add `" + ctxFrontmatterLinks + "`, `supersedes`/`contradicts`, or `" + ctxFrontmatterLinks + ": none` with a reason)"}}
 }
 
+func resolveContextLintPath(ref string) (string, error) {
+	indexRef := strings.TrimSpace(ref)
+	if filepath.IsAbs(indexRef) {
+		rel, err := filepath.Rel(ctxCwd(), indexRef)
+		if err != nil {
+			return "", err
+		}
+		indexRef = rel
+	}
+	indexRef = filepath.Clean(indexRef)
+	if indexRef != sdtContextIndex && !strings.HasPrefix(filepath.ToSlash(indexRef), sdtWorkDir+"/") {
+		indexRef = filepath.Join(sdtWorkDir, indexRef)
+	}
+	if filepath.ToSlash(filepath.Clean(indexRef)) == sdtContextIndex {
+		info, err := os.Stat(sdtContextIndex)
+		if err != nil {
+			return "", err
+		}
+		if info.IsDir() {
+			return "", fmt.Errorf("%s is a directory", sdtContextIndex)
+		}
+		return sdtContextIndex, nil
+	}
+
+	doc, err := resolveContextDocPath(ref)
+	if err != nil {
+		return "", err
+	}
+	if corpus.ExcludedPath(filepath.ToSlash(doc.Path)) {
+		return "", fmt.Errorf("path %q is outside the lint corpus", ref)
+	}
+	if !contextLintCorpusPath(doc.Path) {
+		return "", fmt.Errorf("path %q is not covered by corpus-wide context lint; use the specialized lint command if available", ref)
+	}
+	return doc.Path, nil
+}
+
+func contextLintCorpusPath(path string) bool {
+	if filepath.Clean(path) == filepath.Clean(sdtContextIndex) {
+		return true
+	}
+	dir := filepath.Clean(filepath.Dir(path))
+	for _, indexedDir := range ctxIndexDirs {
+		if dir == filepath.Clean(indexedDir) {
+			return true
+		}
+	}
+	return false
+}
+
 var contextLintCmd = &cobra.Command{
 	Use:   gateStepLint,
 	Short: "Validate context frontmatter and links",
-	Long: `Validate the context/ documents: frontmatter well-formed (kind, mandatory
-summary), [[links]] resolve to existing files, and decision filenames/numbers are
-consistent. Exits non-zero when CRITICAL issues are found.
+	Long: `Validate context frontmatter, Markdown rules and links. With no path,
+scans the context corpus; with one or more paths, validates only those documents.
+Paths are relative to the project root (context/plan/file.md) or context/
+(plan/file.md); targets must be in the same top-level corpus directories scanned
+by the default command, or be context/index.md. Wiki pages use
+sdt context wiki lint. Exits non-zero when CRITICAL issues are found.
 
-With --security, additionally scan every document for prompt-injection phrases,
-credential/secret literals, invisible/zero-width Unicode and exfil patterns
-(advisory WARNING; the default scan is unchanged).
+With --security, additionally scan the selected documents (or the whole corpus)
+for prompt-injection phrases, credential/secret literals, invisible/zero-width
+Unicode and exfil patterns (advisory WARNING).
 
 Examples:
   sdt context lint
+  sdt context lint context/plan/example.md
+  sdt context lint plan/example.md --format json
   sdt context lint --security
   sdt context lint --format json`,
-	Args: cobra.NoArgs,
+	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		var issues []ctxLintIssue
 		security := getBoolFlag(cmd, "security", false)
@@ -550,35 +772,44 @@ Examples:
 			reg = &ctxTopicRegister{Topics: map[string][]string{}, Aliases: map[string]string{}}
 		}
 		ctxTopicReg = reg
-		for _, dir := range ctxIndexDirs {
-			files, err := dirFiles(dir)
-			exitWithError(cmd, err)
-			for _, f := range files {
-				issues = append(issues, lintDoc(f)...)
+		if len(args) > 0 {
+			for _, ref := range args {
+				path, err := resolveContextLintPath(ref)
+				exitWithError(cmd, err)
+				issues = append(issues, lintDoc(path)...)
 				if security {
-					issues = append(issues, lintSecurity(f)...)
+					issues = append(issues, lintSecurity(path)...)
 				}
 			}
-		}
-		// index.md itself is validated as a document too.
-		if _, err := os.Stat(sdtContextIndex); err == nil {
-			issues = append(issues, lintDoc(sdtContextIndex)...)
-			if security {
-				issues = append(issues, lintSecurity(sdtContextIndex)...)
+		} else {
+			for _, dir := range ctxIndexDirs {
+				files, err := dirFiles(dir)
+				exitWithError(cmd, err)
+				for _, f := range files {
+					issues = append(issues, lintDoc(f)...)
+					if security {
+						issues = append(issues, lintSecurity(f)...)
+					}
+				}
 			}
+			// index.md itself is validated as a document too.
+			if _, err := os.Stat(sdtContextIndex); err == nil {
+				issues = append(issues, lintDoc(sdtContextIndex)...)
+				if security {
+					issues = append(issues, lintSecurity(sdtContextIndex)...)
+				}
+			}
+			// Notes-only dedup-before-write advisory (SUGGESTION, never a failure).
+			if files, err := dirFiles(sdtNotesDir); err == nil {
+				issues = append(issues, lintDuplicateNotes(files)...)
+			}
+			// Cross-analysis overlap advisory: same objective, similar title/summary.
+			if files, err := dirFiles(sdtAnalysisDir); err == nil {
+				issues = append(issues, lintOverlappingAnalyses(files)...)
+			}
+			// Role-profile advisory: mirror deterministic role checks as SUGGESTIONs.
+			issues = append(issues, lintRoleProfiles()...)
 		}
-		// Notes-only dedup-before-write advisory (SUGGESTION, never a failure).
-		if files, err := dirFiles(sdtNotesDir); err == nil {
-			issues = append(issues, lintDuplicateNotes(files)...)
-		}
-		// Cross-analysis overlap advisory: same objective, similar title/summary.
-		if files, err := dirFiles(sdtAnalysisDir); err == nil {
-			issues = append(issues, lintOverlappingAnalyses(files)...)
-		}
-		// Role-profile advisory: mirror the deterministic role checks as
-		// SUGGESTIONs (never failing), so profile health is visible in lint
-		// while `agent roles check` remains the strict gate.
-		issues = append(issues, lintRoleProfiles()...)
 		sort.Slice(issues, func(i, j int) bool {
 			if issues[i].Priority != issues[j].Priority {
 				prio := map[string]int{ctxLintCritical: 0, ctxLintWarning: 1, "SUGGESTION": 2}

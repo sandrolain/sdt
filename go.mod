@@ -24,6 +24,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/trengrj/go-potion v0.1.2
 	github.com/vmihailenco/msgpack/v5 v5.4.1
+	github.com/yuin/goldmark/v2 v2.1.5
 	golang.org/x/crypto v0.56.0
 	golang.org/x/text v0.41.0
 )
@@ -82,6 +83,7 @@ require (
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	github.com/tphakala/simd v1.3.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
+	github.com/yuin/goldmark v1.8.6 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/net v0.58.0 // indirect

@@ -1,4 +1,4 @@
-# CLI Usage & Examples
+## CLI Usage & Examples
 
 Curated command catalog: the main commands grouped by area, with practical
 examples. For I/O conventions, project configuration and the always-current
@@ -16,7 +16,10 @@ generated command reference, see `context/instructions/reference.md`.
 - `sdt context task add --phase <phase> "<step>"` — per-phase task checklists
 - `sdt context template --type <t>` — print the per-type instruction file
 - `sdt context docs` — generated command documentation
-- `sdt context reindex` / `sdt context lint` — regenerate `index.md` / validate
+- `sdt context reindex` / `sdt context lint [path...]` — regenerate `index.md` /
+  validate the corpus, or only the positional document paths; `--security` adds
+  the advisory security scan to the selected scope. Paths must be in the
+  corpus-scanned directories; wiki pages use `sdt context wiki lint`.
 - `sdt agent roles show|init|check` — list the closed role register; generate the role profiles under `context/roles/`; validate profile set, drift and owned-path overlap
 - `sdt agent doctor` — read-only workspace health; `sdt agent verify` — instruction contract; `sdt agent gate` — Build→Vet→Lint→Test
 - `sdt template --tmpl` — render Go templates from JSON/YAML data
@@ -63,4 +66,7 @@ echo "password" | sdt sha256 | sdt hex                  # pipeline
 sdt diff --a old.json --b new.json --diff-format json-patch
 sdt totp code --secret BASE32SECRET
 sdt dns --host example.com --type A --format json
+sdt context lint context/plan/example.md                    # validate one document
+sdt context lint plan/example.md --format json              # context-relative path
+sdt context lint --security                                 # corpus + security scan
 ```

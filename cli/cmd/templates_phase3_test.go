@@ -28,7 +28,7 @@ created: "2026-09-20T17:30:00Z"
 updated: "2026-09-20T17:30:00Z"
 ---
 
-# ` + "`>triage`" + ` — read this when the command fires
+## ` + "`>triage`" + ` — read this when the command fires
 
 **Do not re-implement the task here.** The durable contract lives in
 ` + "`context/instructions/triage.md`" + `; this file is the thin trigger.
@@ -82,7 +82,7 @@ created: "2026-09-20T17:31:00Z"
 updated: "2026-09-20T17:31:00Z"
 ---
 
-# Agent-invokable commands index
+## Agent-invokable commands index
 
 ` + "`context/commands/`" + ` holds one thin file per **agent-visible task**, named by
 its trigger. Each command file **invokes or references** its durable contract (a

@@ -19,7 +19,7 @@ func buildIndex() (string, error) {
 	b.WriteString("summary: Generated knowledge index of context documents grouped by relevance tier\n")
 	b.WriteString("_generated: auto\n")
 	b.WriteString("---\n\n")
-	b.WriteString("# context — Knowledge Index\n\n")
+	b.WriteString("## context — Knowledge Index\n\n")
 	b.WriteString("_Managed by `sdt context reindex`. Each row lists the file and its frontmatter `summary`._\n\n")
 
 	// Cross-tier objective section: every document whose effective objective
