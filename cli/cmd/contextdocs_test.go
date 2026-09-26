@@ -69,7 +69,7 @@ func TestRenderCommandDoc(t *testing.T) {
 		"## Usage",
 		"## Description",
 		"## Flags",
-		"`objective`",
+		"`phase`",
 		"## Global Flags",
 		"`format`",
 		"## Input / Output",

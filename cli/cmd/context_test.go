@@ -710,14 +710,17 @@ func TestFrontmatterField(t *testing.T) {
 }
 
 func TestTaskArchiveSlug(t *testing.T) {
-	if got := taskArchiveSlug("---\nobjective: Ship Feature Now\n---\n", ""); got != "ship-feature-now" {
-		t.Errorf("expected slug from objective, got %q", got)
+	if got := taskArchiveSlug("Ship Feature Now", ""); got != "ship-feature-now" {
+		t.Errorf("expected slug from flag, got %q", got)
 	}
-	if got := taskArchiveSlug("---\nkind: tasks\n---\n", ""); got != "tasks" {
+	if got := taskArchiveSlug("", "20260912-000000-pipeline.md"); got != "pipeline" {
+		t.Errorf("expected slug from plan, got %q", got)
+	}
+	if got := taskArchiveSlug("", "standalone"); got != "standalone" {
+		t.Errorf("expected standalone slug, got %q", got)
+	}
+	if got := taskArchiveSlug("", ""); got != "tasks" {
 		t.Errorf("expected fallback slug, got %q", got)
-	}
-	if got := taskArchiveSlug("anything", "--flag"); got != "flag" {
-		t.Errorf("expected flag slug, got %q", got)
 	}
 }
 
@@ -739,7 +742,7 @@ func TestContextTaskLifecycle(t *testing.T) {
 		return string(execute(t, contextTaskListCmd, nil, "--phase", "1"))
 	})
 
-	out := execute(t, contextTaskAddCmd, nil, "build feature", "--phase", "1", "--plan", "custom", "--objective", "ship feature")
+	out := execute(t, contextTaskAddCmd, nil, "build feature", "--phase", "1", "--plan", "custom")
 	if strings.TrimSpace(string(out)) != "1" {
 		t.Errorf("expected id 1, got %q", out)
 	}
@@ -894,7 +897,7 @@ func TestContextTaskAddAutoPlan(t *testing.T) {
 	writeCtxDoc(t, filepath.Join("context", "plan", "20260912-000000-pipeline.md"),
 		"---\nkind: plan\nsummary: p\nstatus: active\n---\nbody\n")
 
-	execute(t, contextTaskAddCmd, nil, "cd", "--phase", "1", "--objective", "Deploy")
+	execute(t, contextTaskAddCmd, nil, "cd", "--phase", "1")
 	file := filepath.Join(dir, "context", "tasks", "20260806-070000-pipeline-phase-1.md")
 	if _, err := os.Stat(file); err != nil {
 		t.Fatalf("expected auto-plan task file: %v", err)
@@ -931,13 +934,13 @@ func TestContextTaskAddFrontmatterConvention(t *testing.T) {
 	writeCtxDoc(t, filepath.Join("context", "plan", "20260912-000000-pipeline.md"),
 		"---\nkind: plan\nsummary: p\nstatus: active\n---\nbody\n")
 	execute(t, contextTaskAddCmd, nil, "step one", "--phase", "demo",
-		"--objective", "Demo objective", "--summary", "Demo checklist")
+		"--summary", "Demo checklist")
 
 	content := mustReadFile(t, filepath.Join(dir, "context", "tasks", "20260806-070000-pipeline-phase-demo.md"))
 	for _, want := range []string{
 		"kind: tasks",
 		"summary: Demo checklist",
-		"objective: Demo objective",
+		"phase: demo",
 		"status: pending",
 		"created: 2026-08-06T07:00:00Z",
 		"updated: 2026-08-06T07:00:00Z",
@@ -948,17 +951,16 @@ func TestContextTaskAddFrontmatterConvention(t *testing.T) {
 			t.Errorf("expected %q in generated task frontmatter:\n%s", want, content)
 		}
 	}
-	for _, forbid := range []string{"phase:", "created_at:"} {
+	for _, forbid := range []string{"objective:", "created_at:"} {
 		if strings.Contains(content, forbid) {
 			t.Errorf("did not expect %q in generated task frontmatter:\n%s", forbid, content)
 		}
 	}
 
-	// Default summary derives from phase/objective when --summary is omitted.
-	execute(t, contextTaskAddCmd, nil, "step two", "--phase", "other",
-		"--objective", "Ship feature")
+	// Default summary derives from the phase when --summary is omitted.
+	execute(t, contextTaskAddCmd, nil, "step two", "--phase", "other")
 	other := mustReadFile(t, filepath.Join(dir, "context", "tasks", "20260806-070000-pipeline-phase-other.md"))
-	if !strings.Contains(other, `summary: "Task checklist for phase other: Ship feature"`) {
+	if !strings.Contains(other, "summary: Task checklist for phase other") {
 		t.Errorf("expected derived default summary, got:\n%s", other)
 	}
 
@@ -967,6 +969,20 @@ func TestContextTaskAddFrontmatterConvention(t *testing.T) {
 	if strings.Contains(string(out), "pipeline-phase-demo.md") ||
 		strings.Contains(string(out), "pipeline-phase-other.md") {
 		t.Errorf("lint flagged CLI-generated task file:\n%s", out)
+	}
+}
+
+func TestContextTaskAddWritesPhaseNotObjective(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextTaskAddCmd, nil, "step", "--phase", "3a", "--plan", "custom")
+	content := mustReadFile(t, filepath.Join("context", "tasks", "20260806-070000-custom-phase-3a.md"))
+	if !strings.Contains(content, "phase: 3a") {
+		t.Errorf("expected phase: 3a:\n%s", content)
+	}
+	if strings.Contains(content, "objective:") {
+		t.Errorf("task file must not carry objective (inherited from the plan):\n%s", content)
 	}
 }
 

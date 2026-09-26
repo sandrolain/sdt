@@ -214,8 +214,7 @@ func init() {
 	contextShowCmd.Flags().String("section", "", "Print only the section with this id/heading")
 	contextShowCmd.Flags().String("lines", "", "Print only this line range (from:to, 1-based)")
 
-	contextTaskAddCmd.Flags().String("objective", "", "Objective for the task list (used when creating)")
-	contextTaskAddCmd.Flags().String("summary", "", "Summary for the checklist frontmatter (default: derived from phase/objective)")
+	contextTaskAddCmd.Flags().String("summary", "", "Summary for the checklist frontmatter (default: derived from the phase)")
 	contextTaskAddCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskListCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskDoneCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
@@ -224,7 +223,7 @@ func init() {
 	contextTaskReviewCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskArchiveCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")
-	contextTaskArchiveCmd.Flags().String("slug", "", "Archive slug (default: from objective)")
+	contextTaskArchiveCmd.Flags().String("slug", "", "Archive slug (default: from the plan slug)")
 	contextTaskAddCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskListCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskDoneCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")

@@ -185,20 +185,19 @@ var contextTaskListCmd = &cobra.Command{
 }
 
 // buildTaskFrontmatter emits a task checklist header matching the tasks.md
-// convention (kind/summary/objective/status/created/updated/links/sources/
-// project) so `sdt context task add` output passes lint and the index.
+// convention (kind/summary/phase/status/created/updated/links/sources/project)
+// so `sdt context task add` output passes lint and the index. The task inherits
+// the plan's objective, so it never writes an `objective` field.
 // links/sources reference the plan only when it is an existing real plan file
 // (standalone custom slugs get no plan reference).
 
-func buildTaskFrontmatter(objective, project, phase, summary, planRef string) string {
+func buildTaskFrontmatter(project, phase, summary, planRef string) string {
 	now := contextNow().UTC().Format(time.RFC3339)
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: tasks\n")
 	b.WriteString("summary: " + yamlScalar(summary) + "\n")
-	if objective != "" {
-		b.WriteString("objective: " + yamlScalar(objective) + "\n")
-	}
+	b.WriteString("phase: " + yamlScalar(phase) + "\n")
 	b.WriteString("status: " + taskFileStatusPending + "\n")
 	b.WriteString("created: " + now + "\n")
 	b.WriteString("updated: " + now + "\n")
@@ -253,7 +252,6 @@ var contextTaskAddCmd = &cobra.Command{
 		if step == "" {
 			exitWithError(cmd, errors.New("step is required"))
 		}
-		objective := getStringFlag(cmd, "objective", false)
 		phase, plan, err := taskTarget(cmd)
 		exitWithError(cmd, err)
 		path := taskFileFor(phase, plan)
@@ -269,11 +267,8 @@ var contextTaskAddCmd = &cobra.Command{
 			summary := getStringFlag(cmd, "summary", false)
 			if summary == "" {
 				summary = "Task checklist for phase " + phase
-				if objective != "" {
-					summary += ": " + objective
-				}
 			}
-			content = buildTaskFrontmatter(objective, project, phase, summary, plan)
+			content = buildTaskFrontmatter(project, phase, summary, plan)
 		} else {
 			exitWithError(cmd, err)
 		}
@@ -445,11 +440,11 @@ Examples:
 	},
 }
 
-func taskArchiveSlug(content, flagSlug string) string {
+func taskArchiveSlug(flagSlug, plan string) string {
 	if s := sanitizeSlug(flagSlug); s != "" {
 		return s
 	}
-	if s := sanitizeSlug(frontmatterField(content, "objective")); s != "" {
+	if s := sanitizeSlug(taskSlugFromPlan(plan)); s != "" {
 		return s
 	}
 	return "tasks"
@@ -480,7 +475,7 @@ var contextTaskArchiveCmd = &cobra.Command{
 		exitWithError(cmd, err)
 		content, err := readTaskFile(phase, plan)
 		exitWithError(cmd, err)
-		slug := taskArchiveSlug(content, getStringFlag(cmd, "slug", false))
+		slug := taskArchiveSlug(getStringFlag(cmd, "slug", false), plan)
 		path := filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", slug)+".md")
 		if err := os.MkdirAll(sdtArchiveDir, 0o750); err != nil { //#nosec G301 -- user work dir
 			exitWithError(cmd, err)
@@ -507,7 +502,7 @@ latest active plan (or an explicit --plan <plan-file> / --plan <slug> for a
 standalone checklist).
 
   sdt context task list [--phase <n>] [--plan <ref>]      show steps with ids
-  sdt context task add "<step>" --phase <n> [--plan <ref>] [--objective] [--summary]
+  sdt context task add "<step>" --phase <n> [--plan <ref>] [--summary]
   sdt context task done|block|wip <id> --phase <n> [--plan <ref>]
   sdt context task review --phase <n> [--plan <ref>]      record verdicts + complete
   sdt context task archive --phase <n> [--plan <ref>] [--slug]

@@ -23,13 +23,17 @@ Or hand-write the file from the template below.
 Task files follow the plan, which follows the analysis; the chain and its
 approval gates are defined in AGENTS.md (HARD RULE 1).
 
+A task file is owned by its plan: it carries `phase` (its own phase id) and
+**inherits the plan's `objective`** for grouping — it never declares
+`objective` itself.
+
 ## Structure
 
 ```markdown
 ---
 kind: tasks
 summary: "<1-2 sentence summary — MANDATORY, index source>"
-objective: "<plan phase this task file belongs to>"
+phase: "<plan phase id, e.g. 1 or 1a>"
 status: pending          # pending | in-progress | completed | archived | active(legacy) — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
@@ -93,7 +97,7 @@ sections handle that.
 |----------|-----------|-------------|
 | kind | yes | Document type, fixed value `tasks`; index and lint depend on it. |
 | summary | yes | 1-2 sentence summary → index source. |
-| objective | yes | Plan phase this task file belongs to. |
+| phase | yes | Plan phase id this task file executes (e.g. `1`, `1a`). The task inherits the plan's `objective`; it does not carry one. |
 | status | yes | File state: `pending` (to work on) / `in-progress` / `completed` / `archived`. The first three are always distinguishable — a task file is never stuck with fewer than three meaningful states. `active` is the legacy value accepted by lint. |
 | created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
 | updated | yes | ISO 8601 UTC last-edit date; refresh on every change (use `sdt time iso`). |
