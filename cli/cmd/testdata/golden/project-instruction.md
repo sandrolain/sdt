@@ -26,8 +26,10 @@ sdt schema --command "<command>"
 
 ## Project-specific conventions
 
-AGENTS.md carries a write-once `<!-- sdt:begin:project -->` block with a
-single generic template (Stack, Build & Run, Test, Lint & Format, Conventions).
-This file is the companion: record the concrete build/test/lint commands and
-project conventions here, and keep the AGENTS.md project block in sync when a
-pattern becomes a stable convention.
+AGENTS.md carries a write-once `<!-- sdt:begin:project -->` block (Overview,
+Architecture / entry points, Stack, Build & Run, Test, Lint & Format,
+Conventions). Treat that block as the project's **stable-conventions** record:
+fill its empty sections from repository evidence, asking the user first, and
+promote a convention there only once it has settled. This instruction file is
+the **working companion** — keep concrete commands and conventions here while
+they are still forming, then promote the stable ones into the block.

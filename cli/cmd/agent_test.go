@@ -142,7 +142,7 @@ func TestAgentAppendIfMissing(t *testing.T) {
 
 func TestAgentBlockProject(t *testing.T) {
 	body := agentBlockProject("myapp", "grp")
-	for _, want := range []string{"## Project", "### Stack", "### Build & Run", "### Test", "### Lint & Format", "### Conventions", "<!-- Fill in the sections below. Delete what does not apply. -->"} {
+	for _, want := range []string{"## Project", "### Overview", "### Architecture / entry points", "### Stack", "### Build & Run", "### Test", "### Lint & Format", "### Conventions", "Fill the sections below from repository evidence"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("expected %q in project template:\n%s", want, body)
 		}

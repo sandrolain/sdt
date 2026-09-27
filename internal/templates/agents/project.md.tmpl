@@ -1,18 +1,32 @@
 ## Project
 
-<!-- Fill in the sections below. Delete what does not apply. -->
+<!-- Write-once project block. Fill the sections below from repository evidence
+(never guess), asking the user first; delete what does not apply and leave a
+section empty rather than inventing content. Keep the `### ` headings: the role
+profiles derive project facts from them. -->
+
+### Overview
+<!-- One paragraph: what this project is and does. Evidence: README, docs/. -->
+
+### Architecture / entry points
+<!-- Main components, where they live, and the entry-point files. Evidence:
+top-level directory layout, go.mod/package.json, cmd/ or src/ trees. -->
 
 ### Stack
-<!-- e.g. Go 1.26 · PostgreSQL · gRPC · ... -->
+<!-- Languages, runtimes, frameworks, datastores. Evidence: .tool-versions,
+go.mod, package.json, lockfiles. e.g. Go 1.27 · PostgreSQL · gRPC -->
 
 ### Build & Run
-<!-- e.g. go build -o bin/app ./cmd/app · docker compose up · ... -->
+<!-- Exact build and run commands. Evidence: Taskfile, Makefile, package.json
+scripts. e.g. task build · go run ./cli -->
 
 ### Test
-<!-- e.g. go test ./... · npm test · pytest · ... -->
+<!-- Exact test commands. Evidence: Taskfile, Makefile, package.json scripts,
+CI config. e.g. go test $(go list -e ./... | grep -v /context/) -->
 
 ### Lint & Format
-<!-- e.g. golangci-lint run · eslint --fix · ruff format · ... -->
+<!-- Exact lint and format commands. Evidence: Taskfile, Makefile, CI config.
+e.g. golangci-lint run · gofmt -w -->
 
 ### Conventions
-<!-- Project-specific coding conventions, naming rules, branching strategy, ... -->
+<!-- Project-specific coding conventions, naming rules, branch strategy, ... -->
