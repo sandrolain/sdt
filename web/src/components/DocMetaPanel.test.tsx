@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { DocMetaPanel } from "./DocMetaPanel";
 import { resetActiveSection, setActiveSection } from "../lib/activeSection";
 import { resetCorpusIndexCache } from "../lib/corpusIndex";
+import { clearFrontmatterCache } from "../lib/frontmatterYaml";
 import { getSectionRequest, resetSectionRequest } from "../lib/sectionRequests";
 import { resetWikiIndexCache } from "../lib/wikiIndexLoader";
 
@@ -51,6 +52,7 @@ afterEach(() => {
   cleanup();
   resetActiveSection();
   resetSectionRequest();
+  clearFrontmatterCache();
   vi.restoreAllMocks();
 });
 
@@ -110,6 +112,26 @@ describe("DocMetaPanel", () => {
     renderPanel(doc);
     expect(screen.getByText("Part of")).toBeTruthy();
     expect(screen.getByText("b")).toBeTruthy();
+  });
+
+  it("scopes a nested map value with its parent path", async () => {
+    mockFetch();
+    renderPanel({
+      path: "context/notes/building.map.md",
+      frontmatter: "---\ntitle: T\nmarkmap:\n  colorFreezeLevel: 2\n---\n",
+      markdown: "body",
+    });
+    expect(await screen.findByText("Markmap · Color Freeze Level")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
+  });
+
+  it("warns and shows the raw block when the frontmatter does not parse", async () => {
+    mockFetch();
+    const frontmatter = "---\nderived_from:\n\t- a\n---\n";
+    renderPanel({ path: "context/notes/broken.md", frontmatter, markdown: "body" });
+    expect(await screen.findByText(/Not valid YAML/)).toBeTruthy();
+    expect(screen.getByText("Raw frontmatter")).toBeTruthy();
+    expect(document.querySelector(".meta-parse-warning__raw pre")?.textContent).toBe(frontmatter);
   });
 
   it("marks the link to the current route with aria-current", () => {

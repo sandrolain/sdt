@@ -3,7 +3,10 @@
 import { unwrapQuotes } from "./titles";
 
 export interface FrontmatterField {
+  /** leaf key, used for value rendering (links, dates, chips, …) */
   key: string;
+  /** full key path, e.g. `["markmap", "colorFreezeLevel"]` */
+  path: string[];
   label: string;
   values: string[];
 }
@@ -59,9 +62,12 @@ const LABELS: Record<string, string> = {
   markmap: "Markmap",
 };
 
-/** Title-case an unknown key so it never renders as a raw identifier. */
+/** Title-case an unknown key segment (splits camelCase) so it reads well. */
 function titleCase(key: string): string {
-  const words = key.replace(/[_-]+/g, " ").trim();
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : key;
 }
 
@@ -83,6 +89,22 @@ export function verbLabel(verb: string): string {
   if (VERB_LABELS[verb]) return VERB_LABELS[verb];
   const words = verb.replace(/[_-]+/g, " ").trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : verb;
+}
+
+/**
+ * Human label for a frontmatter key path. Prefers a full-path label, then the
+ * single-key label, then a relation verb under `relations`, then the segments
+ * joined with ` · ` (so `markmap.colorFreezeLevel` reads as a Markmap-scoped
+ * label instead of a bare identifier).
+ */
+export function pathLabel(path: string[]): string {
+  if (path.length === 0) return "";
+  const full = path.join(".");
+  if (LABELS[full]) return LABELS[full];
+  const leaf = path[path.length - 1];
+  if (path.length === 1) return fieldLabel(leaf);
+  if (path[0] === "relations" && isRelationVerb(leaf)) return verbLabel(leaf);
+  return path.map((segment) => fieldLabel(segment)).join(" · ");
 }
 
 /** Strip a single wrapping pair of quotes and trim. */
@@ -131,7 +153,7 @@ export function parseFrontmatter(frontmatter?: string): FrontmatterField[] {
     // match on the trimmed line so nested keys (`  part_of:`) are recognised
     const kv = /^([A-Za-z0-9_.-]+):\s*(.*)$/.exec(trimmed);
     if (!kv) continue;
-    current = { key: kv[1], label: fieldLabel(kv[1]), values: [] };
+    current = { key: kv[1], path: [kv[1]], label: fieldLabel(kv[1]), values: [] };
     fields.push(current);
     current.values.push(...inlineValues(kv[2]));
   }

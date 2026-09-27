@@ -9,6 +9,7 @@ import {
   isRelationVerb,
   parseFieldDate,
   parseFrontmatter,
+  pathLabel,
   STATUS_VALUES,
   valueLabel,
   verbLabel,
@@ -41,6 +42,15 @@ describe("parseFrontmatter", () => {
     expect(fieldLabel("topics")).toBe("Topics");
     expect(fieldLabel("custom")).toBe("Custom");
     expect(fieldLabel("some_custom_key")).toBe("Some custom key");
+    // camelCase identifiers are split so labels never read as raw identifiers
+    expect(fieldLabel("colorFreezeLevel")).toBe("Color Freeze Level");
+  });
+
+  it("scopes nested key paths", () => {
+    expect(pathLabel(["kind"])).toBe("Kind");
+    expect(pathLabel(["relations", "part_of"])).toBe("Part of");
+    expect(pathLabel(["markmap", "colorFreezeLevel"])).toBe("Markmap · Color Freeze Level");
+    expect(pathLabel([])).toBe("");
   });
 
   it("parses nested relation verbs into their own labelled field", () => {

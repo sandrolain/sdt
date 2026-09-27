@@ -1064,6 +1064,34 @@
     gap: 0.35rem;
     min-width: 0;
   }
+  .meta-parse-warning {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+  }
+  .meta-parse-warning__head {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--danger);
+    font-size: 0.8125rem;
+  }
+  .meta-parse-warning__raw {
+    font-size: 0.75rem;
+    color: var(--fg-dim);
+  }
+  .meta-parse-warning__raw pre {
+    margin: 0.35rem 0 0;
+    overflow: auto;
+    font-family: ui-monospace, "SF Mono", monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   .meta-row {
     display: grid;
     /* minmax(0, …) keeps long unbreakable values from inflating the panel */

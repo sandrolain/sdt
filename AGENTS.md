@@ -242,6 +242,7 @@ Key dependencies:
 - `github.com/sethvargo/go-password` — password generation (password)
 - `github.com/segmentio/ksuid`, `github.com/matoous/go-nanoid/v2` — ID generation (uid)
 - `github.com/hashicorp/go-version` — version comparison (vman)
+- `yaml` — YAML frontmatter parsing in the viewer metadata panel (`web/`, lazy-loaded chunk)
 
 ### Build & Run
 

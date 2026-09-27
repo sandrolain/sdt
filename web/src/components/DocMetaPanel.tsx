@@ -19,6 +19,7 @@ import {
   type FrontmatterField,
   type ValueTone,
 } from "../lib/frontmatter";
+import { loadFrontmatter, type FrontmatterParse } from "../lib/frontmatterYaml";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import {
@@ -53,6 +54,7 @@ const IMAGE_KEYS = new Set(["image"]);
 export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
   const [corpus, setCorpus] = useState<CorpusIndex | undefined>(undefined);
+  const [parsed, setParsed] = useState<{ key: string; result: FrontmatterParse } | null>(null);
   const activeSection = useActiveSection();
   const markdownDoc = doc && !isCanvas(doc) && !isMermaid(doc) ? doc : null;
   const reloadToken = useReloadToken();
@@ -87,10 +89,29 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
     };
   }, [relatedId, markdownDoc, reloadToken]);
 
-  const fields = useMemo(
+  // real YAML parse (lazy chunk); the tolerant fields render until it resolves
+  // and remain the fallback when the block does not parse. The result is keyed
+  // by the raw block so a stale parse never applies to another document.
+  useEffect(() => {
+    const raw = markdownDoc?.frontmatter;
+    if (!raw) return;
+    let alive = true;
+    loadFrontmatter(raw).then((result) => {
+      if (alive) setParsed({ key: raw, result });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [markdownDoc]);
+
+  const tolerantFields = useMemo(
     () => (markdownDoc ? parseFrontmatter(markdownDoc.frontmatter) : []),
     [markdownDoc],
   );
+  const current = parsed && markdownDoc?.frontmatter === parsed.key ? parsed.result : null;
+  const yamlFields = current && "fields" in current ? current.fields : null;
+  const yamlError = current && "error" in current ? current.error : null;
+  const fields = yamlFields ?? tolerantFields;
   const headings = useMemo(
     () => (markdownDoc ? headingToc(parseOutline(markdownDoc.markdown)) : []),
     [markdownDoc],
@@ -195,22 +216,26 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
           <CanvasMeta canvas={doc.canvas} />
         ) : isMermaid(doc) ? (
           <MermaidMeta source={doc.source} />
-        ) : fields.length === 0 ? (
-          <p className="content__empty">No frontmatter.</p>
         ) : (
-          <dl className="meta-rows" role="list">
-            {fields
-              .filter((field) => field.key !== "status" && field.key !== "kind")
-              .map((field) => (
-                <MetaRow
-                  key={field.key}
-                  field={field}
-                  basePath={doc.path}
-                  index={index}
-                  corpus={corpus}
-                />
-              ))}
-          </dl>
+          <>
+            {yamlError && <MetaParseWarning raw={doc.frontmatter} />}
+            {fields.length === 0 && !yamlError && <p className="content__empty">No frontmatter.</p>}
+            {fields.length > 0 && (
+              <dl className="meta-rows" role="list">
+                {fields
+                  .filter((field) => field.key !== "status" && field.key !== "kind")
+                  .map((field, i) => (
+                    <MetaRow
+                      key={`${field.path.join(".")}-${i}`}
+                      field={field}
+                      basePath={doc.path}
+                      index={index}
+                      corpus={corpus}
+                    />
+                  ))}
+              </dl>
+            )}
+          </>
         )}
       </MetaCard>
 
@@ -253,6 +278,22 @@ function MetaCard({ title, icon, children }: MetaCardProps) {
       </summary>
       <div className="meta-card__body">{children}</div>
     </details>
+  );
+}
+
+/** Visible warning + literal block when the frontmatter does not parse as YAML. */
+function MetaParseWarning({ raw }: { raw: string }) {
+  return (
+    <div className="meta-parse-warning" role="listitem">
+      <div className="meta-parse-warning__head">
+        <Icon name="warning" className="meta-parse-warning__icon" label="Invalid frontmatter" />
+        <span className="meta-parse-warning__text">Not valid YAML — showing the raw block.</span>
+      </div>
+      <details className="meta-parse-warning__raw">
+        <summary>Raw frontmatter</summary>
+        <pre>{raw}</pre>
+      </details>
+    </div>
   );
 }
 
