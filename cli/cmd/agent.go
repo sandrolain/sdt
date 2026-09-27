@@ -191,29 +191,19 @@ func commandFiles(project string, now time.Time) []instructionFile {
 	return files
 }
 
-// legacyObsoleteCommandFiles were generated as command stubs by older versions
-// of sdt agent init without a generated marker; the marker scan cannot detect
-// them, so the list is the documented history.
+// obsoleteCommandFiles were generated as command stubs by older versions of
+// sdt agent init without a generated marker and are no longer generated; the
+// list is the documented history. Marker-based detection is deliberately NOT
+// applied to commands: `sdt context commands new` creates user triggers that
+// carry the same `commands/<id>` marker scope, so absence from the registry
+// cannot mean obsolete. With --force these files move to context/deprecated/
+// instead of being removed.
 
-var legacyObsoleteCommandFiles = []string{
+var obsoleteCommandFiles = []string{
 	// Renamed rfcs → proposals: the trigger stub is now proposal.md.
 	"rfc.md",
 	// Renamed adr → decision: the trigger stub is now decision.md.
 	"adr.md",
-}
-
-// obsoleteCommandFiles returns every command stub that should leave
-// context/commands/ on --force: the marker-detected stale files plus the
-// unmarked legacy renames. With --force they are moved under
-// context/deprecated/ instead of removed.
-
-func obsoleteCommandFiles() []string {
-	current := make([]string, 0, len(agentCommandStubs)+1)
-	for _, f := range commandFiles("", contextNow()) {
-		current = append(current, f.name)
-	}
-	stale := append([]string{}, legacyObsoleteCommandFiles...)
-	return append(stale, obsoleteGeneratedFiles(sdtCommandsDir, filepath.Base(sdtCommandsDir), current)...)
 }
 
 // writeCommandFiles creates the command files under context/commands/. It is
@@ -230,7 +220,7 @@ func writeCommandFiles(project string, force bool) []FileResult {
 		results = append(results, agentWriteGeneratedFile(path, agentGeneratedMarkerName(scope, f.name), f.body, force))
 	}
 	if force {
-		for _, name := range obsoleteCommandFiles() {
+		for _, name := range obsoleteCommandFiles {
 			results = append(results, agentArchiveGenerated(sdtCommandsDir, name, "obsolete (no longer generated)"))
 		}
 	}

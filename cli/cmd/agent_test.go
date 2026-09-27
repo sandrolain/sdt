@@ -561,7 +561,7 @@ func TestAgentInitForceArchivesObsoleteInstructions(t *testing.T) {
 func TestAgentInitForceArchivesObsoleteCommands(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	obsolete := obsoleteCommandFiles()
+	obsolete := obsoleteCommandFiles
 	for _, name := range obsolete {
 		writeTestFile(t, filepath.Join("context/commands", name), "obsolete")
 	}
@@ -579,6 +579,19 @@ func TestAgentInitForceArchivesObsoleteCommands(t *testing.T) {
 			t.Errorf("expected obsolete command file %s to leave context/commands with --force", name)
 		}
 		assertArchived(t, dir, strings.TrimSuffix(name, ".md"))
+	}
+}
+
+// TestAgentInitForcePreservesUserCommandTrigger guards that a user-created
+// trigger (sdt context commands new) is not mistaken for an obsolete stub by
+// --force, even though it carries the generated commands/<id> marker.
+func TestAgentInitForcePreservesUserCommandTrigger(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	execute(t, contextCommandsNewCmd, nil, "mytask")
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
+	if _, err := os.Stat(filepath.Join(dir, "context/commands/mytask.md")); err != nil {
+		t.Errorf("user command trigger must survive --force: %v", err)
 	}
 }
 
