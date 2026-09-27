@@ -48,8 +48,9 @@ type Entry struct {
 	Topics    []string `json:"topics,omitempty"`
 	Entities  []string `json:"entities,omitempty"`
 	// PlanRef is the corpus id of the plan a task file sources (tasks only,
-	// derived from `sources`/`links`). A task's Objective is resolved from the
-	// referenced plan after the scan, never from its own frontmatter.
+	// derived from `sources` only — `links` is correlation, never an edge). A
+	// task's Objective is resolved from the referenced plan after the scan, never
+	// from its own frontmatter.
 	PlanRef string `json:"plan_ref,omitempty"`
 	// Created is the raw frontmatter created value; Updated likewise.
 	Created string `json:"created,omitempty"`
@@ -269,13 +270,13 @@ func parseEntry(root, id, path string) (*Entry, error) {
 }
 
 // taskPlanRef resolves the corpus id of the plan a task file sources, from its
-// `sources` list (falling back to `links`); "" when none points under plan/.
+// `sources` list; "" when none points under plan/. The frontmatter `links` list
+// is generic correlation, never a derivation edge, so it is not consulted: the
+// same rule as the viewer's `tasksByPlan`, `internal/search.taskPlanRefFromRegistry`,
+// `cli/cmd/context_lint.go taskPlanRef` and `cli/cmd/context_reindex.go
+// ctxTaskPlanObjective`.
 func taskPlanRef(content string) string {
-	refs := contextwiki.FrontmatterList(content, "sources")
-	if len(refs) == 0 {
-		refs = contextwiki.FrontmatterList(content, "links")
-	}
-	for _, ref := range refs {
+	for _, ref := range contextwiki.FrontmatterList(content, "sources") {
 		clean := strings.TrimPrefix(strings.TrimSpace(ref), "./")
 		clean = strings.TrimSuffix(clean, contextwiki.MarkdownExt)
 		if clean == "" {

@@ -85,6 +85,31 @@ func TestContextReindexObjectiveGroups(t *testing.T) {
 	}
 }
 
+// A plan/ reference under `links` is correlation, never a derivation edge: the
+// index must not bucket a links-only task under the plan's objective.
+func TestContextReindexTaskObjectiveSourcesOnly(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "context/plan/planx.md", "---\nkind: plan\nsummary: Plan under test\nobjective: obj-src\n---\nbody\n")
+	writeCtxDoc(t, "context/tasks/sourced.md", "---\nkind: tasks\nsummary: Sources its plan\nphase: \"1\"\nstatus: pending\nsources:\n  - plan/planx.md\n---\nbody\n")
+	writeCtxDoc(t, "context/tasks/linked.md", "---\nkind: tasks\nsummary: Only links its plan\nphase: \"2\"\nstatus: pending\nlinks:\n  - plan/planx.md\n---\nbody\n")
+	writeCtxDoc(t, "context/tasks/mixed.md", "---\nkind: tasks\nsummary: Sources an analysis, links a plan\nphase: \"3\"\nstatus: pending\nsources:\n  - analysis/alpha.md\nlinks:\n  - plan/planx.md\n---\nbody\n")
+	execute(t, contextReindexCmd, nil)
+	idx, _ := os.ReadFile(filepath.Join(dir, "context/index.md"))
+	content := string(idx)
+	section := content[strings.Index(content, "### obj-src"):]
+	if end := strings.Index(section, "\n## "); end != -1 {
+		section = section[:end]
+	}
+	if !strings.Contains(section, "[[tasks/sourced.md]]") {
+		t.Errorf("a task sourcing its plan must inherit the objective:\n%s", content)
+	}
+	for _, path := range []string{"[[tasks/linked.md]]", "[[tasks/mixed.md]]"} {
+		if strings.Contains(section, path) {
+			t.Errorf("%s reaches the plan objective through links:\n%s", path, content)
+		}
+	}
+}
+
 func TestContextReindexProposalAndPrompt(t *testing.T) {
 	setupContextProject(t)
 	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")

@@ -106,19 +106,18 @@ func ctxEffectiveObjective(path, kind, objective, noteType string) string {
 }
 
 // ctxTaskPlanObjective reads the objective of the plan a task file sources
-// (`sources`, falling back to `links`); "" when the plan is missing or carries
-// none.
+// (`sources` only — `links` is generic correlation, never a derivation edge, and
+// the corpus writer already puts the plan ref in both); "" when the plan is
+// missing or carries none. Same rule as internal/mdindex.taskPlanRef,
+// internal/search.taskPlanRefFromRegistry, cli/cmd/context_lint.go taskPlanRef
+// and the web/src/lib/statusDot.ts helpers.
 func ctxTaskPlanObjective(path string) string {
 	data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
 	if err != nil {
 		return ""
 	}
 	content := string(data)
-	refs := parseFrontmatterList(content, ctxFrontmatterSources)
-	if len(refs) == 0 {
-		refs = parseFrontmatterList(content, ctxFrontmatterLinks)
-	}
-	for _, ref := range refs {
+	for _, ref := range parseFrontmatterList(content, ctxFrontmatterSources) {
 		abs, ok := ctxResolvePath(sdtWorkDir, ref)
 		if !ok {
 			continue

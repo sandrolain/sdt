@@ -293,10 +293,31 @@ sources:
 
 body
 `)
-	writeDoc(t, root, "context/tasks/legacy.md", `---
+	writeDoc(t, root, "context/tasks/own.md", `---
 kind: tasks
 status: pending
 objective: should-be-ignored
+sources:
+  - plan/p.md
+---
+
+body
+`)
+	writeDoc(t, root, "context/tasks/linked.md", `---
+kind: tasks
+status: pending
+objective: should-be-ignored
+links:
+  - plan/p.md
+---
+
+body
+`)
+	writeDoc(t, root, "context/tasks/mixed.md", `---
+kind: tasks
+status: pending
+sources:
+  - analysis/a.md
 links:
   - plan/p.md
 ---
@@ -318,8 +339,24 @@ body
 	if got := res.Manifest.Entries["context/tasks/t.md"].Objective; got != "obj-x" {
 		t.Errorf("sourced task objective = %q, want obj-x", got)
 	}
-	if got := res.Manifest.Entries["context/tasks/legacy.md"].Objective; got != "obj-x" {
-		t.Errorf("legacy task objective must be ignored and inherited: %q", got)
+	// A task's own `objective` is never authoritative: the plan's wins.
+	if got := res.Manifest.Entries["context/tasks/own.md"].Objective; got != "obj-x" {
+		t.Errorf("sourced task own objective must be ignored and inherited: %q", got)
+	}
+	// `links` is correlation, not a derivation edge: a links-only task keeps no
+	// plan association, so it inherits no objective.
+	if got := res.Manifest.Entries["context/tasks/linked.md"].Objective; got != "" {
+		t.Errorf("links-only task objective = %q, want empty", got)
+	}
+	if got := res.Manifest.Entries["context/tasks/linked.md"].PlanRef; got != "" {
+		t.Errorf("links-only task plan ref = %q, want empty", got)
+	}
+	// A non-plan `sources` entry does not re-open the `links` list either.
+	if got := res.Manifest.Entries["context/tasks/mixed.md"].PlanRef; got != "" {
+		t.Errorf("mixed-reference task plan ref = %q, want empty", got)
+	}
+	if got := res.Manifest.Entries["context/tasks/mixed.md"].Objective; got != "" {
+		t.Errorf("mixed-reference task objective = %q, want empty", got)
 	}
 	if got := res.Manifest.Entries["context/tasks/loose.md"].Objective; got != "" {
 		t.Errorf("loose task objective = %q, want empty", got)

@@ -766,9 +766,13 @@ func normalizeContextRef(ref string) string {
 }
 
 // taskPlanRef mirrors the viewer's tasksByPlan: the first normalized `sources`
-// reference containing "/plan/", else "". The heuristic (not a resolved kind
-// lookup) is intentional so the guard sees exactly the viewer's association;
-// F5's archive/ orphaning stays out of scope pending questions/20260926-200920.
+// reference containing "/plan/", else "". Only `sources` is consulted, never the
+// generic-correlation `links` list — the shared derivation rule of
+// internal/mdindex.taskPlanRef, internal/search.taskPlanRefFromRegistry,
+// cli/cmd/context_reindex.go ctxTaskPlanObjective and the web/src/lib/statusDot.ts
+// helpers. The heuristic (not a resolved kind lookup) is intentional so the guard
+// sees exactly the viewer's association; F5's archive/ orphaning stays out of
+// scope pending questions/20260926-200920.
 func taskPlanRef(content string) string {
 	for _, ref := range parseFrontmatterList(content, ctxFrontmatterSources) {
 		if normalized := normalizeContextRef(ref); strings.Contains(normalized, "/plan/") {

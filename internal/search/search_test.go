@@ -424,6 +424,70 @@ func TestSearchObjectiveInheritedByTasks(t *testing.T) {
 	}
 }
 
+// writeCorpusDoc writes one markdown document under the corpus root.
+func writeCorpusDoc(t *testing.T, root, rel, content string) {
+	t.Helper()
+	p := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A plan/ reference under `links` is generic correlation, not a derivation edge:
+// the task inherits no objective from it, and never surfaces under the plan's
+// objective filter.
+func TestSearchObjectiveNotInheritedThroughLinks(t *testing.T) {
+	root := corpus(t)
+	writePlanAndTask(t, root)
+	writeCorpusDoc(t, root, "context/tasks/linktask.md", `---
+kind: tasks
+title: Link-only task
+links:
+  - plan/objplan.md
+created: 2026-09-12
+---
+
+Task body with linkword step.
+`)
+	writeCorpusDoc(t, root, "context/tasks/mixedtask.md", `---
+kind: tasks
+title: Mixed-reference task
+sources:
+  - analysis/analy.md
+links:
+  - plan/objplan.md
+created: 2026-09-12
+---
+
+Task body with mixedword step.
+`)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+
+	for _, tc := range []struct{ query, path string }{
+		{"linkword", "context/tasks/linktask.md"},
+		{"mixedword", "context/tasks/mixedtask.md"},
+	} {
+		res, _ := ix.Search(tc.query, "", "", "", "", "", "", 0)
+		if len(res.Results) != 1 || res.Results[0].Path != tc.path {
+			t.Fatalf("query %q results = %+v, want only %s", tc.query, res.Results, tc.path)
+		}
+		if got := res.Results[0].Objective; got != "" {
+			t.Errorf("query %q objective = %q, want empty", tc.query, got)
+		}
+		res, _ = ix.Search(tc.query, "", "obj-inherit", "", "", "", "", 0)
+		if res.Total != 0 {
+			t.Errorf("query %q leaked under the plan objective filter: %+v", tc.query, res.Results)
+		}
+	}
+}
+
 func TestSearchDateFilter(t *testing.T) {
 	root := corpus(t)
 	ix, err := New(root)

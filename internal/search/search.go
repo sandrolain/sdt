@@ -347,14 +347,13 @@ func (ix *Index) applyTaskObjectives() {
 }
 
 // taskPlanRefFromRegistry resolves the plan corpus id for a task registry doc
-// from the plan/ reference recorded in its frontmatter.
+// from the plan/ reference in its frontmatter `sources`. The `links` list is
+// generic correlation, never a derivation edge, so it is not consulted: the same
+// rule as the viewer's `tasksByPlan`, `internal/mdindex.taskPlanRef`,
+// `cli/cmd/context_lint.go taskPlanRef` and `cli/cmd/context_reindex.go
+// ctxTaskPlanObjective`.
 func taskPlanRefFromRegistry(d doc) string {
 	for _, ref := range contextwiki.FrontmatterList(d.Frontmatter, "sources") {
-		if r := normalizePlanRef(ref); r != "" {
-			return r
-		}
-	}
-	for _, ref := range contextwiki.FrontmatterList(d.Frontmatter, "links") {
 		if r := normalizePlanRef(ref); r != "" {
 			return r
 		}
