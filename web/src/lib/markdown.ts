@@ -255,3 +255,8 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
 export function highlightMarkdown(md: string): string {
   return highlightCode(md, "markdown");
 }
+
+/** Highlight a frontmatter block (whole-file Code mode) as YAML. */
+export function highlightYaml(source: string): string {
+  return highlightCode(source, "yaml");
+}

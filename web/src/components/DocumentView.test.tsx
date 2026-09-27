@@ -87,6 +87,9 @@ describe("DocumentView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Code" }));
     expect(screen.getByRole("button", { name: "Code", pressed: true })).toBeTruthy();
     expect(screen.getByText(/flowchart TD/)).toBeTruthy();
+    // .mmd has no frontmatter: the code surface is the source only
+    const code = document.querySelector("pre.doc-code code") as HTMLElement;
+    expect(code.textContent).toBe("flowchart TD\n  A-->B\n");
   });
 
   it("copies a rendered code block from its copy button", async () => {
@@ -106,6 +109,27 @@ describe("DocumentView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Code" }));
     expect(screen.getByRole("button", { name: "Code", pressed: true })).toBeTruthy();
     expect(screen.getByText(/Hello/)).toBeTruthy();
+  });
+
+  it("shows the whole file (frontmatter plus body) in Code mode with file-true line numbers", async () => {
+    const frontmatter = "---\nkind: wiki\nstatus: active\n---\n";
+    const markdown = "# Title\n\nHello **tokens**.";
+    renderView({ path: "context/wiki/alpha.md", frontmatter, markdown });
+    await userEvent.click(screen.getByRole("button", { name: "Code" }));
+    const code = document.querySelector("pre.doc-code code") as HTMLElement;
+    expect(code.textContent).toBe(frontmatter + markdown);
+    const gutter = document.querySelector("pre.doc-code__gutter") as HTMLElement;
+    const count = (frontmatter + markdown).split("\n").length;
+    expect(gutter.textContent).toBe(Array.from({ length: count }, (_, i) => i + 1).join("\n"));
+  });
+
+  it("shows the whole file in Code mode for .map.md documents", async () => {
+    const frontmatter = "---\nmarkmap:\n  colorFreezeLevel: 2\n---\n";
+    const markdown = "# Top\n\n- item\n";
+    renderView({ path: "context/wiki/topic.map.md", frontmatter, markdown });
+    await userEvent.click(screen.getByRole("button", { name: "Code" }));
+    const code = document.querySelector("pre.doc-code code") as HTMLElement;
+    expect(code.textContent).toBe(frontmatter + markdown);
   });
 
   it("renders exactly one pressed mode button (exclusive group)", () => {

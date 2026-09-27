@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { highlightCode, highlightMarkdown, renderMarkdown, stripBoundaryMarkers } from "./markdown";
+import {
+  highlightCode,
+  highlightMarkdown,
+  highlightYaml,
+  renderMarkdown,
+  stripBoundaryMarkers,
+} from "./markdown";
 import { buildWikiIndex } from "./wikiLinks";
 
 const INDEX = buildWikiIndex([{ path: "context/wiki/accounts.md", title: "Account Service" }]);
@@ -172,5 +178,12 @@ describe("highlightCode / highlightMarkdown", () => {
     expect(highlightCode("const x = 1;", "js")).toContain("hljs");
     expect(highlightCode("just text", "not-a-language")).toContain("just text");
     expect(highlightMarkdown("# Title")).toContain("hljs");
+  });
+
+  it("highlights a frontmatter block as YAML without losing bytes", () => {
+    const fm = "---\nkind: analysis\nstatus: active\n---\n";
+    const html = highlightYaml(fm);
+    expect(html).toContain("hljs");
+    expect(html.replace(/<[^>]+>/g, "")).toBe(fm);
   });
 });

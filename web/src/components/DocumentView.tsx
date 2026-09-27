@@ -14,7 +14,7 @@ import {
 } from "../lib/documentModes";
 import { Icon } from "../lib/icon";
 import { renderMath } from "../lib/katexRender";
-import { highlightCode, highlightMarkdown, renderMarkdown } from "../lib/markdown";
+import { highlightCode, highlightMarkdown, highlightYaml, renderMarkdown } from "../lib/markdown";
 import { renderMermaid } from "../lib/mermaidRender";
 import { useOpenDocsOptional } from "../lib/openDocsContext";
 import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
@@ -136,14 +136,20 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
           : "",
     [mode, markdown, path, index],
   );
+  // whole-file source: the frontmatter (when present) plus the body, so Code
+  // mode shows the file and the gutter numbers its real lines
+  const codeSource = useMemo(
+    () => (mermaidDoc ? markdown : `${frontmatter ?? ""}${markdown}`),
+    [mermaidDoc, frontmatter, markdown],
+  );
   const code = useMemo(
     () =>
       mode === "code"
         ? mermaidDoc
           ? highlightCode(markdown, "mermaid")
-          : highlightMarkdown(markdown)
+          : highlightYaml(frontmatter ?? "") + highlightMarkdown(markdown)
         : "",
-    [mode, markdown, mermaidDoc],
+    [mode, markdown, mermaidDoc, frontmatter],
   );
   const title = useMemo(
     () => frontmatterTitle(frontmatter) || fallbackTitle(path),
@@ -252,7 +258,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
       {mode === "code" && (
         <div className="doc-code-wrap">
           <pre className="doc-code__gutter" aria-hidden="true">
-            {lineNumbers(markdown)}
+            {lineNumbers(codeSource)}
           </pre>
           <pre className="doc-code">
             <code className="hljs" dangerouslySetInnerHTML={{ __html: code }} />
