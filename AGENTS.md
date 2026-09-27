@@ -85,6 +85,12 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/vector.md` | Drawing or reviewing a vector artefact (icon, logo, illustration) |
 | `context/instructions/vector-svg.md` | Writing or optimising SVG markup |
 | `context/instructions/vector-tools.md` | Choosing or using an SVG render/verification tool |
+| `context/instructions/ui.md` | Any UI/UX work: layout, components, colour, type, motion, copy |
+| `context/instructions/ui-tokens.md` | Choosing or changing colour, spacing, type, radius or motion tokens |
+| `context/instructions/ui-components.md` | Building or changing a component |
+| `context/instructions/ui-accessibility.md` | Any interactive or visual change, plus accessibility review |
+| `context/instructions/ui-taste.md` | Layout, visual direction, copy, review |
+| `context/instructions/ui-adapters.md` | Mapping a framework's idioms to the UI doctrine |
 | `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
