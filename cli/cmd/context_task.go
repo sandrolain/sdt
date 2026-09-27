@@ -284,7 +284,7 @@ var contextTaskAddCmd = &cobra.Command{
 			planPath = filepath.Join(sdtPlanDir, plan)
 			if planUID := ctxDocUID(planPath); planUID != "" {
 				content, _ = stampChildParent(content, ctxTypeTasks, planUID)
-				taskUID = parseFrontmatterField(content, "uid")
+				taskUID = parseFrontmatterField(content, ctxFrontmatterUID)
 			}
 		}
 		if err := os.MkdirAll(sdtTasksDir, 0o750); err != nil { //#nosec G301 -- user work dir

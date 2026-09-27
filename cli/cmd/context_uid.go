@@ -16,6 +16,9 @@ import (
 	"uuid"
 )
 
+// ctxFrontmatterUID is the immutable-identifier frontmatter key.
+const ctxFrontmatterUID = "uid"
+
 // ctxUIDBackfillMarker records that the one-shot `context uid backfill` has run.
 // Lint flips a missing `uid` from SUGGESTION to WARNING once it exists.
 var ctxUIDBackfillMarker = filepath.Join(mdindex.CacheDir, "uid-backfill.json")
@@ -78,7 +81,7 @@ func stampUIDMissing(content string) (string, bool) {
 			break
 		}
 		switch strings.TrimSpace(strings.SplitN(lines[i], ":", 2)[0]) {
-		case "uid":
+		case ctxFrontmatterUID:
 			return content, false
 		case "kind":
 			kindIdx = i
@@ -168,8 +171,7 @@ func stampEligibleFiles(dryRun bool) (ctxUIDBackfillResult, error) {
 		if dryRun {
 			continue
 		}
-		//#nosec G306 -- user work file
-		if werr := os.WriteFile(path, []byte(stamped), 0o644); werr != nil {
+		if werr := writeWorkFile(path, stamped); werr != nil {
 			return res, werr
 		}
 	}

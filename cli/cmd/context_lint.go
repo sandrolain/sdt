@@ -660,7 +660,7 @@ func lintUIDField(path, content, kind string, prio func(string) string) []ctxLin
 	if !ctxUIDEligibleKind(kind) {
 		return nil
 	}
-	uid := parseFrontmatterField(content, "uid")
+	uid := parseFrontmatterField(content, ctxFrontmatterUID)
 	if uid == "" {
 		severity := ctxLintSuggestion
 		if uidBackfillDone() {
@@ -688,7 +688,7 @@ func lintUIDDuplicates(files []string) []ctxLintIssue {
 		if !ctxUIDEligibleKind(parseFrontmatterField(content, "kind")) {
 			continue
 		}
-		uid := parseFrontmatterField(content, "uid")
+		uid := parseFrontmatterField(content, ctxFrontmatterUID)
 		if uid == "" || !validUIDv7(uid) {
 			continue
 		}

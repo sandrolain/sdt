@@ -293,8 +293,9 @@ Examples:
 		if ctxUIDEligibleKind(doc.Type.kind) {
 			if data, rerr := os.ReadFile(newPath); rerr == nil { //#nosec G304 -- user work file
 				if stamped, ok := stampUIDMissing(string(data)); ok {
-					//#nosec G306 -- user work file
-					_ = os.WriteFile(newPath, []byte(stamped), 0o644)
+					if werr := writeWorkFile(newPath, stamped); werr != nil {
+						exitWithError(cmd, werr)
+					}
 				}
 			}
 		}

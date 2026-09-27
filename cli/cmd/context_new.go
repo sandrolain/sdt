@@ -446,7 +446,7 @@ Examples:
 			if parentPath, parentUID := ctxSourceParent(content, parentKind); parentUID != "" {
 				content, _ = stampChildParent(content, typ, parentUID)
 				relParentPath = parentPath
-				relChildUID = parseFrontmatterField(content, "uid")
+				relChildUID = parseFrontmatterField(content, ctxFrontmatterUID)
 			}
 		}
 

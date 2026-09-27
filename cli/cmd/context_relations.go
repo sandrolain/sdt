@@ -56,7 +56,7 @@ func ctxDocUID(path string) string {
 	if err != nil {
 		return ""
 	}
-	return parseFrontmatterField(string(data), "uid")
+	return parseFrontmatterField(string(data), ctxFrontmatterUID)
 }
 
 // ctxDocKind reads the `kind` frontmatter field of a document path.
@@ -135,7 +135,7 @@ func linkChildToParent(parentPath, childUID, field string) error {
 	if parentPath == "" || childUID == "" || field == "" {
 		return nil
 	}
-	data, err := os.ReadFile(parentPath) //#nosec G304 -- context work file
+	data, err := os.ReadFile(parentPath) //#nosec G304,G703 -- context work file
 	if err != nil {
 		return err
 	}
@@ -143,15 +143,14 @@ func linkChildToParent(parentPath, childUID, field string) error {
 	if !changed {
 		return nil
 	}
-	//#nosec G306 -- user work file
-	return os.WriteFile(parentPath, []byte(updated), 0o644)
+	return writeWorkFile(parentPath, updated)
 }
 
 // stampChildParent injects the typed parent scalar on a child document content
 // from the parent uid. Returns the content unchanged when either id is missing.
 func stampChildParent(content, childKind, parentUID string) (string, bool) {
 	field := ctxParentField(childKind)
-	childUID := parseFrontmatterField(content, "uid")
+	childUID := parseFrontmatterField(content, ctxFrontmatterUID)
 	if field == "" || parentUID == "" || childUID == "" {
 		return content, false
 	}
@@ -188,7 +187,7 @@ func lintParentRelations(files []string) []ctxLintIssue {
 		doc := ctxRelDoc{
 			path:       path,
 			kind:       parseFrontmatterField(content, "kind"),
-			uid:        parseFrontmatterField(content, "uid"),
+			uid:        parseFrontmatterField(content, ctxFrontmatterUID),
 			analysisID: parseFrontmatterField(content, "analysis_id"),
 			planID:     parseFrontmatterField(content, "plan_id"),
 			plansIDs:   parseFrontmatterList(content, "plans_ids"),
@@ -202,63 +201,60 @@ func lintParentRelations(files []string) []ctxLintIssue {
 	}
 
 	var issues []ctxLintIssue
-	warn := func(path, msg string) {
-		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: msg})
-	}
-	suggest := func(path, msg string) {
-		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: msg})
-	}
-
-	// Children declare their parent id and must agree with the parent's list.
-	checkChild := func(doc ctxRelDoc, id, parentKind, childField, parentField string) {
-		parent, ok := docs[id]
-		if !ok {
-			warn(doc.path, fmt.Sprintf("%s %s does not resolve to any document uid", childField, id))
-			return
-		}
-		if parent.kind != parentKind {
-			warn(doc.path, fmt.Sprintf("%s %s points to a %s document, want %s", childField, id, parent.kind, parentKind))
-			return
-		}
-		if !relListContains(parent, parentField, doc.uid) {
-			warn(doc.path, fmt.Sprintf("%s %s set but parent %s lacks %s %s (one-sided relation)", childField, id, parent.path, parentField, doc.uid))
-		}
-	}
-	// Parents' reverse lists must agree with the child declaration.
-	checkParentList := func(doc ctxRelDoc, ids []string, childKind, childField, parentField string) {
-		for _, id := range ids {
-			child, ok := docs[id]
-			if !ok {
-				warn(doc.path, fmt.Sprintf("%s %s does not resolve to any document uid", parentField, id))
-				continue
-			}
-			if child.kind != childKind {
-				warn(doc.path, fmt.Sprintf("%s %s points to a %s document, want %s", parentField, id, child.kind, childKind))
-				continue
-			}
-			if ctxRelField(child, childField) != doc.uid {
-				warn(doc.path, fmt.Sprintf("%s lists %s but %s %s=%q (one-sided relation)", parentField, id, child.path, childField, ctxRelField(child, childField)))
-			}
-		}
-	}
-
 	for _, doc := range all {
 		switch doc.kind {
 		case ctxTypePlan:
 			if doc.analysisID != "" {
-				checkChild(doc, doc.analysisID, ctxTypeAnalysis, "analysis_id", "plans_ids")
+				issues = append(issues, checkChildRelation(docs, doc, doc.analysisID, ctxTypeAnalysis, "analysis_id", "plans_ids")...)
 			} else if _, uid := ctxSourceParent(doc.content, ctxTypeAnalysis); uid != "" {
-				suggest(doc.path, "plan has no `analysis_id` for its sourced analysis (run `sdt context relations backfill`)")
+				issues = append(issues, ctxLintIssue{Path: doc.path, Priority: ctxLintSuggestion, Message: "plan has no `analysis_id` for its sourced analysis (run `sdt context relations backfill`)"})
 			}
-			checkParentList(doc, doc.tasksIDs, ctxTypeTasks, "plan_id", "tasks_ids")
+			issues = append(issues, checkParentListRelation(docs, doc, doc.tasksIDs, ctxTypeTasks, "plan_id", "tasks_ids")...)
 		case ctxTypeTasks:
 			if doc.planID != "" {
-				checkChild(doc, doc.planID, ctxTypePlan, "plan_id", "tasks_ids")
+				issues = append(issues, checkChildRelation(docs, doc, doc.planID, ctxTypePlan, "plan_id", "tasks_ids")...)
 			} else if _, uid := ctxSourceParent(doc.content, ctxTypePlan); uid != "" {
-				suggest(doc.path, "task has no `plan_id` for its sourced plan (run `sdt context relations backfill`)")
+				issues = append(issues, ctxLintIssue{Path: doc.path, Priority: ctxLintSuggestion, Message: "task has no `plan_id` for its sourced plan (run `sdt context relations backfill`)"})
 			}
 		case ctxTypeAnalysis:
-			checkParentList(doc, doc.plansIDs, ctxTypePlan, "analysis_id", "plans_ids")
+			issues = append(issues, checkParentListRelation(docs, doc, doc.plansIDs, ctxTypePlan, "analysis_id", "plans_ids")...)
+		}
+	}
+	return issues
+}
+
+// checkChildRelation validates a child's typed parent id against the resolved
+// parent: resolvable, right kind, and mirrored in the parent's reverse list.
+func checkChildRelation(docs map[string]ctxRelDoc, doc ctxRelDoc, id, parentKind, childField, parentField string) []ctxLintIssue {
+	parent, ok := docs[id]
+	if !ok {
+		return []ctxLintIssue{{Path: doc.path, Priority: ctxLintWarning, Message: fmt.Sprintf("%s %s does not resolve to any document uid", childField, id)}}
+	}
+	if parent.kind != parentKind {
+		return []ctxLintIssue{{Path: doc.path, Priority: ctxLintWarning, Message: fmt.Sprintf("%s %s points to a %s document, want %s", childField, id, parent.kind, parentKind)}}
+	}
+	if !relListContains(parent, parentField, doc.uid) {
+		return []ctxLintIssue{{Path: doc.path, Priority: ctxLintWarning, Message: fmt.Sprintf("%s %s set but parent %s lacks %s %s (one-sided relation)", childField, id, parent.path, parentField, doc.uid)}}
+	}
+	return nil
+}
+
+// checkParentListRelation validates a parent's reverse child list: each entry
+// must resolve to a child of the right kind that names this parent.
+func checkParentListRelation(docs map[string]ctxRelDoc, doc ctxRelDoc, ids []string, childKind, childField, parentField string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	for _, id := range ids {
+		child, ok := docs[id]
+		if !ok {
+			issues = append(issues, ctxLintIssue{Path: doc.path, Priority: ctxLintWarning, Message: fmt.Sprintf("%s %s does not resolve to any document uid", parentField, id)})
+			continue
+		}
+		if child.kind != childKind {
+			issues = append(issues, ctxLintIssue{Path: doc.path, Priority: ctxLintWarning, Message: fmt.Sprintf("%s %s points to a %s document, want %s", parentField, id, child.kind, childKind)})
+			continue
+		}
+		if ctxRelField(child, childField) != doc.uid {
+			issues = append(issues, ctxLintIssue{Path: doc.path, Priority: ctxLintWarning, Message: fmt.Sprintf("%s lists %s but %s %s=%q (one-sided relation)", parentField, id, child.path, childField, ctxRelField(child, childField))})
 		}
 	}
 	return issues
@@ -308,50 +304,15 @@ func runRelationsBackfill(dryRun bool) (ctxRelationsBackfillResult, error) {
 	}
 
 	for _, path := range files {
-		data, rerr := os.ReadFile(path) //#nosec G304 -- fixed repo path
-		if rerr != nil {
-			return res, rerr
+		act, relevant, derr := deriveRelationBackfill(path, uidToPath)
+		if derr != nil {
+			return res, derr
 		}
-		content := string(data)
-		kind := parseFrontmatterField(content, "kind")
-		childField := ctxParentField(kind)
-		if childField == "" {
+		if !relevant {
 			continue
 		}
 		res.Scanned++
-		childUID := parseFrontmatterField(content, "uid")
-		if childUID == "" {
-			res.Skipped++
-			continue
-		}
-		parentKind := ctxParentKind(kind)
-		parentUID := parseFrontmatterField(content, childField)
-		parentPath := ""
-		if parentUID != "" {
-			parentPath = uidToPath[parentUID]
-		}
-		childChanged := false
-		if parentUID == "" || parentPath == "" {
-			// Derive the parent from `sources` when the typed edge is absent or
-			// no longer resolves.
-			srcPath, srcUID := ctxSourceParent(content, parentKind)
-			if srcUID == "" {
-				res.Skipped++
-				continue
-			}
-			parentPath, parentUID = srcPath, srcUID
-			if parseFrontmatterField(content, childField) != parentUID {
-				content, childChanged = stampChildParent(content, kind, parentUID)
-			}
-		}
-
-		parentData, perr := os.ReadFile(parentPath) //#nosec G304 -- context work file
-		if perr != nil {
-			res.Skipped++
-			continue
-		}
-		parentUpdated, parentChanged := appendFrontmatterListValue(string(parentData), ctxChildrenField(parentKind), childUID)
-		if !childChanged && !parentChanged {
+		if !act.childChanged && !act.parentChanged {
 			res.Skipped++
 			continue
 		}
@@ -360,20 +321,79 @@ func runRelationsBackfill(dryRun bool) (ctxRelationsBackfillResult, error) {
 		if dryRun {
 			continue
 		}
-		if childChanged {
-			//#nosec G306 -- user work file
-			if werr := os.WriteFile(path, []byte(content), 0o644); werr != nil {
+		if act.childChanged {
+			if werr := writeWorkFile(act.path, act.childContent); werr != nil {
 				return res, werr
 			}
 		}
-		if parentChanged {
-			//#nosec G306 -- user work file
-			if werr := os.WriteFile(parentPath, []byte(parentUpdated), 0o644); werr != nil {
+		if act.parentChanged {
+			if werr := writeWorkFile(act.parentPath, act.parentContent); werr != nil {
 				return res, werr
 			}
 		}
 	}
 	return res, nil
+}
+
+// relBackfillAction is the computed (not yet applied) mutation for one child.
+type relBackfillAction struct {
+	path          string
+	childContent  string
+	childChanged  bool
+	parentPath    string
+	parentContent string
+	parentChanged bool
+}
+
+// deriveRelationBackfill computes the typed parent edge for one document from
+// its `sources` chain without writing anything. relevant is false for kinds
+// outside the lifecycle chain. A missing or stale typed edge is re-derived from
+// `sources`; the parent's reverse list is always reconciled.
+func deriveRelationBackfill(path string, uidToPath map[string]string) (act relBackfillAction, relevant bool, err error) {
+	data, err := os.ReadFile(path) //#nosec G304,G703 -- fixed repo path
+	if err != nil {
+		return act, false, err
+	}
+	content := string(data)
+	kind := parseFrontmatterField(content, "kind")
+	childField := ctxParentField(kind)
+	if childField == "" {
+		return act, false, nil
+	}
+	act = relBackfillAction{path: path, childContent: content}
+	childUID := parseFrontmatterField(content, ctxFrontmatterUID)
+	if childUID == "" {
+		return act, true, nil
+	}
+	parentKind := ctxParentKind(kind)
+	parentUID := parseFrontmatterField(content, childField)
+	parentPath := ""
+	if parentUID != "" {
+		parentPath = uidToPath[parentUID]
+	}
+	if parentUID == "" || parentPath == "" {
+		srcPath, srcUID := ctxSourceParent(content, parentKind)
+		if srcUID == "" {
+			return act, true, nil
+		}
+		parentPath, parentUID = srcPath, srcUID
+		if parseFrontmatterField(content, childField) != parentUID {
+			act.childContent, act.childChanged = stampChildParent(content, kind, parentUID)
+		}
+	}
+	parentData, perr := os.ReadFile(parentPath) //#nosec G304,G703 -- context work file
+	if perr != nil {
+		return act, true, nil
+	}
+	act.parentPath = parentPath
+	act.parentContent, act.parentChanged = appendFrontmatterListValue(string(parentData), ctxChildrenField(parentKind), childUID)
+	return act, true, nil
+}
+
+// writeWorkFile persists a context work file with a checked error.
+func writeWorkFile(path, content string) error {
+	//#nosec G306,G703 -- user work file
+	return os.WriteFile(path, []byte(content), 0o644)
 }
 
 func outputRelationsBackfill(cmd *cobra.Command, res ctxRelationsBackfillResult) {
@@ -446,4 +466,3 @@ func relListContains(doc ctxRelDoc, field, value string) bool {
 	}
 	return false
 }
-
