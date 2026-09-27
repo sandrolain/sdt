@@ -247,6 +247,39 @@ func statusFlappable(n *cascadeNode) bool {
 	}
 }
 
+// statusRank orders the derived statuses from least to most advanced; -1 marks
+// a status outside the cascade's ladder.
+func statusRank(kind, status string) int {
+	switch kind {
+	case ctxTypeTasks:
+		switch status {
+		case taskFileStatusPending:
+			return 0
+		case taskFileStatusInProgress:
+			return 1
+		case taskFileStatusCompleted:
+			return 2
+		}
+	case ctxTypePlan, ctxTypeAnalysis:
+		switch status {
+		case ctxWikiStatusActive:
+			return 0
+		case taskFileStatusCompleted:
+			return 1
+		}
+	}
+	return -1
+}
+
+// advances reports whether the reconciler may move a document from `from` to
+// `to`. The cascade only advances (pending→in-progress→completed,
+// active→completed); regressions and declared-vs-derived conflicts are reported
+// by `context lint`, never silently rewritten.
+func advances(kind, from, to string) bool {
+	rf, rt := statusRank(kind, from), statusRank(kind, to)
+	return rf >= 0 && rt > rf
+}
+
 // applyDerivedStatus rewrites the node's frontmatter status (and `updated`) and
 // returns the refreshed node.
 func applyDerivedStatus(n *cascadeNode, status string) error {
@@ -289,13 +322,12 @@ func cascadeUp(startRef string, apply bool) ([]cascadeChange, error) {
 		case ctxTypeAnalysis:
 			derived = store.deriveAnalysisStatus(node)
 		}
-		if derived == "" || derived == node.status {
-			break
-		}
-		changes = append(changes, cascadeChange{Path: node.path, Kind: node.kind, From: node.status, To: derived})
-		if apply {
-			if err := applyDerivedStatus(node, derived); err != nil {
-				return changes, err
+		if derived != "" && derived != node.status && advances(node.kind, node.status, derived) {
+			changes = append(changes, cascadeChange{Path: node.path, Kind: node.kind, From: node.status, To: derived})
+			if apply {
+				if err := applyDerivedStatus(node, derived); err != nil {
+					return changes, err
+				}
 			}
 		}
 		if node.parentRef == "" {

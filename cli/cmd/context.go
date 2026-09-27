@@ -237,6 +237,6 @@ func init() {
 	addCascadeFlag(contextTaskReviewCmd)
 
 	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd)
-	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextTouchCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd)
+	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd)
 	rootCmd.AddCommand(contextCmd)
 }
