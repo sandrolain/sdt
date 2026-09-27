@@ -20,28 +20,13 @@ type taskItem struct {
 	Line   int    `json:"line" yaml:"line"`
 	Status string `json:"status" yaml:"status"`
 	Text   string `json:"text" yaml:"text"`
+	ID     string `json:"id,omitempty" yaml:"id,omitempty"`
 }
 
 func parseTaskItems(content string) []taskItem {
-	lines := strings.Split(content, "\n")
 	var items []taskItem
-	id := 0
-	for _, line := range lines {
-		m := ctxTaskLineRegexp.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		id++
-		status := taskStatusTodo
-		switch m[1] {
-		case "x":
-			status = taskStatusDone
-		case "~":
-			status = taskStatusWip
-		case "!":
-			status = taskStatusBlocked
-		}
-		items = append(items, taskItem{Line: id, Status: status, Text: m[2]})
+	for _, it := range parseChecklistItems(content) {
+		items = append(items, taskItem{Line: it.Line, Status: it.Status, Text: it.Text, ID: it.ID})
 	}
 	return items
 }
@@ -64,7 +49,11 @@ func outputTaskItems(cmd *cobra.Command, items []taskItem) {
 			taskStatusBlocked: "!",
 		}
 		for _, it := range items {
-			outputString(cmd, fmt.Sprintf("%d. [%s] %s\n", it.Line, marker[it.Status], it.Text))
+			label := it.ID
+			if label == "" {
+				label = strconv.Itoa(it.Line)
+			}
+			outputString(cmd, fmt.Sprintf("%s. [%s] %s\n", label, marker[it.Status], it.Text))
 		}
 	}
 }
@@ -275,8 +264,12 @@ var contextTaskAddCmd = &cobra.Command{
 		}
 		content = strings.TrimRight(content, "\n") + "\n"
 		content += "- [ ] " + step + "\n"
-		// Lazy identifier stamping, then the typed parent relation (task→plan).
+		// Lazy identifier stamping (uid + checklist anchor), then the typed
+		// parent relation (task→plan).
 		if stamped, ok := stampUIDMissing(content); ok {
+			content = stamped
+		}
+		if stamped, ok := stampChecklistIDs(content); ok {
 			content = stamped
 		}
 		planPath, taskUID := "", ""
@@ -300,7 +293,12 @@ var contextTaskAddCmd = &cobra.Command{
 			}
 		}
 		items := parseTaskItems(content)
-		outputString(cmd, fmt.Sprintf("%d\n", items[len(items)-1].Line))
+		last := items[len(items)-1]
+		label := last.ID
+		if label == "" {
+			label = strconv.Itoa(last.Line)
+		}
+		outputString(cmd, label+"\n")
 	},
 }
 
@@ -365,37 +363,6 @@ func hasUnfinishedTaskItem(content string) bool {
 	return false
 }
 
-func updateTaskStatus(content string, id int, status, reason string) (string, error) {
-	lines := strings.Split(content, "\n")
-	count := 0
-	for i, line := range lines {
-		m := ctxTaskLineRegexp.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		count++
-		if count != id {
-			continue
-		}
-		marker := " "
-		switch status {
-		case taskStatusDone:
-			marker = "x"
-		case taskStatusWip:
-			marker = "~"
-		case taskStatusBlock:
-			marker = "!"
-		}
-		updated := fmt.Sprintf("- [%s] %s", marker, m[2])
-		if status == taskStatusBlock && reason != "" {
-			updated += fmt.Sprintf(" (blocked: %s)", reason)
-		}
-		lines[i] = updated
-		return strings.Join(lines, "\n"), nil
-	}
-	return "", fmt.Errorf("task id %d out of range", id)
-}
-
 func taskSetStatusCmd(status string) *cobra.Command {
 	var use, short string
 	switch status {
@@ -411,9 +378,10 @@ func taskSetStatusCmd(status string) *cobra.Command {
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			id, err := strconv.Atoi(args[0])
-			if err != nil {
-				exitWithError(cmd, fmt.Errorf("invalid task id %q", args[0]))
+			if _, ok := parseChecklistID(args[0]); !ok {
+				if _, err := strconv.Atoi(strings.TrimSpace(args[0])); err != nil {
+					exitWithError(cmd, fmt.Errorf("invalid task id %q", args[0]))
+				}
 			}
 			reason := ""
 			if status == taskStatusBlock {
@@ -423,7 +391,7 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			exitWithError(cmd, err)
 			content, err := readTaskFile(phase, plan)
 			exitWithError(cmd, err)
-			updated, err := updateTaskStatus(content, id, status, reason)
+			updated, err := updateChecklistItem(content, args[0], status, reason)
 			exitWithError(cmd, err)
 			updated = setTaskFileStatus(updated, taskFileNextStatus(status, updated))
 			//#nosec G306 -- user work file

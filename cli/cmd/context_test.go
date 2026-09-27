@@ -679,7 +679,7 @@ func TestParseTaskItems(t *testing.T) {
 
 func TestUpdateTaskStatus(t *testing.T) {
 	content := "- [ ] one\n- [ ] two\n"
-	got, err := updateTaskStatus(content, 2, taskStatusDone, "")
+	got, err := updateChecklistItem(content, "2", taskStatusDone, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -687,7 +687,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 		t.Errorf("expected done marker:\n%s", got)
 	}
 
-	got, err = updateTaskStatus(content, 1, taskStatusBlock, "no dep")
+	got, err = updateChecklistItem(content, "1", taskStatusBlock, "no dep")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -695,7 +695,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 		t.Errorf("expected blocked marker with reason:\n%s", got)
 	}
 
-	if _, err := updateTaskStatus(content, 5, taskStatusDone, ""); err == nil {
+	if _, err := updateChecklistItem(content, "c5", taskStatusDone, ""); err == nil {
 		t.Error("expected error for out of range id")
 	}
 }
@@ -745,8 +745,8 @@ func TestContextTaskLifecycle(t *testing.T) {
 	})
 
 	out := execute(t, contextTaskAddCmd, nil, "build feature", "--phase", "1", "--plan", "custom")
-	if strings.TrimSpace(string(out)) != "1" {
-		t.Errorf("expected id 1, got %q", out)
+	if strings.TrimSpace(string(out)) != "c1" {
+		t.Errorf("expected id c1, got %q", out)
 	}
 
 	execute(t, contextTaskAddCmd, nil, "test feature", "--phase", "1", "--plan", "custom")
