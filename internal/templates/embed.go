@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"sort"
+	"strings"
 	"text/template"
 )
 
@@ -25,6 +27,27 @@ var templatesFS embed.FS
 func Exists(name string) bool {
 	_, err := fs.Stat(templatesFS, name)
 	return err == nil
+}
+
+// List returns the sorted base names of the .md.tmpl files directly under dir
+// in the embedded template tree, e.g. List("instructions") ->
+// ["analysis.md.tmpl", ...]. A missing or empty directory yields an empty
+// slice. It is the single source the generated instruction/command sets derive
+// from, so adding a template file adds the generated document.
+func List(dir string) []string {
+	entries, err := fs.ReadDir(templatesFS, dir)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md.tmpl") {
+			continue
+		}
+		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+	return names
 }
 
 // Render parses the embedded template at name (a path under templates/) and

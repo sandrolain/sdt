@@ -60,39 +60,37 @@ type instructionFile struct {
 	body string
 }
 
+// instructionFiles returns the generated instruction files under
+// context/instructions/: one per embedded internal/templates/instructions/
+// *.md.tmpl, in sorted order. The embedded template directory is the single
+// source — adding a template file adds the generated document, with no second
+// list to keep in step.
+
 func instructionFiles(project, group string) []instructionFile {
-	return []instructionFile{
-		{name: filepath.Base(sdtInstrProject), body: instrProjectTemplate(project, group)},
-		{name: filepath.Base(sdtInstrAnalysis), body: instrAnalysisTemplate},
-		{name: filepath.Base(sdtInstrPlan), body: instrPlanTemplate},
-		{name: filepath.Base(sdtInstrTasks), body: instrTasksTemplate},
-		{name: filepath.Base(sdtInstrDecision), body: instrDecisionTemplate},
-		{name: filepath.Base(sdtInstrArchitecture), body: instrArchitectureTemplate},
-		{name: filepath.Base(sdtInstrWorklog), body: instrWorklogTemplate},
-		{name: filepath.Base(sdtInstrNotes), body: instrNotesTemplate},
-		{name: filepath.Base(sdtInstrLessons), body: instrLessonsTemplate},
-		{name: filepath.Base(sdtInstrQuestions), body: instrQuestionsTemplate},
-		{name: filepath.Base(sdtInstrProposal), body: instrProposalTemplate},
-		{name: filepath.Base(sdtInstrPrompts), body: instrPromptsTemplate},
-		{name: filepath.Base(sdtInstrResearch), body: instrResearchTemplate},
-		{name: filepath.Base(sdtInstrIngestion), body: instrIngestionTemplate},
-		{name: filepath.Base(sdtInstrReference), body: instrReferenceTemplate},
-		{name: filepath.Base(sdtInstrCli), body: instrCLITemplate},
-		{name: filepath.Base(sdtInstrScripts), body: instrScriptsTemplate},
-		{name: filepath.Base(sdtInstrWiki), body: instrWikiTemplate},
-		{name: filepath.Base(sdtInstrDevelopment), body: instrDevelopmentTemplate},
-		{name: filepath.Base(sdtInstrGit), body: instrGitTemplate},
-		{name: filepath.Base(sdtInstrBrowser), body: instrBrowserTemplate},
-		{name: filepath.Base(sdtInstrBrowserTools), body: instrBrowserToolsTemplate},
-		{name: filepath.Base(sdtInstrVector), body: instrVectorTemplate},
-		{name: filepath.Base(sdtInstrVectorSvg), body: instrVectorSvgTemplate},
-		{name: filepath.Base(sdtInstrVectorTools), body: instrVectorToolsTemplate},
-		{name: filepath.Base(sdtInstrUI), body: instrUITemplate},
-		{name: filepath.Base(sdtInstrUITokens), body: instrUITokensTemplate},
-		{name: filepath.Base(sdtInstrUIComponents), body: instrUIComponentsTemplate},
-		{name: filepath.Base(sdtInstrUIA11y), body: instrUIA11yTemplate},
-		{name: filepath.Base(sdtInstrUITaste), body: instrUITasteTemplate},
-		{name: filepath.Base(sdtInstrUIAdapters), body: instrUIAdaptersTemplate},
+	names := templates.List("instructions")
+	files := make([]instructionFile, 0, len(names))
+	for _, tmpl := range names {
+		files = append(files, instructionFile{
+			name: strings.TrimSuffix(tmpl, ".tmpl"),
+			body: instructionTemplateBody(tmpl, project, group),
+		})
+	}
+	return files
+}
+
+// instructionTemplateBody renders one instruction template by its embedded file
+// name (e.g. "analysis.md.tmpl"). Most templates need no data; project.md
+// composes the project/group identity and cli.md the registry-driven type
+// catalog.
+
+func instructionTemplateBody(tmpl, project, group string) string {
+	switch tmpl {
+	case "project.md.tmpl":
+		return instrProjectTemplate(project, group)
+	case "cli.md.tmpl":
+		return templates.Must("instructions/"+tmpl, sdtcliCatalogDataFromRegistry(), nil)
+	default:
+		return templates.Must("instructions/"+tmpl, nil, nil)
 	}
 }
 

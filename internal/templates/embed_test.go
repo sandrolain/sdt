@@ -1,9 +1,50 @@
 package templates
 
 import (
+	"sort"
 	"strings"
 	"testing"
 )
+
+// TestListInstructions checks List returns the sorted .md.tmpl members of a
+// template directory, filtering everything else.
+func TestListInstructions(t *testing.T) {
+	got := List("instructions")
+	if len(got) == 0 {
+		t.Fatal("List(instructions) returned no templates")
+	}
+	if !sort.StringsAreSorted(got) {
+		t.Errorf("List(instructions) not sorted: %v", got)
+	}
+	for _, name := range got {
+		if !strings.HasSuffix(name, ".md.tmpl") {
+			t.Errorf("List(instructions) returned non-template %q", name)
+		}
+	}
+	want := map[string]bool{"analysis.md.tmpl": false, "project.md.tmpl": false, "ui.md.tmpl": false}
+	for _, name := range got {
+		if _, ok := want[name]; ok {
+			want[name] = true
+		}
+	}
+	for name, seen := range want {
+		if !seen {
+			t.Errorf("List(instructions) missing %q", name)
+		}
+	}
+}
+
+// TestListSkipsNonTemplatesAndMissingDirs checks a directory with no .md.tmpl
+// member (the embed root holds only directories) and a missing directory both
+// yield an empty slice.
+func TestListSkipsNonTemplatesAndMissingDirs(t *testing.T) {
+	if got := List("."); len(got) != 0 {
+		t.Errorf("List(.) = %v, want empty (top level holds directories only)", got)
+	}
+	if got := List("does/not/exist"); len(got) != 0 {
+		t.Errorf("List(missing) = %v, want empty", got)
+	}
+}
 
 // TestMustIsRenderForKnownTemplate checks Must succeeds where Render does and
 // returns identical bytes.

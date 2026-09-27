@@ -1,7 +1,5 @@
 package cmd
 
-import "github.com/sandrolain/sdt/internal/templates"
-
 // sdtcliCatalogData carries the registry-driven type lists rendered into the
 // Agent tooling catalog of cli.md; they derive from the document-type registry
 // so the help text never drifts from the surfaces it documents.
@@ -22,5 +20,3 @@ func sdtcliCatalogDataFromRegistry() sdtcliCatalogData {
 		ListTypes: ctxListHelpText(),
 	}
 }
-
-var instrCLITemplate = templates.Must("instructions/cli.md.tmpl", sdtcliCatalogDataFromRegistry(), nil)

@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/sandrolain/sdt/internal/templates"
 )
 
 func runInTempDir(t *testing.T) string {
@@ -1928,7 +1930,7 @@ func TestGeneratedInstructionsMatchTemplates(t *testing.T) {
 		t.Skipf("%s not present (context/ is gitignored); drift guard is local-only", sdtInstrDir)
 	}
 	for _, f := range instructionFiles("", "") {
-		if f.name == filepath.Base(sdtInstrProject) {
+		if f.name == "project.md" {
 			continue
 		}
 		path := filepath.Join(root, sdtInstrDir, f.name)
@@ -1940,6 +1942,47 @@ func TestGeneratedInstructionsMatchTemplates(t *testing.T) {
 		if string(data) != agentRenderGenerated(name, f.body) {
 			t.Errorf("drift in %s: template differs from the committed generated file (run sdt agent init --force)", path)
 		}
+	}
+}
+
+// TestInstructionFilesMatchTemplateDirectory is the parity guard for the
+// single-source design: the generated instruction set is exactly the embedded
+// instructions/*.md.tmpl directory, in the same sorted order, and every body
+// renders non-empty.
+func TestInstructionFilesMatchTemplateDirectory(t *testing.T) {
+	names := templates.List("instructions")
+	if len(names) == 0 {
+		t.Fatal("no instruction templates embedded")
+	}
+	files := instructionFiles("p", "g")
+	if len(files) != len(names) {
+		t.Fatalf("instructionFiles() = %d files, template directory = %d", len(files), len(names))
+	}
+	for i, tmpl := range names {
+		want := strings.TrimSuffix(tmpl, ".tmpl")
+		if files[i].name != want {
+			t.Errorf("position %d: generated %q, want %q", i, files[i].name, want)
+		}
+		if strings.TrimSpace(files[i].body) == "" {
+			t.Errorf("%s rendered empty", files[i].name)
+		}
+	}
+}
+
+// TestInstructionTemplateBodyDynamicData checks the two data-carrying
+// instruction templates still compose their dynamic content through the
+// resolver, and that a plain template renders.
+func TestInstructionTemplateBodyDynamicData(t *testing.T) {
+	project := instructionTemplateBody("project.md.tmpl", "proj-x", "grp-y")
+	if !strings.Contains(project, "Project: proj-x") || !strings.Contains(project, "Group: grp-y") {
+		t.Error("project.md.tmpl did not compose the project/group identity")
+	}
+	cli := instructionTemplateBody("cli.md.tmpl", "", "")
+	if !strings.Contains(cli, ctxTypeAnalysis) {
+		t.Error("cli.md.tmpl did not compose the registry-driven type catalog")
+	}
+	if strings.TrimSpace(instructionTemplateBody("analysis.md.tmpl", "", "")) == "" {
+		t.Error("analysis.md.tmpl rendered empty")
 	}
 }
 
