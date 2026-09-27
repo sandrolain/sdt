@@ -56,11 +56,14 @@ session: <session id>        # optional
 
 ## Checklist
 
-- [ ] step one
-- [~] step two (in progress)
-- [x] step three (done)
-- [!] step four (blocked)
+- [ ] step one <!-- c1 -->
+- [~] step two (in progress) <!-- c2 -->
+- [x] step three (done) <!-- c3 -->
+- [!] step four (blocked) <!-- c4 -->
 ```
+
+The trailing `<!-- c<N> -->` is a stable per-document id the CLI assigns; never
+type or renumber it by hand.
 
 ## Design section (study of the task objectives)
 
@@ -91,6 +94,11 @@ Keep descriptions concise: what changes, which files, what to verify. Avoid
 full paragraphs — the task file's Verification commands and Definition of Done
 sections handle that.
 
+Each item gets a trailing `<!-- c<N> -->` id when the CLI writes it; the anchor
+is invisible when rendered and lets `sdt context check`/`task <verb>` address the
+item without depending on its position. Do not add, edit or reorder anchors by
+hand.
+
 ## Frontmatter properties
 
 | Property | Mandatory | Description |
@@ -100,7 +108,7 @@ sections handle that.
 | phase | yes | Plan phase id this task file executes (e.g. `1`, `1a`). The task inherits the plan's `objective`; it does not carry one. |
 | status | yes | File state: `pending` (to work on) / `in-progress` / `completed` / `archived`. The first three are always distinguishable — a task file is never stuck with fewer than three meaningful states. `active` is the legacy value accepted by lint. |
 | created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
-| updated | yes | ISO 8601 UTC last-edit date; refresh on every change (use `sdt time iso`). |
+| updated | yes | ISO 8601 UTC last-edit date, written only by the CLI; refresh a body-only edit with `sdt context touch`. |
 | links | yes | Relative path to the plan this task file executes. |
 | project | yes | Project id from `.sdt.yaml` (e.g. `sdt_44f24890`). |
 | agent | no | Agent/tool that picked up or last edited the file. |
@@ -110,8 +118,12 @@ sections handle that.
 ## Rules
 
 - **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
+- **CLI-only state** — never hand-edit `status:`, `updated:` or a checkbox
+  marker. Mutate them with the CLI: `sdt context task <sub> --phase <n>`
+  (add/list/done/block/wip/review) or, for any checklist, `sdt context check
+  <doc> <id> --done|--wip|--block|--pending`; refresh a body-only edit with
+  `sdt context touch <doc>`.
 - Status markers: `[ ]` todo · `[~]` in-progress · `[x]` done · `[!]` blocked.
-- Manage with `sdt context task <sub> --phase <n> [--plan <slug>]` (add/list/done/block/wip/review).
 - File status transitions: create → `pending`; `wip`/`block` → `in-progress`; `done` → `completed` when no `[ ]`/`[~]` item remains, else `in-progress`. Completion is `completed` and the file stays in `context/tasks/`; `archived` is reserved for a task file retired by the user's will.
 - One plan phase per file: **single focus**, small checklist (~5-7 items); a
   >10-item checklist triggers a `sdt context lint` SUGGESTION to split.
@@ -122,11 +134,11 @@ sections handle that.
 
 1. **Pick** — choose a task file whose dependencies are satisfied (see its plan
    and links). One file at a time; don't jump between files.
-2. **Take in charge** — before any work, mark the file in progress: set the
-   current item to `[~]` and refresh the frontmatter (at least
-   `updated`; record `agent` / `model` / `session` when
-   available). Study the task's objectives in the `## Design` section (fill it
-   from the plan and analysis if missing). Log the take-in in the worklog.
+2. **Take in charge** — before any work, mark the file in progress with
+   `sdt context task wip <id> --phase <n>` (it sets the item `[~]`, flips the
+   file `in-progress` and refreshes `updated`; add `agent`/`model`/`session`
+   when available). Study the task's objectives in the `## Design` section (fill
+   it from the plan and analysis if missing). Log the take-in in the worklog.
 3. **Execute** — work items top to bottom; update markers as you go. Any
    deviation goes back into this file or the plan — never silently.
 4. **Complete** — `[x]` every item, run the **verify-step** below, then set the

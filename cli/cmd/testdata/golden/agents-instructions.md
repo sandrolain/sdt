@@ -46,6 +46,12 @@ Project: p · Group: g
    which to use; do not reinvent what a maintained library already provides
    (see `context/instructions/development.md`).
    *Don't:* hand-roll parsing, HTTP or date logic a maintained library covers.
+9. **CLI-only document state** — `status`, `updated` and checklist markers are
+   mutated only through the CLI: `sdt context status set`, `sdt context touch`
+   for a body-only date refresh, and `sdt context check` / `sdt context task *`
+   for checklist items. Do not hand-edit frontmatter state or tick `- [ ]`
+   markers, and never touch the CLI-assigned `<!-- c<N> -->` id anchors.
+   *Don't:* flip `status:`/`updated:` or a checkbox with the file-editing tool.
 
 ### Document ownership (who owns which text)
 

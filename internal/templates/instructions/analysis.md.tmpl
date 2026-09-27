@@ -101,8 +101,11 @@ session: <session id>        # optional
 
 - **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
 - `summary` is mandatory and used by `sdt context reindex`.
-- Timestamps: `created`/`updated` are UTC ISO 8601 — generate them with
-  `sdt time iso`.
+- Timestamps: `created`/`updated` are UTC ISO 8601. `created` is written at
+  creation (`sdt time iso`); `updated` is CLI-written — refresh a body-only edit
+  with `sdt context touch`, never by hand.
+- **CLI-only state**: never hand-edit `status:`, `updated:` or checkbox markers;
+  use `sdt context status set`, `sdt context touch` and `sdt context check`.
 - Dated files: integrate/modify the current analysis while it is the active one;
   a materially new line of investigation gets a new dated file (and sets
   `sources` back to the analysis it extends).

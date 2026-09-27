@@ -49,7 +49,9 @@ Follow strictly — the plan defines the work, the task files execute it:
    a task file with no pending dependencies, mark it **in progress** on
    take-in, complete items as they finish, then move to the next.
 6. **Update in place** — plan and task files are **living**: reflect progress,
-   decisions and deviations as they happen; keep `updated` current.
+   decisions and deviations as they happen through the CLI (`sdt context check`
+   for phase/checklist items, `sdt context touch` for a body-only edit), never
+   by hand-editing `status`, `updated` or checkbox markers.
 
 ## Structure
 
@@ -124,6 +126,8 @@ session: <session id>        # optional
   non-obvious ordering. Use a simple ASCII diagram.
 - **Completion criteria** — checkboxes for global exit conditions (all phases
   completed — including the final Validation phase — full test suite green, etc.).
+  Tick any plan checklist item through the CLI (`sdt context check <plan> <id>
+  --done`), never by hand-editing the marker.
 - **Review log** — only if the plan is revised after approval. Not for execution
   progress (that lives in task files). Format: `- <YYYY-MM-DD>: <what changed and why>`.
 
@@ -137,7 +141,7 @@ session: <session id>        # optional
 | objective | no | Kebab-case group key shared with the analysis; analyses, plans and tasks group by it (task files inherit it). |
 | status | yes | `active` / `completed` / `abandoned`. |
 | created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
-| updated | yes | ISO 8601 UTC last-edit date; refresh on every change (use `sdt time iso`). |
+| updated | yes | ISO 8601 UTC last-edit date, written only by the CLI; refresh a body-only edit with `sdt context touch`. |
 | links | yes | Relative paths to source docs (analysis) and task files. |
 | project | yes | Project id from `.sdt.yaml` (e.g. `sdt_44f24890`). |
 | agent | no | Agent/tool (AI or human) that created or last edited this file. |
