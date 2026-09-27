@@ -19,6 +19,7 @@ const VERB_LABELS: Record<string, string> = {
   supersedes: "Supersedes",
   replaces: "Replaces",
   derives_from: "Derived from",
+  derived_from: "Derived from",
   extends: "Extends",
   implements: "Implements",
   related_to: "Related to",

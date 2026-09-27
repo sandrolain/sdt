@@ -45,7 +45,7 @@ interface DocMetaPanelProps {
   relatedId?: string;
 }
 
-const DATE_KEYS = new Set(["created", "updated"]);
+const DATE_KEYS = new Set(["created", "created_at", "updated"]);
 const CHIP_KEYS = new Set(["tags", "type"]);
 const LINK_KEYS = new Set(["links", "sources", "relations"]);
 const IMAGE_KEYS = new Set(["image"]);
@@ -381,7 +381,9 @@ function MetaValue({
     return <span className="meta-chip">{value}</span>;
   }
   if (IMAGE_KEYS.has(field.key)) {
-    return <img className="meta-row__image" src={imageUrl(value, basePath)} alt="" />;
+    return (
+      <img className="meta-row__image" src={imageUrl(value, basePath)} alt={value} title={value} />
+    );
   }
   const bool = booleanValue(value);
   if (bool !== null) {

@@ -75,6 +75,8 @@ describe("parseFrontmatter", () => {
   it("humanises relation verbs", () => {
     expect(verbLabel("part_of")).toBe("Part of");
     expect(verbLabel("depends_on")).toBe("Depends on");
+    expect(verbLabel("derived_from")).toBe("Derived from");
+    expect(isRelationVerb("derived_from")).toBe(true);
     expect(verbLabel("custom_verb")).toBe("Custom verb");
   });
 

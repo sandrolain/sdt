@@ -134,6 +134,41 @@ describe("DocMetaPanel", () => {
     expect(document.querySelector(".meta-parse-warning__raw pre")?.textContent).toBe(frontmatter);
   });
 
+  it("localises the legacy created_at key", () => {
+    mockFetch();
+    renderPanel({
+      path: "context/notes/x.md",
+      frontmatter: "---\nkind: notes\ncreated_at: 2026-09-15\n---\n",
+      markdown: "body",
+    });
+    expect(screen.getByText("Created at")).toBeTruthy();
+    // the raw ISO value is replaced by the localised date
+    expect(screen.queryByText("2026-09-15")).toBeNull();
+    expect(screen.getByText(/2026/)).toBeTruthy();
+  });
+
+  it("renders derived_from as a document link", () => {
+    mockFetch();
+    renderPanel({
+      path: "context/notes/x.md",
+      frontmatter: "---\nkind: notes\nderived_from:\n  - analysis/a.md\n---\n",
+      markdown: "body",
+    });
+    expect(screen.getByText("A").getAttribute("href")).toBe("/docs/context/analysis/a.md");
+  });
+
+  it("exposes the image path on the thumbnail", () => {
+    mockFetch();
+    renderPanel({
+      path: "context/notes/x.md",
+      frontmatter: "---\nkind: notes\nimage: context/assets/cover.png\n---\n",
+      markdown: "body",
+    });
+    const img = document.querySelector(".meta-row__image") as HTMLImageElement;
+    expect(img.getAttribute("title")).toBe("context/assets/cover.png");
+    expect(img.getAttribute("alt")).toBe("context/assets/cover.png");
+  });
+
   it("marks the link to the current route with aria-current", () => {
     mockFetch();
     render(
