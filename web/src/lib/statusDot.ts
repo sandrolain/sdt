@@ -35,7 +35,8 @@ export function normalizeRef(ref: string): string {
   return withExt.startsWith("context/") ? withExt : `context/${withExt}`;
 }
 
-/** Analysis paths referenced by a plan (frontmatter `sources`/`links`). */
+/** Analysis paths a plan derives from, i.e. its frontmatter `sources` list.
+ *  `links` is generic correlation and never reaches a derived status. */
 export function planReferencedAnalyses(entries: TreeEntry[]): Set<string> {
   const referenced = new Set<string>();
   for (const entry of entries) {
@@ -45,7 +46,10 @@ export function planReferencedAnalyses(entries: TreeEntry[]): Set<string> {
   return referenced;
 }
 
-/** Plans indexed by each analysis path referenced in their sources/links. */
+/** Plans indexed by each analysis path in their `sources` list (the derivation
+ *  edge). A plan that only `links` an analysis is not indexed under it, so a
+ *  still-open analysis keeps reading "Analysis without a plan"; an archived one
+ *  is resolved earlier and never reaches this map. */
 export function plansByAnalysis(entries: TreeEntry[]): Map<string, TreeEntry[]> {
   const index = new Map<string, TreeEntry[]>();
   for (const entry of entries) {
@@ -63,7 +67,8 @@ export function plansByAnalysis(entries: TreeEntry[]): Map<string, TreeEntry[]> 
   return index;
 }
 
-/** Task entries indexed by the normalized plan path they reference ("" = none). */
+/** Task entries indexed by the normalized plan path in their `sources` list
+ *  ("" = no sourced plan, so they stay at the tree root). */
 export function tasksByPlan(entries: TreeEntry[]): Map<string, TreeEntry[]> {
   const map = new Map<string, TreeEntry[]>();
   for (const entry of entries) {
@@ -76,7 +81,7 @@ export function tasksByPlan(entries: TreeEntry[]): Map<string, TreeEntry[]> {
   return map;
 }
 
-/** Objective a task inherits from the plan it references (its own `objective`
+/** Objective a task inherits from the plan it sources (its own `objective`
  *  wins when present, e.g. a standalone checklist). "" when unresolved. */
 export function taskObjective(entry: TreeEntry, plans: Map<string, TreeEntry>): string {
   if (entry.objective) return entry.objective;

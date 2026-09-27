@@ -153,6 +153,16 @@ describe("groupByPlan", () => {
         }),
         entry({ path: "context/tasks/t3.md", kind: "tasks", sources: ["plan/20260920-a-plan.md"] }),
         entry({ path: "context/tasks/t4.md", kind: "tasks" }),
+        // t5 sources an analysis and only `links` its plan: correlation is not a
+        // derivation edge, so the task stays ungrouped (the server no longer
+        // merges links into sources). The `links` canary is set through a cast —
+        // TreeEntry no longer carries the field.
+        entry({
+          path: "context/tasks/t5.md",
+          kind: "tasks",
+          sources: ["analysis/a.md"],
+          ...({ links: ["plan/20260920-a-plan.md"] } as { links?: string[] }),
+        }),
       ],
       plans,
     );
@@ -161,7 +171,10 @@ describe("groupByPlan", () => {
       "context/tasks/t1.md",
       "context/tasks/t3.md",
     ]);
-    expect(groups[2].entries.map((e) => e.path)).toEqual(["context/tasks/t4.md"]);
+    expect(groups[2].entries.map((e) => e.path)).toEqual([
+      "context/tasks/t4.md",
+      "context/tasks/t5.md",
+    ]);
   });
 
   it("labels a plan group from the filename slug when the plan entry is absent", () => {

@@ -21,6 +21,14 @@ function entry(patch: Partial<TreeEntry>): TreeEntry {
 const plan = (path = "context/plan/x.md") => entry({ path, kind: "plan" });
 const task = (path = "context/tasks/t.md", status?: string, sources?: string[]) =>
   entry({ path, kind: "tasks", status, sources });
+// A task whose only plan reference sits in `links`: correlation, not derivation.
+// TreeEntry no longer carries `links`, so the canary is added through a cast —
+// the production code must keep ignoring the field.
+const linkedTask = (
+  path = "context/tasks/t.md",
+  status: string | undefined,
+  links: string[],
+): TreeEntry => entry({ path, kind: "tasks", status, ...({ links } as { links?: string[] }) });
 
 describe("statusDot", () => {
   it("plans report the progress of their referenced tasks (red none done / yellow partial / green all done)", () => {
@@ -110,6 +118,31 @@ describe("statusDot", () => {
     expect(statusDot(analysis, plans, tasks)?.tone).toBe("warn");
     tasks.set("context/plan/b.md", [task("context/tasks/b.md", "completed")]);
     expect(statusDot(analysis, plans, tasks)?.tone).toBe("ok");
+  });
+
+  it("keeps an analysis red when a completed plan only cross-links it", () => {
+    // The reported defect: a plan whose frontmatter carries the analysis in
+    // `links` only. The server emits no `sources` for such a plan
+    // (viewer/server.go); the extra `links` property here is a deliberate
+    // canary, so a re-introduced merge on either side of the wire fails here.
+    const analysis = entry({ path: "context/analysis/a.md", kind: "analysis" });
+    const linking = plan("context/plan/a.md");
+    linking.status = "completed";
+    (linking as { links?: string[] }).links = ["analysis/a.md"];
+    expect(linking.sources).toBeUndefined();
+
+    const analysisPlans = plansByAnalysis([analysis, linking]);
+    expect(analysisPlans.size).toBe(0);
+    expect(planReferencedAnalyses([analysis, linking]).size).toBe(0);
+
+    // Its own completed tasks must not paint the analysis green.
+    const taskIndex = new Map<string, TreeEntry[]>([
+      ["context/plan/a.md", [task("context/tasks/a.md", "completed")]],
+    ]);
+    expect(statusDot(analysis, analysisPlans, taskIndex)).toEqual({
+      tone: "danger",
+      label: "Analysis without a plan",
+    });
   });
 
   it("gives done analyses a visible neutral tone, including resolved corpus values", () => {
@@ -257,6 +290,20 @@ describe("taskProgress / tasksByPlan", () => {
     ]);
     expect(index.get("")?.map((e) => e.path)).toEqual(["context/tasks/c.md"]);
   });
+
+  it("buckets a links-only task under the empty key and inherits no objective", () => {
+    // A task that only `links` its plan (an older hand-written frontmatter) has
+    // no derivation edge: it stays ungrouped and inherits no objective, even
+    // though the plan it names carries one.
+    const linked = linkedTask("context/tasks/a.md", "pending", ["plan/p.md"]);
+    const plans = new Map<string, TreeEntry>([
+      ["context/plan/p.md", entry({ path: "context/plan/p.md", objective: "obj-x" })],
+    ]);
+    const index = tasksByPlan([linked]);
+    expect(index.get("context/plan/p.md")).toBeUndefined();
+    expect(index.get("")?.map((e) => e.path)).toEqual(["context/tasks/a.md"]);
+    expect(taskObjective(linked, plans)).toBe("");
+  });
 });
 
 describe("entryCompleted", () => {
@@ -306,7 +353,7 @@ describe("isDoneStatus", () => {
 });
 
 describe("planReferencedAnalyses", () => {
-  it("collects plan sources and links as normalised corpus paths", () => {
+  it("collects the plan sources as normalised corpus paths", () => {
     const entries = [
       entry({ kind: "plan", sources: ["analysis/a.md", "./analysis/b", "context/analysis/c.md"] }),
       entry({ kind: "analysis", path: "context/analysis/ignored.md", sources: ["analysis/x.md"] }),

@@ -258,9 +258,9 @@ export interface PlanGroup {
   entries: TreeEntry[];
 }
 
-/** Group task entries under the plan they reference (`sources`/`links`).
+/** Group task entries under the plan in their `sources` list.
  *  Named plan groups come first, ordered by plan `created` descending, then the
- *  "" group holding tasks without a plan reference (they stay at the root).
+ *  "" group holding tasks with no sourced plan (they stay at the root).
  *  Under a date sort the named groups order among themselves by the latest task
  *  date in each (ties keep the plan-created-desc order). */
 export function groupByPlan(
