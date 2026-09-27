@@ -107,6 +107,7 @@ Examples:
 		}
 		item, _ := resolveChecklistItem(updated, args[1])
 		outputCheckResult(cmd, item)
+		cascadeAfterWrite(cmd, doc.Path)
 	},
 }
 
@@ -116,4 +117,5 @@ func init() {
 	contextCheckCmd.Flags().Bool(taskStatusBlock, false, "Mark the item blocked")
 	contextCheckCmd.Flags().Bool(ctxCheckPendingFlag, false, "Reset the item to todo")
 	contextCheckCmd.Flags().String("reason", "", "Reason for --"+taskStatusBlock)
+	addCascadeFlag(contextCheckCmd)
 }

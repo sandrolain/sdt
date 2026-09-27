@@ -299,6 +299,7 @@ var contextTaskAddCmd = &cobra.Command{
 			label = strconv.Itoa(last.Line)
 		}
 		outputString(cmd, label+"\n")
+		cascadeAfterWrite(cmd, path)
 	},
 }
 
@@ -394,11 +395,13 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			updated, err := updateChecklistItem(content, args[0], status, reason)
 			exitWithError(cmd, err)
 			updated = setTaskFileStatus(updated, taskFileNextStatus(status, updated))
+			path := taskFileFor(phase, plan)
 			//#nosec G306 -- user work file
-			if err := os.WriteFile(taskFileFor(phase, plan), []byte(updated), 0o644); err != nil {
+			if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
 				exitWithError(cmd, err)
 			}
 			outputString(cmd, "ok\n")
+			cascadeAfterWrite(cmd, path)
 		},
 	}
 }
@@ -435,6 +438,7 @@ Examples:
 			exitWithError(cmd, err)
 		}
 		outputString(cmd, path+"\n")
+		cascadeAfterWrite(cmd, path)
 	},
 }
 

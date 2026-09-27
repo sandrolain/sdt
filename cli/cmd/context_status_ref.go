@@ -396,6 +396,7 @@ Examples:
 		default:
 			outputString(cmd, "ok\n")
 		}
+		cascadeAfterWrite(cmd, doc.Path)
 	},
 }
 
@@ -428,5 +429,6 @@ func init() {
 	addContextStatusRefFlags(contextStatusGetCmd)
 	addContextStatusRefFlags(contextStatusSetCmd)
 	contextStatusSetCmd.Flags().String("status", "", "New status value (validated against the kind vocabulary)")
+	addCascadeFlag(contextStatusSetCmd)
 	contextStatusCmd.AddCommand(contextStatusGetCmd, contextStatusSetCmd)
 }

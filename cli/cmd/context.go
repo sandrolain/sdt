@@ -230,6 +230,12 @@ func init() {
 
 	contextTemplateCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxTemplateTypes()))
 
+	addCascadeFlag(contextTaskAddCmd)
+	addCascadeFlag(contextTaskDoneCmd)
+	addCascadeFlag(contextTaskBlockCmd)
+	addCascadeFlag(contextTaskWipCmd)
+	addCascadeFlag(contextTaskReviewCmd)
+
 	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd)
 	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextTouchCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd)
 	rootCmd.AddCommand(contextCmd)
