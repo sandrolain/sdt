@@ -1,0 +1,65 @@
+# UI/UX — tokens by intent
+
+`context/instructions/ui-tokens.md` is the reference for the values that make a
+look consistent: colour, spacing, type, radius and motion. It is **conditional**:
+it applies only when the project already has a token layer or design system. Read
+it with `context/instructions/ui.md` (the doctrine) and
+`context/instructions/ui-adapters.md` (how tokens map to a framework's theming).
+
+## When this applies (no-op rule)
+
+- Use it when the project has tokens or a design system to extend. If it has
+  none, this file does not apply: **stop and ask** — do not create a design
+  system, and do not introduce one as a side effect of a change.
+- The project's own system is the source of truth. Local rules belong in the
+  AGENTS.md project block, not here.
+
+## Tokens by intent, not by appearance
+
+- Name a token for the role it plays, not the value it holds:
+  `action.primary`, `surface.raised`, `text.muted` — never `blue-500` or
+  `gray-3`.
+- A system may have three tiers, used in one direction:
+  **primitive** (raw values) → **semantic** (roles and intent) → **component**
+  (component-specific). Components reference semantic or component tokens; they
+  never reference primitives or raw values.
+- The intent name is what makes a theme swap and a redesign possible without
+  touching every component.
+
+## Naming
+
+Use one shape per project: `{category}.{property}.{variant}-{state}` — for
+example `action.destructive-default`, `surface.raised-hover`. The name encodes
+role, variant and state; the value never appears in the name.
+
+## One source per project
+
+- Keep a single token source. Do not let the same value be defined in two
+  places; a token that drifts is worse than no token.
+- If a value is needed that no token expresses, add the token at the right tier —
+  do not inline the value.
+
+## Theme swap at the semantic layer
+
+- Themes (dark/light, a brand variant) swap **semantic** values. Primitives stay
+  stable; components are unaware of the theme.
+- Never branch component code on the theme; express the difference as a token
+  value.
+- Check both themes when a component uses a new token.
+
+## Extraction threshold
+
+- Extract a token only for a value that recurs **three or more times with the same
+  intent**. Premature abstraction is worse than duplication.
+- If no system exists, do not infer one from a few values: stop and ask (see the
+  no-op rule).
+
+## Boundary
+
+- Choosing or adopting a design system is a library-first decision
+  (`context/instructions/development.md`): propose a shortlist, get the user's
+  choice, record it in the project block.
+- How tokens become a framework's theming primitive is the adapter contract
+  (`context/instructions/ui-adapters.md`).
+- State enumeration and component structure live in
+  `context/instructions/ui-components.md`.
