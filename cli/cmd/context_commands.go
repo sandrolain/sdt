@@ -139,9 +139,9 @@ Examples:
 
 var contextCommandsRmCmd = &cobra.Command{
 	Use:   "rm <trigger>",
-	Short: "Archive a command trigger and regenerate the index",
-	Long: `Move a trigger file from context/commands/ to context/archive/ with a
-dated name, flag it ` + "`status: archived`" + `, and regenerate the commands index.
+	Short: "Delete a command trigger and regenerate the index",
+	Long: `Delete a trigger file from context/commands/ and regenerate the commands
+index. The stub is removed, not archived.
 
 Examples:
   sdt context commands rm triage`,
@@ -153,25 +153,6 @@ Examples:
 			return
 		}
 		src := filepath.Join(sdtCommandsDir, id+sdtMarkdownExt)
-		data, err := os.ReadFile(src) //#nosec G304 -- fixed repo path
-		if err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-		dst := filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", "commands-"+id)+sdtMarkdownExt)
-		if _, err := os.Stat(dst); err == nil {
-			exitWithError(cmd, fmt.Errorf("target already exists: %s", dst))
-			return
-		}
-		content, _ := setFrontmatterFields(string(data), []frontmatterPatch{{key: ctxMapStatus, value: statusArchived}})
-		if err := os.MkdirAll(sdtArchiveDir, 0o750); err != nil { //#nosec G301 -- user work dir
-			exitWithError(cmd, err)
-			return
-		}
-		if err := os.WriteFile(dst, []byte(content), 0o644); err != nil { //#nosec G306 -- user work file
-			exitWithError(cmd, err)
-			return
-		}
 		if err := os.Remove(src); err != nil {
 			exitWithError(cmd, err)
 			return
@@ -181,7 +162,7 @@ Examples:
 			exitWithError(cmd, err)
 			return
 		}
-		outputString(cmd, dst+"\n")
+		outputString(cmd, "removed "+src+"\n")
 		outputString(cmd, "regenerated "+sdtCommandsIndex+"\n")
 	},
 }
@@ -198,7 +179,7 @@ from a directory scan on every change so user triggers survive
 agent init --force.
 
   sdt context commands new <trigger>   create a trigger stub
-  sdt context commands rm <trigger>    archive a trigger stub`,
+  sdt context commands rm <trigger>    delete a trigger stub`,
 }
 
 func init() {

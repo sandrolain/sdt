@@ -331,7 +331,7 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"context/plan", "context/analysis", "context/worklog", "context/notes", "context/questions", "context/tasks", "context/archive", "context/tmp", "context/instructions", "context/architecture", "context/decisions", "context/scripts"} {
+	for _, d := range []string{"context/plan", "context/analysis", "context/worklog", "context/notes", "context/questions", "context/tasks", "context/deprecated", "context/tmp", "context/instructions", "context/architecture", "context/decisions", "context/scripts"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
@@ -578,15 +578,15 @@ func TestAgentInitForceArchivesObsoleteCommands(t *testing.T) {
 	}
 }
 
-// assertArchived asserts that context/archive/deprecated/<base>-DEPRECATED-<stamp>.md
+// assertArchived asserts that context/deprecated/<base>-DEPRECATED-<stamp>.md
 // exists with the loud header and the archived content.
 
 func assertArchived(t *testing.T, dir, base string) {
 	t.Helper()
-	ad := filepath.Join(dir, "context/archive", sdtArchiveDeprecatedDir)
+	ad := filepath.Join(dir, sdtDeprecatedDir)
 	entries, err := os.ReadDir(ad)
 	if err != nil {
-		t.Fatalf("expected archive dir %s: %v", ad, err)
+		t.Fatalf("expected deprecated dir %s: %v", ad, err)
 	}
 	var found string
 	for _, e := range entries {
@@ -595,19 +595,19 @@ func assertArchived(t *testing.T, dir, base string) {
 		}
 	}
 	if found == "" {
-		t.Fatalf("expected archived %s under %s", base, ad)
+		t.Fatalf("expected deprecated %s under %s", base, ad)
 	}
 	data, err := os.ReadFile(found)
 	if err != nil {
-		t.Fatalf("read archive %s: %v", found, err)
+		t.Fatalf("read deprecated %s: %v", found, err)
 	}
-	for _, want := range []string{"# DEPRECATED", "no longer generated", "archived this file from"} {
+	for _, want := range []string{"# DEPRECATED", "no longer generated", "moved this obsolete file"} {
 		if !strings.Contains(string(data), want) {
-			t.Errorf("expected %q in archive header of %s", want, found)
+			t.Errorf("expected %q in deprecated header of %s", want, found)
 		}
 	}
 	if !strings.Contains(string(data), "obsolete") {
-		t.Errorf("expected archived content preserved in %s", found)
+		t.Errorf("expected deprecated content preserved in %s", found)
 	}
 }
 
@@ -1282,7 +1282,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	}
 
 	cli, _ := os.ReadFile(filepath.Join(dir, "context/instructions/cli.md"))
-	for _, want := range []string{"sdt conv --in json --out yaml", "sdt context new --type", "sdt context path --type", "sdt context status get|set", "sdt context rename <ref> --slug <new>", "sdt context archive <ref>", "sdt diff --a A --b B --diff-format", "sdt dns --host", "context/instructions/reference.md"} {
+	for _, want := range []string{"sdt conv --in json --out yaml", "sdt context new --type", "sdt context path --type", "sdt context status get|set", "sdt context rename <ref> --slug <new>", "sdt diff --a A --b B --diff-format", "sdt dns --host", "context/instructions/reference.md"} {
 		if !strings.Contains(string(cli), want) {
 			t.Errorf("expected %q in cli.md:\n%s", want, cli)
 		}
@@ -1885,7 +1885,7 @@ func TestEnsureWorkDirsMkdirError(t *testing.T) {
 
 func TestEnsureWorkDirsReadmeError(t *testing.T) {
 	runInTempDir(t)
-	for _, d := range []string{sdtWorkDir, sdtPlanDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtArchiveDir, sdtTmpDir, sdtInstrDir} {
+	for _, d := range []string{sdtWorkDir, sdtPlanDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtDeprecatedDir, sdtTmpDir, sdtInstrDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}

@@ -112,11 +112,11 @@ sections handle that.
 - **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
 - Status markers: `[ ]` todo · `[~]` in-progress · `[x]` done · `[!]` blocked.
 - Manage with `sdt context task <sub> --phase <n> [--plan <slug>]` (add/list/done/block/wip/review).
-- File status transitions: create → `pending`; `wip`/`block` → `in-progress`; `done` → `completed` when no `[ ]`/`[~]` item remains, else `in-progress`; `archive` → `archived`.
+- File status transitions: create → `pending`; `wip`/`block` → `in-progress`; `done` → `completed` when no `[ ]`/`[~]` item remains, else `in-progress`. Completion is `completed` and the file stays in `context/tasks/`; `archived` is reserved for a task file retired by the user's will.
 - One plan phase per file: **single focus**, small checklist (~5-7 items); a
   >10-item checklist triggers a `sdt context lint` SUGGESTION to split.
 - Task files are **living**: updated during execution of the phase.
-- When a phase completes, archive or remove its task file and update the plan.
+- When a phase completes, set its task file `completed` (the file stays in `context/tasks/`) and update the plan.
 
 ## Execution workflow
 
@@ -129,8 +129,9 @@ sections handle that.
    from the plan and analysis if missing). Log the take-in in the worklog.
 3. **Execute** — work items top to bottom; update markers as you go. Any
    deviation goes back into this file or the plan — never silently.
-4. **Complete** — `[x]` every item, run the **verify-step** below, then
-   archive or remove the file and update the linked plan phase.
+4. **Complete** — `[x]` every item, run the **verify-step** below, then set the
+   file `completed` (it stays in `context/tasks/`) and update the linked plan
+   phase.
 5. **Commit gate** — if the task produced tracked changes, propose a
    Conventional Commits message (see `instructions/git.md`) scoped to this
    task and **ask the user whether to commit**; commit only on explicit
@@ -150,8 +151,8 @@ date and the recorded take-in). For each stale file:
 3. If stalled: reset in-progress items to `[ ]` (todo) or close them
    `[x]` when actually finished; clear all `[~]`; refresh
    `updated`.
-4. If the phase is finished but not closed: mark items `[x]`, archive the
-   file, update the plan, note it in the worklog.
+4. If the phase is finished but not closed: mark items `[x]`, set the file
+   `completed`, update the plan, note it in the worklog.
 
 Never leave `[~]` in-progress markers unattended across sessions.
 

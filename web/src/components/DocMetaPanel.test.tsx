@@ -190,7 +190,7 @@ describe("DocMetaPanel", () => {
     });
     expect(screen.getByText("Status")).toBeTruthy();
     const value = screen.getByText("Archived");
-    expect(value.getAttribute("title")).toBe("Superseded and closed");
+    expect(value.getAttribute("title")).toBe("Superseded or retired by the user");
     expect(document.querySelector(".meta-status__dot--neutral")).toBeTruthy();
   });
 
@@ -198,11 +198,11 @@ describe("DocMetaPanel", () => {
     mockFetch();
     renderPanel({
       path: "context/analysis/a.md",
-      frontmatter: "---\nkind: analysis\nstatus: completed\n---\n",
+      frontmatter: "---\nkind: analysis\nstatus: bogus\n---\n",
       markdown: "body",
     });
-    const value = screen.getByText("completed");
-    expect(value.getAttribute("title")).toBe("completed");
+    const value = screen.getByText("bogus");
+    expect(value.getAttribute("title")).toBe("bogus");
   });
 
   it("renders question lifecycle status in the metadata panel", async () => {

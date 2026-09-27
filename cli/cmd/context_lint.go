@@ -115,7 +115,6 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"frontmatter number", "align `number` in the frontmatter with the 4-digit filename prefix"},
 	{"outside vocabulary for kind", "set `status` to a value from the kind's vocabulary (see the status matrix: context/architecture/stack.md)"},
 	{"missing frontmatter `status` for kind", "add `status: <vocab value>`; see the per-type vocabularies in the status matrix (context/architecture/stack.md)"},
-	{"status-only `archived` set in place", "keep the status-only transition, or move the file with `sdt context archive` (either is allowed)"},
 	{"does not parse as RFC3339 UTC", "format `created`/`updated` as RFC3339 UTC (e.g. `2026-09-25T05:00:00Z`; see `sdt time iso`)"},
 	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
 	{"completed task file has no `## Review`", "record the verify-step verdicts with `sdt context task review --phase <n>` (CONFIRMED | DISPROVED | UNVERIFIED per finding)"},
@@ -212,25 +211,6 @@ func lintStatusField(path, content, kind string) []ctxLintIssue {
 	return nil
 }
 
-// lintArchivedInPlace hints when a status-bearing document carries a
-// status-only `archived` transition while living outside context/archive/.
-// Both are legal (decision D2): set in place, or moved with `sdt context
-// archive`. SUGGESTION so no existing document hard-fails.
-
-func lintArchivedInPlace(path, content, kind string) []ctxLintIssue {
-	t, ok := ctxTypeLookup(kind)
-	if !ok || !ctxStatusBearing(t) {
-		return nil
-	}
-	if parseFrontmatterField(content, "status") != statusArchived {
-		return nil
-	}
-	if filepath.Dir(path) == sdtArchiveDir {
-		return nil
-	}
-	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "status-only `archived` set in place; `sdt context archive` moves the file under archive/ (either is allowed)"}}
-}
-
 // lintTimestampFields flags a present `created`/`updated` that does not parse
 // as RFC3339 UTC (decision D4). Missing fields are not flagged; offsets that
 // still parse as RFC3339 are tolerated (no historical hard-fail).
@@ -302,7 +282,7 @@ func lintDoc(path string) []ctxLintIssue {
 	summary := parseFrontmatterField(content, "summary")
 
 	// Legacy documents lack both kind and summary. Treat them as WARNING so the
-	// historical archive does not hard-fail the check; only new-style docs
+	// historical corpus does not hard-fail the check; only new-style docs
 	// (with kind) require a mandatory summary.
 	legacy := kind == "" && summary == ""
 	prio := func(sev string) string {
@@ -320,7 +300,6 @@ func lintDoc(path string) []ctxLintIssue {
 	// Generic per-type status vocabulary check for every status-bearing kind
 	// (from the shared registry); documented in the stack.md status matrix.
 	issues = append(issues, lintStatusField(path, content, kind)...)
-	issues = append(issues, lintArchivedInPlace(path, content, kind)...)
 	issues = append(issues, lintTimestampFields(path, content, prio)...)
 	// Optional `objective` grouping key: WARNING on a non-kebab-case value,
 	// SUGGESTION on absence so the convention is adopted gradually without
@@ -771,8 +750,7 @@ func normalizeContextRef(ref string) string {
 // internal/mdindex.taskPlanRef, internal/search.taskPlanRefFromRegistry,
 // cli/cmd/context_reindex.go ctxTaskPlanObjective and the web/src/lib/statusDot.ts
 // helpers. The heuristic (not a resolved kind lookup) is intentional so the guard
-// sees exactly the viewer's association; F5's archive/ orphaning stays out of
-// scope pending questions/20260926-200920.
+// sees exactly the viewer's association.
 func taskPlanRef(content string) string {
 	for _, ref := range parseFrontmatterList(content, ctxFrontmatterSources) {
 		if normalized := normalizeContextRef(ref); strings.Contains(normalized, "/plan/") {
@@ -907,16 +885,14 @@ Examples:
 			if files, err := dirFiles(sdtAnalysisDir); err == nil {
 				issues = append(issues, lintOverlappingAnalyses(files)...)
 			}
-			// Plan/task disagreement guard (D4): needs both document sets, and it
-			// scans archive/ too so archived task files still associate with the
-			// plan they close, mirroring the viewer's tree.
+			// Plan/task disagreement guard (D4): needs both document sets; a
+			// task file lives in its own type directory for its whole life, so
+			// tasks/ plus plan/ is the complete association set.
 			planFiles, err := dirFiles(sdtPlanDir)
 			exitWithError(cmd, err)
 			taskFiles, err := dirFiles(sdtTasksDir)
 			exitWithError(cmd, err)
-			archivedFiles, err := dirFiles(sdtArchiveDir)
-			exitWithError(cmd, err)
-			issues = append(issues, lintPlanTaskAgreement(append(planFiles, archivedFiles...), append(taskFiles, archivedFiles...))...)
+			issues = append(issues, lintPlanTaskAgreement(planFiles, taskFiles)...)
 			// Role-profile advisory: mirror deterministic role checks as SUGGESTIONs.
 			issues = append(issues, lintRoleProfiles()...)
 		}

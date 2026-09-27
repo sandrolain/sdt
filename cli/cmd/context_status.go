@@ -107,7 +107,6 @@ func ctxStatusRows() []ctxStatusEntry {
 		{kind: ctxTypeTasks, next: "track per-phase", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeCommands, next: "review triggers", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeWorklog, next: ctxTierHistory, ifClean: ctxTierHistory},
-		{kind: ctxTypeArchive, next: ctxTierHistory, ifClean: ctxTierHistory},
 	}
 	var rows []ctxStatusEntry
 	for _, d := range descs {

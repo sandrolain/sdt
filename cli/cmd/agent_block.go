@@ -163,16 +163,10 @@ func agentWriteGeneratedFile(path, name, templateBody string, force bool) FileRe
 	return res
 }
 
-// sdtArchiveDeprecatedDir is the subdirectory under context/archive/ where
-// --force moves obsolete generated files instead of deleting them.
-
-const sdtArchiveDeprecatedDir = "deprecated"
-
 // agentArchiveGenerated moves an obsolete generated file to
-// context/archive/deprecated/<base>-DEPRECATED-<stamp>.md with a loud header,
+// context/deprecated/<base>-DEPRECATED-<stamp>.md with a loud header,
 // preserving history. It reports skipped when the file is already gone or
-// already archived, and error when either the archive write or the removal
-// fails.
+// already deprecated, and error when either the write or the removal fails.
 
 func agentArchiveGenerated(dir, name, reason string) FileResult {
 	path := filepath.Join(dir, name)
@@ -181,16 +175,16 @@ func agentArchiveGenerated(dir, name, reason string) FileResult {
 	}
 	base := strings.TrimSuffix(name, filepath.Ext(name))
 	stamp := time.Now().Format("20060102-150405")
-	dst := filepath.Join(sdtArchiveDir, sdtArchiveDeprecatedDir, base+"-DEPRECATED-"+stamp+sdtMarkdownExt)
+	dst := filepath.Join(sdtDeprecatedDir, base+"-DEPRECATED-"+stamp+sdtMarkdownExt)
 	if _, err := os.Stat(dst); err == nil {
-		return FileResult{Path: path, Status: statusSkipped, Reason: "already archived"}
+		return FileResult{Path: path, Status: statusSkipped, Reason: "already deprecated"}
 	}
 	data, err := os.ReadFile(path) //#nosec G304 -- fixed generated dir, user-chosen output
 	if err != nil {
 		return FileResult{Path: path, Status: statusError, Reason: err.Error()}
 	}
-	header := fmt.Sprintf("# DEPRECATED — no longer generated\n\n*sdt agent init --force* archived this file from `%s` on %s: it no longer belongs to the generated set (%s). Keep it while the history matters, then remove it.\n\n---\n\n",
-		path, time.Now().Format(time.RFC3339), reason)
+	header := fmt.Sprintf("# DEPRECATED — no longer generated\n\n*sdt agent init --force* moved this obsolete file to `%s` on %s: it no longer belongs to the generated set (%s). Keep it while the history matters, then remove it.\n\n---\n\n",
+		sdtDeprecatedDir, time.Now().Format(time.RFC3339), reason)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil { //#nosec G301
 		return FileResult{Path: path, Status: statusError, Reason: err.Error()}
 	}

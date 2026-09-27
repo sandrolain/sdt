@@ -11,9 +11,9 @@ latest active plan (or an explicit --plan <plan-file> / --plan <slug> for a
 standalone checklist).
 
   sdt context task list [--phase <n>] [--plan <ref>]      show steps with ids
-  sdt context task add "<step>" --phase <n> [--plan <ref>] [--objective] [--summary]
+  sdt context task add "<step>" --phase <n> [--plan <ref>] [--summary]
   sdt context task done|block|wip <id> --phase <n> [--plan <ref>]
-  sdt context task archive --phase <n> [--plan <ref>] [--slug]
+  sdt context task review --phase <n> [--plan <ref>]      record verdicts + complete
 
 Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked
 
@@ -38,9 +38,9 @@ Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked
 
 * [sdt context](sdt_context.md)	 - Context Tools (context/ work files)
 * [sdt context task add](sdt_context_task_add.md)	 - Add a step to the active task list
-* [sdt context task archive](sdt_context_task_archive.md)	 - Archive the active task list to context/archive/
 * [sdt context task block](sdt_context_task_block.md)	 - Mark a task step blocked
 * [sdt context task done](sdt_context_task_done.md)	 - Mark a task step done
 * [sdt context task list](sdt_context_task_list.md)	 - Show a per-phase task list
+* [sdt context task review](sdt_context_task_review.md)	 - Record the verify-step review verdicts in the phase task file
 * [sdt context task wip](sdt_context_task_wip.md)	 - Mark a task step in progress
 

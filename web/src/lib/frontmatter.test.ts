@@ -86,8 +86,17 @@ describe("valueLabel", () => {
   });
 
   it("returns null for an unknown value or kind", () => {
-    expect(valueLabel("analysis", "completed")).toBeNull();
+    expect(valueLabel("analysis", "bogus")).toBeNull();
     expect(valueLabel("nope", "active")).toBeNull();
+  });
+
+  it("labels analysis completion in place (no archive kind)", () => {
+    expect(valueLabel("analysis", "completed")).toEqual({
+      label: "Completed",
+      meaning: "Concluded, no further work",
+      tone: "ok",
+    });
+    expect(valueLabel("archive", "archived")).toBeNull();
   });
 });
 

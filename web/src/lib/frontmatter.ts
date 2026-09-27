@@ -172,9 +172,14 @@ export const STATUS_VALUES: Record<string, ValueLabel> = {
     meaning: "Started, not yet concluded",
     tone: "warn",
   },
+  "analysis.completed": {
+    label: "Completed",
+    meaning: "Concluded, no further work",
+    tone: "ok",
+  },
   "analysis.archived": {
     label: "Archived",
-    meaning: "Superseded and closed",
+    meaning: "Superseded or retired by the user",
     tone: "neutral",
   },
   "tasks.pending": { label: "Pending", meaning: "Not started", tone: "danger" },
@@ -246,11 +251,6 @@ export const STATUS_VALUES: Record<string, ValueLabel> = {
     label: "Active",
     meaning: "Thin per-trigger stub, in place",
     tone: "ok",
-  },
-  "archive.archived": {
-    label: "Archived",
-    meaning: "Historical record under archive/",
-    tone: "neutral",
   },
 };
 

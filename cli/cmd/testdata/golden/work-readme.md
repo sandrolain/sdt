@@ -17,7 +17,7 @@ instruction files and temporary files for this project.
 - `notes/` — free-form annotations
 - `questions/` — open questions / points awaiting user decision (`sources` link back to origin)
 - `tasks/` — per-phase task checklists
-- `archive/` — archived documents (history)
+- `deprecated/` — obsolete generated files moved by `sdt agent init --force` (history)
 - `commands/` — thin agent-invokable trigger files (`context/commands/<trigger>.md`)
 - `instructions/` — agent instruction files (referenced by AGENTS.md)
 - `roles/` — generated role profiles (`<slug>.md`) + `shared.md` (see `sdt agent roles`)
@@ -33,7 +33,7 @@ instruction files and temporary files for this project.
   - `context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`
   - `context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`
   - `context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md` — checklist per plan phase
-  - `context/archive/<YYYYMMDD-HHMMSS>-<slug>.md` — archived documents
+  - `context/deprecated/<base>-DEPRECATED-<stamp>.md` — obsolete generated files
 - `architecture/` files are living documents without a date; decisions are
   append-only and numbered (`decisions/0001-<slug>.md`).
 - `context/` files use concise technical language. Cut fluff,
@@ -65,8 +65,8 @@ Create and manage work files with `sdt context`:
 - `sdt context reindex` / `sdt context lint` — regenerate `index.md` / validate
   frontmatter and links
 - `sdt context template --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki` — print the per-type instruction file
-- `sdt context path --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|archive|wiki [--slug]` — print a
+- `sdt context path --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki [--slug]` — print a
   path without creating anything
-- `sdt context list --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|archive|commands` — list existing files
+- `sdt context list --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands` — list existing files
 - `sdt context task add --phase <phase> "<step>"` / `done|block|wip <id>` — manage a
   per-phase task checklist

@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ── context document resolution (status get/set, rename, archive) ──────────────
+// ── context document resolution (status get/set, rename) ───────────────────────
 
 // ctxResolvedDoc is an existing context/ work file with its registry type.
 

@@ -27,8 +27,8 @@ func TestTaskPlanRefMirrorsViewer(t *testing.T) {
 			want:    "context/plan/p.md",
 		},
 		{
-			name:    "archived plan ref is not matched (F5 stays out of scope)",
-			content: "---\nkind: tasks\nsummary: t\nsources:\n  - archive/20260925-211304-plan-wiki-viewer-frontend.md\n---\n",
+			name:    "non-plan ref is not matched",
+			content: "---\nkind: tasks\nsummary: t\nsources:\n  - notes/n.md\n---\n",
 			want:    "",
 		},
 		{
@@ -93,44 +93,6 @@ func TestLintPlanTaskAgreement(t *testing.T) {
 		issues := lintPlanTaskAgreement([]string{planPath}, []string{"context/tasks/t0.md"})
 		if len(issues) != 0 {
 			t.Fatalf("issues = %#v, want none for a non-completed plan", issues)
-		}
-	})
-
-	t.Run("archived plan ref leaves the completed plan unresolved", func(t *testing.T) {
-		runInTempDir(t)
-		writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nsummary: plan\nstatus: completed\n---\n")
-		writeCtxDoc(t, "context/archive/20260925-211304-plan-wiki-viewer-frontend.md", "---\nkind: plan\nsummary: archived plan\nstatus: abandoned\n---\n")
-		writeCtxDoc(t, "context/tasks/orphan.md", "---\nkind: tasks\nsummary: task\nstatus: completed\nsources:\n  - archive/20260925-211304-plan-wiki-viewer-frontend.md\n---\n")
-		issues := lintPlanTaskAgreement([]string{"context/plan/p.md", "context/archive/20260925-211304-plan-wiki-viewer-frontend.md"}, []string{"context/tasks/orphan.md"})
-		if len(issues) != 1 || !strings.Contains(issues[0].Message, "no task file references it") {
-			t.Fatalf("issues = %#v, want the unresolved-reference warning for p.md only", issues)
-		}
-	})
-
-	t.Run("a live completed plan resolves its archived task files", func(t *testing.T) {
-		runInTempDir(t)
-		writeCtxDoc(t, "context/plan/20260925-220638-plan-x.md", "---\nkind: plan\nsummary: plan\nstatus: completed\n---\n")
-		writeCtxDoc(t, "context/archive/20260925-222232-plan-x-phase-1.md", "---\nkind: tasks\nsummary: task\nstatus: completed\nsources:\n  - plan/20260925-220638-plan-x.md\n---\n")
-		writeCtxDoc(t, "context/archive/20260925-222826-plan-x-phase-3.md", "---\nkind: tasks\nsummary: task\nstatus: completed\nsources:\n  - plan/20260925-220638-plan-x.md\n---\n")
-		issues := lintPlanTaskAgreement(
-			[]string{"context/plan/20260925-220638-plan-x.md"},
-			[]string{"context/archive/20260925-222232-plan-x-phase-1.md", "context/archive/20260925-222826-plan-x-phase-3.md"},
-		)
-		if len(issues) != 0 {
-			t.Fatalf("issues = %#v, want none: archived tasks must resolve their plan", issues)
-		}
-	})
-
-	t.Run("an archived plan whose tasks cite the old plan path reports unresolved (F5)", func(t *testing.T) {
-		runInTempDir(t)
-		writeCtxDoc(t, "context/archive/20260925-220638-plan-x.md", "---\nkind: plan\nsummary: plan\nstatus: completed\n---\n")
-		writeCtxDoc(t, "context/archive/20260925-222232-plan-x-phase-1.md", "---\nkind: tasks\nsummary: task\nstatus: completed\nsources:\n  - plan/20260925-220638-plan-x.md\n---\n")
-		issues := lintPlanTaskAgreement(
-			[]string{"context/archive/20260925-220638-plan-x.md"},
-			[]string{"context/archive/20260925-222232-plan-x-phase-1.md"},
-		)
-		if len(issues) != 1 || !strings.Contains(issues[0].Message, "no task file references it") {
-			t.Fatalf("issues = %#v, want the unresolved warning: F5's symptom stays visible", issues)
 		}
 	})
 

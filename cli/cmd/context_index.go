@@ -54,7 +54,6 @@ var ctxIndexDirs = []string{
 	sdtTasksDir,
 	sdtCommandsDir,
 	sdtWorklogDir,
-	sdtArchiveDir,
 }
 
 // dirFiles returns the .md files under dir sorted by name, or nil when the

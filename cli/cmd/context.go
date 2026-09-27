@@ -20,7 +20,6 @@ const (
 	ctxTypeNotes        = "notes"
 	ctxTypeTasks        = "tasks"
 	ctxTypeTmp          = "tmp"
-	ctxTypeArchive      = "archive"
 	ctxTypeArchitecture = "architecture"
 	ctxTypeDecision     = "decision"
 	ctxTypeQuestions    = "questions"
@@ -221,20 +220,17 @@ func init() {
 	contextTaskBlockCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskWipCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskReviewCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
-	contextTaskArchiveCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")
-	contextTaskArchiveCmd.Flags().String("slug", "", "Archive slug (default: from the plan slug)")
 	contextTaskAddCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskListCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskDoneCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskBlockCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskWipCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 	contextTaskReviewCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
-	contextTaskArchiveCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
 
 	contextTemplateCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxTemplateTypes()))
 
-	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextTaskArchiveCmd)
+	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd)
 	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd)
 	rootCmd.AddCommand(contextCmd)
 }

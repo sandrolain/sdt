@@ -157,6 +157,7 @@ export function statusDot(
   }
   if (entry.kind === "analysis") {
     const status = (entry.status ?? "").trim().toLowerCase();
+    if (status === "completed") return { tone: "ok", label: "Analysis completed" };
     if (isDoneStatus(status) || status === "resolved") {
       return { tone: "neutral", label: "Analysis archived" };
     }

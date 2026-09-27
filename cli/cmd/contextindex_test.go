@@ -294,19 +294,19 @@ func TestContextLintStatusVocabularyAllKinds(t *testing.T) {
 	}
 }
 
-// TestContextLintArchivedInPlaceHint covers the SUGGESTION when a
-// status-bearing document carries `status: archived` outside context/archive/;
-// documents under archive/ and non-archived statuses stay silent.
-func TestContextLintArchivedInPlaceHint(t *testing.T) {
+// TestContextLintAnalysisCompletedStatus covers the terminal `completed`
+// status added to the analysis vocabulary: it is accepted in place with no
+// status-vocabulary warning, while a value outside the vocabulary is flagged.
+func TestContextLintAnalysisCompletedStatus(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/kept.md", "---\nkind: analysis\nsummary: kept in place\nstatus: archived\n---\nbody\n")
-	writeCtxDoc(t, "context/research/live.md", "---\nkind: research\nsummary: still live\nstatus: active\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/done.md", "---\nkind: analysis\nsummary: done\nobjective: t\nstatus: completed\nlinks: none\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/bogus.md", "---\nkind: analysis\nsummary: bogus\nobjective: t\nstatus: superseded\nlinks: none\n---\nbody\n")
 	out := strings.TrimSpace(string(execute(t, contextLintCmd, nil, "--format", "json")))
-	if lintIssueContains(out, "status-only `archived` set in place") == false {
-		t.Errorf("expected archived-in-place SUGGESTION, got: %s", out)
+	if lintIssueContains(out, "done.md") {
+		t.Errorf("status: completed must not be flagged, got: %s", out)
 	}
-	if lintIssueContains(out, "research/live.md") {
-		t.Errorf("non-archived status must not be hinted, got: %s", out)
+	if lintIssueContains(out, "outside vocabulary for kind analysis") == false {
+		t.Errorf("out-of-vocabulary analysis status must be flagged, got: %s", out)
 	}
 }
 
@@ -440,23 +440,6 @@ func TestContextTaskPhaseFile(t *testing.T) {
 	out := execute(t, contextTaskListCmd, nil, "--phase", "execution", "--plan", "custom", "--format", "json")
 	if !strings.Contains(string(out), "step exec") {
 		t.Errorf("expected step in execution list: %s", out)
-	}
-}
-
-func TestContextTaskArchivePhaseFile(t *testing.T) {
-	dir := setupContextProject(t)
-	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
-	execute(t, contextTaskAddCmd, nil, "one", "--phase", "verify", "--plan", "custom")
-	out := execute(t, contextTaskArchiveCmd, nil, "--phase", "verify", "--plan", "custom")
-	archivePath := strings.TrimSpace(string(out))
-	if !strings.Contains(archivePath, filepath.Join("context", "archive")) {
-		t.Errorf("expected archive path, got %q", out)
-	}
-	if _, err := os.Stat(archivePath); err != nil {
-		t.Fatalf("expected archived file at %s: %v", archivePath, err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "context/tasks/20260806-070000-custom-phase-verify.md")); !os.IsNotExist(err) {
-		t.Error("expected task file removed after archive")
 	}
 }
 

@@ -306,7 +306,7 @@ func setTaskFileStatus(content, status string) string {
 			changed = true
 		} else if strings.HasPrefix(line, "status ") {
 			// Recover the malformed legacy shape instead of silently preserving
-			// it when a task is archived or its status changes.
+			// it when a task file status changes.
 			lines[i] = "status: " + status
 			changed = true
 		} else if strings.HasPrefix(line, "updated:") {
@@ -452,16 +452,6 @@ Examples:
 	},
 }
 
-func taskArchiveSlug(flagSlug, plan string) string {
-	if s := sanitizeSlug(flagSlug); s != "" {
-		return s
-	}
-	if s := sanitizeSlug(taskSlugFromPlan(plan)); s != "" {
-		return s
-	}
-	return "tasks"
-}
-
 func frontmatterField(content, key string) string {
 	lines := strings.Split(content, "\n")
 	if len(lines) < 2 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
@@ -481,32 +471,6 @@ func frontmatterField(content, key string) string {
 	return ""
 }
 
-var contextTaskArchiveCmd = &cobra.Command{
-	Use:   "archive",
-	Short: "Archive the active task list to context/archive/",
-	Args:  cobra.NoArgs,
-	Run: func(cmd *cobra.Command, args []string) {
-		phase, plan, err := taskTarget(cmd)
-		exitWithError(cmd, err)
-		content, err := readTaskFile(phase, plan)
-		exitWithError(cmd, err)
-		slug := taskArchiveSlug(getStringFlag(cmd, "slug", false), plan)
-		path := filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", slug)+".md")
-		if err := os.MkdirAll(sdtArchiveDir, 0o750); err != nil { //#nosec G301 -- user work dir
-			exitWithError(cmd, err)
-		}
-		content = setTaskFileStatus(content, taskFileStatusArchived)
-		//#nosec G306 -- user work file
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			exitWithError(cmd, err)
-		}
-		if err := os.Remove(taskFileFor(phase, plan)); err != nil {
-			exitWithError(cmd, err)
-		}
-		outputString(cmd, path+"\n")
-	},
-}
-
 var contextTaskCmd = &cobra.Command{
 	Use:   "task",
 	Short: "Manage per-phase task checklists",
@@ -520,7 +484,6 @@ standalone checklist).
   sdt context task add "<step>" --phase <n> [--plan <ref>] [--summary]
   sdt context task done|block|wip <id> --phase <n> [--plan <ref>]
   sdt context task review --phase <n> [--plan <ref>]      record verdicts + complete
-  sdt context task archive --phase <n> [--plan <ref>] [--slug]
 
 Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked`,
 }

@@ -58,15 +58,14 @@ func TestContextCommandsNewRejects(t *testing.T) {
 	})
 }
 
-// TestContextCommandsRm verifies the archive move and index regeneration.
+// TestContextCommandsRm verifies the stub deletion and index regeneration.
 func TestContextCommandsRm(t *testing.T) {
 	runInTempDir(t)
-	stubContextNow(t, time.Date(2026, 9, 20, 17, 31, 0, 0, time.UTC))
 	writeTestFile(t, "context/commands/triage.md", buildCommandsStub("triage"))
 
 	out := string(execute(t, contextCommandsRmCmd, nil, "triage"))
-	if !strings.Contains(out, "context/archive/20260920-173100-commands-triage.md") {
-		t.Errorf("missing archive path in output: %q", out)
+	if !strings.Contains(out, "removed context/commands/triage.md") {
+		t.Errorf("missing removal line in output: %q", out)
 	}
 	if !strings.Contains(out, "regenerated context/commands/index.md") {
 		t.Errorf("missing index regen in output: %q", out)
@@ -74,9 +73,8 @@ func TestContextCommandsRm(t *testing.T) {
 	if _, err := os.Stat("context/commands/triage.md"); !os.IsNotExist(err) {
 		t.Errorf("trigger still present: %v", err)
 	}
-	archived := mustReadFile(t, "context/archive/20260920-173100-commands-triage.md")
-	if got := frontmatterField(archived, "status"); got != "archived" {
-		t.Errorf("archived status = %q", got)
+	if _, err := os.Stat(sdtDeprecatedDir); !os.IsNotExist(err) {
+		t.Errorf("commands rm must not write a deprecated copy: %v", err)
 	}
 	idx := mustReadFile(t, "context/commands/index.md")
 	if strings.Contains(idx, ">triage") {

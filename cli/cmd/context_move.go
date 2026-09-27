@@ -12,10 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ── context document moves (rename / archive) ───────────────────────────────────
+// ── context document moves (rename) ────────────────────────────────────────────
 //
-// Both commands resolve an existing context/ document (path, as in `status
-// get/set`), recompute its path by the kind scheme and rewrite references to it
+// The command resolves an existing context/ document (path, as in `status
+// get/set`), recomputes its path by the kind scheme and rewrites references to it
 // across context/ markdown + index.md. --dry-run previews every mutation.
 
 // ctxPlanPrefix is also the leading timestamp of a canonical dated filename
@@ -27,12 +27,13 @@ var ctxDatedPrefix = regexp.MustCompile(`^\d{8}-\d{6}-`)
 // sources or generated content and must never be rewritten.
 
 var ctxMoveExcludedDirs = map[string]bool{
-	sdtRefsDir:      true,
-	sdtIngestionDir: true,
-	sdtInstrDir:     true,
-	sdtScriptsDir:   true,
-	sdtTmpDir:       true,
-	sdtDocsDir:      true,
+	sdtRefsDir:       true,
+	sdtIngestionDir:  true,
+	sdtInstrDir:      true,
+	sdtScriptsDir:    true,
+	sdtTmpDir:        true,
+	sdtDocsDir:       true,
+	sdtDeprecatedDir: true,
 }
 
 // ctxCleanSlug sanitizes the target slug. Non-wiki kinds keep a single
@@ -86,40 +87,6 @@ func contextRenamePath(doc ctxResolvedDoc, newSlug string) (string, error) {
 		return "", errors.New("task files are managed by `sdt context task`; create the phase list with `sdt context task add --phase <n>`")
 	}
 	return "", fmt.Errorf("type %s does not support rename", ctxKindLabel(doc.Type))
-}
-
-// contextArchivePath builds the destination in context/archive with a fresh
-// dated prefix; the slug defaults to the document's current slug.
-
-func contextArchivePath(doc ctxResolvedDoc, slug string) string {
-	if slug == "" {
-		slug = ctxDocSlug(doc)
-	}
-	return filepath.Join(sdtArchiveDir, contextTimePrefix("20060102-150405", slug)+sdtMarkdownExt)
-}
-
-// ctxDocSlug derives the current slug of a resolved document: the dated
-// filename without its timestamp prefix, the bare/subpath name, or — for a
-// subpath (wiki) — the whole relative slug with "/" folded to "-".
-
-func ctxDocSlug(doc ctxResolvedDoc) string {
-	name := strings.TrimSuffix(filepath.Base(doc.Path), sdtMarkdownExt)
-	switch doc.Type.scheme {
-	case ctxSchemeDated:
-		if loc := ctxDatedPrefix.FindStringIndex(name); loc != nil {
-			return name[loc[1]:]
-		}
-		return name
-	case ctxSchemeTmpBySlug:
-		return name
-	case ctxSchemeSubpath:
-		rel, err := filepath.Rel(sdtWikiDir, strings.TrimSuffix(doc.Path, sdtMarkdownExt))
-		if err != nil {
-			return name
-		}
-		return sanitizeSlug(rel)
-	}
-	return name
 }
 
 // ── reference rewriting ─────────────────────────────────────────────────────────
@@ -334,103 +301,8 @@ Examples:
 	},
 }
 
-// ── sdt context archive ─────────────────────────────────────────────────────────
-
-var contextArchiveCmd = &cobra.Command{
-	Use:   "archive <ref> [--slug <new>]",
-	Short: "Archive a context/ document to context/archive/",
-	Long: `Move an existing context/ document to context/archive/ with a fresh
-dated name and set ` + "`status: archived`" + ` when the kind's vocabulary has it.
-Task files go through ` + "`sdt context task archive`" + ` and decisions are
-append-only — both are rejected here.
-
-Examples:
-  sdt context archive context/analysis/20260920-130000-x.md
-  sdt context archive context/analysis/20260920-130000-x.md --slug audit-2026
-  sdt context archive context/wiki/backend/auth.md --dry-run`,
-	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		doc, err := resolveContextDoc(cmd, args)
-		if err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-		if doc.Type.scheme == ctxSchemePhase {
-			exitWithError(cmd, errors.New("archive task files with `sdt context task archive --phase <n>` (the generic archive does not touch them)"))
-			return
-		}
-		if doc.Type.scheme == ctxSchemeDecision {
-			exitWithError(cmd, errors.New("decision records are append-only; impossible to archive them"))
-			return
-		}
-		if doc.Type.scheme == ctxSchemeTmpBySlug {
-			exitWithError(cmd, errors.New("tmp is scratch space, not a work document; move it manually"))
-			return
-		}
-		slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
-		newPath := contextArchivePath(doc, slug)
-		if _, err := os.Stat(newPath); err == nil {
-			exitWithError(cmd, fmt.Errorf("target already exists: %s", newPath))
-			return
-		}
-		affected, err := ctxAffectedFiles(doc.Path, doc.Path, newPath)
-		if err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-
-		content := ""
-		if getBoolFlag(cmd, "dry-run", false) {
-			outputString(cmd, fmt.Sprintf("would archive %s -> %s\n", doc.Path, newPath))
-			for _, p := range affected {
-				outputString(cmd, fmt.Sprintf("would rewrite %s\n", p))
-			}
-			return
-		}
-
-		data, err := os.ReadFile(doc.Path) //#nosec G304 -- user work file
-		if err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-		content = string(data)
-		if ctxStatusInVocab(doc.Type, statusArchived) {
-			if updated, changed := setFrontmatterFields(content, ctxStatusSetPatches(doc.Type, statusArchived)); changed {
-				content = updated
-			}
-		}
-		if err := os.MkdirAll(sdtArchiveDir, 0o750); err != nil { //#nosec G301 -- user work dir
-			if err != nil {
-				exitWithError(cmd, err)
-				return
-			}
-		}
-		//#nosec G306 -- user work file
-		if err := os.WriteFile(newPath, []byte(content), 0o644); err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-		if err := os.Remove(doc.Path); err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-		for _, p := range affected {
-			if err := ctxApplyRewrite(p, doc.Path, newPath); err != nil {
-				exitWithError(cmd, err)
-				return
-			}
-		}
-		outputString(cmd, newPath+"\n")
-		for _, p := range affected {
-			outputString(cmd, "rewrote "+p+"\n")
-		}
-	},
-}
-
 func init() {
 	contextRenameCmd.Flags().String("slug", "", "New slug (target name)")
 	contextRenameCmd.Flags().Bool("dry-run", false, "Preview without changing anything")
-	contextArchiveCmd.Flags().String("slug", "", "Archive slug (default: derived from the document)")
-	contextArchiveCmd.Flags().Bool("dry-run", false, "Preview without changing anything")
-	contextCmd.AddCommand(contextRenameCmd, contextArchiveCmd)
+	contextCmd.AddCommand(contextRenameCmd)
 }

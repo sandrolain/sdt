@@ -145,13 +145,17 @@ describe("statusDot", () => {
     });
   });
 
-  it("gives done analyses a visible neutral tone, including resolved corpus values", () => {
+  it("gives completed analyses the ok tone and archived ones a neutral tone", () => {
     const analysis = entry({
       path: "context/analysis/a.md",
       kind: "analysis",
       status: "completed",
     });
-    expect(statusDot(analysis, new Map())).toEqual({ tone: "neutral", label: "Analysis archived" });
+    expect(statusDot(analysis, new Map())).toEqual({ tone: "ok", label: "Analysis completed" });
+    expect(statusDot({ ...analysis, status: "archived" }, new Map())).toEqual({
+      tone: "neutral",
+      label: "Analysis archived",
+    });
     expect(statusDot({ ...analysis, status: "resolved" }, new Map())?.tone).toBe("neutral");
   });
 

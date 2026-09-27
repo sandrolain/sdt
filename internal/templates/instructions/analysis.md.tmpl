@@ -37,7 +37,7 @@ objective: <slug>         # optional: kebab-case group key; same slug in every
                           # analysis targeting the same objective
 topics: [<topic>, ...]    # optional: controlled subjects from context/topics.yaml
 entities: [<entity>, ...] # optional: named things the analysis mentions
-status: active            # active | draft | archived — statuses defined in the matrix (architecture/stack.md)
+status: active            # active | draft | completed | archived — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:                    # optional related documents
@@ -147,4 +147,4 @@ On an established (brownfield) or new (greenfield) project, do an initial scan
 before changing anything: read the README, docs, code structure and `git log`.
 Offer what to capture and ask confirmation before writing knowledge files
 (non auto-capturing). Populate `architecture/` and new decisions in
-`decisions/`; `worklog/`/`archive/` stay history.
+`decisions/`; `worklog/` stays history.

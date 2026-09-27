@@ -94,7 +94,7 @@ triggers; the durable contract stays under `context/instructions/`).
 
 Work directories live under `context/` (`plan/`, `analysis/`, `architecture/`,
 `decisions/`, `proposals/`, `research/`, `prompts/`, worklog/, notes/, tasks/, commands/,
-questions/, archive/, tmp/, `scripts/`, `roles/`). Keep all instruction files concise and technical. Bundled
+questions/, deprecated/, tmp/, `scripts/`, `roles/`). Keep all instruction files concise and technical. Bundled
 scripts in `context/scripts/` are listed in
 `context/scripts/index.md` and executed on demand, never read into context
 (see `instructions/scripts.md`).

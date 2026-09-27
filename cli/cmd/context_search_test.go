@@ -12,7 +12,7 @@ import (
 func TestContextSearchAndShow(t *testing.T) {
 	dir := runInTempDir(t)
 	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nsummary: s\nstatus: active\ntopics:\n  - context-search\n---\n\n## Hybrid\n\nbleve static embeddings rrf fusion\n\n## Other\n\nunrelated text\n")
-	writeCtxDoc(t, "context/archive/old.md", "---\nkind: analysis\nsummary: s\nstatus: archived\n---\n\n## Old\n\nbleve static embeddings legacy\n")
+	writeCtxDoc(t, "context/analysis/old.md", "---\nkind: analysis\nsummary: s\nstatus: archived\n---\n\n## Old\n\nbleve static embeddings legacy\n")
 
 	// Reset the per-invocation index cache between tests.
 	ctxSearchIndex = nil
@@ -20,13 +20,13 @@ func TestContextSearchAndShow(t *testing.T) {
 	if !strings.Contains(out, "context/analysis/a.md") {
 		t.Errorf("expected the active doc in search output:\n%s", out)
 	}
-	if strings.Contains(out, "context/archive/old.md") {
+	if strings.Contains(out, "context/analysis/old.md") {
 		t.Errorf("archived doc must be excluded by default:\n%s", out)
 	}
 
 	ctxSearchIndex = nil
 	all := string(execute(t, contextSearchCmd, nil, "bleve embeddings", "--all"))
-	if !strings.Contains(all, "context/archive/old.md") {
+	if !strings.Contains(all, "context/analysis/old.md") {
 		t.Errorf("--all should include the archived doc:\n%s", all)
 	}
 

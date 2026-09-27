@@ -4,7 +4,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 )
 
 const (
@@ -161,78 +160,4 @@ func TestContextRenameIdempotentReq(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextRenameCmd, nil, phase3AnalysisDoc, "--slug", "again"))
 	})
-}
-
-func TestContextArchive(t *testing.T) {
-	runInTempDir(t)
-	stubContextNow(t, time.Date(2026, 9, 20, 17, 0, 0, 0, time.UTC))
-	buildPhase3Fixtures(t)
-
-	archivePath := "context/archive/20260920-170000-backend.md"
-	out := string(execute(t, contextArchiveCmd, nil, phase3AnalysisDoc))
-	if !strings.HasPrefix(out, archivePath+"\n") {
-		t.Fatalf("archive output missing new path: %q", out)
-	}
-	if _, err := os.Stat(phase3AnalysisDoc); !os.IsNotExist(err) {
-		t.Error("source still exists after archive")
-	}
-	archived := mustReadFile(t, archivePath)
-	if got := frontmatterField(archived, "status"); got != "archived" {
-		t.Errorf("archived status = %q, want archived", got)
-	}
-	if got := frontmatterField(archived, "updated"); got != "2026-09-20T17:00:00Z" {
-		t.Errorf("archived updated = %q", got)
-	}
-	if strings.Contains(mustReadFile(t, phase3RefDoc), phase3AnalysisDoc) {
-		t.Error("references still point to the old path")
-	}
-	idx := mustReadFile(t, "context/index.md")
-	if !strings.Contains(idx, "- [[archive/20260920-170000-backend.md]]") {
-		t.Errorf("index wikilink not rewritten to the archive path: %q", idx)
-	}
-}
-
-func TestContextArchiveKeepsStatusWhenNotInVocab(t *testing.T) {
-	runInTempDir(t)
-	stubContextNow(t, time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC))
-	buildPhase3Fixtures(t)
-
-	archivePath := "context/archive/20260920-173000-plan-x.md"
-	execute(t, contextArchiveCmd, nil, phase3PlanDoc)
-	archived := mustReadFile(t, archivePath)
-	if got := frontmatterField(archived, "status"); got != "active" {
-		t.Errorf("plan archived status = %q, want active (vocabulary has no archived)", got)
-	}
-}
-
-func TestContextArchiveRejects(t *testing.T) {
-	runInTempDir(t)
-	buildPhase3Fixtures(t)
-
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextArchiveCmd, nil, phase3DecisionDoc))
-	})
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextArchiveCmd, nil, phase3TaskDoc))
-	})
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextArchiveCmd, nil, "context/tmp/scratch.txt"))
-	})
-}
-
-func TestContextArchiveDryRun(t *testing.T) {
-	runInTempDir(t)
-	stubContextNow(t, time.Date(2026, 9, 20, 18, 0, 0, 0, time.UTC))
-	buildPhase3Fixtures(t)
-
-	out := string(execute(t, contextArchiveCmd, nil, phase3AnalysisDoc, "--dry-run"))
-	if !strings.Contains(out, "would archive "+phase3AnalysisDoc+" -> context/archive/20260920-180000-backend.md") {
-		t.Fatalf("missing dry-run line: %q", out)
-	}
-	if _, err := os.Stat(phase3AnalysisDoc); err != nil {
-		t.Errorf("dry-run must not move the source: %v", err)
-	}
-	if _, err := os.Stat("context/archive/20260920-180000-backend.md"); !os.IsNotExist(err) {
-		t.Error("dry-run must not write the archive target")
-	}
 }

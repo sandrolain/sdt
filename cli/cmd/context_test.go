@@ -726,21 +726,6 @@ func TestSetTaskFileStatusRepairsMalformedFrontmatterOnly(t *testing.T) {
 	}
 }
 
-func TestTaskArchiveSlug(t *testing.T) {
-	if got := taskArchiveSlug("Ship Feature Now", ""); got != "ship-feature-now" {
-		t.Errorf("expected slug from flag, got %q", got)
-	}
-	if got := taskArchiveSlug("", "20260912-000000-pipeline.md"); got != "pipeline" {
-		t.Errorf("expected slug from plan, got %q", got)
-	}
-	if got := taskArchiveSlug("", "standalone"); got != "standalone" {
-		t.Errorf("expected standalone slug, got %q", got)
-	}
-	if got := taskArchiveSlug("", ""); got != "tasks" {
-		t.Errorf("expected fallback slug, got %q", got)
-	}
-}
-
 func TestContextTaskLifecycle(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
@@ -790,18 +775,6 @@ func TestContextTaskLifecycle(t *testing.T) {
 	if !strings.Contains(mustReadFile(t, tasks("1")), "blocked: ci broken") {
 		t.Error("expected block reason in task file")
 	}
-
-	out = execute(t, contextTaskArchiveCmd, nil, "--phase", "1", "--plan", "custom")
-	archivePath := strings.TrimSpace(string(out))
-	if !strings.Contains(archivePath, filepath.Join("context", "archive")) {
-		t.Errorf("expected archive path, got %q", out)
-	}
-	if _, err := os.Stat(archivePath); err != nil {
-		t.Errorf("expected archived file at %s: %v", archivePath, err)
-	}
-	if _, err := os.Stat(tasks("1")); !os.IsNotExist(err) {
-		t.Error("expected active task list removed after archive")
-	}
 }
 
 func TestTaskFileFor(t *testing.T) {
@@ -850,28 +823,6 @@ func TestContextTaskFileStatusTransitions(t *testing.T) {
 	execute(t, contextTaskDoneCmd, nil, "3", "--phase", "1", "--plan", "custom")
 	if got := status(); got != taskFileStatusCompleted {
 		t.Fatalf("done-all status = %q, want %q", got, taskFileStatusCompleted)
-	}
-
-	archiveOut := execute(t, contextTaskArchiveCmd, nil, "--phase", "1", "--plan", "custom")
-	archived := mustReadFile(t, strings.TrimSpace(string(archiveOut)))
-	if got := frontmatterField(archived, "status"); got != taskFileStatusArchived {
-		t.Fatalf("archive status = %q, want %q", got, taskFileStatusArchived)
-	}
-}
-
-func TestContextTaskArchiveRepairsMalformedStatus(t *testing.T) {
-	runInTempDir(t)
-	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
-	path := taskFileFor("1", "custom")
-	writeCtxDoc(t, path, "---\nkind: tasks\nsummary: malformed status fixture\nstatus completed\nupdated: 2026-01-01T00:00:00Z\n---\nstatus in body\n")
-
-	out := execute(t, contextTaskArchiveCmd, nil, "--phase", "1", "--plan", "custom")
-	archived := mustReadFile(t, strings.TrimSpace(string(out)))
-	if got := frontmatterField(archived, "status"); got != taskFileStatusArchived {
-		t.Fatalf("archived malformed status = %q, want %q", got, taskFileStatusArchived)
-	}
-	if !strings.HasSuffix(archived, "---\nstatus in body\n") {
-		t.Fatalf("archive changed body prose: %q", archived)
 	}
 }
 
@@ -1017,13 +968,6 @@ func TestContextTaskAddWritesPhaseNotObjective(t *testing.T) {
 	if strings.Contains(content, "objective:") {
 		t.Errorf("task file must not carry objective (inherited from the plan):\n%s", content)
 	}
-}
-
-func TestContextTaskArchiveEmptyList(t *testing.T) {
-	runInTempDir(t)
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextTaskArchiveCmd, nil))
-	})
 }
 
 func TestAgentBlockReferencesContextCommands(t *testing.T) {

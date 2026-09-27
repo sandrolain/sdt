@@ -16,8 +16,8 @@ import (
 
 const (
 	wantNewTypes      = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|wiki"
-	wantPathTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|archive|wiki"
-	wantListTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|archive|commands"
+	wantPathTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki"
+	wantListTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands"
 	wantTemplateTypes = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki"
 )
 
@@ -26,7 +26,7 @@ func TestContextTypeRegistry(t *testing.T) {
 	kinds := []string{
 		ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions,
 		ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeArchitecture,
-		ctxTypeDecision, ctxTypeTasks, ctxTypeTmp, ctxTypeArchive, ctxTypeCommands, ctxTypeWiki,
+		ctxTypeDecision, ctxTypeTasks, ctxTypeTmp, ctxTypeCommands, ctxTypeWiki,
 	}
 	for _, k := range kinds {
 		if _, ok := ctxTypeLookup(k); !ok {
@@ -92,7 +92,6 @@ func TestContextTypeDirTier(t *testing.T) {
 		{ctxTypeDecision, sdtDecisionsDir, "essential", false, "decisions"},
 		{ctxTypeTasks, sdtTasksDir, "operational", true, ""},
 		{ctxTypeTmp, sdtTmpDir, "", false, ""},
-		{ctxTypeArchive, sdtArchiveDir, ctxTierHistory, false, ""},
 		{ctxTypeCommands, sdtCommandsDir, "operational", false, ""},
 		{ctxTypeWiki, sdtWikiDir, "", true, ""},
 	}
@@ -140,7 +139,7 @@ func TestContextTypeStatuses(t *testing.T) {
 		status string // pipe-joined vocabulary
 	}{
 		{ctxTypePlan, ctxWikiStatusActive, "active|completed|abandoned"},
-		{ctxTypeAnalysis, ctxWikiStatusActive, "active|draft|archived"},
+		{ctxTypeAnalysis, ctxWikiStatusActive, "active|draft|completed|archived"},
 		{ctxTypeQuestions, ctxWikiStatusActive, "active|resolved"},
 		{ctxTypeProposal, ctxWikiStatusDraft, "draft|review|accepted|rejected|superseded"},
 		{ctxTypePrompt, ctxWikiStatusDraft, "draft|active|archived"},
@@ -148,7 +147,6 @@ func TestContextTypeStatuses(t *testing.T) {
 		{ctxTypeArchitecture, ctxWikiStatusDraft, "draft|current|superseded"},
 		{ctxTypeDecision, "proposed", "proposed|accepted|rejected|deprecated|superseded"},
 		{ctxTypeTasks, taskFileStatusPending, "pending|in-progress|completed|archived|active"},
-		{ctxTypeArchive, taskFileStatusArchived, "archived"},
 		{ctxTypeCommands, ctxWikiStatusActive, "active"},
 		{ctxTypeWiki, ctxWikiStatusDraft, "draft|active|archived"},
 		{ctxTypeWorklog, "", ""},
@@ -228,7 +226,6 @@ func TestContextPathRegistryScheme(t *testing.T) {
 		{ctxTypeQuestions, "open-api", filepath.Join(sdtQuestionsDir, "20260806-070000-open-api.md")},
 		{ctxTypeProposal, "provenance", filepath.Join(sdtProposalsDir, "20260806-070000-provenance.md")},
 		{ctxTypeResearch, "backends", filepath.Join(sdtResearchDir, "20260806-070000-backends.md")},
-		{ctxTypeArchive, "old-plan", filepath.Join(sdtArchiveDir, "20260806-070000-old-plan.md")},
 		{ctxTypeArchitecture, "config-loading", filepath.Join(sdtArchitectureDir, "config-loading.md")},
 		{ctxTypeWiki, "backend/auth", filepath.Join(sdtWikiDir, "backend", "auth.md")},
 	}
@@ -295,7 +292,7 @@ func TestStatusRowsRegistryLabels(t *testing.T) {
 	for _, r := range rows {
 		labels[r.Type] = true
 	}
-	for _, want := range []string{"architecture", "decisions", "analysis", "plan", "notes", "proposal", "prompt", "research", "questions", "tasks", "commands", "worklog", "archive"} {
+	for _, want := range []string{"architecture", "decisions", "analysis", "plan", "notes", "proposal", "prompt", "research", "questions", "tasks", "commands", "worklog"} {
 		if !labels[want] {
 			t.Errorf("status summary missing row %q", want)
 		}

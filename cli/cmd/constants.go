@@ -28,7 +28,7 @@ const (
 	sdtWorklogDir        = "context/worklog"
 	sdtNotesDir          = "context/notes"
 	sdtTasksDir          = "context/tasks"
-	sdtArchiveDir        = "context/archive"
+	sdtDeprecatedDir     = "context/deprecated"
 	sdtTmpDir            = "context/tmp"
 	sdtDocsDir           = "context/sdtdocs"
 	sdtDocsReadme        = "context/sdtdocs/README.md"

@@ -114,7 +114,7 @@ func agentDoctorChecks() []doctorCheck {
 		add("instructions", doctorStatusOK, "all generated files present", "")
 	}
 	if obsolete > 0 {
-		add("obsolete", doctorStatusWarn, fmt.Sprintf("%d obsolete file(s)", obsolete), "run `sdt agent init --force` to archive them")
+		add("obsolete", doctorStatusWarn, fmt.Sprintf("%d obsolete file(s)", obsolete), "run `sdt agent init --force` to move them to context/deprecated/")
 	} else {
 		add("obsolete", doctorStatusOK, "no obsolete files", "")
 	}

@@ -36,7 +36,7 @@ var contextPathCmd = &cobra.Command{
 	Long: `Print the full path of a context/ work file with the correct date/time
 prefix. Does not create anything.
 
-Types: plan/analysis/worklog/notes/questions/proposal/prompt/research/archive
+Types: plan/analysis/worklog/notes/questions/proposal/prompt/research
 (<YYYYMMDD-HHMMSS>-<slug>.md), tasks (<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md
 with --phase <n> and --plan), tmp (<slug>), architecture (<slug>.md),
 wiki (<slug-or/subpath>.md), decision (<NNNN>-<slug>.md with --number).
