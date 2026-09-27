@@ -14,10 +14,10 @@ describe("treeFilterStore", () => {
     resetTreeFilter();
   });
 
-  it("defaults to hideCompleted false and grouped true", () => {
+  it("defaults to hideCompleted false and grouped false", () => {
     const { result } = renderHook(() => useTreeFilter());
     expect(result.current.hideCompleted).toBe(false);
-    expect(result.current.grouped).toBe(true);
+    expect(result.current.grouped).toBe(false);
   });
 
   it("toggles hideCompleted", () => {
@@ -32,7 +32,7 @@ describe("treeFilterStore", () => {
     const { result } = renderHook(() => useTreeFilter());
     act(() => toggleHideCompleted());
     act(() => toggleGrouped());
-    expect(result.current.grouped).toBe(false);
+    expect(result.current.grouped).toBe(true);
     expect(result.current.hideCompleted).toBe(true);
   });
 
@@ -41,9 +41,9 @@ describe("treeFilterStore", () => {
     act(() => toggleHideCompleted());
     act(() => toggleGrouped());
     expect(result.current.hideCompleted).toBe(true);
-    expect(result.current.grouped).toBe(false);
+    expect(result.current.grouped).toBe(true);
     act(() => resetTreeFilter());
     expect(result.current.hideCompleted).toBe(false);
-    expect(result.current.grouped).toBe(true);
+    expect(result.current.grouped).toBe(false);
   });
 });

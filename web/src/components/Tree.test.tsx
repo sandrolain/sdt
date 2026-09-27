@@ -214,8 +214,8 @@ describe("Tree", () => {
     renderTree();
     expect(await screen.findByText("Alpha")).toBeTruthy();
     expect(screen.getByRole("switch", { name: "Not completed" })).toBeTruthy();
-    // grouping defaults on, so the switch starts selected
-    expect(screen.getByRole("switch", { name: "Grouped" })).toHaveProperty("checked", true);
+    // grouping defaults off, so the switch starts unselected
+    expect(screen.getByRole("switch", { name: "Grouped" })).toHaveProperty("checked", false);
   });
 
   it("shows a thumbnail for entries with a frontmatter image", async () => {
@@ -353,6 +353,9 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("T1");
+    // grouping is off by default
+    toggleGrouped();
+    await waitFor(() => expect(document.querySelector(".tree-folder--plan")).toBeTruthy());
     const plan = document.querySelector(".tree-folder--plan");
     expect(plan?.querySelector(".tree-folder__label")?.textContent).toBe("Plan A");
     expect(plan?.querySelector(".tree-folder__count")?.textContent).toBe("1");
@@ -395,6 +398,11 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("T1 done");
+    // grouping is off by default
+    toggleGrouped();
+    await waitFor(() =>
+      expect(document.querySelector(".tree-folder--plan .tree-folder__dot")).toBeTruthy(),
+    );
     const dot = document.querySelector(".tree-folder--plan .tree-folder__dot");
     expect(dot?.classList.contains("tree-folder__dot--warn")).toBe(true);
     expect(dot?.getAttribute("aria-label")).toBe("1/2 tasks completed");
@@ -428,6 +436,9 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Alpha");
+    // grouping is off by default
+    toggleGrouped();
+    await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
     const objectiveFolders = Array.from(document.querySelectorAll(".tree-folder--objective"));
     expect(objectiveFolders).toHaveLength(1);
     expect(objectiveFolders[0].querySelector(".tree-folder__label")?.textContent).toBe("viewer");
@@ -503,6 +514,9 @@ describe("Tree", () => {
     renderTree();
 
     expect(await screen.findByText("Unplanned")).toBeTruthy();
+    // grouping is off by default
+    toggleGrouped();
+    await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
     const viewer = Array.from(document.querySelectorAll(".tree-folder--objective")).find(
       (folder) => folder.querySelector(".tree-folder__label")?.textContent === "viewer",
     ) as HTMLElement;
@@ -564,6 +578,9 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Alpha");
+    // grouping is off by default
+    toggleGrouped();
+    await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
     const objectiveNames = () =>
       Array.from(document.querySelectorAll(".tree-folder--objective")).map(
         (f) => f.querySelector(".tree-folder__label")?.textContent,
@@ -640,6 +657,9 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Task one");
+    // grouping is off by default
+    toggleGrouped();
+    await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
 
     const folder = (label: string) =>
       Array.from(document.querySelectorAll(".tree-folder")).find(
@@ -704,6 +724,11 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Analysis");
+    // grouping is off by default: turn it on to exercise the objective folders
+    toggleGrouped();
+    await waitFor(() =>
+      expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(3),
+    );
     // grouped on: the objective folders exist under analyses, plans and tasks
     expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(3);
     expect(document.querySelectorAll(".tree-folder--plan")).toHaveLength(1);
@@ -758,23 +783,30 @@ describe("Tree", () => {
     renderTree();
     await screen.findByText("Dead end");
 
-    const notesFolder = Array.from(document.querySelectorAll(".tree-folder")).find(
-      (f) => f.querySelector(".tree-folder__label")?.textContent === "Notes",
+    const notesFolder = () =>
+      Array.from(document.querySelectorAll(".tree-folder")).find(
+        (f) => f.querySelector(".tree-folder__label")?.textContent === "Notes",
+      );
+    // grouping is off by default: turn it on to exercise the objective folders
+    toggleGrouped();
+    await waitFor(() =>
+      expect(notesFolder()?.querySelector(".tree-folder--objective")).toBeTruthy(),
     );
+
     const objective = Array.from(
-      notesFolder?.querySelectorAll(".tree-folder--objective") ?? [],
+      notesFolder()?.querySelectorAll(".tree-folder--objective") ?? [],
     ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "viewer");
     expect(objective?.querySelector(".tree-folder__count")?.textContent).toBe("1");
     expect(objective?.textContent).toContain("Dead end");
     // the objective-less note stays at the notes-folder root
     expect(objective?.textContent).not.toContain("Plain note");
-    expect(notesFolder?.textContent).toContain("Plain note");
+    expect(notesFolder()?.textContent).toContain("Plain note");
 
     toggleGrouped();
     await waitFor(() =>
       expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(0),
     );
-    expect(notesFolder?.textContent).toContain("Dead end");
-    expect(notesFolder?.textContent).toContain("Plain note");
+    expect(notesFolder()?.textContent).toContain("Dead end");
+    expect(notesFolder()?.textContent).toContain("Plain note");
   });
 });

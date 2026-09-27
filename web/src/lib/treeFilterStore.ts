@@ -7,7 +7,7 @@ export interface TreeFilterState {
   grouped: boolean;
 }
 
-const DEFAULT: TreeFilterState = { hideCompleted: false, grouped: true };
+const DEFAULT: TreeFilterState = { hideCompleted: false, grouped: false };
 
 let current: TreeFilterState = DEFAULT;
 const listeners = new Set<() => void>();
