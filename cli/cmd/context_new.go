@@ -388,6 +388,9 @@ Examples:
 
 		var path string
 		var content string
+		// Typed parent relation (plan→analysis): the child scalar and the
+		// parent's reverse list are stamped once the content is built.
+		var relParentPath, relChildUID string
 		if typ == ctxTypeDecision {
 			decNum := numberOverride
 			if decNum == "" {
@@ -437,6 +440,16 @@ Examples:
 			}
 		}
 
+		// Stamp the typed parent id on the child and remember the parent so its
+		// reverse list can be updated after the child is written.
+		if parentKind := ctxParentKind(typ); parentKind != "" {
+			if parentPath, parentUID := ctxSourceParent(content, parentKind); parentUID != "" {
+				content, _ = stampChildParent(content, typ, parentUID)
+				relParentPath = parentPath
+				relChildUID = parseFrontmatterField(content, "uid")
+			}
+		}
+
 		status := statusCreated
 		if _, err := os.Stat(path); err == nil {
 			if !force {
@@ -457,6 +470,11 @@ Examples:
 		//#nosec G306 -- user work file
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			exitWithError(cmd, err)
+		}
+		if relParentPath != "" {
+			if err := linkChildToParent(relParentPath, relChildUID, ctxChildrenField(ctxParentKind(typ))); err != nil {
+				exitWithError(cmd, err)
+			}
 		}
 
 		if edit {

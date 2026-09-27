@@ -275,12 +275,29 @@ var contextTaskAddCmd = &cobra.Command{
 		}
 		content = strings.TrimRight(content, "\n") + "\n"
 		content += "- [ ] " + step + "\n"
+		// Lazy identifier stamping, then the typed parent relation (task→plan).
+		if stamped, ok := stampUIDMissing(content); ok {
+			content = stamped
+		}
+		planPath, taskUID := "", ""
+		if planHasFile(plan) {
+			planPath = filepath.Join(sdtPlanDir, plan)
+			if planUID := ctxDocUID(planPath); planUID != "" {
+				content, _ = stampChildParent(content, ctxTypeTasks, planUID)
+				taskUID = parseFrontmatterField(content, "uid")
+			}
+		}
 		if err := os.MkdirAll(sdtTasksDir, 0o750); err != nil { //#nosec G301 -- user work dir
 			exitWithError(cmd, err)
 		}
 		//#nosec G306 -- user work file
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			exitWithError(cmd, err)
+		}
+		if planPath != "" && taskUID != "" {
+			if err := linkChildToParent(planPath, taskUID, "tasks_ids"); err != nil {
+				exitWithError(cmd, err)
+			}
 		}
 		items := parseTaskItems(content)
 		outputString(cmd, fmt.Sprintf("%d\n", items[len(items)-1].Line))

@@ -551,8 +551,8 @@ func TestContextLintSourcesBroken(t *testing.T) {
 
 func TestContextLintObjectiveValid(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/ok.md", "---\nkind: analysis\nuid: "+testUIDv7(1)+"\nsummary: ok\nobjective: memory-1\nlinks: none\n---\nbody\n")
-	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: "+testUIDv7(2)+"\nsummary: plan with objective\nobjective: memory-1\nsources:\n  - analysis/ok.md\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/ok.md", "---\nkind: analysis\nuid: "+testUIDv7(1)+"\nsummary: ok\nobjective: memory-1\nlinks: none\nplans_ids:\n  - "+testUIDv7(2)+"\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: "+testUIDv7(2)+"\nsummary: plan with objective\nobjective: memory-1\nanalysis_id: "+testUIDv7(1)+"\nsources:\n  - analysis/ok.md\n---\nbody\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)

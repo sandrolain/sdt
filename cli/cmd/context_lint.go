@@ -125,6 +125,12 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"plan `objective`", "set `objective` to the lowercase kebab-case slug shared with the analysis this plan derives from"},
 	{"task file carries legacy `objective`", "rename the field to `phase`; the task inherits the plan objective and never declares `objective`"},
 	{"document missing `uid`", "run `sdt context uid backfill` to stamp every existing document, or create new documents with `sdt context new`/`sdt context task`"},
+	{"plan has no `analysis_id`", "run `sdt context relations backfill` to derive the typed parent relation from `sources`"},
+	{"task has no `plan_id`", "run `sdt context relations backfill` to derive the typed parent relation from `sources`"},
+	{"analysis_id ", "fix the typed parent relation: it must hold a parent document `uid` and be mirrored in the parent's `plans_ids`"},
+	{"plan_id ", "fix the typed parent relation: it must hold a plan document `uid` and be mirrored in the plan's `tasks_ids`"},
+	{"plans_ids ", "fix the typed parent relation: each entry must be a plan `uid` that names this analysis in `analysis_id`"},
+	{"tasks_ids ", "fix the typed parent relation: each entry must be a task `uid` that names this plan in `plan_id`"},
 	{"`uid` ", "set `uid` to a canonical lowercase UUIDv7 value (e.g. `sdt uid v7`)"},
 	{"duplicate `uid`", "give the document a fresh identifier with `sdt uid v7` (a copied file duplicates the `uid`)"},
 	{"notes entry missing `agent`", "add `agent: <tool/role>` to the notes frontmatter so the entry's provenance is recorded (`sdt context list --agent`)"},
@@ -935,6 +941,8 @@ Examples:
 			}
 			// Corpus-wide `uid` uniqueness (a copied file duplicates the id).
 			issues = append(issues, lintUIDDuplicates(allFiles)...)
+			// Typed parent relations: bidirectional agreement keyed by uid.
+			issues = append(issues, lintParentRelations(allFiles)...)
 			// index.md itself is validated as a document too.
 			if _, err := os.Stat(sdtContextIndex); err == nil {
 				issues = append(issues, lintDoc(sdtContextIndex)...)
