@@ -14,30 +14,50 @@ Project: p · Group: g
    proceed. When the intent **is** inside an existing analysis/plan,
    integrate/modify that document in place. Trivial or informational questions
    are answered inline — the chain starts at the first non-trivial piece of work.
+   *Don't:* edit code the moment the ask arrives; open the analysis first.
 2. **Immutable past docs** — modify past analyses/plans only when the user
    points to it; treat them as immutable otherwise. "integrate/modify" never
    means editing past documents on your own initiative.
+   *Don't:* rewrite a past analysis so it agrees with the change you just made.
 3. **Temp files in `context/tmp/`** — all temp files go inside the project;
    never write or execute temporary files outside it.
+   *Don't:* drop scratch files in `/tmp` or the repo root.
 4. **Ask before touching AGENTS.md** — request the user's confirmation before
    creating or modifying AGENTS.md.
+   *Don't:* "improve" the rules while doing an unrelated task.
 5. **Project block auto-fill** — if the `<!-- sdt:begin:project -->` block is
    missing or has empty/placeholder sections, fill it from project evidence
    (repo files, not guesses); complete only the empty/placeholder parts; ask the
    user first (rule 4 applies).
+   *Don't:* write a plausible command you never read in a Taskfile/manifest.
 6. **Frontmatter + `summary`** — every work file under `context/` starts with
    YAML frontmatter (kind correct for the file type, mandatory `summary`); the
    index (`sdt context reindex`) and lint depend on it. Each per-type
    instruction file specifies the exact frontmatter for that kind.
+   *Don't:* hand-write a `context/` file the CLI scaffolds (`sdt context new`).
 7. **Style & architecture agreed a priori** — never invent style or architecture;
    propose both (components, boundaries, patterns, naming, layout) in the plan and
    get explicit user approval before writing code. Every non-trivial design
    choice defaults to the user, not to a "reasonable default" (see
    `context/instructions/development.md`).
+   *Don't:* pick a library, layout or naming as a "reasonable default".
 8. **Library-first** — before writing non-trivial code, evaluate existing
    libraries (web search + local docs), present a shortlist and ask the user
    which to use; do not reinvent what a maintained library already provides
    (see `context/instructions/development.md`).
+   *Don't:* hand-roll parsing, HTTP or date logic a maintained library covers.
+
+### Document ownership (who owns which text)
+
+- **`AGENTS.md`** — source of truth: the hard rules and this instruction block;
+  the write-once `project` block holds project conventions.
+- **`context/instructions/<type>.md`** — the per-type contract (frontmatter,
+  sections, lifecycle, procedure) for one document kind or activity.
+- **`context/commands/<trigger>.md`** — a thin trigger; the durable contract
+  stays in `context/instructions/`.
+
+Change a rule where it is owned and link from the other layers; never duplicate
+a contract across them.
 
 ### SESSION START (always)
 
