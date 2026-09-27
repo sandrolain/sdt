@@ -1,0 +1,75 @@
+# UI/UX — accessibility
+
+`context/instructions/ui-accessibility.md` is the reference for any interactive or
+visual change and for review. Accessibility is P0: it outranks aesthetics and is
+not a later pass. Read it with `context/instructions/ui.md` (the doctrine),
+`context/instructions/ui-components.md` (states and interaction) and
+`context/instructions/browser.md` (the render-level audit tooling).
+
+## POUR
+
+Accessible content is **Perceivable, Operable, Understandable, Robust**: usable
+without sight, without a pointer, with assistive technology, and legible under
+interruption. Most failures are violations of one of the four.
+
+## Name, role, state
+
+- Every interactive control has an accessible **name** (a label, not a
+  placeholder), a correct **role**, and exposes its **state** (expanded, selected,
+  checked, busy, invalid).
+- Icon-only controls need a name; decorative elements are hidden from assistive
+  tech rather than labelled.
+- Prefer the platform's own element and ARIA pattern over a hand-rolled
+  `div` with roles.
+
+## Keyboard and focus
+
+- Everything operable by pointer is operable by keyboard, in a logical order.
+- Focus is always visible and never lost; focus order follows reading order.
+- Escape closes a transient surface; Tab is never trapped without an exit.
+
+## Contrast and targets
+
+- Text meets the project's minimum contrast in **both** themes; large text has a
+  lower floor but still one.
+- Interactive targets are large enough to hit; do not shrink a target below the
+  project's minimum to fit a layout.
+- Never rely on colour alone to convey a state or a change.
+
+## Motion and reduced motion
+
+- `prefers-reduced-motion` must preserve **hierarchy and feedback**, not kill all
+  motion with a global near-zero duration. Remove decorative motion; keep the
+  transition that explains a change of state.
+- One authored moment per surface beats the same entrance on every section.
+- Motion conveys state; it is not decoration.
+
+## Internationalisation and direction
+
+- Do not bake text into images or assume a string's length or word order.
+- Layouts survive **RTL** mirroring and a 30-40% text expansion from translation.
+- Format dates, numbers and currency with the platform's locale facilities, not
+  by hand.
+
+## Cognitive
+
+- One primary action per surface; keep the path to the goal short.
+- Error and empty states tell the user what happened and what to do next.
+- Prefer plain language; expand an acronym on first use.
+
+## Review — heuristics, not a score
+
+- A usability review may walk a small checklist (the ten usability heuristics,
+  scored 0-4 with a mode-aware `n/a` and a renormalised total) and report
+  findings by severity. This is a **usability instrument, not a taste or
+  visual-quality score** — do not reduce design judgement to a number.
+- A clean scan is not a pass: it does not replace looking at the render. Declare
+  a skipped or degraded check; never let it pass as complete (see
+  `context/instructions/ui.md`).
+
+## Boundary
+
+- The render-level audit (contrast sampling, focus rings, overflow) needs a real
+  render: `context/instructions/browser.md`.
+- Component structure and states: `context/instructions/ui-components.md`.
+- Visual direction and copy tone: `context/instructions/ui-taste.md`.
