@@ -88,6 +88,9 @@ const (
 	taskStatusBlocked   = "blocked"
 	taskStatusBlock     = "block"
 	ctxFrontmatterDelim = "---"
+	// ctxBackfillVerb names the one-shot backfill subcommand shared by the uid,
+	// relations and checklist command groups.
+	ctxBackfillVerb = "backfill"
 
 	// Task FILE frontmatter status values (tasks.md contract). At least three
 	// states are always available: pending (to work on), in-progress,

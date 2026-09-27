@@ -185,10 +185,11 @@ func stampEligibleFiles(dryRun bool) (ctxUIDBackfillResult, error) {
 	return res, nil
 }
 
-// writeUIDBackfillMarker records a completed real backfill run so lint flips a
-// missing uid from SUGGESTION to WARNING.
-func writeUIDBackfillMarker(finishedAt string, count int) error {
-	if err := os.MkdirAll(filepath.Dir(ctxUIDBackfillMarker), 0o750); err != nil { //#nosec G301 -- derived cache dir
+// writeBackfillMarker persists a one-shot backfill completion marker: the
+// RFC3339 timestamp and the number of items stamped. Shared by the uid and
+// checklist backfills so lint can gate its presence warning on a completed run.
+func writeBackfillMarker(markerPath, finishedAt string, count int) error {
+	if err := os.MkdirAll(filepath.Dir(markerPath), 0o750); err != nil { //#nosec G301 -- derived cache dir
 		return err
 	}
 	payload, err := json.MarshalIndent(map[string]any{"completed_at": finishedAt, "count": count}, "", "  ")
@@ -196,7 +197,13 @@ func writeUIDBackfillMarker(finishedAt string, count int) error {
 		return err
 	}
 	//#nosec G306 -- derived cache file
-	return os.WriteFile(ctxUIDBackfillMarker, append(payload, '\n'), 0o644)
+	return os.WriteFile(markerPath, append(payload, '\n'), 0o644)
+}
+
+// writeUIDBackfillMarker records a completed real backfill run so lint flips a
+// missing uid from SUGGESTION to WARNING.
+func writeUIDBackfillMarker(finishedAt string, count int) error {
+	return writeBackfillMarker(ctxUIDBackfillMarker, finishedAt, count)
 }
 
 func outputUIDBackfill(cmd *cobra.Command, res ctxUIDBackfillResult) {
