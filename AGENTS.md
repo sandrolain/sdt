@@ -253,7 +253,6 @@ Key dependencies:
 - `github.com/pelletier/go-toml/v2` — TOML support
 - `github.com/vmihailenco/msgpack/v5` — MessagePack support
 - `github.com/golang-jwt/jwt/v5` — JWT parsing/validation
-- `github.com/google/uuid` — UUID v4
 - `golang.org/x/crypto` — bcrypt
 - `golang.org/x/text` — Unicode text transforms
 - `github.com/JohannesKaufmann/html-to-markdown`, `github.com/gocolly/colly`,
@@ -261,7 +260,7 @@ Key dependencies:
 - `github.com/makiuchi-d/gozxing` — QR code encode/decode (qrcode)
 - `github.com/pquerna/otp` — TOTP/HOTP generation (totp)
 - `github.com/sethvargo/go-password` — password generation (password)
-- `github.com/segmentio/ksuid`, `github.com/matoous/go-nanoid/v2` — ID generation (uid)
+- `github.com/segmentio/ksuid`, `github.com/matoous/go-nanoid/v2`, stdlib `uuid` — ID generation (uid)
 - `github.com/hashicorp/go-version` — version comparison (vman)
 - `yaml` — YAML frontmatter parsing in the viewer metadata panel (`web/`, lazy-loaded chunk)
 
