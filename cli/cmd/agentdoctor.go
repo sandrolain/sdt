@@ -103,7 +103,7 @@ func agentDoctorChecks() []doctorCheck {
 			missing++
 		}
 	}
-	for _, name := range obsoleteInstructionFiles {
+	for _, name := range obsoleteInstructionFiles() {
 		if _, err := os.Stat(filepath.Join(sdtInstrDir, name)); err == nil {
 			obsolete++
 		}

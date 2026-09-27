@@ -542,14 +542,15 @@ func TestAgentInitForceRefreshesInstructions(t *testing.T) {
 func TestAgentInitForceArchivesObsoleteInstructions(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	for _, name := range obsoleteInstructionFiles {
+	obsolete := obsoleteInstructionFiles()
+	for _, name := range obsolete {
 		writeTestFile(t, filepath.Join("context/instructions", name), "obsolete")
 	}
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
 	if !strings.Contains(string(out), "archived") {
 		t.Errorf("expected archived status for obsolete files: %s", out)
 	}
-	for _, name := range obsoleteInstructionFiles {
+	for _, name := range obsolete {
 		if _, err := os.Stat(filepath.Join(dir, "context/instructions", name)); !os.IsNotExist(err) {
 			t.Errorf("expected obsolete instruction file %s to leave context/instructions with --force", name)
 		}
@@ -560,23 +561,58 @@ func TestAgentInitForceArchivesObsoleteInstructions(t *testing.T) {
 func TestAgentInitForceArchivesObsoleteCommands(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	for _, name := range obsoleteCommandFiles {
+	obsolete := obsoleteCommandFiles()
+	for _, name := range obsolete {
 		writeTestFile(t, filepath.Join("context/commands", name), "obsolete")
 	}
 	// Without --force the stale command file is preserved.
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	if _, err := os.Stat(filepath.Join(dir, "context/commands", obsoleteCommandFiles[0])); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "context/commands", obsolete[0])); err != nil {
 		t.Fatalf("expected stale command file preserved without --force: %v", err)
 	}
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
 	if !strings.Contains(string(out), "archived") {
 		t.Errorf("expected archived status for obsolete command files: %s", out)
 	}
-	for _, name := range obsoleteCommandFiles {
+	for _, name := range obsolete {
 		if _, err := os.Stat(filepath.Join(dir, "context/commands", name)); !os.IsNotExist(err) {
 			t.Errorf("expected obsolete command file %s to leave context/commands with --force", name)
 		}
 		assertArchived(t, dir, strings.TrimSuffix(name, ".md"))
+	}
+}
+
+// TestAgentInitForceArchivesStaleMarkedFile checks the derived detection: a file
+// whose generated marker names a template that is no longer generated is
+// obsolete even though it is absent from the legacy list.
+func TestAgentInitForceArchivesStaleMarkedFile(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	stale := filepath.Join("context/instructions", "removed-type.md")
+	writeTestFile(t, stale, sectionBlock("instructions/removed-type", "old body"))
+	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
+	if !strings.Contains(string(out), "archived") {
+		t.Errorf("expected archived status for the stale marked file: %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, stale)); !os.IsNotExist(err) {
+		t.Error("expected the stale marked file to leave context/instructions with --force")
+	}
+	assertArchived(t, dir, "removed-type")
+}
+
+// TestObsoleteInstructionFilesExcludesCurrent guards that no current generated
+// instruction file is ever classified as obsolete.
+func TestObsoleteInstructionFilesExcludesCurrent(t *testing.T) {
+	runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+	obsolete := map[string]bool{}
+	for _, name := range obsoleteInstructionFiles() {
+		obsolete[name] = true
+	}
+	for _, f := range instructionFiles("p", "g") {
+		if obsolete[f.name] {
+			t.Errorf("current instruction file %s classified as obsolete", f.name)
+		}
 	}
 }
 

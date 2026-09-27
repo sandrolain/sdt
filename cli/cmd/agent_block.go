@@ -103,6 +103,53 @@ func agentGeneratedMarkerName(dir, name string) string {
 	return dir + "/" + strings.TrimSuffix(name, sdtMarkdownExt)
 }
 
+// generatedMarkerBeginRe matches a generated sdt:begin marker and captures its
+// name (e.g. "instructions/analysis").
+var generatedMarkerBeginRe = regexp.MustCompile(`<!-- sdt:begin:([^\s>]+) -->`)
+
+// generatedMarkerName returns the name inside the first generated begin marker
+// of content, and whether the file carries one at all.
+
+func generatedMarkerName(content string) (string, bool) {
+	m := generatedMarkerBeginRe.FindStringSubmatch(content)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
+// obsoleteGeneratedFiles returns the .md files in dir that carry a generated
+// marker owned by scope whose target is no longer in the current generated set
+// (current, the generated file names). Files without a generated marker are not
+// detected here — they are the caller's explicit legacy list.
+
+func obsoleteGeneratedFiles(dir, scope string, current []string) []string {
+	currentMarkers := make(map[string]bool, len(current))
+	for _, name := range current {
+		currentMarkers[agentGeneratedMarkerName(scope, name)] = true
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var stale []string
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != sdtMarkdownExt {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name())) //#nosec G304 -- generated dir, listed entry
+		if err != nil {
+			continue
+		}
+		marker, ok := generatedMarkerName(string(data))
+		if !ok || currentMarkers[marker] || !strings.HasPrefix(marker, scope+"/") {
+			continue
+		}
+		stale = append(stale, e.Name())
+	}
+	return stale
+}
+
 // agentRenderGenerated renders the on-disk form of a generated file from its
 // template body: the leading frontmatter block stays at the first line (the
 // context tools parse it from there) and the document body is wrapped in an

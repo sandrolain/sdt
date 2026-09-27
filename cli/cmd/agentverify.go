@@ -67,7 +67,7 @@ func agentVerifyChecks() []ctxLintIssue {
 		}
 	}
 
-	for _, name := range obsoleteInstructionFiles {
+	for _, name := range obsoleteInstructionFiles() {
 		path := filepath.Join(sdtInstrDir, name)
 		if _, err := os.Stat(path); err == nil {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: "obsolete instruction file (use sdt agent init --force to remove)"})
