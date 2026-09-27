@@ -1,0 +1,82 @@
+# UI/UX — components
+
+`context/instructions/ui-components.md` is the reference for building or changing
+a component: its states, variants, composition and the details around it. Read it
+with `context/instructions/ui.md` (the doctrine),
+`context/instructions/ui-accessibility.md` (interaction and review) and
+`context/instructions/ui-tokens.md` (the values it uses).
+
+## States
+
+- For every interactive element, enumerate the states — default, hover, focus,
+  active, disabled, loading, error, selected — render the ones that apply, and
+  say why the others do not.
+- `focus-visible` must be visible for keyboard users. Never remove focus
+  styling without an equally visible replacement.
+- A state you did not render is a decision; state it rather than leaving it
+  undefined.
+
+## Variants and sizes
+
+- Keep a small, closed set: variants differ by **intent** (primary, secondary,
+  destructive), sizes by **density**. Do not multiply variants for one-off looks.
+- A new variant is a design decision, not a styling shortcut; if an existing one
+  fits, use it.
+
+## Composition
+
+- Compose from the project's existing primitives; do not fork a component to
+  change one property.
+- Prefer slots/children and composition over a growing list of boolean props.
+- One component, one concern: a control that also lays out a page is two things.
+
+## Focus management
+
+- Focus always goes somewhere predictable. On open, move it into the new
+  surface; on close, restore it to the trigger.
+- Never trap the keyboard without an escape; a modal must be escapable.
+- Never let an action remove the focused element without moving focus.
+
+## Disabled, loading, error
+
+- **Disabled** — not available now: non-interactive, and say why if it is not
+  obvious.
+- **Loading** — in progress: keep the layout stable and prefer a skeleton over a
+  spinner inside content, so the page does not jump.
+- **Error** — name the problem and the recovery, and keep the user's input.
+  Never clear a form on failure.
+
+## Empty states
+
+- First-run empty (nothing exists yet) differs from no-results (a filter matched
+  nothing). Say which, and what to do next.
+- An empty state is a designed state, not an absence.
+
+## Overlays
+
+- An overlay must escape `overflow` ancestors — use `dialog`, popover or a
+  portal; a positioned element inside a clipped container will be cut off.
+- Modal is a last resort: prefer inline or a non-blocking popover when the task
+  does not need to block the page.
+
+## The parts you did not draw
+
+Check the cheap details that read as built rather than assembled: text
+selection and caret colour, scrollbar styling, focus ring, underline offset,
+tabular numerals in data. They are stack-neutral and high-signal.
+
+## Functional copy
+
+- Controls name their action ("Save changes", not "Submit").
+- Errors name the problem and the recovery.
+- Microcopy states what will happen; it does not hedge or decorate.
+
+## Boundary
+
+- Visual direction, tone of voice and coherence live in
+  `context/instructions/ui-taste.md`.
+- Contrast, target size, reduced motion and the review checklist live in
+  `context/instructions/ui-accessibility.md`.
+- Concrete values come from tokens (`context/instructions/ui-tokens.md`); how
+  they map to a framework is the adapter contract
+  (`context/instructions/ui-adapters.md`).
