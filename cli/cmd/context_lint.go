@@ -118,6 +118,11 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"does not parse as RFC3339 UTC", "format `created`/`updated` as RFC3339 UTC (e.g. `2026-09-25T05:00:00Z`; see `sdt time iso`)"},
 	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
 	{"completed task file has no `## Review`", "record the verify-step verdicts with `sdt context task review --phase <n>` (CONFIRMED | DISPROVED | UNVERIFIED per finding)"},
+	{"task declares completed but its checklist", "tick the remaining items with `sdt context check`/`task done`, or reopen the file with `sdt context task wip`; `sdt context sync` will not regress a completed file"},
+	{"task checklist is complete but the file status", "run `sdt context sync` (or `sdt context task done` on the last item) to derive `completed`"},
+	{"plan is derivably completed", "run `sdt context sync` to derive the plan `completed`"},
+	{"analysis is derivably completed", "run `sdt context sync` to derive the analysis `completed`"},
+	{"analysis declares completed but", "finish the listed plan(s), or reopen the analysis if completion was declared by hand"},
 	{"prompt must declare", "add a `derived_from` frontmatter reference to the prompt that produced this document"},
 	{"analysis missing `objective`", "add `objective: <kebab-case-slug>`; reuse the same slug in every analysis of the same initiative so they group in the index"},
 	{"analysis `objective`", "set `objective` to a lowercase kebab-case slug (letters, digits and '-'), shared across analyses of the same initiative"},
@@ -966,6 +971,9 @@ Examples:
 			taskFiles, err := dirFiles(sdtTasksDir)
 			exitWithError(cmd, err)
 			issues = append(issues, lintPlanTaskAgreement(planFiles, taskFiles)...)
+			// Declared-vs-derived drift across the whole chain (task, plan,
+			// analysis) at advisory WARNING severity (analysis Q4).
+			issues = append(issues, lintCascadeDrift()...)
 			// Role-profile advisory: mirror deterministic role checks as SUGGESTIONs.
 			issues = append(issues, lintRoleProfiles()...)
 		}

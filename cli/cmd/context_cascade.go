@@ -350,6 +350,100 @@ func (s *cascadeStore) byRef(ref string) *cascadeNode {
 	return s.analyses[ref]
 }
 
+// lintCascadeDrift reports declared-vs-derived drift across the chain as
+// advisory WARNINGs: a task file whose checklist disagrees with its status, an
+// analysis whose plans disagree, and the "derivably completed" adoption case
+// for plans and analyses. The plan-declares-completed-but-unfinished direction
+// stays with lintPlanTaskAgreement (which mirrors the viewer's done vocabulary).
+func lintCascadeDrift() []ctxLintIssue {
+	store, err := loadCascadeStore()
+	if err != nil {
+		return nil
+	}
+	var issues []ctxLintIssue
+	for _, n := range sortedNodes(store.tasks) {
+		if !statusFlappable(n) {
+			continue
+		}
+		d := deriveTaskStatus(n)
+		if d == "" || d == n.status {
+			continue
+		}
+		switch {
+		case n.status == taskFileStatusCompleted && d != taskFileStatusCompleted:
+			issues = append(issues, ctxLintIssue{Path: n.path, Priority: ctxLintWarning, Message: "task declares completed but its checklist has unfinished items (tick or reopen them, then run `sdt context sync`)"})
+		case n.status != taskFileStatusCompleted && d == taskFileStatusCompleted:
+			issues = append(issues, ctxLintIssue{Path: n.path, Priority: ctxLintWarning, Message: "task checklist is complete but the file status is `" + n.status + "` (run `sdt context sync`)"})
+		}
+	}
+	for _, n := range sortedNodes(store.plans) {
+		if n.status != ctxWikiStatusActive {
+			continue
+		}
+		if store.derivePlanStatus(n) == taskFileStatusCompleted {
+			issues = append(issues, ctxLintIssue{Path: n.path, Priority: ctxLintWarning, Message: "plan is derivably completed (all task files done and its own checklists) — run `sdt context sync`"})
+		}
+	}
+	for _, n := range sortedNodes(store.analyses) {
+		if !statusFlappable(n) {
+			continue
+		}
+		d := store.deriveAnalysisStatus(n)
+		if d == "" || d == n.status {
+			continue
+		}
+		if n.status == taskFileStatusCompleted {
+			unfinished := analysisUnfinishedPlans(store, n)
+			issues = append(issues, ctxLintIssue{Path: n.path, Priority: ctxLintWarning, Message: fmt.Sprintf("analysis declares completed but %d plan(s) are not done: %s", len(unfinished), strings.Join(unfinished, ", "))})
+		} else {
+			issues = append(issues, ctxLintIssue{Path: n.path, Priority: ctxLintWarning, Message: "analysis is derivably completed (all plans done) — run `sdt context sync`"})
+		}
+	}
+	return issues
+}
+
+// derivedCompletionBlock returns the derived status for a document when it
+// disagrees with a declared `completed` (a non-terminal derived value), plus a
+// human reason. It returns "" when there is no derivation or the derived status
+// is already completed (so the transition is allowed).
+func derivedCompletionBlock(path string) (string, string) {
+	store, err := loadCascadeStore()
+	if err != nil {
+		return "", ""
+	}
+	n := store.byRef(normalizeContextRef(path))
+	if n == nil {
+		return "", ""
+	}
+	var derived string
+	switch n.kind {
+	case ctxTypeTasks:
+		derived = deriveTaskStatus(n)
+	case ctxTypePlan:
+		derived = store.derivePlanStatus(n)
+	case ctxTypeAnalysis:
+		derived = store.deriveAnalysisStatus(n)
+	default:
+		return "", ""
+	}
+	if derived == "" || derived == taskFileStatusCompleted {
+		return "", ""
+	}
+	return derived, fmt.Sprintf("derived state is %q", derived)
+}
+
+// analysisUnfinishedPlans lists the base names of an analysis' plans that are
+// not done.
+func analysisUnfinishedPlans(store *cascadeStore, n *cascadeNode) []string {
+	var out []string
+	for _, c := range store.childPlans(n.ref) {
+		if c.effectiveStatus() != taskFileStatusCompleted {
+			out = append(out, filepath.Base(c.path))
+		}
+	}
+	return out
+}
+
 // outputCascadeChanges prints the flips a command triggered. It stays silent
 // under json/yaml so it never corrupts the caller's structured output.
 func outputCascadeChanges(cmd *cobra.Command, changes []cascadeChange) {

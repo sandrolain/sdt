@@ -359,6 +359,13 @@ Examples:
 		if !ctxStatusInVocab(doc.Type, status) {
 			exitWithError(cmd, fmt.Errorf("invalid status %q for type %s (use %s)", status, doc.Type.kind, ctxStatusVocab(doc.Type)))
 		}
+		// Derived-state guard (analysis Q4): refuse a hand-declared terminal
+		// status that contradicts the children/checklist unless --force.
+		if status == taskFileStatusCompleted && !getBoolFlag(cmd, "force", false) {
+			if _, reason := derivedCompletionBlock(doc.Path); reason != "" {
+				exitWithError(cmd, fmt.Errorf("cannot set %s completed: %s (finish the work, or pass --force)", ctxKindLabel(doc.Type), reason))
+			}
+		}
 		data, err := os.ReadFile(doc.Path) //#nosec G304 -- user work file
 		exitWithError(cmd, err)
 		content, changed := setFrontmatterFields(string(data), ctxStatusSetPatches(doc.Type, status))
@@ -429,6 +436,7 @@ func init() {
 	addContextStatusRefFlags(contextStatusGetCmd)
 	addContextStatusRefFlags(contextStatusSetCmd)
 	contextStatusSetCmd.Flags().String("status", "", "New status value (validated against the kind vocabulary)")
+	contextStatusSetCmd.Flags().Bool("force", false, "Set a terminal status even when derived state disagrees")
 	addCascadeFlag(contextStatusSetCmd)
 	contextStatusCmd.AddCommand(contextStatusGetCmd, contextStatusSetCmd)
 }
