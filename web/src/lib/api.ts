@@ -10,7 +10,9 @@ export interface TreeEntry {
   objective?: string;
   /** frontmatter `status` (plan/task execution state) */
   status?: string;
-  /** frontmatter `sources` + `links` references, corpus-relative */
+  /** frontmatter `sources` references (the derivation edge), corpus-relative.
+   *  The frontmatter `links` list is generic correlation and is NOT merged here;
+   *  surfaces that display both read them from the /api/doc frontmatter. */
   sources?: string[];
   created?: string;
   /** frontmatter `updated`, else the file mtime (RFC3339) */

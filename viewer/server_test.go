@@ -62,6 +62,16 @@ links:
 
 plan body
 `)
+	writeFixture(t, root, "context/plan/plan-y.md", `---
+kind: plan
+title: "Plan Y"
+status: active
+links:
+  - analysis/analy-x.md
+---
+
+plan y body
+`)
 	writeFixture(t, root, "context/wiki/backlog/blue.md", `---
 kind: wiki
 title: Blue
@@ -421,8 +431,8 @@ func TestTreeOutput(t *testing.T) {
 	}
 	// corpus exclusions (shared set) plus anything outside the corpus.
 	assertExcludedPaths(t, byPath)
-	if len(out.Entries) != 9 {
-		t.Errorf("expected 9 entries, got %d: %v", len(out.Entries), out.Entries)
+	if len(out.Entries) != 10 {
+		t.Errorf("expected 10 entries, got %d: %v", len(out.Entries), out.Entries)
 	}
 }
 
@@ -869,23 +879,34 @@ func TestTreePlanSources(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
+	found := 0
 	for _, e := range out.Entries {
-		if e.Path != "context/plan/plan-x.md" {
-			continue
-		}
-		if e.Status != "completed" {
-			t.Errorf("plan status = %q, want completed", e.Status)
-		}
-		want := []string{"analysis/analy-x.md", "tasks/plan-x-phase-1.md"}
-		if len(e.Sources) != len(want) {
-			t.Fatalf("plan sources = %v, want %v", e.Sources, want)
-		}
-		for i := range want {
-			if e.Sources[i] != want[i] {
-				t.Errorf("plan sources[%d] = %q, want %q", i, e.Sources[i], want[i])
+		switch e.Path {
+		case "context/plan/plan-x.md":
+			found++
+			if e.Status != "completed" {
+				t.Errorf("plan status = %q, want completed", e.Status)
+			}
+			// `sources` only: the frontmatter `links` entry is correlation and
+			// must not be merged into the derivation list.
+			want := []string{"analysis/analy-x.md"}
+			if len(e.Sources) != len(want) {
+				t.Fatalf("plan sources = %v, want %v", e.Sources, want)
+			}
+			for i := range want {
+				if e.Sources[i] != want[i] {
+					t.Errorf("plan sources[%d] = %q, want %q", i, e.Sources[i], want[i])
+				}
+			}
+		case "context/plan/plan-y.md":
+			found++
+			// A links-only plan carries no derivation edge at all.
+			if len(e.Sources) != 0 {
+				t.Errorf("links-only plan sources = %v, want none", e.Sources)
 			}
 		}
-		return
 	}
-	t.Error("plan entry not found")
+	if found != 2 {
+		t.Errorf("plan entries found = %d, want 2", found)
+	}
 }

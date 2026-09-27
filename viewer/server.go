@@ -77,6 +77,11 @@ type server struct {
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
+//
+// Sources carries the frontmatter `sources` list only: the derivation edge. The
+// frontmatter `links` list is generic correlation and is deliberately NOT merged
+// into it, so a cross-link cannot become a derivation edge in the status dots.
+// Surfaces that display both relations read them from the /api/doc frontmatter.
 type treeEntry struct {
 	Path      string   `json:"path"`
 	Kind      string   `json:"kind,omitempty"`
@@ -293,7 +298,9 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 		return treeEntry{}, err
 	}
 	fm, _ := contextwiki.SplitFrontmatter(string(data))
-	sources := append(contextwiki.FrontmatterList(fm, "sources"), contextwiki.FrontmatterList(fm, "links")...)
+	// `sources` is the derivation list; `links` is correlation and is never
+	// merged into it, so a cross-link cannot become a plan→analysis or
+	// plan→task edge in the derived status dots.
 	created := contextwiki.FrontmatterField(fm, "created")
 	if created == "" {
 		created = contextwiki.FrontmatterField(fm, "created_at")
@@ -305,7 +312,7 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 		Summary:   contextwiki.FrontmatterField(fm, "summary"),
 		Objective: contextwiki.FrontmatterField(fm, "objective"),
 		Status:    contextwiki.FrontmatterField(fm, "status"),
-		Sources:   sources,
+		Sources:   contextwiki.FrontmatterList(fm, "sources"),
 		Created:   created,
 		Modified:  contextwiki.FrontmatterField(fm, "updated"),
 		Image:     contextwiki.FrontmatterField(fm, "image"),
