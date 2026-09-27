@@ -288,6 +288,16 @@ Examples:
 			exitWithError(cmd, err)
 			return
 		}
+		// Lazy identifier stamping: the rename rewrites the document, so it also
+		// stamps a missing uid on the moved file (analysis Q3).
+		if ctxUIDEligibleKind(doc.Type.kind) {
+			if data, rerr := os.ReadFile(newPath); rerr == nil { //#nosec G304 -- user work file
+				if stamped, ok := stampUIDMissing(string(data)); ok {
+					//#nosec G306 -- user work file
+					_ = os.WriteFile(newPath, []byte(stamped), 0o644)
+				}
+			}
+		}
 		for _, p := range affected {
 			if err := ctxApplyRewrite(p, doc.Path, newPath); err != nil {
 				exitWithError(cmd, err)

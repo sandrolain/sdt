@@ -65,6 +65,7 @@ func contextDecisionFrontmatter(number, title, summary, project, created string)
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: decision\n")
+	b.WriteString("uid: " + newUID() + "\n")
 	b.WriteString("number: " + number + "\n")
 	if title != "" {
 		b.WriteString("title: " + yamlScalar(title) + "\n")
@@ -157,6 +158,7 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: " + typ + "\n")
+	b.WriteString("uid: " + newUID() + "\n")
 	if typ == ctxTypeWiki {
 		b.WriteString("id: " + yamlScalar(id) + "\n")
 	}

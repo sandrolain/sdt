@@ -10,7 +10,6 @@ require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gocolly/colly v1.2.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.9.0
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/matoous/go-nanoid/v2 v2.1.0

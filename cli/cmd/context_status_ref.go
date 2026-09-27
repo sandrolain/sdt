@@ -362,6 +362,13 @@ Examples:
 		data, err := os.ReadFile(doc.Path) //#nosec G304 -- user work file
 		exitWithError(cmd, err)
 		content, changed := setFrontmatterFields(string(data), ctxStatusSetPatches(doc.Type, status))
+		// Lazy identifier stamping: any rewrite of an eligible document also
+		// stamps a missing uid (analysis Q3).
+		if ctxUIDEligibleKind(doc.Type.kind) {
+			if stamped, ok := stampUIDMissing(content); ok {
+				content, changed = stamped, true
+			}
+		}
 		if !changed {
 			exitWithError(cmd, fmt.Errorf("no status field written to %s (missing frontmatter)", doc.Path))
 		}

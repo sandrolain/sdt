@@ -2,12 +2,19 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+// testUIDv7 returns a deterministic canonical UUIDv7, unique per seed, for
+// hand-written frontmatter fixtures that must satisfy the uid lint.
+func testUIDv7(seed int) string {
+	return fmt.Sprintf("0191e7a4-0000-7000-8000-%012d", seed)
+}
 
 func setupContextProject(t *testing.T) string {
 	t.Helper()
@@ -112,10 +119,10 @@ func TestContextReindexTaskObjectiveSourcesOnly(t *testing.T) {
 
 func TestContextReindexProposalAndPrompt(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nuid: "+testUIDv7(1)+"\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/search.md", "---\nkind: reference\nstatus: archived\nsummary: Search evidence\n---\nsource\n")
-	writeCtxDoc(t, "context/proposals/proposal.md", "---\nkind: proposal\ntitle: Proposal\nsummary: Proposal summary\nstatus: review\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
-	writeCtxDoc(t, "context/prompts/search.md", "---\nkind: prompt\ntitle: Search prompt\nsummary: Prompt summary\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
+	writeCtxDoc(t, "context/proposals/proposal.md", "---\nkind: proposal\nuid: "+testUIDv7(2)+"\ntitle: Proposal\nsummary: Proposal summary\nstatus: review\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
+	writeCtxDoc(t, "context/prompts/search.md", "---\nkind: prompt\nuid: "+testUIDv7(3)+"\ntitle: Search prompt\nsummary: Prompt summary\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\nsources:\n  - refs/search.md\n---\nbody\n")
 
 	execute(t, contextReindexCmd, nil)
 	idx, err := os.ReadFile(filepath.Join("context", "index.md"))
@@ -134,10 +141,10 @@ func TestContextReindexProposalAndPrompt(t *testing.T) {
 
 func TestContextReindexResearch(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/prompts/drive.md", "---\nkind: prompt\ntitle: Drive\nsummary: Driving prompt\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\n---\nbody\n")
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
+	writeCtxDoc(t, "context/prompts/drive.md", "---\nkind: prompt\nuid: "+testUIDv7(1)+"\ntitle: Drive\nsummary: Driving prompt\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nderived_from:\n  - analysis/source.md\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nuid: "+testUIDv7(2)+"\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
 	writeCtxDoc(t, "context/refs/capture.md", "---\nkind: reference\nstatus: archived\nsummary: Raw capture\n---\nsource\n")
-	writeCtxDoc(t, "context/research/backends.md", "---\nkind: research\ntitle: Vector backends\nsummary: Compared vector backends\nsubject: Which vector backend fits? \nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - prompts/drive.md\n  - refs/capture.md\nproject: p\n---\n## Findings\nbody\n")
+	writeCtxDoc(t, "context/research/backends.md", "---\nkind: research\nuid: "+testUIDv7(3)+"\ntitle: Vector backends\nsummary: Compared vector backends\nsubject: Which vector backend fits? \nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\nsources:\n  - prompts/drive.md\n  - refs/capture.md\nproject: p\n---\n## Findings\nbody\n")
 
 	if tier := ctxTierForDir(sdtResearchDir); tier != ctxTierImportant {
 		t.Fatalf("research tier = %q, want %q", tier, ctxTierImportant)
@@ -166,10 +173,10 @@ func TestContextLintPromptProvenance(t *testing.T) {
 
 func TestContextLintProposalDecisionArchitectureChain(t *testing.T) {
 	setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
-	writeCtxDoc(t, "context/proposals/decision.md", "---\nkind: proposal\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
-	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: decision\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - proposals/decision.md\nproject: p\nsources:\n  - proposals/decision.md\n---\n## Decision\nUse the proposal.\n")
-	writeCtxDoc(t, "context/architecture/decision.md", "---\nkind: architecture\nsummary: Current decision architecture\ncontext: Decision shape\nstatus: current\ncomponent: decision\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - decisions/0002-decision.md\nproject: p\n---\n## Architecture\n")
+	writeCtxDoc(t, "context/analysis/source.md", "---\nkind: analysis\nuid: "+testUIDv7(1)+"\nsummary: Source analysis\nobjective: test\nlinks: none\nstatus: active\n---\nbody\n")
+	writeCtxDoc(t, "context/proposals/decision.md", "---\nkind: proposal\nuid: "+testUIDv7(2)+"\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
+	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: decision\nuid: "+testUIDv7(3)+"\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - proposals/decision.md\nproject: p\nsources:\n  - proposals/decision.md\n---\n## Decision\nUse the proposal.\n")
+	writeCtxDoc(t, "context/architecture/decision.md", "---\nkind: architecture\nuid: "+testUIDv7(4)+"\nsummary: Current decision architecture\ncontext: Decision shape\nstatus: current\ncomponent: decision\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - decisions/0002-decision.md\nproject: p\n---\n## Architecture\n")
 	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
 		t.Fatalf("expected clean proposal/decision/architecture chain, got:\n%s", out)
 	}
@@ -544,8 +551,8 @@ func TestContextLintSourcesBroken(t *testing.T) {
 
 func TestContextLintObjectiveValid(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "context/analysis/ok.md", "---\nkind: analysis\nsummary: ok\nobjective: memory-1\nlinks: none\n---\nbody\n")
-	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nsummary: plan with objective\nobjective: memory-1\nsources:\n  - analysis/ok.md\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/ok.md", "---\nkind: analysis\nuid: "+testUIDv7(1)+"\nsummary: ok\nobjective: memory-1\nlinks: none\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: "+testUIDv7(2)+"\nsummary: plan with objective\nobjective: memory-1\nsources:\n  - analysis/ok.md\n---\nbody\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
 		t.Fatal(err)

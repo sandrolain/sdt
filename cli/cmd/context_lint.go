@@ -124,6 +124,9 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"plan missing `objective`", "add `objective: <kebab-case-slug>` matching the analysis this plan derives from so plans, tasks and analyses group in the index"},
 	{"plan `objective`", "set `objective` to the lowercase kebab-case slug shared with the analysis this plan derives from"},
 	{"task file carries legacy `objective`", "rename the field to `phase`; the task inherits the plan objective and never declares `objective`"},
+	{"document missing `uid`", "run `sdt context uid backfill` to stamp every existing document, or create new documents with `sdt context new`/`sdt context task`"},
+	{"`uid` ", "set `uid` to a canonical lowercase UUIDv7 value (e.g. `sdt uid v7`)"},
+	{"duplicate `uid`", "give the document a fresh identifier with `sdt uid v7` (a copied file duplicates the `uid`)"},
 	{"notes entry missing `agent`", "add `agent: <tool/role>` to the notes frontmatter so the entry's provenance is recorded (`sdt context list --agent`)"},
 	{"unknown topic", "use a canonical topic from context/topics.yaml (aliases are accepted too), or add the topic to the register"},
 	{"topic ", "use a kebab-case topic slug (lowercase letters, digits and '-')"},
@@ -307,6 +310,9 @@ func lintDoc(path string) []ctxLintIssue {
 	issues = append(issues, lintObjectiveField(path, content, kind, prio)...)
 	issues = append(issues, lintPlanObjectiveConsistency(path, content, kind, prio)...)
 	issues = append(issues, lintTaskObjectiveLegacy(path, content, kind)...)
+	// Immutable identifier: presence (severity flips after the backfill) and
+	// canonical UUIDv7 form. Duplicate detection is corpus-wide (below).
+	issues = append(issues, lintUIDField(path, content, kind, prio)...)
 	// Analyses must declare how they relate to prior work: a `links`,
 	// `supersedes` or `contradicts` reference, or an explicit `links: none`.
 	issues = append(issues, lintAnalysisRelations(path, content, kind, prio)...)
@@ -640,6 +646,61 @@ func lintPlanObjectiveConsistency(path, content, kind string, prio func(string) 
 	return nil
 }
 
+// lintUIDField validates the immutable `uid` identifier of a CLI-created kind:
+// a missing value is a SUGGESTION while the one-shot backfill is pending and a
+// WARNING after it (`ctxUIDBackfillMarker`); a present but non-canonical UUIDv7
+// is a WARNING. Excluded kinds (commands, tmp, index, legacy) are skipped.
+func lintUIDField(path, content, kind string, prio func(string) string) []ctxLintIssue {
+	if !ctxUIDEligibleKind(kind) {
+		return nil
+	}
+	uid := parseFrontmatterField(content, "uid")
+	if uid == "" {
+		severity := ctxLintSuggestion
+		if uidBackfillDone() {
+			severity = ctxLintWarning
+		}
+		return []ctxLintIssue{{Path: path, Priority: severity, Message: "document missing `uid` (immutable identifier; stamp with `sdt context uid backfill`)"}}
+	}
+	if !validUIDv7(uid) {
+		return []ctxLintIssue{{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("`uid` %q is not a canonical UUIDv7 (RFC 9562, lowercase 8-4-4-4-12)", uid)}}
+	}
+	return nil
+}
+
+// lintUIDDuplicates flags every eligible document after the first that reuses
+// another document's `uid` (a copied file duplicates the identifier). The
+// check is corpus-wide because uniqueness cannot be decided per document.
+func lintUIDDuplicates(files []string) []ctxLintIssue {
+	byUID := map[string][]string{}
+	for _, path := range files {
+		data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		if !ctxUIDEligibleKind(parseFrontmatterField(content, "kind")) {
+			continue
+		}
+		uid := parseFrontmatterField(content, "uid")
+		if uid == "" || !validUIDv7(uid) {
+			continue
+		}
+		byUID[uid] = append(byUID[uid], path)
+	}
+	var issues []ctxLintIssue
+	for uid, paths := range byUID {
+		if len(paths) < 2 {
+			continue
+		}
+		sort.Strings(paths)
+		for _, dup := range paths[1:] {
+			issues = append(issues, ctxLintIssue{Path: dup, Priority: ctxLintWarning, Message: fmt.Sprintf("duplicate `uid` %s (also used by %s)", uid, paths[0])})
+		}
+	}
+	return issues
+}
+
 // lintTaskObjectiveLegacy flags a task file still carrying the legacy
 // `objective` field (renamed to `phase`; the objective is inherited from the
 // plan, never declared on the task).
@@ -860,9 +921,11 @@ Examples:
 				}
 			}
 		} else {
+			var allFiles []string
 			for _, dir := range ctxIndexDirs {
 				files, err := dirFiles(dir)
 				exitWithError(cmd, err)
+				allFiles = append(allFiles, files...)
 				for _, f := range files {
 					issues = append(issues, lintDoc(f)...)
 					if security {
@@ -870,6 +933,8 @@ Examples:
 					}
 				}
 			}
+			// Corpus-wide `uid` uniqueness (a copied file duplicates the id).
+			issues = append(issues, lintUIDDuplicates(allFiles)...)
 			// index.md itself is validated as a document too.
 			if _, err := os.Stat(sdtContextIndex); err == nil {
 				issues = append(issues, lintDoc(sdtContextIndex)...)

@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/segmentio/ksuid"
 	"github.com/spf13/cobra"
+	"uuid"
 )
 
 var uidCmd = &cobra.Command{
@@ -16,11 +16,18 @@ var uidCmd = &cobra.Command{
 var uidV4Cmd = &cobra.Command{
 	Use:   "v4",
 	Short: "UUID v4",
-	Long:  `Generate UUID v4`,
+	Long:  `Generate UUID v4 (stdlib uuid; random)`,
 	Run: func(cmd *cobra.Command, args []string) {
-		id, err := uuid.NewRandom()
-		exitWithError(cmd, err)
-		outputString(cmd, id.String())
+		outputString(cmd, uuid.NewV4().String())
+	},
+}
+
+var uidV7Cmd = &cobra.Command{
+	Use:   "v7",
+	Short: "UUID v7",
+	Long:  `Generate UUID v7 (stdlib uuid; RFC 9562, time-ordered)`,
+	Run: func(cmd *cobra.Command, args []string) {
+		outputString(cmd, uuid.NewV7().String())
 	},
 }
 
@@ -48,6 +55,7 @@ var uidKsCmd = &cobra.Command{
 
 func init() {
 	uidCmd.AddCommand(uidV4Cmd)
+	uidCmd.AddCommand(uidV7Cmd)
 	uidCmd.AddCommand(uidNanoCmd)
 	uidCmd.AddCommand(uidKsCmd)
 	rootCmd.AddCommand(uidCmd)

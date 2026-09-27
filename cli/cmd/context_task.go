@@ -196,6 +196,7 @@ func buildTaskFrontmatter(project, phase, summary, planRef string) string {
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: tasks\n")
+	b.WriteString("uid: " + newUID() + "\n")
 	b.WriteString("summary: " + yamlScalar(summary) + "\n")
 	b.WriteString("phase: " + yamlScalar(phase) + "\n")
 	b.WriteString("status: " + taskFileStatusPending + "\n")
