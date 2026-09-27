@@ -1,0 +1,79 @@
+# UI/UX — taste and coherence
+
+`context/instructions/ui-taste.md` is the reference for layout, visual direction,
+copy and review. It is the file that lets an agent add UI to an existing product
+without redesigning what is already there. Read it with
+`context/instructions/ui.md` (the doctrine) and
+`context/instructions/ui-components.md` (the pieces you are arranging).
+
+## Composition and focal point
+
+- Give each surface **one clear focal point**; everything else supports it.
+- Group related things, separate unrelated ones; alignment and spacing carry
+  structure better than borders.
+- The element-level choices (a ratio, a scale) belong to the project's own system;
+  do not import a fixed number.
+
+## Block coherence (the main rule)
+
+The test: **could a stranger tell these were authored separately?**
+
+- Vary **composition** inside one artifact — adjacent sections and repeated blocks
+  should not be the same layout twice in a row.
+- Keep the **vocabulary and the system** stable across artifacts: same tokens, same
+  primitives, same density, same state and accessibility parity.
+- Adding a block means matching what is there. Reworking the whole look is a
+  redesign, and it needs the classification from `ui.md`, not a side effect of
+  adding one screen.
+
+## Consistency locks
+
+Per artifact: **one theme, one accent, one gray family, one radius scale, one icon
+family**. A second accent or a second icon style is almost always drift.
+
+## Suspect signals (investigate, do not obey)
+
+These read as generated defaults. Treat them as **signals to investigate**, never
+as an absolute ban — a deliberate, stated exception is legitimate; an unthinking
+default is not. They are subordinate to an existing project direction.
+
+- The same layout repeated section after section; three equal columns; everything
+  centred; everything rounded.
+- Banned-by-reflex choices: the current fashionable gradient, a trendy display
+  font, a stock colour everyone uses this year.
+- Decorative left-border strips, badge rows and status dots used as ornament.
+- Anti-AI copy tells: over-hedged microcopy, "seamlessly"/"effortlessly" filler,
+  emoji as structural icons, template copy ("GET STARTED").
+- Div-based fake screenshots, or hand-rolled icons where an icon set exists.
+
+**Inverse duty:** do not replace a distinctive existing choice with a fashionable
+neutral default. If the project already has a voice, keep it.
+
+## Category-guess test
+
+If the aesthetic is guessable from the category alone ("fintech = navy and
+trust-blue"), it is generic. Distinctiveness is a goal on a Persuade surface and
+may be actively harmful on an Operate one — see the visitor-success mode in
+`context/instructions/ui.md`.
+
+## Copy
+
+- State what will happen; do not hedge or decorate.
+- One voice; the interface's, not the model's.
+- Never invent a number, a customer or a capability (see `ui.md`, truth vs
+  demonstration).
+
+## Review
+
+- Review against the brief and the existing direction, not against a trend.
+- Report findings by severity and decide: keep, refine or rework.
+- A taste judgement is a judgement, not a measurement — never present a score as
+  proof of quality (see `context/instructions/ui-accessibility.md` for the
+  usability heuristic checklist, which is explicitly not a visual-quality score).
+
+## Boundary
+
+- Concrete values: `context/instructions/ui-tokens.md`.
+- Interaction, states and copy mechanics: `context/instructions/ui-components.md`.
+- Accessibility review: `context/instructions/ui-accessibility.md`.
+- Rendered evidence: `context/instructions/browser.md`.
