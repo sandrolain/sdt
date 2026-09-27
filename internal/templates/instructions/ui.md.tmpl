@@ -1,0 +1,127 @@
+# UI/UX — authoring doctrine
+
+`context/instructions/ui.md` is the contract for any user-interface work:
+layouts, components, colour, type, spacing, motion, copy and review. It is
+project-agnostic — it names decisions, not frameworks or design systems. Read it
+together with `context/instructions/development.md` (the process contract:
+agreement, library-first, simplicity, surgical changes) and the references it
+routes to. Concrete render verification is owned by
+`context/instructions/browser.md`.
+
+## When this applies (no-op rule)
+
+- Use it when the project renders a user interface — a web page, a desktop or
+  mobile app, a terminal UI, a settings screen. If the project has no user
+  interface, this file does not apply: say so and stop.
+- Everything here assumes the project's own stack, tokens and system, not a
+  specific one. If a rule needs a design system the project does not have, do
+  not invent one (see `ui-tokens.md`).
+
+## Priority ladder (tie-breaker)
+
+When guidance conflicts, the higher tier wins:
+
+1. **User needs** — does it help the person do the thing?
+2. **Accessibility** — usable by keyboard, screen reader, low vision, motion
+   sensitivity.
+3. **Consistency** — with the rest of the product, not with a trend.
+4. **Aesthetics** — visual direction and taste.
+5. **Developer experience** — ergonomics of building it.
+
+Taste serves tier 4 and never overrides accessibility.
+
+## Visitor-success mode
+
+Choose one mode from the **requested surface**, not the product; it sets the
+register:
+
+- **Persuade** — landing/marketing: distinctiveness and one clear message.
+- **Operate** — tool/dashboard/settings: earned familiarity is the virtue;
+  clarity beats novelty.
+- **Read** — long-form: typography and rhythm serve comprehension.
+- **Experience** — interactive/immersive: the interaction is the point, with its
+  cost declared.
+
+What reads as a cliché on a Persuade surface may be the correct convention on an
+Operate one, so `ui-taste.md` does not apply uniformly across modes.
+
+## Refine or redesign — classify first
+
+- **Refine preserves; redesign replaces** — decide which was asked before
+  touching anything.
+- **Visual authority is evidence, not a filename**: a missing design-system
+  document does not make a project greenfield, and the old look is evidence of the
+  subject, not authority over it.
+- On a redesign, routes/slugs, navigation labels, form field names and order, the
+  logo, and legal/consent copy never change silently — they are contract, not
+  style.
+
+## The work loop
+
+1. **Design read** — before generating, state in one short line how you read the
+   request. Ask at most one clarifying question, and only when the read genuinely
+   diverges; never ask for CSS values or offer canned aesthetic lanes.
+2. **Build** — reuse the project's existing vocabulary and follow the decision
+   reference for what you are changing (router below).
+3. **Verify — bounded** — build fully, then inspect once in a single batched
+   round (desktop and mobile together); fix everything in one batch; confirm with
+   at most one more round; stop. Open-ended self-QA is waste.
+4. **Close** — state the disposition and, if you degraded, what is unverified.
+
+**Capture validity** — a capture is evidence only when it is opened and confirmed
+against its name: no blank regions, sane dimensions, the document top where it is
+claimed, entrance motion settled.
+
+## State coverage
+
+For every interactive element, enumerate the states —
+default, hover, focus, active, disabled, loading, error, selected — render the
+ones that apply, and say why the others do not. Focus-visible must exist for
+keyboard users; never remove focus styling without an equally visible
+replacement. The component reference (`ui-components.md`) details variants,
+composition and overlays.
+
+## Accessibility (P0)
+
+Accessible by default, not as a later pass: a name and role for every control,
+full keyboard operation, visible focus, sufficient contrast, adequate target
+size, and motion that respects reduced-motion. This tier outranks aesthetics.
+The full rules live in `ui-accessibility.md`.
+
+## Truth vs demonstration
+
+Commercial and factual claims — prices, customers, benchmarks, endpoints,
+capabilities — are **uninventable**; do not fabricate them. Demonstration content
+is authored at full fidelity and labelled synthetic — never leave placeholder
+text as final, and never substitute chrome (a fake screenshot, a hand-rolled
+icon) for real content.
+
+## Verification and honesty
+
+- **Never state a number you did not measure**; report only what a check produced.
+- **Render and LOOK** — rules do not prove pixels; a layout claim needs a render
+  (`context/instructions/browser.md`).
+- **A skipped gate is not a pass** — say which claim is therefore unverified.
+- **Self-review is not review** — the closing pass is fresh eyes with no inherited
+  transcript; a silently degraded review has failed.
+- Declare a degraded result; do not let it pass as complete.
+
+## Which file to read
+
+| Decision | Read |
+|---|---|
+| Colour, spacing, type, radius, motion tokens | `context/instructions/ui-tokens.md` |
+| Building or changing a component | `context/instructions/ui-components.md` |
+| Any interactive or visual change, plus review | `context/instructions/ui-accessibility.md` |
+| Layout, visual direction, copy, review | `context/instructions/ui-taste.md` |
+| Mapping a framework's idioms | `context/instructions/ui-adapters.md` |
+| Rendering the result to verify it | `context/instructions/browser.md` |
+
+## Boundary
+
+- `development.md` owns the process: agree style/architecture first, library-first,
+  simplicity, surgical changes. Where both apply, cite it; do not restate it.
+- This module states design doctrine only. It prescribes no framework, no
+  component library and no design system.
+- Vector assets (icons, logos, illustrations) are owned by
+  `context/instructions/vector.md`.
