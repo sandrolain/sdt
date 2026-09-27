@@ -48,8 +48,8 @@ func commandsIndexContent(project string, now time.Time) string {
 	for _, id := range contextCommandIDs() {
 		set[id] = true
 	}
-	for _, id := range agentCommandIDs {
-		set[id] = true
+	for _, s := range agentCommandStubs {
+		set[s.id] = true
 	}
 	ids := make([]string, 0, len(set))
 	for id := range set {

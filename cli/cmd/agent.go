@@ -133,26 +133,43 @@ func writeInstructionFiles(project, group string, force bool) []FileResult {
 	return results
 }
 
-// agentCommandIDs are the agent-visible task triggers that get a thin command
-// file under context/commands/. Each id maps to a durable contract at
-// context/instructions/<id>.md; command files invoke/reference it, never move
-// or duplicate it.
+// commandStub declares one agent-invocable trigger generated under
+// context/commands/: its trigger id and the durable instruction contract it
+// invokes. The generated stubs and the commands index derive from this single
+// declared set — it is deliberately not a pure function of the instruction set,
+// because only some instruction types are agent-invocable.
 
-var agentCommandIDs = []string{
-	"ingestion", ctxTypeWiki, ctxTypeAnalysis, ctxTypePlan, ctxTypeTasks, ctxTypeProposal,
-	ctxTypeDecision, ctxTypeArchitecture, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions,
-	"prompts", "reference", ctxTypeResearch,
+type commandStub struct {
+	id       string
+	contract string // instruction id (no extension), e.g. "analysis"
+}
+
+var agentCommandStubs = []commandStub{
+	{id: "ingestion", contract: "ingestion"},
+	{id: ctxTypeWiki, contract: ctxTypeWiki},
+	{id: ctxTypeAnalysis, contract: ctxTypeAnalysis},
+	{id: ctxTypePlan, contract: ctxTypePlan},
+	{id: ctxTypeTasks, contract: ctxTypeTasks},
+	{id: ctxTypeProposal, contract: ctxTypeProposal},
+	{id: ctxTypeDecision, contract: ctxTypeDecision},
+	{id: ctxTypeArchitecture, contract: ctxTypeArchitecture},
+	{id: ctxTypeWorklog, contract: ctxTypeWorklog},
+	{id: ctxTypeNotes, contract: ctxTypeNotes},
+	{id: ctxTypeQuestions, contract: ctxTypeQuestions},
+	{id: "prompts", contract: "prompts"},
+	{id: "reference", contract: "reference"},
+	{id: ctxTypeResearch, contract: ctxTypeResearch},
 }
 
 // commandFiles returns the generated command files under context/commands/:
-// one thin trigger per agent-visible task plus the index. The index is built
-// last from a directory scan so user-created triggers are listed too and
-// survive `sdt agent init --force`.
+// one thin trigger per declared agent-invocable task plus the index. The index
+// is built last from a directory scan so user-created triggers are listed too
+// and survive `sdt agent init --force`.
 
 func commandFiles(project string, now time.Time) []instructionFile {
 	var files []instructionFile
-	for _, id := range agentCommandIDs {
-		files = append(files, instructionFile{name: id + ".md", body: instrCommandStubTemplate(id, id, project, now)})
+	for _, s := range agentCommandStubs {
+		files = append(files, instructionFile{name: s.id + sdtMarkdownExt, body: instrCommandStubTemplate(s.id, s.contract, project, now)})
 	}
 	files = append(files, instructionFile{name: filepath.Base(sdtCommandsIndex), body: commandsIndexContent(project, now)})
 	return files

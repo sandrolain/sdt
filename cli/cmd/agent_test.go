@@ -1986,6 +1986,43 @@ func TestInstructionTemplateBodyDynamicData(t *testing.T) {
 	}
 }
 
+// TestCommandStubsResolveToInstructions is the parity guard for the declared
+// command registry: every stub's durable contract resolves to a generated
+// instruction file, and ids are unique.
+func TestCommandStubsResolveToInstructions(t *testing.T) {
+	generated := map[string]bool{}
+	for _, f := range instructionFiles("p", "g") {
+		generated[f.name] = true
+	}
+	seen := map[string]bool{}
+	for _, s := range agentCommandStubs {
+		if seen[s.id] {
+			t.Errorf("duplicate command stub id %q", s.id)
+		}
+		seen[s.id] = true
+		if !generated[s.contract+sdtMarkdownExt] {
+			t.Errorf("command stub %q: contract %q has no generated instruction file", s.id, s.contract)
+		}
+	}
+}
+
+// TestGeneratedCommandFilesMatchRegistry checks commandFiles() emits one file
+// per registry stub plus the index.
+func TestGeneratedCommandFilesMatchRegistry(t *testing.T) {
+	files := commandFiles("p", contextNow())
+	if len(files) != len(agentCommandStubs)+1 {
+		t.Fatalf("commandFiles() = %d files, want %d stubs + index", len(files), len(agentCommandStubs))
+	}
+	for i, s := range agentCommandStubs {
+		if files[i].name != s.id+sdtMarkdownExt {
+			t.Errorf("position %d: got %q, want %q", i, files[i].name, s.id+sdtMarkdownExt)
+		}
+	}
+	if want := filepath.Base(sdtCommandsIndex); files[len(files)-1].name != want {
+		t.Errorf("last file = %q, want index %q", files[len(files)-1].name, want)
+	}
+}
+
 func TestAgentPromptNonTTY(t *testing.T) {
 	runInTempDir(t)
 	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes")
