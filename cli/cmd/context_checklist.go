@@ -161,6 +161,28 @@ func updateChecklistItem(content, idArg, status, reason string) (string, error) 
 	return strings.Join(lines, "\n"), nil
 }
 
+// resolveChecklistItem returns the item addressed by idArg — the anchor id
+// first, the positional ordinal as fallback — mirroring checklistLineFor.
+func resolveChecklistItem(content, idArg string) (checklistItem, bool) {
+	items := parseChecklistItems(content)
+	if n, ok := parseChecklistID(idArg); ok {
+		anchor := "c" + strconv.Itoa(n)
+		for _, it := range items {
+			if it.ID == anchor {
+				return it, true
+			}
+		}
+	}
+	if n, err := strconv.Atoi(strings.TrimSpace(idArg)); err == nil && n >= 1 {
+		for _, it := range items {
+			if it.Line == n {
+				return it, true
+			}
+		}
+	}
+	return checklistItem{}, false
+}
+
 // checklistLineFor resolves idArg to a line index: the anchor id when present,
 // otherwise the 1-based ordinal among checklist items, or -1.
 func checklistLineFor(lines []string, idArg string) int {
