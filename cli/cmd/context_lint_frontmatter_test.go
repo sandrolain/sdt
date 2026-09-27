@@ -77,18 +77,26 @@ func TestValidateFrontmatter(t *testing.T) {
 }
 
 func TestValidateFrontmatterIgnoresStatusLikeBodyProse(t *testing.T) {
-	paths := []string{
-		"../../context/analysis/20260925-171816-slides-corpus-lane-implementation.md",
-		"../../context/plan/20260920-131900-plan-cli-doc-management-homogeneity.md",
-		"../../context/worklog/20260920-163722-cli-doc-management-homogeneity-closeout.md",
+	documents := []struct {
+		name    string
+		content string
+	}{
+		{
+			name:    "analysis",
+			content: "---\nkind: analysis\nsummary: test\nstatus: active\n---\nThe status vocabulary includes `status: draft`.\n",
+		},
+		{
+			name:    "plan",
+			content: "---\nkind: plan\nsummary: test\nstatus: completed\n---\nThe frontmatter `status` field tracks lifecycle.\n",
+		},
+		{
+			name:    "worklog",
+			content: "---\nkind: worklog\nsummary: test\n---\nThe status setter rejects worklog documents.\n",
+		},
 	}
-	for _, path := range paths {
-		t.Run(filepath.Base(path), func(t *testing.T) {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := validateFrontmatter(data); err != nil {
+	for _, doc := range documents {
+		t.Run(doc.name, func(t *testing.T) {
+			if err := validateFrontmatter([]byte(doc.content)); err != nil {
 				t.Fatalf("status-like body prose must not invalidate frontmatter: %v", err)
 			}
 		})
