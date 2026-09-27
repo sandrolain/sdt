@@ -1,0 +1,61 @@
+# UI/UX — framework adapters
+
+`context/instructions/ui-adapters.md` is the chosen-format contract for the UI/UX
+module: it says **how** the module's doctrine maps onto whatever framework the
+project already uses. It is the companion of `context/instructions/ui.md` (the
+doctrine) and it prescribes no framework — read it with
+`context/instructions/ui-tokens.md` and
+`context/instructions/ui-components.md`.
+
+## When this applies
+
+- Use it when the project uses a UI framework and the mapping from the doctrine
+  to that framework's idioms is not obvious: theming, component API, styling,
+  dark mode, motion.
+- If the project has no framework, or the mapping is already documented in the
+  project block, this file does not apply: say so and stop.
+
+## The adapter contract
+
+An adapter is a short document (a project note or a section of the project block)
+that answers five questions for one framework:
+
+1. **Token resolution** — how the project's tokens become the framework's
+   theming primitive (a theme object, CSS custom properties, a config), and where
+   that mapping lives.
+2. **Component contract** — how a component declares variants and sizes, which
+   states it exposes, how accessibility is wired, and the composition idiom
+   (children, slots, render props).
+3. **Styling strategy** — the one way styles are applied in this project; do not
+   mix strategies.
+4. **Theming and dark mode** — how a theme is selected and swapped, and where
+   the swap happens (the semantic layer, per `ui-tokens.md`).
+5. **Motion** — how transitions are declared, and how reduced motion is honoured
+   without killing hierarchy and feedback (`ui-accessibility.md`).
+
+## Authoring a missing adapter
+
+When the project's framework has no adapter yet, write one on demand:
+
+1. Name the framework and version.
+2. Answer the five contract questions above, citing the project's real files.
+3. Verify each answer by looking at the code, not the framework's marketing.
+4. Record it where the project keeps conventions (typically the AGENTS.md project
+   block), not in this generated file.
+5. Reuse an existing adapter if one already covers the framework; do not fork it
+   per feature.
+6. Keep it short: an adapter is a mapping, not a tutorial.
+
+## Motion doctrine
+
+- One authored moment per surface, not the same entrance everywhere.
+- Motion conveys a change of state; it is not decoration.
+- `prefers-reduced-motion` preserves hierarchy and feedback; it does not set
+  every duration to near-zero.
+
+## Boundary
+
+- The doctrine is `context/instructions/ui.md`; tokens and components are in
+  `ui-tokens.md` and `ui-components.md`.
+- Choosing or adopting a framework is a library-first decision
+  (`context/instructions/development.md`); this file only says how to map one.
