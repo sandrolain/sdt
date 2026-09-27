@@ -137,9 +137,10 @@ Before closing a phase run the **verify-step**: completeness, coherence, correct
 `sdt context reindex` and `sdt context lint`; run `sdt context status` to
 detect stale in-progress files; `sdt agent doctor` reports workspace health, and
 `sdt agent gate` runs the strict delivery ladder (Build -> Vet -> Lint -> Test,
-fail-closed) when a hard gate is wanted. Use a standardized claim vocabulary in task
-files: **passed** (ran and verified), **expected** (written, not run),
-**inferred** (static analysis only).
+fail-closed) when a hard gate is wanted. Regenerate the per-command docs
+(`sdt context docs`) when the command help or the version changed. Use a
+standardized claim vocabulary in task files: **passed** (ran and verified),
+**expected** (written, not run), **inferred** (static analysis only).
 
 At session end: note open tasks and questions in `context/tasks/` or
 `context/questions/` for continuity.

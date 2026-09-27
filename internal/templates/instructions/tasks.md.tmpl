@@ -139,10 +139,11 @@ sections handle that.
 
 ## Stale task files
 
-At the start of any execution pass, scan `context/tasks/` for stale
-files: status `in-progress` (or legacy `active`) with `[~]` in-progress items that went
-unupdated for a long time (compare each file's `updated` with the current
-date and the recorded take-in). For each stale file:
+At the start of any execution pass, run `sdt context status` (it flags
+`in-progress` files) and scan `context/tasks/` for stale files: status
+`in-progress` (or legacy `active`) with `[~]` items that went unupdated for a
+long time (compare each file's `updated` with the current date and the recorded
+take-in). For each stale file:
 
 1. Receive it and adjust status: locate the exact point of work from
    `updated` and the `[~]` markers.
@@ -154,7 +155,10 @@ date and the recorded take-in). For each stale file:
 4. If the phase is finished but not closed: mark items `[x]`, set the file
    `completed`, update the plan, note it in the worklog.
 
-Never leave `[~]` in-progress markers unattended across sessions.
+Never leave `[~]` in-progress markers unattended across sessions, and never
+archive a stale task file to hide it: `completed` (or `pending` after a reset)
+is the normal terminal state, and archiving is reserved for a task file the user
+explicitly retires.
 
 ## Verify-step
 
@@ -168,3 +172,11 @@ a lint SUGGESTION). Every finding ends as one of the closed verdicts
 **CONFIRMED**, **DISPROVED** or **UNVERIFIED**, with evidence (command output,
 file path). Findings are validated in an **independent pass**; the author of the
 phase does not self-approve.
+
+Close-out checks, run before setting the file `completed`:
+
+- `sdt context reindex` and `sdt context lint` — index regenerated, no new
+  findings.
+- `sdt context status` — no stale `in-progress` file left behind.
+- `sdt context docs` — regenerate the per-command docs when the command help or
+  the version changed (see `context/sdtdocs/README.md`).
