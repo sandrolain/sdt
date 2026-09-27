@@ -1,9 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/goccy/go-yaml"
+	"github.com/spf13/cobra"
 )
 
 // ── typed, bidirectional parent relations ──────────────────────────────────────
@@ -268,6 +272,163 @@ func ctxRelField(doc ctxRelDoc, field string) string {
 		return doc.planID
 	}
 	return ""
+}
+
+// ── context relations backfill ─────────────────────────────────────────────────
+
+type ctxRelationsBackfillResult struct {
+	Action  string   `json:"action" yaml:"action"`
+	Scanned int      `json:"scanned" yaml:"scanned"`
+	Linked  int      `json:"linked" yaml:"linked"`
+	Skipped int      `json:"skipped" yaml:"skipped"`
+	Paths   []string `json:"paths,omitempty" yaml:"paths,omitempty"`
+}
+
+// runRelationsBackfill derives the typed parent edges from `sources` and stamps
+// both directions idempotently. It requires the uid backfill (the edges are
+// keyed by uid) and never rewrites a uid or an existing parent id. With dryRun
+// it reports the would-change files without writing.
+func runRelationsBackfill(dryRun bool) (ctxRelationsBackfillResult, error) {
+	res := ctxRelationsBackfillResult{Action: statusWritten}
+	if dryRun {
+		res.Action = statusDryRun
+	}
+	if !uidBackfillDone() {
+		return res, fmt.Errorf("uid backfill required first: run `sdt context uid backfill` before `sdt context relations backfill`")
+	}
+	files, err := ctxUIDFiles()
+	if err != nil {
+		return res, err
+	}
+	uidToPath := map[string]string{}
+	for _, path := range files {
+		if uid := ctxDocUID(path); uid != "" {
+			uidToPath[uid] = path
+		}
+	}
+
+	for _, path := range files {
+		data, rerr := os.ReadFile(path) //#nosec G304 -- fixed repo path
+		if rerr != nil {
+			return res, rerr
+		}
+		content := string(data)
+		kind := parseFrontmatterField(content, "kind")
+		childField := ctxParentField(kind)
+		if childField == "" {
+			continue
+		}
+		res.Scanned++
+		childUID := parseFrontmatterField(content, "uid")
+		if childUID == "" {
+			res.Skipped++
+			continue
+		}
+		parentKind := ctxParentKind(kind)
+		parentUID := parseFrontmatterField(content, childField)
+		parentPath := ""
+		if parentUID != "" {
+			parentPath = uidToPath[parentUID]
+		}
+		childChanged := false
+		if parentUID == "" || parentPath == "" {
+			// Derive the parent from `sources` when the typed edge is absent or
+			// no longer resolves.
+			srcPath, srcUID := ctxSourceParent(content, parentKind)
+			if srcUID == "" {
+				res.Skipped++
+				continue
+			}
+			parentPath, parentUID = srcPath, srcUID
+			if parseFrontmatterField(content, childField) != parentUID {
+				content, childChanged = stampChildParent(content, kind, parentUID)
+			}
+		}
+
+		parentData, perr := os.ReadFile(parentPath) //#nosec G304 -- context work file
+		if perr != nil {
+			res.Skipped++
+			continue
+		}
+		parentUpdated, parentChanged := appendFrontmatterListValue(string(parentData), ctxChildrenField(parentKind), childUID)
+		if !childChanged && !parentChanged {
+			res.Skipped++
+			continue
+		}
+		res.Linked++
+		res.Paths = append(res.Paths, path)
+		if dryRun {
+			continue
+		}
+		if childChanged {
+			//#nosec G306 -- user work file
+			if werr := os.WriteFile(path, []byte(content), 0o644); werr != nil {
+				return res, werr
+			}
+		}
+		if parentChanged {
+			//#nosec G306 -- user work file
+			if werr := os.WriteFile(parentPath, []byte(parentUpdated), 0o644); werr != nil {
+				return res, werr
+			}
+		}
+	}
+	return res, nil
+}
+
+func outputRelationsBackfill(cmd *cobra.Command, res ctxRelationsBackfillResult) {
+	switch getFormat(cmd) {
+	case fmtJSON:
+		out, err := json.MarshalIndent(res, "", "  ")
+		exitWithError(cmd, err)
+		outputBytes(cmd, out)
+	case fmtYAML:
+		out, err := yaml.Marshal(res)
+		exitWithError(cmd, err)
+		outputBytes(cmd, out)
+	default:
+		verb := "linked"
+		if res.Action == statusDryRun {
+			verb = "would link"
+		}
+		outputString(cmd, fmt.Sprintf("%s %d relation(s); %d scanned, %d already in step\n", verb, res.Linked, res.Scanned, res.Skipped))
+		for _, p := range res.Paths {
+			outputString(cmd, p+"\n")
+		}
+	}
+}
+
+var contextRelationsCmd = &cobra.Command{
+	Use:   "relations",
+	Short: "Manage typed parent relations",
+	Long: `Manage the typed, bidirectional parent relations keyed by the document ` + "`uid`" + `.
+
+  sdt context relations backfill [--dry-run]   derive the plan→analysis and
+                                               task→plan edges from ` + "`sources`" + ` and stamp both directions`,
+}
+
+var contextRelationsBackfillCmd = &cobra.Command{
+	Use:   "backfill",
+	Short: "Derive the typed parent relations from sources",
+	Long: `Walk the ` + "`sources`" + ` derivation chain of every plan and task file and stamp
+the typed parent relation in both directions: ` + "`analysis_id`" + `/` + "`plans_ids`" + ` and
+` + "`plan_id`" + `/` + "`tasks_ids`" + `. Requires the uid backfill first (the edges are keyed
+by uid). Idempotent; --dry-run only reports.
+
+Examples:
+  sdt context relations backfill
+  sdt context relations backfill --dry-run --format json`,
+	Args: cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		res, err := runRelationsBackfill(getBoolFlag(cmd, "dry-run", false))
+		exitWithError(cmd, err)
+		outputRelationsBackfill(cmd, res)
+	},
+}
+
+func init() {
+	contextRelationsBackfillCmd.Flags().Bool("dry-run", false, "Report without writing anything")
+	contextRelationsCmd.AddCommand(contextRelationsBackfillCmd)
 }
 
 func relListContains(doc ctxRelDoc, field, value string) bool {
