@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/sandrolain/sdt/internal/logging"
 	"github.com/sandrolain/sdt/internal/semantic"
 )
 
@@ -96,7 +97,12 @@ func newServeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			setupLogger(logFormat)
+			logging.Setup(logging.Options{
+				Writer: os.Stderr,
+				Level:  slog.LevelInfo,
+				JSON:   logFormat == "json",
+				Time:   true,
+			})
 			var overrides semanticOverrides
 			if f := cmd.Flags().Lookup("semantic"); f != nil && f.Changed {
 				if v, err := cmd.Flags().GetBool("semantic"); err == nil {
@@ -120,16 +126,6 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().Bool("semantic", false, "enable the semantic search branch (overrides .sdt.yaml search.semantic); /api/search?semantic=1 then serves RRF-fused results")
 	cmd.Flags().String("semantic-model", "", "embedding model for the semantic branch (default BASE8M; see `sdt models fetch` to prefetch)")
 	return cmd
-}
-
-// setupLogger installs the slog default logger in text or json format.
-func setupLogger(format string) {
-	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
-	var handler slog.Handler = slog.NewTextHandler(os.Stderr, opts)
-	if format == "json" {
-		handler = slog.NewJSONHandler(os.Stderr, opts)
-	}
-	slog.SetDefault(slog.New(handler))
 }
 
 // serve resolves the root, builds the handler, optionally opens the browser and
