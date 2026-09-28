@@ -2,9 +2,8 @@ package crawler
 
 import (
 	"fmt"
-	"io"
+	"log/slog"
 	"net/url"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -40,7 +39,9 @@ type Options struct {
 	ExcludedPaths       []string
 	AllowedPaths        []string
 	AllowedPathRegexes  []string
-	Silent              bool
+	// Silent suppresses the periodic crawl progress goroutine; individual
+	// visiting/error lines are gated by the shared logger's level instead.
+	Silent bool
 }
 
 // PageCallback is called when a page is successfully crawled.
@@ -66,7 +67,6 @@ type Crawler struct {
 	options           Options
 	pageCallback      PageCallback
 	documentCallback  DocumentCallback
-	output            io.Writer
 	requestsTotal     int64
 	responsesTotal    int64
 	errorsTotal       int64
@@ -153,18 +153,12 @@ func NewCrawler(startURL string, opts Options) (*Crawler, error) {
 		docCollector.IgnoreRobotsTxt = true
 	}
 
-	output := io.Writer(os.Stdout)
-	if opts.Silent {
-		output = io.Discard
-	}
-
 	cr := &Crawler{
 		collector:         c,
 		documentCollector: docCollector,
 		pages:             []Page{},
 		baseURL:           parsedURL,
 		options:           opts,
-		output:            output,
 	}
 
 	return cr, nil
@@ -319,18 +313,14 @@ func (c *Crawler) setupCallbacks() {
 			atomic.AddInt64(&c.errorsTotal, 1)
 			atomic.AddInt64(&c.inFlight, -1)
 
-			if _, ferr := fmt.Fprintf(c.output, "Error crawling %s: %v\n", r.Request.URL, err); ferr != nil {
-				_ = ferr
-			}
+			slog.Warn("error crawling", "url", r.Request.URL.String(), "err", err)
 		})
 
 		c.documentCollector.OnRequest(func(r *colly.Request) {
 			atomic.AddInt64(&c.requestsTotal, 1)
 			atomic.AddInt64(&c.inFlight, 1)
 
-			if _, ferr := fmt.Fprintf(c.output, "Visiting: %s\n", r.URL.String()); ferr != nil {
-				_ = ferr
-			}
+			slog.Info("visiting", "url", r.URL.String())
 		})
 	}
 
@@ -338,18 +328,14 @@ func (c *Crawler) setupCallbacks() {
 		atomic.AddInt64(&c.errorsTotal, 1)
 		atomic.AddInt64(&c.inFlight, -1)
 
-		if _, ferr := fmt.Fprintf(c.output, "Error crawling %s: %v\n", r.Request.URL, err); ferr != nil {
-			_ = ferr
-		}
+		slog.Warn("error crawling", "url", r.Request.URL.String(), "err", err)
 	})
 
 	c.collector.OnRequest(func(r *colly.Request) {
 		atomic.AddInt64(&c.requestsTotal, 1)
 		atomic.AddInt64(&c.inFlight, 1)
 
-		if _, ferr := fmt.Fprintf(c.output, "Visiting: %s\n", r.URL.String()); ferr != nil {
-			_ = ferr
-		}
+		slog.Info("visiting", "url", r.URL.String())
 	})
 }
 
@@ -371,9 +357,9 @@ func (c *Crawler) reportProgress(done <-chan struct{}) {
 			responses := atomic.LoadInt64(&c.responsesTotal)
 			errors := atomic.LoadInt64(&c.errorsTotal)
 
-			if _, err := fmt.Fprintf(c.output, "Progress: requested=%d completed=%d errors=%d in-flight=%d\n", requests, responses, errors, inFlight); err != nil {
-				_ = err
-			}
+			slog.Info("crawl progress",
+				"requested", requests, "completed", responses,
+				"errors", errors, "in-flight", inFlight)
 		}
 	}
 }

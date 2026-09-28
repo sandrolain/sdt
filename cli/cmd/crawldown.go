@@ -146,6 +146,7 @@ as a separate .md file in the output directory.`,
 			ExcludedPaths:       excludedPaths,
 			AllowedPaths:        allowedPaths,
 			AllowedPathRegexes:  allowedPathRegexes,
+			Silent:              getBoolFlag(cmd, "quiet", false),
 		})
 		exitWithError(cmd, err)
 

@@ -7,7 +7,7 @@ package search
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -167,8 +167,8 @@ func New(root string) (*Index, error) {
 		ix.closeLog()
 		return nil, err
 	}
-	log.Printf("sdtviewer: search index built in %s — %d docs (corpus %s)",
-		time.Since(start).Round(time.Millisecond), indexed, corpusPath)
+	slog.Info("search index built", "elapsed", time.Since(start).Round(time.Millisecond),
+		"docs", indexed, "corpus", corpusPath)
 	return ix, nil
 }
 
@@ -311,7 +311,7 @@ func (ix *Index) indexCorpus(dir string) (int, error) {
 	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("sdtviewer: search index empty (no %s)", dir)
+			slog.Info("search index empty", "corpus", dir)
 			return 0, nil
 		}
 		return 0, fmt.Errorf("search corpus: %w", err)
@@ -346,7 +346,7 @@ func (ix *Index) applyTaskObjectives() {
 		d.Objective = plans[taskPlanRefFromRegistry(d)]
 		ix.registry[id] = d
 		if ierr := ix.idx.Index(id, d); ierr != nil {
-			log.Printf("sdtviewer: search index %s: %v", id, ierr)
+			slog.Warn("search index failed", "id", id, "err", ierr)
 		}
 	}
 }
@@ -411,21 +411,20 @@ func (ix *Index) addEntry(dir, path string, d os.DirEntry, err error) error {
 	}
 	cd, perr := parseDoc(docID, path)
 	if perr != nil {
-		log.Printf("sdtviewer: search skip %s: %v", docID, perr)
+		slog.Warn("search index skip", "id", docID, "err", perr)
 		return nil
 	}
 	ix.registry[docID] = cd
 	if ierr := ix.idx.Index(docID, cd); ierr != nil {
-		log.Printf("sdtviewer: search index %s: %v", docID, ierr)
+		slog.Warn("search index failed", "id", docID, "err", ierr)
 	}
 	return nil
-
 }
 
 // closeLog releases the mem index; a close failure is logged, not fatal.
 func (ix *Index) closeLog() {
 	if cerr := ix.idx.Close(); cerr != nil {
-		log.Printf("sdtviewer: search index close: %v", cerr)
+		slog.Warn("search index close failed", "err", cerr)
 	}
 }
 
