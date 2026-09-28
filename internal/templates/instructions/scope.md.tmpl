@@ -1,0 +1,131 @@
+# Recursive Design Flow (`>scope`)
+
+`>scope: <objective>` runs a recursive, phase-ordered elicitation that turns a
+broad or ambiguous objective into a **decision-complete analysis**. It is the
+middle rung of the analysis ladder: `>draft` captures raw notes without asking,
+`>scope` elicits with batched questions, `>analysis` authors or extends a full
+analysis — all three converge on a `status: draft` analysis.
+
+The flow is agent-side and conversational: there is no `sdt scope` CLI, no
+questionnaire engine and no state machine. The only artifact is the analysis
+file. Use it for an objective too broad or ambiguous to write straight into an
+analysis; a well-scoped objective goes directly to `>analysis`.
+
+## Invocation
+
+- Trigger: `>scope`.
+- Payload: the objective to scope — everything after the first `:` on the same
+  line, taken **verbatim** to the end of the turn (multi-line allowed). No flags,
+  no quoting.
+- With no payload, ask for the objective in **one** question; never infer it.
+- The invocation **is** the approval to create exactly one `status: draft`
+  analysis (and to append to it during the flow). The plan gate is untouched:
+  this flow ends at the analysis; `>plan` is a separate command.
+
+## The flow (phases are ordered; do not run ahead)
+
+0. **Constitution** — only if the user has already fixed non-negotiables (stack,
+   standards, explicit exclusions): capture them in one confirmation and treat
+   them as fixed. If nothing is fixed, skip the phase without asking.
+1. **Specify (tech-free)** — beneficiary, success criterion, what concretely
+   changes. No framework, language or component name may appear here. If the
+   user already said it, validate it in one line and move on.
+2. **Clarify (recursive)** — behaviour and rules. Multiple choice when the
+   alternatives are enumerable, prose when a description is needed, and a
+   concrete example ("a real case: X happens — what must the system do?")
+   whenever the subject is a behaviour rule. After each answer, check whether it
+   opened new sub-questions.
+3. **Plan (technical)** — architecture, stack, contracts, persistence,
+   errors/edge cases, security, performance, deploy/operations, testing and
+   acceptance. The stack choice runs through the library-first evaluation of
+   HARD RULE 8 (web search + shortlist + user approval), then records the chosen
+   library, not just the category. Irrelevant areas are skipped **without
+   asking**.
+4. **Close** — run the decomposition gate (below), then finalise the analysis:
+   `summary` written, `## Constraints`, `## Behaviour decisions`,
+   `## Design decisions` and `## Assumptions & Unknowns` completed, residual
+   points registered in `context/questions/`, `updated` refreshed with
+   `sdt context touch`, and `status` flipped to `active` with
+   `sdt context status set`. Then stop.
+
+## Elicitation rhythm
+
+- Batch up to **three independent** choices per turn; a batchable choice has
+  enumerable alternatives.
+- Ask **alone** anything whose answer changes the next question.
+- This deliberately overrides the reference skill's "one question per turn": do
+  not "fix" it back.
+
+## Non-pedantry (operational)
+
+A question is worth asking only when **a different answer would change the
+implementation outcome**. Everything else gets a default, taken by the agent and
+declared in `## Assumptions & Unknowns`.
+
+- **Ask**: choices that look reversible but are expensive to reverse (data model,
+  public contract, dependency); behaviour rules whose wrong answer wastes a
+  phase; anything the exit test below flags.
+- **Do not ask**: naming, file layout, formatting, values with an obvious
+  default, and anything the user already answered in the objective or in an
+  active analysis (integrate it — HARD RULE 1).
+
+## Termination (the exit test)
+
+The flow ends when, for every applicable area, exactly one state holds:
+
+- **decided** — the answer is recorded with its source (user answer, repo
+  evidence, library documentation);
+- **assumed** — a declared assumption with a confidence level and a stated
+  default;
+- **deferred** — registered in `context/questions/` with the options and a
+  suggested default, so the flow closes without an open point in the analysis.
+
+and the **summary test** holds: *an implementer starting now would not have to
+guess either what to build or how, and every choice they would have to make is
+written down.* The user may close at any time ("basta", "concludi"); the areas
+left open are recorded as assumptions or questions — **never** as an "Aperto"
+section.
+
+## Write timing and resumability
+
+- Create the analysis on the **first turn**:
+  `sdt context new --type analysis --title "<objective>" --status draft
+  --objective <slug> --summary "<one line>"`; append phase by phase.
+- Keep a `## Scope flow` block in the body with `state: <phase>` and the
+  coverage states, so a new session resumes instead of restarting.
+- `>scope: <same objective>` with an existing draft of that objective
+  **continues** it (after confirming with the user); it never creates a sibling.
+- An abandoned draft stays `draft` (the honest state); `sdt context status`
+  counts it. Never archive it to hide it.
+
+## Port mapping (reference → analysis contract)
+
+| Reference (v2) | Analysis destination |
+|---|---|
+| Cosa e perché (Specify) | `## Problem statement` (+ `## Current state` for facts) |
+| Vincoli non negoziabili (Constitution) | `## Constraints` (optional) |
+| Decisioni di comportamento (Clarify) | `## Behaviour decisions` (optional) |
+| Decisioni tecniche (Plan) | `## Design decisions` (optional), referenced by the plan |
+| Assunzioni | `## Assumptions & Unknowns` (mandatory) |
+| Aperto / da definire | **not in the analysis** → `context/questions/` |
+| output file path | `context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md` (`draft` → `active`) |
+
+## Decomposition gate
+
+If the objective turns out to be broad — several domains, more than one
+recommendation, or more than one plan — do **not** write one giant analysis:
+propose the split (sibling slugs, shared `objective`, umbrella document) in
+**one** question and wait (rule R1 of the analysis-decomposition analysis). Record
+the options found along the way as postponed options per rule R3 of the same
+analysis.
+
+## Rules
+
+- Compose, do not restate, HARD RULES 1, 6, 7 and 8 (intent gate, frontmatter +
+  `summary`, style/architecture agreed a priori, library-first).
+- No open points in the analysis: residuals go to `context/questions/`, never an
+  "Aperto" section.
+- The flow produces the analysis only; the plan is `>plan` and needs its own
+  approval.
+- All file mutations go through the CLI (`sdt context new`, `sdt context status
+  set`, `sdt context touch`, `sdt context check`) — never hand-write state.

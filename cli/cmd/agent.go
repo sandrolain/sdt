@@ -165,6 +165,7 @@ var agentCommandStubs = []commandStub{
 	{id: ctxTypeWiki, contract: ctxTypeWiki},
 	{id: ctxTypeAnalysis, contract: ctxTypeAnalysis},
 	{id: "draft", contract: "draft"},
+	{id: "scope", contract: "scope"},
 	{id: ctxTypePlan, contract: ctxTypePlan},
 	{id: ctxTypeTasks, contract: ctxTypeTasks},
 	{id: ctxTypeProposal, contract: ctxTypeProposal},

@@ -54,9 +54,12 @@ session: <session id>        # optional
 
 ## Problem statement
 ## Current state
+## Constraints             # optional: fixed non-negotiables
 ## Assumptions & Unknowns
 ## Non-goals
 ## Investigation
+## Behaviour decisions     # optional: rule + concrete example + decider
+## Design decisions        # optional: technical choice + rationale
 ## Options considered
 ### Option A: <name>
 ### Option B: <name>
@@ -81,9 +84,19 @@ session: <session id>        # optional
   the conclusion.
 - **Non-goals** — what this analysis deliberately does not cover, to keep it
   bounded.
+- **Constraints** (optional) — fixed non-negotiables (mandated stack, standards,
+  explicit exclusions) captured once, usually by a `>scope` Constitution phase.
+  Distinct from assumptions: a constraint is a decision already taken, not a
+  guess.
 - **Investigation** — what was tried, checked, tested. Include dead ends; they
   save the next person (human or agent) from repeating them. Format:
   `<step taken> → <result / finding>`, incl. "ruled out because ...".
+- **Behaviour decisions** (optional) — each rule with its concrete example and
+  who decided it (user answer or a declared default). A rule without its example
+  is the ambiguity this section exists to remove.
+- **Design decisions** (optional) — technical choices with their rationale,
+  filled by the `>scope` Plan phase; the plan's Design contract references them
+  and may only change one with an explicit note.
 - **Options considered** — only if the analysis leads to a choice; otherwise
   omit. One subsection per option: Description, Pros, Cons, Effort/risk.
 - **Evidence / sources** — links, benchmark numbers, upstream issues, docs that
