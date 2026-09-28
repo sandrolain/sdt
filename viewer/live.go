@@ -123,6 +123,8 @@ func (s *server) stopWatching() {
 }
 
 // corpusWatcher debounces fsnotify events and reports changed corpus paths.
+// The run goroutine exclusively owns pending, timer and timerC: handle and
+// flush are only ever called from run, so no lock is needed.
 type corpusWatcher struct {
 	w        *fsnotify.Watcher
 	root     string
@@ -130,6 +132,7 @@ type corpusWatcher struct {
 	onChange func([]string)
 	pending  map[string]struct{}
 	timer    *time.Timer
+	timerC   <-chan time.Time
 }
 
 // watchCorpus adds a recursive watch over dir and calls onChange with the
@@ -151,6 +154,7 @@ func watchCorpus(root, dir string, debounce time.Duration, onChange func([]strin
 }
 
 func (cw *corpusWatcher) run() {
+	defer cw.stopTimer()
 	for {
 		select {
 		case event, open := <-cw.w.Events:
@@ -163,6 +167,9 @@ func (cw *corpusWatcher) run() {
 				return
 			}
 			slog.Warn("sdtviewer: watch error", "err", watchErr)
+		case <-cw.timerC:
+			cw.timerC = nil
+			cw.flush()
 		}
 	}
 }
@@ -180,10 +187,25 @@ func (cw *corpusWatcher) handle(event fsnotify.Event) {
 		return
 	}
 	cw.pending[rel] = struct{}{}
+	cw.armTimer()
+}
+
+// armTimer (re)arms the debounce timer on the run goroutine. The discarded
+// timer, if it had already fired, leaves its value in the now-unreferenced
+// channel, so no drain is needed.
+func (cw *corpusWatcher) armTimer() {
 	if cw.timer != nil {
 		cw.timer.Stop()
 	}
-	cw.timer = time.AfterFunc(cw.debounce, cw.flush)
+	cw.timer = time.NewTimer(cw.debounce)
+	cw.timerC = cw.timer.C
+}
+
+// stopTimer releases the debounce timer when run returns.
+func (cw *corpusWatcher) stopTimer() {
+	if cw.timer != nil {
+		cw.timer.Stop()
+	}
 }
 
 func (cw *corpusWatcher) flush() {
