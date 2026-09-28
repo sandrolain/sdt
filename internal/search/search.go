@@ -48,24 +48,25 @@ type SectionMeta struct {
 type Result struct {
 	// Section is the matched section id (`<anchor>`), when section-level hits
 	// are enabled; empty for whole-document hits.
-	Section   string   `json:"section,omitempty"`
-	Path      string   `json:"path"`
-	Kind      string   `json:"kind,omitempty"`
-	Status    string   `json:"status,omitempty"`
-	Title     string   `json:"title,omitempty"`
-	Summary   string   `json:"summary,omitempty"`
-	Objective string   `json:"objective,omitempty"`
-	Topics    []string `json:"topics,omitempty"`
-	Entities  []string `json:"entities,omitempty"`
-	Created   string   `json:"created,omitempty"`
-	Modified  string   `json:"modified,omitempty"`
-	Score     float64  `json:"score"`
-	Snippet   string   `json:"snippet"`
-	IsMap     bool     `json:"isMap,omitempty"`
-	MapID     string   `json:"mapId,omitempty"`
-	IsMermaid bool     `json:"isMermaid,omitempty"`
-	MermaidID string   `json:"mermaidId,omitempty"`
-	IsCanvas  bool     `json:"isCanvas,omitempty"`
+	Section    string   `json:"section,omitempty"`
+	Path       string   `json:"path"`
+	Kind       string   `json:"kind,omitempty"`
+	Status     string   `json:"status,omitempty"`
+	Title      string   `json:"title,omitempty"`
+	Summary    string   `json:"summary,omitempty"`
+	Objective  string   `json:"objective,omitempty"`
+	Topics     []string `json:"topics,omitempty"`
+	Entities   []string `json:"entities,omitempty"`
+	Categories []string `json:"categories,omitempty"`
+	Created    string   `json:"created,omitempty"`
+	Modified   string   `json:"modified,omitempty"`
+	Score      float64  `json:"score"`
+	Snippet    string   `json:"snippet"`
+	IsMap      bool     `json:"isMap,omitempty"`
+	MapID      string   `json:"mapId,omitempty"`
+	IsMermaid  bool     `json:"isMermaid,omitempty"`
+	MermaidID  string   `json:"mermaidId,omitempty"`
+	IsCanvas   bool     `json:"isCanvas,omitempty"`
 }
 
 // Results is the response body for /api/search.
@@ -87,6 +88,7 @@ type doc struct {
 	Objective   string
 	Topics      []string
 	Entities    []string
+	Categories  []string
 	Body        string
 	Frontmatter string
 	CreatedDays int64
@@ -122,6 +124,7 @@ func buildIndexMapping() (mapping.IndexMapping, error) {
 	dm.AddFieldMappingsAt("Objective", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Topics", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Entities", bleve.NewKeywordFieldMapping())
+	dm.AddFieldMappingsAt("Categories", bleve.NewKeywordFieldMapping())
 	dm.AddFieldMappingsAt("Body", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("Frontmatter", bleve.NewTextFieldMapping())
 	dm.AddFieldMappingsAt("CreatedDays", bleve.NewNumericFieldMapping())
@@ -476,6 +479,7 @@ func parseDoc(docID, path string) (doc, error) {
 	}
 	d.Topics = contextwiki.FrontmatterList(content, "topics")
 	d.Entities = contextwiki.FrontmatterList(content, "entities")
+	d.Categories = contextwiki.FrontmatterList(content, "categories")
 	// Non-markdown viewable resources (.canvas/.mmd): synthesize kind from the
 	// extension and use the raw file text as the searchable body.
 	if kind, ok := auxKind(docID); ok {
@@ -502,16 +506,17 @@ func auxKind(path string) (string, bool) {
 // the viewer index the same derived document model.
 func docFromEntry(e *mdindex.Entry) doc {
 	d := doc{
-		Path:      e.ID,
-		Name:      e.Name,
-		Kind:      e.Kind,
-		Status:    e.Status,
-		Title:     e.Title,
-		Summary:   e.Summary,
-		Objective: e.Objective,
-		Topics:    e.Topics,
-		Entities:  e.Entities,
-		Body:      e.Body,
+		Path:       e.ID,
+		Name:       e.Name,
+		Kind:       e.Kind,
+		Status:     e.Status,
+		Title:      e.Title,
+		Summary:    e.Summary,
+		Objective:  e.Objective,
+		Topics:     e.Topics,
+		Entities:   e.Entities,
+		Categories: e.Categories,
+		Body:       e.Body,
 	}
 	d.RawCreated = e.Created
 	d.CreatedDays = parseCreatedDays(e.Created)
@@ -546,67 +551,81 @@ func parseCreatedDays(raw string) int64 {
 	return 0
 }
 
-// Search runs a fulltext query with optional kind, objective and from/to date
-// filters, returning up to max ranked hits. Query terms drive a match query; a
-// non-empty issue in the query is treated as an empty result set (never an
-// error).
+// Search runs a fulltext query with optional kind, objective, status, topic and
+// from/to date filters, returning up to max ranked hits. It is the positional
+// wrapper over SearchQuery for callers that do not filter by category.
 func (ix *Index) Search(q, kind, objective, status, topic, from, to string, max int) (Results, error) {
-	if max <= 0 || max > 100 {
-		max = 20
+	return ix.SearchQuery(HybridQuery{
+		Q: q, Kind: kind, Objective: objective, Status: status,
+		Topic: topic, From: from, To: to, Max: max,
+	})
+}
+
+// SearchQuery runs a fulltext query with the query's filter/size set, returning
+// up to q.Max ranked hits. Query terms drive a match query; an empty query is an
+// empty result set, never an error.
+func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
+	if q.Max <= 0 || q.Max > 100 {
+		q.Max = 20
 	}
-	q = strings.TrimSpace(q)
-	if q == "" {
+	text := strings.TrimSpace(q.Q)
+	if text == "" {
 		return Results{Results: []Result{}}, nil
 	}
 	// Filename-aware scoring: a document whose filename matches the query
 	// outranks body-only matches. A disjunction of boosted sub-queries drives
 	// relevance while the filters below stay conjunctive (must).
-	namePhrase := bleve.NewMatchPhraseQuery(q)
+	namePhrase := bleve.NewMatchPhraseQuery(text)
 	namePhrase.SetField("Name")
 	namePhrase.SetBoost(8)
-	nameMatch := bleve.NewMatchQuery(q)
+	nameMatch := bleve.NewMatchQuery(text)
 	nameMatch.SetField("Name")
 	nameMatch.SetBoost(4)
-	titleMatch := bleve.NewMatchQuery(q)
+	titleMatch := bleve.NewMatchQuery(text)
 	titleMatch.SetField("Title")
 	titleMatch.SetBoost(2)
-	bodyMatch := bleve.NewMatchQuery(q)
+	bodyMatch := bleve.NewMatchQuery(text)
 	bodyMatch.SetBoost(1)
 
 	scored := bleve.NewDisjunctionQuery(namePhrase, nameMatch, titleMatch, bodyMatch)
 	must := []query.Query{scored}
 
-	if kind != "" {
-		kindQ := bleve.NewTermQuery(kind)
+	if q.Kind != "" {
+		kindQ := bleve.NewTermQuery(q.Kind)
 		kindQ.SetField("Kind")
 		must = append(must, kindQ)
 	}
-	if objective != "" {
-		objQ := bleve.NewTermQuery(objective)
+	if q.Objective != "" {
+		objQ := bleve.NewTermQuery(q.Objective)
 		objQ.SetField("Objective")
 		must = append(must, objQ)
 	}
-	if status != "" {
-		stQ := bleve.NewTermQuery(status)
+	if q.Status != "" {
+		stQ := bleve.NewTermQuery(q.Status)
 		stQ.SetField("Status")
 		must = append(must, stQ)
 	}
-	if topic != "" {
-		tpQ := bleve.NewTermQuery(topic)
+	if q.Topic != "" {
+		tpQ := bleve.NewTermQuery(q.Topic)
 		tpQ.SetField("Topics")
 		must = append(must, tpQ)
 	}
+	if q.Category != "" {
+		catQ := bleve.NewTermQuery(q.Category)
+		catQ.SetField("Categories")
+		must = append(must, catQ)
+	}
 	epoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	if from != "" {
-		if t, err := time.Parse("2006-01-02", from); err == nil {
+	if q.From != "" {
+		if t, err := time.Parse("2006-01-02", q.From); err == nil {
 			lo := float64(int64(t.Sub(epoch).Hours() / 24))
 			rangeQ := bleve.NewNumericRangeQuery(&lo, nil)
 			rangeQ.SetField("CreatedDays")
 			must = append(must, rangeQ)
 		}
 	}
-	if to != "" {
-		if t, err := time.Parse("2006-01-02", to); err == nil {
+	if q.To != "" {
+		if t, err := time.Parse("2006-01-02", q.To); err == nil {
 			hi := float64(int64(t.AddDate(0, 0, 1).Sub(epoch).Hours() / 24))
 			rangeQ := bleve.NewNumericRangeQuery(nil, &hi)
 			rangeQ.SetField("CreatedDays")
@@ -616,7 +635,7 @@ func (ix *Index) Search(q, kind, objective, status, topic, from, to string, max 
 
 	qry := query.NewBooleanQuery(must, nil, nil)
 	req := bleve.NewSearchRequest(qry)
-	req.Size = max
+	req.Size = q.Max
 	req.SortBy([]string{"-_score"})
 	sr, err := ix.idx.Search(req)
 	if err != nil {
@@ -631,23 +650,24 @@ func (ix *Index) Search(q, kind, objective, status, topic, from, to string, max 
 		isMap := contextwiki.IsMapDoc(doc.Path)
 		isMermaid := contextwiki.IsMermaidDoc(doc.Path)
 		out = append(out, Result{
-			Path:      doc.Path,
-			Kind:      doc.Kind,
-			Status:    doc.Status,
-			Title:     doc.Title,
-			Summary:   doc.Summary,
-			Objective: doc.Objective,
-			Topics:    doc.Topics,
-			Entities:  doc.Entities,
-			Created:   doc.RawCreated,
-			Modified:  doc.Modified,
-			Score:     hit.Score,
-			Snippet:   Snippet(doc, q, 160),
-			IsMap:     isMap,
-			MapID:     mapID(doc.Path, isMap),
-			IsMermaid: isMermaid,
-			MermaidID: mermaidID(doc.Path, isMermaid),
-			IsCanvas:  doc.Kind == canvasKind,
+			Path:       doc.Path,
+			Kind:       doc.Kind,
+			Status:     doc.Status,
+			Title:      doc.Title,
+			Summary:    doc.Summary,
+			Objective:  doc.Objective,
+			Topics:     doc.Topics,
+			Entities:   doc.Entities,
+			Categories: doc.Categories,
+			Created:    doc.RawCreated,
+			Modified:   doc.Modified,
+			Score:      hit.Score,
+			Snippet:    Snippet(doc, text, 160),
+			IsMap:      isMap,
+			MapID:      mapID(doc.Path, isMap),
+			IsMermaid:  isMermaid,
+			MermaidID:  mermaidID(doc.Path, isMermaid),
+			IsCanvas:   doc.Kind == canvasKind,
 		})
 	}
 	total := sr.Total
@@ -686,7 +706,7 @@ func (ix *Index) SemanticSections() []semantic.Section {
 // semantic branch is ranked and then fused, so its hits outside the filter set
 // are dropped when a filter is active.
 func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOptions) (Results, error) {
-	lexical, err := ix.Search(q.Q, q.Kind, q.Objective, q.Status, q.Topic, q.From, q.To, q.Max)
+	lexical, err := ix.SearchQuery(q)
 	if err != nil || opts.Semantic == nil || !opts.Semantic.Available() {
 		if err != nil {
 			return lexical, err
@@ -720,6 +740,7 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 			fused[i].Objective = d.Objective
 			fused[i].Topics = d.Topics
 			fused[i].Entities = d.Entities
+			fused[i].Categories = d.Categories
 			fused[i].Created = d.RawCreated
 			fused[i].Modified = d.Modified
 			fused[i].Snippet = Snippet(d, q.Q, 160)
@@ -752,7 +773,7 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 // registry facet values, so semantic-only fused hits are held to the same
 // filter contract as the lexical branch. Returns nil when no filter is active.
 func hybridFilter(q HybridQuery) func(path string, d *doc) bool {
-	if q.Kind == "" && q.Objective == "" && q.Status == "" && q.Topic == "" && q.From == "" && q.To == "" {
+	if q.Kind == "" && q.Objective == "" && q.Status == "" && q.Topic == "" && q.Category == "" && q.From == "" && q.To == "" {
 		return nil
 	}
 	epoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -778,6 +799,9 @@ func hybridFilter(q HybridQuery) func(path string, d *doc) bool {
 		if q.Topic != "" && !slices.Contains(d.Topics, q.Topic) {
 			return false
 		}
+		if q.Category != "" && !slices.Contains(d.Categories, q.Category) {
+			return false
+		}
 		if loDays != nil && d.CreatedDays < *loDays {
 			return false
 		}
@@ -795,6 +819,7 @@ type HybridQuery struct {
 	Objective string
 	Status    string
 	Topic     string
+	Category  string
 	From      string
 	To        string
 	Max       int

@@ -11,7 +11,7 @@ import (
 
 func TestContextSearchAndShow(t *testing.T) {
 	dir := runInTempDir(t)
-	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nsummary: s\nstatus: active\ntopics:\n  - context-search\n---\n\n## Hybrid\n\nbleve static embeddings rrf fusion\n\n## Other\n\nunrelated text\n")
+	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nsummary: s\nstatus: active\ntopics:\n  - context-search\ncategories:\n  - bug\n---\n\n## Hybrid\n\nbleve static embeddings rrf fusion\n\n## Other\n\nunrelated text\n")
 	writeCtxDoc(t, "context/analysis/old.md", "---\nkind: analysis\nsummary: s\nstatus: archived\n---\n\n## Old\n\nbleve static embeddings legacy\n")
 
 	// Reset the per-invocation index cache between tests.
@@ -34,6 +34,17 @@ func TestContextSearchAndShow(t *testing.T) {
 	byTopic := string(execute(t, contextSearchCmd, nil, "bleve", "--topic", "context-search"))
 	if !strings.Contains(byTopic, "context/analysis/a.md") {
 		t.Errorf("topic filter should match:\n%s", byTopic)
+	}
+
+	ctxSearchIndex = nil
+	byCategory := string(execute(t, contextSearchCmd, nil, "bleve", "--category", "bug"))
+	if !strings.Contains(byCategory, "context/analysis/a.md") {
+		t.Errorf("category filter should match:\n%s", byCategory)
+	}
+	ctxSearchIndex = nil
+	missCategory := string(execute(t, contextSearchCmd, nil, "bleve", "--category", "research"))
+	if strings.Contains(missCategory, "context/analysis/a.md") {
+		t.Errorf("category filter should exclude a doc without that category:\n%s", missCategory)
 	}
 
 	// show: whole doc vs section vs lines (reads from disk, no index).

@@ -82,15 +82,16 @@ func ctxBuildSearchIndex(cmd *cobra.Command) *search.Index {
 }
 
 type ctxSearchHit struct {
-	Path      string   `json:"path" yaml:"path"`
-	Section   string   `json:"section,omitempty" yaml:"section,omitempty"`
-	Kind      string   `json:"kind,omitempty" yaml:"kind,omitempty"`
-	Status    string   `json:"status,omitempty" yaml:"status,omitempty"`
-	Title     string   `json:"title,omitempty" yaml:"title,omitempty"`
-	Objective string   `json:"objective,omitempty" yaml:"objective,omitempty"`
-	Topics    []string `json:"topics,omitempty" yaml:"topics,omitempty"`
-	Score     float64  `json:"score" yaml:"score"`
-	Snippet   string   `json:"snippet,omitempty" yaml:"snippet,omitempty"`
+	Path       string   `json:"path" yaml:"path"`
+	Section    string   `json:"section,omitempty" yaml:"section,omitempty"`
+	Kind       string   `json:"kind,omitempty" yaml:"kind,omitempty"`
+	Status     string   `json:"status,omitempty" yaml:"status,omitempty"`
+	Title      string   `json:"title,omitempty" yaml:"title,omitempty"`
+	Objective  string   `json:"objective,omitempty" yaml:"objective,omitempty"`
+	Topics     []string `json:"topics,omitempty" yaml:"topics,omitempty"`
+	Categories []string `json:"categories,omitempty" yaml:"categories,omitempty"`
+	Score      float64  `json:"score" yaml:"score"`
+	Snippet    string   `json:"snippet,omitempty" yaml:"snippet,omitempty"`
 }
 
 var contextSearchCmd = &cobra.Command{
@@ -124,6 +125,7 @@ Examples:
 			Objective: getStringFlag(cmd, "objective", false),
 			Status:    status,
 			Topic:     getStringFlag(cmd, "topic", false),
+			Category:  getStringFlag(cmd, "category", false),
 			From:      getStringFlag(cmd, "since", false),
 			To:        getStringFlag(cmd, "until", false),
 			Max:       limit,
@@ -137,7 +139,7 @@ Examples:
 			}
 			res, err = ix.SearchHybrid(cmd.Context(), hq, search.HybridOptions{Semantic: sem})
 		} else {
-			res, err = ix.Search(hq.Q, hq.Kind, hq.Objective, hq.Status, hq.Topic, hq.From, hq.To, hq.Max)
+			res, err = ix.SearchQuery(hq)
 		}
 		exitWithError(cmd, err)
 		hits := make([]ctxSearchHit, 0, len(res.Results))
@@ -145,7 +147,8 @@ Examples:
 			hits = append(hits, ctxSearchHit{
 				Path: r.Path, Section: r.Section, Kind: r.Kind, Status: r.Status,
 				Title: r.Title, Objective: r.Objective, Topics: r.Topics,
-				Score: r.Score, Snippet: r.Snippet,
+				Categories: r.Categories,
+				Score:      r.Score, Snippet: r.Snippet,
 			})
 		}
 		switch getFormat(cmd) {

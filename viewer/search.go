@@ -79,6 +79,7 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	objective := r.URL.Query().Get("objective")
 	status := r.URL.Query().Get("status")
 	topic := r.URL.Query().Get("topic")
+	category := r.URL.Query().Get("category")
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
 	max := 20
@@ -96,11 +97,14 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("semantic") == "1" {
 		hq := search.HybridQuery{
 			Q: q, Kind: kind, Objective: objective, Status: status,
-			Topic: topic, From: from, To: to, Max: max,
+			Topic: topic, Category: category, From: from, To: to, Max: max,
 		}
 		res, err = s.index().SearchHybrid(r.Context(), hq, search.HybridOptions{Semantic: s.semanticIndex()})
 	} else {
-		res, err = s.index().Search(q, kind, objective, status, topic, from, to, max)
+		res, err = s.index().SearchQuery(search.HybridQuery{
+			Q: q, Kind: kind, Objective: objective, Status: status,
+			Topic: topic, Category: category, From: from, To: to, Max: max,
+		})
 	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})

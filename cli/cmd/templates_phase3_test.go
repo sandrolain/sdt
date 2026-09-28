@@ -185,6 +185,30 @@ func TestTopicsSeedGolden(t *testing.T) {
 	}
 }
 
+// TestCategoriesSeedGolden locks the seed of context/categories.yaml.
+func TestCategoriesSeedGolden(t *testing.T) {
+	want := "# context/categories.yaml — controlled vocabulary for the `categories` frontmatter field.\n" +
+		"#\n" +
+		"# Canonical categories are kebab-case slugs; a category classifies the kind of\n" +
+		"# work a document is (bug, issue, new feature, ...), not its subject (that is\n" +
+		"# `topics`). Aliases are accepted by `sdt context lint` and reported with the\n" +
+		"# canonical form. Seeded with the agreed set; extend or trim to fit the project.\n" +
+		"categories:\n" +
+		"  bug:\n" +
+		"    - bugfix\n" +
+		"  issue: []\n" +
+		"  new-feature:\n" +
+		"    - feat\n" +
+		"  feature-change: []\n" +
+		"  refactor: []\n" +
+		"  improvement:\n" +
+		"    - enhancement\n" +
+		"  research: []\n"
+	if got := categoriesRegisterTemplate; got != want {
+		t.Errorf("categories seed mismatch\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 // TestWorkReadmeTemplateGolden locks the static shell of context/README.md and
 // verifies the registry-driven Commands block is appended exactly once.
 func TestWorkReadmeTemplateGolden(t *testing.T) {

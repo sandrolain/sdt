@@ -10,6 +10,8 @@ export interface TreeEntry {
   objective?: string;
   /** frontmatter `status` (plan/task execution state) */
   status?: string;
+  /** frontmatter `categories` (analysis work-type slugs) */
+  categories?: string[];
   /** frontmatter `sources` references (the derivation edge), corpus-relative.
    *  The frontmatter `links` list is generic correlation and is NOT merged here;
    *  surfaces that display both read them from the /api/doc frontmatter. */
@@ -119,6 +121,8 @@ export interface SearchResult {
   summary?: string;
   /** frontmatter `objective` grouping key (kebab-case slug) */
   objective?: string;
+  /** frontmatter `categories` (analysis work-type slugs) */
+  categories?: string[];
   created?: string;
   /** frontmatter `updated` date, else file mtime (fallback) */
   modified?: string;
@@ -147,6 +151,8 @@ export interface SearchQuery {
   kind?: string;
   /** exact frontmatter objective filter; omitted when empty */
   objective?: string;
+  /** exact frontmatter category filter; omitted when empty */
+  category?: string;
   /** inclusive frontmatter created-date bounds (YYYY-MM-DD); omitted when empty */
   from?: string;
   to?: string;
@@ -165,12 +171,13 @@ export function fetchDoc(path: string): Promise<DocResponse | CanvasResponse | M
   return getJSON(`/api/doc?path=${encodeURIComponent(path)}`);
 }
 
-/** Compose the /api/search URL, omitting empty q/kind/objective/from/to params. */
+/** Compose the /api/search URL, omitting empty q/kind/objective/category/from/to params. */
 export function buildSearchUrl(query: SearchQuery): string {
   const params = new URLSearchParams();
   params.set("q", query.q);
   if (query.kind) params.set("kind", query.kind);
   if (query.objective) params.set("objective", query.objective);
+  if (query.category) params.set("category", query.category);
   if (query.from) params.set("from", query.from);
   if (query.to) params.set("to", query.to);
   if (query.limit != null) params.set("limit", String(query.limit));

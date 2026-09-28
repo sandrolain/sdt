@@ -285,6 +285,46 @@ describe("DocMetaPanel", () => {
     expect(document.querySelector(".meta-status__dot--danger")).toBeTruthy();
   });
 
+  it("renders the categories field as a labelled chip row", () => {
+    mockFetch();
+    renderPanel({
+      path: "context/analysis/a.md",
+      frontmatter: [
+        "---",
+        "kind: analysis",
+        "status: draft",
+        "categories: [bug, refactor]",
+        "---",
+      ].join("\n"),
+      markdown: "body",
+    });
+    expect(screen.getByText("Categories")).toBeTruthy();
+    expect(screen.getByText("bug")).toBeTruthy();
+    expect(screen.getByText("refactor")).toBeTruthy();
+  });
+
+  it("shows a draft analysis with the dedicated draft tone", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree") {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              entries: [{ path: "context/analysis/d.md", kind: "analysis", status: "draft" }],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderPanel({
+      path: "context/analysis/d.md",
+      frontmatter: "---\nkind: analysis\nstatus: draft\n---\n",
+      markdown: "body",
+    });
+    expect(await screen.findByText("Analysis to be written")).toBeTruthy();
+    expect(document.querySelector(".meta-status__dot--draft")).toBeTruthy();
+  });
+
   it("uses the neutral tone for an archived analysis metadata dot", async () => {
     globalThis.fetch = vi.fn((url: string) => {
       if (url === "/api/tree") {

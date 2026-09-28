@@ -87,6 +87,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 |------|-------------|
 | `context/instructions/project.md` | First time working on the project |
 | `context/instructions/analysis.md` | Creating or modifying an analysis |
+| `context/instructions/draft.md` | Capturing raw notes as a draft analysis (`>draft: <notes>`) |
 | `context/instructions/plan.md` | Creating or modifying a plan |
 | `context/instructions/tasks.md` | Creating or modifying task files |
 | `context/instructions/decision.md` | Writing a decision record |

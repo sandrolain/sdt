@@ -58,7 +58,7 @@ func nextDecisionNumber() (string, error) {
 	return fmt.Sprintf("%04d", maxN+1), nil
 }
 
-func contextDecisionFrontmatter(number, title, summary, project, created string) string {
+func contextDecisionFrontmatter(number, title, summary, project, created, status string) string {
 	if summary == "" {
 		summary = ctxSummaryPlaceholder
 	}
@@ -71,7 +71,7 @@ func contextDecisionFrontmatter(number, title, summary, project, created string)
 		b.WriteString("title: " + yamlScalar(title) + "\n")
 	}
 	b.WriteString("summary: " + yamlScalar(summary) + "\n")
-	b.WriteString("status: proposed\n")
+	b.WriteString("status: " + status + "\n")
 	b.WriteString("created: " + created + "\n")
 	b.WriteString("links:\n")
 	if project != "" {
@@ -151,7 +151,7 @@ func yamlScalar(s string) string {
 // the file stays lint-parseable; title/component are emitted only where the
 // type requires them and the value is non-empty.
 
-func contextFrontmatter(typ, title, summary, note, project, component, created, objective, id, agent, role, noteType string, topics, entities []string) string {
+func contextFrontmatter(typ, title, summary, note, project, component, created, objective, id, agent, role, noteType, statusOverride string, topics, entities, categories []string) string {
 	if summary == "" {
 		summary = ctxSummaryPlaceholder
 	}
@@ -184,19 +184,16 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	if role != "" {
 		b.WriteString("role: " + yamlScalar(role) + "\n")
 	}
-	if topics != nil {
-		b.WriteString("topics:\n")
-		for _, t := range topics {
-			b.WriteString("  - " + yamlScalar(t) + "\n")
+	writeFrontmatterList(&b, "topics", topics)
+	writeFrontmatterList(&b, "entities", entities)
+	writeFrontmatterList(&b, "categories", categories)
+	st := statusOverride
+	if st == "" {
+		if def, ok := ctxDefaultStatusFor(typ); ok {
+			st = def
 		}
 	}
-	if entities != nil {
-		b.WriteString("entities:\n")
-		for _, e := range entities {
-			b.WriteString("  - " + yamlScalar(e) + "\n")
-		}
-	}
-	if st, ok := ctxDefaultStatusFor(typ); ok {
+	if st != "" {
 		b.WriteString("status: " + st + "\n")
 	}
 	if typ == ctxTypeArchitecture && component != "" {
@@ -211,6 +208,19 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	}
 	b.WriteString("---\n")
 	return b.String()
+}
+
+// writeFrontmatterList emits a YAML block-list field (topics/entities/…),
+// skipping it entirely when the list is nil.
+
+func writeFrontmatterList(b *strings.Builder, key string, values []string) {
+	if values == nil {
+		return
+	}
+	b.WriteString(key + ":\n")
+	for _, v := range values {
+		b.WriteString("  - " + yamlScalar(v) + "\n")
+	}
 }
 
 // sanitizeReferenceList trims references, drops empties and de-duplicates them
@@ -308,7 +318,9 @@ and falls back to a MANDATORY-fill placeholder so the file passes lint. For
 decision type the next NNNN number is auto-assigned (override with --number).
 --objective attaches a kebab-case grouping key (analysis, notes or plan; on a
 notes entry it ties a dead-end to its objective); a plan defaults its objective
-from the analysis named by --source. --source records a derivation reference in
+from the analysis named by --source. --status sets the initial lifecycle state,
+validated against the type's vocabulary (the type's default when omitted; a type
+without a status rejects the flag). --source records a derivation reference in
 ` + "`sources`" + ` and ` + "`links`" + ` (repeatable). Wiki pages
 accept subpath ids (` + "`--slug backend/auth`" + `) and carry ` + "`id`" + ` equal to that
 subpath. --agent and --role record who produced a notes/worklog entry;
@@ -319,6 +331,7 @@ Examples:
   sdt context new --type worklog --title "review deps" --input "reviewed deps"
   sdt context new --type plan --title "ship memory" --force
   sdt context new --type analysis --title "memory backend" --objective memory --input "..."
+  sdt context new --type analysis --title "to investigate" --status draft
   sdt context new --type architecture --title "config loading" --summary "config loading component"
   sdt context new --type decision --title "Auth choice" --summary "Use JWT for auth"
 	sdt context new --type questions --title "open api questions"
@@ -352,8 +365,10 @@ Examples:
 		agent := getStringFlag(cmd, "agent", false)
 		role := getStringFlag(cmd, "role", false)
 		noteType := getStringFlag(cmd, "note-type", false)
+		statusOverride := getStringFlag(cmd, "status", false)
 		topics := sanitizeSlugList(getStringArrayFlag(cmd, "topic", false))
 		entities := sanitizeSlugList(getStringArrayFlag(cmd, "entity", false))
+		rawCategories := getStringArrayFlag(cmd, "category", false)
 		if objective != "" {
 			if typ != ctxTypeAnalysis && typ != ctxTypeNotes && typ != ctxTypePlan {
 				exitWithError(cmd, fmt.Errorf("--objective is only supported for --type analysis, notes or plan, got %q", typ))
@@ -366,6 +381,40 @@ Examples:
 		// --objective is omitted.
 		if objective == "" && typ == ctxTypePlan && len(sources) > 0 {
 			objective = ctxObjectiveFromSource(sources[0])
+		}
+		if statusOverride != "" {
+			st, ok := ctxTypeLookup(typ)
+			if !ok || len(st.statuses) == 0 {
+				exitWithError(cmd, fmt.Errorf("--status is not supported for --type %s (no status vocabulary)", typ))
+			}
+			if !ctxStatusInVocab(st, statusOverride) {
+				exitWithError(cmd, fmt.Errorf("invalid status %q for type %s (use %s)", statusOverride, typ, ctxStatusVocab(st)))
+			}
+		}
+		var categories []string
+		if len(rawCategories) > 0 {
+			if typ != ctxTypeAnalysis {
+				exitWithError(cmd, fmt.Errorf("--category is only supported for --type analysis, got %q", typ))
+			}
+			catReg, catErr := loadCategoryRegister()
+			if catErr != nil {
+				catReg = &ctxCategoryRegister{Categories: map[string][]string{}, Aliases: map[string]string{}}
+			}
+			seenCat := map[string]bool{}
+			for _, raw := range rawCategories {
+				c := strings.TrimSpace(raw)
+				if !ctxTopicSlugRegexp.MatchString(c) {
+					exitWithError(cmd, fmt.Errorf("--category must be a kebab-case slug (lowercase alphanumeric and '-'), got %q", raw))
+				}
+				if canon, ok := catReg.canonical(c); ok {
+					c = canon
+				}
+				if seenCat[c] {
+					continue
+				}
+				seenCat[c] = true
+				categories = append(categories, c)
+			}
 		}
 		if noteType != "" {
 			if typ != ctxTypeNotes {
@@ -402,7 +451,11 @@ Examples:
 				exitWithError(cmd, err)
 			}
 			path = filepath.Join(sdtDecisionsDir, decNum+"-"+slug+".md")
-			content = contextDecisionFrontmatter(decNum, title, summary, project, created)
+			decStatus := statusOverride
+			if decStatus == "" {
+				decStatus, _ = ctxDefaultStatusFor(ctxTypeDecision)
+			}
+			content = contextDecisionFrontmatter(decNum, title, summary, project, created, decStatus)
 		} else {
 			var err error
 			path, err = contextPath(typ, slug, "", "")
@@ -411,7 +464,7 @@ Examples:
 			if typ == ctxTypeArchitecture {
 				component = slug
 			}
-			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective, slug, agent, role, noteType, topics, entities)
+			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective, slug, agent, role, noteType, statusOverride, topics, entities, categories)
 			// Prior-art prefill (analyses only, opt-in): propose related
 			// documents in the body and, with --prior-art-links, in `links`.
 			if typ == ctxTypeAnalysis && getBoolFlag(cmd, "prior-art", false) {

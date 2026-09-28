@@ -42,6 +42,7 @@ const LABELS: Record<string, string> = {
   type: "Type",
   tags: "Tags",
   topics: "Topics",
+  categories: "Categories",
   objective: "Objective",
   relations: "Relations",
   sources: "Sources",
@@ -162,7 +163,7 @@ export function parseFrontmatter(frontmatter?: string): FrontmatterField[] {
 }
 
 /** Tone vocabulary shared with the status-dot model (see statusDot.ts). */
-export type ValueTone = "danger" | "warn" | "ok" | "neutral";
+export type ValueTone = "danger" | "warn" | "ok" | "neutral" | "draft";
 
 export interface ValueLabel {
   label: string;
@@ -192,8 +193,8 @@ export const STATUS_VALUES: Record<string, ValueLabel> = {
   },
   "analysis.draft": {
     label: "Draft",
-    meaning: "Started, not yet concluded",
-    tone: "warn",
+    meaning: "To be written or started, not yet concluded",
+    tone: "draft",
   },
   "analysis.completed": {
     label: "Completed",

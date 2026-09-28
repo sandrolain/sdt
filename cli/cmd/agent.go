@@ -164,6 +164,7 @@ var agentCommandStubs = []commandStub{
 	{id: "ingestion", contract: "ingestion"},
 	{id: ctxTypeWiki, contract: ctxTypeWiki},
 	{id: ctxTypeAnalysis, contract: ctxTypeAnalysis},
+	{id: "draft", contract: "draft"},
 	{id: ctxTypePlan, contract: ctxTypePlan},
 	{id: ctxTypeTasks, contract: ctxTypeTasks},
 	{id: ctxTypeProposal, contract: ctxTypeProposal},
@@ -483,6 +484,7 @@ func ensureWorkDirs(force bool) []FileResult {
 		{sdtWorkReadme, sdtWorkReadmeContent()},
 		{sdtScriptsIndex, scriptsIndexTemplate},
 		{ctxTopicsFilePath, topicsRegisterTemplate},
+		{ctxCategoriesFilePath, categoriesRegisterTemplate},
 	}
 	for _, f := range files {
 		res := FileResult{Path: f.path}

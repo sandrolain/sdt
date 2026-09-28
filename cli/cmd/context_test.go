@@ -385,6 +385,52 @@ func TestContextNewObjectiveBadSlug(t *testing.T) {
 	})
 }
 
+func TestContextNewStatusOverride(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "todo", "--status", "draft")
+	content := mustReadFile(t, filepath.Join("context", "analysis", "20260806-070000-todo.md"))
+	if !strings.Contains(content, "status: draft") {
+		t.Errorf("expected status: draft:\n%s", content)
+	}
+}
+
+func TestContextNewStatusDefaultsWhenOmitted(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+
+	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "active-one")
+	content := mustReadFile(t, filepath.Join("context", "analysis", "20260806-070000-active-one.md"))
+	if !strings.Contains(content, "status: active") {
+		t.Errorf("expected default status: active:\n%s", content)
+	}
+}
+
+func TestContextNewStatusDecision(t *testing.T) {
+	runInTempDir(t)
+
+	execute(t, contextNewCmd, nil, "--type", "decision", "--title", "Auth choice", "--status", "accepted")
+	content := mustReadFile(t, filepath.Join("context", "decisions", "0001-auth-choice.md"))
+	if !strings.Contains(content, "status: accepted") {
+		t.Errorf("expected status: accepted:\n%s", content)
+	}
+}
+
+func TestContextNewStatusInvalid(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "x", "--status", "bogus"))
+	})
+}
+
+func TestContextNewStatusNoVocabulary(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextNewCmd, nil, "--type", "notes", "--slug", "x", "--status", "active"))
+	})
+}
+
 func TestContextNewPlanObjective(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))

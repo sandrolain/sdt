@@ -78,4 +78,5 @@
   --ok: var(--ctp-green);
   --warn: var(--ctp-yellow);
   --info: var(--ctp-blue);
+  --draft: var(--ctp-peach);
 }

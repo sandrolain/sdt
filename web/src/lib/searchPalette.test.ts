@@ -31,11 +31,13 @@ describe("paletteReducer", () => {
   it("composes filters independently", () => {
     let state = paletteReducer(initialPaletteState, { type: "kind", value: "wiki" });
     state = paletteReducer(state, { type: "objective", value: "viewer" });
+    state = paletteReducer(state, { type: "category", value: "bug" });
     state = paletteReducer(state, { type: "from", value: "2026-01-01" });
     state = paletteReducer(state, { type: "to", value: "2026-12-31" });
     expect(state.filters).toEqual({
       kind: "wiki",
       objective: "viewer",
+      category: "bug",
       from: "2026-01-01",
       to: "2026-12-31",
     });
@@ -101,6 +103,12 @@ describe("buildSearchUrl", () => {
     const url = buildSearchUrl({ q: "tokens", objective: "viewer", limit: 5 });
     const params = new URLSearchParams(url.split("?")[1]);
     expect(params.get("objective")).toBe("viewer");
+  });
+
+  it("includes the category filter", () => {
+    const url = buildSearchUrl({ q: "tokens", category: "bug", limit: 5 });
+    const params = new URLSearchParams(url.split("?")[1]);
+    expect(params.get("category")).toBe("bug");
   });
 });
 

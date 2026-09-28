@@ -810,6 +810,9 @@
   .tree-folder__dot--neutral {
     background: var(--info);
   }
+  .tree-folder__dot--draft {
+    background: var(--draft);
+  }
   .tree-folder__count {
     color: var(--fg-faint);
   }
@@ -843,6 +846,9 @@
   }
   .tree-entry__dot--neutral {
     background: var(--info);
+  }
+  .tree-entry__dot--draft {
+    background: var(--draft);
   }
   .tree-folder ul {
     list-style: none;
@@ -1046,6 +1052,9 @@
   }
   .meta-status__dot--neutral {
     background: var(--info);
+  }
+  .meta-status__dot--draft {
+    background: var(--draft);
   }
   .meta-status__label {
     flex: none;

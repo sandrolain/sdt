@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/goccy/go-yaml"
@@ -79,6 +80,10 @@ Examples:
 			files, err = filterContextFilesByProvenance(files, agent, role)
 			exitWithError(cmd, err)
 		}
+		if categories := getStringArrayFlag(cmd, "category", false); len(categories) > 0 {
+			files, err = filterContextFilesByCategory(files, categories)
+			exitWithError(cmd, err)
+		}
 		outputStringList(cmd, files)
 	},
 }
@@ -100,6 +105,27 @@ func filterContextFilesByProvenance(files []string, agent, role string) ([]strin
 			continue
 		}
 		out = append(out, f)
+	}
+	return out, nil
+}
+
+// filterContextFilesByCategory keeps the files whose frontmatter `categories`
+// list contains any of the requested categories (any-match).
+
+func filterContextFilesByCategory(files []string, categories []string) ([]string, error) {
+	var out []string
+	for _, f := range files {
+		data, err := os.ReadFile(f) //#nosec G304 -- path from listContextFiles
+		if err != nil {
+			return nil, err
+		}
+		docCats := parseFrontmatterList(string(data), "categories")
+		for _, c := range categories {
+			if slices.Contains(docCats, c) {
+				out = append(out, f)
+				break
+			}
+		}
 	}
 	return out, nil
 }

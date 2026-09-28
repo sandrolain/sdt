@@ -336,6 +336,52 @@ func TestSearchKindFilter(t *testing.T) {
 	}
 }
 
+func TestSearchCategoryFilter(t *testing.T) {
+	root := t.TempDir()
+	p := filepath.Join(root, "context", "analysis", "categorized.md")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	doc := `---
+kind: analysis
+title: Categorized study
+categories:
+  - bug
+  - refactor
+created: 2026-09-16
+---
+
+Categorword body about a fix.
+`
+	if err := os.WriteFile(p, []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+
+	// Any-match: both stored categories on the same document hit.
+	for _, category := range []string{"bug", "refactor"} {
+		res, err := ix.SearchQuery(HybridQuery{Q: "categorword", Category: category, Max: 5})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Total != 1 || len(res.Results) != 1 || res.Results[0].Path != "context/analysis/categorized.md" {
+			t.Fatalf("category=%s results = %+v, want the categorized doc", category, res)
+		}
+		if len(res.Results[0].Categories) != 2 {
+			t.Errorf("result categories = %v, want 2", res.Results[0].Categories)
+		}
+	}
+
+	res, _ := ix.SearchQuery(HybridQuery{Q: "categorword", Category: "research", Max: 5})
+	if res.Total != 0 {
+		t.Errorf("category=research total = %d, want 0", res.Total)
+	}
+}
+
 func TestSearchObjectiveFilter(t *testing.T) {
 	root := corpus(t)
 	ix, err := New(root)

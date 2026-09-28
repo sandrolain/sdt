@@ -1,8 +1,8 @@
 import type { TreeEntry } from "./api";
 import { valueLabel } from "./frontmatter";
 
-export type StatusTone = "danger" | "warn" | "ok" | "neutral";
-type ActiveStatusTone = Exclude<StatusTone, "neutral">;
+export type StatusTone = "danger" | "warn" | "ok" | "neutral" | "draft";
+type ActiveStatusTone = Exclude<StatusTone, "neutral" | "draft">;
 
 export interface StatusDot {
   tone: StatusTone;
@@ -161,6 +161,7 @@ export function statusDot(
     if (isDoneStatus(status) || status === "resolved") {
       return { tone: "neutral", label: "Analysis archived" };
     }
+    if (status === "draft") return { tone: "draft", label: "Analysis to be written" };
     const plans = analysisPlans.get(entry.path) ?? [];
     if (plans.length === 0) return { tone: "danger", label: "Analysis without a plan" };
     const allPlanTasksDone = plans.every((plan) => {
@@ -188,7 +189,9 @@ export function groupDot(
   const dots = entries
     .filter((entry) => entry.kind === "analysis")
     .map((entry) => statusDot(entry, analysisPlans, taskIndex))
-    .filter((dot): dot is StatusDot => dot !== null && dot.tone !== "neutral");
+    .filter(
+      (dot): dot is StatusDot => dot !== null && dot.tone !== "neutral" && dot.tone !== "draft",
+    );
   if (dots.length === 0) return null;
 
   const done = dots.filter((dot) => dot.tone === "ok").length;

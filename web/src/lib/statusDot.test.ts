@@ -159,6 +159,14 @@ describe("statusDot", () => {
     expect(statusDot({ ...analysis, status: "resolved" }, new Map())?.tone).toBe("neutral");
   });
 
+  it("gives a draft analysis its own tone, never the derived red", () => {
+    const draft = entry({ path: "context/analysis/a.md", kind: "analysis", status: "draft" });
+    expect(statusDot(draft, new Map())).toEqual({
+      tone: "draft",
+      label: "Analysis to be written",
+    });
+  });
+
   it("maps question lifecycle to unanswered and answered dots", () => {
     const question = entry({ path: "context/questions/q.md", kind: "questions", status: "active" });
     expect(statusDot(question, new Map())).toEqual({
@@ -256,6 +264,11 @@ describe("groupDot", () => {
       tone: "ok",
       label: "1/1 analyses completed",
     });
+  });
+
+  it("excludes draft analyses from the aggregate tone", () => {
+    const draft = analysis("draft", "draft");
+    expect(groupDot([draft], new Map())).toBeNull();
   });
 
   it("omits groups with no live analysis dots", () => {

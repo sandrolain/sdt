@@ -46,7 +46,7 @@ interface DocMetaPanelProps {
 }
 
 const DATE_KEYS = new Set(["created", "created_at", "updated"]);
-const CHIP_KEYS = new Set(["tags", "type"]);
+const CHIP_KEYS = new Set(["tags", "type", "categories"]);
 const LINK_KEYS = new Set(["links", "sources", "relations"]);
 const IMAGE_KEYS = new Set(["image"]);
 

@@ -141,6 +141,8 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"notes entry missing `agent`", "add `agent: <tool/role>` to the notes frontmatter so the entry's provenance is recorded (`sdt context list --agent`)"},
 	{"unknown topic", "use a canonical topic from context/topics.yaml (aliases are accepted too), or add the topic to the register"},
 	{"topic ", "use a kebab-case topic slug (lowercase letters, digits and '-')"},
+	{"unknown category", "use a canonical category from context/categories.yaml (aliases are accepted too), or add the category to the register"},
+	{"category ", "use a kebab-case category slug (lowercase letters, digits and '-')"},
 	{"entity ", "use a kebab-case entity slug (lowercase letters, digits and '-')"},
 	{"unknown role", "use a role slug from the closed register (`sdt agent roles show`); unknown `role:` values on worklog/notes entries lose the vocabulary contract"},
 	{"role profile", "run `sdt agent roles check`; fix register/profile mismatches (`sdt agent roles init`/`--force`)"},
@@ -330,6 +332,7 @@ func lintDoc(path string) []ctxLintIssue {
 	// Optional controlled vocabulary: `topics`/`entities` are validated against
 	// context/topics.yaml (alias canonicalization, advisory for unknown).
 	issues = append(issues, lintTopicFields(path, content, ctxTopicReg)...)
+	issues = append(issues, lintCategoryFields(path, content, ctxCategoryReg)...)
 	// Notes provenance: record who produced the entry. Advisory (SUGGESTION) so
 	// existing notes are never hard-flagged and no backfill is forced.
 	if kind == ctxTypeNotes && parseFrontmatterField(content, "agent") == "" {
@@ -922,6 +925,12 @@ Examples:
 			reg = &ctxTopicRegister{Topics: map[string][]string{}, Aliases: map[string]string{}}
 		}
 		ctxTopicReg = reg
+		catReg, catErr := loadCategoryRegister()
+		if catErr != nil {
+			issues = append(issues, ctxLintIssue{Path: ctxCategoriesFilePath, Priority: ctxLintWarning, Message: catErr.Error()})
+			catReg = &ctxCategoryRegister{Categories: map[string][]string{}, Aliases: map[string]string{}}
+		}
+		ctxCategoryReg = catReg
 		if len(args) > 0 {
 			for _, ref := range args {
 				path, err := resolveContextLintPath(ref)

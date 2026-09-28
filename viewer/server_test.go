@@ -862,6 +862,37 @@ func TestTreeQuotedFrontmatter(t *testing.T) {
 	t.Error("analysis entry not found")
 }
 
+func TestTreeCategoriesEntry(t *testing.T) {
+	root := makeCorpus(t)
+	writeFixture(t, root, "context/analysis/categorized-x.md",
+		"---\nkind: analysis\ntitle: Categorized X\nstatus: draft\ncategories:\n  - bug\n  - refactor\n---\n\nbody\n")
+	h, err := newHandler(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Entries []treeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range out.Entries {
+		if e.Path != "context/analysis/categorized-x.md" {
+			continue
+		}
+		if len(e.Categories) != 2 || e.Categories[0] != "bug" || e.Categories[1] != "refactor" {
+			t.Errorf("categories = %v, want [bug refactor]", e.Categories)
+		}
+		return
+	}
+	t.Error("categorized analysis entry not found")
+}
+
 func TestTreePlanSources(t *testing.T) {
 	root := makeCorpus(t)
 	h, err := newHandler(root)

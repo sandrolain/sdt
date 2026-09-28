@@ -37,6 +37,8 @@ objective: <slug>         # optional: kebab-case group key; same slug in every
                           # analysis targeting the same objective
 topics: [<topic>, ...]    # optional: controlled subjects from context/topics.yaml
 entities: [<entity>, ...] # optional: named things the analysis mentions
+categories: [<category>, ...] # optional: work type from context/categories.yaml
+                          # (bug, issue, new-feature, feature-change, refactor, improvement, research)
 status: active            # active | draft | completed | archived — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
@@ -121,6 +123,13 @@ session: <session id>        # optional
   `context/topics.yaml`; `sdt context lint` reports unknown topics
   (SUGGESTION, with the canonical form for aliases) and they feed search filters
   and prior-art detection.
+- `categories` (optional, analyses only): the **kind of work** the analysis is,
+  from the controlled register `context/categories.yaml` (bug, issue,
+  new-feature, feature-change, refactor, improvement, research); multi-valued and
+  distinct from `topics` (subject) and `objective` (initiative). Set it with
+  `sdt context new --type analysis --category <slug>`; `sdt context lint` reports
+  unknown categories (SUGGESTION, with the canonical form for aliases) and
+  `context list`/`search` filter on them.
 - **Find prior art before writing.** `sdt context new --type analysis --prior-art`
   searches the corpus on the objective/title/topics and proposes candidates in a
   `## Prior art` section (add `--prior-art-links` to pre-fill `links`).

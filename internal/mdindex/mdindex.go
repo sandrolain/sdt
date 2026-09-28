@@ -40,13 +40,14 @@ type Entry struct {
 	// re-derives it from the project root when a manifest is loaded.
 	AbsPath string `json:"-"`
 	// Kind, Status, Objective, Title, Summary are frontmatter facets.
-	Kind      string   `json:"kind,omitempty"`
-	Status    string   `json:"status,omitempty"`
-	Objective string   `json:"objective,omitempty"`
-	Title     string   `json:"title,omitempty"`
-	Summary   string   `json:"summary,omitempty"`
-	Topics    []string `json:"topics,omitempty"`
-	Entities  []string `json:"entities,omitempty"`
+	Kind       string   `json:"kind,omitempty"`
+	Status     string   `json:"status,omitempty"`
+	Objective  string   `json:"objective,omitempty"`
+	Title      string   `json:"title,omitempty"`
+	Summary    string   `json:"summary,omitempty"`
+	Topics     []string `json:"topics,omitempty"`
+	Entities   []string `json:"entities,omitempty"`
+	Categories []string `json:"categories,omitempty"`
 	// PlanRef is the corpus id of the plan a task file sources (tasks only,
 	// derived from `sources` only — `links` is correlation, never an edge). A
 	// task's Objective is resolved from the referenced plan after the scan, never
@@ -116,6 +117,7 @@ type Facets struct {
 	Objectives []string `json:"objectives"`
 	Topics     []string `json:"topics"`
 	Entities   []string `json:"entities"`
+	Categories []string `json:"categories"`
 }
 
 // ScanResult is the output of an incremental scan.
@@ -228,19 +230,20 @@ func parseEntry(root, id, path string) (*Entry, error) {
 	content := string(data)
 	_, body := contextwiki.SplitFrontmatter(content)
 	e := &Entry{
-		ID:        id,
-		AbsPath:   path,
-		Kind:      contextwiki.FrontmatterField(content, "kind"),
-		Status:    contextwiki.FrontmatterField(content, "status"),
-		Objective: contextwiki.FrontmatterField(content, "objective"),
-		Title:     contextwiki.FrontmatterField(content, "title"),
-		Summary:   contextwiki.FrontmatterField(content, "summary"),
-		Topics:    contextwiki.FrontmatterList(content, "topics"),
-		Entities:  contextwiki.FrontmatterList(content, "entities"),
-		Created:   contextwiki.FrontmatterField(content, "created"),
-		Updated:   contextwiki.FrontmatterField(content, "updated"),
-		Body:      body,
-		Name:      docName(id),
+		ID:         id,
+		AbsPath:    path,
+		Kind:       contextwiki.FrontmatterField(content, "kind"),
+		Status:     contextwiki.FrontmatterField(content, "status"),
+		Objective:  contextwiki.FrontmatterField(content, "objective"),
+		Title:      contextwiki.FrontmatterField(content, "title"),
+		Summary:    contextwiki.FrontmatterField(content, "summary"),
+		Topics:     contextwiki.FrontmatterList(content, "topics"),
+		Entities:   contextwiki.FrontmatterList(content, "entities"),
+		Categories: contextwiki.FrontmatterList(content, "categories"),
+		Created:    contextwiki.FrontmatterField(content, "created"),
+		Updated:    contextwiki.FrontmatterField(content, "updated"),
+		Body:       body,
+		Name:       docName(id),
 	}
 	// Non-markdown viewable resources (.canvas/.mmd) carry no frontmatter: their
 	// kind is synthesized from the extension and the body is the raw file text.
@@ -357,6 +360,9 @@ func collectFacets(entries map[string]*Entry) *Facets {
 		for _, x := range e.Entities {
 			add("entities", x)
 		}
+		for _, c := range e.Categories {
+			add("categories", c)
+		}
 	}
 	return &Facets{
 		Kinds:      sortedSet(sets["kinds"]),
@@ -364,6 +370,7 @@ func collectFacets(entries map[string]*Entry) *Facets {
 		Objectives: sortedSet(sets["objectives"]),
 		Topics:     sortedSet(sets["topics"]),
 		Entities:   sortedSet(sets["entities"]),
+		Categories: sortedSet(sets["categories"]),
 	}
 }
 

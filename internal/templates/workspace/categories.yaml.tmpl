@@ -1,0 +1,17 @@
+# context/categories.yaml — controlled vocabulary for the `categories` frontmatter field.
+#
+# Canonical categories are kebab-case slugs; a category classifies the kind of
+# work a document is (bug, issue, new feature, ...), not its subject (that is
+# `topics`). Aliases are accepted by `sdt context lint` and reported with the
+# canonical form. Seeded with the agreed set; extend or trim to fit the project.
+categories:
+  bug:
+    - bugfix
+  issue: []
+  new-feature:
+    - feat
+  feature-change: []
+  refactor: []
+  improvement:
+    - enhancement
+  research: []

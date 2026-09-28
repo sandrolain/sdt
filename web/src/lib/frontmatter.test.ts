@@ -91,6 +91,11 @@ describe("valueLabel", () => {
     expect(valueLabel("analysis", "archived")?.tone).toBe("neutral");
     expect(valueLabel("plan", "completed")?.label).toBe("Completed");
     expect(valueLabel("questions", "active")?.tone).toBe("danger");
+    expect(valueLabel("analysis", "draft")).toEqual({
+      label: "Draft",
+      meaning: "To be written or started, not yet concluded",
+      tone: "draft",
+    });
   });
 
   it("normalises case and whitespace", () => {

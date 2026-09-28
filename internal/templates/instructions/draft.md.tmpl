@@ -1,0 +1,46 @@
+# Draft Capture (`>draft`)
+
+`>draft: <notes>` captures raw notes as a draft analysis. It is the
+**raw-capture rung** of the analysis ladder: it never asks a question, and it
+files the note on the right initiative when a draft for that initiative already
+exists. The eliciting alternatives are `>scope` (batched questions) and
+`>analysis` (authoring or extending a full analysis); all three converge on a
+`status: draft` analysis.
+
+## Invocation
+
+- Trigger: `>draft`.
+- Payload: everything after the first `:` on the same line, taken **verbatim** to
+  the end of the turn — this is the note; multi-line payload is allowed. No
+  flags, no quoting. With no `:`, the whole message is the note.
+- The invocation **is** the approval to write exactly one capture (one create, or
+  one append). The file- and plan-creation gates are untouched.
+
+## Capture ritual
+
+1. **Resolve the objective.** Compare the note with the existing `status: draft`
+   analyses (`sdt context list --type analysis`, then read their `objective`,
+   `title` and `topics`). Trust a match only when it is unambiguous.
+2. **Append or create.**
+   - If **exactly one** existing `status: draft` analysis matches the objective,
+     append the note to its body under a `## Notes` section (create the heading
+     when absent) and refresh `updated` with `sdt context touch`.
+   - If **none or more than one** matches, create a new draft:
+     `sdt context new --type analysis --title "<derived title>" --status draft
+     --objective <slug> --input "<note>"`. Omit `--objective` when nothing
+     resolves. Never block the capture on a question; never guess a merge.
+3. **Derive a title and summary** from the note (first meaningful line as the
+   title; one or two sentences as `summary`). Keep the note itself verbatim in
+   the body.
+4. **Report** the file the capture touched (path, created vs appended).
+
+## Rules
+
+- Never ask a question mid-capture: resolve, write, report. A note that matches
+  nothing is still a valid draft with no objective.
+- One invocation writes one file mutation — one create, or one append.
+- The capture is a plain `context/analysis/` document in `draft` state; no new
+  kind, no new directory, no side file.
+- Draining a draft is normal: `>scope` elicits and fills the analysis, `>plan`
+  turns it into a plan. The draft is not migrated.
+- No H1 in the created body (document convention); write `## ` sections.
