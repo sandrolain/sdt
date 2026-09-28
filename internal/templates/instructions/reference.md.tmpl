@@ -7,7 +7,9 @@ Every command is deterministic and machine-readable.
 
 - Input: stdin | `--input "string"` | `--file path` | `--inb64`
 - Output: `--format text|json|yaml` (default text)
-- `--quiet` suppresses informational output; `--no-color` disables ANSI
+- Logging: `--log-format text|json` (default text) to **stderr**; text is
+  coloured on a terminal unless `--no-color` or `NO_COLOR` is set; `--quiet`
+  raises the log level to `Warn` (info/progress hidden, warnings/errors kept)
 - Errors: message to stderr + non-zero exit code
 
 ## Discover commands

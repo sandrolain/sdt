@@ -272,6 +272,7 @@ Key dependencies:
 - `github.com/sethvargo/go-password` — password generation (password)
 - `github.com/segmentio/ksuid`, `github.com/matoous/go-nanoid/v2`, stdlib `uuid` — ID generation (uid)
 - `github.com/hashicorp/go-version` — version comparison (vman)
+- `github.com/lmittmann/tint` — coloured `log/slog` handler
 - `yaml` — YAML frontmatter parsing in the viewer metadata panel (`web/`, lazy-loaded chunk)
 
 ### Build & Run
@@ -327,7 +328,7 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
   pattern: read input via `getInputString`/`getInputBytes`, read flags via
   `getStringFlag`/`getBoolFlag`/`getIntFlag`, output via `outputString`/`outputBytes`,
   errors via `exitWithError(cmd, err)`. Register with `rootCmd.AddCommand(myCmd)` in `init()`.
-- **Global flags** (do not redefine): `--format text|json|yaml`, `--quiet`,
+- **Global flags** (do not redefine): `--format text|json|yaml`, `--log-format text|json`, `--quiet`,
   `--no-color`, `--input`, `--inb64`, `--file`. Read `--format` with `getFormat(cmd)`.
 - **Project-scoped commands** (e.g. `sdt context`) read identity from `--project`/`--group`
   flags, then `.sdt.yaml` (walking up from `$CWD` like `.git`); error if absent.

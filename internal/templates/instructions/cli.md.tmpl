@@ -27,6 +27,22 @@ generated command reference, see `context/instructions/reference.md`.
 - `sdt env parse|get|set|merge` — .env handling
 - `sdt diff --a A --b B --diff-format unified|json-patch`
 
+## Logging
+
+`sdt` writes logs to stderr; stdout carries only the command result. Log
+format is independent of the result `--format`:
+
+- `--log-format text` (default) — console handler (tinted via
+  `github.com/lmittmann/tint`); level and values are coloured on a terminal.
+- `--log-format json` — one structured record per line.
+- Colour is used only on a TTY; `--no-color` and the `NO_COLOR` environment
+  variable force plain text.
+- `--quiet` raises the level to `Warn`, hiding info/progress while keeping
+  warnings and errors.
+
+The standalone viewer (`sdtviewer serve --log-format text|json`) uses the
+same shared logger (`internal/logging`) and keeps a timestamp on every line.
+
 ## Context queries
 
 `sdt context list` and `sdt context search` share one filter engine
