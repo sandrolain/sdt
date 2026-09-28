@@ -82,9 +82,9 @@ The flow ends when, for every applicable area, exactly one state holds:
 
 and the **summary test** holds: *an implementer starting now would not have to
 guess either what to build or how, and every choice they would have to make is
-written down.* The user may close at any time ("basta", "concludi"); the areas
-left open are recorded as assumptions or questions — **never** as an "Aperto"
-section.
+written down.* The user may close at any time ("enough", "wrap up"); the areas
+left open are recorded as assumptions or questions — **never** as an "Open
+points" section.
 
 ## Write timing and resumability
 
@@ -102,12 +102,12 @@ section.
 
 | Reference (v2) | Analysis destination |
 |---|---|
-| Cosa e perché (Specify) | `## Problem statement` (+ `## Current state` for facts) |
-| Vincoli non negoziabili (Constitution) | `## Constraints` (optional) |
-| Decisioni di comportamento (Clarify) | `## Behaviour decisions` (optional) |
-| Decisioni tecniche (Plan) | `## Design decisions` (optional), referenced by the plan |
-| Assunzioni | `## Assumptions & Unknowns` (mandatory) |
-| Aperto / da definire | **not in the analysis** → `context/questions/` |
+| What and why (Specify) | `## Problem statement` (+ `## Current state` for facts) |
+| Non-negotiable constraints (Constitution) | `## Constraints` (optional) |
+| Behaviour decisions (Clarify) | `## Behaviour decisions` (optional) |
+| Technical decisions (Plan) | `## Design decisions` (optional), referenced by the plan |
+| Assumptions | `## Assumptions & Unknowns` (mandatory) |
+| Open / to be defined | **not in the analysis** → `context/questions/` |
 | output file path | `context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md` (`draft` → `active`) |
 
 ## Decomposition gate
@@ -124,7 +124,7 @@ analysis.
 - Compose, do not restate, HARD RULES 1, 6, 7 and 8 (intent gate, frontmatter +
   `summary`, style/architecture agreed a priori, library-first).
 - No open points in the analysis: residuals go to `context/questions/`, never an
-  "Aperto" section.
+  "Open points" section.
 - The flow produces the analysis only; the plan is `>plan` and needs its own
   approval.
 - All file mutations go through the CLI (`sdt context new`, `sdt context status

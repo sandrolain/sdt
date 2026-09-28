@@ -28,7 +28,7 @@ func TestScopeInstructionContract(t *testing.T) {
 		"assumed",
 		"deferred",
 		"context/questions/",
-		"Aperto",
+		"Open points",
 		"Decomposition gate",
 		"resumability",
 		"status: draft",
