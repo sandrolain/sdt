@@ -117,6 +117,8 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/ui-layout.md` | Arranging a surface, spacing and the type scale |
 | `context/instructions/ui-performance.md` | Performance, budgets and measurement |
 | `context/instructions/ui-adapters.md` | Mapping a framework's idioms to the UI doctrine |
+| `context/instructions/mindmap.md` | Authoring or reviewing a mind map |
+| `context/instructions/mindmap-markmap.md` | Writing the markmap markdown dialect |
 | `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |

@@ -1,0 +1,88 @@
+# Mind maps — the markmap markdown dialect
+
+`context/instructions/mindmap-markmap.md` is the contract for writing a mind map
+as markdown in the markmap dialect, and for managing the resulting `.map.md`
+document in the project's corpus. Read it together with
+`context/instructions/mindmap.md` (the format-agnostic doctrine: the outline
+first, one keyword per node, the budgets) and `context/instructions/wiki.md`
+(the relation discipline for corpus documents). The doctrine file owns the
+budgets; this file owns the dialect mechanics.
+
+## The silent-drop list (read this first)
+
+The parser decides what the document *is* by discarding what it does not
+recognise. There is no error and no warning — only absence.
+
+- **Plain paragraphs are dropped verbatim.**
+- **Blockquotes are dropped.**
+- Anything outside this selector is dropped: `h1..h6`, `ul`, `ol`, `li`, `table`,
+  `pre` (fenced code), and a paragraph whose only child is an image.
+
+So never put a sentence in a map where you expect it to appear as a node. The
+failure mode is content disappearing silently, which is why this list comes
+first: check it before trusting anything you wrote.
+
+## Skeleton
+
+- Exactly one root: a single `#` heading, or a frontmatter `title` as the root.
+- `##` for main branches; deeper nesting through `###` headings and nested `-`
+  lists.
+- Headings and lists only — see the silent-drop list above.
+
+## One child level per parent
+
+Do not mix a loose top-level list with sub-headings under the same parent: a new
+child of a smaller level resets the parent's children, so the discarded block
+does not merge — it disappears. Pick one level per parent and stay in it.
+
+## Frontmatter is the options channel, not a container
+
+- Options go under the `markmap:` frontmatter key: `title`, `color`,
+  `colorFreezeLevel`, `duration`, `maxWidth`, `initialExpandLevel`, `extraJs`,
+  `extraCss`, `htmlParser`.
+- Content never belongs in frontmatter.
+- These options are honoured only by renderers that implement them; the plugins a
+  consuming tool registers decide whether maths, syntax highlighting and
+  checkboxes render at all.
+
+## Inline formatting survives
+
+Emphasis, `sup`/`sub`, links, images and `[ ]`/`[x]` checkboxes render inside a
+node — subject to the plugin caveat above.
+
+## Folding markers (with a cost)
+
+`<!-- markmap: fold -->` and `<!-- markmap: foldAll -->` set the initial fold
+state. The cost: they are not standard markdown, so any renderer that is not this
+dialect shows the raw comment.
+
+## Leaves
+
+Tables, fenced code blocks and image-only paragraphs become leaf nodes. Use them
+as leaves only; never hide prose inside one.
+
+## Version scope
+
+The element mapping above was read against the 0.18.x `markmap-html-parser`.
+Re-verify it against the installed version before relying on a parser edge case,
+because a version bump degrades silently: content drops rather than erroring.
+
+## Document management (`.map.md`)
+
+A map is an existing corpus document in a particular form, not a new kind:
+
+- `.map.md` is a **suffix modifier on an existing document kind**, not a kind of
+  its own.
+- The document id is derived by stripping the `.md` extension only, so the map
+  carries its **own** id (`context/notes/plan.map.md` → `context/notes/plan.map`)
+  and links to its base document rather than aliasing it.
+- Frontmatter and `kind` are inherited from the base document type; the map adds
+  no kind-specific schema.
+- **Typed relations** live in the `relations:` frontmatter map over the closed
+  verb vocabulary: `supersedes`, `depends_on`, `refers_to`, `refines`,
+  `implements`, `conflicts_with`, `part_of`, `contains`.
+- `[[target|label]]` wikilinks, optionally with a `#anchor`, are ordinary
+  navigation and are **not** graph edges on their own.
+- **No duplication** — content lives in the map *or* in its base document, never
+  in both. A map that copies its base creates a second source of truth that will
+  drift: the map carries the shape, the base document keeps the prose.

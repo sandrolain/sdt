@@ -1,0 +1,106 @@
+# Mind maps — authoring doctrine
+
+`context/instructions/mindmap.md` is the contract for authoring or revising a
+mind map: a tree that makes a body of knowledge legible at a glance. It is
+format-agnostic — it names the decisions, not a tool. When the map is written as
+markdown, read it together with `context/instructions/mindmap-markmap.md` (the
+dialect and document-management contract) and
+`context/instructions/development.md` (the process contract: agreement,
+library-first, simplicity, surgical changes). It names no rendering tool: a map
+is a document, and any tool that reads the chosen dialect can display it.
+
+## When this applies (no-op rule)
+
+- Use it when the project authors or revises a mind map. If it authors none, this
+  file does not apply — say so and stop.
+- The doctrine is about the *shape* of the map, not the tooling. Choosing a
+  renderer or writing code is a `development.md` decision (library-first), not a
+  rule of this module.
+
+## The work loop
+
+OUTLINE → CHECK → RENDER → COMPARE AGAINST THE SOURCE → FIX.
+
+1. **Outline** — extract the structure from the source as bare nodes, before
+   writing any map syntax. This is a reading and thinking step, not a drawing
+   step.
+2. **Check** — apply the structural rules below to the outline: one keyword per
+   node, one parent per node, disjoint branches, budgets.
+3. **Render** — write the map in the chosen dialect (see
+   `mindmap-markmap.md` for the markdown one).
+4. **Compare against the source** — read the rendered map next to the source and
+   confirm it says nothing the source did not and omits nothing that mattered.
+5. **Fix** — correct every gap found in the comparison.
+
+OUTLINE and RENDER are never merged. Structure discovered while rendering is
+structure invented, and an invented branch is the failure this loop exists to
+prevent.
+
+## One keyword per node
+
+A node is a keyword, never a sentence. Drop the verb, cut the articles, lead with
+the significant word; compress a comparison with `>`/`→`/`vs`. A node that needs a
+whole sentence is a node hiding a paragraph — move the prose to the source
+document and keep the keyword here.
+
+## One parent per node
+
+A node has exactly one parent. If a concept genuinely belongs in two branches, it
+is two nodes or a cross-link, never one node in two places. Ambiguity in a tree
+is invisible, which is exactly why it is forbidden.
+
+## Branches disjoint and collectively exhaustive
+
+The branches of a parent must not overlap and must together cover the parent's
+subject. Overlapping branches are the classic mind-map failure, and they are
+caught by reading the map, not by any tooling.
+
+## Budgets (defaults, not laws)
+
+- 3–7 disjoint branches at the top level.
+- 2–5 children per branch.
+- Depth ≤3 by default.
+- Total nodes in the tens, not the hundreds.
+
+These are defaults with a reason: a map is a reading surface, and past a few
+dozen nodes the reader stops holding the shape in their head. Override them
+knowingly — a reference map for a large system is a legitimate stated exception —
+and say that you did.
+
+## Source fidelity
+
+Never fabricate a node, a reference or a relation. Extract what the source
+contains and flag anything you added beyond it. This is the rule a language model
+breaks most often, and the one that decides whether the map can be trusted.
+
+## Cross-links over invented structure
+
+When the material is a graph and the format is a tree, express the extra edges as
+labelled links to other documents instead of faking a hierarchy that is not
+there. A tree with honest cross-links beats a tree with a branch invented to hold
+an edge.
+
+## A tree is not a concept map — state the limit up front
+
+A mind map has no labelled edges and no multiple parents; a concept map has both.
+When the request is for a concept map, say before starting that the chosen format
+is a tree and that the extra relations will appear as labelled cross-links — or
+choose a deliberately different format. Do not silently substitute one shape for
+the other.
+
+## Honesty rule
+
+- Never claim a map is faithful without having compared it to the source (the
+  COMPARE step above).
+- A budget breach is a stated choice, never a hidden one.
+- A verification step that could not run is `expected`, never `passed`; say which
+  claim is therefore unverified.
+
+## Boundary
+
+- Tool choice, install and any code defer to
+  `context/instructions/development.md` (library-first, simplicity, surgical
+  changes).
+- Dialect syntax and document conventions defer to
+  `context/instructions/mindmap-markmap.md`.
+- This module names no rendering tool and no exporter.
