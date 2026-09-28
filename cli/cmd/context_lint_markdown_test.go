@@ -38,7 +38,7 @@ func TestLintMarkdownBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			issues := lintMarkdownBody("fixture.md", []byte(tt.body))
+			issues := lintMarkdownBody("fixture.md", []byte(tt.body), false)
 			if len(issues) != tt.issueCount {
 				t.Fatalf("issues = %#v, want %d", issues, tt.issueCount)
 			}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/spf13/cobra"
 	"github.com/yuin/goldmark/v2/ast"
@@ -390,7 +391,11 @@ func lintDoc(path string) []ctxLintIssue {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "completed task file has no `## Review` verify-step block (record verdicts; see `sdt context task review`)"})
 		}
 	}
-	issues = append(issues, lintMarkdownBody(path, frontmatterBody(data))...)
+	isMap := contextwiki.IsMapDoc(path)
+	issues = append(issues, lintMarkdownBody(path, frontmatterBody(data), isMap)...)
+	if isMap {
+		issues = append(issues, lintMapDoc(path, content, frontmatterBody(data))...)
+	}
 	return issues
 }
 
@@ -447,7 +452,11 @@ func lintFrontmatterAndLegacyBody(path string, data []byte) []ctxLintIssue {
 	issues := []ctxLintIssue{*issue}
 	if issue.Priority == ctxLintWarning {
 		// A legacy document without frontmatter still has a Markdown body.
-		issues = append(issues, lintMarkdownBody(path, data)...)
+		isMap := contextwiki.IsMapDoc(path)
+		issues = append(issues, lintMarkdownBody(path, data, isMap)...)
+		if isMap {
+			issues = append(issues, lintMapDoc(path, string(data), data)...)
+		}
 	}
 	return issues
 }
@@ -469,14 +478,16 @@ func frontmatterBody(data []byte) []byte {
 	return nil
 }
 
-func lintMarkdownBody(path string, body []byte) []ctxLintIssue {
+func lintMarkdownBody(path string, body []byte, isMap bool) []ctxLintIssue {
 	root := parser.New().Parse(body)
 	var issues []ctxLintIssue
 	if err := ast.Walk(root, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
-		if heading, ok := node.(*ast.Heading); ok && heading.Level == 1 {
+		// A map legitimately has one `#` root; lintMapDoc owns the single-root
+		// check, so the generic no-H1 rule is skipped for `.map.md` documents.
+		if heading, ok := node.(*ast.Heading); ok && heading.Level == 1 && !isMap {
 			line := markdownLineNumber(body, heading.Pos())
 			issues = append(issues, ctxLintIssue{
 				Path: path, Priority: ctxLintWarning,
