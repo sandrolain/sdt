@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	corpuspkg "github.com/sandrolain/sdt/internal/corpus"
+	"github.com/sandrolain/sdt/internal/ctxquery"
 	"github.com/sandrolain/sdt/internal/mdindex"
 	"github.com/sandrolain/sdt/internal/mdstruct"
 	"github.com/sandrolain/sdt/internal/semantic"
@@ -79,16 +79,18 @@ type Results struct {
 // id is the corpus-relative path, and the same path keys the registry that
 // restores display fields for search hits.
 type doc struct {
-	Path        string
-	Name        string
-	Kind        string
-	Status      string
-	Title       string
-	Summary     string
-	Objective   string
-	Topics      []string
-	Entities    []string
-	Categories  []string
+	Path       string
+	Name       string
+	Kind       string
+	Status     string
+	Title      string
+	Summary    string
+	Objective  string
+	Topics     []string
+	Entities   []string
+	Categories []string
+	// Values holds every top-level frontmatter field for generic filters.
+	Values      map[string][]string
 	Body        string
 	Frontmatter string
 	CreatedDays int64
@@ -480,6 +482,7 @@ func parseDoc(docID, path string) (doc, error) {
 	d.Topics = contextwiki.FrontmatterList(content, "topics")
 	d.Entities = contextwiki.FrontmatterList(content, "entities")
 	d.Categories = contextwiki.FrontmatterList(content, "categories")
+	d.Values = contextwiki.FrontmatterValues(content)
 	// Non-markdown viewable resources (.canvas/.mmd): synthesize kind from the
 	// extension and use the raw file text as the searchable body.
 	if kind, ok := auxKind(docID); ok {
@@ -516,6 +519,7 @@ func docFromEntry(e *mdindex.Entry) doc {
 		Topics:     e.Topics,
 		Entities:   e.Entities,
 		Categories: e.Categories,
+		Values:     e.Values,
 		Body:       e.Body,
 	}
 	d.RawCreated = e.Created
@@ -563,7 +567,8 @@ func (ix *Index) Search(q, kind, objective, status, topic, from, to string, max 
 
 // SearchQuery runs a fulltext query with the query's filter/size set, returning
 // up to q.Max ranked hits. Query terms drive a match query; an empty query is an
-// empty result set, never an error.
+// empty result set, never an error. Filters are evaluated by the shared
+// ctxquery engine over the registry, so bleve carries text ranking only.
 func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
 	if q.Max <= 0 || q.Max > 100 {
 		q.Max = 20
@@ -574,7 +579,7 @@ func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
 	}
 	// Filename-aware scoring: a document whose filename matches the query
 	// outranks body-only matches. A disjunction of boosted sub-queries drives
-	// relevance while the filters below stay conjunctive (must).
+	// relevance; the filter is applied afterwards by the shared engine.
 	namePhrase := bleve.NewMatchPhraseQuery(text)
 	namePhrase.SetField("Name")
 	namePhrase.SetBoost(8)
@@ -586,95 +591,140 @@ func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
 	titleMatch.SetBoost(2)
 	bodyMatch := bleve.NewMatchQuery(text)
 	bodyMatch.SetBoost(1)
-
 	scored := bleve.NewDisjunctionQuery(namePhrase, nameMatch, titleMatch, bodyMatch)
-	must := []query.Query{scored}
 
-	if q.Kind != "" {
-		kindQ := bleve.NewTermQuery(q.Kind)
-		kindQ.SetField("Kind")
-		must = append(must, kindQ)
-	}
-	if q.Objective != "" {
-		objQ := bleve.NewTermQuery(q.Objective)
-		objQ.SetField("Objective")
-		must = append(must, objQ)
-	}
-	if q.Status != "" {
-		stQ := bleve.NewTermQuery(q.Status)
-		stQ.SetField("Status")
-		must = append(must, stQ)
-	}
-	if q.Topic != "" {
-		tpQ := bleve.NewTermQuery(q.Topic)
-		tpQ.SetField("Topics")
-		must = append(must, tpQ)
-	}
-	if q.Category != "" {
-		catQ := bleve.NewTermQuery(q.Category)
-		catQ.SetField("Categories")
-		must = append(must, catQ)
-	}
-	epoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	if q.From != "" {
-		if t, err := time.Parse("2006-01-02", q.From); err == nil {
-			lo := float64(int64(t.Sub(epoch).Hours() / 24))
-			rangeQ := bleve.NewNumericRangeQuery(&lo, nil)
-			rangeQ.SetField("CreatedDays")
-			must = append(must, rangeQ)
+	filter := q.effectiveFilter()
+	req := bleve.NewSearchRequest(query.NewBooleanQuery([]query.Query{scored}, nil, nil))
+	if filter == nil {
+		req.Size = q.Max
+	} else {
+		// A filter is applied in Go after ranking, so the whole text-match
+		// candidate set is fetched before truncating to Max.
+		size := q.Max
+		if n, cerr := ix.idx.DocCount(); cerr == nil && n > 0 {
+			size = int(n) //#nosec G115 -- doc counts are far below MaxInt on supported platforms
 		}
+		req.Size = size
 	}
-	if q.To != "" {
-		if t, err := time.Parse("2006-01-02", q.To); err == nil {
-			hi := float64(int64(t.AddDate(0, 0, 1).Sub(epoch).Hours() / 24))
-			rangeQ := bleve.NewNumericRangeQuery(nil, &hi)
-			rangeQ.SetField("CreatedDays")
-			must = append(must, rangeQ)
-		}
-	}
-
-	qry := query.NewBooleanQuery(must, nil, nil)
-	req := bleve.NewSearchRequest(qry)
-	req.Size = q.Max
 	req.SortBy([]string{"-_score"})
 	sr, err := ix.idx.Search(req)
 	if err != nil {
 		return Results{}, fmt.Errorf("bleve search: %w", err)
 	}
-	out := make([]Result, 0, len(sr.Hits))
+	out := make([]Result, 0, min(q.Max, len(sr.Hits)))
+	matched := 0
 	for _, hit := range sr.Hits {
-		doc, ok := ix.registry[hit.ID]
+		d, ok := ix.registry[hit.ID]
 		if !ok {
 			continue
 		}
-		isMap := contextwiki.IsMapDoc(doc.Path)
-		isMermaid := contextwiki.IsMermaidDoc(doc.Path)
-		out = append(out, Result{
-			Path:       doc.Path,
-			Kind:       doc.Kind,
-			Status:     doc.Status,
-			Title:      doc.Title,
-			Summary:    doc.Summary,
-			Objective:  doc.Objective,
-			Topics:     doc.Topics,
-			Entities:   doc.Entities,
-			Categories: doc.Categories,
-			Created:    doc.RawCreated,
-			Modified:   doc.Modified,
-			Score:      hit.Score,
-			Snippet:    Snippet(doc, text, 160),
-			IsMap:      isMap,
-			MapID:      mapID(doc.Path, isMap),
-			IsMermaid:  isMermaid,
-			MermaidID:  mermaidID(doc.Path, isMermaid),
-			IsCanvas:   doc.Kind == canvasKind,
-		})
+		if filter != nil && !filter.Match(d.facets()) {
+			continue
+		}
+		matched++
+		if len(out) < q.Max {
+			out = append(out, resultForDoc(d, hit.Score, text))
+		}
 	}
 	total := sr.Total
+	if filter != nil {
+		total = uint64(matched)
+	}
 	if total > math.MaxInt64 {
 		total = math.MaxInt64
 	}
 	return Results{Results: out, Total: int64(total)}, nil
+}
+
+// resultForDoc builds a search Result from a registry doc.
+func resultForDoc(d doc, score float64, text string) Result {
+	isMap := contextwiki.IsMapDoc(d.Path)
+	isMermaid := contextwiki.IsMermaidDoc(d.Path)
+	return Result{
+		Path:       d.Path,
+		Kind:       d.Kind,
+		Status:     d.Status,
+		Title:      d.Title,
+		Summary:    d.Summary,
+		Objective:  d.Objective,
+		Topics:     d.Topics,
+		Entities:   d.Entities,
+		Categories: d.Categories,
+		Created:    d.RawCreated,
+		Modified:   d.Modified,
+		Score:      score,
+		Snippet:    Snippet(d, text, 160),
+		IsMap:      isMap,
+		MapID:      mapID(d.Path, isMap),
+		IsMermaid:  isMermaid,
+		MermaidID:  mermaidID(d.Path, isMermaid),
+		IsCanvas:   d.Kind == canvasKind,
+	}
+}
+
+// facets projects a registry doc into the shared filter model. The task
+// objective inheritance is injected into the generic values so `--objective`
+// and `--where objective=` agree; every other key comes from the frontmatter.
+func (d doc) facets() ctxquery.Facets {
+	values := make(map[string][]string, len(d.Values)+4)
+	for k, v := range d.Values {
+		values[k] = v
+	}
+	if d.Objective != "" {
+		values["objective"] = []string{d.Objective}
+	}
+	if len(d.Topics) > 0 {
+		values["topics"] = d.Topics
+	}
+	if len(d.Entities) > 0 {
+		values["entities"] = d.Entities
+	}
+	if len(d.Categories) > 0 {
+		values["categories"] = d.Categories
+	}
+	return ctxquery.Facets{
+		Kind:    d.Kind,
+		Status:  d.Status,
+		Created: ctxquery.ParseTimestamp(d.RawCreated),
+		Updated: ctxquery.ParseTimestamp(d.Modified),
+		Values:  values,
+	}
+}
+
+// effectiveFilter returns the filter to apply: the explicit q.Filter when set,
+// otherwise one derived from the legacy positional fields used by the viewer
+// and prior-art call sites, or nil when no filter is requested.
+func (q HybridQuery) effectiveFilter() *ctxquery.Filter {
+	if q.Filter != nil {
+		return q.Filter
+	}
+	if q.Kind == "" && q.Objective == "" && q.Status == "" && q.Topic == "" && q.Category == "" && q.From == "" && q.To == "" {
+		return nil
+	}
+	f := &ctxquery.Filter{}
+	if q.Kind != "" {
+		f.Kinds = []string{q.Kind}
+	}
+	if q.Status != "" {
+		f.Statuses = []string{q.Status}
+	}
+	if q.Category != "" {
+		f.Categories = []string{q.Category}
+	}
+	if q.Objective != "" {
+		f.Terms = append(f.Terms, ctxquery.Term{Key: "objective", Value: q.Objective})
+	}
+	if q.Topic != "" {
+		f.Terms = append(f.Terms, ctxquery.Term{Key: "topics", Value: q.Topic})
+	}
+	if t, err := time.Parse("2006-01-02", q.From); err == nil {
+		f.After = &t
+	}
+	if t, err := time.Parse("2006-01-02", q.To); err == nil {
+		hi := t.AddDate(0, 0, 1).Add(-time.Nanosecond)
+		f.Before = &hi
+	}
+	return f
 }
 
 // HybridOptions carries the optional semantic branch for SearchHybrid. When
@@ -754,10 +804,10 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 	// Filters apply to the lexical branch; drop semantic-only hits that fall
 	// outside the same filter set so the fused ranking honors the contract of
 	// the lexical branch.
-	if f := hybridFilter(q); f != nil {
+	if f := q.effectiveFilter(); f != nil {
 		kept := fused[:0]
 		for i := range fused {
-			if d, ok := ix.registry[fused[i].Path]; !ok || f(d.Path, &d) {
+			if d, ok := ix.registry[fused[i].Path]; !ok || f.Match(d.facets()) {
 				kept = append(kept, fused[i])
 			}
 		}
@@ -769,50 +819,9 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 	return Results{Results: fused, Total: lexical.Total}, nil
 }
 
-// hybridFilter mirrors the conjunctive filters of Search against a doc's
-// registry facet values, so semantic-only fused hits are held to the same
-// filter contract as the lexical branch. Returns nil when no filter is active.
-func hybridFilter(q HybridQuery) func(path string, d *doc) bool {
-	if q.Kind == "" && q.Objective == "" && q.Status == "" && q.Topic == "" && q.Category == "" && q.From == "" && q.To == "" {
-		return nil
-	}
-	epoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	var loDays, hiDays *int64
-	if t, err := time.Parse("2006-01-02", q.From); err == nil {
-		v := int64(t.Sub(epoch).Hours() / 24)
-		loDays = &v
-	}
-	if t, err := time.Parse("2006-01-02", q.To); err == nil {
-		v := int64(t.AddDate(0, 0, 1).Sub(epoch).Hours() / 24)
-		hiDays = &v
-	}
-	return func(path string, d *doc) bool {
-		if q.Kind != "" && d.Kind != q.Kind {
-			return false
-		}
-		if q.Objective != "" && d.Objective != q.Objective {
-			return false
-		}
-		if q.Status != "" && d.Status != q.Status {
-			return false
-		}
-		if q.Topic != "" && !slices.Contains(d.Topics, q.Topic) {
-			return false
-		}
-		if q.Category != "" && !slices.Contains(d.Categories, q.Category) {
-			return false
-		}
-		if loDays != nil && d.CreatedDays < *loDays {
-			return false
-		}
-		if hiDays != nil && d.CreatedDays >= *hiDays {
-			return false
-		}
-		return true
-	}
-}
-
-// HybridQuery is the filter/size set shared by lexical and hybrid search.
+// HybridQuery is the filter/size set shared by lexical and hybrid search. The
+// legacy positional fields are kept for the viewer/prior-art call sites; the
+// CLI passes a prebuilt Filter from the shared ctxquery engine instead.
 type HybridQuery struct {
 	Q         string
 	Kind      string
@@ -823,6 +832,8 @@ type HybridQuery struct {
 	From      string
 	To        string
 	Max       int
+	// Filter overrides the legacy fields when set.
+	Filter *ctxquery.Filter
 }
 
 // mapID returns the canonical map id for map documents, "" otherwise.

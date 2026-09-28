@@ -27,7 +27,7 @@ import (
 )
 
 // ManifestVersion invalidates a cached manifest when the scan model changes.
-const ManifestVersion = 3
+const ManifestVersion = 4
 
 // ContextDir is the served knowledge base subdirectory under the project root.
 const ContextDir = "context"
@@ -48,6 +48,9 @@ type Entry struct {
 	Topics     []string `json:"topics,omitempty"`
 	Entities   []string `json:"entities,omitempty"`
 	Categories []string `json:"categories,omitempty"`
+	// Values holds every top-level frontmatter field (scalar as a one-element
+	// slice), so generic `--where key=value` filters can address any field.
+	Values map[string][]string `json:"values,omitempty"`
 	// PlanRef is the corpus id of the plan a task file sources (tasks only,
 	// derived from `sources` only — `links` is correlation, never an edge). A
 	// task's Objective is resolved from the referenced plan after the scan, never
@@ -240,6 +243,7 @@ func parseEntry(root, id, path string) (*Entry, error) {
 		Topics:     contextwiki.FrontmatterList(content, "topics"),
 		Entities:   contextwiki.FrontmatterList(content, "entities"),
 		Categories: contextwiki.FrontmatterList(content, "categories"),
+		Values:     contextwiki.FrontmatterValues(content),
 		Created:    contextwiki.FrontmatterField(content, "created"),
 		Updated:    contextwiki.FrontmatterField(content, "updated"),
 		Body:       body,

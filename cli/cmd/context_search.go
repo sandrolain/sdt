@@ -106,7 +106,8 @@ result set; by default superseded/archived documents are excluded unless --all.
 Examples:
   sdt context search "hybrid search"
   sdt context search "dead-end" --type analysis --status active
-  sdt context search "bleve" --topic context-search --limit 5 --format json`,
+  sdt context search "bleve" --topic context-search --limit 5 --format json
+  sdt context search "filter" --date updated --last 7d --where objective=my-group` + ctxQueryHelp,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		q := args[0]
@@ -119,19 +120,15 @@ Examples:
 			status = "active"
 		}
 		ix := ctxBuildSearchIndex(cmd)
-		hq := search.HybridQuery{
-			Q:         q,
-			Kind:      getStringFlag(cmd, "type", false),
-			Objective: getStringFlag(cmd, "objective", false),
-			Status:    status,
-			Topic:     getStringFlag(cmd, "topic", false),
-			Category:  getStringFlag(cmd, "category", false),
-			From:      getStringFlag(cmd, "since", false),
-			To:        getStringFlag(cmd, "until", false),
-			Max:       limit,
-		}
+		filter, err := buildQueryFilter(cmd,
+			stringList(getStringFlag(cmd, "type", false)),
+			stringList(status),
+			stringList(getStringFlag(cmd, "category", false)),
+			searchAliasTerms(cmd),
+		)
+		exitWithError(cmd, err)
+		hq := search.HybridQuery{Q: q, Max: limit, Filter: &filter}
 		var res search.Results
-		var err error
 		if getBoolFlag(cmd, "semantic", false) {
 			sem, serr := loadSemanticIndex(cmd, ix)
 			if serr != nil {

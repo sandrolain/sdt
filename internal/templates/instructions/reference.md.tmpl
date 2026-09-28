@@ -53,6 +53,12 @@ directories (wiki pages use `sdt context wiki lint`). Agent instruction contract
 `scripts/index.md`; executed on demand, never read into context).
 Nothing is written by the CLI: the agent edits the Markdown files.
 
+`context list` and `context search` share one conjunctive filter engine
+(`--type`, `--status`, a date range `--after`/`--before`/`--last`/`--date` with
+`--since`/`--until` aliases, and a generic `--where key=value`) and return the
+same document set for the same filter; the grammar and match semantics are
+documented in `context/instructions/cli.md`.
+
 ## CLI usage & examples
 
 The curated command catalog, global flags and practical examples live in

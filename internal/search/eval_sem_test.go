@@ -98,36 +98,36 @@ func TestHybridFilterDropsOutOfSetSemanticHits(t *testing.T) {
 	wiki := doc{Path: "context/wiki/a.md", Kind: "wiki", Status: "active", Objective: "", Topics: []string{"x"}, RawCreated: "2026-09-10", CreatedDays: parseCreatedDays("2026-09-10")}
 	note := doc{Path: "context/notes/b.md", Kind: "notes", Status: "active", RawCreated: "2026-09-11", CreatedDays: parseCreatedDays("2026-09-11")}
 
-	f := hybridFilter(HybridQuery{Kind: "wiki"})
+	f := (HybridQuery{Kind: "wiki"}).effectiveFilter()
 	if f == nil {
 		t.Fatal("kind filter must yield a predicate")
 	}
-	if !f(wiki.Path, &wiki) {
+	if !f.Match(wiki.facets()) {
 		t.Error("wiki doc must pass the kind=wiki filter")
 	}
-	if f(note.Path, &note) {
+	if f.Match(note.facets()) {
 		t.Error("notes doc must fail the kind=wiki filter")
 	}
 
-	if hybridFilter(HybridQuery{}) != nil {
+	if (HybridQuery{}).effectiveFilter() != nil {
 		t.Error("no-filter query must yield nil predicate")
 	}
 
 	// date bounds: from inclusive, to inclusive of the whole day
-	df := hybridFilter(HybridQuery{From: "2026-09-11", To: "2026-09-11"})
+	df := (HybridQuery{From: "2026-09-11", To: "2026-09-11"}).effectiveFilter()
 	if df == nil {
 		t.Fatal("date filter must yield a predicate")
 	}
-	if !df(note.Path, &note) {
+	if !df.Match(note.facets()) {
 		t.Error("11 Sep created must pass from/to 2026-09-11..2026-09-11")
 	}
-	if df(wiki.Path, &wiki) {
+	if df.Match(wiki.facets()) {
 		t.Error("10 Sep created must fail from=2026-09-11")
 	}
 
-	// topic: exact per-token membership, matching the bleve TermQuery.
-	tf := hybridFilter(HybridQuery{Topic: "x"})
-	if tf == nil || !tf(wiki.Path, &wiki) || tf(note.Path, &note) {
+	// topic: exact per-token membership.
+	tf := (HybridQuery{Topic: "x"}).effectiveFilter()
+	if tf == nil || !tf.Match(wiki.facets()) || tf.Match(note.facets()) {
 		t.Error("topic filter must match only the tagged doc")
 	}
 }

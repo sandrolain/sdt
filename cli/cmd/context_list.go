@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
+
+	"github.com/sandrolain/sdt/internal/ctxquery"
 )
 
 func outputStringList(cmd *cobra.Command, items []string) {
@@ -61,7 +62,8 @@ Types: ` + ctxListHelpText() + `.
 
 Examples:
   sdt context list --type worklog
-  sdt context list --type decision --format json`,
+  sdt context list --type plan --status active --last 7d
+  sdt context list --type analysis --where categories=refactor` + ctxQueryHelp,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
@@ -74,60 +76,24 @@ Examples:
 		}
 		files, err := listContextFiles(t.dir)
 		exitWithError(cmd, err)
-		agent := getStringFlag(cmd, "agent", false)
-		role := getStringFlag(cmd, "role", false)
-		if agent != "" || role != "" {
-			files, err = filterContextFilesByProvenance(files, agent, role)
-			exitWithError(cmd, err)
+
+		var terms []ctxquery.Term
+		if agent := getStringFlag(cmd, "agent", false); agent != "" {
+			terms = append(terms, ctxquery.Term{Key: "agent", Value: agent})
 		}
-		if categories := getStringArrayFlag(cmd, "category", false); len(categories) > 0 {
-			files, err = filterContextFilesByCategory(files, categories)
-			exitWithError(cmd, err)
+		if role := getStringFlag(cmd, "role", false); role != "" {
+			terms = append(terms, ctxquery.Term{Key: "role", Value: role})
 		}
+		var statuses []string
+		if status := getStringFlag(cmd, "status", false); status != "" {
+			statuses = []string{status}
+		}
+		filter, err := buildQueryFilter(cmd, nil, statuses, getStringArrayFlag(cmd, "category", false), terms)
+		exitWithError(cmd, err)
+		files, err = filterFilesContext(files, filter)
+		exitWithError(cmd, err)
 		outputStringList(cmd, files)
 	},
-}
-
-// filterContextFilesByProvenance keeps the files whose frontmatter `agent`
-// and/or `role` equals the requested value (an empty filter is ignored).
-func filterContextFilesByProvenance(files []string, agent, role string) ([]string, error) {
-	var out []string
-	for _, f := range files {
-		data, err := os.ReadFile(f) //#nosec G304 -- path from listContextFiles
-		if err != nil {
-			return nil, err
-		}
-		content := string(data)
-		if agent != "" && parseFrontmatterField(content, "agent") != agent {
-			continue
-		}
-		if role != "" && parseFrontmatterField(content, "role") != role {
-			continue
-		}
-		out = append(out, f)
-	}
-	return out, nil
-}
-
-// filterContextFilesByCategory keeps the files whose frontmatter `categories`
-// list contains any of the requested categories (any-match).
-
-func filterContextFilesByCategory(files []string, categories []string) ([]string, error) {
-	var out []string
-	for _, f := range files {
-		data, err := os.ReadFile(f) //#nosec G304 -- path from listContextFiles
-		if err != nil {
-			return nil, err
-		}
-		docCats := parseFrontmatterList(string(data), "categories")
-		for _, c := range categories {
-			if slices.Contains(docCats, c) {
-				out = append(out, f)
-				break
-			}
-		}
-	}
-	return out, nil
 }
 
 // ── context task ───────────────────────────────────────────────────────────────

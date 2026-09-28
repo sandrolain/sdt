@@ -8,7 +8,8 @@ generated command reference, see `context/instructions/reference.md`.
 
 - `sdt context new --type <t>` — create a work file ({{.NewTypes}})
 - `sdt context path --type <t> [--slug]` — print a path ({{.PathTypes}})
-- `sdt context list --type <t>` — list existing files ({{.ListTypes}})
+- `sdt context list --type <t>` — list existing files ({{.ListTypes}}); filter with `--status`, a date range and `--where` (see Context queries)
+- `sdt context search <query>` — ranked fulltext search over the same corpus; takes the same query filters as `list`
 - `sdt context status get|set` — read/update a document's status (per-type
   vocabularies in the status matrix: `context/architecture/stack.md`)
 - `sdt context rename <ref> --slug <new>` — move a document to a new slug
@@ -25,6 +26,44 @@ generated command reference, see `context/instructions/reference.md`.
 - `sdt extract --type urls|emails|ips|json-blocks|code-blocks|dates`
 - `sdt env parse|get|set|merge` — .env handling
 - `sdt diff --a A --b B --diff-format unified|json-patch`
+
+## Context queries
+
+`sdt context list` and `sdt context search` share one filter engine
+(`internal/ctxquery`): every filter is conjunctive (AND), and both commands
+return the same document set for the same filter.
+
+Date range:
+
+- `--after <when>` / `--before <when>` — dated on/after or on/before;
+  `--since`/`--until` are aliases.
+- `--last <N><unit>` — relative window, exclusive with `--after`; units
+  `m` minutes, `h` hours, `d` days, `w` weeks (months/years unsupported).
+- `--date created|updated` — reference timestamp (default `created`).
+- `<when>` accepts `YYYY-MM-DD`, RFC3339, `now` and `now-<N><unit>`.
+
+Frontmatter filters:
+
+- `--type <k>` — frontmatter `kind` (on `search`; `list` is already scoped to a
+  directory by `--type`).
+- `--status <s>` — frontmatter `status`.
+- `--where <key>=<value>` / `--where <key>!=<value>` — repeatable, any
+  frontmatter field.
+
+`--where` matching:
+
+| Field | Matches when |
+|-------|--------------|
+| scalar | value equals the field (exact, case-sensitive) |
+| list | value is a member of the list |
+| boolean | value is the literal `true` or `false` (no bare-key form) |
+| absent key | never for `=`, always for `!=` |
+
+```
+sdt context list --type plan --status active --last 7d
+sdt context list --type analysis --where categories=refactor
+sdt context search "filter engine" --date updated --after 2026-09-01
+```
 
 ## Encoding & hashing
 

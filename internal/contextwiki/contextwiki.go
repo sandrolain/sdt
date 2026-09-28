@@ -236,6 +236,57 @@ func FrontmatterList(content, key string) []string {
 	return out
 }
 
+// FrontmatterValues parses the top-level scalar and block-list fields of a
+// document's YAML frontmatter into a key -> values map. A scalar becomes a
+// one-element slice; block-list items keep their order. An absent frontmatter
+// or absent field is simply missing from the map (a caller never sees an empty
+// slice). Nested maps (e.g. relations) and inline flow collections are skipped.
+// The input must be a document or frontmatter block that starts with the "---"
+// delimiter; content without frontmatter yields nil.
+func FrontmatterValues(content string) map[string][]string {
+	if !strings.HasPrefix(content, fmStart) {
+		return nil
+	}
+	rest := content[len(fmStart):]
+	idx := strings.Index(rest, "\n"+frontmatterDelim)
+	if idx < 0 {
+		return nil
+	}
+	out := map[string][]string{}
+	cur := ""
+	for _, line := range strings.Split(rest[:idx], "\n") {
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		if line[0] != ' ' && line[0] != '\t' {
+			cur = ""
+			key, val, ok := strings.Cut(line, ":")
+			if !ok {
+				continue
+			}
+			key = strings.TrimSpace(key)
+			val = trimYAMLQuotes(strings.TrimSpace(val))
+			if val == "" {
+				cur = key
+				continue
+			}
+			out[key] = []string{val}
+			continue
+		}
+		if cur == "" {
+			continue
+		}
+		trim := strings.TrimSpace(line)
+		if item, ok := strings.CutPrefix(trim, "- "); ok {
+			out[cur] = append(out[cur], trimYAMLQuotes(strings.TrimSpace(item)))
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // ParseFrontmatterMap reads a YAML block-map frontmatter field
 // (key:\n  verb:\n    - item). Returns nil when absent; a map when present.
 // An inline value on the key line is reported via the bool.
