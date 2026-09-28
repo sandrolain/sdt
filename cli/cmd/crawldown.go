@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,13 +42,6 @@ func buildFrontmatter(page crawler.Page) string {
 	}
 
 	return "---\n" + string(data) + "---\n\n"
-}
-
-// writeInfo writes a formatted message to w, ignoring the error (non-fatal output).
-func writeInfo(w io.Writer, format string, args ...any) {
-	if _, err := fmt.Fprintf(w, format, args...); err != nil {
-		_ = err
-	}
 }
 
 var crawldownCmd = &cobra.Command{
@@ -179,11 +172,11 @@ as a separate .md file in the output directory.`,
 			currentCount := pageCount
 			pageCountMutex.Unlock()
 
-			writeInfo(cmd.OutOrStdout(), "[%d] Crawling: %s\n", currentCount, page.URL)
+			slog.Info("crawling page", "count", currentCount, "url", page.URL)
 
 			markdown, err := conv.Convert(page.Content)
 			if err != nil {
-				writeInfo(cmd.ErrOrStderr(), "  Error converting page: %v\n", err)
+				slog.Warn("converting page", "url", page.URL, "err", err)
 				return
 			}
 
@@ -216,7 +209,7 @@ as a separate .md file in the output directory.`,
 			currentCount := pageCount
 			pageCountMutex.Unlock()
 
-			writeInfo(cmd.OutOrStdout(), "[%d] Downloading: %s\n", currentCount, doc.URL)
+			slog.Info("downloading document", "count", currentCount, "url", doc.URL)
 
 			filename := converter.GenerateAssetFilename(doc.URL)
 			normalizedURL := strings.TrimSuffix(doc.URL, "/")
@@ -241,7 +234,7 @@ as a separate .md file in the output directory.`,
 		finalCount := pageCount
 		pageCountMutex.Unlock()
 
-		writeInfo(cmd.OutOrStdout(), "\nCrawled %d pages. Saving files...\n\n", finalCount)
+		slog.Info("crawled pages, saving files", "count", finalCount)
 
 		pageDataMutex.Lock()
 		pageDataCopy := make(map[string]pageEntry, len(pageData))
@@ -255,7 +248,7 @@ as a separate .md file in the output directory.`,
 
 		for _, data := range pageDataCopy {
 			processedCount++
-			writeInfo(cmd.OutOrStdout(), "[%d/%d] Processing: %s\n", processedCount, len(pageDataCopy), data.pageURL)
+			slog.Info("processing page", "index", processedCount, "total", len(pageDataCopy), "url", data.pageURL)
 
 			urlToFileMutex.Lock()
 			urlToFileCopy := make(map[string]string, len(urlToFile))
@@ -268,22 +261,22 @@ as a separate .md file in the output directory.`,
 
 			if data.isDocument {
 				if err := os.WriteFile(outputPath, data.rawBytes, 0o600); err != nil {
-					writeInfo(cmd.ErrOrStderr(), "  Error saving file: %v\n", err)
+					slog.Warn("saving document", "path", outputPath, "err", err)
 					continue
 				}
 			} else {
 				markdown := converter.ConvertLinksToLocal(data.markdown, data.pageURL, urlToFileCopy)
 				if err := os.WriteFile(outputPath, []byte(markdown), 0o600); err != nil {
-					writeInfo(cmd.ErrOrStderr(), "  Error saving file: %v\n", err)
+					slog.Warn("saving page", "path", outputPath, "err", err)
 					continue
 				}
 			}
 
-			writeInfo(cmd.OutOrStdout(), "  Saved: %s\n", outputPath)
+			slog.Info("saved", "path", outputPath)
 			successCount++
 		}
 
-		writeInfo(cmd.OutOrStdout(), "\nSuccessfully saved %d pages to %s\n", successCount, outputDir)
+		slog.Info("successfully saved", "count", successCount, "dir", outputDir)
 	},
 }
 

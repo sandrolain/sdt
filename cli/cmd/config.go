@@ -3,7 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 
@@ -115,7 +115,7 @@ var configSetCmd = &cobra.Command{
 			err = viper.WriteConfigAs(sdtConfigFile)
 		}
 		if err != nil {
-			log.Println(err)
+			slog.Error("error writing config", "err", err)
 		}
 	},
 }
