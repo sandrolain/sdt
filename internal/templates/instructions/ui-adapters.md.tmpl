@@ -11,14 +11,14 @@ doctrine) and it prescribes no framework — read it with
 
 - Use it when the project uses a UI framework and the mapping from the doctrine
   to that framework's idioms is not obvious: theming, component API, styling,
-  dark mode, motion.
+  dark mode, motion, adaptation.
 - If the project has no framework, or the mapping is already documented in the
   project block, this file does not apply: say so and stop.
 
 ## The adapter contract
 
 An adapter is a short document (a project note or a section of the project block)
-that answers five questions for one framework:
+that answers six questions for one framework:
 
 1. **Token resolution** — how the project's tokens become the framework's
    theming primitive (a theme object, CSS custom properties, a config), and where
@@ -32,13 +32,17 @@ that answers five questions for one framework:
    the swap happens (the semantic layer, per `ui-tokens.md`).
 5. **Motion** — how transitions are declared, and how reduced motion is honoured
    without killing hierarchy and feedback (`ui-accessibility.md`).
+6. **Adaptation** — how layout and input respond to context: what changes at each
+   breakpoint, how touch and pointer targets are sized, and how content is
+   re-prioritised. This is rethinking the experience for the context, not scaling
+   pixels.
 
 ## Authoring a missing adapter
 
 When the project's framework has no adapter yet, write one on demand:
 
 1. Name the framework and version.
-2. Answer the five contract questions above, citing the project's real files.
+2. Answer the six contract questions above, citing the project's real files.
 3. Verify each answer by looking at the code, not the framework's marketing.
 4. Record it where the project keeps conventions (typically the AGENTS.md project
    block), not in this generated file.
@@ -53,9 +57,25 @@ When the project's framework has no adapter yet, write one on demand:
 - `prefers-reduced-motion` preserves hierarchy and feedback; it does not set
   every duration to near-zero.
 
+## Adaptation
+
+- Adapt by **rethinking the experience for the context**, not by scaling the
+  desktop layout down: layout, input model, target size and content priority can
+  each change.
+- Breakpoints are defined by **where the layout changes**, not by device names;
+  there is no standard "mobile" width.
+- Touch and pointer targets stay generous (aim for at least 44×44 CSS pixels);
+  a hover-only affordance needs a touch equivalent, and vice versa.
+- **Native platforms (iOS/Android) are out of scope** for this module: it is
+  web/desktop/terminal interface doctrine, not a native-platform playbook. A
+  native project still follows the doctrine in `ui.md`, but its platform
+  conventions (HIG/Material, safe areas, dynamic type, system colours) are its
+  own and are not covered here.
+
 ## Boundary
 
 - The doctrine is `context/instructions/ui.md`; tokens and components are in
   `ui-tokens.md` and `ui-components.md`.
 - Choosing or adopting a framework is a library-first decision
   (`context/instructions/development.md`); this file only says how to map one.
+- Native platform playbooks are explicitly out of scope (see Adaptation).

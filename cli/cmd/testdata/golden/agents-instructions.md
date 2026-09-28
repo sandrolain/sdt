@@ -113,6 +113,8 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/ui-components.md` | Building or changing a component |
 | `context/instructions/ui-accessibility.md` | Any interactive or visual change, plus accessibility review |
 | `context/instructions/ui-taste.md` | Layout, visual direction, copy, review |
+| `context/instructions/ui-layout.md` | Arranging a surface, spacing and the type scale |
+| `context/instructions/ui-performance.md` | Performance, budgets and measurement |
 | `context/instructions/ui-adapters.md` | Mapping a framework's idioms to the UI doctrine |
 | `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |

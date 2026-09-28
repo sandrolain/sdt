@@ -30,6 +30,25 @@ with `context/instructions/ui.md` (the doctrine),
 - Prefer slots/children and composition over a growing list of boolean props.
 - One component, one concern: a control that also lays out a page is two things.
 
+## Blocks
+
+A **block** is a reusable composition unit assembled from components — a section,
+a card, a form row, an empty state. It is the unit a project reuses across
+surfaces.
+
+- Reuse a block instead of re-creating it; a new block is a design decision, like
+  a new variant.
+- A block **declares what it is compatible with** — the variants, sizes and slots
+  it accepts and the tokens it uses — so it can be reused without surprise.
+- **Containment:** a block owns its internal layout; the surrounding page owns
+  the space between blocks. A block does not reach outside its box (global styles,
+  shared mutable state, positioning against a foreign ancestor).
+- **Approval never transfers:** approving a block approves the variants it
+  declares, nothing more. A one-off tweak stays a one-off; promote it into the
+  block and re-approve rather than diverging silently.
+- Keep the block vocabulary stable across artifacts (see `ui-taste.md`, Block
+  coherence).
+
 ## Focus management
 
 - Focus always goes somewhere predictable. On open, move it into the new

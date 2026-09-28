@@ -16,6 +16,8 @@ routes to. Concrete render verification is owned by
 - Everything here assumes the project's own stack, tokens and system, not a
   specific one. If a rule needs a design system the project does not have, do
   not invent one (see `ui-tokens.md`).
+- For per-context layout and input (responsive / device adaptation) see
+  `ui-adapters.md`; native iOS/Android playbooks are out of scope for this module.
 
 ## Priority ladder (tie-breaker)
 
@@ -99,6 +101,8 @@ icon) for real content.
 ## Verification and honesty
 
 - **Never state a number you did not measure**; report only what a check produced.
+- **Performance is part of done** — name the budget before building and measure it
+  after (`context/instructions/ui-performance.md`).
 - **Render and LOOK** — rules do not prove pixels; a layout claim needs a render
   (`context/instructions/browser.md`).
 - **A skipped gate is not a pass** — say which claim is therefore unverified.
@@ -114,6 +118,8 @@ icon) for real content.
 | Building or changing a component | `context/instructions/ui-components.md` |
 | Any interactive or visual change, plus review | `context/instructions/ui-accessibility.md` |
 | Layout, visual direction, copy, review | `context/instructions/ui-taste.md` |
+| Arranging a surface, spacing and the type scale | `context/instructions/ui-layout.md` |
+| Performance, budgets and measurement | `context/instructions/ui-performance.md` |
 | Mapping a framework's idioms | `context/instructions/ui-adapters.md` |
 | Rendering the result to verify it | `context/instructions/browser.md` |
 

@@ -1,0 +1,65 @@
+# UI/UX — layout and typography
+
+`context/instructions/ui-layout.md` is the reference for arranging a surface and
+setting type: grouping, spacing, reading order and the type scale. It is
+project-agnostic — it names the decisions, not the numbers. Read it with
+`context/instructions/ui.md` (the doctrine), `context/instructions/ui-tokens.md`
+(the values), `context/instructions/ui-taste.md` (composition and direction) and
+`context/instructions/ui-components.md` (the pieces you arrange).
+
+## When this applies
+
+- Use it when arranging a surface or setting type. If the project has no user
+  interface, this file does not apply: say so and stop.
+- The project's own grid and scale win. If it has none, this file still applies
+  as decisions to follow, but never invent a design system as a side effect (see
+  `ui-tokens.md`).
+
+## Layout is grouping
+
+- Group related things, separate unrelated ones: proximity and spacing carry
+  structure better than borders, boxes or dividers.
+- A shared alignment line creates order; a divider is usually a missing spacing
+  decision.
+- Give each surface one clear focal point and let the layout express the
+  hierarchy (see `ui-taste.md`).
+
+## Spacing is a system, not taste
+
+- Space from the project's scale (`ui-tokens.md`), not from arbitrary values;
+  siblings share one rhythm, and a rhythm break marks a group break.
+- Name container roles semantically — page, section, card, field — and space
+  between roles, not between arbitrary wrappers.
+- Whitespace is structure, not waste: when in doubt, remove a line and add space.
+
+## Typography is a system
+
+- Use a small, closed set of type roles (display, title, body, label, caption),
+  each mapped to the project's scale; never set a size ad hoc.
+- **Measure** — body text runs roughly 45-75 characters per line. Wider loses the
+  line; narrower breaks the rhythm.
+- Size, weight and line-height carry hierarchy; do not push all three at once for
+  a single step. Tabular numerals for data (see `ui-components.md`).
+
+## Reading order
+
+- DOM order is the reading and focus order: the tab order follows the visual
+  order, and the content makes sense with styles off.
+- Do not reorder visually with CSS in a way that contradicts the DOM — a screen
+  reader and a keyboard follow the DOM, not the layout. If a visual reorder needs
+  a different reading order, fix the DOM instead.
+
+## The squint test
+
+- Blur the surface, or squint at it: if the hierarchy still reads, the layout is
+  structured; if everything collapses into one mass, the grouping is missing.
+- Run it at the real viewport, not a zoomed-out mock.
+
+## Boundary
+
+- Values come from `context/instructions/ui-tokens.md`.
+- Composition, direction and coherence live in
+  `context/instructions/ui-taste.md`; component internals are
+  `context/instructions/ui-components.md`.
+- The performance budgets the structure must respect are in
+  `context/instructions/ui-performance.md`.

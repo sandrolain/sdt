@@ -153,6 +153,8 @@ func TestTemplateRenderRoundTrip(t *testing.T) {
 		"instructions/ui-accessibility.md.tmpl",
 		"instructions/ui-taste.md.tmpl",
 		"instructions/ui-adapters.md.tmpl",
+		"instructions/ui-performance.md.tmpl",
+		"instructions/ui-layout.md.tmpl",
 		"instructions/vector.md.tmpl",
 		"instructions/vector-svg.md.tmpl",
 		"instructions/vector-tools.md.tmpl",

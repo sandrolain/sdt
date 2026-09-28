@@ -1,0 +1,68 @@
+# UI/UX — performance
+
+`context/instructions/ui-performance.md` is the reference for interface
+performance: how fast a surface loads, responds and stays stable. It is
+project-agnostic — it names budgets and measurements, not tools. Read it with
+`context/instructions/ui.md` (the doctrine), `context/instructions/ui-layout.md`
+(the structure it protects) and `context/instructions/browser.md` (how rendered
+and vitals evidence is captured).
+
+## When this applies (no-op rule)
+
+- Use it when the project ships a user interface that renders somewhere a user
+  waits: a web page, a mobile or desktop app, a terminal UI. If the project has
+  no user interface, or the change cannot affect load, interaction or stability,
+  this file does not apply: say so and stop.
+- The numbers below are defaults to reason from, not universal law. The project's
+  own targets win; if it has none, propose them and ask before enforcing.
+
+## Performance is a feature
+
+- Speed is a user-facing quality, not an optimisation pass added later. A surface
+  that looks right but stalls is not done.
+- Budget first, then build: name the target for the surface before writing the
+  code that must meet it, and report the measured result when you close.
+- A regression past a budget is a defect, not a nit.
+
+## Core Web Vitals (when the surface is a web page)
+
+- **LCP** — largest contentful paint: how quickly the main content appears.
+- **INP** — interaction to next paint: how quickly the surface responds to input.
+- **CLS** — cumulative layout shift: how much the layout moves under the user.
+- Name the current target for each metric that applies; "fast enough" is not a
+  target. Report lab and field numbers separately — they are different evidence.
+
+## Bundle and images
+
+- Ship only what the surface uses; watch the delivered bundle, not the source
+  size. Defer what is not needed for first paint.
+- Images: the right format (a modern format with a fallback), the right rendered
+  dimensions (never scale a large asset down in CSS), lazy-load what is below the
+  fold, and prioritize the image that drives LCP.
+- Prefer fewer and smaller requests; every extra dependency is a cost on every
+  load.
+
+## Measure before and after
+
+- Measure the baseline **before** changing anything, then the result **after**;
+  never state a number you did not measure (`ui.md`, honesty rule).
+- Measure the surface the user gets (a real build), not a mock; state whether a
+  number is lab or field.
+- A skipped measurement is not a pass: report the claim as unverified instead of
+  implying it holds.
+
+## Budgets and degradation
+
+- Set a budget per metric; when a change cannot meet it, declare the tradeoff
+  rather than hiding the cost.
+- Content first, enhancement after: the surface must be usable before the
+  expensive work runs, and must degrade gracefully when a network or device is
+  slow.
+
+## Boundary
+
+- The doctrine is `context/instructions/ui.md`; tokens and components are
+  `context/instructions/ui-tokens.md` and
+  `context/instructions/ui-components.md`.
+- Capturing rendered and vitals evidence, and the verification protocol, live in
+  `context/instructions/browser.md`.

@@ -1721,6 +1721,8 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"Which file to read",
 			"context/instructions/development.md",
 			"context/instructions/browser.md",
+			"context/instructions/ui-layout.md",
+			"context/instructions/ui-performance.md",
 		}},
 		{"ui-tokens.md", instrUITokensTemplate, []string{
 			"# UI/UX — tokens by intent",
@@ -1742,6 +1744,8 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"overflow",
 			"tabular numerals",
 			"Functional copy",
+			"Blocks",
+			"Approval never transfers",
 			"ui-accessibility.md",
 		}},
 		{"ui-accessibility.md", instrUIA11yTemplate, []string{
@@ -1769,7 +1773,30 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"Styling strategy",
 			"Theming and dark mode",
 			"Motion",
+			"Adaptation",
+			"out of scope",
 			"prescribes no framework",
+		}},
+		{"ui-performance.md", instrUIPerformanceTemplate, []string{
+			"# UI/UX — performance",
+			"Core Web Vitals",
+			"LCP",
+			"INP",
+			"CLS",
+			"Measure before and after",
+			"never state a number you did not measure",
+			"ui-layout.md",
+			"browser.md",
+		}},
+		{"ui-layout.md", instrUILayoutTemplate, []string{
+			"# UI/UX — layout and typography",
+			"Layout is grouping",
+			"45-75 characters per line",
+			"DOM order is the reading and focus order",
+			"squint test",
+			"ui-tokens.md",
+			"ui-taste.md",
+			"ui-components.md",
 		}},
 	}
 	for _, tc := range cases {
@@ -1791,7 +1818,7 @@ func TestAgentUITemplatesViewerFree(t *testing.T) {
 	repoRoot, dir := agentInitInTempProject(t)
 	names := []string{
 		"ui.md", "ui-tokens.md", "ui-components.md", "ui-accessibility.md",
-		"ui-taste.md", "ui-adapters.md",
+		"ui-taste.md", "ui-adapters.md", "ui-performance.md", "ui-layout.md",
 	}
 	var files []string
 	for _, name := range names {
