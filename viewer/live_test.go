@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -27,6 +28,36 @@ func TestBrokerPublish(t *testing.T) {
 	}
 }
 
+// safeRecorder wraps httptest.ResponseRecorder with a mutex so a test goroutine
+// can inspect the body while the handler goroutine writes to it race-free.
+type safeRecorder struct {
+	*httptest.ResponseRecorder
+	mu sync.Mutex
+}
+
+func newSafeRecorder() *safeRecorder {
+	return &safeRecorder{ResponseRecorder: httptest.NewRecorder()}
+}
+
+func (r *safeRecorder) Write(b []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ResponseRecorder.Write(b)
+}
+
+func (r *safeRecorder) Flush() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ResponseRecorder.Flush()
+}
+
+// body returns the response body under the lock.
+func (r *safeRecorder) body() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.Body.String()
+}
+
 func TestHandleEventsStreamsChanges(t *testing.T) {
 	root := makeCorpus(t)
 	s, err := newServer(root)
@@ -35,7 +66,7 @@ func TestHandleEventsStreamsChanges(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	req := httptest.NewRequest(http.MethodGet, "/api/events", nil).WithContext(ctx)
-	rec := httptest.NewRecorder()
+	rec := newSafeRecorder()
 
 	done := make(chan struct{})
 	go func() {
@@ -45,7 +76,7 @@ func TestHandleEventsStreamsChanges(t *testing.T) {
 
 	// give the handler a moment to subscribe, then publish
 	deadline := time.After(time.Second)
-	for len(rec.Body.String()) == 0 {
+	for len(rec.body()) == 0 {
 		select {
 		case <-deadline:
 			t.Fatal("no SSE preamble")
@@ -57,7 +88,7 @@ func TestHandleEventsStreamsChanges(t *testing.T) {
 	cancel()
 	<-done
 
-	body := rec.Body.String()
+	body := rec.body()
 	if !strings.Contains(body, "event: change") || !strings.Contains(body, "context/notes/x.md") {
 		t.Errorf("stream body missing change event:\n%s", body)
 	}
