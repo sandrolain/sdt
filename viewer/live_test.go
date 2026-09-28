@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -125,6 +126,71 @@ func TestWatchCorpusDebouncesAndFilters(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no change event")
+	}
+}
+
+func TestWatchCorpusCoalescesBurst(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "context", "notes"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	events := make(chan []string, 8)
+	w, err := watchCorpus(root, filepath.Join(root, "context"), 150*time.Millisecond, func(paths []string) {
+		events <- paths
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = w.Close() }()
+
+	for _, name := range []string{"c.md", "a.md", "b.md"} {
+		mustWrite(t, filepath.Join(root, "context", "notes", name), name)
+	}
+
+	select {
+	case paths := <-events:
+		want := []string{"context/notes/a.md", "context/notes/b.md", "context/notes/c.md"}
+		if !reflect.DeepEqual(paths, want) {
+			t.Errorf("paths = %v, want %v", paths, want)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no coalesced change event")
+	}
+
+	select {
+	case extra := <-events:
+		t.Errorf("unexpected extra flush: %v", extra)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+func TestWatchCorpusNoFlushAfterClose(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "context", "notes"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	events := make(chan []string, 4)
+	w, err := watchCorpus(root, filepath.Join(root, "context"), 400*time.Millisecond, func(paths []string) {
+		events <- paths
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// arm the debounce timer, give the run goroutine time to observe the event,
+	// then close well before the timer would fire.
+	mustWrite(t, filepath.Join(root, "context", "notes", "x.md"), "x")
+	time.Sleep(50 * time.Millisecond)
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case paths := <-events:
+		t.Errorf("flush fired after close: %v", paths)
+	case <-time.After(time.Second):
 	}
 }
 
