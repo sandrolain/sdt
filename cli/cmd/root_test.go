@@ -2,11 +2,25 @@ package cmd
 
 import (
 	"bytes"
+	"log/slog"
 	"testing"
 
+	"github.com/sandrolain/sdt/internal/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
+
+// captureLogs redirects the shared logger to a buffer for the duration of the
+// test and returns it, so assertions can read what the commands logged. The
+// previous default logger is restored on cleanup.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	previous := slog.Default()
+	buf := new(bytes.Buffer)
+	logging.Setup(logging.Options{Writer: buf, NoColor: true})
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return buf
+}
 
 // resetCmdFlags recursively resets all flag values to their defaults so that
 // shared cobra.Command instances don't accumulate state between Execute() calls.

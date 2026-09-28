@@ -114,6 +114,8 @@ func TestFileReadCmd(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			cmd.SetOut(&stdout)
 			cmd.SetErr(&stderr)
+			// exitWithError logs through the shared logger, not cmd's stderr.
+			logs := captureLogs(t)
 
 			// Redirect os.Exit calls to panic for testing
 			oldOsExit := exit
@@ -134,8 +136,8 @@ func TestFileReadCmd(t *testing.T) {
 						t.Errorf("Expected exit code 1, got %d", exitCode)
 					}
 					expectedError := fmt.Sprintf("file %q not exist", tt.filePath)
-					if !strings.Contains(stderr.String(), expectedError) {
-						t.Errorf("Expected error message %q, got %q", expectedError, stderr.String())
+					if !strings.Contains(logs.String(), expectedError) {
+						t.Errorf("Expected error message %q, got %q", expectedError, logs.String())
 					}
 				}()
 			}
@@ -144,6 +146,9 @@ func TestFileReadCmd(t *testing.T) {
 
 			if !tt.wantError && stderr.Len() > 0 {
 				t.Errorf("Unexpected error output: %s", stderr.String())
+			}
+			if !tt.wantError && logs.Len() > 0 {
+				t.Errorf("Unexpected log output: %s", logs.String())
 			}
 		})
 	}

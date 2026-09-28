@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/sandrolain/sdt/cli/utils"
+	"github.com/sandrolain/sdt/internal/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -22,6 +24,36 @@ func getFormat(cmd *cobra.Command) string {
 		}
 	}
 	return "text"
+}
+
+// getPersistentBool returns the value of a root persistent bool flag, or false
+// when the flag is not defined on the root command.
+func getPersistentBool(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	pf := cmd.Root().PersistentFlags()
+	if f := pf.Lookup(name); f != nil {
+		if v, err := pf.GetBool(name); err == nil {
+			return v
+		}
+	}
+	return false
+}
+
+// getPersistentString returns the value of a root persistent string flag, or
+// def when the flag is not defined on the root command.
+func getPersistentString(cmd *cobra.Command, name, def string) string {
+	if cmd == nil {
+		return def
+	}
+	pf := cmd.Root().PersistentFlags()
+	if f := pf.Lookup(name); f != nil {
+		if v, err := pf.GetString(name); err == nil {
+			return v
+		}
+	}
+	return def
 }
 
 const logo = `
@@ -50,6 +82,12 @@ var rootCmd = &cobra.Command{
 	Use:   "sdt",
 	Short: "Smart Developer Tools",
 	Long:  logo + `Smart Developer Tools is a collection of CLI utilities for developers`,
+	// installLogger runs after flag parsing and before the command body, so
+	// every command logs through the same handler.
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		installLogger(cmd)
+		return nil
+	},
 }
 
 func init() {
@@ -60,6 +98,37 @@ func init() {
 	pf.String("format", "text", "Output format: text|json|yaml")
 	pf.Bool("quiet", false, "Suppress informational messages, only output result")
 	pf.Bool("no-color", false, "Disable ANSI color codes")
+	pf.String("log-format", "text", "Log format: text|json")
+	// Install a plain logger up front so errors raised before flag parsing
+	// (an unknown flag, for instance) render like every other log line.
+	installLogger(rootCmd)
+}
+
+// installLogger wires the shared logger to the command error stream, keeping
+// stdout as the result channel. Colour is decided by internal/logging: only on
+// a terminal, and never with --no-color or NO_COLOR set. --quiet raises the
+// level to Warn.
+func installLogger(cmd *cobra.Command) {
+	format := getPersistentString(cmd, "log-format", "text")
+	switch format {
+	case "text", "json":
+	default:
+		exitWithError(cmd, fmt.Errorf("invalid --log-format %q: use text or json", format))
+		return
+	}
+
+	level := slog.LevelInfo
+	if getPersistentBool(cmd, "quiet") {
+		level = slog.LevelWarn
+	}
+
+	logging.Setup(logging.Options{
+		Writer:  cmd.ErrOrStderr(),
+		Level:   level,
+		NoColor: getPersistentBool(cmd, "no-color"),
+		JSON:    format == "json",
+		Time:    false,
+	})
 }
 
 func Execute() {
@@ -93,20 +162,16 @@ func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {
 
 var exit func(code int) = os.Exit
 
-func exitWithError(cmd *cobra.Command, err error) {
-	if err != nil {
-		if cmd != nil {
-			if _, ferr := fmt.Fprintln(cmd.ErrOrStderr(), "Error:", err); ferr != nil {
-				_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
-			}
-			exit(1)
-			return
-		}
-		if _, ferr := fmt.Fprintln(os.Stderr, "Error:", err); ferr != nil {
-			_ = ferr // best-effort: nothing more we can do if stderr write fails
-		}
-		exit(1)
+// exitWithError reports err through the shared logger and exits with code 1.
+// The logger writes to the command error stream, so stdout keeps carrying
+// results only. cmd is accepted so call sites stay uniform; the installed
+// logger already knows where to write.
+func exitWithError(_ *cobra.Command, err error) {
+	if err == nil {
+		return
 	}
+	slog.Error(err.Error())
+	exit(1)
 }
 
 func getFlag[T any](cmd *cobra.Command, name string, required bool, fFlags func(flags *pflag.FlagSet) (T, error), fFile func() T) T {
