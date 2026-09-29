@@ -1,0 +1,51 @@
+{
+  "_comment": "The resolved lifecycle edges of the documents in this directory, as one resolver must read them: `parent` is the single typed relation (analysis_id for a plan, plan_id for a task file), `children` the reverse of it. Both cli/cmd (context_cascade_test.go) and web (src/lib/edges.test.ts) assert this file, so the Go resolver and the viewer payload cannot disagree about who derives from whom. A `sources` or `links` citation is never an edge.",
+  "edges": {
+    "context/analysis/normal.md": {
+      "parent": "",
+      "children": [
+        "context/plan/citing.md",
+        "context/plan/normal.md"
+      ],
+      "_comment": "the citing plan derives from this analysis; the sibling it also cites does not"
+    },
+    "context/analysis/sibling.md": {
+      "_comment": "cited by plan/citing.md in sources, but not its parent: no edge",
+      "parent": "",
+      "children": []
+    },
+    "context/plan/normal.md": {
+      "parent": "context/analysis/normal.md",
+      "children": [
+        "context/tasks/citing.md",
+        "context/tasks/normal-phase-1.md"
+      ]
+    },
+    "context/plan/citing.md": {
+      "parent": "context/analysis/normal.md",
+      "children": []
+    },
+    "context/plan/dangling.md": {
+      "_comment": "analysis_id resolves to no document: no parent",
+      "parent": "",
+      "children": []
+    },
+    "context/tasks/normal-phase-1.md": {
+      "parent": "context/plan/normal.md",
+      "children": []
+    },
+    "context/tasks/citing.md": {
+      "parent": "context/plan/normal.md",
+      "children": []
+    },
+    "context/tasks/linked.md": {
+      "_comment": "links a plan without plan_id: no edge",
+      "parent": "",
+      "children": []
+    },
+    "context/tasks/loose.md": {
+      "parent": "",
+      "children": []
+    }
+  }
+}
