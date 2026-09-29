@@ -258,9 +258,10 @@ export interface PlanGroup {
   entries: TreeEntry[];
 }
 
-/** Group task entries under the plan in their `sources` list.
- *  Named plan groups come first, ordered by plan `created` descending, then the
- *  "" group holding tasks with no sourced plan (they stay at the root).
+/** Group task entries under the plan they derive from (the server-resolved
+ *  `plan` field, via tasksByPlan). Named plan groups come first, ordered by plan
+ *  `created` descending, then the "" group holding tasks with no plan (they stay
+ *  at the root).
  *  Under a date sort the named groups order among themselves by the latest task
  *  date in each (ties keep the plan-created-desc order). */
 export function groupByPlan(

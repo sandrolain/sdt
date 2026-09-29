@@ -12,10 +12,19 @@ export interface TreeEntry {
   status?: string;
   /** frontmatter `categories` (analysis work-type slugs) */
   categories?: string[];
-  /** frontmatter `sources` references (the derivation edge), corpus-relative.
-   *  The frontmatter `links` list is generic correlation and is NOT merged here;
-   *  surfaces that display both read them from the /api/doc frontmatter. */
+  /** frontmatter `sources` references (the human-readable derivation list),
+   *  corpus-relative. NOT an edge: the lifecycle edges are the resolved fields
+   *  below, taken by the server from the typed `analysis_id`/`plan_id`
+   *  relations. The frontmatter `links` list is generic correlation and is never
+   *  merged here; surfaces that display the raw lists read them from the
+   *  /api/doc frontmatter. */
   sources?: string[];
+  /** resolved lifecycle edges (the server reads the typed relations):
+   *  `analysis` on a plan (its single parent analysis), `plans` on an analysis
+   *  (the plans naming it), `plan` on a task file (its parent plan) */
+  analysis?: string;
+  plans?: string[];
+  plan?: string;
   created?: string;
   /** frontmatter `updated`, else the file mtime (RFC3339) */
   modified?: string;

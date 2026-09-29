@@ -5,7 +5,6 @@ import {
   entryState,
   groupDot,
   isDoneStatus,
-  planReferencedAnalyses,
   plansByAnalysis,
   STATE_KEYS,
   stateMeta,
@@ -84,7 +83,8 @@ describe("statusDot", () => {
   it("maps analysis state to no plan, plan progress and completion", () => {
     const analysis = entry({ path: "context/analysis/a.md", kind: "analysis" });
     const planForAnalysis = plan("context/plan/a.md");
-    planForAnalysis.sources = ["analysis/a.md"];
+    planForAnalysis.analysis = analysis.path;
+    analysis.plans = [planForAnalysis.path];
     const analysisPlans = plansByAnalysis([analysis, planForAnalysis]);
 
     expect(statusDot(analysis, new Map())).toEqual({
@@ -110,9 +110,8 @@ describe("statusDot", () => {
   it("requires every referenced plan to have a non-empty completed task list", () => {
     const analysis = entry({ path: "context/analysis/a.md", kind: "analysis" });
     const planA = plan("context/plan/a.md");
-    planA.sources = ["analysis/a.md"];
     const planB = plan("context/plan/b.md");
-    planB.sources = ["analysis/a.md"];
+    analysis.plans = [planA.path, planB.path];
     const plans = plansByAnalysis([analysis, planA, planB]);
     const tasks = new Map<string, TreeEntry[]>([
       ["context/plan/a.md", [task("context/tasks/a.md", "completed")]],
@@ -130,12 +129,12 @@ describe("statusDot", () => {
     const analysis = entry({ path: "context/analysis/a.md", kind: "analysis" });
     const linking = plan("context/plan/a.md");
     linking.status = "completed";
+    linking.analysis = analysis.path;
     (linking as { links?: string[] }).links = ["analysis/a.md"];
-    expect(linking.sources).toBeUndefined();
 
+    // the analysis declares no plan, so the index attributes none to it
     const analysisPlans = plansByAnalysis([analysis, linking]);
     expect(analysisPlans.size).toBe(0);
-    expect(planReferencedAnalyses([analysis, linking]).size).toBe(0);
 
     // Its own completed tasks must not paint the analysis green.
     const taskIndex = new Map<string, TreeEntry[]>([
@@ -245,10 +244,12 @@ describe("statusDot", () => {
 });
 
 describe("entryState", () => {
-  const taskFile = (path: string, status?: string, sources?: string[]) =>
-    entry({ path, kind: "tasks", status, sources });
-  const planFile = (path: string, status?: string, sources?: string[]) =>
-    entry({ path, kind: "plan", status, sources });
+  // The helpers take the server-resolved edge (`plan` / `analysis`), the fields
+  // the payload carries; a `sources` citation is not an edge.
+  const taskFile = (path: string, status?: string, plan?: string) =>
+    entry({ path, kind: "tasks", status, plan });
+  const planFile = (path: string, status?: string, analysis?: string) =>
+    entry({ path, kind: "plan", status, analysis });
   const stateOf = (e: TreeEntry, corpus: TreeEntry[]) =>
     entryState(e, plansByAnalysis(corpus), tasksByPlan(corpus));
 
@@ -261,11 +262,9 @@ describe("entryState", () => {
       kind: "analysis",
       status: "active",
     });
-    const corpus = [
-      analysis,
-      planFile("context/plan/p.md", "completed", ["analysis/active.md"]),
-      taskFile("context/tasks/t.md", "completed", ["plan/p.md"]),
-    ];
+    const plan = planFile("context/plan/p.md", "completed", analysis.path);
+    analysis.plans = [plan.path];
+    const corpus = [analysis, plan, taskFile("context/tasks/t.md", "completed", plan.path)];
     expect(stateOf(analysis, corpus)).toEqual({
       key: "completed",
       tone: "ok",
@@ -306,12 +305,12 @@ describe("entryState", () => {
   it("derives the plan states from its task files", () => {
     const corpus = [
       planFile("context/plan/running.md", "active"),
-      taskFile("context/tasks/a.md", "completed", ["plan/running.md"]),
-      taskFile("context/tasks/b.md", "pending", ["plan/running.md"]),
+      taskFile("context/tasks/a.md", "completed", "context/plan/running.md"),
+      taskFile("context/tasks/b.md", "pending", "context/plan/running.md"),
       planFile("context/plan/started.md", "active"),
-      taskFile("context/tasks/c.md", "wip", ["plan/started.md"]),
+      taskFile("context/tasks/c.md", "wip", "context/plan/started.md"),
       planFile("context/plan/pending.md", "active"),
-      taskFile("context/tasks/d.md", "pending", ["plan/pending.md"]),
+      taskFile("context/tasks/d.md", "pending", "context/plan/pending.md"),
     ];
     const state = (path: string) => stateOf(planFile(path, "active"), corpus);
 
@@ -335,7 +334,7 @@ describe("entryState", () => {
     // Derived completion overrides the declared `active` and records it.
     const allDone = [
       planFile("context/plan/done.md", "active"),
-      taskFile("context/tasks/e.md", "completed", ["plan/done.md"]),
+      taskFile("context/tasks/e.md", "completed", "context/plan/done.md"),
     ];
     expect(stateOf(planFile("context/plan/done.md", "active"), allDone)).toEqual({
       key: "completed",
@@ -353,7 +352,7 @@ describe("entryState", () => {
       planFile("context/plan/done.md", "completed"),
       planFile("context/plan/stopped.md", "abandoned"),
       planFile("context/plan/wip.md", "active"),
-      taskFile("context/tasks/wip.md", "in-progress", ["plan/wip.md"]),
+      taskFile("context/tasks/wip.md", "in-progress", "context/plan/pending.md"),
       planFile("context/plan/cold.md", "active"),
       // tasks
       taskFile("context/tasks/done.md", "completed"),
@@ -367,11 +366,11 @@ describe("entryState", () => {
       kind("analysis", "later", "postponed"),
       kind("analysis", "unplanned", "active"),
       kind("analysis", "running", "active"),
-      planFile("context/plan/run.md", "active", ["analysis/running.md"]),
-      taskFile("context/tasks/run.md", "pending", ["plan/run.md"]),
+      planFile("context/plan/run.md", "active", "context/analysis/running.md"),
+      taskFile("context/tasks/run.md", "pending", "context/plan/run.md"),
       kind("analysis", "derived", "active"),
-      planFile("context/plan/derived.md", "completed", ["analysis/derived.md"]),
-      taskFile("context/tasks/derived.md", "completed", ["plan/derived.md"]),
+      planFile("context/plan/derived.md", "completed", "context/analysis/derived.md"),
+      taskFile("context/tasks/derived.md", "completed", "context/plan/derived.md"),
       // questions
       kind("questions", "open", "active"),
       kind("questions", "answered", "resolved"),
@@ -427,7 +426,7 @@ describe("groupDot", () => {
     entry({ path: `context/analysis/${name}.md`, kind: "analysis", status });
   const planFor = (name: string, analysisName: string) => {
     const p = plan(`context/plan/${name}.md`);
-    p.sources = [`analysis/${analysisName}.md`];
+    p.analysis = `context/analysis/${analysisName}.md`;
     return p;
   };
 
@@ -435,13 +434,11 @@ describe("groupDot", () => {
     const unplanned = analysis("unplanned");
     const partial = analysis("partial");
     const complete = analysis("complete");
-    const entries = [
-      unplanned,
-      partial,
-      complete,
-      planFor("partial", "partial"),
-      planFor("complete", "complete"),
-    ];
+    const partialPlan = planFor("partial", "partial");
+    const completePlan = planFor("complete", "complete");
+    partial.plans = [partialPlan.path];
+    complete.plans = [completePlan.path];
+    const entries = [unplanned, partial, complete, partialPlan, completePlan];
     const plans = plansByAnalysis(entries);
     const taskIndex = new Map<string, TreeEntry[]>([
       ["context/plan/partial.md", [task("context/tasks/partial.md", "pending")]],
@@ -490,10 +487,10 @@ describe("taskProgress / tasksByPlan", () => {
     expect(taskProgress([])).toEqual({ tone: "danger", done: 0, total: 0 });
   });
 
-  it("indexes tasks by normalized plan reference, ignoring non-tasks", () => {
+  it("indexes tasks by their resolved plan, ignoring non-tasks", () => {
     const index = tasksByPlan([
-      task("context/tasks/a.md", "completed", ["plan/p.md"]),
-      task("context/tasks/b.md", "pending", ["context/plan/p.md"]),
+      { ...task("context/tasks/a.md", "completed"), plan: "context/plan/p.md" },
+      { ...task("context/tasks/b.md", "pending"), plan: "context/plan/p.md" },
       task("context/tasks/c.md", "pending"),
       plan(),
     ]);
@@ -502,6 +499,42 @@ describe("taskProgress / tasksByPlan", () => {
       "context/tasks/b.md",
     ]);
     expect(index.get("")?.map((e) => e.path)).toEqual(["context/tasks/c.md"]);
+  });
+
+  it("attributes a plan to the analysis that declares it, not to the ones it cites", () => {
+    // The wave-1 divergence: the plan cites two analyses in `sources` and
+    // resolves to one of them. The other analysis has no plan, which is the
+    // honest reading — the payload is the edge, `sources` is prose.
+    const stuck = entry({
+      path: "context/analysis/stuck.md",
+      kind: "analysis",
+      plans: ["context/plan/p.md"],
+    });
+    const other = entry({ path: "context/analysis/other.md", kind: "analysis" });
+    const p: TreeEntry = {
+      path: "context/plan/p.md",
+      kind: "plan",
+      status: "completed",
+      analysis: "context/analysis/stuck.md",
+      sources: ["analysis/stuck.md", "analysis/other.md"],
+    };
+    const corpus = [stuck, other, p];
+
+    expect(plansByAnalysis(corpus).get("context/analysis/stuck.md")).toEqual([p]);
+    expect(plansByAnalysis(corpus).has("context/analysis/other.md")).toBe(false);
+    // and the state follows: stuck is completed in effect, other has no plan
+    const stateOf = (e: typeof stuck) => entryState(e, plansByAnalysis(corpus), new Map());
+    expect(stateOf(stuck).key).toBe("completed");
+    expect(stateOf(other).key).toBe("no-plan");
+  });
+
+  it("a task file is grouped by its resolved plan, never by a `sources` citation", () => {
+    const t = {
+      ...task("context/tasks/t.md", "completed", ["plan/other.md"]),
+      plan: "context/plan/p.md",
+    };
+    const index = tasksByPlan([t]);
+    expect(index.get("context/plan/p.md")?.map((e) => e.path)).toEqual(["context/tasks/t.md"]);
   });
 
   it("buckets a links-only task under the empty key and inherits no objective", () => {
@@ -563,11 +596,13 @@ describe("the state keys that replaced entryCompleted", () => {
 });
 
 describe("driftReasons", () => {
-  const planFile = (path: string, status?: string, sources?: string[]) =>
-    entry({ path, kind: "plan", status, sources });
-  const taskFile = (path: string, status?: string, sources?: string[]) =>
-    entry({ path, kind: "tasks", status, sources });
-  const analysisFile = (path: string, status?: string) => entry({ path, kind: "analysis", status });
+  // The helpers take the server-resolved edge, the fields the payload carries.
+  const planFile = (path: string, status?: string, analysis?: string) =>
+    entry({ path, kind: "plan", status, analysis });
+  const taskFile = (path: string, status?: string, plan?: string) =>
+    entry({ path, kind: "tasks", status, plan });
+  const analysisFile = (path: string, status?: string, plans?: string[]) =>
+    entry({ path, kind: "analysis", status, plans });
   const stateOf = (e: TreeEntry, corpus: TreeEntry[]) =>
     entryState(e, plansByAnalysis(corpus), tasksByPlan(corpus));
   const SYNC = "run `sdt context sync`";
@@ -579,47 +614,49 @@ describe("driftReasons", () => {
     );
 
     const withTasks = [
-      planFile("context/plan/p.md", "completed", ["analysis/a.md"]),
-      taskFile("context/tasks/done.md", "completed", ["plan/p.md"]),
-      taskFile("context/tasks/pending.md", "pending", ["plan/p.md"]),
-      analysisFile("context/analysis/a.md", "active"),
+      planFile("context/plan/p.md", "completed", "context/analysis/a.md"),
+      taskFile("context/tasks/done.md", "completed", "context/plan/p.md"),
+      taskFile("context/tasks/pending.md", "pending", "context/plan/p.md"),
+      analysisFile("context/analysis/a.md", "active", ["context/plan/p.md"]),
     ];
     expect(
-      stateOf(planFile("context/plan/p.md", "completed", ["analysis/a.md"]), withTasks).drift,
+      stateOf(planFile("context/plan/p.md", "completed", "context/analysis/a.md"), withTasks).drift,
     ).toBe("plan declares completed but 1 task(s) are not done: pending.md");
     // the same plan with every task done is coherent
-    withTasks[1] = taskFile("context/tasks/done.md", "completed", ["plan/p.md"]);
-    withTasks[2] = taskFile("context/tasks/pending.md", "completed", ["plan/p.md"]);
+    withTasks[1] = taskFile("context/tasks/done.md", "completed", "context/plan/p.md");
+    withTasks[2] = taskFile("context/tasks/pending.md", "completed", "context/plan/p.md");
     expect(
-      stateOf(planFile("context/plan/p.md", "completed", ["analysis/a.md"]), withTasks).drift,
+      stateOf(planFile("context/plan/p.md", "completed", "context/analysis/a.md"), withTasks).drift,
     ).toBeUndefined();
   });
 
   it("flags an analysis whose completion the plan set contradicts", () => {
-    const plan = planFile("context/plan/p.md", "active", ["analysis/a.md"]);
-    const analysis = analysisFile("context/analysis/a.md", "completed");
-    const running = [analysis, plan, taskFile("context/tasks/t.md", "pending", ["plan/p.md"])];
+    const plan = planFile("context/plan/p.md", "active", "context/analysis/a.md");
+    const analysis = analysisFile("context/analysis/a.md", "completed", [plan.path]);
+    const running = [analysis, plan, taskFile("context/tasks/t.md", "pending", plan.path)];
     expect(stateOf(analysis, running).drift).toBe(
       "analysis declares completed but 1 plan(s) are not done: p.md",
     );
 
-    const done = [analysis, plan, taskFile("context/tasks/t.md", "completed", ["plan/p.md"])];
+    const done = [analysis, plan, taskFile("context/tasks/t.md", "completed", plan.path)];
     expect(stateOf(analysis, done).drift).toBeUndefined();
   });
 
   it("flags an analysis that is completed in effect while still declared active", () => {
     const analysis = analysisFile("context/analysis/a.md", "active");
-    const corpus = [
-      analysis,
-      planFile("context/plan/p.md", "completed", ["analysis/a.md"]),
-      taskFile("context/tasks/t.md", "completed", ["plan/p.md"]),
-    ];
+    const plan = planFile("context/plan/p.md", "completed", analysis.path);
+    analysis.plans = [plan.path];
+    const corpus = [analysis, plan, taskFile("context/tasks/t.md", "completed", plan.path)];
     expect(stateOf(analysis, corpus).drift).toBe(
       `analysis is derivably completed (all plans done) — ${SYNC}`,
     );
     // a plan in progress is not a completed analysis
-    const running = [analysis, planFile("context/plan/p.md", "active", ["analysis/a.md"])];
-    running.push(taskFile("context/tasks/t.md", "pending", ["plan/p.md"]));
+    const stillOpen = planFile("context/plan/p.md", "active", analysis.path);
+    const running = [
+      analysis,
+      stillOpen,
+      taskFile("context/tasks/t.md", "pending", stillOpen.path),
+    ];
     expect(stateOf(analysis, running).drift).toBeUndefined();
   });
 
@@ -627,16 +664,16 @@ describe("driftReasons", () => {
     // the user-owned analysis states, with a plan set that is all done
     for (const status of ["archived", "postponed", "draft"]) {
       const analysis = analysisFile("context/analysis/a.md", status);
-      const corpus = [
-        analysis,
-        planFile("context/plan/p.md", "completed", ["analysis/a.md"]),
-        taskFile("context/tasks/t.md", "completed", ["plan/p.md"]),
-      ];
+      const plan = planFile("context/plan/p.md", "completed", analysis.path);
+      analysis.plans = [plan.path];
+      const corpus = [analysis, plan, taskFile("context/tasks/t.md", "completed", plan.path)];
       expect(stateOf(analysis, corpus).drift).toBeUndefined();
     }
     // and a plan the user stopped
-    const abandoned = planFile("context/plan/p.md", "abandoned", ["analysis/a.md"]);
-    const corpus = [analysisFile("context/analysis/a.md", "active"), abandoned];
+    const analysis = analysisFile("context/analysis/a.md", "active");
+    const abandoned = planFile("context/plan/p.md", "abandoned", analysis.path);
+    analysis.plans = [abandoned.path];
+    const corpus = [analysis, abandoned];
     expect(stateOf(abandoned, corpus).drift).toBeUndefined();
   });
 
@@ -680,18 +717,6 @@ describe("isDoneStatus", () => {
   });
 });
 
-describe("planReferencedAnalyses", () => {
-  it("collects the plan sources as normalised corpus paths", () => {
-    const entries = [
-      entry({ kind: "plan", sources: ["analysis/a.md", "./analysis/b", "context/analysis/c.md"] }),
-      entry({ kind: "analysis", path: "context/analysis/ignored.md", sources: ["analysis/x.md"] }),
-    ];
-    expect(planReferencedAnalyses(entries)).toEqual(
-      new Set(["context/analysis/a.md", "context/analysis/b.md", "context/analysis/c.md"]),
-    );
-  });
-});
-
 describe("taskObjective", () => {
   const plans = () =>
     new Map<string, TreeEntry>([
@@ -701,10 +726,14 @@ describe("taskObjective", () => {
       ],
     ]);
 
-  it("inherits the objective of the plan a task sources", () => {
-    expect(taskObjective(task("context/tasks/t.md", "pending", ["plan/x.md"]), plans())).toBe(
-      "viewer",
-    );
+  it("inherits the objective of the plan a task derives from", () => {
+    const wired = { ...task("context/tasks/t.md", "pending"), plan: "context/plan/x.md" };
+    expect(taskObjective(wired, plans())).toBe("viewer");
+  });
+
+  it("does not inherit through a `sources` citation", () => {
+    const citing = task("context/tasks/t.md", "pending", ["plan/x.md"]);
+    expect(taskObjective(citing, plans())).toBe("");
   });
 
   it("returns empty when the plan is missing or carries no objective", () => {
@@ -722,10 +751,8 @@ describe("taskObjective", () => {
 
   it("withTaskObjectives annotates only inherited tasks", () => {
     const map = plans();
-    const tasks = withTaskObjectives(
-      [task("context/tasks/a.md", "pending", ["plan/x.md"]), task("context/tasks/b.md", "pending")],
-      map,
-    );
+    const wired = { ...task("context/tasks/a.md", "pending"), plan: "context/plan/x.md" };
+    const tasks = withTaskObjectives([wired, task("context/tasks/b.md", "pending")], map);
     expect(tasks[0].objective).toBe("viewer");
     expect(tasks[1].objective).toBeUndefined();
   });

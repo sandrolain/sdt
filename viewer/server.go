@@ -16,6 +16,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
+	"github.com/sandrolain/sdt/internal/ctxrel"
 	"github.com/sandrolain/sdt/internal/search"
 	"github.com/sandrolain/sdt/internal/semantic"
 )
@@ -78,10 +79,13 @@ type server struct {
 
 // treeEntry is one corpus file in the /api/tree listing.
 //
-// Sources carries the frontmatter `sources` list only: the derivation edge. The
-// frontmatter `links` list is generic correlation and is deliberately NOT merged
-// into it, so a cross-link cannot become a derivation edge in the status dots.
-// Surfaces that display both relations read them from the /api/doc frontmatter.
+// Analysis/Plans/Plan are the resolved lifecycle edges (a plan's single parent
+// analysis, an analysis' plans, a task file's plan), taken from the typed
+// `analysis_id`/`plan_id` relations by internal/ctxrel — the one resolver the Go
+// tools share. A `sources` citation never becomes an edge here: Sources is the
+// human-readable derivation list, displayed as a reference list, and the
+// frontmatter `links` list is generic correlation and is deliberately absent.
+// Surfaces that display the raw lists read them from the /api/doc frontmatter.
 type treeEntry struct {
 	Path       string   `json:"path"`
 	Kind       string   `json:"kind,omitempty"`
@@ -90,6 +94,9 @@ type treeEntry struct {
 	Objective  string   `json:"objective,omitempty"`
 	Status     string   `json:"status,omitempty"`
 	Categories []string `json:"categories,omitempty"`
+	Analysis   string   `json:"analysis,omitempty"`
+	Plans      []string `json:"plans,omitempty"`
+	Plan       string   `json:"plan,omitempty"`
 	Sources    []string `json:"sources,omitempty"`
 	Created    string   `json:"created,omitempty"`
 	Modified   string   `json:"modified,omitempty"`
@@ -250,34 +257,11 @@ func (s *server) walkTree() ([]treeEntry, error) {
 		if corpus.ExcludedPath(rel) {
 			return nil
 		}
-		switch filepath.Ext(rel) {
-		case markdownExt:
-			e, merr := s.mdEntry(path, rel)
-			if merr != nil {
-				return merr
-			}
-			entries = append(entries, e)
-		case canvasExt:
-			entry := treeEntry{
-				Path:   rel,
-				Kind:   "canvas",
-				Title:  strings.TrimSuffix(d.Name(), canvasExt),
-				Canvas: true,
-			}
-			if info, statErr := d.Info(); statErr == nil {
-				entry.Modified = info.ModTime().UTC().Format(time.RFC3339)
-			}
-			entries = append(entries, entry)
-		case mermaidExt:
-			entry := treeEntry{
-				Path:    rel,
-				Kind:    "mermaid",
-				Title:   strings.TrimSuffix(d.Name(), mermaidExt),
-				Mermaid: true,
-			}
-			if info, statErr := d.Info(); statErr == nil {
-				entry.Modified = info.ModTime().UTC().Format(time.RFC3339)
-			}
+		entry, ok, eerr := s.treeEntryFor(path, rel, d)
+		if eerr != nil {
+			return eerr
+		}
+		if ok {
 			entries = append(entries, entry)
 		}
 		return nil
@@ -286,7 +270,65 @@ func (s *server) walkTree() ([]treeEntry, error) {
 		return nil, err
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
+	edges, eerr := ctxrel.Load(s.corpus)
+	if eerr != nil {
+		return nil, eerr
+	}
+	applyResolvedEdges(entries, edges)
 	return entries, nil
+}
+
+// treeEntryFor builds the entry for one corpus file: markdown through the
+// frontmatter reader, canvas and mermaid synthesized from the extension (they
+// carry no frontmatter and therefore no lifecycle edge). ok is false for a file
+// the tree does not list.
+func (s *server) treeEntryFor(path, rel string, d fs.DirEntry) (treeEntry, bool, error) {
+	var entry treeEntry
+	switch filepath.Ext(rel) {
+	case markdownExt:
+		e, err := s.mdEntry(path, rel)
+		if err != nil {
+			return treeEntry{}, false, err
+		}
+		return e, true, nil
+	case canvasExt:
+		entry = treeEntry{
+			Path:   rel,
+			Kind:   "canvas",
+			Title:  strings.TrimSuffix(d.Name(), canvasExt),
+			Canvas: true,
+		}
+	case mermaidExt:
+		entry = treeEntry{
+			Path:    rel,
+			Kind:    "mermaid",
+			Title:   strings.TrimSuffix(d.Name(), mermaidExt),
+			Mermaid: true,
+		}
+	default:
+		return treeEntry{}, false, nil
+	}
+	if info, err := d.Info(); err == nil {
+		entry.Modified = info.ModTime().UTC().Format(time.RFC3339)
+	}
+	return entry, true, nil
+}
+
+// applyResolvedEdges stamps the typed lifecycle edges onto the entries: a plan
+// its single analysis, an analysis the plans that name it, a task file its plan.
+// Non-markdown entries have no frontmatter and therefore no edge.
+func applyResolvedEdges(entries []treeEntry, edges *ctxrel.Edges) {
+	for i := range entries {
+		ref := entries[i].Path
+		switch entries[i].Kind {
+		case "plan":
+			entries[i].Analysis = edges.ParentOf(ref)
+		case "analysis":
+			entries[i].Plans = edges.ChildrenOf(ref)
+		case "tasks":
+			entries[i].Plan = edges.ParentOf(ref)
+		}
+	}
 }
 
 // mdEntry reads frontmatter fields (kind/title/summary/created) and the
@@ -299,9 +341,10 @@ func (s *server) mdEntry(path, rel string) (treeEntry, error) {
 		return treeEntry{}, err
 	}
 	fm, _ := contextwiki.SplitFrontmatter(string(data))
-	// `sources` is the derivation list; `links` is correlation and is never
-	// merged into it, so a cross-link cannot become a plan→analysis or
-	// plan→task edge in the derived status dots.
+	// `sources` is the human-readable derivation list; `links` is correlation
+	// and is never merged into it. The lifecycle edges the status dots read are
+	// the resolved Analysis/Plans/Plan fields, stamped from the typed relations
+	// by applyResolvedEdges after the walk.
 	created := contextwiki.FrontmatterField(fm, "created")
 	if created == "" {
 		created = contextwiki.FrontmatterField(fm, "created_at")

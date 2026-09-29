@@ -145,13 +145,21 @@ describe("groupByPlan", () => {
   it("groups tasks under their plan, ordered by plan created desc, ungrouped last", () => {
     const groups = groupByPlan(
       [
-        entry({ path: "context/tasks/t1.md", kind: "tasks", sources: ["plan/20260920-a-plan.md"] }),
+        entry({
+          path: "context/tasks/t1.md",
+          kind: "tasks",
+          plan: "context/plan/20260920-a-plan.md",
+        }),
         entry({
           path: "context/tasks/t2.md",
           kind: "tasks",
-          sources: ["context/plan/20260919-b-plan.md"],
+          plan: "context/plan/20260919-b-plan.md",
         }),
-        entry({ path: "context/tasks/t3.md", kind: "tasks", sources: ["plan/20260920-a-plan.md"] }),
+        entry({
+          path: "context/tasks/t3.md",
+          kind: "tasks",
+          plan: "context/plan/20260920-a-plan.md",
+        }),
         entry({ path: "context/tasks/t4.md", kind: "tasks" }),
         // t5 sources an analysis and only `links` its plan: correlation is not a
         // derivation edge, so the task stays ungrouped (the server no longer
@@ -179,7 +187,13 @@ describe("groupByPlan", () => {
 
   it("labels a plan group from the filename slug when the plan entry is absent", () => {
     const groups = groupByPlan(
-      [entry({ path: "context/tasks/t1.md", kind: "tasks", sources: ["plan/20260920-a-plan.md"] })],
+      [
+        entry({
+          path: "context/tasks/t1.md",
+          kind: "tasks",
+          plan: "context/plan/20260920-a-plan.md",
+        }),
+      ],
       new Map(),
     );
     expect(groups.map((g) => g.label)).toEqual(["a-plan"]);
@@ -288,13 +302,13 @@ describe("date-ranked group ordering", () => {
         entry({
           path: "context/tasks/t1.md",
           kind: "tasks",
-          sources: ["plan/20260920-a-plan.md"],
+          plan: "context/plan/20260920-a-plan.md",
           created: "2026-09-30",
         }),
         entry({
           path: "context/tasks/t2.md",
           kind: "tasks",
-          sources: ["context/plan/20260919-b-plan.md"],
+          plan: "context/plan/20260919-b-plan.md",
           created: "2026-09-10",
         }),
       ],

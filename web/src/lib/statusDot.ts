@@ -231,45 +231,30 @@ export function normalizeRef(ref: string): string {
   return withExt.startsWith("context/") ? withExt : `context/${withExt}`;
 }
 
-/** Analysis paths a plan derives from, i.e. its frontmatter `sources` list.
- *  `links` is generic correlation and never reaches a derived status. */
-export function planReferencedAnalyses(entries: TreeEntry[]): Set<string> {
-  const referenced = new Set<string>();
-  for (const entry of entries) {
-    if (entry.kind !== "plan") continue;
-    for (const ref of entry.sources ?? []) referenced.add(normalizeRef(ref));
-  }
-  return referenced;
-}
-
-/** Plans indexed by each analysis path in their `sources` list (the derivation
- *  edge). A plan that only `links` an analysis is not indexed under it, so a
- *  still-open analysis keeps reading "Analysis without a plan"; an archived one
- *  is resolved earlier and never reaches this map. */
+/** The plans an analysis is the parent of, from the server-resolved `plans`
+ *  field. An analysis with no plan resolves to an empty list, which is the
+ *  honest reading when its work was delivered by a sibling analysis' plan. */
 export function plansByAnalysis(entries: TreeEntry[]): Map<string, TreeEntry[]> {
   const index = new Map<string, TreeEntry[]>();
+  const byPath = new Map(entries.map((entry) => [entry.path, entry]));
   for (const entry of entries) {
-    if (entry.kind !== "plan") continue;
-    for (const ref of entry.sources ?? []) {
-      const analysisPath = normalizeRef(ref);
-      const plans = index.get(analysisPath);
-      if (plans) {
-        if (!plans.some((plan) => plan.path === entry.path)) plans.push(entry);
-      } else {
-        index.set(analysisPath, [entry]);
-      }
-    }
+    if (entry.kind !== "analysis") continue;
+    const plans = (entry.plans ?? [])
+      .map((path) => byPath.get(path))
+      .filter((plan): plan is TreeEntry => plan !== undefined);
+    if (plans.length > 0) index.set(entry.path, plans);
   }
   return index;
 }
 
-/** Task entries indexed by the normalized plan path in their `sources` list
- *  ("" = no sourced plan, so they stay at the tree root). */
+/** Task entries indexed by their resolved plan (`plan` field, "" = no plan, so
+ *  they stay at the tree root). The edge is the typed relation the server
+ *  resolved; a `sources` citation never puts a task file in a plan group. */
 export function tasksByPlan(entries: TreeEntry[]): Map<string, TreeEntry[]> {
   const map = new Map<string, TreeEntry[]>();
   for (const entry of entries) {
     if (entry.kind !== "tasks") continue;
-    const planRef = (entry.sources ?? []).map(normalizeRef).find((p) => p.includes("/plan/")) ?? "";
+    const planRef = entry.plan ?? "";
     const bucket = map.get(planRef);
     if (bucket) bucket.push(entry);
     else map.set(planRef, [entry]);
@@ -277,12 +262,13 @@ export function tasksByPlan(entries: TreeEntry[]): Map<string, TreeEntry[]> {
   return map;
 }
 
-/** Objective a task inherits from the plan it sources (its own `objective`
- *  wins when present, e.g. a standalone checklist). "" when unresolved. */
+/** Objective a task inherits from the plan it derives from (its own
+ *  `objective` wins when present, e.g. a standalone checklist). "" when
+ *  unresolved. The plan is the server-resolved `plan` field. */
 export function taskObjective(entry: TreeEntry, plans: Map<string, TreeEntry>): string {
   if (entry.objective) return entry.objective;
   if (entry.kind !== "tasks") return "";
-  const planRef = (entry.sources ?? []).map(normalizeRef).find((p) => p.includes("/plan/")) ?? "";
+  const planRef = entry.plan ?? "";
   return (planRef && plans.get(planRef)?.objective) || "";
 }
 

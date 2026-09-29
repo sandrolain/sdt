@@ -176,6 +176,7 @@ describe("Tree", () => {
               {
                 path: "context/analysis/stuck.md",
                 kind: "analysis",
+                plans: ["context/plan/p.md"],
                 title: "Stuck analysis",
                 status: "active",
               },
@@ -190,6 +191,9 @@ describe("Tree", () => {
                 kind: "plan",
                 title: "Plan",
                 status: "completed",
+                // the payload keeps the derivation prose and the resolved edge:
+                // the plan's parent is `stuck`, and `resolved` has no plan
+                analysis: "context/analysis/stuck.md",
                 sources: ["analysis/stuck.md", "analysis/resolved.md"],
               },
               {
@@ -197,7 +201,7 @@ describe("Tree", () => {
                 kind: "tasks",
                 title: "Done task",
                 status: "completed",
-                sources: ["plan/p.md"],
+                plan: "context/plan/p.md",
               },
               {
                 path: "context/tasks/wip.md",
@@ -306,6 +310,7 @@ describe("Tree", () => {
               {
                 path: "context/analysis/done.md",
                 kind: "analysis",
+                plans: ["context/plan/p.md"],
                 title: "Derived",
                 status: "active",
               },
@@ -332,6 +337,7 @@ describe("Tree", () => {
                 kind: "plan",
                 title: "Plan",
                 status: "completed",
+                analysis: "context/analysis/done.md",
                 sources: [
                   "analysis/done.md",
                   "analysis/odd.md",
@@ -344,7 +350,7 @@ describe("Tree", () => {
                 kind: "tasks",
                 title: "Task",
                 status: "completed",
-                sources: ["plan/p.md"],
+                plan: "context/plan/p.md",
               },
             ],
           }),
@@ -531,7 +537,7 @@ describe("Tree", () => {
                 kind: "tasks",
                 title: "T1",
                 status: "pending",
-                sources: ["plan/20260920-a-plan.md"],
+                plan: "context/plan/20260920-a-plan.md",
               },
               { path: "context/tasks/t2.md", kind: "tasks", title: "T2", status: "pending" },
             ],
@@ -570,14 +576,14 @@ describe("Tree", () => {
                 kind: "tasks",
                 title: "T1 done",
                 status: "completed",
-                sources: ["plan/20260920-a-plan.md"],
+                plan: "context/plan/20260920-a-plan.md",
               },
               {
                 path: "context/tasks/t2.md",
                 kind: "tasks",
                 title: "T2 open",
                 status: "pending",
-                sources: ["plan/20260920-a-plan.md"],
+                plan: "context/plan/20260920-a-plan.md",
               },
             ],
           }),
@@ -655,6 +661,7 @@ describe("Tree", () => {
               {
                 path: "context/analysis/planned.md",
                 kind: "analysis",
+                plans: ["context/plan/p.md"],
                 title: "Planned",
                 objective: "viewer",
                 status: "active",
@@ -682,7 +689,7 @@ describe("Tree", () => {
                 path: "context/tasks/t.md",
                 kind: "tasks",
                 status: "completed",
-                sources: ["plan/p.md"],
+                plan: "context/plan/p.md",
               },
               {
                 path: "context/questions/open.md",
@@ -828,14 +835,14 @@ describe("Tree", () => {
                 kind: "tasks",
                 title: "Task one",
                 status: "pending",
-                sources: ["plan/p.md"],
+                plan: "context/plan/p.md",
               },
               {
                 path: "context/tasks/t2.md",
                 kind: "tasks",
                 title: "Task two",
                 status: "completed",
-                sources: ["plan/p.md"],
+                plan: "context/plan/p.md",
               },
               {
                 path: "context/plan/other.md",
@@ -900,14 +907,14 @@ describe("Tree", () => {
                 kind: "tasks",
                 title: "Task one",
                 status: "pending",
-                sources: ["plan/p.md"],
+                plan: "context/plan/p.md",
               },
               {
                 path: "context/tasks/t2.md",
                 kind: "tasks",
                 title: "Task two",
                 status: "completed",
-                sources: ["plan/p.md"],
+                plan: "context/plan/p.md",
               },
               { path: "context/wiki/sub/deep.md", kind: "wiki", title: "Deep wiki" },
               { path: "context/notes/n.md", kind: "notes", title: "Note" },
