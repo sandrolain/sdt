@@ -210,9 +210,11 @@ export function entryCompleted(
   if (entry.kind === "tasks") return isDoneStatus(entry.status);
   if (entry.kind === "analysis") return isDoneStatus(entry.status);
   if (entry.kind === "plan") {
-    // A terminal declared status counts the plan as completed regardless of its
-    // referenced tasks (D4, aligning the hide filter with the dot model).
-    if (isDoneStatus(entry.status)) return true;
+    // A terminal declared status (completed/abandoned, plus any archived
+    // spelling) counts the plan as completed regardless of its referenced tasks
+    // (D4, aligning the hide filter with the dot model).
+    const declared = (entry.status ?? "").trim().toLowerCase();
+    if (isDoneStatus(declared) || PLAN_TERMINAL.has(declared)) return true;
     const tasks = taskIndex.get(normalizeRef(entry.path)) ?? [];
     return tasks.length > 0 && tasks.every((t) => isDoneStatus(t.status));
   }

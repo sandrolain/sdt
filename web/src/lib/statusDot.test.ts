@@ -341,9 +341,15 @@ describe("entryCompleted", () => {
     const done = plan();
     done.status = "completed";
     expect(entryCompleted(done, new Map())).toBe(true);
+  });
+
+  it("hides a terminal plan: abandoned and archived, like its status dot", () => {
     const abandoned = plan();
     abandoned.status = "abandoned";
-    expect(entryCompleted(abandoned, new Map())).toBe(false);
+    expect(entryCompleted(abandoned, new Map())).toBe(true);
+    const archived = plan();
+    archived.status = "archived";
+    expect(entryCompleted(archived, new Map())).toBe(true);
   });
 });
 
