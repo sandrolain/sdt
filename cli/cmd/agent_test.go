@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -2155,6 +2156,54 @@ func TestCommandStubsResolveToInstructions(t *testing.T) {
 		seen[s.id] = true
 		if !generated[s.contract+sdtMarkdownExt] {
 			t.Errorf("command stub %q: contract %q has no generated instruction file", s.id, s.contract)
+		}
+	}
+}
+
+// TestCommandStubsDeclarePayload is the completeness guard for the payload
+// contract: every shipped trigger declares what it accepts and enough examples
+// to be usable, so a 17th trigger cannot ship with a hollow stub. The
+// threshold is two because a single example does not show the free-prose rule
+// (an example with a colon in it) nor the empty-payload path.
+func TestCommandStubsDeclarePayload(t *testing.T) {
+	for _, s := range agentCommandStubs {
+		if strings.TrimSpace(s.payload) == "" {
+			t.Errorf("command stub %q declares no payload", s.id)
+		}
+		if len(s.examples) < 2 {
+			t.Errorf("command stub %q declares %d example(s), want at least 2", s.id, len(s.examples))
+		}
+		for i, ex := range s.examples {
+			if !strings.HasPrefix(ex, ">"+s.id+":") {
+				t.Errorf("command stub %q example %d = %q, want it to start with %q", s.id, i, ex, ">"+s.id+":")
+			}
+		}
+	}
+}
+
+// TestCommandPayloadSurfaces asserts the payload contract is present in the
+// generated surfaces. It deliberately checks section headers and table shape,
+// never the exact wording: re-phrasing the grammar must not break the suite.
+func TestCommandPayloadSurfaces(t *testing.T) {
+	now := time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC)
+	stub := instrCommandStubTemplate("wiki", "wiki", "topic or page id",
+		[]string{">wiki: backend/auth", ">wiki: list the pages under web/"}, "p", now)
+	for _, want := range []string{"## Payload", ">wiki: <payload>", "topic or page id", ">wiki: backend/auth"} {
+		if !strings.Contains(stub, want) {
+			t.Errorf("stub missing %q", want)
+		}
+	}
+	if strings.Contains(stub, "nothing declared yet") {
+		t.Error("stub with a declared payload must not render the declare-it-here fallback")
+	}
+
+	idx := instrCommandsIndexTemplate([]commandIndexEntry{
+		{Trigger: "wiki", Payload: "topic or page id"},
+		{Trigger: "scratch", Payload: commandPayloadUndeclared},
+	}, "p", now)
+	for _, want := range []string{"### Grammar", "| Trigger | Command file | Durable contract | Payload |", "topic or page id", commandPayloadUndeclared} {
+		if !strings.Contains(idx, want) {
+			t.Errorf("index missing %q", want)
 		}
 	}
 }
