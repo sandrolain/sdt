@@ -1,13 +1,15 @@
 import { useSyncExternalStore } from "react";
 
-/** Tree filter selection: hide entries whose status is a "done" state, and
- *  group entries into objective (and, for tasks, plan) sub-folders. */
+/** Tree filter selection: the document states the tree shows, and whether the
+ *  kind folders nest their entries. The selection is stored as its complement
+ *  (the hidden states), so the default — nothing hidden — is today's default
+ *  tree and no selection can empty the tree by accident. */
 export interface TreeFilterState {
-  hideCompleted: boolean;
+  hiddenStates: string[];
   grouped: boolean;
 }
 
-const DEFAULT: TreeFilterState = { hideCompleted: false, grouped: false };
+const DEFAULT: TreeFilterState = { hiddenStates: [], grouped: false };
 
 let current: TreeFilterState = DEFAULT;
 const listeners = new Set<() => void>();
@@ -16,15 +18,17 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
-export function toggleHideCompleted(): void {
-  current = { hideCompleted: !current.hideCompleted, grouped: current.grouped };
+/** Replace the set of hidden states; the caller passes the complement of what
+ *  the control shows selected. */
+export function setHiddenStates(states: string[]): void {
+  current = { hiddenStates: states, grouped: current.grouped };
   emit();
 }
 
 /** Toggle the grouping of the kind folders into sub-folders. Grouping off
  *  flattens them; the wiki folder hierarchy mirrors the corpus and is kept. */
 export function toggleGrouped(): void {
-  current = { hideCompleted: current.hideCompleted, grouped: !current.grouped };
+  current = { hiddenStates: current.hiddenStates, grouped: !current.grouped };
   emit();
 }
 

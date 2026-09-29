@@ -7,7 +7,7 @@ import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel, type EntryFilterKind } from "../lib/kinds";
 import {
-  entryCompleted,
+  entryState,
   groupDot,
   normalizeRef,
   plansByAnalysis,
@@ -42,7 +42,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { key: sortKey } = useTreeSort();
-  const { hideCompleted, grouped } = useTreeFilter();
+  const { hiddenStates, grouped } = useTreeFilter();
   const [openKinds, setOpenKinds] = useState<Set<EntryFilterKind>>(() => new Set());
   const reloadToken = useReloadToken();
   const location = useLocation();
@@ -81,9 +81,13 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   const gsort = groupSort(sortKey);
   // task→plan index for hide filtering, plan dots and task-group header dots
   const taskIndex = useMemo(() => tasksByPlan(entries ?? []), [entries]);
+  // the filter runs on the same state the dot renders, so an entry can never
+  // look completed and stay visible at the same time
   const visibleEntries =
-    entries && hideCompleted
-      ? entries.filter((entry) => !entryCompleted(entry, taskIndex))
+    entries && hiddenStates.length > 0
+      ? entries.filter(
+          (entry) => !hiddenStates.includes(entryState(entry, plannedAnalyses, taskIndex).key),
+        )
       : entries;
   const groups = visibleEntries
     ? groupByKind(visibleEntries).map((group) => ({

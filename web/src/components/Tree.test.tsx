@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Tree } from "./Tree";
 import { resetTreeSort, setTreeSortKey } from "../lib/treeSortStore";
-import { resetTreeFilter, toggleGrouped, toggleHideCompleted } from "../lib/treeFilterStore";
+import { resetTreeFilter, setHiddenStates, toggleGrouped } from "../lib/treeFilterStore";
 
 const TREE = {
   entries: [
@@ -152,7 +152,10 @@ describe("Tree", () => {
     expect(document.querySelector(".tree-entry__kind--map")).toBeNull();
   });
 
-  it("hides only completed entries when the not-completed filter is on", async () => {
+  it("hides every state the filter deselects, starting with the reported case", async () => {
+    // The report: an analysis declared `active` whose plan and task files are
+    // all completed. The dot is green, so deselecting Completed must hide it —
+    // the filter reads the same state the dot renders.
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
@@ -171,16 +174,23 @@ describe("Tree", () => {
                 title: "Open analysis",
               },
               {
-                path: "context/tasks/wip.md",
-                kind: "tasks",
-                title: "Wip task",
-                status: "in-progress",
+                path: "context/analysis/stuck.md",
+                kind: "analysis",
+                title: "Stuck analysis",
+                status: "active",
+              },
+              {
+                path: "context/analysis/resolved.md",
+                kind: "analysis",
+                title: "Resolved analysis",
+                status: "resolved",
               },
               {
                 path: "context/plan/p.md",
                 kind: "plan",
-                title: "All-done plan",
-                status: "active",
+                title: "Plan",
+                status: "completed",
+                sources: ["analysis/stuck.md", "analysis/resolved.md"],
               },
               {
                 path: "context/tasks/done.md",
@@ -189,33 +199,133 @@ describe("Tree", () => {
                 status: "completed",
                 sources: ["plan/p.md"],
               },
+              {
+                path: "context/tasks/wip.md",
+                kind: "tasks",
+                title: "Wip task",
+                status: "in-progress",
+              },
+              { path: "context/questions/q.md", kind: "questions", title: "Answered" },
+              {
+                path: "context/questions/o.md",
+                kind: "questions",
+                title: "Open",
+                status: "active",
+              },
               { path: "context/notes/n.md", kind: "notes", title: "Note" },
             ],
           }),
       }),
     ) as unknown as typeof fetch;
-    toggleHideCompleted();
     renderTree();
-    // completed entries (by status, or any plan whose tasks are all done) vanish
-    expect(await screen.findByText("Wip task")).toBeTruthy();
+    expect(await screen.findByText("Stuck analysis")).toBeTruthy();
+    // nothing hidden by default: the tree is the unfiltered one
+    for (const title of [
+      "Done analysis",
+      "Open analysis",
+      "Stuck analysis",
+      "Resolved analysis",
+      "Done task",
+      "Wip task",
+      "Answered",
+      "Open",
+      "Note",
+    ]) {
+      expect(screen.getByText(title)).toBeTruthy();
+    }
+
+    setHiddenStates(["completed"]);
+    await waitFor(() => expect(screen.queryByText("Stuck analysis")).toBeNull());
+    // every completed state goes: the declared-completed analysis, the plan, the
+    // task file and the analysis whose plans are all done (the reported case)
     expect(screen.queryByText("Done analysis")).toBeNull();
-    expect(screen.queryByText("All-done plan")).toBeNull();
     expect(screen.queryByText("Done task")).toBeNull();
-    // unfinished items and non-done kinds stay: a plan without completed tasks
-    // is kept, and dot-less entries (notes) are no longer hidden as a side effect
-    expect(screen.getByText("Open analysis")).toBeTruthy();
-    expect(screen.getByText("Note")).toBeTruthy();
+    // out-of-vocabulary `resolved` reads as archived, so it stays
+    expect(screen.getByText("Resolved analysis")).toBeTruthy();
+    // and everything not completed stays
+    for (const title of ["Open analysis", "Wip task", "Answered", "Open", "Note"]) {
+      expect(screen.getByText(title)).toBeTruthy();
+    }
+
+    setHiddenStates([]);
+    await waitFor(() => expect(screen.getByText("Stuck analysis")).toBeTruthy());
   });
 
-  it("renders the not-completed and grouped switches in the tree toolbar", async () => {
+  it("filters every kind by its own state, questions included", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/questions/q.md",
+                kind: "questions",
+                title: "Answered",
+                status: "resolved",
+              },
+              {
+                path: "context/questions/o.md",
+                kind: "questions",
+                title: "Open",
+                status: "active",
+              },
+              { path: "context/wiki/w.md", kind: "wiki", title: "Live page", status: "active" },
+              { path: "context/notes/n.md", kind: "notes", title: "Note" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    expect(await screen.findByText("Answered")).toBeTruthy();
+
+    setHiddenStates(["resolved"]);
+    await waitFor(() => expect(screen.queryByText("Answered")).toBeNull());
+    expect(screen.getByText("Open")).toBeTruthy();
+    expect(screen.getByText("Live page")).toBeTruthy();
+    // a kind with no status at all is its own state
+    setHiddenStates(["no-state"]);
+    await waitFor(() => expect(screen.queryByText("Note")).toBeNull());
+    expect(screen.getByText("Open")).toBeTruthy();
+
+    // `active` is one state across kinds: it hides the open question and the
+    // live wiki page together, and leaves the resolved question alone
+    setHiddenStates(["active"]);
+    await waitFor(() => expect(screen.queryByText("Live page")).toBeNull());
+    expect(screen.queryByText("Open")).toBeNull();
+    expect(screen.getByText("Answered")).toBeTruthy();
+  });
+
+  it("offers every state of every kind in the toolbar and no not-completed switch", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
     ) as unknown as typeof fetch;
     renderTree();
     expect(await screen.findByText("Alpha")).toBeTruthy();
-    expect(screen.getByRole("switch", { name: "Not completed" })).toBeTruthy();
+    expect(screen.queryByRole("switch", { name: "Not completed" })).toBeNull();
     // grouping defaults off, so the switch starts unselected
     expect(screen.getByRole("switch", { name: "Grouped" })).toHaveProperty("checked", false);
+
+    // every state is selected by default, so the trigger summarises "all"
+    const trigger = screen.getByRole("button", { name: "Visible states" });
+    expect(trigger.querySelector(".ui-select__value")?.textContent).toBe("20 selected");
+    await userEvent.click(trigger);
+    for (const label of ["Open", "Concluded", "Deferred", "Retired", "Unclassified"]) {
+      expect(await screen.findByText(label)).toBeTruthy();
+    }
+    for (const label of ["Completed", "In progress", "Postponed", "No state", "No plan"]) {
+      expect(screen.getByRole("option", { name: label })).toBeTruthy();
+    }
+    // deselecting Completed hides it and the summary counts the rest. The
+    // trigger leaves the a11y tree while its popover is open, so close it first.
+    await userEvent.click(screen.getByRole("option", { name: "Completed" }));
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Visible states" }).querySelector(".ui-select__value")
+          ?.textContent,
+      ).toBe("19 selected"),
+    );
   });
 
   it("shows a thumbnail for entries with a frontmatter image", async () => {
@@ -450,6 +560,8 @@ describe("Tree", () => {
   });
 
   it("aggregates objective dots over visible analyses and styles archived/question dots", async () => {
+    // The state filter hides what the dot calls completed, including the
+    // derived-completed analysis the old boolean left visible.
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
@@ -536,12 +648,16 @@ describe("Tree", () => {
     expect(screen.getByLabelText("Question unresolved")).toBeTruthy();
     expect(screen.getByLabelText("Question resolved")).toBeTruthy();
 
-    act(() => toggleHideCompleted());
+    act(() => setHiddenStates(["completed", "archived"]));
     await waitFor(() => {
-      expect(viewer.querySelector(".tree-folder__count")?.textContent).toBe("2");
+      // `planned` is completed in effect (its plan's tasks are all done) even
+      // though it declares `active`, so it goes too: 3 analyses -> 1.
+      expect(viewer.querySelector(".tree-folder__count")?.textContent).toBe("1");
       expect(document.querySelector('a[href="/docs/context/analysis/archived.md"]')).toBeNull();
-      expect(viewer.querySelector(".tree-folder__dot--warn")?.getAttribute("aria-label")).toBe(
-        "1/2 analyses completed",
+      expect(document.querySelector('a[href="/docs/context/analysis/planned.md"]')).toBeNull();
+      // the aggregate follows the filtered set: only the unplanned one is left
+      expect(viewer.querySelector(".tree-folder__dot--danger")?.getAttribute("aria-label")).toBe(
+        "0/1 analyses completed",
       );
       expect(
         Array.from(document.querySelectorAll(".tree-folder--objective")).some(
@@ -733,8 +849,8 @@ describe("Tree", () => {
     expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(3);
     expect(document.querySelectorAll(".tree-folder--plan")).toHaveLength(1);
 
-    // the two flags are independent: the not-completed filter drops the done
-    // task, so the task objective group counts 1 instead of 2
+    // the two flags are independent: the state filter drops the done task, so
+    // the task objective group counts 1 instead of 2
     const taskObjectiveCount = () => {
       const tasks = Array.from(document.querySelectorAll(".tree-folder")).find(
         (f) => f.querySelector(".tree-folder__label")?.textContent === "Tasks",
@@ -745,7 +861,7 @@ describe("Tree", () => {
       return objective?.querySelector(".tree-folder__count")?.textContent;
     };
     expect(taskObjectiveCount()).toBe("2");
-    toggleHideCompleted();
+    setHiddenStates(["completed"]);
     await waitFor(() => expect(taskObjectiveCount()).toBe("1"));
 
     toggleGrouped();

@@ -363,24 +363,3 @@ export function groupDot(
   const label = `${done}/${states.length} analyses completed`;
   return { tone, label };
 }
-
-/** True when the entry counts as completed for the hide filter. A plan is
- *  completed only through its referenced tasks (all done); a task/analysis
- *  only through a done `status`. Entries without tasks/status stay visible. */
-export function entryCompleted(
-  entry: TreeEntry,
-  taskIndex: Map<string, TreeEntry[]> = new Map(),
-): boolean {
-  if (entry.kind === "tasks") return isDoneStatus(entry.status);
-  if (entry.kind === "analysis") return isDoneStatus(entry.status);
-  if (entry.kind === "plan") {
-    // A terminal declared status (completed/abandoned, plus any archived
-    // spelling) counts the plan as completed regardless of its referenced tasks
-    // (D4, aligning the hide filter with the dot model).
-    const declared = (entry.status ?? "").trim().toLowerCase();
-    if (isDoneStatus(declared) || PLAN_TERMINAL.has(declared)) return true;
-    const tasks = taskIndex.get(normalizeRef(entry.path)) ?? [];
-    return tasks.length > 0 && tasks.every((t) => isDoneStatus(t.status));
-  }
-  return false;
-}

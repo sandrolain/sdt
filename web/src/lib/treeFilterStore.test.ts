@@ -1,12 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import {
-  resetTreeFilter,
-  toggleGrouped,
-  toggleHideCompleted,
-  useTreeFilter,
-} from "./treeFilterStore";
+import { resetTreeFilter, setHiddenStates, toggleGrouped, useTreeFilter } from "./treeFilterStore";
 
 describe("treeFilterStore", () => {
   // module-level store: reset so each case starts from DEFAULT
@@ -14,36 +9,38 @@ describe("treeFilterStore", () => {
     resetTreeFilter();
   });
 
-  it("defaults to hideCompleted false and grouped false", () => {
+  it("defaults to nothing hidden and grouped false", () => {
     const { result } = renderHook(() => useTreeFilter());
-    expect(result.current.hideCompleted).toBe(false);
+    expect(result.current.hiddenStates).toEqual([]);
     expect(result.current.grouped).toBe(false);
   });
 
-  it("toggles hideCompleted", () => {
+  it("replaces the hidden states", () => {
     const { result } = renderHook(() => useTreeFilter());
-    act(() => toggleHideCompleted());
-    expect(result.current.hideCompleted).toBe(true);
-    act(() => toggleHideCompleted());
-    expect(result.current.hideCompleted).toBe(false);
+    act(() => setHiddenStates(["completed"]));
+    expect(result.current.hiddenStates).toEqual(["completed"]);
+    act(() => setHiddenStates(["completed", "archived"]));
+    expect(result.current.hiddenStates).toEqual(["completed", "archived"]);
+    act(() => setHiddenStates([]));
+    expect(result.current.hiddenStates).toEqual([]);
   });
 
-  it("toggles grouped without touching hideCompleted", () => {
+  it("toggles grouped without touching the hidden states", () => {
     const { result } = renderHook(() => useTreeFilter());
-    act(() => toggleHideCompleted());
+    act(() => setHiddenStates(["completed"]));
     act(() => toggleGrouped());
     expect(result.current.grouped).toBe(true);
-    expect(result.current.hideCompleted).toBe(true);
+    expect(result.current.hiddenStates).toEqual(["completed"]);
   });
 
-  it("resets to false", () => {
+  it("resets both fields to their defaults", () => {
     const { result } = renderHook(() => useTreeFilter());
-    act(() => toggleHideCompleted());
+    act(() => setHiddenStates(["completed"]));
     act(() => toggleGrouped());
-    expect(result.current.hideCompleted).toBe(true);
+    expect(result.current.hiddenStates).toEqual(["completed"]);
     expect(result.current.grouped).toBe(true);
     act(() => resetTreeFilter());
-    expect(result.current.hideCompleted).toBe(false);
+    expect(result.current.hiddenStates).toEqual([]);
     expect(result.current.grouped).toBe(false);
   });
 });

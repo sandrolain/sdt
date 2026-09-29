@@ -2,7 +2,6 @@
 import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api";
 import {
-  entryCompleted,
   entryState,
   groupDot,
   isDoneStatus,
@@ -517,33 +516,44 @@ describe("taskProgress / tasksByPlan", () => {
   });
 });
 
-describe("entryCompleted", () => {
-  it("hides done tasks and analyses, and plans whose tasks are all done", () => {
+describe("the state keys that replaced entryCompleted", () => {
+  it("gives done tasks and analyses, and plans whose tasks are all done, a terminal key", () => {
     const index = new Map<string, TreeEntry[]>([
       ["context/plan/x.md", [task("context/tasks/a.md", "completed")]],
     ]);
-    expect(entryCompleted(task("context/tasks/a.md", "completed"))).toBe(true);
-    expect(entryCompleted(task("context/tasks/a.md", "pending"))).toBe(false);
-    expect(entryCompleted(entry({ kind: "analysis", status: "archived" }))).toBe(true);
-    expect(entryCompleted(plan())).toBe(false);
-    expect(entryCompleted(plan(), index)).toBe(true);
-    expect(entryCompleted(entry({ kind: "wiki", status: "completed" }))).toBe(false);
+    expect(entryState(task("context/tasks/a.md", "completed")).key).toBe("completed");
+    // An empty status is "not started"; a declared `pending` keeps the label
+    // the dot has always shown for it, "Task not executed" (see the review).
+    expect(entryState(task("context/tasks/a.md", "")).key).toBe("pending");
+    expect(entryState(task("context/tasks/a.md", "pending")).key).toBe("not-executed");
+    expect(entryState(entry({ kind: "analysis", status: "archived" })).key).toBe("archived");
+    expect(entryState(plan()).key).toBe("not-started");
+    expect(entryState(plan(), new Map(), index).key).toBe("completed");
+    // A status outside a kind's vocabulary is `no-state`: the filter can hide
+    // it and the drift warning reports it, which the old boolean could not do.
+    expect(entryState(entry({ kind: "wiki", status: "completed" })).key).toBe("no-state");
   });
 
-  it("a plan without task references is not completed unless its status says so", () => {
-    expect(entryCompleted(plan(), new Map())).toBe(false);
+  it("gives a plan without task references a non-terminal key unless its status says so", () => {
     const done = plan();
     done.status = "completed";
-    expect(entryCompleted(done, new Map())).toBe(true);
+    expect(entryState(done, new Map()).key).toBe("completed");
   });
 
-  it("hides a terminal plan: abandoned and archived, like its status dot", () => {
+  it("gives a terminal plan its own key, like its status dot", () => {
     const abandoned = plan();
     abandoned.status = "abandoned";
-    expect(entryCompleted(abandoned, new Map())).toBe(true);
+    expect(entryState(abandoned, new Map()).key).toBe("abandoned");
+    // `archived` is not in the plan vocabulary (active|completed|abandoned), so
+    // the plan keeps deriving from its tasks and reads as not started. No plan
+    // in the corpus declares it, and the vocabulary drift is reported in phase 3.
     const archived = plan();
     archived.status = "archived";
-    expect(entryCompleted(archived, new Map())).toBe(true);
+    expect(entryState(archived, new Map())).toEqual({
+      key: "not-started",
+      tone: "danger",
+      label: "Plan not started",
+    });
   });
 });
 
