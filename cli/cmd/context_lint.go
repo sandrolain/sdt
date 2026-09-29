@@ -177,6 +177,12 @@ const (
 	// ctxTasksOversizedItems is the soft checklist-size guard for task files:
 	// a phase whose checklist exceeds it triggers a SUGGESTION to split.
 	ctxTasksOversizedItems = 10
+	// ctxAnalysisOversizedSections / ctxAnalysisOversizedOptions are the soft
+	// split guards for analyses (rule R1 of instructions/analysis.md), expressed
+	// in sections/options rather than lines: past either bound the analysis
+	// probably carries more than one subject and should be a sibling set.
+	ctxAnalysisOversizedSections = 12
+	ctxAnalysisOversizedOptions  = 6
 	// ctxCommandSummaryMax caps the command-trigger description: the summary
 	// doubles as the trigger tooltip in CLI helpers and the viewer index.
 	ctxCommandSummaryMax = 1024
@@ -330,6 +336,11 @@ func lintDoc(path string) []ctxLintIssue {
 	// Analyses must declare how they relate to prior work: a `links`,
 	// `supersedes` or `contradicts` reference, or an explicit `links: none`.
 	issues = append(issues, lintAnalysisRelations(path, content, kind, prio)...)
+	// Rule R3: every weighed option records its outcome (accepted / rejected /
+	// postponed). Rule R1: an analysis past the soft section/option bounds is a
+	// split candidate, gated on asking the user. Both advisory SUGGESTIONs.
+	issues = append(issues, lintAnalysisOptions(path, content, kind)...)
+	issues = append(issues, lintAnalysisOversize(path, content, kind)...)
 	// Optional controlled vocabulary: `topics`/`entities` are validated against
 	// context/topics.yaml (alias canonicalization, advisory for unknown).
 	issues = append(issues, lintTopicFields(path, content, ctxTopicReg)...)
@@ -734,6 +745,174 @@ func lintTaskObjectiveLegacy(path, content, kind string) []ctxLintIssue {
 		return nil
 	}
 	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "task file carries legacy `objective`; rename it to `phase` (the plan objective is inherited, not declared)"}}
+}
+
+// ctxHeadingRegexp matches a markdown ATX heading, capturing its level and text.
+var ctxHeadingRegexp = regexp.MustCompile(`(?m)^(#{2,6})\s+(.*)$`)
+
+// ctxSection returns the body of the `## <name>` section, from its heading up to
+// the next heading of the same or a higher level. ok is false when the section
+// is absent.
+func ctxSection(content, name string) (string, bool) {
+	content = stripFencedCode(content)
+	start := -1
+	level := 0
+	for _, m := range ctxHeadingRegexp.FindAllStringSubmatchIndex(content, -1) {
+		text := strings.TrimSpace(content[m[4]:m[5]])
+		if start < 0 {
+			if text == name {
+				start = m[0]
+				level = len(content[m[2]:m[3]])
+			}
+			continue
+		}
+		// Stop at the next heading of the same or a higher level.
+		if len(content[m[2]:m[3]]) <= level {
+			return content[start:m[0]], true
+		}
+	}
+	if start < 0 {
+		return "", false
+	}
+	return content[start:], true
+}
+
+// ctxSectionCount counts the `## ` sections of a document body, the size unit
+// used by the oversized-analysis guard. Fenced code blocks are blanked first so
+// a `## ` line inside a sample snippet never inflates the count.
+func ctxSectionCount(body string) int {
+	n := 0
+	for _, ln := range strings.Split(stripFencedCode(body), "\n") {
+		if strings.HasPrefix(ln, "## ") {
+			n++
+		}
+	}
+	return n
+}
+
+// stripFencedCode replaces the content of every ```-fenced block with blank
+// lines, preserving line numbers so callers can still reason about positions.
+func stripFencedCode(body string) string {
+	lines := strings.Split(body, "\n")
+	fence := ""
+	for i, ln := range lines {
+		trimmed := strings.TrimSpace(ln)
+		switch {
+		case fence == "" && (strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")):
+			fence = trimmed[:3]
+			lines[i] = ""
+		case fence != "" && strings.HasPrefix(trimmed, fence):
+			fence = ""
+			lines[i] = ""
+		case fence != "":
+			lines[i] = ""
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// ctxOptionBlock is one `###` option subsection of an `## Options considered`
+// section: its heading text and its own body.
+type ctxOptionBlock struct {
+	heading string
+	body    string
+}
+
+// ctxOptionBlocks splits a `## Options considered` section into its `###` option
+// subsections. A section written without `###` subsections yields no block, so a
+// flat or missing option list is not reported by the outcome rule.
+func ctxOptionBlocks(section string) []ctxOptionBlock {
+	lines := strings.Split(section, "\n")
+	optionHeading := regexp.MustCompile(`^###\s+(.*)$`)
+	var idx []int
+	var titles []string
+	for i, ln := range lines {
+		if m := optionHeading.FindStringSubmatch(ln); m != nil {
+			idx = append(idx, i)
+			titles = append(titles, strings.TrimSpace(m[1]))
+		}
+	}
+	blocks := make([]ctxOptionBlock, 0, len(idx))
+	for n, start := range idx {
+		end := len(lines)
+		if n+1 < len(idx) {
+			end = idx[n+1]
+		}
+		blocks = append(blocks, ctxOptionBlock{heading: titles[n], body: strings.Join(lines[start:end], "\n")})
+	}
+	return blocks
+}
+
+// ctxOptionOutcomeRegexp matches a recorded verdict line for one option, in the
+// `**Outcome:** rejected (reason)` form rule R3 asks for, and in the terser
+// `**Accepted**` / `**Rejected**` / `**Postponed**` bold-verdict form.
+var ctxOptionOutcomeRegexp = regexp.MustCompile(`(?im)^\s*[-*]?\s*\**\s*(outcome|fate|verdict|decision)\s*\**\s*:|^\s*\**\s*(accepted|rejected|postponed)\b`)
+
+// lintAnalysisOptions requires every option in an `## Options considered`
+// section to carry a recorded outcome (rule R3): the analysis must say which
+// option was accepted, which were rejected and why, and which are postponed.
+// Advisory SUGGESTION: it checks that a verdict is present, never its quality
+// (a known and accepted limit — see analysis 20260925-195434).
+func lintAnalysisOptions(path, content, kind string) []ctxLintIssue {
+	if kind != ctxTypeAnalysis {
+		return nil
+	}
+	section, ok := ctxSection(content, "Options considered")
+	if !ok {
+		return nil
+	}
+	var unrecorded []string
+	for _, b := range ctxOptionBlocks(section) {
+		if !ctxOptionOutcomeRegexp.MatchString(b.body) {
+			unrecorded = append(unrecorded, b.heading)
+		}
+	}
+	if len(unrecorded) == 0 {
+		return nil
+	}
+	names := unrecorded
+	if len(names) > 3 {
+		names = append(names[:3:3], "…")
+	}
+	return []ctxLintIssue{{
+		Path:     path,
+		Priority: ctxLintSuggestion,
+		Message:  fmt.Sprintf("analysis lists %d option(s) with no recorded outcome (%s)", len(unrecorded), strings.Join(names, "; ")),
+		Hint:     "record the fate of every option as accepted / rejected (+ reason) / postponed — R3 in `context/instructions/analysis.md`",
+	}}
+}
+
+// lintAnalysisOversize flags an analysis past the soft section/option bounds so
+// a too-broad analysis becomes a sibling set instead of a monolith. Advisory
+// SUGGESTION mirroring the oversized-task-file rule, and the ask-first gate is
+// part of the hint: the split decision stays with the user (rule R1).
+func lintAnalysisOversize(path, content, kind string) []ctxLintIssue {
+	if kind != ctxTypeAnalysis {
+		return nil
+	}
+	body := string(frontmatterBody([]byte(content)))
+	sections := ctxSectionCount(body)
+	options := 0
+	if section, ok := ctxSection(body, "Options considered"); ok {
+		options = len(ctxOptionBlocks(section))
+	}
+	switch {
+	case sections > ctxAnalysisOversizedSections:
+		return []ctxLintIssue{{
+			Path:     path,
+			Priority: ctxLintSuggestion,
+			Message:  fmt.Sprintf("analysis has %d sections (>%d); it likely carries more than one subject", sections, ctxAnalysisOversizedSections),
+			Hint:     "consider splitting it into sibling analyses under the same `objective` — ask the user first (R1 in `context/instructions/analysis.md`)",
+		}}
+	case options > ctxAnalysisOversizedOptions:
+		return []ctxLintIssue{{
+			Path:     path,
+			Priority: ctxLintSuggestion,
+			Message:  fmt.Sprintf("analysis weighs %d options (>%d); more than one domain here is a split signal", options, ctxAnalysisOversizedOptions),
+			Hint:     "consider splitting it into sibling analyses under the same `objective` — ask the user first (R1 in `context/instructions/analysis.md`)",
+		}}
+	}
+	return nil
 }
 
 // lintAnalysisRelations requires an analysis to declare how it relates to prior
