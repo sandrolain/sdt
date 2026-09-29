@@ -127,6 +127,9 @@ func ctxStatusRows() []ctxStatusEntry {
 	if row, ok := ctxStatusDeadEndRow(); ok {
 		rows = append(rows, row)
 	}
+	if row, ok := ctxStatusPostponedRow(); ok {
+		rows = append(rows, row)
+	}
 	return rows
 }
 
@@ -140,7 +143,7 @@ func ctxStatusDeadEndRow() (ctxStatusEntry, bool) {
 	counts := map[string]int{}
 	total := 0
 	for _, f := range files {
-		kind, objective, noteType := ctxDocMeta(f)
+		kind, objective, noteType, _ := ctxDocMeta(f)
 		if kind != ctxTypeNotes || noteType != ctxNoteTypeDeadEnd {
 			continue
 		}
@@ -166,6 +169,47 @@ func ctxStatusDeadEndRow() (ctxStatusEntry, bool) {
 		next += ": " + strings.Join(parts, ", ")
 	}
 	return ctxStatusEntry{Type: "dead-ends", Count: total, Next: next}, true
+}
+
+// ctxStatusPostponedRow counts analyses parked in `status: postponed` (rule R3
+// of instructions/analysis.md) and summarizes their objectives, so the residue of
+// unchosen options is read before an analysis re-proposes the same option.
+// Mirrors ctxStatusDeadEndRow: hidden while the count is zero, so a clean store
+// gains no row.
+func ctxStatusPostponedRow() (ctxStatusEntry, bool) {
+	files, err := dirFiles(sdtAnalysisDir)
+	if err != nil {
+		return ctxStatusEntry{}, false
+	}
+	counts := map[string]int{}
+	total := 0
+	for _, f := range files {
+		kind, objective, _, status := ctxDocMeta(f)
+		if kind != ctxTypeAnalysis || status != statusPostponed {
+			continue
+		}
+		total++
+		if objective != "" {
+			counts[objective]++
+		}
+	}
+	if total == 0 {
+		return ctxStatusEntry{}, false
+	}
+	objectives := make([]string, 0, len(counts))
+	for o := range counts {
+		objectives = append(objectives, o)
+	}
+	sort.Strings(objectives)
+	parts := make([]string, 0, len(objectives))
+	for _, o := range objectives {
+		parts = append(parts, fmt.Sprintf("%s (%d)", o, counts[o]))
+	}
+	next := "revisit when the revival condition holds"
+	if len(parts) > 0 {
+		next += ": " + strings.Join(parts, ", ")
+	}
+	return ctxStatusEntry{Type: "postponed", Count: total, Next: next}, true
 }
 
 // ── context template ────────────────────────────────────────────────────────────

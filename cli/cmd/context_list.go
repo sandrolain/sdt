@@ -86,6 +86,16 @@ Examples:
 		}
 		var statuses []string
 		if status := getStringFlag(cmd, "status", false); status != "" {
+			// The kind is resolved, so --status is checked against that kind's
+			// closed vocabulary instead of silently matching nothing. A kind with
+			// no status field (worklog/notes/tmp) is an explicit error, not an
+			// empty list.
+			if len(t.statuses) == 0 {
+				exitWithError(cmd, fmt.Errorf("--status is not supported for --type %s (no status vocabulary)", typ))
+			}
+			if !ctxStatusInVocab(t, status) {
+				exitWithError(cmd, fmt.Errorf("invalid status %q for type %s (use %s)", status, typ, ctxStatusVocab(t)))
+			}
 			statuses = []string{status}
 		}
 		filter, err := buildQueryFilter(cmd, nil, statuses, getStringArrayFlag(cmd, "category", false), terms)

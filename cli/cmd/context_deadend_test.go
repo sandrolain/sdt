@@ -63,3 +63,45 @@ func TestContextStatusDeadEndRow(t *testing.T) {
 		t.Errorf("unexpected dead-ends row: %+v", *found)
 	}
 }
+
+func TestContextStatusPostponedRow(t *testing.T) {
+	setupContextProject(t)
+	postponed := "---\nkind: analysis\nsummary: s\nobjective: obj-x\nstatus: postponed\n---\nbody\n"
+	writeCtxDoc(t, "context/analysis/p.md", postponed)
+	writeCtxDoc(t, "context/analysis/q.md", strings.Replace(postponed, "obj-x", "obj-y", 1))
+	// Non-postponed analyses and a postponed non-analysis never count.
+	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nsummary: s\nobjective: obj-x\nstatus: active\n---\nbody\n")
+	writeCtxDoc(t, "context/notes/n.md", "---\nkind: notes\nsummary: s\nstatus: postponed\n---\nbody\n")
+
+	var found *ctxStatusEntry
+	for _, r := range ctxStatusRows() {
+		if r.Type == "postponed" {
+			row := r
+			found = &row
+		}
+	}
+	if found == nil {
+		t.Fatal("expected a postponed status row")
+	}
+	if found.Count != 2 {
+		t.Errorf("postponed count = %d, want 2: %+v", found.Count, *found)
+	}
+	// Objectives are sorted so the next-step hint is stable.
+	if !strings.Contains(found.Next, "obj-x (1), obj-y (1)") {
+		t.Errorf("postponed next step should list sorted objectives, got %+v", *found)
+	}
+	if !strings.Contains(found.Next, "revival condition") {
+		t.Errorf("postponed next step should name the revival condition, got %+v", *found)
+	}
+}
+
+func TestContextStatusPostponedRowHiddenWhenZero(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nsummary: s\nstatus: completed\n---\nbody\n")
+
+	for _, r := range ctxStatusRows() {
+		if r.Type == "postponed" {
+			t.Fatalf("no postponed analysis exists, row must stay hidden: %+v", r)
+		}
+	}
+}

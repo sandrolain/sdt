@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
@@ -109,6 +110,57 @@ func TestContextSearchWhereAndWindow(t *testing.T) {
 		}
 		if c.gone != "" && strings.Contains(out, c.gone) {
 			t.Errorf("%v: did not expect %s in:\n%s", c.args, c.gone, out)
+		}
+	}
+}
+
+func TestContextListStatusVocabularyValidation(t *testing.T) {
+	runInTempDir(t)
+	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nsummary: s\nstatus: active\n---\nbody\n")
+	writeCtxDoc(t, "context/analysis/b.md", "---\nkind: analysis\nsummary: s\nstatus: postponed\n---\nbody\n")
+
+	// Every value of the kind's closed vocabulary is accepted, and the filter
+	// really selects on it (analysis 20260925-195434 risks: a postponed option
+	// must be one command away, and validation must not be a silent empty list).
+	for _, value := range []string{"active", "draft", "completed", "postponed", "archived"} {
+		out := string(execute(t, contextListCmd, nil, "--type", "analysis", "--status", value))
+		switch value {
+		case "active":
+			if !strings.Contains(out, "a.md") || strings.Contains(out, "b.md") {
+				t.Errorf("--status active wrong:\n%s", out)
+			}
+		case "postponed":
+			if !strings.Contains(out, "b.md") || strings.Contains(out, "a.md") {
+				t.Errorf("--status postponed wrong:\n%s", out)
+			}
+		default:
+			if strings.TrimSpace(out) != "" {
+				t.Errorf("--status %s should match no document, got:\n%s", value, out)
+			}
+		}
+	}
+
+	// Out-of-vocabulary value for the resolved kind is an error naming the
+	// vocabulary, not an empty result. exitWithError logs through the root
+	// command's err writer, installed by the PersistentPreRun of execute().
+	var errBuf bytes.Buffer
+	rootCmd.SetErr(&errBuf)
+	t.Cleanup(func() { rootCmd.SetErr(nil) })
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextListCmd, nil, "--type", "analysis", "--status", "bogus"))
+	})
+	if out := errBuf.String(); !strings.Contains(out, "invalid status") || !strings.Contains(out, "postponed") {
+		t.Errorf("out-of-vocabulary error should name the vocabulary, got:\n%s", out)
+	}
+
+	// A kind with no status field is an explicit error too.
+	for _, typ := range []string{"notes", "worklog"} {
+		errBuf.Reset()
+		shouldExitWithCode(t, 1, func() string {
+			return string(execute(t, contextListCmd, nil, "--type", typ, "--status", "active"))
+		})
+		if out := errBuf.String(); !strings.Contains(out, "no status vocabulary") {
+			t.Errorf("--type %s --status should report no vocabulary, got:\n%s", typ, out)
 		}
 	}
 }

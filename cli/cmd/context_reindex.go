@@ -70,7 +70,7 @@ func collectObjectiveBuckets() (map[string][]string, []string, error) {
 			return nil, nil, err
 		}
 		for _, f := range files {
-			kind, objective, noteType := ctxDocMeta(f)
+			kind, objective, noteType, _ := ctxDocMeta(f)
 			eff := ctxEffectiveObjective(f, kind, objective, noteType)
 			if eff == "" {
 				continue
@@ -151,7 +151,7 @@ func collectTierRows(tier string) ([]string, error) {
 			return nil, err
 		}
 		for _, f := range files {
-			kind, objective, noteType := ctxDocMeta(f)
+			kind, objective, noteType, _ := ctxDocMeta(f)
 			if ctxEffectiveObjective(f, kind, objective, noteType) != "" {
 				continue
 			}
@@ -179,15 +179,16 @@ func ctxDeadEndLine(path string) string {
 
 // ctxDocMeta returns the frontmatter kind, optional `objective` group key and
 // optional `note_type` of a context document.
-func ctxDocMeta(path string) (kind, objective, noteType string) {
+func ctxDocMeta(path string) (kind, objective, noteType, status string) {
 	data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
 	if err != nil {
-		return "", "", ""
+		return "", "", "", ""
 	}
 	content := string(data)
 	return parseFrontmatterField(content, "kind"),
 		parseFrontmatterField(content, "objective"),
-		parseFrontmatterField(content, "note_type")
+		parseFrontmatterField(content, "note_type"),
+		parseFrontmatterField(content, "status")
 }
 
 func writeIndex(content string) error {
