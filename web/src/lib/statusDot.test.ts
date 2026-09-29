@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api";
 import {
   entryCompleted,
+  entryState,
   groupDot,
   isDoneStatus,
   planReferencedAnalyses,
   plansByAnalysis,
+  STATE_KEYS,
+  stateMeta,
   statusDot,
   taskObjective,
   taskProgress,
@@ -239,6 +242,181 @@ describe("statusDot", () => {
     const inFlight = statusDot(plan(), new Map(), unfinished);
     expect(inFlight).toEqual({ tone: "danger", label: "No tasks completed yet" });
     expect(inFlight?.label).not.toBe(noneStarted?.label);
+  });
+});
+
+describe("entryState", () => {
+  const taskFile = (path: string, status?: string, sources?: string[]) =>
+    entry({ path, kind: "tasks", status, sources });
+  const planFile = (path: string, status?: string, sources?: string[]) =>
+    entry({ path, kind: "plan", status, sources });
+  const stateOf = (e: TreeEntry, corpus: TreeEntry[]) =>
+    entryState(e, plansByAnalysis(corpus), tasksByPlan(corpus));
+
+  it("reports the effective state of the four reported document shapes", () => {
+    // The report: an analysis declared `active` whose plan and task files are
+    // all done. The effective state is `completed` and the declared value is
+    // kept so the disagreement stays observable.
+    const analysis = entry({
+      path: "context/analysis/active.md",
+      kind: "analysis",
+      status: "active",
+    });
+    const corpus = [
+      analysis,
+      planFile("context/plan/p.md", "completed", ["analysis/active.md"]),
+      taskFile("context/tasks/t.md", "completed", ["plan/p.md"]),
+    ];
+    expect(stateOf(analysis, corpus)).toEqual({
+      key: "completed",
+      tone: "ok",
+      label: "Analysis completed",
+      declared: "active",
+    });
+
+    // Same shape, but the analysis declares the out-of-vocabulary `resolved`:
+    // it reads as archived and keeps the raw value.
+    const resolved = { ...analysis, status: "resolved" };
+    expect(stateOf(resolved, corpus)).toEqual({
+      key: "archived",
+      tone: "neutral",
+      label: "Analysis archived",
+      declared: "resolved",
+    });
+
+    // A resolved question is a real state, not an invisible one.
+    const question = entry({
+      path: "context/questions/q.md",
+      kind: "questions",
+      status: "resolved",
+    });
+    expect(stateOf(question, corpus)).toEqual({
+      key: "resolved",
+      tone: "ok",
+      label: "Question resolved",
+    });
+
+    // A kind with no status at all is filterable, and declares nothing.
+    const wiki = entry({ path: "context/wiki/w.md", kind: "wiki" });
+    expect(stateOf(wiki, corpus)).toEqual({ key: "no-state", tone: "neutral", label: "No state" });
+  });
+
+  it("derives the plan states from its task files", () => {
+    const corpus = [
+      planFile("context/plan/running.md", "active"),
+      taskFile("context/tasks/a.md", "completed", ["plan/running.md"]),
+      taskFile("context/tasks/b.md", "pending", ["plan/running.md"]),
+      planFile("context/plan/started.md", "active"),
+      taskFile("context/tasks/c.md", "wip", ["plan/started.md"]),
+      planFile("context/plan/pending.md", "active"),
+      taskFile("context/tasks/d.md", "pending", ["plan/pending.md"]),
+    ];
+    const state = (path: string) => stateOf(planFile(path, "active"), corpus);
+
+    expect(state("context/plan/running.md")).toEqual({
+      key: "in-progress",
+      tone: "warn",
+      label: "Plan in progress",
+    });
+    // Started (a task in progress) but nothing completed: in progress, red.
+    expect(state("context/plan/started.md")).toEqual({
+      key: "in-progress",
+      tone: "danger",
+      label: "No tasks completed yet",
+    });
+    // No task file started: not started.
+    expect(state("context/plan/pending.md")).toEqual({
+      key: "not-started",
+      tone: "danger",
+      label: "No tasks completed yet",
+    });
+    // Derived completion overrides the declared `active` and records it.
+    const allDone = [
+      planFile("context/plan/done.md", "active"),
+      taskFile("context/tasks/e.md", "completed", ["plan/done.md"]),
+    ];
+    expect(stateOf(planFile("context/plan/done.md", "active"), allDone)).toEqual({
+      key: "completed",
+      tone: "ok",
+      label: "Plan completed",
+      declared: "active",
+    });
+  });
+
+  it("emits exactly the states the tree filter can select on (guard)", () => {
+    const kind = (k: string, name: string, status?: string) =>
+      entry({ path: `context/${k}/${name}.md`, kind: k, status });
+    const corpus: TreeEntry[] = [
+      // plan
+      planFile("context/plan/done.md", "completed"),
+      planFile("context/plan/stopped.md", "abandoned"),
+      planFile("context/plan/wip.md", "active"),
+      taskFile("context/tasks/wip.md", "in-progress", ["plan/wip.md"]),
+      planFile("context/plan/cold.md", "active"),
+      // tasks
+      taskFile("context/tasks/done.md", "completed"),
+      taskFile("context/tasks/running.md", "in-progress"),
+      taskFile("context/tasks/empty.md", ""),
+      taskFile("context/tasks/legacy.md", "active"),
+      // analysis
+      kind("analysis", "done", "completed"),
+      kind("analysis", "retired", "archived"),
+      kind("analysis", "todo", "draft"),
+      kind("analysis", "later", "postponed"),
+      kind("analysis", "unplanned", "active"),
+      kind("analysis", "running", "active"),
+      planFile("context/plan/run.md", "active", ["analysis/running.md"]),
+      taskFile("context/tasks/run.md", "pending", ["plan/run.md"]),
+      kind("analysis", "derived", "active"),
+      planFile("context/plan/derived.md", "completed", ["analysis/derived.md"]),
+      taskFile("context/tasks/derived.md", "completed", ["plan/derived.md"]),
+      // questions
+      kind("questions", "open", "active"),
+      kind("questions", "answered", "resolved"),
+      kind("questions", "odd", "draft"),
+      // the kinds whose state is their declared status
+      kind("decision", "staged", "proposed"),
+      kind("decision", "yes", "accepted"),
+      kind("decision", "no", "rejected"),
+      kind("decision", "old", "deprecated"),
+      kind("decision", "replaced", "superseded"),
+      kind("architecture", "wip", "draft"),
+      kind("architecture", "live", "current"),
+      kind("proposal", "staged", "draft"),
+      kind("proposal", "under-review", "review"),
+      kind("wiki", "wip", "draft"),
+      kind("wiki", "live", "active"),
+      kind("wiki", "retired", "archived"),
+      kind("prompt", "wip", "draft"),
+      kind("research", "live", "active"),
+      kind("commands", "stub", "active"),
+      // no state at all, and a status outside the vocabulary
+      kind("worklog", "entry"),
+      kind("notes", "stray", "active"),
+    ];
+    const plans = plansByAnalysis(corpus);
+    const tasks = tasksByPlan(corpus);
+    const emitted = new Set(corpus.map((e) => entryState(e, plans, tasks).key));
+
+    expect([...emitted].sort()).toEqual([...STATE_KEYS].sort());
+    // The stray status on a kind with no vocabulary is reported, not swallowed.
+    expect(entryState(kind("notes", "stray", "active"), plans, tasks).declared).toBe("active");
+    expect(entryState(kind("worklog", "entry"), plans, tasks).declared).toBeUndefined();
+  });
+
+  it("gives every state an option label and a lifecycle family", () => {
+    const families = new Set(Object.values(stateMeta).map((m) => m.family));
+    expect([...families].sort()).toEqual([
+      "concluded",
+      "deferred",
+      "open",
+      "retired",
+      "unclassified",
+    ]);
+    for (const key of STATE_KEYS) {
+      expect(stateMeta[key].label.length).toBeGreaterThan(0);
+    }
+    expect(Object.keys(stateMeta).sort()).toEqual([...STATE_KEYS].sort());
   });
 });
 
