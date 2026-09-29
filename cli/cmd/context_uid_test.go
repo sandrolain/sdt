@@ -53,7 +53,7 @@ func TestContextTaskEmitsUID(t *testing.T) {
 	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nsummary: p\nstatus: active\n---\nbody\n")
 
 	execute(t, contextTaskAddCmd, nil, "--phase", "1", "--plan", "p.md", "step one")
-	path := filepath.Join("context", "tasks", "20260806-070000-p-phase-1.md")
+	path := filepath.Join("context", "tasks", "20260806-070000-p.md")
 	content := mustReadFile(t, path)
 	uid := parseFrontmatterField(content, "uid")
 	if uid == "" {

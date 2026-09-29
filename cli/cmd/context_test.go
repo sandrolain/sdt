@@ -776,11 +776,11 @@ func TestContextTaskLifecycle(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
-	tasks := func(name string) string {
-		return filepath.Join(dir, "context", "tasks", "20260806-070000-custom-phase-"+name+".md")
+	tasks := func() string {
+		return filepath.Join(dir, "context", "tasks", "20260806-070000-custom.md")
 	}
 
-	// Missing --phase → error.
+	// No plan can be resolved → error.
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextTaskListCmd, nil))
 	})
@@ -811,14 +811,14 @@ func TestContextTaskLifecycle(t *testing.T) {
 	execute(t, contextTaskBlockCmd, nil, "3", "--phase", "1", "--plan", "custom", "--reason", "ci broken")
 	execute(t, contextTaskWipCmd, nil, "2", "--phase", "1", "--plan", "custom")
 
-	items = parseTaskItems(mustReadFile(t, tasks("1")))
+	items = parseTaskItems(mustReadFile(t, tasks()))
 	want := []string{taskStatusDone, taskStatusWip, taskStatusBlocked}
 	for i, w := range want {
 		if items[i].Status != w {
 			t.Errorf("item %d status = %q, want %q", i, items[i].Status, w)
 		}
 	}
-	if !strings.Contains(mustReadFile(t, tasks("1")), "blocked: ci broken") {
+	if !strings.Contains(mustReadFile(t, tasks()), "blocked: ci broken") {
 		t.Error("expected block reason in task file")
 	}
 }
@@ -826,10 +826,11 @@ func TestContextTaskLifecycle(t *testing.T) {
 func TestTaskFileFor(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 	cases := []struct{ phase, plan, want string }{
-		{"1", "20260911-062956-plan-llm-wiki-pipeline.md", "20260806-070000-plan-llm-wiki-pipeline-phase-1.md"},
-		{"1A", "20260911-062956-plan-llm-wiki-pipeline.md", "20260806-070000-plan-llm-wiki-pipeline-phase-1a.md"},
-		{"2", "20260912-000000-pipeline.md", "20260806-070000-pipeline-phase-2.md"},
-		{"1", "custom", "20260806-070000-custom-phase-1.md"},
+		{"1", "20260911-062956-plan-llm-wiki-pipeline.md", "20260806-070000-plan-llm-wiki-pipeline.md"},
+		{"1A", "20260911-062956-plan-llm-wiki-pipeline.md", "20260806-070000-plan-llm-wiki-pipeline.md"},
+		{"2", "20260912-000000-pipeline.md", "20260806-070000-pipeline.md"},
+		{"1", "custom", "20260806-070000-custom.md"},
+		{"", "custom", "20260806-070000-custom.md"},
 	}
 	for _, c := range cases {
 		got := taskFileFor(c.phase, c.plan)
@@ -844,7 +845,7 @@ func TestContextTaskFileStatusTransitions(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 	file := func() string {
-		return filepath.Join(dir, "context", "tasks", "20260806-070000-custom-phase-1.md")
+		return filepath.Join(dir, "context", "tasks", "20260806-070000-custom.md")
 	}
 	status := func() string {
 		return frontmatterField(mustReadFile(t, file()), "status")
@@ -908,7 +909,7 @@ func TestContextPathTasks(t *testing.T) {
 	out := execute(t, contextPathCmd, nil, "--type", "tasks", "--phase", "2",
 		"--plan", "20260911-062956-plan-llm-wiki-pipeline.md")
 	got := strings.TrimSpace(string(out))
-	want := filepath.Join("context", "tasks", "20260806-070000-plan-llm-wiki-pipeline-phase-2.md")
+	want := filepath.Join("context", "tasks", "20260806-070000-plan-llm-wiki-pipeline.md")
 	if got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}
@@ -928,7 +929,7 @@ func TestContextTaskAddAutoPlan(t *testing.T) {
 		"---\nkind: plan\nsummary: p\nstatus: active\n---\nbody\n")
 
 	execute(t, contextTaskAddCmd, nil, "cd", "--phase", "1")
-	file := filepath.Join(dir, "context", "tasks", "20260806-070000-pipeline-phase-1.md")
+	file := filepath.Join(dir, "context", "tasks", "20260806-070000-pipeline.md")
 	if _, err := os.Stat(file); err != nil {
 		t.Fatalf("expected auto-plan task file: %v", err)
 	}
@@ -966,11 +967,10 @@ func TestContextTaskAddFrontmatterConvention(t *testing.T) {
 	execute(t, contextTaskAddCmd, nil, "step one", "--phase", "demo",
 		"--summary", "Demo checklist")
 
-	content := mustReadFile(t, filepath.Join(dir, "context", "tasks", "20260806-070000-pipeline-phase-demo.md"))
+	content := mustReadFile(t, filepath.Join(dir, "context", "tasks", "20260806-070000-pipeline.md"))
 	for _, want := range []string{
 		"kind: tasks",
 		"summary: Demo checklist",
-		"phase: demo",
 		"status: pending",
 		"created: 2026-08-06T07:00:00Z",
 		"updated: 2026-08-06T07:00:00Z",
@@ -981,35 +981,46 @@ func TestContextTaskAddFrontmatterConvention(t *testing.T) {
 			t.Errorf("expected %q in generated task frontmatter:\n%s", want, content)
 		}
 	}
-	for _, forbid := range []string{"objective:", "created_at:"} {
+	for _, forbid := range []string{"objective:", "created_at:", "phase: demo", "phases: ["} {
 		if strings.Contains(content, forbid) {
-			t.Errorf("did not expect %q in generated task frontmatter:\n%s", forbid, content)
+			t.Errorf("did not expect %q in generated whole-plan task frontmatter:\n%s", forbid, content)
 		}
 	}
 
-	// Default summary derives from the phase when --summary is omitted.
-	execute(t, contextTaskAddCmd, nil, "step two", "--phase", "other")
-	other := mustReadFile(t, filepath.Join(dir, "context", "tasks", "20260806-070000-pipeline-phase-other.md"))
+	// Default summary derives from the phase when --summary is omitted; a
+	// standalone slug with no plan file gets no links/sources.
+	execute(t, contextTaskAddCmd, nil, "step two", "--phase", "other", "--plan", "standalone")
+	other := mustReadFile(t, filepath.Join(dir, "context", "tasks", "20260806-070000-standalone.md"))
 	if !strings.Contains(other, "summary: Task checklist for phase other") {
 		t.Errorf("expected derived default summary, got:\n%s", other)
 	}
 
-	// lint must not flag the CLI-generated checklist.
+	// lint must not flag the CLI-generated plan-linked checklist.
 	out := execute(t, contextLintCmd, nil)
-	if strings.Contains(string(out), "pipeline-phase-demo.md") ||
-		strings.Contains(string(out), "pipeline-phase-other.md") {
+	if strings.Contains(string(out), "context/tasks/20260806-070000-pipeline.md") {
 		t.Errorf("lint flagged CLI-generated task file:\n%s", out)
 	}
 }
 
-func TestContextTaskAddWritesPhaseNotObjective(t *testing.T) {
+func TestBuildTaskFrontmatterPhasesList(t *testing.T) {
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	got := buildTaskFrontmatter("proj", "split checklist", "", []string{"1", "2"})
+	if !strings.Contains(got, "phases: [1, 2]") {
+		t.Errorf("expected phases list in frontmatter:\n%s", got)
+	}
+	if strings.Contains(got, "\nphase:") {
+		t.Errorf("split file must not carry a scalar phase:\n%s", got)
+	}
+}
+
+func TestContextTaskAddWritesNoPhaseOrObjective(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
 	execute(t, contextTaskAddCmd, nil, "step", "--phase", "3a", "--plan", "custom")
-	content := mustReadFile(t, filepath.Join("context", "tasks", "20260806-070000-custom-phase-3a.md"))
-	if !strings.Contains(content, "phase: 3a") {
-		t.Errorf("expected phase: 3a:\n%s", content)
+	content := mustReadFile(t, filepath.Join("context", "tasks", "20260806-070000-custom.md"))
+	if strings.Contains(content, "phase:") {
+		t.Errorf("whole-plan file must not carry a scalar phase:\n%s", content)
 	}
 	if strings.Contains(content, "objective:") {
 		t.Errorf("task file must not carry objective (inherited from the plan):\n%s", content)

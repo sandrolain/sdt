@@ -441,7 +441,7 @@ func TestContextTaskPhaseFile(t *testing.T) {
 	dir := setupContextProject(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 	execute(t, contextTaskAddCmd, nil, "step exec", "--phase", "execution", "--plan", "custom")
-	path := filepath.Join(dir, "context/tasks/20260806-070000-custom-phase-execution.md")
+	path := filepath.Join(dir, "context/tasks/20260806-070000-custom.md")
 	got := mustReadFile(t, path)
 	for _, want := range []string{"step exec", "summary: Task checklist for phase execution", "status: pending"} {
 		if !strings.Contains(got, want) {

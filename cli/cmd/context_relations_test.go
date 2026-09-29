@@ -43,7 +43,7 @@ func TestContextTaskStampsPlanRelation(t *testing.T) {
 	planUID := parseFrontmatterField(mustReadFile(t, planPath), "uid")
 
 	execute(t, contextTaskAddCmd, nil, "--phase", "1", "--plan", filepath.Base(planPath), "step one")
-	taskPath := filepath.Join("context", "tasks", "20260806-070000-rel-plan-phase-1.md")
+	taskPath := filepath.Join("context", "tasks", "20260806-070000-rel-plan.md")
 	taskContent := mustReadFile(t, taskPath)
 	taskUID := parseFrontmatterField(taskContent, "uid")
 

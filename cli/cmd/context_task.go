@@ -75,36 +75,57 @@ func taskSlugFromPlan(plan string) string {
 	return s
 }
 
-// taskFileFor builds the plan-scoped dated task file name
-// (<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md) for the given plan phase
-// number `<n>` and plan reference. When a matching file for the phase already
-// exists it is returned (its name keeps its real creation-time prefix);
-// otherwise a fresh name with timestamp = now (task creation, contextNow) is
-// produced.
+// taskFileFor resolves the task file for a plan and an optional plan phase.
+// Resolution is legacy-first so the forward-only migration never renames an
+// existing file: an explicit <...>-<slug-plan>-phase-<n>.md wins when it
+// exists, otherwise the plan's whole-plan <...>-<slug-plan>.md file, otherwise
+// a fresh whole-plan name with timestamp = now (task creation, contextNow).
+// `phase` may be empty (whole-plan list); existing files keep their real
+// creation-time prefix.
 
 func taskFileFor(phase, plan string) string {
-	n := sanitizeSlug(phase)
 	slug := taskSlugFromPlan(plan)
-	if matches, err := taskFilesForPhase(phase, slug); err == nil && len(matches) > 0 {
-		sort.Slice(matches, func(i, j int) bool {
-			mi, ei := os.Stat(matches[i])
-			mj, ej := os.Stat(matches[j])
-			if ei != nil || ej != nil {
-				return matches[i] > matches[j]
-			}
-			return mi.ModTime().After(mj.ModTime())
-		})
-		return matches[0]
+	if sanitizeSlug(phase) != "" {
+		if matches, err := taskFilesForPhase(phase, slug); err == nil && len(matches) > 0 {
+			return newestTaskFile(matches)
+		}
 	}
-	name := contextTimePrefix("20060102-150405", slug+"-phase-"+n)
-	return filepath.Join(sdtTasksDir, name+".md")
+	if matches, err := taskPlanFiles(slug); err == nil && len(matches) > 0 {
+		return newestTaskFile(matches)
+	}
+	name := contextTimePrefix("20060102-150405", slug)
+	return filepath.Join(sdtTasksDir, name+sdtMarkdownExt)
 }
 
-// taskFilesForPhase lists existing task files matching
+// newestTaskFile returns the most recently modified match (lexical order as a
+// tie-breaker when stat fails).
+
+func newestTaskFile(matches []string) string {
+	sort.Slice(matches, func(i, j int) bool {
+		mi, ei := os.Stat(matches[i])
+		mj, ej := os.Stat(matches[j])
+		if ei != nil || ej != nil {
+			return matches[i] > matches[j]
+		}
+		return mi.ModTime().After(mj.ModTime())
+	})
+	return matches[0]
+}
+
+// taskFilesForPhase lists existing legacy/deliberate phase files matching
 // *-<slug-plan>-phase-<n>.md (any timestamp prefix).
 
 func taskFilesForPhase(phase, slug string) ([]string, error) {
 	pattern := filepath.Join(sdtTasksDir, "*-"+slug+"-phase-"+sanitizeSlug(phase)+sdtMarkdownExt)
+	return filepath.Glob(pattern)
+}
+
+// taskPlanFiles lists existing whole-plan task files matching
+// *-<slug-plan>.md (any timestamp prefix). Phase-suffixed and stream-suffixed
+// names do not match, so the whole-plan file is unambiguous.
+
+func taskPlanFiles(slug string) ([]string, error) {
+	pattern := filepath.Join(sdtTasksDir, "*-"+slug+sdtMarkdownExt)
 	return filepath.Glob(pattern)
 }
 
@@ -114,7 +135,7 @@ func readTaskFile(phase, plan string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("no task list at %s (create one with `sdt context task add --phase %s %s`)", path, phase, planFlagForHint(plan))
+			return "", fmt.Errorf("no task list at %s (create one with `sdt context task add \"<step>\" %s`)", path, planFlagForHint(plan))
 		}
 		return "", err
 	}
@@ -131,16 +152,14 @@ func planFlagForHint(plan string) string {
 	return "--plan " + plan
 }
 
-// taskTarget resolves the confirmed --phase/--plan semantics for the
-// `context task` family: --phase <n> is required (plan phase number, numeric
-// or alphanumeric as written), --plan defaults to latestActivePlan() and an
-// explicit `--plan <custom-slug>` enables standalone checklists.
+// taskTarget resolves the `context task` family target: --phase <n> is
+// optional (when present it targets a plan phase section; when absent the
+// item lands in the file's unphased checklist), --plan defaults to
+// latestActivePlan() and an explicit `--plan <custom-slug>` enables standalone
+// checklists.
 
 func taskTarget(cmd *cobra.Command) (phase, plan string, err error) {
 	phase = sanitizeSlug(getStringFlag(cmd, "phase", false))
-	if phase == "" {
-		return "", "", errors.New("--phase <n> is required (plan phase number, e.g. 1 or 1a)")
-	}
 	plan = getStringFlag(cmd, "plan", false)
 	if plan == "" {
 		plan = latestActivePlan()
@@ -173,21 +192,24 @@ var contextTaskListCmd = &cobra.Command{
 	},
 }
 
-// buildTaskFrontmatter emits a task checklist header matching the tasks.md
-// convention (kind/summary/phase/status/created/updated/links/sources/project)
-// so `sdt context task add` output passes lint and the index. The task inherits
-// the plan's objective, so it never writes an `objective` field.
-// links/sources reference the plan only when it is an existing real plan file
-// (standalone custom slugs get no plan reference).
+// buildTaskFrontmatter emits a whole-plan task checklist header matching the
+// tasks.md convention (kind/summary/status/created/updated/links/sources/
+// project). A whole-plan file carries no scalar `phase`; split files may pass
+// a non-empty `phases` list. The task inherits the plan's objective, so it
+// never writes an `objective` field. links/sources reference the plan only
+// when it is an existing real plan file (standalone custom slugs get no plan
+// reference).
 
-func buildTaskFrontmatter(project, phase, summary, planRef string) string {
+func buildTaskFrontmatter(project, summary, planRef string, phases []string) string {
 	now := contextNow().UTC().Format(time.RFC3339)
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("kind: tasks\n")
 	b.WriteString("uid: " + newUID() + "\n")
 	b.WriteString("summary: " + yamlScalar(summary) + "\n")
-	b.WriteString("phase: " + yamlScalar(phase) + "\n")
+	if len(phases) > 0 {
+		b.WriteString("phases: [" + strings.Join(phases, ", ") + "]\n")
+	}
 	b.WriteString("status: " + taskFileStatusPending + "\n")
 	b.WriteString("created: " + now + "\n")
 	b.WriteString("updated: " + now + "\n")
@@ -256,9 +278,13 @@ var contextTaskAddCmd = &cobra.Command{
 			}
 			summary := getStringFlag(cmd, "summary", false)
 			if summary == "" {
-				summary = "Task checklist for phase " + phase
+				if phase != "" {
+					summary = "Task checklist for phase " + phase
+				} else {
+					summary = "Task checklist for " + taskSlugFromPlan(plan)
+				}
 			}
-			content = buildTaskFrontmatter(project, phase, summary, plan)
+			content = buildTaskFrontmatter(project, summary, plan, nil)
 		} else {
 			exitWithError(cmd, err)
 		}
