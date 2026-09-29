@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,12 +11,20 @@ import (
 
 const cascadeFixedTime = "2026-01-01T00:00:00Z"
 
+// cascadeUIDFor derives a stable, distinct uid per fixture document from its
+// corpus reference: the typed relation is resolved through uids, so two
+// documents of the same fixture must not share one.
+func cascadeUIDFor(rel string) string {
+	sum := sha256.Sum256([]byte(rel))
+	return fmt.Sprintf("01a0e43d-a000-7000-a000-%012x", sum[:6])
+}
+
 func writeCascadeAnalysis(t *testing.T, dir, name, status string) string {
 	t.Helper()
 	rel := "context/analysis/" + name + ".md"
 	writeTestFile(t, filepath.Join(dir, rel), `---
 kind: analysis
-uid: 01a0e43d-a000-7000-a000-0000000000a1
+uid: `+cascadeUIDFor(rel)+`
 title: a
 status: `+status+`
 updated: `+cascadeFixedTime+`
@@ -32,7 +42,8 @@ func writeCascadePlan(t *testing.T, dir, name, status, analysisRel string, ownDo
 	}
 	writeTestFile(t, filepath.Join(dir, rel), `---
 kind: plan
-uid: 01a0e43d-a000-7000-a000-0000000000b1
+uid: `+cascadeUIDFor(rel)+`
+analysis_id: `+cascadeUIDFor(analysisRel)+`
 status: `+status+`
 updated: `+cascadeFixedTime+`
 sources:
@@ -51,7 +62,8 @@ func writeCascadeTask(t *testing.T, dir, name, status, planRel string, mark stri
 	rel := "context/tasks/" + name + ".md"
 	writeTestFile(t, filepath.Join(dir, rel), `---
 kind: tasks
-uid: 01a0e43d-a000-7000-a000-0000000000c1
+uid: `+cascadeUIDFor(rel)+`
+plan_id: `+cascadeUIDFor(planRel)+`
 status: `+status+`
 updated: `+cascadeFixedTime+`
 sources:

@@ -17,6 +17,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yuin/goldmark/v2/ast"
 	"github.com/yuin/goldmark/v2/parser"
+
+	"github.com/sandrolain/sdt/internal/ctxrel"
 )
 
 // ctxFrontmatterSources is the provenance field name shared by the reference
@@ -1009,27 +1011,11 @@ func normalizeContextRef(ref string) string {
 	return clean
 }
 
-// taskPlanRef mirrors the viewer's tasksByPlan: the first normalized `sources`
-// reference containing "/plan/", else "". Only `sources` is consulted, never the
-// generic-correlation `links` list — the shared derivation rule of
-// internal/mdindex.taskPlanRef, internal/search.taskPlanRefFromRegistry,
-// cli/cmd/context_reindex.go ctxTaskPlanObjective and the web/src/lib/statusDot.ts
-// helpers. The heuristic (not a resolved kind lookup) is intentional so the guard
-// sees exactly the viewer's association.
-func taskPlanRef(content string) string {
-	for _, ref := range parseFrontmatterList(content, ctxFrontmatterSources) {
-		if normalized := normalizeContextRef(ref); strings.Contains(normalized, "/plan/") {
-			return normalized
-		}
-	}
-	return ""
-}
-
 // lintPlanTaskAgreement reports a plan declaring `completed` whose referenced
 // tasks are not all done, and distinguishes a plan with no resolvable task
 // reference. WARNING so a plan completed in the same change that archives its
 // tasks never hard-fails lint.
-func lintPlanTaskAgreement(planFiles, taskFiles []string) []ctxLintIssue {
+func lintPlanTaskAgreement(planFiles, taskFiles []string, edges *ctxrel.Edges) []ctxLintIssue {
 	type taskDoc struct {
 		path   string
 		status string
@@ -1044,7 +1030,9 @@ func lintPlanTaskAgreement(planFiles, taskFiles []string) []ctxLintIssue {
 		if parseFrontmatterField(content, "kind") != ctxTypeTasks {
 			continue
 		}
-		ref := taskPlanRef(content)
+		// The association is the typed `plan_id`, resolved once by ctxrel: a
+		// task file derives from exactly one plan, whatever its `sources` cite.
+		ref := edges.ParentOf(filepath.ToSlash(path))
 		if ref == "" {
 			continue
 		}
@@ -1169,7 +1157,9 @@ Examples:
 			exitWithError(cmd, err)
 			taskFiles, err := dirFiles(sdtTasksDir)
 			exitWithError(cmd, err)
-			issues = append(issues, lintPlanTaskAgreement(planFiles, taskFiles)...)
+			edges, err := ctxrel.Load(sdtWorkDir)
+			exitWithError(cmd, err)
+			issues = append(issues, lintPlanTaskAgreement(planFiles, taskFiles, edges)...)
 			// Declared-vs-derived drift across the whole chain (task, plan,
 			// analysis) at advisory WARNING severity (analysis Q4).
 			issues = append(issues, lintCascadeDrift()...)

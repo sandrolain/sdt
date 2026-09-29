@@ -5,11 +5,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/sandrolain/sdt/internal/ctxrel"
 )
 
 // The cascade derives completion upward: a task file from its own checklist, a
@@ -26,7 +27,7 @@ type cascadeNode struct {
 	ref       string // normalizeContextRef(path)
 	status    string
 	uid       string
-	parentRef string // task→plan or plan→analysis, "" when none
+	parentRef string // task→plan or plan→analysis, resolved by ctxrel; "" when none
 	content   string
 	items     []checklistItem
 }
@@ -39,11 +40,13 @@ type cascadeChange struct {
 	To   string `json:"to" yaml:"to"`
 }
 
-// cascadeStore indexes the derived documents by normalized ref.
+// cascadeStore indexes the derived documents by normalized ref and carries the
+// resolved lifecycle edges.
 type cascadeStore struct {
 	tasks    map[string]*cascadeNode
 	plans    map[string]*cascadeNode
 	analyses map[string]*cascadeNode
+	edges    *ctxrel.Edges
 }
 
 func newCascadeStore() *cascadeStore {
@@ -75,24 +78,7 @@ func loadCascadeNode(path string) (*cascadeNode, bool) {
 		content: content,
 		items:   parseChecklistItems(content),
 	}
-	switch kind {
-	case ctxTypeTasks:
-		n.parentRef = taskPlanRef(content)
-	case ctxTypePlan:
-		n.parentRef = planAnalysisRef(content)
-	}
 	return n, true
-}
-
-// planAnalysisRef mirrors taskPlanRef for the plan→analysis edge: the first
-// normalized `sources` reference containing "/analysis/", else "".
-func planAnalysisRef(content string) string {
-	for _, ref := range parseFrontmatterList(content, ctxFrontmatterSources) {
-		if normalized := normalizeContextRef(ref); strings.Contains(normalized, "/analysis/") {
-			return normalized
-		}
-	}
-	return ""
 }
 
 func walkCascadeDir(dir string, add func(*cascadeNode)) error {
@@ -115,14 +101,31 @@ func walkCascadeDir(dir string, add func(*cascadeNode)) error {
 
 func loadCascadeStore() (*cascadeStore, error) {
 	s := newCascadeStore()
-	if err := walkCascadeDir(sdtTasksDir, func(n *cascadeNode) { s.tasks[n.ref] = n }); err != nil {
+	// The lifecycle edges are the typed relations (`analysis_id`, `plan_id`),
+	// resolved once by ctxrel; a plan derives from exactly one analysis and a
+	// task file from exactly one plan.
+	edges, err := ctxrel.Load(sdtWorkDir)
+	if err != nil {
 		return nil, err
 	}
-	if err := walkCascadeDir(sdtPlanDir, func(n *cascadeNode) { s.plans[n.ref] = n }); err != nil {
-		return nil, err
+	s.edges = edges
+	// parent-to-child, so a node always has its parent available for the
+	// in-memory reconciliation below.
+	byDir := []struct {
+		dir  string
+		into map[string]*cascadeNode
+	}{
+		{sdtAnalysisDir, s.analyses},
+		{sdtPlanDir, s.plans},
+		{sdtTasksDir, s.tasks},
 	}
-	if err := walkCascadeDir(sdtAnalysisDir, func(n *cascadeNode) { s.analyses[n.ref] = n }); err != nil {
-		return nil, err
+	for _, d := range byDir {
+		if err := walkCascadeDir(d.dir, func(n *cascadeNode) {
+			n.parentRef = edges.ParentOf(n.ref)
+			d.into[n.ref] = n
+		}); err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -152,27 +155,26 @@ func deriveTaskStatus(n *cascadeNode) string {
 	}
 }
 
-// childTasks returns the task nodes sourcing a plan, sorted by path.
+// childTasks returns the task nodes whose typed parent is a plan, sorted by path.
 func (s *cascadeStore) childTasks(planRef string) []*cascadeNode {
-	var out []*cascadeNode
-	for _, n := range s.tasks {
-		if n.parentRef == planRef {
-			out = append(out, n)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].path < out[j].path })
-	return out
+	return s.childrenOf(planRef, s.tasks)
 }
 
-// childPlans returns the plan nodes sourcing an analysis, sorted by path.
+// childPlans returns the plan nodes whose typed parent is an analysis, sorted by
+// path.
 func (s *cascadeStore) childPlans(analysisRef string) []*cascadeNode {
-	var out []*cascadeNode
-	for _, n := range s.plans {
-		if n.parentRef == analysisRef {
+	return s.childrenOf(analysisRef, s.plans)
+}
+
+// childrenOf reads the resolved edges and returns the matching nodes, sorted by
+// path. A document whose parent could not be resolved belongs to no group.
+func (s *cascadeStore) childrenOf(parentRef string, byRef map[string]*cascadeNode) []*cascadeNode {
+	out := make([]*cascadeNode, 0, len(s.edges.ChildrenOf(parentRef)))
+	for _, ref := range s.edges.ChildrenOf(parentRef) {
+		if n, ok := byRef[ref]; ok {
 			out = append(out, n)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].path < out[j].path })
 	return out
 }
 
