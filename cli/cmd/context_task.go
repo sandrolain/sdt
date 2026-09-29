@@ -366,9 +366,10 @@ func appendTaskStep(content, phase, step string) string {
 	if phase == "" {
 		at := firstHeadingIndex(lines)
 		if at < 0 {
-			at = len(lines)
+			lines = insertLines(lines, len(lines), item)
+		} else {
+			lines = insertLines(lines, at, item, "")
 		}
-		lines = insertLines(lines, at, item)
 		return strings.Join(lines, "\n") + "\n"
 	}
 	if hi := phaseHeadingIndex(lines, phase); hi >= 0 {
