@@ -154,6 +154,8 @@ func TestTemplateRenderRoundTrip(t *testing.T) {
 		"instructions/research.md.tmpl",
 		"instructions/scope.md.tmpl",
 		"instructions/scripts.md.tmpl",
+		"instructions/slides.md.tmpl",
+		"instructions/slides-marp.md.tmpl",
 		"instructions/tasks.md.tmpl",
 		"instructions/ui.md.tmpl",
 		"instructions/ui-tokens.md.tmpl",

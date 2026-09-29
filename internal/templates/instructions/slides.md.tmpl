@@ -1,0 +1,130 @@
+# Slide decks — authoring doctrine
+
+`context/instructions/slides.md` is the contract for authoring or revising a
+slide deck: an ordered set of surfaces, each carrying one claim, read at a
+distance in seconds. It is format-agnostic — it names the decisions, not a
+tool. When the deck is written as markdown, read it together with
+`context/instructions/slides-marp.md` (the dialect and deck document-management
+contract) and `context/instructions/development.md` (the process contract:
+agreement, library-first, simplicity, surgical changes). It names no rendering
+tool: a deck is a document, and any tool that reads the chosen dialect can
+display it.
+
+## When this applies (no-op rule)
+
+- Use it when the project authors or revises a slide deck. If it authors none,
+  this file does not apply — say so and stop.
+- The doctrine is about the *content and structure* of a deck, not the tooling.
+  Choosing a renderer or writing code is a `development.md` decision
+  (library-first), not a rule of this module.
+
+## The work loop
+
+OUTLINE → AGREE → WRITE → RENDER → LOOK → FIX.
+
+1. **Outline** — one message per slide, in order, as bare sentences, before any
+   slide markdown exists. This is a thinking step, not a typing step.
+2. **Agree** — the outline *is* the argument. Settle it with the requester
+   before writing slides: restructuring a deck is cheap here and expensive once
+   slides exist.
+3. **Write** — turn each agreed message into a slide and apply the rules below.
+4. **Render** — produce the deck with the project's toolchain.
+5. **Look** — open the rendered slides and read them as the audience will: at a
+   distance, in seconds, one after another.
+6. **Fix** — correct what the look reveals: overflow, weak contrast, a title
+   that does not state its claim, a slide carrying two ideas.
+
+OUTLINE and WRITE are never merged. Structure discovered while formatting is
+structure invented while formatting, and a deck with an invented structure is
+the failure this loop exists to prevent.
+
+## One idea per slide
+
+A slide makes one claim. A slide making two has none: the audience satisfies
+itself with the first and stops reading. The check is mechanical — read the
+title, read the body, and ask whether one sentence could summarise both. If not,
+split the slide.
+
+## An assertive title
+
+The title states the claim, not the topic: "caching cut p99 by 60%", not
+"Caching". A topic title makes the audience derive the point from the body,
+which is the work the deck exists to do. The strongest test: read only the
+titles, in order — the argument must be reconstructible from them alone. If it
+is not, the argument is not in the deck yet.
+
+## A diagram beats a bullet list
+
+When what is being said is a relationship — a sequence, a hierarchy, a flow, a
+state change, an architecture — draw it. A bullet list *describing* a diagram
+makes the reader rebuild the diagram mentally, during the seconds they were
+supposed to spend on the claim. Bullets are for enumerations, not for
+structure.
+
+## Budgets (defaults, not laws)
+
+- About 5–6 lines of text on a slide.
+- Code blocks of 10–15 lines; longer code belongs in a handout or an appendix.
+- One diagram instead of three bullets.
+
+These are defaults with a reason: a slide is read at a distance, in seconds,
+often in a room lit by a bright window. Override them knowingly — a conference
+talk and an internal review are different objects — and say that you did.
+
+## Speaker notes are not optional
+
+The slide carries what the audience reads; the notes carry what the presenter
+says. A slide without notes forces the presenter to invent an argument at the
+podium, and the invented argument is rarely better than the planned one. Write
+the notes while the claim is fresh.
+
+## Legible from the back of the room
+
+- **Contrast first** — text that fails a contrast check fails the room. Check
+  it; do not assume it.
+- **Never colour alone** — pair colour with text, position or shape, or the
+  deck fails anyone with a colour vision deficiency, a washed-out projector or
+  a black-and-white printout.
+- **A restrained palette** — 4–6 colours, defined once in a theme instead of
+  applied slide by slide. A theme is also the cheapest way to retune a deck for
+  a dark room or a second venue.
+- **A fixed type scale** — set it in the theme, never per slide.
+
+## No template slop
+
+Reject the defaults that arrive with the tooling: the same
+hero-plus-three-bullets layout on every slide, everything centred, a decorative
+gradient standing in for hierarchy, an icon where a claim belongs, a stock
+illustration standing in for content. A deck that looks like every other deck
+says nothing about this one.
+
+## Render and look
+
+A deck is never presentable because its source reads well. Produce it, look at
+it, fix what the look reveals, look again. Never claim a deck is ready without
+having seen the rendered slides.
+
+## Version-scoped engine contract
+
+Whatever tool renders the decks, its directives, themes, layout names and
+options are version-scoped, and its failure mode is usually a silently wrong
+slide rather than an error. Check the installed version and read its `--help` or
+its documentation before relying on a syntax detail; never write a directive or
+an option from memory.
+
+## Honesty rule
+
+- Never claim a deck is presentable or accessible without having rendered it
+  and looked at it.
+- A budget breach is a stated choice, never a hidden one.
+- A verification step that could not run is `expected`, never `passed`; say
+  which claim is therefore unverified.
+
+## Boundary
+
+- Tool choice, install and any code defer to
+  `context/instructions/development.md` (library-first, simplicity, surgical
+  changes).
+- Dialect syntax and deck document conventions defer to
+  `context/instructions/slides-marp.md`.
+- This module names no rendering tool and no exporter.

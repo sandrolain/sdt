@@ -1,0 +1,175 @@
+# Slide decks — the marp markdown dialect
+
+`context/instructions/slides-marp.md` is the contract for writing a slide deck
+as markdown in the **Marp / Marpit** dialect, and for managing the resulting
+`.slide.md` document in the project's corpus. Read it together with
+`context/instructions/slides.md` (the format-agnostic doctrine: the outline
+first, one idea per slide, the budgets) and `context/instructions/wiki.md` (the
+relation discipline for corpus documents). The doctrine file owns the budgets;
+this file owns the dialect mechanics.
+
+## The silent-failure list (read this first)
+
+Marp decides what a slide is by recognising some constructs and **ignoring the
+rest**. There is no error and no warning — only absence. Check this list before
+trusting a deck that "looks fine in the editor".
+
+- **A dash ruler with no blank line before it may not split.** CommonMark can
+  read the line above plus `---` as a *setext heading* (h2), so the slide
+  silently merges with the previous one. Put a blank line before the ruler, or
+  use the `***`, `___` or `- - -` rulers.
+- **A `layout:` key is silently ignored.** Marp has no built-in layouts; a
+  layout name is not a directive (see *No built-in layouts* below).
+- **A misspelled directive name is silently ignored.** Marpit accepts
+  developer-defined directives, so an unknown key is not an error.
+- **A directive outside an HTML comment or the front-matter is literal
+  comment text** — including in an app that renders Marp.
+- **A comment that parses as a directive is not a speaker note.** Notes are the
+  comments that are *not* directives.
+- **Slidev syntax carried over renders as literal text**: `v-click`,
+  `<v-clicks>`, `::right::` / `::left::` slots, `{monaco}`, `magic-move`, and
+  absolute `/public/...` asset paths. Marp resolves images relative to the
+  document; there is no public-folder rule.
+- **Multiple, split and filtered backgrounds need inline-SVG mode**, which is
+  experimental in Marpit and off by default. Without it only the last
+  `![bg]` image of a slide is shown.
+
+## Skeleton
+
+```markdown
+---
+theme: default
+paginate: true
+---
+
+# Assertive title: the slide states its claim
+
+One idea, a few lines, a diagram or a short list.
+
+<!-- A presenter note: an HTML comment that is not a directive. -->
+
+---
+
+## The next claim
+```
+
+The front-matter rulers are **not** slide separators: the slide content starts
+after the *closing* ruler. Deck-wide settings belong in that block or in a
+directive comment. The whole block is parsed as directives, so a key the
+renderer does not know is ignored — while the Marp CLI adds its own metadata
+keys (`title`, `description`, `author`) on top.
+
+## Slide separators
+
+- A `---` horizontal ruler splits slides. `***`, `___` and `- - -` split too.
+- An empty line may be required before the dash ruler by the CommonMark spec —
+  the silent mis-split trap named first above.
+- A ruler inside a fenced code block does not split.
+
+## Directives
+
+Written as YAML inside an HTML comment (`<!-- paginate: true -->`) or in the
+front-matter. Quote a value that contains YAML special characters.
+
+- **Global** directives set the whole deck; when the same global directive is
+  written twice, only the last value counts. Built-ins: `theme`, `style`,
+  `lang`, `headingDivider`. Marp Core adds `size` (`16:9` by default, `4:3`).
+- **Local** directives apply from their page *onward*. Built-ins: `paginate`,
+  `header`, `footer`, `class`, `backgroundColor`, `backgroundImage`,
+  `backgroundPosition`, `backgroundRepeat`, `backgroundSize`, `color`.
+- **Spot** directives carry a `_` prefix and apply to the current page only:
+  `<!-- _class: lead -->`, `<!-- _paginate: skip -->`.
+- `paginate` takes `true`, `false`, `hold` (show, do not count) and `skip` (hide,
+  do not count).
+
+## No built-in layouts
+
+Marp has **no layout names**. The mechanism is a `class` spot directive plus
+theme CSS: `<!-- _class: lead -->` only means something if the theme defines
+`section.lead`, which the official themes do for `lead` and `invert`. A
+multi-column slide is a markdown-it plugin, not a built-in. Write
+`<!-- _class: two-columns -->` only together with the CSS that defines it.
+
+## Code
+
+Ordinary fenced code blocks. On the Marp Core v4 stable line the highlighter is
+highlight.js. Do not carry Slidev's `{lines:true}`, `{2,3|5}` or `{monaco}`
+fence specs over: on v4 they are not recognised, and on the v5 release-candidate
+line highlighting moved to a Shiki plugin with its own `{1,3-5}` line spec.
+Name the installed line before using any fence spec.
+
+## Images
+
+Marpit extends the image syntax; the extra keywords go in the alt text and the
+rest of the alt text becomes the caption.
+
+- Size an inline image: `![w:600 h:400](image.png)`, or `![width:200px]`.
+- Backgrounds: `![bg](image.png)`, `![bg left:40%]`, `![bg right]`,
+  `![bg contain]`.
+- Filters: `![blur:10px sepia:50%](image.png)`.
+
+An inline image accepts `auto` and CSS length units only — never `vw`/`vh`/`vmin`
+/`vmax`, which are rejected so the rendered result stays immutable.
+
+## Fragmented list
+
+A bullet list written with `*` — or an ordered list with `)` — is parsed as a
+**fragmented list**: items get a `data-marpit-fragment` attribute and the slide
+a `data-marpit-fragments` count. The DOM structure and the appearance do not
+change; whether the items appear one by one is the integrated app's decision. It
+is a hint, never a guarantee, so never rely on a reveal to carry information.
+
+## Speaker notes
+
+HTML comments that are not parsed as directives are collected per page in the
+render result and used as presenter notes by integrated apps. Comments that
+*are* directives are consumed by the renderer and never reach the notes.
+
+## Portability split
+
+- **Portable subset** — headings, prose, lists, tables, fenced code, plain
+  images, links, maths. Any markdown renderer shows this correctly.
+- **Marp-only superset** — directives, themes, backgrounds, the extended image
+  sizing and filters, fragmented lists.
+- **App-decided** — whether fragments reveal one by one, and whether and how
+  speaker notes are shown.
+
+The hard limit: a deck is only as good as the weakest markdown renderer it will
+meet. When a deck is also a document that must be read as markdown, keep the
+portable subset and move the rest to speaker notes or a handout.
+
+## Version scope
+
+The contract above was read on 2026-09-29 against **Marpit 3.2.x** (3.2.2
+shipped with Marp Core v4.3.x, 3.2.3 with v5.0.2) and **Marp Core v4 stable**
+(v4.4.0), from the Marpit documentation (`/markdown`, `/directives`,
+`/image-syntax`, `/fragmented-list`, `/theme-css`, `/inline-svg`, `/usage`) and
+the marp-core releases.
+
+`@marp-team/marp-core` **v5 is a release-candidate line** (`@next`): it splits
+the build into a lightweight core plus optional plugins, replaces highlight.js
+with a Shiki plugin, and requires a newer Node. Name the line a deck is written
+against and re-verify against the installed version before relying on any
+directive, theme or fence detail — the failures above are silent, not loud.
+
+## Document management (`.slide.md`)
+
+A deck is an existing corpus document in a particular form, not a new kind:
+
+- `.slide.md` is a **suffix modifier on an existing document kind**, not a kind
+  of its own (the `.map.md` precedent).
+- The document id is derived by stripping the `.md` extension only, so the deck
+  carries its **own** id (`context/notes/plan.slide.md` →
+  `context/notes/plan.slide`) and links to the document it presents rather than
+  aliasing it.
+- Frontmatter and `kind` are inherited from the base document type; the suffix
+  adds no kind-specific schema.
+- **Typed relations** live in the `relations:` frontmatter map over the closed
+  verb vocabulary: `supersedes`, `depends_on`, `refers_to`, `refines`,
+  `implements`, `conflicts_with`, `part_of`, `contains`.
+- `[[target|label]]` wikilinks, optionally with a `#anchor`, are ordinary
+  navigation and are **not** graph edges on their own.
+- **No duplication** — content lives in the deck *or* in the document it
+  presents, never in both. A deck that copies its document creates a second
+  source of truth that will drift: the deck carries the argument, the document
+  keeps the prose.
