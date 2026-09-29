@@ -29,13 +29,18 @@ var renderCases = map[string]any{
 		"Group":   "g",
 	},
 	"commands/index.md.tmpl": map[string]any{
-		"Project":  "p",
-		"Now":      "2026-09-24T00:00:00Z",
-		"Triggers": []string{"analysis", "ingestion"},
+		"Project": "p",
+		"Now":     "2026-09-24T00:00:00Z",
+		"Triggers": []map[string]any{
+			{"Trigger": "analysis", "Payload": "subject or scope of the analysis to create or extend"},
+			{"Trigger": "scratch", "Payload": "_not declared_"},
+		},
 	},
 	"commands/stub.md.tmpl": map[string]any{
 		"ID":       "ingestion",
 		"Contract": "ingestion",
+		"Payload":  "paths and/or URLs to ingest",
+		"Examples": []string{">ingestion: context/refs/ui-ux", ">ingestion: https://example.com/doc"},
 		"Project":  "p",
 		"Now":      "2026-09-24T00:00:00Z",
 	},

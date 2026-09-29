@@ -34,8 +34,11 @@ updated: "{{.Now}}"
   `:` is the delimiter; everything after the **first** colon is the payload,
   verbatim, to the end of the turn (a new line starting with `>` ends it). No
   quoting, no escaping, no flags, no `key=value` grammar.
-- **This trigger accepts:** the subject its contract defines — see
-  `context/instructions/{{.Contract}}.md`.
+{{if .Payload}}- **This trigger accepts:** {{.Payload}} — see
+  `context/instructions/{{.Contract}}.md`.{{if .Examples}}
+- **Examples:**{{range .Examples}}
+  - `{{.}}`{{end}}{{end}}{{else}}- **This trigger accepts:** nothing declared yet — write the payload
+  this trigger takes (and 2-3 examples) in its `## Payload` block here.{{end}}
 - **Empty payload:** apply the declared default; if the trigger has no
   meaningful default, ask **one** question. Never infer the subject silently.
 - **Precedence:** explicit payload > working-context resolution > ask the user.

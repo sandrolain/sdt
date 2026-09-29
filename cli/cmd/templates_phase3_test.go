@@ -10,7 +10,8 @@ import (
 // stub (context commands new / agent init command files).
 func TestCommandsStubTemplateGolden(t *testing.T) {
 	now := time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC)
-	got := instrCommandStubTemplate("triage", "research", "tm", now)
+	got := instrCommandStubTemplate("triage", "research", "the question the run answers",
+		[]string{">triage: what does ctxquery guarantee about list and search", ">triage: the topic to look up"}, "tm", now)
 	want := `---
 kind: commands
 id: commands/triage
@@ -47,8 +48,11 @@ updated: "2026-09-20T17:30:00Z"
   ` + "`:`" + ` is the delimiter; everything after the **first** colon is the payload,
   verbatim, to the end of the turn (a new line starting with ` + "`>`" + ` ends it). No
   quoting, no escaping, no flags, no ` + "`key=value`" + ` grammar.
-- **This trigger accepts:** the subject its contract defines — see
+- **This trigger accepts:** the question the run answers — see
   ` + "`context/instructions/research.md`" + `.
+- **Examples:**
+  - ` + "`>triage: what does ctxquery guarantee about list and search`" + `
+  - ` + "`>triage: the topic to look up`" + `
 - **Empty payload:** apply the declared default; if the trigger has no
   meaningful default, ask **one** question. Never infer the subject silently.
 - **Precedence:** explicit payload > working-context resolution > ask the user.
@@ -84,7 +88,10 @@ updated: "2026-09-20T17:30:00Z"
 // (context commands new/rm rewrite and agent init --force regenerate).
 func TestCommandsIndexTemplateGolden(t *testing.T) {
 	now := time.Date(2026, 9, 20, 17, 31, 0, 0, time.UTC)
-	got := instrCommandsIndexTemplate([]string{"analysis", "ingestion"}, "tm", now)
+	got := instrCommandsIndexTemplate([]commandIndexEntry{
+		{Trigger: "analysis", Payload: "subject or scope of the analysis to create or extend"},
+		{Trigger: "ingestion", Payload: "paths and/or URLs to ingest"},
+	}, "tm", now)
 	want := `---
 kind: commands
 id: commands/index
@@ -135,8 +142,8 @@ Invocation method: an **agent command** — opencode slash-command style,
 6. **Gates are orthogonal** — a payload is a *what*, not a *permission*: it
    never relaxes the gates below.
 7. **Per-command variance is intentional** — the grammar is fixed, the payload
-   semantics are declared per command: in the ` + "`## Payload`" + ` block of its command
-   file and in its contract.
+   semantics are declared per command: in the ` + "`Payload`" + ` column below, in the
+   ` + "`## Payload`" + ` block of its command file, and in its contract.
 
 The grammar is a contract for the agent, not a parser: ` + "`>trigger`" + ` is typed in
 the chat, so the whole line — colon and payload included — reaches the agent
@@ -144,10 +151,10 @@ verbatim.
 
 ## Registry
 
-| Trigger | Command file | Durable contract |
-|---|---|---|
-| ` + "`>analysis`" + ` | ` + "`context/commands/analysis.md`" + ` | ` + "`context/instructions/analysis.md`" + ` |
-| ` + "`>ingestion`" + ` | ` + "`context/commands/ingestion.md`" + ` | ` + "`context/instructions/ingestion.md`" + ` |
+| Trigger | Command file | Durable contract | Payload |
+|---|---|---|---|
+| ` + "`>analysis`" + ` | ` + "`context/commands/analysis.md`" + ` | ` + "`context/instructions/analysis.md`" + ` | subject or scope of the analysis to create or extend |
+| ` + "`>ingestion`" + ` | ` + "`context/commands/ingestion.md`" + ` | ` + "`context/instructions/ingestion.md`" + ` | paths and/or URLs to ingest |
 
 Lookup order for a trigger ` + "`>T`" + `: ` + "`context/commands/T.md`" + ` → if absent, fall
 back to ` + "`context/instructions/T.md`" + `. If neither exists, ask the user (never

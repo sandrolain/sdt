@@ -41,7 +41,9 @@ func contextCommandIDs() []string {
 }
 
 // commandsIndexContent renders the index body for the current command files:
-// the union of generated triggers and whatever the directory scan finds.
+// the union of generated triggers and whatever the directory scan finds. Each
+// trigger's payload phrase comes from the agentCommandStubs table; a scanned
+// trigger with no declaration renders the undeclared placeholder.
 
 func commandsIndexContent(project string, now time.Time) string {
 	set := map[string]bool{}
@@ -56,7 +58,11 @@ func commandsIndexContent(project string, now time.Time) string {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	return instrCommandsIndexTemplate(ids, project, now)
+	entries := make([]commandIndexEntry, 0, len(ids))
+	for _, id := range ids {
+		entries = append(entries, commandIndexEntry{Trigger: id, Payload: declaredCommandPayload(id)})
+	}
+	return instrCommandsIndexTemplate(entries, project, now)
 }
 
 // commandsRewriteIndex regenerates context/commands/index.md from the current
@@ -117,7 +123,7 @@ Examples:
 			exitWithError(cmd, fmt.Errorf("%s already exists (use --force to overwrite)", path))
 			return
 		}
-		content := agentRenderGenerated(agentGeneratedMarkerName(filepath.Base(sdtCommandsDir), id+sdtMarkdownExt), instrCommandStubTemplate(id, contract, project, contextNow()))
+		content := agentRenderGenerated(agentGeneratedMarkerName(filepath.Base(sdtCommandsDir), id+sdtMarkdownExt), instrCommandStubTemplate(id, contract, "", nil, project, contextNow()))
 		if err := os.MkdirAll(sdtCommandsDir, 0o750); err != nil { //#nosec G301 -- user work dir
 			exitWithError(cmd, err)
 			return

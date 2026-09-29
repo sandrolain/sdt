@@ -154,29 +154,54 @@ func writeInstructionFiles(project, group string, force bool) []FileResult {
 // invokes. The generated stubs and the commands index derive from this single
 // declared set — it is deliberately not a pure function of the instruction set,
 // because only some instruction types are agent-invocable.
+//
+// payload is the one-phrase summary of what the trigger takes after the colon
+// in `>id: payload`; examples are rendered into the stub's ## Payload block.
+// This table is the single source of the per-trigger payload semantics: the
+// index column and the stub are both projections of it, never a second copy.
 
 type commandStub struct {
 	id       string
 	contract string // instruction id (no extension), e.g. "analysis"
+	payload  string // one phrase: what the trigger accepts as its payload
+	examples []string
 }
 
 var agentCommandStubs = []commandStub{
-	{id: "ingestion", contract: "ingestion"},
-	{id: ctxTypeWiki, contract: ctxTypeWiki},
-	{id: ctxTypeAnalysis, contract: ctxTypeAnalysis},
-	{id: "draft", contract: "draft"},
-	{id: "scope", contract: "scope"},
-	{id: ctxTypePlan, contract: ctxTypePlan},
-	{id: ctxTypeTasks, contract: ctxTypeTasks},
-	{id: ctxTypeProposal, contract: ctxTypeProposal},
-	{id: ctxTypeDecision, contract: ctxTypeDecision},
-	{id: ctxTypeArchitecture, contract: ctxTypeArchitecture},
-	{id: ctxTypeWorklog, contract: ctxTypeWorklog},
-	{id: ctxTypeNotes, contract: ctxTypeNotes},
-	{id: ctxTypeQuestions, contract: ctxTypeQuestions},
-	{id: "prompts", contract: "prompts"},
-	{id: "reference", contract: "reference"},
-	{id: ctxTypeResearch, contract: ctxTypeResearch},
+	{id: "ingestion", contract: "ingestion", payload: "paths and/or URLs to ingest",
+		examples: []string{">ingestion: context/refs/ui-ux", ">ingestion: https://example.com/doc"}},
+	{id: ctxTypeWiki, contract: ctxTypeWiki, payload: "topic or page id",
+		examples: []string{">wiki: backend/auth", ">wiki: list the pages under web/"}},
+	{id: ctxTypeAnalysis, contract: ctxTypeAnalysis, payload: "subject or scope of the analysis to create or extend",
+		examples: []string{">analysis: why does sdt context lint skip .map.md notes?",
+			">analysis: extend analysis/20260925-195438-agent-command-invocation-grammar.md with the host-registration trade-off"}},
+	{id: "draft", contract: "draft", payload: "the raw notes to capture",
+		examples: []string{">draft: check whether bleve ranking can carry the objective facet",
+			">draft: three ideas about phase splitting, see the open question"}},
+	{id: "scope", contract: "scope", payload: "the objective to scope",
+		examples: []string{">scope: give sdt context lint a closed-schema payload rule"}},
+	{id: ctxTypePlan, contract: ctxTypePlan, payload: "the analysis the plan is built from",
+		examples: []string{">plan: analysis/20260925-195438-agent-command-invocation-grammar.md"}},
+	{id: ctxTypeTasks, contract: ctxTypeTasks, payload: "the plan whose phase task files are created",
+		examples: []string{">tasks: plan/20260929-062200-agent-command-invocation-grammar-payload-contract-in-the-generated-command-surfaces.md"}},
+	{id: ctxTypeProposal, contract: ctxTypeProposal, payload: "subject of the proposal",
+		examples: []string{">proposal: replace the hand-written command stubs with a generated set"}},
+	{id: ctxTypeDecision, contract: ctxTypeDecision, payload: "the proposal to convert",
+		examples: []string{">decision: proposal/20260927-120000-replace-command-stubs"}},
+	{id: ctxTypeArchitecture, contract: ctxTypeArchitecture, payload: "component or topic to document",
+		examples: []string{">architecture: the search index pipeline"}},
+	{id: ctxTypeWorklog, contract: ctxTypeWorklog, payload: "the phase or task being closed out",
+		examples: []string{">worklog: phase 3 of plan/20260929-062200"}},
+	{id: ctxTypeNotes, contract: ctxTypeNotes, payload: "subject of the note",
+		examples: []string{">notes: bleve filter clauses were dropped for ctxquery"}},
+	{id: ctxTypeQuestions, contract: ctxTypeQuestions, payload: "topic to raise questions about",
+		examples: []string{">questions: whether the payload needs a closed schema"}},
+	{id: "prompts", contract: "prompts", payload: "intent of the tracked prompt",
+		examples: []string{">prompts: the release note for the query filters"}},
+	{id: "reference", contract: "reference", payload: "library or topic to look up",
+		examples: []string{">reference: cobra", ">reference: how do agents invoke commands"}},
+	{id: ctxTypeResearch, contract: ctxTypeResearch, payload: "the question the run answers",
+		examples: []string{">research: does ctxquery keep list and search in lockstep"}},
 }
 
 // commandFiles returns the generated command files under context/commands/:
@@ -187,7 +212,7 @@ var agentCommandStubs = []commandStub{
 func commandFiles(project string, now time.Time) []instructionFile {
 	var files []instructionFile
 	for _, s := range agentCommandStubs {
-		files = append(files, instructionFile{name: s.id + sdtMarkdownExt, body: instrCommandStubTemplate(s.id, s.contract, project, now)})
+		files = append(files, instructionFile{name: s.id + sdtMarkdownExt, body: instrCommandStubTemplate(s.id, s.contract, s.payload, s.examples, project, now)})
 	}
 	files = append(files, instructionFile{name: filepath.Base(sdtCommandsIndex), body: commandsIndexContent(project, now)})
 	return files
