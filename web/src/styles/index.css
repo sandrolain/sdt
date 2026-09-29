@@ -481,10 +481,10 @@
     background: var(--bg-rise);
     color: var(--fg);
   }
+  /* Fixed row above the scrolled groups: not sticky, so the kind headers can
+     stick at the top of the scroll region with a constant offset. */
   .tree-toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 1;
+    flex: none;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -522,11 +522,15 @@
     overflow: auto;
     background: var(--bg-base);
   }
+  /* The tree panel is a fixed toolbar plus a scroll region, so the kind
+     headers can stick to the top of the scroll region (not the whole panel). */
   .panel--tree {
+    display: flex;
+    flex-direction: column;
     border-right: 1px solid var(--border);
     /* let the edge group shrink below its content's min-content width */
     min-width: 0;
-    overflow-x: hidden;
+    overflow: hidden;
   }
 
   .panel-header {
@@ -669,12 +673,42 @@
     background: var(--bg-mantle);
     box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
   }
+  .ui-select__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.3rem 0.35rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.2rem;
+  }
+  .ui-select__preset {
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-rise);
+    color: var(--fg-dim);
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  .ui-select__preset:hover {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
+  .ui-select__preset[data-active] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+  }
   .ui-select__list {
     outline: none;
     max-height: 16rem;
     overflow: auto;
   }
   .ui-select__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     padding: 0.3rem 0.5rem;
     border-radius: 6px;
     font-size: 0.8125rem;
@@ -686,14 +720,37 @@
   }
   .ui-select__item[data-selected] {
     color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .ui-select__item-check {
+    font-size: 0.95rem;
+    color: var(--accent);
   }
   .ui-select__section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     padding: 0.25rem 0.5rem 0.1rem;
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--fg-dim);
+  }
+  .ui-select__section-action {
+    padding: 0 0.2rem;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    cursor: pointer;
+  }
+  .ui-select__section-action:hover {
+    text-decoration: underline;
   }
   .dv-content-container {
     overflow: hidden;
@@ -703,13 +760,15 @@
     flex-direction: column;
     gap: 0.5rem;
     padding: 0.5rem;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
   }
   /* each kind folder reads as its own block, visually separated from the next */
   .tree-folder {
     border: 1px solid var(--border);
     border-radius: 9px;
     background: var(--bg-mantle);
-    overflow: hidden;
   }
   .tree-folder__header {
     display: flex;
@@ -722,6 +781,18 @@
     font-size: 0.875rem;
     font-weight: 600;
     letter-spacing: 0.01em;
+  }
+  /* kind headers only: sticky at the top of the scroll region, opaque so the
+     entries scroll under them; the sub-folder headers are not sticky. */
+  .tree-groups > .tree-folder > .tree-folder__header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-mantle);
+    border-radius: 9px 9px 0 0;
+  }
+  .tree-groups > .tree-folder:not([open]) > .tree-folder__header {
+    border-radius: 9px;
   }
   .tree-folder[open] > .tree-folder__header {
     border-bottom: 1px solid var(--border);

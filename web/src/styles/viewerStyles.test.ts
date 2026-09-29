@@ -33,8 +33,11 @@ describe("viewer styles", () => {
   });
 
   it("lets the tree panel shrink below its content min-width", () => {
-    expect(block(".panel--tree")).toContain("min-width: 0");
-    expect(block(".panel--tree")).toContain("overflow-x: hidden");
+    const tree = block(".panel--tree");
+    expect(tree).toContain("min-width: 0");
+    // a fixed toolbar plus a scroll region, so the headers can stick to it
+    expect(tree).toContain("display: flex");
+    expect(tree).toContain("overflow: hidden");
   });
 
   it("lets the meta panel and the path row shrink", () => {
@@ -74,11 +77,14 @@ describe("viewer styles", () => {
     expect(actions).toContain("align-items: center");
   });
 
-  it("sticks the tree toolbar above the folders", () => {
+  it("keeps the tree toolbar fixed and sticks only the kind headers", () => {
     const toolbar = block(".tree-toolbar");
-    expect(toolbar).toContain("position: sticky");
-    expect(toolbar).toContain("top: 0");
     expect(toolbar).toContain("flex-wrap: wrap");
+    expect(toolbar).not.toContain("position: sticky");
+    expect(block(".tree-groups")).toContain("overflow: auto");
+    const headers = block(".tree-groups > .tree-folder > .tree-folder__header");
+    expect(headers).toContain("position: sticky");
+    expect(headers).toContain("top: 0");
   });
 
   it("keeps the state filter and the drift warning on the shared tokens", () => {

@@ -61,6 +61,20 @@ describe("renderMermaid", () => {
     expect(node.querySelector(".md-mermaid__controls")).toBeTruthy();
   });
 
+  it("pins the Mermaid 12 compatibility options", async () => {
+    const host = document.createElement("div");
+    host.append(mermaidNode("graph TD\n  A"));
+    await renderMermaid(host);
+    expect(mocks.initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        layout: "dagre",
+        look: "classic",
+        theme: "base",
+        securityLevel: "strict",
+      }),
+    );
+  });
+
   it("falls back to the source when rendering fails", async () => {
     mocks.render.mockRejectedValueOnce(new Error("boom"));
     const host = document.createElement("div");

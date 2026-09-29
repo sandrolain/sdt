@@ -84,4 +84,54 @@ describe("MultiSelect", () => {
     expect(screen.getByText("Open")).toBeTruthy();
     expect(screen.getByText("Concluded")).toBeTruthy();
   });
+
+  it("applies a preset and toggles a whole section", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <MultiSelect
+        ariaLabel="Visible states"
+        sections={sections}
+        presets={[{ id: "all", label: "All", ids: ["draft", "completed"] }]}
+        selected={[]}
+        onChange={onChange}
+      />,
+    );
+    await userEvent.click(trigger());
+    await userEvent.click(await screen.findByRole("button", { name: "All" }));
+    expect(onChange).toHaveBeenLastCalledWith(["draft", "completed"]);
+
+    onChange.mockClear();
+    await userEvent.click(screen.getByRole("button", { name: "Select all Open" }));
+    expect(onChange).toHaveBeenLastCalledWith(["draft"]);
+
+    // every option of the section already selected: the action clears it
+    onChange.mockClear();
+    rerender(
+      <MultiSelect
+        ariaLabel="Visible states"
+        sections={sections}
+        presets={[{ id: "all", label: "All", ids: ["draft", "completed"] }]}
+        selected={["draft", "completed"]}
+        onChange={onChange}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Clear Open" }));
+    expect(onChange).toHaveBeenLastCalledWith(["completed"]);
+  });
+
+  it("marks a selected option with a check glyph", async () => {
+    render(
+      <MultiSelect
+        ariaLabel="Visible states"
+        sections={sections}
+        selected={["completed"]}
+        onChange={() => {}}
+      />,
+    );
+    await userEvent.click(trigger());
+    const selected = await screen.findByRole("option", { name: "Completed" });
+    expect(selected.querySelector(".ui-select__item-check")).toBeTruthy();
+    const unselected = screen.getByRole("option", { name: "Draft" });
+    expect(unselected.querySelector(".ui-select__item-check")).toBeNull();
+  });
 });

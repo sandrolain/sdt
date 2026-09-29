@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Tree } from "./Tree";
 import { resetTreeSort, setTreeSortKey } from "../lib/treeSortStore";
-import { resetTreeFilter, setHiddenStates, toggleGrouped } from "../lib/treeFilterStore";
+import { resetTreeFilter, setGroupMode, setHiddenStates } from "../lib/treeFilterStore";
 
 const TREE = {
   entries: [
@@ -386,15 +386,23 @@ describe("Tree", () => {
     renderTree();
     expect(await screen.findByText("Alpha")).toBeTruthy();
     expect(screen.queryByRole("switch", { name: "Not completed" })).toBeNull();
-    // grouping defaults off, so the switch starts unselected
-    expect(screen.getByRole("switch", { name: "Grouped" })).toHaveProperty("checked", false);
+    // grouping defaults to "By type", shown in the select trigger
+    expect(document.querySelector(".tree-grouping .ui-select__value")?.textContent).toBe("By type");
 
     // every state is selected by default, so the trigger reads "All"
     const trigger = screen.getByRole("button", { name: "Visible states" });
     expect(trigger.querySelector(".ui-select__value")?.textContent).toBe("All");
     await userEvent.click(trigger);
+    // the five lifecycle families are section headers, each with a bulk action
+    const headers = Array.from(document.querySelectorAll(".ui-select__section-header")).map(
+      (el) => el.textContent ?? "",
+    );
     for (const label of ["Open", "Concluded", "Deferred", "Retired", "Unclassified"]) {
-      expect(await screen.findByText(label)).toBeTruthy();
+      expect(headers.some((header) => header.includes(label))).toBe(true);
+    }
+    // the quick presets render as buttons
+    for (const label of ["All", "Open", "Closed", "Deferred"]) {
+      expect(screen.getByRole("button", { name: label })).toBeTruthy();
     }
     for (const label of ["Completed", "In progress", "Postponed", "No state", "No plan"]) {
       expect(screen.getByRole("option", { name: label })).toBeTruthy();
@@ -469,6 +477,164 @@ describe("Tree", () => {
     for (const folder of folders) {
       expect(folder.hasAttribute("open")).toBe(false);
     }
+  });
+
+  it("reveals the active document's objective and plan groups", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                title: "Plan",
+                status: "active",
+                objective: "viewer",
+              },
+              {
+                path: "context/tasks/t1.md",
+                kind: "tasks",
+                title: "Task one",
+                status: "pending",
+                plan: "context/plan/p.md",
+              },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    setGroupMode("full");
+    render(
+      <MemoryRouter initialEntries={["/docs/context/tasks/t1.md"]}>
+        <Tree />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Task one");
+    const tasksFolder = () =>
+      Array.from(document.querySelectorAll(".tree-folder")).find(
+        (folder) => folder.querySelector(".tree-folder__label")?.textContent === "Tasks",
+      );
+    await waitFor(() => {
+      expect(tasksFolder()?.querySelector(".tree-folder--objective")?.hasAttribute("open")).toBe(
+        true,
+      );
+      expect(tasksFolder()?.querySelector(".tree-folder--plan")?.hasAttribute("open")).toBe(true);
+    });
+  });
+
+  it("collapses every open group from the toolbar", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                title: "Plan",
+                status: "active",
+                objective: "viewer",
+              },
+              {
+                path: "context/tasks/t1.md",
+                kind: "tasks",
+                title: "Task one",
+                status: "pending",
+                plan: "context/plan/p.md",
+              },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    setGroupMode("full");
+    render(
+      <MemoryRouter initialEntries={["/docs/context/tasks/t1.md"]}>
+        <Tree />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Task one");
+    const tasksFolder = () =>
+      Array.from(document.querySelectorAll(".tree-folder")).find(
+        (folder) => folder.querySelector(".tree-folder__label")?.textContent === "Tasks",
+      );
+    await waitFor(() =>
+      expect(tasksFolder()?.querySelector(".tree-folder--objective")?.hasAttribute("open")).toBe(
+        true,
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Collapse all" }));
+    await waitFor(() => {
+      for (const folder of document.querySelectorAll(".tree-folder")) {
+        expect(folder.hasAttribute("open")).toBe(false);
+      }
+    });
+  });
+
+  it("does not reopen collapsed groups when the grouping mode changes", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                title: "Plan",
+                status: "active",
+                objective: "viewer",
+              },
+              {
+                path: "context/tasks/t1.md",
+                kind: "tasks",
+                title: "Task one",
+                status: "pending",
+                plan: "context/plan/p.md",
+              },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    setGroupMode("full");
+    render(
+      <MemoryRouter initialEntries={["/docs/context/tasks/t1.md"]}>
+        <Tree />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Task one");
+    await waitFor(() =>
+      expect(document.querySelectorAll(".tree-folder[open]").length).toBeGreaterThan(0),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Collapse all" }));
+    await waitFor(() => expect(document.querySelectorAll(".tree-folder[open]")).toHaveLength(0));
+    setGroupMode("flat");
+    await waitFor(() => expect(document.querySelectorAll(".tree-folder")).toHaveLength(0));
+    setGroupMode("full");
+    await waitFor(() =>
+      expect(document.querySelectorAll(".tree-folder").length).toBeGreaterThan(0),
+    );
+    expect(document.querySelectorAll(".tree-folder[open]")).toHaveLength(0);
+  });
+
+  it("collapses the active kind folder on click, without forcing it open", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    render(
+      <MemoryRouter initialEntries={["/docs/context/notes/20260915-195559-note.md"]}>
+        <Tree />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Note");
+    const notesFolder = () =>
+      Array.from(document.querySelectorAll(".tree-folder")).find(
+        (folder) => folder.querySelector(".tree-folder__label")?.textContent === "Notes",
+      );
+    await waitFor(() => expect(notesFolder()?.hasAttribute("open")).toBe(true));
+    await userEvent.click(notesFolder()!.querySelector("summary") as HTMLElement);
+    await waitFor(() => expect(notesFolder()?.hasAttribute("open")).toBe(false));
   });
 
   it("uses the kind glyph, uncoloured, for entries without an image", async () => {
@@ -546,8 +712,8 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("T1");
-    // grouping is off by default
-    toggleGrouped();
+    // default grouping is By type; switch to the nested mode
+    setGroupMode("full");
     await waitFor(() => expect(document.querySelector(".tree-folder--plan")).toBeTruthy());
     const plan = document.querySelector(".tree-folder--plan");
     expect(plan?.querySelector(".tree-folder__label")?.textContent).toBe("Plan A");
@@ -591,8 +757,8 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("T1 done");
-    // grouping is off by default
-    toggleGrouped();
+    // default grouping is By type; switch to the nested mode
+    setGroupMode("full");
     await waitFor(() =>
       expect(document.querySelector(".tree-folder--plan .tree-folder__dot")).toBeTruthy(),
     );
@@ -629,8 +795,8 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Alpha");
-    // grouping is off by default
-    toggleGrouped();
+    // default grouping is By type; switch to the nested mode
+    setGroupMode("full");
     await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
     const objectiveFolders = Array.from(document.querySelectorAll(".tree-folder--objective"));
     expect(objectiveFolders).toHaveLength(1);
@@ -710,8 +876,8 @@ describe("Tree", () => {
     renderTree();
 
     expect(await screen.findByText("Unplanned")).toBeTruthy();
-    // grouping is off by default
-    toggleGrouped();
+    // default grouping is By type; switch to the nested mode
+    setGroupMode("full");
     await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
     const viewer = Array.from(document.querySelectorAll(".tree-folder--objective")).find(
       (folder) => folder.querySelector(".tree-folder__label")?.textContent === "viewer",
@@ -778,8 +944,8 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Alpha");
-    // grouping is off by default
-    toggleGrouped();
+    // default grouping is By type; switch to the nested mode
+    setGroupMode("full");
     await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
     const objectiveNames = () =>
       Array.from(document.querySelectorAll(".tree-folder--objective")).map(
@@ -857,8 +1023,8 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Task one");
-    // grouping is off by default
-    toggleGrouped();
+    // default grouping is By type; switch to the nested mode
+    setGroupMode("full");
     await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
 
     const folder = (label: string) =>
@@ -882,7 +1048,7 @@ describe("Tree", () => {
     expect(folder("Tasks")?.textContent).toContain("Loose task");
   });
 
-  it("flattens the grouped kind folders when the grouped switch is off, keeping the wiki folders", async () => {
+  it("flattens the objective folders in By type mode, keeping the wiki folders", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
@@ -924,8 +1090,8 @@ describe("Tree", () => {
     ) as unknown as typeof fetch;
     renderTree();
     await screen.findByText("Analysis");
-    // grouping is off by default: turn it on to exercise the objective folders
-    toggleGrouped();
+    // default grouping is By type: nest to exercise the objective folders
+    setGroupMode("full");
     await waitFor(() =>
       expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(3),
     );
@@ -948,7 +1114,7 @@ describe("Tree", () => {
     setHiddenStates(["completed"]);
     await waitFor(() => expect(taskObjectiveCount()).toBe("1"));
 
-    toggleGrouped();
+    setGroupMode("type");
     await waitFor(() =>
       expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(0),
     );
@@ -960,6 +1126,40 @@ describe("Tree", () => {
     // the wiki folder hierarchy mirrors the corpus and is never collapsed
     expect(document.querySelectorAll(".tree-folder--dir")).toHaveLength(1);
     expect(document.querySelector(".tree-folder--dir")?.textContent).toContain("Deep wiki");
+  });
+
+  it("renders a single flat list with no kind folders in Flat mode", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/analysis/a.md",
+                kind: "analysis",
+                title: "Analysis",
+                objective: "viewer",
+              },
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                title: "Plan",
+                status: "active",
+                objective: "viewer",
+              },
+              { path: "context/wiki/sub/deep.md", kind: "wiki", title: "Deep wiki" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Analysis");
+    setGroupMode("flat");
+    await waitFor(() => expect(document.querySelectorAll(".tree-folder")).toHaveLength(0));
+    for (const title of ["Analysis", "Plan", "Deep wiki"]) {
+      expect(screen.getByText(title)).toBeTruthy();
+    }
   });
 
   it("groups notes by objective when grouping is on and flattens them when off", async () => {
@@ -987,8 +1187,8 @@ describe("Tree", () => {
       Array.from(document.querySelectorAll(".tree-folder")).find(
         (f) => f.querySelector(".tree-folder__label")?.textContent === "Notes",
       );
-    // grouping is off by default: turn it on to exercise the objective folders
-    toggleGrouped();
+    // default grouping is By type: nest to exercise the objective folders
+    setGroupMode("full");
     await waitFor(() =>
       expect(notesFolder()?.querySelector(".tree-folder--objective")).toBeTruthy(),
     );
@@ -1002,7 +1202,7 @@ describe("Tree", () => {
     expect(objective?.textContent).not.toContain("Plain note");
     expect(notesFolder()?.textContent).toContain("Plain note");
 
-    toggleGrouped();
+    setGroupMode("type");
     await waitFor(() =>
       expect(document.querySelectorAll(".tree-folder--objective")).toHaveLength(0),
     );

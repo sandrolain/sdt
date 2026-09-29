@@ -104,6 +104,38 @@ export const stateMeta: Record<StateKey, StateMeta> = {
   "no-state": { label: "No state", family: "unclassified" },
 };
 
+/** One-click family presets for the tree state filter: `all` plus the broad
+ *  lifecycle buckets. `closed` is the concluded + retired union; `no-state`
+ *  (unclassified) belongs to `all` only. */
+export type StatePresetId = "all" | "open" | "closed" | "deferred";
+
+export interface StatePreset {
+  id: StatePresetId;
+  label: string;
+  keys: StateKey[];
+}
+
+export const STATE_PRESETS: readonly StatePreset[] = [
+  { id: "all", label: "All", keys: [...STATE_KEYS] },
+  {
+    id: "open",
+    label: "Open",
+    keys: STATE_KEYS.filter((key) => stateMeta[key].family === "open"),
+  },
+  {
+    id: "closed",
+    label: "Closed",
+    keys: STATE_KEYS.filter(
+      (key) => stateMeta[key].family === "concluded" || stateMeta[key].family === "retired",
+    ),
+  },
+  {
+    id: "deferred",
+    label: "Deferred",
+    keys: STATE_KEYS.filter((key) => stateMeta[key].family === "deferred"),
+  },
+];
+
 /** The kinds whose state is a lifecycle dot. The other kinds have a state (the
  *  filter needs it) but no dot, exactly as before the state model. */
 const DOT_KINDS = new Set(["plan", "tasks", "analysis", "questions"]);

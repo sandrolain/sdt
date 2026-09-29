@@ -7,6 +7,7 @@ import {
   isDoneStatus,
   plansByAnalysis,
   STATE_KEYS,
+  STATE_PRESETS,
   stateMeta,
   statusDot,
   taskObjective,
@@ -418,6 +419,26 @@ describe("entryState", () => {
       expect(stateMeta[key].label.length).toBeGreaterThan(0);
     }
     expect(Object.keys(stateMeta).sort()).toEqual([...STATE_KEYS].sort());
+  });
+
+  it("partitions the states into the family presets", () => {
+    const byId = new Map(STATE_PRESETS.map((preset) => [preset.id, preset]));
+    expect([...byId.keys()]).toEqual(["all", "open", "closed", "deferred"]);
+    // `all` covers every state exactly once
+    expect([...byId.get("all")!.keys].sort()).toEqual([...STATE_KEYS].sort());
+    // every non-unclassified family lands in exactly one non-`all` preset
+    const seen = new Map<string, string>();
+    for (const preset of STATE_PRESETS.filter((p) => p.id !== "all")) {
+      for (const key of preset.keys) {
+        expect(seen.has(key)).toBe(false);
+        seen.set(key, preset.id);
+      }
+    }
+    for (const key of STATE_KEYS) {
+      if (stateMeta[key].family === "unclassified") continue;
+      expect(seen.get(key)).toBeDefined();
+    }
+    expect(new Set(STATE_PRESETS.map((p) => p.label)).size).toBe(STATE_PRESETS.length);
   });
 });
 

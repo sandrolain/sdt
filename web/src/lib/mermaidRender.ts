@@ -70,10 +70,14 @@ export async function renderMermaid(root: HTMLElement | null): Promise<void> {
     lastSignature = current;
     resetRendered(root);
   }
+  // Mermaid 12 defaults to the ELK layout and the `neo` look; pinning dagre and
+  // classic keeps every corpus diagram rendering as before the upgrade.
   mermaid.default.initialize({
     startOnLoad: false,
     securityLevel: "strict",
     theme: "base",
+    layout: "dagre",
+    look: "classic",
     themeVariables: themeVariables(),
   });
 
