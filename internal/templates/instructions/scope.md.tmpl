@@ -14,13 +14,17 @@ analysis; a well-scoped objective goes directly to `>analysis`.
 ## Invocation
 
 - Trigger: `>scope`.
-- Payload: the objective to scope — everything after the first `:` on the same
-  line, taken **verbatim** to the end of the turn (multi-line allowed). No flags,
-  no quoting.
-- With no payload, ask for the objective in **one** question; never infer it.
-- The invocation **is** the approval to create exactly one `status: draft`
-  analysis (and to append to it during the flow). The plan gate is untouched:
-  this flow ends at the analysis; `>plan` is a separate command.
+- Payload: the objective to scope, per the shared grammar in
+  `context/commands/index.md` — everything after the first `:`, verbatim, to
+  the end of the turn. This contract does not restate the grammar.
+- With no payload, ask for the objective in **one** question, then proceed with
+  the answer. Never infer it from the working context.
+- **The payload narrows the objective; it never authorises the write.** Confirm
+  once — `scope <objective> into a draft analysis?` — before creating the
+  `status: draft` analysis, then treat that confirmation as covering the whole
+  flow (its appends and the final `status` flip). The plan gate is untouched:
+  this flow ends at the analysis, and `>plan` is a separate command needing its
+  own approval.
 
 ## The flow (phases are ordered; do not run ahead)
 
