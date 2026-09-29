@@ -201,6 +201,11 @@ export const STATUS_VALUES: Record<string, ValueLabel> = {
     meaning: "Concluded, no further work",
     tone: "ok",
   },
+  "analysis.postponed": {
+    label: "Postponed",
+    meaning: "Concluded and deliberately deferred, awaiting its revival condition",
+    tone: "neutral",
+  },
   "analysis.archived": {
     label: "Archived",
     meaning: "Superseded or retired by the user",

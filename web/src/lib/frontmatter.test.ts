@@ -115,6 +115,14 @@ describe("valueLabel", () => {
     });
     expect(valueLabel("archive", "archived")).toBeNull();
   });
+
+  it("labels a postponed analysis as concluded but deferred (neutral, never the draft tone)", () => {
+    expect(valueLabel("analysis", "postponed")).toEqual({
+      label: "Postponed",
+      meaning: "Concluded and deliberately deferred, awaiting its revival condition",
+      tone: "neutral",
+    });
+  });
 });
 
 describe("status vocabulary drift guard", () => {

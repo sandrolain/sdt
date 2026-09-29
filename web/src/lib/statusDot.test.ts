@@ -159,6 +159,22 @@ describe("statusDot", () => {
     expect(statusDot({ ...analysis, status: "resolved" }, new Map())?.tone).toBe("neutral");
   });
 
+  it("gives a postponed analysis a neutral dot, never the without-a-plan red", () => {
+    // A postponed analysis has no plan by design (its option was not chosen),
+    // so the derived red would mislabel it as unfinished work. It must also
+    // stay out of the groupDot completed/total aggregate (neutral is dropped).
+    const postponed = entry({
+      path: "context/analysis/a.md",
+      kind: "analysis",
+      status: "postponed",
+    });
+    expect(statusDot(postponed, new Map())).toEqual({
+      tone: "neutral",
+      label: "Analysis postponed",
+    });
+    expect(groupDot([postponed], new Map())).toBeNull();
+  });
+
   it("gives a draft analysis its own tone, never the derived red", () => {
     const draft = entry({ path: "context/analysis/a.md", kind: "analysis", status: "draft" });
     expect(statusDot(draft, new Map())).toEqual({

@@ -162,6 +162,10 @@ export function statusDot(
       return { tone: "neutral", label: "Analysis archived" };
     }
     if (status === "draft") return { tone: "draft", label: "Analysis to be written" };
+    // Concluded but deliberately deferred: not "in progress", and not a
+    // derivation over a plan set. A neutral dot keeps it out of the
+    // completed/total aggregate (groupDot drops neutral and draft tones).
+    if (status === "postponed") return { tone: "neutral", label: "Analysis postponed" };
     const plans = analysisPlans.get(entry.path) ?? [];
     if (plans.length === 0) return { tone: "danger", label: "Analysis without a plan" };
     const allPlanTasksDone = plans.every((plan) => {

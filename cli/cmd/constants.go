@@ -64,6 +64,9 @@ const (
 	statusArchived = "archived"
 	statusDryRun   = "dry-run"
 
+	// Document statuses.
+	statusPostponed = "postponed"
+
 	// Cobra command Use strings shared across files.
 	useInit  = "init"
 	useList  = "list"
