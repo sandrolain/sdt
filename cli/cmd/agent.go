@@ -182,7 +182,7 @@ var agentCommandStubs = []commandStub{
 		examples: []string{">scope: give sdt context lint a closed-schema payload rule", ">scope: replace the sdt context lint entry point with a single filter engine"}},
 	{id: ctxTypePlan, contract: ctxTypePlan, payload: "the analysis the plan is built from",
 		examples: []string{">plan: analysis/20260925-195438-agent-command-invocation-grammar.md", ">plan: analysis/20260927-101140-context-query-filters-date-ranges-type-status-and-generic-frontmatter-filters-for-list-and-search.md"}},
-	{id: ctxTypeTasks, contract: ctxTypeTasks, payload: "the plan whose phase task files are created",
+	{id: ctxTypeTasks, contract: ctxTypeTasks, payload: "the plan whose task file(s) are created",
 		examples: []string{">tasks: plan/20260929-062200-agent-command-invocation-grammar-payload-contract-in-the-generated-command-surfaces.md", ">tasks: plan/20260928-073925-context-query-filters-one-shared-filter-engine-for-list-and-search.md"}},
 	{id: ctxTypeProposal, contract: ctxTypeProposal, payload: "subject of the proposal",
 		examples: []string{">proposal: replace the hand-written command stubs with a generated set", ">proposal: register the triggers with the opencode command registry"}},
@@ -550,8 +550,8 @@ Create and manage work files with ` + "`sdt context`" + `:
 - ` + "`sdt context path --type " + ctxTypeHelpText(ctxPathTypes()) + " [--slug]`" + ` — print a
   path without creating anything
 - ` + "`sdt context list --type " + ctxListHelpText() + "`" + ` — list existing files
-- ` + "`sdt context task add --phase <phase> \"<step>\"`" + ` / ` + "`done|block|wip <id>`" + ` — manage a
-  per-phase task checklist
+- ` + "`sdt context task add \"<step>\" [--phase <n>] [--stream <label>]`" + ` / ` + "`done|block|wip <id>`" + ` — manage a
+  plan task checklist (one file per plan, phases as sections)
 `
 }
 

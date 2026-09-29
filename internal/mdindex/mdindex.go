@@ -34,7 +34,7 @@ const ManifestVersion = 4
 // ContextDir is the served knowledge base subdirectory under the project root.
 const ContextDir = "context"
 
-// kindTasks is the frontmatter kind of a per-phase task file: the only kind
+// kindTasks is the frontmatter kind of a task file: the only kind
 // whose plan reference and objective are derived rather than declared.
 const kindTasks = "tasks"
 

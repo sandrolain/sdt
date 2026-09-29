@@ -311,7 +311,7 @@ func planHasFile(ref string) bool {
 
 var contextTaskListCmd = &cobra.Command{
 	Use:   useList,
-	Short: "Show a per-phase task list",
+	Short: "Show a task list (optionally one phase section)",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		phase, plan, err := taskTarget(cmd)
@@ -719,17 +719,19 @@ func frontmatterField(content, key string) string {
 
 var contextTaskCmd = &cobra.Command{
 	Use:   "task",
-	Short: "Manage per-phase task checklists",
+	Short: "Manage plan task checklists",
 	Long: `Manage plan-scoped task checklists in
-context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md. Each plan phase maps
-to its own checklist; --phase <n> is required and --plan defaults to the
-latest active plan (or an explicit --plan <plan-file> / --plan <slug> for a
-standalone checklist).
+context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md (one file per plan by default,
+with one ` + "`## Phase <n>`" + ` section per phase; a legacy
+<...>-<slug-plan>-phase-<n>.md file still wins, and --stream <label> selects an
+opt-in split file <...>-<slug-plan>-<label>.md). --phase <n> targets a phase
+section and is optional; --plan defaults to the latest active plan (or an
+explicit --plan <plan-file> / --plan <slug> for a standalone checklist).
 
-  sdt context task list [--phase <n>] [--plan <ref>]      show steps with ids
-  sdt context task add "<step>" --phase <n> [--plan <ref>] [--summary]
-  sdt context task done|block|wip <id> --phase <n> [--plan <ref>]
-  sdt context task review --phase <n> [--plan <ref>]      record verdicts + complete
+  sdt context task list [--phase <n>] [--stream <label>] [--plan <ref>]   show steps with ids
+  sdt context task add "<step>" [--phase <n>] [--stream <label>] [--plan <ref>] [--summary]
+  sdt context task done|block|wip <id> [--phase <n>] [--stream <label>] [--plan <ref>]
+  sdt context task review [--phase <n>] [--stream <label>] [--plan <ref>]  record verdicts + complete
 
 Status markers: [ ] todo · [~] in-progress · [x] done · [!] blocked`,
 }

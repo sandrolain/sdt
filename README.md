@@ -202,7 +202,7 @@ Project knowledge lives under `context/` as versioned Markdown files:
 - `decisions/` — Architecture Decision Records (ADRs), append-only
 - `analysis/` — trade-off studies and investigation notes
 - `plan/` — development plans
-- `tasks/` — per-phase task files
+- `tasks/` — task files (one per plan by default, phases as sections)
 - `proposals/` — RFC-style proposals feeding ADRs
 - `research/` — research runs and deep-search outputs
 - `worklog/` — final reports, append-only

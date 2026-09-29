@@ -16,7 +16,7 @@ instruction files and temporary files for this project.
 - `worklog/` — chronological log of completed work
 - `notes/` — free-form annotations
 - `questions/` — open questions / points awaiting user decision (`sources` link back to origin)
-- `tasks/` — per-phase task checklists
+- `tasks/` — task checklists (one file per plan by default, phases as `## Phase` sections)
 - `deprecated/` — obsolete generated files moved by `sdt agent init --force` (history)
 - `commands/` — thin agent-invokable trigger files (`context/commands/<trigger>.md`)
 - `instructions/` — agent instruction files (referenced by AGENTS.md)
@@ -32,7 +32,7 @@ instruction files and temporary files for this project.
   - `context/analysis/<YYYYMMDD-HHMMSS>-<slug>.md`
   - `context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`
   - `context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`
-  - `context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md` — checklist per plan phase
+  - `context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md` — task checklist, phases as sections (`-<stream>.md` on a split)
   - `context/deprecated/<base>-DEPRECATED-<stamp>.md` — obsolete generated files
 - `architecture/` files are living documents without a date; decisions are
   append-only and numbered (`decisions/0001-<slug>.md`).
@@ -68,5 +68,5 @@ Create and manage work files with `sdt context`:
 - `sdt context path --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki [--slug]` — print a
   path without creating anything
 - `sdt context list --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands` — list existing files
-- `sdt context task add --phase <phase> "<step>"` / `done|block|wip <id>` — manage a
-  per-phase task checklist
+- `sdt context task add "<step>" [--phase <n>] [--stream <label>]` / `done|block|wip <id>` — manage a
+  plan task checklist (one file per plan, phases as sections)
