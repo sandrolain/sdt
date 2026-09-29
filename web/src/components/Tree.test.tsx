@@ -296,6 +296,83 @@ describe("Tree", () => {
     expect(screen.getByText("Answered")).toBeTruthy();
   });
 
+  it("warns on an entry whose declared status disagrees with its effective state", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/analysis/done.md",
+                kind: "analysis",
+                title: "Derived",
+                status: "active",
+              },
+              {
+                path: "context/analysis/odd.md",
+                kind: "analysis",
+                title: "Odd",
+                status: "resolved",
+              },
+              {
+                path: "context/analysis/later.md",
+                kind: "analysis",
+                title: "Later",
+                status: "postponed",
+              },
+              {
+                path: "context/analysis/clean.md",
+                kind: "analysis",
+                title: "Clean",
+                status: "draft",
+              },
+              {
+                path: "context/plan/p.md",
+                kind: "plan",
+                title: "Plan",
+                status: "completed",
+                sources: [
+                  "analysis/done.md",
+                  "analysis/odd.md",
+                  "analysis/later.md",
+                  "analysis/clean.md",
+                ],
+              },
+              {
+                path: "context/tasks/t.md",
+                kind: "tasks",
+                title: "Task",
+                status: "completed",
+                sources: ["plan/p.md"],
+              },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    expect(await screen.findByText("Derived")).toBeTruthy();
+    // the derived-completed analysis keeps its green dot and gains the warning
+    const row = document.querySelector('a[href="/docs/context/analysis/done.md"]');
+    expect(row?.querySelector(".tree-entry__dot--ok")).toBeTruthy();
+    expect(row?.querySelector(".tree-entry__warn")?.getAttribute("aria-label")).toBe(
+      "analysis is derivably completed (all plans done) — run `sdt context sync`",
+    );
+    // the out-of-vocabulary value is reported too
+    expect(
+      document
+        .querySelector('a[href="/docs/context/analysis/odd.md"] .tree-entry__warn')
+        ?.getAttribute("aria-label"),
+    ).toContain("declared status `resolved` is outside the analysis vocabulary");
+    // a user-owned status and a coherent one stay silent
+    expect(
+      document.querySelector('a[href="/docs/context/analysis/later.md"] .tree-entry__warn'),
+    ).toBeNull();
+    expect(
+      document.querySelector('a[href="/docs/context/analysis/clean.md"] .tree-entry__warn'),
+    ).toBeNull();
+  });
+
   it("offers every state of every kind in the toolbar and no not-completed switch", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),

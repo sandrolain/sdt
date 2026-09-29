@@ -271,6 +271,7 @@ describe("entryState", () => {
       tone: "ok",
       label: "Analysis completed",
       declared: "active",
+      drift: "analysis is derivably completed (all plans done) — run `sdt context sync`",
     });
 
     // Same shape, but the analysis declares the out-of-vocabulary `resolved`:
@@ -281,6 +282,8 @@ describe("entryState", () => {
       tone: "neutral",
       label: "Analysis archived",
       declared: "resolved",
+      drift:
+        "declared status `resolved` is outside the analysis vocabulary (active | draft | completed | postponed | archived)",
     });
 
     // A resolved question is a real state, not an invisible one.
@@ -553,7 +556,105 @@ describe("the state keys that replaced entryCompleted", () => {
       key: "not-started",
       tone: "danger",
       label: "Plan not started",
+      drift:
+        "declared status `archived` is outside the plan vocabulary (active | completed | abandoned)",
     });
+  });
+});
+
+describe("driftReasons", () => {
+  const planFile = (path: string, status?: string, sources?: string[]) =>
+    entry({ path, kind: "plan", status, sources });
+  const taskFile = (path: string, status?: string, sources?: string[]) =>
+    entry({ path, kind: "tasks", status, sources });
+  const analysisFile = (path: string, status?: string) => entry({ path, kind: "analysis", status });
+  const stateOf = (e: TreeEntry, corpus: TreeEntry[]) =>
+    entryState(e, plansByAnalysis(corpus), tasksByPlan(corpus));
+  const SYNC = "run `sdt context sync`";
+
+  it("flags a plan that declares completion it cannot prove", () => {
+    const orphan = [planFile("context/plan/orphan.md", "completed")];
+    expect(stateOf(planFile("context/plan/orphan.md", "completed"), orphan).drift).toBe(
+      "plan declares completed but no task file references it (cannot verify completion)",
+    );
+
+    const withTasks = [
+      planFile("context/plan/p.md", "completed", ["analysis/a.md"]),
+      taskFile("context/tasks/done.md", "completed", ["plan/p.md"]),
+      taskFile("context/tasks/pending.md", "pending", ["plan/p.md"]),
+      analysisFile("context/analysis/a.md", "active"),
+    ];
+    expect(
+      stateOf(planFile("context/plan/p.md", "completed", ["analysis/a.md"]), withTasks).drift,
+    ).toBe("plan declares completed but 1 task(s) are not done: pending.md");
+    // the same plan with every task done is coherent
+    withTasks[1] = taskFile("context/tasks/done.md", "completed", ["plan/p.md"]);
+    withTasks[2] = taskFile("context/tasks/pending.md", "completed", ["plan/p.md"]);
+    expect(
+      stateOf(planFile("context/plan/p.md", "completed", ["analysis/a.md"]), withTasks).drift,
+    ).toBeUndefined();
+  });
+
+  it("flags an analysis whose completion the plan set contradicts", () => {
+    const plan = planFile("context/plan/p.md", "active", ["analysis/a.md"]);
+    const analysis = analysisFile("context/analysis/a.md", "completed");
+    const running = [analysis, plan, taskFile("context/tasks/t.md", "pending", ["plan/p.md"])];
+    expect(stateOf(analysis, running).drift).toBe(
+      "analysis declares completed but 1 plan(s) are not done: p.md",
+    );
+
+    const done = [analysis, plan, taskFile("context/tasks/t.md", "completed", ["plan/p.md"])];
+    expect(stateOf(analysis, done).drift).toBeUndefined();
+  });
+
+  it("flags an analysis that is completed in effect while still declared active", () => {
+    const analysis = analysisFile("context/analysis/a.md", "active");
+    const corpus = [
+      analysis,
+      planFile("context/plan/p.md", "completed", ["analysis/a.md"]),
+      taskFile("context/tasks/t.md", "completed", ["plan/p.md"]),
+    ];
+    expect(stateOf(analysis, corpus).drift).toBe(
+      `analysis is derivably completed (all plans done) — ${SYNC}`,
+    );
+    // a plan in progress is not a completed analysis
+    const running = [analysis, planFile("context/plan/p.md", "active", ["analysis/a.md"])];
+    running.push(taskFile("context/tasks/t.md", "pending", ["plan/p.md"]));
+    expect(stateOf(analysis, running).drift).toBeUndefined();
+  });
+
+  it("never flags a user-owned status", () => {
+    // the user-owned analysis states, with a plan set that is all done
+    for (const status of ["archived", "postponed", "draft"]) {
+      const analysis = analysisFile("context/analysis/a.md", status);
+      const corpus = [
+        analysis,
+        planFile("context/plan/p.md", "completed", ["analysis/a.md"]),
+        taskFile("context/tasks/t.md", "completed", ["plan/p.md"]),
+      ];
+      expect(stateOf(analysis, corpus).drift).toBeUndefined();
+    }
+    // and a plan the user stopped
+    const abandoned = planFile("context/plan/p.md", "abandoned", ["analysis/a.md"]);
+    const corpus = [analysisFile("context/analysis/a.md", "active"), abandoned];
+    expect(stateOf(abandoned, corpus).drift).toBeUndefined();
+  });
+
+  it("flags a status outside the kind's vocabulary, and stays quiet without one", () => {
+    // a kind that carries no status at all (notes, worklog) has no vocabulary to
+    // be outside of, and the CLI lint does not report a stray value either
+    const notes = [entry({ path: "context/notes/n.md", kind: "notes", status: "active" })];
+    expect(stateOf(notes[0], notes).drift).toBeUndefined();
+    // a kind with a vocabulary and an unknown value names the whole vocabulary
+    const decision = [
+      entry({ path: "context/decisions/d.md", kind: "decision", status: "active" }),
+    ];
+    expect(stateOf(decision[0], decision).drift).toBe(
+      "declared status `active` is outside the decision vocabulary (proposed | accepted | rejected | deprecated | superseded)",
+    );
+    // no status, no claim
+    const bare = [entry({ path: "context/notes/n.md", kind: "notes" })];
+    expect(stateOf(bare[0], bare).drift).toBeUndefined();
   });
 });
 

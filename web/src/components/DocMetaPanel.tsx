@@ -32,7 +32,7 @@ import {
 } from "../lib/kinds";
 import { parseOutline, type OutlineItem } from "../lib/outline";
 import { requestSection } from "../lib/sectionRequests";
-import { plansByAnalysis, statusDot, tasksByPlan } from "../lib/statusDot";
+import { entryState, plansByAnalysis, statusDot, tasksByPlan } from "../lib/statusDot";
 import { useReloadToken } from "../lib/useReloadToken";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
@@ -145,6 +145,14 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
     return statusDot(treeEntry, plannedAnalyses, taskIndex) ?? undefined;
   }, [doc, corpus, taskIndex]);
 
+  // the declared-vs-derived disagreement, on every kind the panel can reach
+  const drift = useMemo(() => {
+    const treeEntry = doc ? corpus?.get(doc.path)?.entry : undefined;
+    if (!treeEntry || !corpus) return undefined;
+    const plannedAnalyses = plansByAnalysis([...corpus.values()].map((c) => c.entry));
+    return entryState(treeEntry, plannedAnalyses, taskIndex).drift;
+  }, [doc, corpus, taskIndex]);
+
   // the document's own kind: frontmatter `kind` first, corpus/folder fallback,
   // so the metadata row shows the same icon and label as the tree.
   const docKind = useMemo<EntryFilterKind>(() => {
@@ -205,6 +213,7 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
         {progress && (
           <MetaStatusRow label="Progress" dotTone={progress.tone} value={progress.label} />
         )}
+        {drift && <MetaDriftWarning drift={drift} />}
         {docKind && (
           <div className="meta-status" role="listitem">
             <MetaKindIcon kind={docKind} />
@@ -293,6 +302,19 @@ function MetaParseWarning({ raw }: { raw: string }) {
         <summary>Raw frontmatter</summary>
         <pre>{raw}</pre>
       </details>
+    </div>
+  );
+}
+
+/** Declared-vs-derived disagreement between the frontmatter status and the
+ *  effective state, with the same remedy the CLI drift lint gives. */
+function MetaDriftWarning({ drift }: { drift: string }) {
+  return (
+    <div className="meta-drift" role="listitem">
+      <div className="meta-drift__head">
+        <Icon name="warning" className="meta-drift__icon" label="State drift" />
+        <span className="meta-drift__text">{drift}</span>
+      </div>
     </div>
   );
 }

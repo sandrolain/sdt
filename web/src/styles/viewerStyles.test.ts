@@ -80,4 +80,15 @@ describe("viewer styles", () => {
     expect(toolbar).toContain("top: 0");
     expect(toolbar).toContain("flex-wrap: wrap");
   });
+
+  it("keeps the state filter and the drift warning on the shared tokens", () => {
+    // the tree drift glyph and the metadata-panel block must not invent colours
+    const warn = block(".tree-entry__warn");
+    expect(warn).toContain("color: var(--warn)");
+    const drift = block(".meta-drift");
+    expect(drift).toContain("color-mix(in srgb, var(--warn)");
+    expect(block(".meta-drift__head")).toContain("color: var(--warn)");
+    // the grouped state options reuse the select surface
+    expect(block(".ui-select__section-header")).toContain("color: var(--fg-dim)");
+  });
 });

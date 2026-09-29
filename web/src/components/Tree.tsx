@@ -11,7 +11,6 @@ import {
   groupDot,
   normalizeRef,
   plansByAnalysis,
-  statusDot,
   taskProgress,
   taskProgressLabel,
   tasksByPlan,
@@ -603,7 +602,8 @@ function TreeEntryRow({
   plannedAnalyses?: PlannedAnalyses;
   taskIndex?: Map<string, TreeEntry[]>;
 }) {
-  const dot = statusDot(entry, plannedAnalyses ?? new Map(), taskIndex ?? new Map());
+  const state = entryState(entry, plannedAnalyses ?? new Map(), taskIndex ?? new Map());
+  const dot = state.key === "no-state" ? null : { tone: state.tone, label: state.label };
   const kind = entryKind(entry);
   const kindName = kindLabel(kind);
   return (
@@ -635,6 +635,14 @@ function TreeEntryRow({
             title={dot.label}
             aria-label={dot.label}
             role="img"
+          />
+        )}
+        {state.drift && (
+          <Icon
+            name="warning"
+            className="tree-entry__warn"
+            label={state.drift}
+            title={state.drift}
           />
         )}
         {entry.isMap && (

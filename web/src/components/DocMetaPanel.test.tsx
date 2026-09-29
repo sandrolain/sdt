@@ -238,6 +238,108 @@ describe("DocMetaPanel", () => {
     expect(document.querySelector(".meta-status__dot--danger")).toBeTruthy();
   });
 
+  it("shows the declared-vs-derived drift with the CLI remedy", async () => {
+    // an analysis declared `active` whose plan and task files are all completed
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree") {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              entries: [
+                {
+                  path: "context/analysis/a.md",
+                  kind: "analysis",
+                  title: "A",
+                  status: "active",
+                },
+                {
+                  path: "context/plan/p.md",
+                  kind: "plan",
+                  title: "P",
+                  status: "completed",
+                  sources: ["analysis/a.md"],
+                },
+                {
+                  path: "context/tasks/t.md",
+                  kind: "tasks",
+                  title: "T",
+                  status: "completed",
+                  sources: ["plan/p.md"],
+                },
+              ],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderPanel({
+      path: "context/analysis/a.md",
+      frontmatter: "---\nkind: analysis\nstatus: active\n---\n",
+      markdown: "body",
+    });
+    expect(await screen.findByText("Analysis completed")).toBeTruthy();
+    const block = document.querySelector(".meta-drift");
+    expect(block?.textContent).toContain(
+      "analysis is derivably completed (all plans done) — run `sdt context sync`",
+    );
+    // the declared row still shows what the frontmatter says
+    expect(screen.getByText("Status")).toBeTruthy();
+    expect(screen.getByText("Active")).toBeTruthy();
+  });
+
+  it("reports an out-of-vocabulary declared status as drift", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree") {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              entries: [
+                { path: "context/analysis/a.md", kind: "analysis", title: "A", status: "resolved" },
+              ],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderPanel({
+      path: "context/analysis/a.md",
+      frontmatter: "---\nkind: analysis\nstatus: resolved\n---\n",
+      markdown: "body",
+    });
+    // the effective state reads as archived, the declared row keeps the raw value
+    await screen.findByText("Analysis archived");
+    expect(screen.getByText("resolved")).toBeTruthy();
+    expect(document.querySelector(".meta-drift__text")?.textContent).toContain(
+      "declared status `resolved` is outside the analysis vocabulary",
+    );
+  });
+
+  it("shows no drift block when the declared status agrees with the state", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree") {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              entries: [
+                { path: "context/analysis/a.md", kind: "analysis", title: "A", status: "draft" },
+              ],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderPanel({
+      path: "context/analysis/a.md",
+      frontmatter: "---\nkind: analysis\nstatus: draft\n---\n",
+      markdown: "body",
+    });
+    expect(await screen.findByText("Analysis to be written")).toBeTruthy();
+    expect(document.querySelector(".meta-drift")).toBeNull();
+  });
+
   it("decorates the declared status with its label and meaning tooltip", async () => {
     mockFetch();
     renderPanel({

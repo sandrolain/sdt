@@ -858,6 +858,13 @@
   .tree-entry__dot--draft {
     background: var(--draft);
   }
+  .tree-entry__warn {
+    flex: none;
+    align-self: flex-start;
+    margin-top: 0.4rem;
+    font-size: 0.9rem;
+    color: var(--warn);
+  }
   .tree-folder ul {
     list-style: none;
     margin: 0;
@@ -1096,6 +1103,23 @@
     align-items: center;
     gap: 0.35rem;
     color: var(--danger);
+    font-size: 0.8125rem;
+  }
+  .meta-drift {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--warn) 10%, transparent);
+  }
+  .meta-drift__head {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--warn);
     font-size: 0.8125rem;
   }
   .meta-parse-warning__raw {

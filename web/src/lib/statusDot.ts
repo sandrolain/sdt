@@ -1,5 +1,5 @@
 import type { TreeEntry } from "./api";
-import { valueLabel } from "./frontmatter";
+import { STATUS_VALUES, valueLabel } from "./frontmatter";
 
 export type StatusTone = "danger" | "warn" | "ok" | "neutral" | "draft";
 type ActiveStatusTone = Exclude<StatusTone, "neutral" | "draft">;
@@ -116,6 +116,100 @@ export interface EntryState {
   tone: StatusTone;
   label: string;
   declared?: string;
+  /** why the declared status and the effective state disagree, with the
+   *  remedy, when they do. Mirrors the CLI drift lint (see `driftReasons`). */
+  drift?: string;
+}
+
+const SYNC = "run `sdt context sync`";
+
+/** The statuses the CLI reconciler is allowed to advance
+ *  (`statusFlappable` in cli/cmd/context_cascade.go). A disagreement on a
+ *  user-owned status is not drift: `archived`, `draft`, `postponed` and
+ *  `abandoned` are the user's own decisions. */
+const FLAPPABLE = new Set(["active", "completed"]);
+
+/** The per-kind status vocabulary, read from the single transcription that the
+ *  drift guard in frontmatter.test.ts ties to the status matrix. A kind with no
+ *  entry (worklog, notes, tmp) carries no status at all. */
+function statusVocabulary(kind?: string): string[] {
+  const prefix = `${kind ?? ""}.`;
+  return Object.keys(STATUS_VALUES)
+    .filter((key) => key.startsWith(prefix))
+    .map((key) => key.slice(prefix.length));
+}
+
+/** Declared-vs-derived drift, mirroring `lintCascadeDrift` and
+ *  `lintPlanTaskAgreement` in cli/cmd for the edges the tree payload carries
+ *  (plan↔task files, analysis↔plans, and the per-kind vocabulary).
+ *
+ *  One rule is deliberately not mirrored: `task declares completed but its
+ *  checklist has unfinished items`. It needs the task file's own checklist
+ *  items, which the tree payload does not carry (viewer/server.go), so it
+ *  stays a CLI lint warning — do not "fix" it by parsing markdown in the
+ *  browser. */
+function driftReasons(
+  entry: TreeEntry,
+  analysisPlans: Map<string, TreeEntry[]>,
+  taskIndex: Map<string, TreeEntry[]>,
+): string {
+  const declared = (entry.status ?? "").trim().toLowerCase();
+  const kind = entry.kind;
+
+  if (
+    kind &&
+    statusVocabulary(kind).length > 0 &&
+    declared !== "" &&
+    !statusVocabulary(kind).includes(declared)
+  ) {
+    return `declared status \`${declared}\` is outside the ${kind} vocabulary (${statusVocabulary(kind).join(" | ")})`;
+  }
+
+  if (kind === "plan") {
+    const tasks = taskIndex.get(normalizeRef(entry.path)) ?? [];
+    if (declared !== "completed") return "";
+    if (tasks.length === 0)
+      return "plan declares completed but no task file references it (cannot verify completion)";
+    const unfinished = tasks
+      .filter((t) => !isDoneStatus(t.status))
+      .map((t) => t.path.split("/").pop());
+    if (unfinished.length > 0) {
+      return `plan declares completed but ${unfinished.length} task(s) are not done: ${unfinished.join(", ")}`;
+    }
+    return "";
+  }
+
+  if (kind === "analysis") {
+    const plans = analysisPlans.get(entry.path) ?? [];
+    if (declared === "completed") {
+      const unfinished = plans
+        .filter((plan) => !isPlanDone(plan, taskIndex))
+        .map((plan) => plan.path.split("/").pop());
+      if (unfinished.length > 0) {
+        return `analysis declares completed but ${unfinished.length} plan(s) are not done: ${unfinished.join(", ")}`;
+      }
+      return "";
+    }
+    if (
+      FLAPPABLE.has(declared) &&
+      plans.length > 0 &&
+      plans.every((plan) => isPlanDone(plan, taskIndex))
+    ) {
+      return `analysis is derivably completed (all plans done) — ${SYNC}`;
+    }
+  }
+
+  return "";
+}
+
+/** A plan is done when it declares a terminal status or when every task file
+ *  it references is done — the two inputs `derivePlanStatus` combines on the
+ *  CLI side. */
+function isPlanDone(plan: TreeEntry, taskIndex: Map<string, TreeEntry[]>): boolean {
+  const declared = (plan.status ?? "").trim().toLowerCase();
+  if (PLAN_TERMINAL.has(declared)) return true;
+  const tasks = taskIndex.get(normalizeRef(plan.path)) ?? [];
+  return tasks.length > 0 && tasks.every((t) => isDoneStatus(t.status));
 }
 
 const IN_PROGRESS = new Set(["in-progress", "in_progress", "wip", "progress", "doing"]);
@@ -231,6 +325,17 @@ export function entryState(
   analysisPlans: Map<string, TreeEntry[]> = new Map(),
   taskIndex: Map<string, TreeEntry[]> = new Map(),
 ): EntryState {
+  const state = rawState(entry, analysisPlans, taskIndex);
+  const drift = driftReasons(entry, analysisPlans, taskIndex);
+  return drift ? { ...state, drift } : state;
+}
+
+/** The state itself, before the declared-vs-derived check. */
+function rawState(
+  entry: TreeEntry,
+  analysisPlans: Map<string, TreeEntry[]> = new Map(),
+  taskIndex: Map<string, TreeEntry[]> = new Map(),
+): EntryState {
   const declared = (entry.status ?? "").trim().toLowerCase();
 
   if (entry.kind === "plan") {
@@ -300,11 +405,9 @@ export function entryState(
     const plans = analysisPlans.get(entry.path) ?? [];
     if (plans.length === 0)
       return { key: "no-plan", tone: "danger", label: "Analysis without a plan" };
-    const allPlanTasksDone = plans.every((plan) => {
-      const tasks = taskIndex.get(normalizeRef(plan.path)) ?? [];
-      return tasks.length > 0 && tasks.every((task) => isDoneStatus(task.status));
-    });
-    if (allPlanTasksDone) {
+    // the same notion of "plan done" the drift rule and the CLI reconciler use,
+    // so the effective state and the drift message can never disagree
+    if (plans.every((plan) => isPlanDone(plan, taskIndex))) {
       return declared === ""
         ? { key: "completed", tone: "ok", label: "Analysis completed" }
         : { key: "completed", tone: "ok", label: "Analysis completed", declared };
