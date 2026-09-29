@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/spf13/cobra"
 )
 
@@ -40,10 +41,38 @@ func contextCommandIDs() []string {
 	return ids
 }
 
+// contextCommandPayload returns the payload phrase declared in a command
+// file's frontmatter, or "" when the file declares none. The field lives
+// outside the generated markers, so `sdt agent init --force` refreshes the
+// body and keeps it — that is what makes it the persistence point for a
+// user-created trigger.
+
+func contextCommandPayload(path string) string {
+	data, err := os.ReadFile(path) //#nosec G304 -- fixed commands dir, listed entry
+	if err != nil {
+		return ""
+	}
+	return strings.Trim(strings.TrimSpace(frontmatterField(string(data), "payload")), `"`)
+}
+
+// commandPayloadFor resolves the payload phrase of one trigger: the
+// agentCommandStubs table first, then the command file's own `payload:`
+// frontmatter, else the explicit undeclared placeholder. The order is a
+// decision, not an accident — a generated trigger's phrase lives in the table,
+// and only a user trigger reaches the frontmatter.
+
+func commandPayloadFor(id string) string {
+	if p := declaredCommandPayload(id); p != commandPayloadUndeclared {
+		return p
+	}
+	if p := contextCommandPayload(filepath.Join(sdtCommandsDir, id+sdtMarkdownExt)); p != "" {
+		return p
+	}
+	return commandPayloadUndeclared
+}
+
 // commandsIndexContent renders the index body for the current command files:
-// the union of generated triggers and whatever the directory scan finds. Each
-// trigger's payload phrase comes from the agentCommandStubs table; a scanned
-// trigger with no declaration renders the undeclared placeholder.
+// the union of generated triggers and whatever the directory scan finds.
 
 func commandsIndexContent(project string, now time.Time) string {
 	set := map[string]bool{}
@@ -60,7 +89,7 @@ func commandsIndexContent(project string, now time.Time) string {
 	sort.Strings(ids)
 	entries := make([]commandIndexEntry, 0, len(ids))
 	for _, id := range ids {
-		entries = append(entries, commandIndexEntry{Trigger: id, Payload: declaredCommandPayload(id)})
+		entries = append(entries, commandIndexEntry{Trigger: id, Payload: commandPayloadFor(id)})
 	}
 	return instrCommandsIndexTemplate(entries, project, now)
 }
@@ -118,12 +147,25 @@ Examples:
 			return
 		}
 		project := contextCommandProject()
+		payload := getStringFlag(cmd, "payload", false)
+		if payload != "" {
+			if err := validateCommandPayload(payload); err != nil {
+				exitWithError(cmd, err)
+				return
+			}
+		}
 		path := filepath.Join(sdtCommandsDir, id+sdtMarkdownExt)
 		if _, err := os.Stat(path); err == nil && !getBoolFlag(cmd, "force", false) {
 			exitWithError(cmd, fmt.Errorf("%s already exists (use --force to overwrite)", path))
 			return
 		}
-		content := agentRenderGenerated(agentGeneratedMarkerName(filepath.Base(sdtCommandsDir), id+sdtMarkdownExt), instrCommandStubTemplate(id, contract, "", nil, project, contextNow()))
+		body := instrCommandStubTemplate(id, contract, "", nil, project, contextNow())
+		if payload != "" {
+			// The declared payload goes in the frontmatter, which --force
+			// preserves, so the phrase survives every later regeneration.
+			body = addCommandPayloadField(body, payload)
+		}
+		content := agentRenderGenerated(agentGeneratedMarkerName(filepath.Base(sdtCommandsDir), id+sdtMarkdownExt), body)
 		if err := os.MkdirAll(sdtCommandsDir, 0o750); err != nil { //#nosec G301 -- user work dir
 			exitWithError(cmd, err)
 			return
@@ -139,6 +181,41 @@ Examples:
 		outputString(cmd, path+"\n")
 		outputString(cmd, "regenerated "+sdtCommandsIndex+"\n")
 	},
+}
+
+// validateCommandPayload rejects a --payload value that cannot be stored as a
+// single frontmatter line: it must be non-empty after trimming and carry no
+// newline, so the `payload:` field stays one readable scalar.
+
+func validateCommandPayload(payload string) error {
+	trimmed := strings.TrimSpace(payload)
+	if trimmed == "" {
+		return fmt.Errorf("--payload must not be empty")
+	}
+	if strings.ContainsAny(trimmed, "\n\r") {
+		return fmt.Errorf("--payload must be a single line")
+	}
+	return nil
+}
+
+// addCommandPayloadField inserts `payload: <value>` into a rendered command
+// file's frontmatter, just before the closing delimiter. agentRenderGenerated
+// keeps the frontmatter outside the generated markers, so the field is
+// preserved by `sdt agent init --force`.
+
+func addCommandPayloadField(rendered, payload string) string {
+	fm, body := contextwiki.SplitFrontmatter(rendered)
+	if fm == "" {
+		return rendered
+	}
+	line := "payload: " + yamlScalar(strings.TrimSpace(payload))
+	if trimmed := strings.TrimRight(fm, "\n"); strings.HasSuffix(trimmed, ctxFrontmatterDelim) {
+		fm = strings.TrimRight(strings.TrimSuffix(trimmed, ctxFrontmatterDelim), "\n") +
+			"\n" + line + "\n" + ctxFrontmatterDelim + "\n"
+	} else {
+		fm = strings.TrimRight(fm, "\n") + "\n" + line + "\n"
+	}
+	return fm + body
 }
 
 // ── sdt context commands rm ─────────────────────────────────────────────────────
@@ -190,6 +267,7 @@ agent init --force.
 
 func init() {
 	contextCommandsNewCmd.Flags().String("contract", "", "Durable instruction id referenced by the stub (default: the trigger)")
+	contextCommandsNewCmd.Flags().String("payload", "", "One phrase describing what the trigger accepts after the colon in `>trigger: payload`; stored in the stub frontmatter and shown in the commands index")
 	contextCommandsNewCmd.Flags().Bool("force", false, "Overwrite an existing trigger file")
 	contextCommandsCmd.AddCommand(contextCommandsNewCmd, contextCommandsRmCmd)
 	contextCmd.AddCommand(contextCommandsCmd)
