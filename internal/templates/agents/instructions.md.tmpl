@@ -142,23 +142,26 @@ scripts in `context/scripts/` are listed in
 
 Follow this cycle for any non-trivial task:
 
-1. **Analysis** — perform it; integrate/modify existing analysis files. Map the
-   objectives the work must satisfy to the phases/tasks they become. A
-   too-broad analysis is split into siblings only after **asking the user**
+1. **Analysis** — perform it; integrate/modify existing analysis files. It
+   carries context, evidence and decisions only — the "how" belongs to the plan.
+   A too-broad analysis is split into siblings only after **asking the user**
    (R1), one analysis may feed several numbered wave plans (R2), and every
    option ends as accepted, rejected or preserved as a `postponed` analysis
    (R3) — see `context/instructions/analysis.md` and `plan.md`.
-2. **Plan** — create from the analysis; integrate/modify as needed. Every plan
-   ends with a dedicated final **Validation phase** (see
+2. **Plan** — create from the analysis; integrate/modify as needed. It carries
+   the implementation ("how") and maps each analysis objective to the phase that
+   covers it. Every plan ends with a dedicated final **Validation phase** (see
    `context/instructions/plan.md`).
-3. **Tasks** — after the plan is explicitly approved, create **one task file per phase** in
-	`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md` (`sdt context task`); do not
+3. **Tasks** — after the plan is explicitly approved, create the plan's task
+	file(s) in `context/tasks/` (`sdt context task`); do not
 	create task files while creating the plan or before that approval. A plan without
-	task files has no execution value. Phases are **unbounded in count**,
-   **small** and each targets **exactly one deliverable/concern** — split a phase
-   further the moment it grows beyond a single agent session (full rules in
-   `instructions/plan.md`). Each task file carries a `## Design` study of the
-   phase's objectives (see `instructions/tasks.md`).
+	task files has no execution value. The default is **one task file per plan**
+	holding one `## Phase <n>` section per phase; split into several files only to
+	divide the work by context or across sub-agents. Phases are **unbounded in
+	count**, **small** and each targets **exactly one deliverable/concern** — split
+	a phase further the moment it grows beyond a single agent session (full rules
+	in `instructions/plan.md`). The task file carries a `## Design` study of the
+	objectives its phases cover (see `instructions/tasks.md`).
 4. **Execution** — work **one task file at a time**, never from the plan;
    **mark it in progress on take-in**, complete items as they finish, scan
    `context/tasks/` for stale in-progress files before starting; create
@@ -241,8 +244,8 @@ section of the `<!-- sdt:begin:project -->` block and record the change in
   `archived` semantics, `reference` kind) are defined once in the status matrix:
   `context/architecture/stack.md`. Validate before setting.
 - **Create with the CLI first** — every `context/` work file is scaffolded
-  with `sdt context new --type <t>` (or `sdt context task` for per-phase task
-  lists); hand-write only what the CLI does not cover. Timestamps
+  with `sdt context new --type <t>` (or `sdt context task` for task
+  files); hand-write only what the CLI does not cover. Timestamps
   (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC). See the
   per-type files for exact commands.
 
