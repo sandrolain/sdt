@@ -107,6 +107,29 @@ func taskSlugFromPlan(plan string) string {
 // creation-time prefix.
 
 func taskFileFor(phase, plan string) string {
+	return taskFileForRef(phase, "", plan)
+}
+
+// taskFileForRef resolves a task file for a plan with an optional phase and an
+// optional split-file stream label. Precedence: a named stream selects its
+// `*-<slug-plan>-<stream>.md` file (created when absent); otherwise the
+// legacy-first phase/whole-plan resolution of taskFileFor. Naming a stream
+// wins over an existing `-phase-<n>.md` for the same plan, so a deliberate
+// split is never shadowed.
+
+func taskFileForRef(phase, stream, plan string) string {
+	slug := taskSlugFromPlan(plan)
+	if s := sanitizeSlug(stream); s != "" {
+		if matches, err := taskStreamFiles(s, slug); err == nil && len(matches) > 0 {
+			return newestTaskFile(matches)
+		}
+		name := contextTimePrefix("20060102-150405", slug+"-"+s)
+		return filepath.Join(sdtTasksDir, name+sdtMarkdownExt)
+	}
+	return taskFileForPhaseOrPlan(phase, plan)
+}
+
+func taskFileForPhaseOrPlan(phase, plan string) string {
 	slug := taskSlugFromPlan(plan)
 	if sanitizeSlug(phase) != "" {
 		if matches, err := taskFilesForPhase(phase, slug); err == nil && len(matches) > 0 {
@@ -152,8 +175,16 @@ func taskPlanFiles(slug string) ([]string, error) {
 	return filepath.Glob(pattern)
 }
 
-func readTaskFile(phase, plan string) (string, error) {
-	path := taskFileFor(phase, plan)
+// taskStreamFiles lists existing split files matching
+// *-<slug-plan>-<stream>.md (any timestamp prefix).
+
+func taskStreamFiles(stream, slug string) ([]string, error) {
+	pattern := filepath.Join(sdtTasksDir, "*-"+slug+"-"+sanitizeSlug(stream)+sdtMarkdownExt)
+	return filepath.Glob(pattern)
+}
+
+func readTaskFile(phase, stream, plan string) (string, error) {
+	path := taskFileForRef(phase, stream, plan)
 	//#nosec G304 -- fixed repo path
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -193,6 +224,12 @@ func taskTarget(cmd *cobra.Command) (phase, plan string, err error) {
 	return phase, plan, nil
 }
 
+// taskStreamFlag reads --stream, the optional split-file label.
+
+func taskStreamFlag(cmd *cobra.Command) string {
+	return sanitizeSlug(getStringFlag(cmd, "stream", false))
+}
+
 // planHasFile reports whether ref is an existing file under context/plan/
 // (a real plan reference). Standalone custom slugs do not resolve, so
 // frontmatter links/sources are skipped for them.
@@ -209,7 +246,7 @@ var contextTaskListCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		phase, plan, err := taskTarget(cmd)
 		exitWithError(cmd, err)
-		content, err := readTaskFile(phase, plan)
+		content, err := readTaskFile(phase, taskStreamFlag(cmd), plan)
 		exitWithError(cmd, err)
 		outputTaskItems(cmd, taskItemsInSection(content, phase))
 	},
@@ -386,7 +423,8 @@ var contextTaskAddCmd = &cobra.Command{
 		}
 		phase, plan, err := taskTarget(cmd)
 		exitWithError(cmd, err)
-		path := taskFileFor(phase, plan)
+		stream := taskStreamFlag(cmd)
+		path := taskFileForRef(phase, stream, plan)
 		content := ""
 		//#nosec G304 -- fixed repo path
 		if data, err := os.ReadFile(path); err == nil {
@@ -536,12 +574,13 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			}
 			phase, plan, err := taskTarget(cmd)
 			exitWithError(cmd, err)
-			content, err := readTaskFile(phase, plan)
+			stream := taskStreamFlag(cmd)
+			content, err := readTaskFile(phase, stream, plan)
 			exitWithError(cmd, err)
 			updated, err := updateChecklistItem(content, args[0], status, reason)
 			exitWithError(cmd, err)
 			updated = setTaskFileStatus(updated, taskFileNextStatus(status, updated))
-			path := taskFileFor(phase, plan)
+			path := taskFileForRef(phase, stream, plan)
 			//#nosec G306 -- user work file
 			if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
 				exitWithError(cmd, err)
@@ -571,8 +610,9 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		phase, plan, err := taskTarget(cmd)
 		exitWithError(cmd, err)
-		path := taskFileFor(phase, plan)
-		content, err := readTaskFile(phase, plan)
+		stream := taskStreamFlag(cmd)
+		path := taskFileForRef(phase, stream, plan)
+		content, err := readTaskFile(phase, stream, plan)
 		exitWithError(cmd, err)
 		body := getContextBody(cmd, args)
 		content = appendReviewBlock(content, body)

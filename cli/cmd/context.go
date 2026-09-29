@@ -110,7 +110,7 @@ func contextTimePrefix(format, slug string) string {
 // needs the plan reference (plan filename or standalone slug) and the plan
 // phase number in `phase`.
 
-func contextPath(typ, slug, phase, plan string) (string, error) {
+func contextPath(typ, slug, phase, stream, plan string) (string, error) {
 	t, ok := ctxTypeLookup(typ)
 	if !ok || !t.pathSupported {
 		return "", fmt.Errorf("unknown type %q (use %s)", typ, ctxTypeHelpText(ctxPathTypes()))
@@ -121,10 +121,7 @@ func contextPath(typ, slug, phase, plan string) (string, error) {
 	case ctxSchemeBare:
 		return filepath.Join(t.dir, slug+sdtMarkdownExt), nil
 	case ctxSchemePhase:
-		if phase == "" {
-			return "", errors.New("--phase <n> is required for type tasks")
-		}
-		return taskFileFor(phase, plan), nil
+		return taskFileForRef(phase, stream, plan), nil
 	case ctxSchemeTmpBySlug:
 		if slug == "" {
 			return "", errors.New("--slug is required for type tmp")
@@ -174,6 +171,7 @@ func init() {
 	contextPathCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxPathTypes()))
 	contextPathCmd.Flags().String("slug", "", "Slug (sanitized)")
 	contextPathCmd.Flags().String("phase", "", "Phase for type tasks (plan phase number, e.g. 1 or 1a)")
+	contextPathCmd.Flags().String("stream", "", "Split-file label for type tasks (kebab-case)")
 	contextPathCmd.Flags().String("plan", "", "Plan reference for type tasks (plan file or standalone slug)")
 	contextPathCmd.Flags().String("number", "", "Number for type decision (4-digit NNNN)")
 
@@ -238,12 +236,18 @@ func init() {
 	contextTaskWipCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskReviewCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")
-	contextTaskAddCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
-	contextTaskListCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
-	contextTaskDoneCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
-	contextTaskBlockCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
-	contextTaskWipCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
-	contextTaskReviewCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (required)")
+	contextTaskAddCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
+	contextTaskListCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; filters to that section)")
+	contextTaskDoneCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
+	contextTaskBlockCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
+	contextTaskWipCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
+	contextTaskReviewCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
+	contextTaskAddCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
+	contextTaskListCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
+	contextTaskDoneCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
+	contextTaskBlockCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
+	contextTaskWipCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
+	contextTaskReviewCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
 
 	contextTemplateCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxTemplateTypes()))
 

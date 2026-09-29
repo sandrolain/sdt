@@ -232,7 +232,7 @@ func TestContextPathRegistryScheme(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.kind, func(t *testing.T) {
 			runInTempDir(t)
-			got, err := contextPath(c.kind, c.slug, "", "")
+			got, err := contextPath(c.kind, c.slug, "", "", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -242,16 +242,16 @@ func TestContextPathRegistryScheme(t *testing.T) {
 		})
 	}
 
-	if _, err := contextPath(ctxTypeDecision, "auth", "", ""); err == nil {
+	if _, err := contextPath(ctxTypeDecision, "auth", "", "", ""); err == nil {
 		t.Error("decision path must error (append-only scheme)")
 	}
-	if _, err := contextPath(ctxTypeTasks, "t", "", "plan-ref"); err == nil {
-		t.Error("tasks path without --phase must error")
+	if got, err := contextPath(ctxTypeTasks, "t", "", "", "plan-ref"); err != nil || !strings.HasSuffix(got, "-plan-ref.md") {
+		t.Errorf("tasks path without --phase must resolve the whole-plan file, got %q err %v", got, err)
 	}
-	if _, err := contextPath(ctxTypeTmp, "", "", ""); err == nil {
+	if _, err := contextPath(ctxTypeTmp, "", "", "", ""); err == nil {
 		t.Error("tmp path without --slug must error")
 	}
-	if _, err := contextPath("commands", "x", "", ""); err == nil {
+	if _, err := contextPath("commands", "x", "", "", ""); err == nil {
 		t.Error("commands is not path-supported; must error")
 	}
 }

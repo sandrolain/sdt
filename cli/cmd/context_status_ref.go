@@ -141,7 +141,7 @@ func resolveContextDocIdentity(cmd *cobra.Command) (ctxResolvedDoc, error) {
 		if err != nil {
 			return ctxResolvedDoc{}, err
 		}
-		path = taskFileFor(phase, plan)
+		path = taskFileForRef(phase, taskStreamFlag(cmd), plan)
 	case ctxSchemeTmpBySlug:
 		if slug == "" {
 			return ctxResolvedDoc{}, errors.New("--slug is required for type tmp")
@@ -429,6 +429,7 @@ func addContextStatusRefFlags(c *cobra.Command) {
 	c.Flags().String("slug", "", "Slug for identity resolution")
 	c.Flags().String("number", "", "Decision number (type decision)")
 	c.Flags().String("phase", "", "Phase for a task file (type tasks)")
+	c.Flags().String("stream", "", "Split-file label for a task file (type tasks)")
 	c.Flags().String("plan", "", "Plan reference for a task file (type tasks)")
 }
 

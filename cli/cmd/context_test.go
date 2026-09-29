@@ -915,11 +915,26 @@ func TestContextPathTasks(t *testing.T) {
 	}
 }
 
-func TestContextPathTasksRequiresPhase(t *testing.T) {
+func TestContextPathTasksNoPhaseWholePlan(t *testing.T) {
 	runInTempDir(t)
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, contextPathCmd, nil, "--type", "tasks", "--plan", "custom"))
-	})
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	out := execute(t, contextPathCmd, nil, "--type", "tasks", "--plan", "custom")
+	got := strings.TrimSpace(string(out))
+	want := filepath.Join("context", "tasks", "20260806-070000-custom.md")
+	if got != want {
+		t.Errorf("expected whole-plan path %q, got %q", want, got)
+	}
+}
+
+func TestContextPathTasksStream(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	out := execute(t, contextPathCmd, nil, "--type", "tasks", "--stream", "backend", "--plan", "custom")
+	got := strings.TrimSpace(string(out))
+	want := filepath.Join("context", "tasks", "20260806-070000-custom-backend.md")
+	if got != want {
+		t.Errorf("expected stream path %q, got %q", want, got)
+	}
 }
 
 func TestContextTaskAddAutoPlan(t *testing.T) {
@@ -1067,6 +1082,29 @@ func TestContextTaskPhaseSections(t *testing.T) {
 		"--input", "phase sections reviewed (CONFIRMED)")
 	if !strings.Contains(mustReadFile(t, file()), "## Review") {
 		t.Errorf("expected file-level ## Review block:\n%s", mustReadFile(t, file()))
+	}
+}
+
+func TestContextTaskStreamFile(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	// A legacy phase file already exists for the same plan.
+	writeCtxDoc(t, "context/tasks/20260806-070000-custom-phase-1.md",
+		"---\nkind: tasks\nsummary: legacy\nphase: 1\nstatus: pending\n---\n\n- [ ] legacy item\n")
+
+	execute(t, contextTaskAddCmd, nil, "stream step", "--stream", "backend", "--phase", "1", "--plan", "custom")
+	streamFile := filepath.Join(dir, "context", "tasks", "20260806-070000-custom-backend.md")
+	if _, err := os.Stat(streamFile); err != nil {
+		t.Fatalf("expected stream file: %v", err)
+	}
+	if !strings.Contains(mustReadFile(t, streamFile), "stream step") {
+		t.Errorf("stream file missing item:\n%s", mustReadFile(t, streamFile))
+	}
+
+	// Precedence: the named stream wins over the legacy phase file.
+	out := execute(t, contextTaskListCmd, nil, "--stream", "backend", "--phase", "1", "--plan", "custom", "--format", "json")
+	if !strings.Contains(string(out), "stream step") || strings.Contains(string(out), "legacy item") {
+		t.Errorf("expected the stream file to win over the phase file:\n%s", out)
 	}
 }
 

@@ -458,7 +458,7 @@ Examples:
 			content = contextDecisionFrontmatter(decNum, title, summary, project, created, decStatus)
 		} else {
 			var err error
-			path, err = contextPath(typ, slug, "", "")
+			path, err = contextPath(typ, slug, "", "", "")
 			exitWithError(cmd, err)
 			component := ""
 			if typ == ctxTypeArchitecture {

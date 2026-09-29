@@ -159,6 +159,7 @@ func newTestCmd(args ...string) *cobra.Command {
 	c.Flags().String("slug", "", "")
 	c.Flags().String("number", "", "")
 	c.Flags().String("phase", "", "")
+	c.Flags().String("stream", "", "")
 	c.Flags().String("plan", "", "")
 	if err := c.Flags().Parse(args); err != nil {
 		panic(err)

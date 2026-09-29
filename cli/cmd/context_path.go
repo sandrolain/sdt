@@ -37,9 +37,12 @@ var contextPathCmd = &cobra.Command{
 prefix. Does not create anything.
 
 Types: plan/analysis/worklog/notes/questions/proposal/prompt/research
-(<YYYYMMDD-HHMMSS>-<slug>.md), tasks (<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md
-with --phase <n> and --plan), tmp (<slug>), architecture (<slug>.md),
-wiki (<slug-or/subpath>.md), decision (<NNNN>-<slug>.md with --number).
+(<YYYYMMDD-HHMMSS>-<slug>.md), tasks
+(<YYYYMMDD-HHMMSS>-<slug-plan>.md by default, or
+<YYYYMMDD-HHMMSS>-<slug-plan>-<stream>.md with --stream <label>;
+--phase <n> addresses a section inside the file), tmp (<slug>),
+architecture (<slug>.md), wiki (<slug-or/subpath>.md), decision
+(<NNNN>-<slug>.md with --number).
 
 Examples:
   sdt context path --type worklog --slug review-deps
@@ -73,7 +76,7 @@ Examples:
 			outputContextPath(cmd, contextPathResult{Path: p, Type: ctxTypeDecision, Slug: slug})
 			return
 		}
-		p, err := contextPath(typ, slug, phase, getStringFlag(cmd, "plan", false))
+		p, err := contextPath(typ, slug, phase, getStringFlag(cmd, "stream", false), getStringFlag(cmd, "plan", false))
 		exitWithError(cmd, err)
 		outputContextPath(cmd, contextPathResult{Path: p, Type: typ, Slug: slug})
 	},
