@@ -130,3 +130,70 @@ func TestLintParentRelations(t *testing.T) {
 		t.Errorf("suggestions = %d, want 1 (task missing plan_id)", suggests)
 	}
 }
+
+func TestLintPlanCitingASecondAnalysis(t *testing.T) {
+	runInTempDir(t)
+	analysisUID, otherUID, planUID := testUIDv7(1), testUIDv7(2), testUIDv7(3)
+
+	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nuid: "+analysisUID+"\nsummary: a\n---\n")
+	writeCtxDoc(t, "context/analysis/b.md", "---\nkind: analysis\nuid: "+otherUID+"\nsummary: b\n---\n")
+	// The split-sibling shape: the plan derives from a, and cites b in `sources`
+	// as correlation.
+	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: "+planUID+"\nsummary: p\nanalysis_id: "+analysisUID+"\nsources:\n  - analysis/a.md\n  - analysis/b.md\n---\n")
+
+	issues := lintParentRelations([]string{"context/analysis/a.md", "context/analysis/b.md", "context/plan/p.md"})
+	var found []string
+	for _, it := range issues {
+		if it.Priority == ctxLintSuggestion {
+			found = append(found, it.Message)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("suggestions = %#v, want exactly the second-analysis notice", found)
+	}
+	for _, want := range []string{"b.md", "exactly one analysis", "`links`"} {
+		if !strings.Contains(found[0], want) {
+			t.Errorf("notice %q does not mention %q", found[0], want)
+		}
+	}
+
+	// moving the citation to `links` clears it: correlation is legal.
+	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: "+planUID+"\nsummary: p\nanalysis_id: "+analysisUID+"\nsources:\n  - analysis/a.md\nlinks:\n  - analysis/b.md\n---\n")
+	issues = lintParentRelations([]string{"context/analysis/a.md", "context/analysis/b.md", "context/plan/p.md"})
+	for _, it := range issues {
+		if it.Priority == ctxLintSuggestion {
+			t.Errorf("a `links` citation must not be reported: %s", it.Message)
+		}
+	}
+}
+
+func TestRelationsBackfillPrunesADanglingReverseEntry(t *testing.T) {
+	runInTempDir(t)
+	analysisUID, planUID, taskUID := testUIDv7(1), testUIDv7(2), testUIDv7(3)
+	dangling := testUIDv7(8)
+
+	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nuid: "+analysisUID+"\nsummary: a\nplans_ids:\n  - "+dangling+"\n  - "+planUID+"\n---\n")
+	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: "+planUID+"\nsummary: p\nanalysis_id: "+analysisUID+"\n---\n")
+	writeCtxDoc(t, "context/tasks/t.md", "---\nkind: tasks\nuid: "+taskUID+"\nsummary: t\nplan_id: "+planUID+"\n---\n")
+
+	if !listHas(mustReadFile(t, "context/analysis/a.md"), "plans_ids", dangling) {
+		t.Fatal("fixture must start with a dangling entry")
+	}
+	execute(t, contextUIDBackfillCmd, nil) // writes the marker
+	out := string(execute(t, contextRelationsBackfillCmd, nil, "--dry-run"))
+	if !strings.Contains(out, "context/analysis/a.md") {
+		t.Errorf("dry-run must list the document it would prune: %q", out)
+	}
+	execute(t, contextRelationsBackfillCmd, nil)
+
+	after := mustReadFile(t, "context/analysis/a.md")
+	if listHas(after, "plans_ids", dangling) {
+		t.Errorf("backfill must prune a uid that resolves to no document:\n%s", after)
+	}
+	if !listHas(after, "plans_ids", planUID) {
+		t.Errorf("backfill must keep the real child:\n%s", after)
+	}
+	if second := string(execute(t, contextRelationsBackfillCmd, nil)); !strings.Contains(second, "linked 0") {
+		t.Errorf("the reconcile must be idempotent, got %q", second)
+	}
+}

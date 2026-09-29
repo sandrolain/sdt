@@ -8,6 +8,10 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strconv"
 )
 
 // ── typed, bidirectional parent relations ──────────────────────────────────────
@@ -87,6 +91,41 @@ func ctxSourceParent(content, wantedKind string) (path, uid string) {
 	return "", ""
 }
 
+// checkNoSecondAnalysisInSources reports a plan that cites an analysis in
+// `sources` besides the one its `analysis_id` names. SUGGESTION, not a warning:
+// the citation is legal as correlation (a split sibling, a decision the plan
+// also answers), and only the model says it cannot be a derivation.
+func checkNoSecondAnalysisInSources(docs map[string]ctxRelDoc, doc ctxRelDoc) []ctxLintIssue {
+	primary, ok := docs[doc.analysisID]
+	if !ok {
+		// The declared parent does not resolve: the reverse-consistency check
+		// already reports that, and calling the citation a "second" analysis
+		// would blame the wrong thing.
+		return nil
+	}
+	var extra []string
+	for _, ref := range parseFrontmatterList(doc.content, ctxFrontmatterSources) {
+		abs, resolved := ctxResolvePath(sdtWorkDir, ref)
+		if !resolved || ctxDocKind(abs) != ctxTypeAnalysis || abs == primary.path {
+			continue
+		}
+		extra = append(extra, filepath.Base(abs))
+	}
+	if len(extra) == 0 {
+		return nil
+	}
+	what := "a second analysis"
+	if len(extra) > 1 {
+		what = strconv.Itoa(len(extra)) + " more analyses"
+	}
+	return []ctxLintIssue{{
+		Path:     doc.path,
+		Priority: ctxLintSuggestion,
+		Message: "plan cites " + what + " in `sources` (" + strings.Join(extra, ", ") +
+			"); a plan derives from exactly one analysis (`analysis_id`) — move the extra reference to `links` if it is correlation",
+	}}
+}
+
 // appendFrontmatterListValue appends value to a YAML block-list frontmatter
 // field, creating the field when absent. It is idempotent: an already-present
 // value leaves the content untouched.
@@ -127,6 +166,83 @@ func appendFrontmatterListValue(content, field, value string) (string, bool) {
 	out = append(out, "  - "+value)
 	out = append(out, lines[insertAt:]...)
 	return strings.Join(out, "\n"), true
+}
+
+// dedupeSorted drops duplicates from a sorted list, keeping the first of each.
+func dedupeSorted(values []string) []string {
+	out := values[:0]
+	var last string
+	for i, v := range values {
+		if i > 0 && v == last {
+			continue
+		}
+		out = append(out, v)
+		last = v
+	}
+	return out
+}
+
+// ctxDocParentUID reads the typed parent uid a document declares, or "" for a
+// document outside the lifecycle chain.
+func ctxDocParentUID(path string) string {
+	data, err := os.ReadFile(path) //#nosec G304 -- context work file
+	if err != nil {
+		return ""
+	}
+	return parseFrontmatterField(string(data), ctxParentField(parseFrontmatterField(string(data), "kind")))
+}
+
+// reconcileFrontmatterList rewrites a block-list frontmatter field so it holds
+// exactly values, in order, creating the field when it is absent. It is
+// idempotent, and unlike appendFrontmatterListValue it can also *drop* an entry:
+// a parent's reverse list must name the children that claim it and nothing else,
+// so a dangling uid is repairable by the same command that adds a missing one.
+func reconcileFrontmatterList(content, field string, values []string) (string, bool) {
+	lines := strings.Split(content, "\n")
+	if len(lines) < 3 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
+		return content, false
+	}
+	end, fieldIdx := -1, -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == ctxFrontmatterDelim {
+			end = i
+			break
+		}
+		if strings.TrimSpace(strings.SplitN(lines[i], ":", 2)[0]) == field {
+			fieldIdx = i
+		}
+	}
+	if end < 0 {
+		return content, false
+	}
+	block := make([]string, 0, len(values))
+	for _, v := range values {
+		block = append(block, "  - "+v)
+	}
+	if fieldIdx < 0 {
+		if len(block) == 0 {
+			return content, false
+		}
+		out := append([]string{}, lines[:end]...)
+		out = append(out, append([]string{field + ":"}, block...)...)
+		out = append(out, lines[end:]...)
+		return strings.Join(out, "\n"), true
+	}
+	listEnd := fieldIdx + 1
+	for listEnd < end && strings.HasPrefix(strings.TrimSpace(lines[listEnd]), "- ") {
+		listEnd++
+	}
+	if len(block) == 0 && listEnd == fieldIdx+1 {
+		return content, false // absent and nothing to add
+	}
+	out := append([]string{}, lines[:fieldIdx+1]...)
+	out = append(out, block...)
+	out = append(out, lines[listEnd:]...)
+	updated := strings.Join(out, "\n")
+	if updated == content {
+		return content, false
+	}
+	return updated, true
 }
 
 // linkChildToParent appends childUID to the parent's reverse list field
@@ -209,6 +325,10 @@ func lintParentRelations(files []string) []ctxLintIssue {
 			} else if _, uid := ctxSourceParent(doc.content, ctxTypeAnalysis); uid != "" {
 				issues = append(issues, ctxLintIssue{Path: doc.path, Priority: ctxLintSuggestion, Message: "plan has no `analysis_id` for its sourced analysis (run `sdt context relations backfill`)"})
 			}
+			// One analysis per plan: a `sources` citation of another analysis is
+			// correlation, and saying so is cheaper than letting a reader assume
+			// it derives (decision 0013's singular relation, the wave-2 analysis).
+			issues = append(issues, checkNoSecondAnalysisInSources(docs, doc)...)
 			issues = append(issues, checkParentListRelation(docs, doc, doc.tasksIDs, ctxTypeTasks, "plan_id", "tasks_ids")...)
 		case ctxTypeTasks:
 			if doc.planID != "" {
@@ -296,15 +416,10 @@ func runRelationsBackfill(dryRun bool) (ctxRelationsBackfillResult, error) {
 	if err != nil {
 		return res, err
 	}
-	uidToPath := map[string]string{}
-	for _, path := range files {
-		if uid := ctxDocUID(path); uid != "" {
-			uidToPath[uid] = path
-		}
-	}
+	uidToPath, childrenOf := ctxRelationIndex(files)
 
 	for _, path := range files {
-		act, relevant, derr := deriveRelationBackfill(path, uidToPath)
+		act, relevant, derr := deriveRelationBackfill(path, uidToPath, childrenOf)
 		if derr != nil {
 			return res, derr
 		}
@@ -317,7 +432,12 @@ func runRelationsBackfill(dryRun bool) (ctxRelationsBackfillResult, error) {
 			continue
 		}
 		res.Linked++
+		// Name every document the run would write: the child, and the parent
+		// whose reverse list is reconciled (which is also where a prune lands).
 		res.Paths = append(res.Paths, path)
+		if act.parentChanged && act.parentPath != "" && !slices.Contains(res.Paths, act.parentPath) {
+			res.Paths = append(res.Paths, act.parentPath)
+		}
 		if dryRun {
 			continue
 		}
@@ -335,6 +455,29 @@ func runRelationsBackfill(dryRun bool) (ctxRelationsBackfillResult, error) {
 	return res, nil
 }
 
+// ctxRelationIndex maps every document uid to its path and, per parent uid, the
+// uids of the children that name it in their typed parent field. Built once per
+// backfill run so a parent's reverse list can be reconciled rather than appended
+// to, which is what makes a dangling entry prunable.
+func ctxRelationIndex(files []string) (uidToPath map[string]string, childrenOf map[string][]string) {
+	uidToPath = map[string]string{}
+	childrenOf = map[string][]string{}
+	for _, path := range files {
+		uid := ctxDocUID(path)
+		if uid == "" {
+			continue
+		}
+		uidToPath[uid] = path
+		if parent := ctxDocParentUID(path); parent != "" {
+			childrenOf[parent] = append(childrenOf[parent], uid)
+		}
+	}
+	for parent := range childrenOf {
+		sort.Strings(childrenOf[parent])
+	}
+	return uidToPath, childrenOf
+}
+
 // relBackfillAction is the computed (not yet applied) mutation for one child.
 type relBackfillAction struct {
 	path          string
@@ -349,7 +492,7 @@ type relBackfillAction struct {
 // its `sources` chain without writing anything. relevant is false for kinds
 // outside the lifecycle chain. A missing or stale typed edge is re-derived from
 // `sources`; the parent's reverse list is always reconciled.
-func deriveRelationBackfill(path string, uidToPath map[string]string) (act relBackfillAction, relevant bool, err error) {
+func deriveRelationBackfill(path string, uidToPath map[string]string, childrenOf map[string][]string) (act relBackfillAction, relevant bool, err error) {
 	data, err := os.ReadFile(path) //#nosec G304,G703 -- fixed repo path
 	if err != nil {
 		return act, false, err
@@ -386,7 +529,13 @@ func deriveRelationBackfill(path string, uidToPath map[string]string) (act relBa
 		return act, true, nil
 	}
 	act.parentPath = parentPath
-	act.parentContent, act.parentChanged = appendFrontmatterListValue(string(parentData), ctxChildrenField(parentKind), childUID)
+	// Reconcile, do not only append: the parent's reverse list is exactly the
+	// uids of the children that name it — this one included, since its edge is
+	// being created now — so a dangling entry is prunable by the same command
+	// that adds a missing one.
+	expected := append([]string{childUID}, childrenOf[parentUID]...)
+	sort.Strings(expected)
+	act.parentContent, act.parentChanged = reconcileFrontmatterList(string(parentData), ctxChildrenField(parentKind), dedupeSorted(expected))
 	return act, true, nil
 }
 
