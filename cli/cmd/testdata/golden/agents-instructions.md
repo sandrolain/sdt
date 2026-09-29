@@ -119,12 +119,15 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/ui-adapters.md` | Mapping a framework's idioms to the UI doctrine |
 | `context/instructions/mindmap.md` | Authoring or reviewing a mind map |
 | `context/instructions/mindmap-markmap.md` | Writing the markmap markdown dialect |
-| `context/commands/` | Invoking an agent command: `>trigger` (e.g. `>ingestion`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md` (approve before write) |
+| `context/commands/` | Invoking an agent command: `>trigger` or `>trigger: payload` (e.g. `>ingestion: context/refs/ui-ux`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md`. The payload is verbatim after the first `:`; precedence is payload > working context > ask; a payload never relaxes a gate (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
 
 Each agent-visible task gets **one file** under `context/commands/` (thin
-triggers; the durable contract stays under `context/instructions/`).
+triggers; the durable contract stays under `context/instructions/`). A trigger
+may take a payload — everything after the first `:`, verbatim, to the end of
+the turn. It names the work; it never grants the permission, so the gates
+below still apply.
 
 Work directories live under `context/` (`plan/`, `analysis/`, `architecture/`,
 `decisions/`, `proposals/`, `research/`, `prompts/`, worklog/, notes/, tasks/, commands/,
