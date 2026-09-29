@@ -1,31 +1,35 @@
-# Task Files (one per plan phase)
+# Task Files (one per plan)
 
-`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>-phase-<n>.md` holds the task list for **one phase of a plan**.
-There is no single global TODO: each plan phase gets its own file so the agent
-can track exactly what is done and what is pending for that phase. The task file
-is the **execution unit**: work happens from one task file at a time, never from
-the plan.
+`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md` holds the task list for a
+**plan**, with one `## Phase <n>` section per phase. One file per plan is the
+default so a sequentially executed plan does not multiply files; split into
+several files only to divide the work by context or across sub-agents (disjoint
+scopes, each with a `--stream <label>` suffix). The task file is the
+**execution unit**: work happens from one task file — and one phase section — at
+a time, never from the plan.
 
 ## Create
 
-Create a per-phase task file with the CLI (scaffolds the phase path and
-frontmatter):
+Create the plan's task file with the CLI (scaffolds the path and frontmatter):
 
 ```bash
-sdt context task add "<step>" --phase <n>
+sdt context task add "<step>" [--phase <n>] [--stream <label>] [--plan <plan-file>]
 ```
 
-Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
-Or hand-write the file from the template below.
+`--phase <n>` places the step in the `## Phase <n>` section (created when
+absent); without it the step lands in the file's unphased checklist. `--stream`
+selects an opt-in split file (`<slug-plan>-<label>.md`). Timestamps
+(`created`/`updated`) come from `sdt time iso` (RFC3339 UTC). Or hand-write the
+file from the template below.
 
 ## Intent first
 
 Task files follow the plan, which follows the analysis; the chain and its
 approval gates are defined in AGENTS.md (HARD RULE 1).
 
-A task file is owned by its plan: it carries `phase` (its own phase id) and
-**inherits the plan's `objective`** for grouping — it never declares
-`objective` itself.
+A task file is owned by its plan: it carries the optional `phases` list (the
+phase sections it covers; omitted on the whole-plan file) and **inherits the
+plan's `objective`** for grouping — it never declares `objective` itself.
 
 ## Structure
 
@@ -33,7 +37,7 @@ A task file is owned by its plan: it carries `phase` (its own phase id) and
 ---
 kind: tasks
 summary: "<1-2 sentence summary — MANDATORY, index source>"
-phase: "<plan phase id, e.g. 1 or 1a>"
+phases: [1, 2]           # optional: only on a split file; omitted on the whole-plan file
 status: pending          # pending | in-progress | completed | archived | active(legacy) — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
@@ -54,12 +58,17 @@ session: <session id>        # optional
 - <analysis objective this task covers> — approach: <how>;
   verify: <command or signal>
 
-## Checklist
+## Phase 1 — <goal>
 
 - [ ] step one <!-- c1 -->
 - [~] step two (in progress) <!-- c2 -->
+
+## Phase 2 — <goal>
+
 - [x] step three (done) <!-- c3 -->
 - [!] step four (blocked) <!-- c4 -->
+
+## Review                 <!-- file-level; written by `task review` on completion -->
 ```
 
 The trailing `<!-- c<N> -->` is a stable per-document id the CLI assigns; never
@@ -68,7 +77,7 @@ type or renumber it by hand.
 ## Design section (study of the task objectives)
 
 Before executing, add a `## Design` section: one short block per objective the
-phase/task covers. Each block names the objective (from the plan phase and the
+task's phases cover. Each block names the objective (from the plan phase and the
 analysis it derives from), the approach/design chosen for it, and how it will be
 verified. Keep it short — it studies *this task's* objectives; the full style,
 architecture and dependency contract lives in the plan (see
@@ -105,7 +114,7 @@ hand.
 |----------|-----------|-------------|
 | kind | yes | Document type, fixed value `tasks`; index and lint depend on it. |
 | summary | yes | 1-2 sentence summary → index source. |
-| phase | yes | Plan phase id this task file executes (e.g. `1`, `1a`). The task inherits the plan's `objective`; it does not carry one. |
+| phases | no | Phase sections this file covers (e.g. `[1, 2]`); only on a split file, omitted on the whole-plan file. The legacy scalar `phase` is still accepted. The task inherits the plan's `objective`; it does not carry one. |
 | status | yes | File state: `pending` (to work on) / `in-progress` / `completed` / `archived`. The first three are always distinguishable — a task file is never stuck with fewer than three meaningful states. `active` is the legacy value accepted by lint. |
 | created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
 | updated | yes | ISO 8601 UTC last-edit date, written only by the CLI; refresh a body-only edit with `sdt context touch`. |
@@ -125,25 +134,32 @@ hand.
   `sdt context touch <doc>`.
 - Status markers: `[ ]` todo · `[~]` in-progress · `[x]` done · `[!]` blocked.
 - File status transitions: create → `pending`; `wip`/`block` → `in-progress`; `done` → `completed` when no `[ ]`/`[~]` item remains, else `in-progress`. Completion is `completed` and the file stays in `context/tasks/`; `archived` is reserved for a task file retired by the user's will.
-- One plan phase per file: **single focus**, small checklist (~5-7 items); a
-  >10-item checklist triggers a `sdt context lint` SUGGESTION to split.
+- **One file per plan by default**: the file holds the plan's phases as `## Phase
+  <n>` sections. Split into several files only to divide the work by context or
+  across sub-agents — disjoint scopes, each named with a `--stream <label>` and
+  declaring its `phases` list. A plan phase with no matching section in any of
+  its task files gets a `sdt context lint` SUGGESTION.
+- Keep each phase section small (~5-7 items); a >10-item section triggers a
+  `sdt context lint` SUGGESTION to split the phase.
 - Task files are **living**: updated during execution of the phase.
-- When a phase completes, set its task file `completed` (the file stays in `context/tasks/`) and update the plan.
+- When every phase section is done and the `## Review` block is present, set the
+  file `completed` (it stays in `context/tasks/`) and update the plan.
 
 ## Execution workflow
 
 1. **Pick** — choose a task file whose dependencies are satisfied (see its plan
-   and links). One file at a time; don't jump between files.
-2. **Take in charge** — before any work, mark the file in progress with
+   and links). One file at a time; don't jump between files. Concurrent
+   sub-agents must own different files (disjoint scopes).
+2. **Take in charge** — before any work, mark the phase in progress with
    `sdt context task wip <id> --phase <n>` (it sets the item `[~]`, flips the
    file `in-progress` and refreshes `updated`; add `agent`/`model`/`session`
    when available). Study the task's objectives in the `## Design` section (fill
    it from the plan and analysis if missing). Log the take-in in the worklog.
-3. **Execute** — work items top to bottom; update markers as you go. Any
-   deviation goes back into this file or the plan — never silently.
-4. **Complete** — `[x]` every item, run the **verify-step** below, then set the
-   file `completed` (it stays in `context/tasks/`) and update the linked plan
-   phase.
+3. **Execute** — work the phase section's items top to bottom; update markers as
+   you go. Any deviation goes back into this file or the plan — never silently.
+4. **Complete** — `[x]` every item of the phase, run the **verify-step** below,
+   then move to the next phase; set the file `completed` (the `## Review` block
+   is written file-level) and update the linked plan.
 5. **Commit gate** — if the task produced tracked changes, propose a
    Conventional Commits message (see `instructions/git.md`) scoped to this
    task and **ask the user whether to commit**; commit only on explicit
@@ -178,7 +194,7 @@ Run the verify-step before closing a phase (completeness, coherence,
 correctness) and use the standardized claim vocabulary (**passed** / **expected**
 / **inferred**) — see AGENTS.md (5-stage development lifecycle).
 
-Record it as a `## Review` block in the task file (write it with
+Record it as a file-level `## Review` block in the task file (write it with
 `sdt context task review --phase <n>`; a completed file without the block gets
 a lint SUGGESTION). Every finding ends as one of the closed verdicts
 **CONFIRMED**, **DISPROVED** or **UNVERIFIED**, with evidence (command output,

@@ -2130,13 +2130,14 @@ func TestAgentGitTemplateCoherence(t *testing.T) {
 // edits.
 func TestAgentTasksTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Task Files (one per plan phase)",
+		"# Task Files (one per plan)",
 		"## Design section (study of the task objectives)",
 		"## Design",
 		"## Execution workflow",
 		"**Commit gate**",
 		"ask the user whether to commit",
 		"instructions/git.md",
+		"## Phase 1",
 	} {
 		if !strings.Contains(instrTasksTemplate, want) {
 			t.Errorf("expected %q in tasks template:\n%s", want, instrTasksTemplate)
@@ -2144,18 +2145,25 @@ func TestAgentTasksTemplateCoherence(t *testing.T) {
 	}
 }
 
-// TestAgentAnalysisTemplateCoherence guards the analysis contract: the
-// objective-to-task mapping and the task-file Design pointer must survive edits.
+// TestAgentAnalysisTemplateCoherence guards the analysis contract: the lean
+// content split (no Recommendation/Next steps) and the no-open-points rule must
+// survive edits.
 func TestAgentAnalysisTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
 		"# Analysis Documents",
-		"**Map objectives to tasks.**",
-		"`## Design`",
-		"instructions/tasks.md",
-		"Validation phase",
+		"**Resolve open points now**",
+		"**The \"how\" belongs to the plan**",
+		"Leave **no open points**",
+		"**R1 — split a too-broad analysis into siblings",
+		"**R3 — every option records its fate.**",
 	} {
 		if !strings.Contains(instrAnalysisTemplate, want) {
 			t.Errorf("expected %q in analysis template:\n%s", want, instrAnalysisTemplate)
+		}
+	}
+	for _, forbid := range []string{"## Recommendation", "## Next steps", "**Map objectives to tasks.**"} {
+		if strings.Contains(instrAnalysisTemplate, forbid) {
+			t.Errorf("analysis template must not carry %q (the plan carries the how)", forbid)
 		}
 	}
 }

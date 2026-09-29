@@ -60,16 +60,13 @@ session: <session id>        # optional
 ## Investigation
 ## Behaviour decisions     # optional: rule + concrete example + decider
 ## Design decisions        # optional: technical choice + rationale
-## Options considered
+## Options considered      # optional: only when there is a real trade-off
 ### Option A: <name>
 ### Option B: <name>
 ## Plans                   # optional: ordered wave plans derived from this analysis (R2)
 ## Postponed from         # status: postponed only: origin option + why not now + revival condition
 ## Evidence / sources
 ## Risks and unknowns
-## Open questions
-## Recommendation
-## Next steps
 ```
 
 ## Section descriptions
@@ -82,8 +79,8 @@ session: <session id>        # optional
 - **Assumptions & Unknowns** — mandatory, do not skip. Anything taken for
   granted goes here with a confidence level (high/medium/low) and the evidence.
   **Rule**: an assumption with confidence `low` that materially affects the
-  recommendation must be surfaced as an open question, not folded silently into
-  the conclusion.
+  conclusion must be surfaced (asked on the fly or registered in
+  `context/questions/`), not folded silently into the decision.
 - **Non-goals** — what this analysis deliberately does not cover, to keep it
   bounded.
 - **Constraints** (optional) — fixed non-negotiables (mandated stack, standards,
@@ -99,9 +96,9 @@ session: <session id>        # optional
 - **Design decisions** (optional) — technical choices with their rationale,
   filled by the `>scope` Plan phase; the plan's Design contract references them
   and may only change one with an explicit note.
-- **Options considered** — only if the analysis leads to a choice; otherwise
-  omit. One subsection per option: Description, Pros, Cons, Effort/risk, and
-  `**Outcome:**` (accepted / rejected / postponed) — R3.
+- **Options considered** (conditional) — only when the analysis leads to a real
+  choice; otherwise omit. One subsection per option: Description, Pros, Cons,
+  Effort/risk, and `**Outcome:**` (accepted / rejected / postponed) — R3.
 - **Postponed from** — `status: postponed` analyses only: the origin option, the
   reason it was not chosen now, and the condition that would revive it (R3).
 - **Plans** — the ordered list of wave plans derived from this analysis, one line
@@ -112,13 +109,13 @@ session: <session id>        # optional
 - **Risks and unknowns** — what remains uncertain even after this analysis.
   Distinguish from open questions: risks nobody can answer yet (e.g. depends on
   production data we don't have); open questions a specific person must decide.
-- **Open questions** — points requiring a human decision before proceeding. If
-  more than 2-3 or they need tracking over time, move them to a dedicated
-  questions doc and link via `sources` instead of duplicating here.
-- **Recommendation** — the conclusion, stated plainly, with confidence level
-  (high/medium/low) and why. This is what a plan will be built on top of.
-- **Next steps** — checkboxes: e.g. turn this into a plan for the fix, get open
-  questions answered before planning.
+- **Resolve open points now** — an analysis carries no open points. A missing
+  decision is either asked on the fly or registered in `context/questions/`
+  (linked via `sources`) and then resolved here before the analysis concludes;
+  the analysis reports context, evidence and decisions, never a to-do list.
+- **The "how" belongs to the plan** — state the context, the evidence and the
+  decisions; do not write the implementation steps here. The plan's `##
+  Objective` and `## Phases` carry them.
 
 ## Rules
 
@@ -134,9 +131,9 @@ session: <session id>        # optional
   `sources` back to the analysis it extends).
 - **R1 — split a too-broad analysis into siblings, but only after asking.**
   Split when **any** of: it would carry more than one `## Options considered`
-  group belonging to different domains; it would need more than one
-  `Recommendation`; its sources span unrelated subjects; it would exceed what
-  one agent session can hold while writing. Then **ask the user in a single
+  group belonging to different domains; it would need more than one conclusion;
+  its sources span unrelated subjects; it would exceed what one agent session can
+  hold while writing. Then **ask the user in a single
   question**, proposing the concrete split (file list + slugs + the shared
   `objective` + which sibling is the umbrella), and never create the sibling set
   unasked. When the intent is already covered by an active analysis, integrate in
@@ -147,7 +144,7 @@ session: <session id>        # optional
   still comes first.
 - **R3 — every option records its fate.** At the end of an analysis each option
   in `## Options considered` carries exactly one outcome: **accepted** (it
-  becomes the `Recommendation` and the subject of a plan), **rejected** (one line
+  becomes the subject of a plan), **rejected** (one line
   with the reason, in the option's own subsection; a rejected approach found
   later during execution is a `note_type: dead-end` note), or **postponed** (a
   new analysis, see below). Record it as `- **Outcome:** <verdict> (<reason>)`
@@ -199,11 +196,6 @@ session: <session id>        # optional
 - Leave **no open points**: if a decision is missing, ask on the fly or register
   it as an open question in `context/questions/`; keep the user in
   control of the decisions.
-- **Map objectives to tasks.** List the objectives the work must satisfy; when
-  the analysis feeds a plan, state which objective each phase/task covers, so
-  every task file can carry a `## Design` study of those objectives (see
-  `instructions/tasks.md`) and the plan's final Validation phase can verify
-  them.
 - Track work via the 5-stage development lifecycle — see AGENTS.md.
 - Verify-step before finishing — see AGENTS.md (5-stage development lifecycle).
 
