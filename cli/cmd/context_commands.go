@@ -205,16 +205,14 @@ func validateCommandPayload(payload string) error {
 
 func addCommandPayloadField(rendered, payload string) string {
 	fm, body := contextwiki.SplitFrontmatter(rendered)
-	if fm == "" {
+	if fm == "" || !strings.HasSuffix(strings.TrimRight(fm, "\n"), ctxFrontmatterDelim) {
+		// No frontmatter to extend (the template changed): leave the file
+		// alone rather than write a field outside the frontmatter.
 		return rendered
 	}
 	line := "payload: " + yamlScalar(strings.TrimSpace(payload))
-	if trimmed := strings.TrimRight(fm, "\n"); strings.HasSuffix(trimmed, ctxFrontmatterDelim) {
-		fm = strings.TrimRight(strings.TrimSuffix(trimmed, ctxFrontmatterDelim), "\n") +
-			"\n" + line + "\n" + ctxFrontmatterDelim + "\n"
-	} else {
-		fm = strings.TrimRight(fm, "\n") + "\n" + line + "\n"
-	}
+	fm = strings.TrimRight(strings.TrimSuffix(strings.TrimRight(fm, "\n"), ctxFrontmatterDelim), "\n") +
+		"\n" + line + "\n" + ctxFrontmatterDelim + "\n"
 	return fm + body
 }
 

@@ -102,6 +102,29 @@ func TestContextCommandsNewPayload(t *testing.T) {
 	}
 }
 
+// TestContextCommandPayloadMissingFile guards the read path: a trigger whose
+// file cannot be read resolves to no payload, which the index renders as the
+// undeclared placeholder rather than failing the whole regeneration.
+func TestContextCommandPayloadMissingFile(t *testing.T) {
+	runInTempDir(t)
+	if got := contextCommandPayload(filepath.Join(sdtCommandsDir, "absent.md")); got != "" {
+		t.Errorf("missing file resolved to %q, want empty", got)
+	}
+	if got := commandPayloadFor("absent"); got != commandPayloadUndeclared {
+		t.Errorf("unreadable trigger = %q, want %q", got, commandPayloadUndeclared)
+	}
+}
+
+// TestAddCommandPayloadFieldNoFrontmatter guards the defensive path: a rendered
+// file without frontmatter is returned untouched rather than having the field
+// written outside the frontmatter, where a reader would miss it.
+func TestAddCommandPayloadFieldNoFrontmatter(t *testing.T) {
+	const bare = "# Title\n\nbody only, no frontmatter\n"
+	if got := addCommandPayloadField(bare, "a phrase"); got != bare {
+		t.Errorf("frontmatter-less input was modified:\n%s", got)
+	}
+}
+
 // TestContextCommandsNewPayloadRejects guards the phrase shape: it must be a
 // non-empty single line, because it is stored as one frontmatter scalar.
 func TestContextCommandsNewPayloadRejects(t *testing.T) {
