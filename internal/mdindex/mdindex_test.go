@@ -279,13 +279,18 @@ func TestScanResolvesTaskObjectiveFromPlan(t *testing.T) {
 	root := t.TempDir()
 	writeDoc(t, root, "context/plan/p.md", `---
 kind: plan
+uid: uid-plan-p
 objective: obj-x
 ---
 
 body
 `)
+	// The task→plan edge is the typed `plan_id`; the `sources` citation below it
+	// is human-readable derivation prose and carries no weight on its own.
 	writeDoc(t, root, "context/tasks/t.md", `---
 kind: tasks
+uid: uid-task-t
+plan_id: uid-plan-p
 status: pending
 sources:
   - plan/p.md
@@ -295,6 +300,8 @@ body
 `)
 	writeDoc(t, root, "context/tasks/own.md", `---
 kind: tasks
+uid: uid-task-own
+plan_id: uid-plan-p
 status: pending
 objective: should-be-ignored
 sources:
@@ -303,8 +310,10 @@ sources:
 
 body
 `)
+	// No `plan_id`: a `links` citation is correlation, never a derivation edge.
 	writeDoc(t, root, "context/tasks/linked.md", `---
 kind: tasks
+uid: uid-task-linked
 status: pending
 objective: should-be-ignored
 links:
@@ -313,8 +322,14 @@ links:
 
 body
 `)
+	// `plan_id` decides: a task whose `sources` prose names another plan still
+	// derives from the plan its typed field points at.
+	writeDoc(t, root, "context/plan/q.md", "---\nkind: plan\nuid: uid-plan-q\nobjective: obj-y\n---\n\nbody\n")
+	writeDoc(t, root, "context/tasks/swapped.md", "---\nkind: tasks\nuid: uid-task-swapped\nplan_id: uid-plan-p\nstatus: pending\nsources:\n  - plan/q.md\n---\n\nbody\n")
+	// A `sources` analysis plus a `links` plan is still not a plan reference.
 	writeDoc(t, root, "context/tasks/mixed.md", `---
 kind: tasks
+uid: uid-task-mixed
 status: pending
 sources:
   - analysis/a.md
@@ -364,12 +379,20 @@ body
 	if got := res.Manifest.Entries["context/tasks/t.md"].PlanRef; got != "context/plan/p.md" {
 		t.Errorf("plan ref = %q, want context/plan/p.md", got)
 	}
+	// the typed `plan_id` wins over the plan its `sources` prose names
+	if got := res.Manifest.Entries["context/tasks/swapped.md"].PlanRef; got != "context/plan/p.md" {
+		t.Errorf("swapped plan ref = %q, want the plan_id target context/plan/p.md", got)
+	}
+	if got := res.Manifest.Entries["context/tasks/swapped.md"].Objective; got != "obj-x" {
+		t.Errorf("swapped objective = %q, want obj-x from the plan_id target", got)
+	}
 }
 
 func TestScanRefreshesTaskObjectiveOnPlanChange(t *testing.T) {
 	root := t.TempDir()
 	plan := `---
 kind: plan
+uid: uid-plan-p
 objective: obj-x
 ---
 
@@ -378,6 +401,8 @@ body
 	writeDoc(t, root, "context/plan/p.md", plan)
 	writeDoc(t, root, "context/tasks/t.md", `---
 kind: tasks
+uid: uid-task-t
+plan_id: uid-plan-p
 sources:
   - plan/p.md
 ---

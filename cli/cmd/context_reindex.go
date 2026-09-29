@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/sandrolain/sdt/internal/ctxrel"
 )
 
 func buildIndex() (string, error) {
@@ -22,10 +25,17 @@ func buildIndex() (string, error) {
 	b.WriteString("## context — Knowledge Index\n\n")
 	b.WriteString("_Managed by `sdt context reindex`. Each row lists the file and its frontmatter `summary`._\n\n")
 
+	// The lifecycle edges (task file → its plan) are the typed relations,
+	// resolved once: a task inherits its plan's objective through them.
+	edges, err := ctxrel.Load(sdtWorkDir)
+	if err != nil {
+		return "", err
+	}
+
 	// Cross-tier objective section: every document whose effective objective
 	// resolves (analysis/plan `objective`, or a task inheriting its plan's) is
 	// grouped here instead of its tier list.
-	objectives, slugs, err := collectObjectiveBuckets()
+	objectives, slugs, err := collectObjectiveBuckets(edges)
 	if err != nil {
 		return "", err
 	}
@@ -42,7 +52,7 @@ func buildIndex() (string, error) {
 	}
 
 	for _, tier := range ctxTierOrder {
-		rows, err := collectTierRows(tier)
+		rows, err := collectTierRows(tier, edges)
 		if err != nil {
 			return "", err
 		}
@@ -61,7 +71,7 @@ func buildIndex() (string, error) {
 // plan, or a task inheriting its plan's objective, plus dead-end notes tied to
 // an objective) into one bucket per slug, regardless of tier. Bucket rows are
 // sorted so the section is deterministic.
-func collectObjectiveBuckets() (map[string][]string, []string, error) {
+func collectObjectiveBuckets(edges *ctxrel.Edges) (map[string][]string, []string, error) {
 	buckets := map[string][]string{}
 	var slugs []string
 	for _, dir := range ctxIndexDirs {
@@ -71,7 +81,7 @@ func collectObjectiveBuckets() (map[string][]string, []string, error) {
 		}
 		for _, f := range files {
 			kind, objective, noteType, _ := ctxDocMeta(f)
-			eff := ctxEffectiveObjective(f, kind, objective, noteType)
+			eff := ctxEffectiveObjective(f, kind, objective, noteType, edges)
 			if eff == "" {
 				continue
 			}
@@ -89,14 +99,15 @@ func collectObjectiveBuckets() (map[string][]string, []string, error) {
 }
 
 // ctxEffectiveObjective resolves the objective a document groups under:
-// analysis/plan read their own `objective`; a task inherits its plan's; a note
-// only when it is a dead-end. Other kinds (and ungrouped docs) return "".
-func ctxEffectiveObjective(path, kind, objective, noteType string) string {
+// analysis/plan read their own `objective`; a task inherits the objective of the
+// plan it derives from; a note only when it is a dead-end. Other kinds (and
+// ungrouped docs) return "".
+func ctxEffectiveObjective(path, kind, objective, noteType string, edges *ctxrel.Edges) string {
 	switch kind {
 	case ctxTypeAnalysis, ctxTypePlan:
 		return objective
 	case ctxTypeTasks:
-		return ctxTaskPlanObjective(path)
+		return ctxTaskPlanObjective(path, edges)
 	case ctxTypeNotes:
 		if noteType == ctxNoteTypeDeadEnd {
 			return objective
@@ -105,42 +116,30 @@ func ctxEffectiveObjective(path, kind, objective, noteType string) string {
 	return ""
 }
 
-// ctxTaskPlanObjective reads the objective of the plan a task file sources
-// (`sources` only — `links` is generic correlation, never a derivation edge, and
-// the corpus writer already puts the plan ref in both); "" when the plan is
-// missing or carries none. Same rule as internal/mdindex.taskPlanRef,
-// internal/search.taskPlanRefFromRegistry, cli/cmd/context_lint.go taskPlanRef
-// and the web/src/lib/statusDot.ts helpers.
-func ctxTaskPlanObjective(path string) string {
-	data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
+// ctxTaskPlanObjective reads the objective of the plan a task file derives
+// from. The parent is the typed relation (`plan_id`), resolved by ctxrel; a
+// `sources` or `links` citation is correlation and never a derivation edge.
+// "" when the plan is missing or carries no objective.
+func ctxTaskPlanObjective(taskPath string, edges *ctxrel.Edges) string {
+	planRef := edges.ParentOf(filepath.ToSlash(taskPath))
+	if planRef == "" {
+		return ""
+	}
+	planPath := filepath.Join(sdtWorkDir, filepath.FromSlash(strings.TrimPrefix(planRef, sdtWorkDir+"/")))
+	data, err := os.ReadFile(planPath) //#nosec G304 -- path resolved within context/
 	if err != nil {
 		return ""
 	}
-	content := string(data)
-	for _, ref := range parseFrontmatterList(content, ctxFrontmatterSources) {
-		abs, ok := ctxResolvePath(sdtWorkDir, ref)
-		if !ok {
-			continue
-		}
-		pdata, perr := os.ReadFile(abs) //#nosec G304 -- path resolved within context/
-		if perr != nil {
-			continue
-		}
-		pc := string(pdata)
-		if parseFrontmatterField(pc, "kind") != ctxTypePlan {
-			continue
-		}
-		if o := parseFrontmatterField(pc, "objective"); o != "" {
-			return o
-		}
+	if parseFrontmatterField(string(data), "kind") != ctxTypePlan {
+		return ""
 	}
-	return ""
+	return parseFrontmatterField(string(data), "objective")
 }
 
 // collectTierRows returns the general rows of a relevance tier: documents
 // without an effective objective. Objective-tagged documents are rendered by
 // collectObjectiveBuckets instead, so they never appear in a tier list.
-func collectTierRows(tier string) ([]string, error) {
+func collectTierRows(tier string, edges *ctxrel.Edges) ([]string, error) {
 	var rows []string
 	for _, dir := range ctxIndexDirs {
 		if ctxTierForDir(dir) != tier {
@@ -152,7 +151,7 @@ func collectTierRows(tier string) ([]string, error) {
 		}
 		for _, f := range files {
 			kind, objective, noteType, _ := ctxDocMeta(f)
-			if ctxEffectiveObjective(f, kind, objective, noteType) != "" {
+			if ctxEffectiveObjective(f, kind, objective, noteType, edges) != "" {
 				continue
 			}
 			rows = append(rows, ctxIndexLine(dir, f))

@@ -58,8 +58,8 @@ func TestContextReindexObjectiveGroups(t *testing.T) {
 	writeCtxDoc(t, "context/analysis/gam.md", "---\nkind: analysis\nsummary: Gamma analysis\nobjective: viewer-io\n---\nbody\n")
 	writeCtxDoc(t, "context/analysis/noobj.md", "---\nkind: analysis\nsummary: Ungrouped analysis\n---\nbody\n")
 	writeCtxDoc(t, "context/proposals/prop.md", "---\nkind: proposal\nsummary: Proposal not bucketed\n---\nbody\n")
-	writeCtxDoc(t, "context/plan/planx.md", "---\nkind: plan\nsummary: Plan for memory bench\nobjective: memory-bench\nsources:\n  - analysis/alpha.md\n---\nbody\n")
-	writeCtxDoc(t, "context/tasks/phase1.md", "---\nkind: tasks\nsummary: Task phase one\nphase: \"1\"\nstatus: pending\nsources:\n  - plan/planx.md\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/planx.md", "---\nkind: plan\nuid: uid-planx\nsummary: Plan for memory bench\nobjective: memory-bench\nsources:\n  - analysis/alpha.md\n---\nbody\n")
+	writeCtxDoc(t, "context/tasks/phase1.md", "---\nkind: tasks\nuid: uid-phase1\nplan_id: uid-planx\nsummary: Task phase one\nphase: \"1\"\nstatus: pending\nsources:\n  - plan/planx.md\n---\nbody\n")
 	writeCtxDoc(t, "context/notes/deadend.md", "---\nkind: notes\nsummary: Tried and rejected\nobjective: memory-bench\nnote_type: dead-end\n---\nbody\n")
 	execute(t, contextReindexCmd, nil)
 	idx, _ := os.ReadFile(filepath.Join(dir, "context/index.md"))
@@ -96,8 +96,14 @@ func TestContextReindexObjectiveGroups(t *testing.T) {
 // index must not bucket a links-only task under the plan's objective.
 func TestContextReindexTaskObjectiveSourcesOnly(t *testing.T) {
 	dir := setupContextProject(t)
-	writeCtxDoc(t, "context/plan/planx.md", "---\nkind: plan\nsummary: Plan under test\nobjective: obj-src\n---\nbody\n")
-	writeCtxDoc(t, "context/tasks/sourced.md", "---\nkind: tasks\nsummary: Sources its plan\nphase: \"1\"\nstatus: pending\nsources:\n  - plan/planx.md\n---\nbody\n")
+	writeCtxDoc(t, "context/plan/planx.md", "---\nkind: plan\nuid: uid-planx\nsummary: Plan under test\nobjective: obj-src\n---\nbody\n")
+	// The parent is the typed `plan_id`; the `sources` citation under it is
+	// derivation prose and is not what buckets the task.
+	writeCtxDoc(t, "context/tasks/sourced.md", "---\nkind: tasks\nuid: uid-sourced\nplan_id: uid-planx\nsummary: Sources its plan\nphase: \"1\"\nstatus: pending\nsources:\n  - plan/planx.md\n---\nbody\n")
+	// The plan the `sources` prose names is not the parent: `plan_id` decides, so
+	// this task inherits the objective of the plan it actually derives from.
+	writeCtxDoc(t, "context/plan/other.md", "---\nkind: plan\nuid: uid-other\nsummary: Other plan\nobjective: obj-other\n---\nbody\n")
+	writeCtxDoc(t, "context/tasks/swapped.md", "---\nkind: tasks\nuid: uid-swapped\nplan_id: uid-planx\nsummary: Derives from planx, sources another plan\nphase: \"4\"\nstatus: pending\nsources:\n  - plan/other.md\n---\nbody\n")
 	writeCtxDoc(t, "context/tasks/linked.md", "---\nkind: tasks\nsummary: Only links its plan\nphase: \"2\"\nstatus: pending\nlinks:\n  - plan/planx.md\n---\nbody\n")
 	writeCtxDoc(t, "context/tasks/mixed.md", "---\nkind: tasks\nsummary: Sources an analysis, links a plan\nphase: \"3\"\nstatus: pending\nsources:\n  - analysis/alpha.md\nlinks:\n  - plan/planx.md\n---\nbody\n")
 	execute(t, contextReindexCmd, nil)
@@ -109,6 +115,9 @@ func TestContextReindexTaskObjectiveSourcesOnly(t *testing.T) {
 	}
 	if !strings.Contains(section, "[[tasks/sourced.md]]") {
 		t.Errorf("a task sourcing its plan must inherit the objective:\n%s", content)
+	}
+	if !strings.Contains(section, "[[tasks/swapped.md]]") {
+		t.Errorf("a task derives from `plan_id`, not from the plan its sources name:\n%s", content)
 	}
 	for _, path := range []string{"[[tasks/linked.md]]", "[[tasks/mixed.md]]"} {
 		if strings.Contains(section, path) {

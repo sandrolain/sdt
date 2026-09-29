@@ -24,6 +24,8 @@ import (
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	corpuspkg "github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/mdstruct"
+
+	"github.com/sandrolain/sdt/internal/ctxrel"
 )
 
 // ManifestVersion invalidates a cached manifest when the scan model changes.
@@ -31,6 +33,10 @@ const ManifestVersion = 4
 
 // ContextDir is the served knowledge base subdirectory under the project root.
 const ContextDir = "context"
+
+// kindTasks is the frontmatter kind of a per-phase task file: the only kind
+// whose plan reference and objective are derived rather than declared.
+const kindTasks = "tasks"
 
 // Entry is one indexed document with its derived facets.
 type Entry struct {
@@ -164,6 +170,11 @@ func Scan(root string, prev *Manifest) (*ScanResult, error) {
 	}
 	sort.Strings(res.Changed)
 	sort.Strings(res.Removed)
+	edges, err := ctxrel.Load(dir)
+	if err != nil {
+		return nil, fmt.Errorf("mdindex lifecycle edges: %w", err)
+	}
+	resolveTaskParents(m.Entries, edges)
 	resolveTaskObjectives(m.Entries)
 	m.facets = collectFacets(m.Entries)
 	return res, nil
@@ -256,10 +267,10 @@ func parseEntry(root, id, path string) (*Entry, error) {
 		e.Title = strings.TrimSuffix(filepath.Base(id), filepath.Ext(id))
 		e.Body = content
 	}
-	// Tasks carry no objective of their own: record the plan they source and
-	// let resolveTaskObjectives inherit its objective after the scan.
-	if e.Kind == "tasks" {
-		e.PlanRef = taskPlanRef(content)
+	// Tasks carry no objective of their own, and their plan reference is not
+	// read here: resolveTaskParents fills PlanRef from the typed relation after
+	// the scan, then resolveTaskObjectives inherits the plan's objective.
+	if e.Kind == kindTasks {
 		e.Objective = ""
 	}
 	e.Hash = shortHash(content)
@@ -276,34 +287,20 @@ func parseEntry(root, id, path string) (*Entry, error) {
 	return e, nil
 }
 
-// taskPlanRef resolves the corpus id of the plan a task file sources, from its
-// `sources` list; "" when none points under plan/. The frontmatter `links` list
-// is generic correlation, never a derivation edge, so it is not consulted: the
-// same rule as the viewer's `tasksByPlan`, `internal/search.taskPlanRefFromRegistry`,
-// `cli/cmd/context_lint.go taskPlanRef` and `cli/cmd/context_reindex.go
-// ctxTaskPlanObjective`.
-func taskPlanRef(content string) string {
-	for _, ref := range contextwiki.FrontmatterList(content, "sources") {
-		clean := strings.TrimPrefix(strings.TrimSpace(ref), "./")
-		clean = strings.TrimSuffix(clean, contextwiki.MarkdownExt)
-		if clean == "" {
+// resolveTaskParents fills each task entry's plan reference from the typed
+// lifecycle relation (`plan_id` resolved through the plan's `uid`), so the
+// manifest never re-derives the edge from the `sources` list.
+func resolveTaskParents(entries map[string]*Entry, edges *ctxrel.Edges) {
+	for id, e := range entries {
+		if e == nil || e.Kind != kindTasks {
 			continue
 		}
-		if !strings.HasPrefix(clean, ContextDir+"/") {
-			clean = ContextDir + "/" + clean
-		}
-		clean += contextwiki.MarkdownExt
-		if strings.Contains(clean, "/plan/") {
-			return clean
-		}
+		e.PlanRef = edges.ParentOf(id)
 	}
-	return ""
 }
 
 // resolveTaskObjectives assigns each task entry the objective of the plan it
-// references, ignoring any legacy `objective` on the task itself. It runs after
-// the walk so a plan-objective edit refreshes its tasks even when their own
-// files are unchanged.
+// sources, using the plan reference resolveTaskParents resolved.
 func resolveTaskObjectives(entries map[string]*Entry) {
 	planObjective := map[string]string{}
 	for id, e := range entries {
@@ -312,7 +309,7 @@ func resolveTaskObjectives(entries map[string]*Entry) {
 		}
 	}
 	for _, e := range entries {
-		if e == nil || e.Kind != "tasks" {
+		if e == nil || e.Kind != kindTasks {
 			continue
 		}
 		e.Objective = planObjective[e.PlanRef]

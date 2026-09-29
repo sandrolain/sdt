@@ -25,6 +25,8 @@ import (
 	"github.com/sandrolain/sdt/internal/mdindex"
 	"github.com/sandrolain/sdt/internal/mdstruct"
 	"github.com/sandrolain/sdt/internal/semantic"
+
+	"github.com/sandrolain/sdt/internal/ctxrel"
 )
 
 // Index is an in-memory bleve fulltext index over the corpus markdown.
@@ -325,14 +327,19 @@ func (ix *Index) indexCorpus(dir string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("search walk: %w", err)
 	}
-	ix.applyTaskObjectives()
+	edges, lerr := ctxrel.Load(dir)
+	if lerr != nil {
+		return 0, fmt.Errorf("search lifecycle edges: %w", lerr)
+	}
+	ix.applyTaskObjectives(edges)
 	return len(ix.registry), nil
 }
 
-// applyTaskObjectives recomputes each task's inherited objective from the plan
-// it sources (never the task's own legacy `objective`), so legacy
-// corpus-walking indexes match the entry-based path (NewFromEntries/store).
-func (ix *Index) applyTaskObjectives() {
+// applyTaskObjectives recomputes each task's inherited objective from the plan it
+// derives from (never the task's own legacy `objective`), so legacy corpus-walking
+// indexes match the entry-based path (NewFromEntries/store). The parent is the
+// typed relation, resolved once by ctxrel.
+func (ix *Index) applyTaskObjectives(edges *ctxrel.Edges) {
 	plans := map[string]string{}
 	for id, d := range ix.registry {
 		if d.Kind == "plan" && d.Objective != "" {
@@ -343,42 +350,12 @@ func (ix *Index) applyTaskObjectives() {
 		if d.Kind != "tasks" {
 			continue
 		}
-		d.Objective = plans[taskPlanRefFromRegistry(d)]
+		d.Objective = plans[edges.ParentOf(id)]
 		ix.registry[id] = d
 		if ierr := ix.idx.Index(id, d); ierr != nil {
 			slog.Warn("search index failed", "id", id, "err", ierr)
 		}
 	}
-}
-
-// taskPlanRefFromRegistry resolves the plan corpus id for a task registry doc
-// from the plan/ reference in its frontmatter `sources`. The `links` list is
-// generic correlation, never a derivation edge, so it is not consulted: the same
-// rule as the viewer's `tasksByPlan`, `internal/mdindex.taskPlanRef`,
-// `cli/cmd/context_lint.go taskPlanRef` and `cli/cmd/context_reindex.go
-// ctxTaskPlanObjective`.
-func taskPlanRefFromRegistry(d doc) string {
-	for _, ref := range contextwiki.FrontmatterList(d.Frontmatter, "sources") {
-		if r := normalizePlanRef(ref); r != "" {
-			return r
-		}
-	}
-	return ""
-}
-
-func normalizePlanRef(ref string) string {
-	clean := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(ref), "./"), contextwiki.MarkdownExt)
-	if clean == "" {
-		return ""
-	}
-	if !strings.HasPrefix(clean, corpusDirName+"/") {
-		clean = corpusDirName + "/" + clean
-	}
-	clean += contextwiki.MarkdownExt
-	if !strings.Contains(clean, "/plan/") {
-		return ""
-	}
-	return clean
 }
 
 // addEntry indexes one .md file from the corpus walk, skipping excluded dirs,

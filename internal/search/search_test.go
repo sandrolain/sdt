@@ -418,6 +418,7 @@ func writePlanAndTask(t *testing.T, root string) {
 	}
 	write("context/plan/objplan.md", `---
 kind: plan
+uid: uid-objplan
 title: Objective plan
 objective: obj-inherit
 created: 2026-09-10
@@ -427,6 +428,8 @@ Plan body with inheritword.
 `)
 	write("context/tasks/objtask.md", `---
 kind: tasks
+uid: uid-objtask
+plan_id: uid-objplan
 title: Inheriting task
 objective: legacy-label-ignored
 sources:
