@@ -31,6 +31,29 @@ func parseTaskItems(content string) []taskItem {
 	return items
 }
 
+// taskItemsInSection returns the checklist items of the `## Phase <phase>`
+// section, or every item in the file when phase is empty or the section does
+// not exist.
+
+func taskItemsInSection(content, phase string) []taskItem {
+	if phase == "" {
+		return parseTaskItems(content)
+	}
+	lines := strings.Split(content, "\n")
+	hi := phaseHeadingIndex(lines, phase)
+	if hi < 0 {
+		return nil
+	}
+	end := len(lines)
+	for i := hi + 1; i < len(lines); i++ {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), "## ") {
+			end = i
+			break
+		}
+	}
+	return parseTaskItems(strings.Join(lines[hi+1:end], "\n"))
+}
+
 func outputTaskItems(cmd *cobra.Command, items []taskItem) {
 	switch getFormat(cmd) {
 	case fmtJSON:
@@ -188,7 +211,7 @@ var contextTaskListCmd = &cobra.Command{
 		exitWithError(cmd, err)
 		content, err := readTaskFile(phase, plan)
 		exitWithError(cmd, err)
-		outputTaskItems(cmd, parseTaskItems(content))
+		outputTaskItems(cmd, taskItemsInSection(content, phase))
 	},
 }
 
@@ -223,6 +246,103 @@ func buildTaskFrontmatter(project, summary, planRef string, phases []string) str
 	}
 	b.WriteString("---\n\n")
 	return b.String()
+}
+
+// appendTaskStep appends a checklist item to `content`, placing it in the
+// `## Phase <phase>` section (creating the section when absent) or, with an
+// empty phase, at the end of the file just before a trailing `## Review`
+// block. Non-empty phases keep each phase's items together in one file.
+
+func appendTaskStep(content, phase, step string) string {
+	item := "- [ ] " + step
+	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
+	if phase == "" {
+		at := firstHeadingIndex(lines)
+		if at < 0 {
+			at = len(lines)
+		}
+		lines = insertLines(lines, at, item)
+		return strings.Join(lines, "\n") + "\n"
+	}
+	if hi := phaseHeadingIndex(lines, phase); hi >= 0 {
+		lines = insertLines(lines, taskSectionEnd(lines, hi+1), item)
+		return strings.Join(lines, "\n") + "\n"
+	}
+	at := reviewHeadingIndex(lines)
+	lines = insertLines(lines, at, "", "## Phase "+phase, "", item)
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// phaseHeadingIndex returns the line index of the `## Phase <phase>` heading,
+// or -1. Matching is case-insensitive and token-exact on the phase label.
+
+func phaseHeadingIndex(lines []string, phase string) int {
+	want := strings.ToLower("## phase " + phase)
+	for i, line := range lines {
+		t := strings.ToLower(strings.TrimSpace(line))
+		if t == want || strings.HasPrefix(t, want+" ") || strings.HasPrefix(t, want+"\t") {
+			return i
+		}
+	}
+	return -1
+}
+
+// reviewHeadingIndex returns the line index of a `## Review` heading, or
+// len(lines) when absent (so insertLines appends at the end).
+
+func reviewHeadingIndex(lines []string) int {
+	for i, line := range lines {
+		if strings.EqualFold(strings.TrimSpace(line), "## Review") {
+			return i
+		}
+	}
+	return len(lines)
+}
+
+// taskSectionEnd returns the insertion index for a section that starts at
+// `from`: the next `## ` heading, backed up over trailing blank lines (or
+// len(lines) when the section runs to the end).
+
+func taskSectionEnd(lines []string, from int) int {
+	end := len(lines)
+	for i := from; i < len(lines); i++ {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), "## ") {
+			end = i
+			break
+		}
+	}
+	for end > from && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	return end
+}
+
+// firstHeadingIndex returns the line index of the first `## ` heading, or -1
+// when the body has none (the unphased checklist then runs to the end).
+
+func firstHeadingIndex(lines []string) int {
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "## ") {
+			return i
+		}
+	}
+	return -1
+}
+
+// insertLines inserts `add` at index `at` (clamped to the slice bounds).
+
+func insertLines(lines []string, at int, add ...string) []string {
+	if at < 0 {
+		at = 0
+	}
+	if at > len(lines) {
+		at = len(lines)
+	}
+	out := make([]string, 0, len(lines)+len(add))
+	out = append(out, lines[:at]...)
+	out = append(out, add...)
+	out = append(out, lines[at:]...)
+	return out
 }
 
 // latestActivePlan returns the newest `status: active` plan filename under
@@ -289,7 +409,7 @@ var contextTaskAddCmd = &cobra.Command{
 			exitWithError(cmd, err)
 		}
 		content = strings.TrimRight(content, "\n") + "\n"
-		content += "- [ ] " + step + "\n"
+		content = appendTaskStep(content, phase, step)
 		// Lazy identifier stamping (uid + checklist anchor), then the typed
 		// parent relation (task→plan).
 		if stamped, ok := stampUIDMissing(content); ok {

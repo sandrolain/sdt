@@ -1013,6 +1013,63 @@ func TestBuildTaskFrontmatterPhasesList(t *testing.T) {
 	}
 }
 
+func TestContextTaskPhaseSections(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	file := func() string {
+		return filepath.Join(dir, "context", "tasks", "20260806-070000-custom.md")
+	}
+
+	execute(t, contextTaskAddCmd, nil, "phase one a", "--phase", "1", "--plan", "custom")
+	execute(t, contextTaskAddCmd, nil, "phase two b", "--phase", "2", "--plan", "custom")
+	execute(t, contextTaskAddCmd, nil, "phase one c", "--phase", "1", "--plan", "custom")
+	execute(t, contextTaskAddCmd, nil, "flat item", "--plan", "custom")
+
+	content := mustReadFile(t, file())
+	i1 := strings.Index(content, "## Phase 1")
+	i2 := strings.Index(content, "## Phase 2")
+	ia := strings.Index(content, "phase one a")
+	ic := strings.Index(content, "phase one c")
+	ib := strings.Index(content, "phase two b")
+	flat := strings.Index(content, "flat item")
+	ordered := flat < i1 && i1 < ia && ia < ic && ic < i2 && i2 < ib
+	if i1 < 0 || i2 < 0 || !ordered {
+		t.Fatalf("phase sections out of order:\n%s", content)
+	}
+
+	list := func(phase string) []taskItem {
+		out := execute(t, contextTaskListCmd, nil, "--phase", phase, "--plan", "custom", "--format", "json")
+		var items []taskItem
+		if err := json.Unmarshal(out, &items); err != nil {
+			t.Fatalf("invalid JSON (%s): %v\n%s", phase, err, out)
+		}
+		return items
+	}
+	if got := len(list("1")); got != 2 {
+		t.Errorf("phase 1 list = %d items, want 2", got)
+	}
+	if got := list("2"); len(got) != 1 || got[0].Text != "phase two b" {
+		t.Errorf("phase 2 list = %+v, want [phase two b]", got)
+	}
+	if got := len(list("")); got != 4 {
+		t.Errorf("whole-file list = %d items, want 4", got)
+	}
+
+	// A verb addresses an item by id across sections.
+	bID := list("2")[0].ID
+	execute(t, contextTaskDoneCmd, nil, bID, "--phase", "2", "--plan", "custom")
+	if got := list("2")[0].Status; got != taskStatusDone {
+		t.Errorf("phase 2 item status = %q, want %q", got, taskStatusDone)
+	}
+
+	// Review writes the file-level block.
+	execute(t, contextTaskReviewCmd, nil, "--phase", "1", "--plan", "custom",
+		"--input", "phase sections reviewed (CONFIRMED)")
+	if !strings.Contains(mustReadFile(t, file()), "## Review") {
+		t.Errorf("expected file-level ## Review block:\n%s", mustReadFile(t, file()))
+	}
+}
+
 func TestContextTaskAddWritesNoPhaseOrObjective(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
