@@ -147,7 +147,11 @@ scripts in `context/scripts/` are listed in
 Follow this cycle for any non-trivial task:
 
 1. **Analysis** — perform it; integrate/modify existing analysis files. Map the
-   objectives the work must satisfy to the phases/tasks they become.
+   objectives the work must satisfy to the phases/tasks they become. A
+   too-broad analysis is split into siblings only after **asking the user**
+   (R1), one analysis may feed several numbered wave plans (R2), and every
+   option ends as accepted, rejected or preserved as a `postponed` analysis
+   (R3) — see `context/instructions/analysis.md` and `plan.md`.
 2. **Plan** — create from the analysis; integrate/modify as needed. Every plan
    ends with a dedicated final **Validation phase** (see
    `context/instructions/plan.md`).

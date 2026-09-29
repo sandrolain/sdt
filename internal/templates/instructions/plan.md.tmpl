@@ -27,6 +27,23 @@ AGENTS.md (HARD RULE 1). The plan is built on top of the analysis (set
 `sources`); within a running plan, integrate/modify in place — do not
 restart the chain.
 
+**R2 — one analysis may feed several plans (waves).** The analysis/plan
+relation is not 1:1: several plans may declare the same analysis in `sources`,
+each covering a slice of it, and each is an independently shippable wave with
+its own phases, its own final Validation phase and its own approval gate. To
+keep a wave set navigable:
+
+- the **analysis** carries the ordering in a `## Plans` section: one line per
+  derived plan (number, slug, one-sentence scope, and the analysis objectives it
+  covers) — the numbering lives there, never in filenames, so renaming a wave
+  cannot break `links`;
+- every sibling plan carries the **same `objective`** as its analysis, so
+  `sdt context reindex` groups the set;
+- each wave's plan states, in `## Objective`, which slice of the analysis it
+  takes and which objectives it leaves to a sibling wave;
+- a plan that would ship nothing independently is not a wave — fold it into the
+  wave it belongs to.
+
 ## Workflow (plan → tasks → execution)
 
 Follow strictly — the plan defines the work, the task files execute it:

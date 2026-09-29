@@ -63,6 +63,8 @@ session: <session id>        # optional
 ## Options considered
 ### Option A: <name>
 ### Option B: <name>
+## Plans                   # optional: ordered wave plans derived from this analysis (R2)
+## Postponed from         # status: postponed only: origin option + why not now + revival condition
 ## Evidence / sources
 ## Risks and unknowns
 ## Open questions
@@ -98,7 +100,13 @@ session: <session id>        # optional
   filled by the `>scope` Plan phase; the plan's Design contract references them
   and may only change one with an explicit note.
 - **Options considered** — only if the analysis leads to a choice; otherwise
-  omit. One subsection per option: Description, Pros, Cons, Effort/risk.
+  omit. One subsection per option: Description, Pros, Cons, Effort/risk, and
+  `**Outcome:**` (accepted / rejected / postponed) — R3.
+- **Postponed from** — `status: postponed` analyses only: the origin option, the
+  reason it was not chosen now, and the condition that would revive it (R3).
+- **Plans** — the ordered list of wave plans derived from this analysis, one line
+  each (number, slug, one-sentence scope, analysis objectives covered) when the
+  analysis feeds more than one plan (R2).
 - **Evidence / sources** — links, benchmark numbers, upstream issues, docs that
   support the findings. Prefer primary sources.
 - **Risks and unknowns** — what remains uncertain even after this analysis.
@@ -124,6 +132,39 @@ session: <session id>        # optional
 - Dated files: integrate/modify the current analysis while it is the active one;
   a materially new line of investigation gets a new dated file (and sets
   `sources` back to the analysis it extends).
+- **R1 — split a too-broad analysis into siblings, but only after asking.**
+  Split when **any** of: it would carry more than one `## Options considered`
+  group belonging to different domains; it would need more than one
+  `Recommendation`; its sources span unrelated subjects; it would exceed what
+  one agent session can hold while writing. Then **ask the user in a single
+  question**, proposing the concrete split (file list + slugs + the shared
+  `objective` + which sibling is the umbrella), and never create the sibling set
+  unasked. When the intent is already covered by an active analysis, integrate in
+  place (HARD RULE 1) and do not ask. **Sibling discipline**: distinct slugs and
+  summaries (the near-duplicate lint flags careless ones), each sibling links to
+  the umbrella, and the umbrella lists them in a `## Sibling analyses` section.
+  `sdt context lint` raises a SUGGESTION past 12 sections or 6 options — the ask
+  still comes first.
+- **R3 — every option records its fate.** At the end of an analysis each option
+  in `## Options considered` carries exactly one outcome: **accepted** (it
+  becomes the `Recommendation` and the subject of a plan), **rejected** (one line
+  with the reason, in the option's own subsection; a rejected approach found
+  later during execution is a `note_type: dead-end` note), or **postponed** (a
+  new analysis, see below). Record it as `- **Outcome:** <verdict> (<reason>)`
+  in the option's subsection; `sdt context lint` raises a SUGGESTION on an option
+  with none.
+- **A postponed option becomes its own analysis, not a footnote.** Create one
+  analysis per origin (split further only when the options belong to different
+  domains, each then its own umbrella linking to the origin) with
+  `status: postponed`, the **same `objective`**, `sources` pointing back at the
+  origin, and a `## Postponed from` section naming the origin option, the reason
+  it was not chosen now, and the **condition that would revive it**; link it from
+  the origin's `links`. It is a valid, closed analysis — `summary`, `Non-goals`,
+  no open points — stating the decision that is *not* taken yet. It is not a
+  parking lot. Revival is a status flip plus a `## Revival` line (date, trigger,
+  fresh `updated`) and a re-run of `--prior-art`; retrieve them with
+  `sdt context list --type analysis --status postponed` (counted in
+  `sdt context status`).
 - `objective` (optional): kebab-case slug identifying the initiative; use the same
   slug in every analysis that targets the same objective so
   `sdt context reindex` and the viewer can group them.
