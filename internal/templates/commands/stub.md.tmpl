@@ -28,9 +28,27 @@ updated: "{{.Now}}"
 - No settle: **resolve `context/commands/{{.ID}}.md` → read
   `context/instructions/{{.Contract}}.md` → proceed per that contract.**
 
+## Payload
+
+- **Form:** `>{{.ID}}` for no payload · `>{{.ID}}: <payload>` for one. The
+  `:` is the delimiter; everything after the **first** colon is the payload,
+  verbatim, to the end of the turn (a new line starting with `>` ends it). No
+  quoting, no escaping, no flags, no `key=value` grammar.
+- **This trigger accepts:** the subject its contract defines — see
+  `context/instructions/{{.Contract}}.md`.
+- **Empty payload:** apply the declared default; if the trigger has no
+  meaningful default, ask **one** question. Never infer the subject silently.
+- **Precedence:** explicit payload > working-context resolution > ask the user.
+  A payload wins even when it contradicts the working context — state the
+  contradiction in one line instead of silently choosing.
+- **Unusable payload:** repeat what you understood (trigger + payload, one
+  line) and ask **one** question. Never discard a payload, never proceed on a
+  partial reading.
+
 ## Gates (non-negotiable)
 
 - **Approve-before-write** — no write before user approval (see the contract).
+  A payload names the work; it never grants the permission.
 - Approve-before-archive where the contract moves sources
   (`ingestion/ → refs/`); `ingestion/`/`refs/` stay immutable.
 

@@ -41,9 +41,27 @@ updated: "2026-09-20T17:30:00Z"
 - No settle: **resolve ` + "`context/commands/triage.md`" + ` → read
   ` + "`context/instructions/research.md`" + ` → proceed per that contract.**
 
+## Payload
+
+- **Form:** ` + "`>triage`" + ` for no payload · ` + "`>triage: <payload>`" + ` for one. The
+  ` + "`:`" + ` is the delimiter; everything after the **first** colon is the payload,
+  verbatim, to the end of the turn (a new line starting with ` + "`>`" + ` ends it). No
+  quoting, no escaping, no flags, no ` + "`key=value`" + ` grammar.
+- **This trigger accepts:** the subject its contract defines — see
+  ` + "`context/instructions/research.md`" + `.
+- **Empty payload:** apply the declared default; if the trigger has no
+  meaningful default, ask **one** question. Never infer the subject silently.
+- **Precedence:** explicit payload > working-context resolution > ask the user.
+  A payload wins even when it contradicts the working context — state the
+  contradiction in one line instead of silently choosing.
+- **Unusable payload:** repeat what you understood (trigger + payload, one
+  line) and ask **one** question. Never discard a payload, never proceed on a
+  partial reading.
+
 ## Gates (non-negotiable)
 
 - **Approve-before-write** — no write before user approval (see the contract).
+  A payload names the work; it never grants the permission.
 - Approve-before-archive where the contract moves sources
   (` + "`ingestion/ → refs/`" + `); ` + "`ingestion/`" + `/` + "`refs/`" + ` stay immutable.
 
@@ -94,6 +112,36 @@ Invocation method: an **agent command** — opencode slash-command style,
 ` + "`context/commands/<trigger>.md`" + `, then to the contract under
 ` + "`context/instructions/<trigger>.md`" + `.
 
+### Grammar
+
+` + "```" + `
+>id                        # no payload: the command default, or ask
+>id: payload               # canonical: the payload starts after the first colon
+>id:payload                # tolerated: whitespace after the colon is trimmed
+` + "```" + `
+
+1. **Identifier** — a single kebab-case segment, no colon; resolved with the
+   lookup order below.
+2. **Payload** — everything after the first colon, verbatim, trimmed at both
+   ends, to the end of the turn. Free prose: no quoting, no escaping, no flags.
+   A command may recognise a small closed set of keywords inside the prose
+   (declared in its own file); anything else is context, not a parameter.
+3. **Empty payload** — the command applies its declared default; a command with
+   no meaningful default asks one question and never infers silently.
+4. **Precedence** — explicit payload > working-context resolution > ask the
+   user. The payload wins even when it contradicts the working context.
+5. **Unusable payload** — the agent repeats what it understood (trigger +
+   payload, one line) and asks one question.
+6. **Gates are orthogonal** — a payload is a *what*, not a *permission*: it
+   never relaxes the gates below.
+7. **Per-command variance is intentional** — the grammar is fixed, the payload
+   semantics are declared per command: in the ` + "`## Payload`" + ` block of its command
+   file and in its contract.
+
+The grammar is a contract for the agent, not a parser: ` + "`>trigger`" + ` is typed in
+the chat, so the whole line — colon and payload included — reaches the agent
+verbatim.
+
 ## Registry
 
 | Trigger | Command file | Durable contract |
@@ -108,12 +156,14 @@ invent a contract).
 ## Invocation contract
 
 - **Approve-before-write:** every execution requires user approval before the
-  agent writes anything. No approve gate → no write.
+  agent writes anything. No approve gate → no write. A payload names the work;
+  it never grants the permission.
 - **Approve-before-archive:** moving sources ` + "`ingestion/ → refs/`" + ` happens only
   with user approval.
 - **Sealed sources:** ` + "`ingestion/`" + ` and ` + "`refs/`" + ` are immutable; the only legal
   mutation is the archive move after approval.
 - **Scope:** ` + "`all`" + ` (default) · single file · glob — see each command file.
+- **Precedence:** payload > working-context resolution > ask the user.
 
 ## When not to use
 
