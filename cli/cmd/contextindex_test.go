@@ -239,6 +239,55 @@ func TestContextLintOversizedTaskFileBoundary(t *testing.T) {
 	}
 }
 
+func TestContextLintOversizedTaskSection(t *testing.T) {
+	setupContextProject(t)
+	var body strings.Builder
+	body.WriteString("---\nkind: tasks\nsummary: two phases\n---\n")
+	body.WriteString("## Phase 1\n\n")
+	for i := 1; i <= 11; i++ {
+		body.WriteString("- [ ] step\n")
+	}
+	body.WriteString("\n## Phase 2\n\n")
+	for i := 1; i <= 11; i++ {
+		body.WriteString("- [ ] step\n")
+	}
+	writeCtxDoc(t, "context/tasks/two.md", body.String())
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	if !strings.Contains(string(out), "phase 1 has 11 checklist items") ||
+		!strings.Contains(string(out), "phase 2 has 11 checklist items") {
+		t.Errorf("expected a per-section oversize suggestion: %s", out)
+	}
+	if strings.Contains(string(out), "task file has 11 checklist items") {
+		t.Errorf("whole-file count must not fire when sections are counted: %s", out)
+	}
+}
+
+func TestContextLintTaskPhaseCoverage(t *testing.T) {
+	setupContextProject(t)
+	planPath := strings.TrimSpace(string(execute(t, contextNewCmd, nil, "--type", "plan", "--title", "coverage plan")))
+	data, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := append(data, []byte("\n### Phase 1 — first\n### Phase 2 — second\n")...) //#nosec G304 -- test fixture
+	if err := os.WriteFile(planPath, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	execute(t, contextTaskAddCmd, nil, "step", "--phase", "1", "--plan", filepath.Base(planPath))
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	if !strings.Contains(string(out), "plan phase(s) 2 have no `## Phase` section") {
+		t.Errorf("expected the uncovered-phase suggestion: %s", out)
+	}
+
+	// Covering phase 2 clears it.
+	execute(t, contextTaskAddCmd, nil, "step", "--phase", "2", "--plan", filepath.Base(planPath))
+	out = execute(t, contextLintCmd, nil, "--format", "json")
+	if strings.Contains(string(out), "plan phase(s) 2 have no `## Phase` section") {
+		t.Errorf("covered plan must not be flagged: %s", out)
+	}
+}
+
 func TestContextLintTaskFileStatusVocabulary(t *testing.T) {
 	setupContextProject(t)
 	writeCtxDoc(t, "context/tasks/bad.md", "---\nkind: tasks\nsummary: bad status\nstatus: done\n---\n- [ ] step\n")

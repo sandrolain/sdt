@@ -394,15 +394,11 @@ func lintDoc(path string) []ctxLintIssue {
 	if dir == sdtCommandsDir {
 		issues = append(issues, lintCommandFile(path, content, prio)...)
 	}
-	// Oversized task phases: a checklist beyond the soft bound gets a
+	// Oversized task phases and the completed-without-review advisory: a
+	// checklist beyond the soft bound (per `## Phase` section) gets a
 	// SUGGESTION to split the phase (never a failure).
 	if kind == ctxTypeTasks {
-		if n := len(parseTaskItems(content)); n > ctxTasksOversizedItems {
-			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: fmt.Sprintf("task file has %d checklist items (>%d); consider splitting the phase", n, ctxTasksOversizedItems)})
-		}
-		if parseFrontmatterField(content, "status") == taskFileStatusCompleted && !hasReviewBlock(content) {
-			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "completed task file has no `## Review` verify-step block (record verdicts; see `sdt context task review`)"})
-		}
+		issues = append(issues, lintTaskFileRules(path, content)...)
 	}
 	isMap := contextwiki.IsMapDoc(path)
 	issues = append(issues, lintMarkdownBody(path, frontmatterBody(data), isMap)...)
@@ -1071,6 +1067,128 @@ func lintPlanTaskAgreement(planFiles, taskFiles []string, edges *ctxrel.Edges) [
 	return issues
 }
 
+// lintTaskFileRules covers the per-file task advisories: an oversized
+// `## Phase` section (SUGGESTION, never a failure) and a completed file with
+// no `## Review` block.
+func lintTaskFileRules(path, content string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	for _, sc := range taskSectionItemCounts(content) {
+		if sc.Count <= ctxTasksOversizedItems {
+			continue
+		}
+		msg := fmt.Sprintf("task file has %d checklist items (>%d); consider splitting the phase", sc.Count, ctxTasksOversizedItems)
+		if sc.Label != "" {
+			msg = fmt.Sprintf("task file phase %s has %d checklist items (>%d); consider splitting the phase", sc.Label, sc.Count, ctxTasksOversizedItems)
+		}
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: msg})
+	}
+	if parseFrontmatterField(content, "status") == taskFileStatusCompleted && !hasReviewBlock(content) {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "completed task file has no `## Review` verify-step block (record verdicts; see `sdt context task review`)"})
+	}
+	return issues
+}
+
+// taskPlanCoverage unions the phase labels a task file covers (legacy scalar
+// `phase`, `phases` list, `-phase-<label>` filename, `## Phase` sections) and
+// reports whether any section surface is used at all.
+
+type taskPlanCoverage struct {
+	covers       map[string]bool
+	usesSections bool
+}
+
+func taskCoverageFor(content, path string) taskPlanCoverage {
+	pc := taskPlanCoverage{covers: map[string]bool{}}
+	if p := parseFrontmatterField(content, "phase"); p != "" {
+		pc.covers[p] = true
+	}
+	if m := ctxPhaseSuffixRegexp.FindStringSubmatch(path); m != nil {
+		pc.covers[m[1]] = true
+	}
+	if ph := parseFrontmatterField(content, "phases"); ph != "" {
+		pc.usesSections = true
+		for _, x := range parsePhaseList(ph) {
+			pc.covers[x] = true
+		}
+	}
+	for _, m := range ctxTaskPhaseSectionRegexp.FindAllStringSubmatch(content, -1) {
+		pc.covers[m[1]] = true
+		pc.usesSections = true
+	}
+	return pc
+}
+
+// uncoveredPlanPhases returns the plan's `### Phase` labels missing from the
+// covered set, in document order.
+
+func uncoveredPlanPhases(content string, covers map[string]bool) []string {
+	seen := map[string]bool{}
+	var missing []string
+	for _, m := range ctxPlanPhaseSectionRegexp.FindAllStringSubmatch(content, -1) {
+		label := m[1]
+		if seen[label] {
+			continue
+		}
+		seen[label] = true
+		if !covers[label] {
+			missing = append(missing, label)
+		}
+	}
+	return missing
+}
+
+// lintTaskPhaseCoverage suggests when a plan that already uses the section
+// model lists a phase no task file covers. A plan whose task files are all
+// legacy (no `## Phase` section or `phases` list) is skipped, so the advisory
+// only fires once a plan opts into the lean file model.
+func lintTaskPhaseCoverage(planFiles, taskFiles []string, edges *ctxrel.Edges) []ctxLintIssue {
+	byPlan := map[string]taskPlanCoverage{}
+	for _, path := range taskFiles {
+		data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		if parseFrontmatterField(content, "kind") != ctxTypeTasks {
+			continue
+		}
+		ref := edges.ParentOf(filepath.ToSlash(path))
+		if ref == "" {
+			continue
+		}
+		pc := byPlan[ref]
+		if pc.covers == nil {
+			pc.covers = map[string]bool{}
+		}
+		one := taskCoverageFor(content, path)
+		for label := range one.covers {
+			pc.covers[label] = true
+		}
+		pc.usesSections = pc.usesSections || one.usesSections
+		byPlan[ref] = pc
+	}
+
+	var issues []ctxLintIssue
+	for _, path := range planFiles {
+		data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		if parseFrontmatterField(content, "kind") != ctxTypePlan {
+			continue
+		}
+		pc := byPlan[normalizeContextRef(path)]
+		if pc.covers == nil || !pc.usesSections {
+			continue
+		}
+		if missing := uncoveredPlanPhases(content, pc.covers); len(missing) > 0 {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: fmt.Sprintf("plan phase(s) %s have no `## Phase` section in any task file", strings.Join(missing, ", "))})
+		}
+	}
+	return issues
+}
+
 var contextLintCmd = &cobra.Command{
 	Use:   gateStepLint,
 	Short: "Validate context frontmatter and links",
@@ -1160,6 +1278,9 @@ Examples:
 			edges, err := ctxrel.Load(sdtWorkDir)
 			exitWithError(cmd, err)
 			issues = append(issues, lintPlanTaskAgreement(planFiles, taskFiles, edges)...)
+			// Advisory phase-coverage check: a plan already using the section
+			// model whose phase no task file covers.
+			issues = append(issues, lintTaskPhaseCoverage(planFiles, taskFiles, edges)...)
 			// Declared-vs-derived drift across the whole chain (task, plan,
 			// analysis) at advisory WARNING severity (analysis Q4).
 			issues = append(issues, lintCascadeDrift()...)

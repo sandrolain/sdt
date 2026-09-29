@@ -1108,6 +1108,20 @@ func TestContextTaskStreamFile(t *testing.T) {
 	}
 }
 
+func TestTaskCoverageFor(t *testing.T) {
+	sections := taskCoverageFor("---\nkind: tasks\nphases: [1, 2]\n---\n\n- [ ] step\n",
+		"context/tasks/20260101-000000-custom.md")
+	if !sections.usesSections || !sections.covers["1"] || !sections.covers["2"] {
+		t.Errorf("phases list coverage = %+v, want sections covering 1 and 2", sections)
+	}
+
+	legacy := taskCoverageFor("---\nkind: tasks\nphase: 3\n---\n",
+		"context/tasks/20260101-000000-custom-phase-3.md")
+	if legacy.usesSections || !legacy.covers["3"] {
+		t.Errorf("legacy coverage = %+v, want phase 3 without sections", legacy)
+	}
+}
+
 func TestContextTaskAddWritesNoPhaseOrObjective(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))

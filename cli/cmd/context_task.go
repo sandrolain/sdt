@@ -54,6 +54,76 @@ func taskItemsInSection(content, phase string) []taskItem {
 	return parseTaskItems(strings.Join(lines[hi+1:end], "\n"))
 }
 
+// Task phase labels come from the three surfaces the model allows: the legacy
+// `phase` scalar, the `phases` list and the `## Phase <label>` section
+// headings. The plan side mirrors this with `### Phase <label>`.
+
+var (
+	ctxTaskPhaseSectionRegexp = regexp.MustCompile(`(?mi)^##[ \t]+phase[ \t]+([0-9a-z]+)`)
+	ctxPlanPhaseSectionRegexp = regexp.MustCompile(`(?mi)^###[ \t]+phase[ \t]+([0-9a-z]+)`)
+	ctxPhaseSuffixRegexp      = regexp.MustCompile(`-phase-([0-9A-Za-z]+)\.md$`)
+)
+
+// taskSectionCount is the checklist size of one `## Phase` section; the empty
+// label is the unphased preamble (or the whole file when it has no sections).
+
+type taskSectionCount struct {
+	Label string
+	Count int
+}
+
+// taskSectionItemCounts counts checklist items per `## Phase` section plus the
+// unphased preamble, in a deterministic order (preamble first, then labels
+// sorted). A file without phase sections yields a single empty-label entry.
+
+func taskSectionItemCounts(content string) []taskSectionCount {
+	counts := map[string]int{}
+	var labels []string
+	current := ""
+	for _, line := range strings.Split(content, "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "## ") {
+			if m := ctxTaskPhaseSectionRegexp.FindStringSubmatch(t); m != nil {
+				current = m[1]
+				if _, seen := counts[current]; !seen {
+					labels = append(labels, current)
+				}
+			} else {
+				current = ""
+			}
+			continue
+		}
+		if strings.HasPrefix(t, "- [") {
+			counts[current]++
+		}
+	}
+	sort.Strings(labels)
+	out := make([]taskSectionCount, 0, len(labels)+1)
+	if n := counts[""]; n > 0 {
+		out = append(out, taskSectionCount{Label: "", Count: n})
+	}
+	for _, l := range labels {
+		out = append(out, taskSectionCount{Label: l, Count: counts[l]})
+	}
+	return out
+}
+
+// parsePhaseList parses a `phases: [1, 2]`-style inline list value.
+
+func parsePhaseList(v string) []string {
+	v = strings.TrimSpace(v)
+	v = strings.TrimPrefix(v, "[")
+	v = strings.TrimSuffix(v, "]")
+	var out []string
+	for _, x := range strings.Split(v, ",") {
+		x = strings.Trim(strings.TrimSpace(x), `"'`)
+		if x != "" {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
 func outputTaskItems(cmd *cobra.Command, items []taskItem) {
 	switch getFormat(cmd) {
 	case fmtJSON:
