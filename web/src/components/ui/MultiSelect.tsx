@@ -27,6 +27,8 @@ interface UiMultiSelectProps {
   placeholder?: string;
   /** summary shown when nothing is selected; defaults to the placeholder */
   emptyLabel?: string;
+  /** summary shown when everything is selected; defaults to the counted one */
+  allLabel?: string;
 }
 
 /** Untitled-UI-style multi select (React Aria) with a summary trigger value,
@@ -39,6 +41,7 @@ export function MultiSelect({
   ariaLabel,
   placeholder = "Any",
   emptyLabel,
+  allLabel,
 }: UiMultiSelectProps) {
   const all = sections ? sections.flatMap((section) => section.options) : (options ?? []);
   const summary =
@@ -46,7 +49,9 @@ export function MultiSelect({
       ? (emptyLabel ?? placeholder)
       : selected.length === 1
         ? (all.find((o) => o.id === selected[0])?.label ?? "1 selected")
-        : `${selected.length} selected`;
+        : selected.length === all.length && allLabel
+          ? allLabel
+          : `${selected.length} selected`;
 
   return (
     <AriaSelect

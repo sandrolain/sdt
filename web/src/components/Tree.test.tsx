@@ -383,9 +383,9 @@ describe("Tree", () => {
     // grouping defaults off, so the switch starts unselected
     expect(screen.getByRole("switch", { name: "Grouped" })).toHaveProperty("checked", false);
 
-    // every state is selected by default, so the trigger summarises "all"
+    // every state is selected by default, so the trigger reads "All"
     const trigger = screen.getByRole("button", { name: "Visible states" });
-    expect(trigger.querySelector(".ui-select__value")?.textContent).toBe("20 selected");
+    expect(trigger.querySelector(".ui-select__value")?.textContent).toBe("All");
     await userEvent.click(trigger);
     for (const label of ["Open", "Concluded", "Deferred", "Retired", "Unclassified"]) {
       expect(await screen.findByText(label)).toBeTruthy();

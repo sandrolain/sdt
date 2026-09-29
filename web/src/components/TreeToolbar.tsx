@@ -52,6 +52,7 @@ export function TreeToolbar({ onResetLayout }: TreeToolbarProps) {
         onChange={(ids) => setHiddenStates(STATE_KEYS.filter((key) => !ids.includes(key)))}
         placeholder="All"
         emptyLabel="None"
+        allLabel="All"
       />
       <Switch isSelected={grouped} onChange={toggleGrouped}>
         Grouped

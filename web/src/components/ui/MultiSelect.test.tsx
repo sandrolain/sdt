@@ -51,9 +51,11 @@ describe("MultiSelect", () => {
         options={options}
         selected={["completed", "draft"]}
         onChange={onChange}
+        allLabel="All"
       />,
     );
-    expect(triggerText()).toBe("2 selected");
+    // everything selected reads as the all label, not as a count
+    expect(triggerText()).toBe("All");
 
     await userEvent.click(trigger());
     // clicking a selected option deselects it: the payload is what stays selected
