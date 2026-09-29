@@ -56,6 +56,21 @@ node — subject to the plugin caveat above.
 state. The cost: they are not standard markdown, so any renderer that is not this
 dialect shows the raw comment.
 
+## Group tags (overlay)
+
+`#group/<name>` inside a node's text marks it as a member of a cross-cutting
+group. This is a display convention, not parser syntax: a rendering tool strips
+the tag from the label and draws one convex-hull boundary around every member,
+including members that are not consecutive siblings — which the XMindMark `[B]`
+rounded rectangles cannot wrap.
+
+- The tag is a token **inside** a node, not a standalone heading: a line that is
+  exactly `#group/x` parses as a level-1 heading.
+- A node may carry several tags: `topic #group/auth #group/core`.
+- The name is `[A-Za-z0-9][\w-]*`. The tag is node-scoped and unrelated to the
+  document's `tags:` frontmatter.
+- A group of fewer than three members falls back to its bounding rectangle.
+
 ## Leaves
 
 Tables, fenced code blocks and image-only paragraphs become leaf nodes. Use them

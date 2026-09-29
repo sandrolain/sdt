@@ -5,6 +5,8 @@ import {
   boundaryText,
   nodeText,
   parseBoundaries,
+  stripBoundaryMarks,
+  stripBoundaryMarksDeep,
 } from "./boundaries";
 import type { MindNode } from "./mindmap";
 
@@ -21,6 +23,24 @@ describe("boundaryText / nodeText", () => {
     expect(boundaryText("- topic one [B1]")).toBe("topic one");
     expect(boundaryText("## Heading [B]")).toBe("Heading");
     expect(nodeText(node("<strong>Alpha</strong> &amp; Beta"))).toBe("Alpha & Beta");
+  });
+});
+
+describe("stripBoundaryMarks", () => {
+  it("removes the marker from a label and from a whole tree", () => {
+    expect(stripBoundaryMarks("alpha [B1]")).toBe("alpha");
+    const root = node("root", [node("alpha [B1]", [node("child [B]")])]);
+    const stripped = stripBoundaryMarksDeep(root);
+    expect(stripped.children[0].content).toBe("alpha");
+    expect(stripped.children[0].children[0].content).toBe("child");
+  });
+
+  it("lets annotateBoundaries match a node whose label still carries the marker", () => {
+    const root = node("root", [node("alpha [B1]"), node("beta [B1]")]);
+    const parsed = parseBoundaries("- alpha [B1]\n- beta [B1]\n  [B1]: G");
+    const groups = annotateBoundaries(root, parsed);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].nodes).toHaveLength(2);
   });
 });
 

@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Markmap } from "markmap-view";
-import { annotateBoundaries, boundaryRects, parseBoundaries } from "../lib/boundaries";
+import {
+  annotateBoundaries,
+  boundaryRects,
+  parseBoundaries,
+  stripBoundaryMarksDeep,
+} from "../lib/boundaries";
 import { drawBoundaryLayer } from "../lib/boundaryDraw";
+import {
+  annotateGroups,
+  parseGroups,
+  stripGroupTagsDeep,
+  stripGroupTagsFromMarkdown,
+} from "../lib/groups";
+import { groupHulls } from "../lib/groupHull";
+import { drawGroupHullLayer } from "../lib/groupHullDraw";
 import {
   DEFAULT_FUSE_OPTIONS,
   extractMapRefs,
@@ -99,6 +112,10 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
   const current = mode === "fused" && fused?.path === basePath && fused ? fused : null;
   const activeRoot = current ? current.root : currentRoot;
   const fusedStats = current?.stats ?? null;
+  const renderRoot = useMemo(
+    () => stripBoundaryMarksDeep(stripGroupTagsDeep(activeRoot)),
+    [activeRoot],
+  );
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -119,20 +136,21 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
     const mm = mmRef.current;
     if (!mm) return;
     let alive = true;
-    const parsed = parseBoundaries(markdown);
-    mm.setData(activeRoot as unknown as PureData, { autoFit: mode === "current" })
+    const parsedBoundaries = parseBoundaries(stripGroupTagsFromMarkdown(markdown));
+    const parsedGroups = parseGroups(markdown);
+    mm.setData(renderRoot as unknown as PureData, { autoFit: mode === "current" })
       .then(() => {
         if (!alive) return;
-        const rendered = (mm.state.data ?? activeRoot) as MindNode;
-        const groups = annotateBoundaries(rendered, parsed);
-        drawBoundaryLayer(mm, boundaryRects(groups));
+        const rendered = (mm.state.data ?? renderRoot) as MindNode;
+        drawBoundaryLayer(mm, boundaryRects(annotateBoundaries(rendered, parsedBoundaries)));
+        drawGroupHullLayer(mm, groupHulls(annotateGroups(rendered, parsedGroups)));
         return mm.fit();
       })
       .catch(() => undefined);
     return () => {
       alive = false;
     };
-  }, [activeRoot, markdown, mode]);
+  }, [renderRoot, markdown, mode]);
 
   return (
     <div className="mindmap">

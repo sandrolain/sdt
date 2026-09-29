@@ -68,6 +68,24 @@ export function nodeText(node: MindNode): string {
     .trim();
 }
 
+/** Remove XMindMark `[B]`/`[Bn]` markers from a node label. */
+export function stripBoundaryMarks(content: string): string {
+  return content
+    .replace(MARK_RE, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/^\s+/, "")
+    .replace(/\s+$/, "");
+}
+
+/** Deep copy of a tree with the XMindMark boundary markers removed. */
+export function stripBoundaryMarksDeep(node: MindNode): MindNode {
+  return {
+    ...node,
+    content: stripBoundaryMarks(node.content),
+    children: node.children.map(stripBoundaryMarksDeep),
+  };
+}
+
 /**
  * Collect boundary groups: consecutive sibling nodes sharing the same
  * boundary id (one group level, per XMind semantics).
@@ -78,7 +96,7 @@ export function annotateBoundaries(root: MindNode, parsed: BoundaryMark): Bounda
     let current: BoundaryGroup | null = null;
     let currentId: string | null = null;
     for (const child of node.children) {
-      const id = parsed.mark.get(nodeText(child));
+      const id = parsed.mark.get(boundaryText(nodeText(child)));
       if (id !== undefined && id === currentId) {
         current?.nodes.push(child);
       } else if (id !== undefined) {

@@ -1377,6 +1377,18 @@
     --markmap-highlight-node-bg: var(--bg-rise);
     --markmap-font: inherit;
   }
+  .mm-group-hull {
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  .mm-group-label {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    paint-order: stroke;
+    stroke: var(--bg-base);
+    stroke-width: 3px;
+    pointer-events: none;
+  }
   .doc-mode {
     display: inline-flex;
     align-items: center;
