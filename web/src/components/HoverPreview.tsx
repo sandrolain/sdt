@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { loadPreview, previewPathFromHref, type PreviewMeta } from "../lib/preview";
 import { formatFieldDate } from "../lib/frontmatter";
 import { imageUrl } from "../lib/images";
+import { ReferencedBy } from "./ReferencedBy";
 
 interface HoverPreviewProps {
   /** debounce before fetching, in ms */
@@ -121,6 +122,7 @@ export function HoverPreview({ delay = 150, leaveDelay = 160 }: HoverPreviewProp
           </div>
         )}
       </dl>
+      <ReferencedBy path={meta.path} heading="Referenced by" compact />
       <div className="hover-preview__path">{meta.path}</div>
     </div>,
     document.body,

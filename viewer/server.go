@@ -64,17 +64,18 @@ const indexHTML = `<!doctype html>
 // server is the read-only httper of the corpus under root. corpus is the
 // served subtree (root/context); everything else under root is out of scope.
 type server struct {
-	root    string
-	corpus  string
-	wiki    *contextwiki.Builder
-	srch    *search.Index
-	srchMu  sync.RWMutex
-	semOpts semanticOptions
-	sem     *semantic.Index
-	semMu   sync.RWMutex
-	spa     http.Handler
-	broker  *broker
-	watcher *fsnotify.Watcher
+	root      string
+	corpus    string
+	wiki      *contextwiki.Builder
+	srch      *search.Index
+	srchMu    sync.RWMutex
+	backlinks *backlinkIndex
+	semOpts   semanticOptions
+	sem       *semantic.Index
+	semMu     sync.RWMutex
+	spa       http.Handler
+	broker    *broker
+	watcher   *fsnotify.Watcher
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -169,6 +170,12 @@ func newServerWith(root string, opts semanticOptions, overrides *semanticOverrid
 	if err := s.loadSearch(); err != nil {
 		slog.Warn("sdtviewer: search unavailable", "err", err)
 	}
+	index, err := buildBacklinkIndex(s.corpus)
+	if err != nil {
+		slog.Warn("sdtviewer: backlinks unavailable", "err", err)
+	} else {
+		s.backlinks = index
+	}
 	return s, nil
 }
 
@@ -179,6 +186,7 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc("/api/doc", s.handleDoc)
 	mux.HandleFunc("/api/file", s.handleFile)
 	mux.HandleFunc("/api/search", s.handleSearch)
+	mux.HandleFunc("/api/backlinks", s.handleBacklinks)
 	mux.HandleFunc("/api/wiki/graph", s.handleWikiGraph)
 	mux.HandleFunc("/api/wiki/rel", s.handleWikiRel)
 	mux.HandleFunc("/api/wiki/board", s.handleWikiBoard)

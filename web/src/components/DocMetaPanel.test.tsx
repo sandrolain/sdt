@@ -36,10 +36,10 @@ function mockFetch() {
   }) as unknown as typeof fetch;
 }
 
-function renderPanel(doc: unknown, relatedId?: string) {
+function renderPanel(doc: unknown) {
   return render(
     <MemoryRouter>
-      <DocMetaPanel doc={doc as never} relatedId={relatedId} />
+      <DocMetaPanel doc={doc as never} />
     </MemoryRouter>,
   );
 }
@@ -462,19 +462,47 @@ describe("DocMetaPanel", () => {
     expect(screen.queryByText("Progress")).toBeNull();
   });
 
-  it("renders the relations card for a wiki page", async () => {
+  it("renders a Referenced by card from /api/backlinks", async () => {
     globalThis.fetch = vi.fn((url: string) => {
-      if (url.startsWith("/api/wiki/rel")) {
+      if (url.startsWith("/api/backlinks")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ id: "a", title: "A", outbound: {}, inbound: {} }),
+          json: () =>
+            Promise.resolve({
+              path: "context/analysis/analy-x.md",
+              total: 1,
+              referrers: [
+                {
+                  path: "context/plan/plan-x.md",
+                  title: "Plan X",
+                  kind: "plan",
+                  via: "sources",
+                },
+              ],
+            }),
         });
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
     }) as unknown as typeof fetch;
-    renderPanel(DOC, "a");
-    const related = await screen.findByText("No relations.");
-    expect(related).toBeTruthy();
-    expect(within(screen.getByLabelText("Document metadata")).getByText("Related")).toBeTruthy();
+    renderPanel(DOC);
+    const link = await screen.findByRole("link", { name: /Plan X/ });
+    expect(link.getAttribute("href")).toBe("/docs/context/plan/plan-x.md");
+    expect(
+      within(screen.getByLabelText("Document metadata")).getByText("Referenced by"),
+    ).toBeTruthy();
+  });
+
+  it("reports a document nothing references", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url.startsWith("/api/backlinks")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ path: "x", total: 0, referrers: [] }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderPanel(DOC);
+    expect(await screen.findByText(/No document references/)).toBeTruthy();
   });
 });

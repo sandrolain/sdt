@@ -37,12 +37,10 @@ import { useReloadToken } from "../lib/useReloadToken";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Breadcrumbs } from "./Breadcrumbs";
-import { RelatedPanel } from "./RelatedPanel";
+import { ReferencedBy } from "./ReferencedBy";
 
 interface DocMetaPanelProps {
   doc?: DocResponse | CanvasResponse | MermaidResponse | null;
-  /** wiki page id; enables the relations card instead of the links-out card */
-  relatedId?: string;
 }
 
 const DATE_KEYS = new Set(["created", "created_at", "updated"]);
@@ -51,7 +49,7 @@ const LINK_KEYS = new Set(["links", "sources", "relations"]);
 const IMAGE_KEYS = new Set(["image"]);
 
 /** Right-column metadata panel: frontmatter rows, heading sections, relations. */
-export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
+export function DocMetaPanel({ doc }: DocMetaPanelProps) {
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
   const [corpus, setCorpus] = useState<CorpusIndex | undefined>(undefined);
   const [parsed, setParsed] = useState<{ key: string; result: FrontmatterParse } | null>(null);
@@ -75,7 +73,7 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
   }, [reloadToken]);
 
   useEffect(() => {
-    if (relatedId || !markdownDoc) return;
+    if (!markdownDoc) return;
     let alive = true;
     loadWikiIndex()
       .then((ix) => {
@@ -87,7 +85,7 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
     return () => {
       alive = false;
     };
-  }, [relatedId, markdownDoc, reloadToken]);
+  }, [markdownDoc, reloadToken]);
 
   // real YAML parse (lazy chunk); the tolerant fields render until it resolves
   // and remain the fallback when the block does not parse. The result is keyed
@@ -248,23 +246,22 @@ export function DocMetaPanel({ doc, relatedId }: DocMetaPanelProps) {
         )}
       </MetaCard>
 
-      {relatedId ? (
-        <MetaCard title="Related" icon="hub">
-          <RelatedPanel id={relatedId} />
-        </MetaCard>
-      ) : (
-        <MetaCard title="Links out" icon="link">
-          {outLinks.length === 0 ? (
-            <p className="content__empty">No linked documents.</p>
-          ) : (
-            <ul className="meta-links" role="list">
-              {dedupe(outLinks).map((link, i) => (
-                <li key={`${link.label}-${link.href ?? ""}-${i}`}>
-                  <MetaLink link={link} corpus={corpus} />
-                </li>
-              ))}
-            </ul>
-          )}
+      <MetaCard title="Links out" icon="link">
+        {outLinks.length === 0 ? (
+          <p className="content__empty">No linked documents.</p>
+        ) : (
+          <ul className="meta-links" role="list">
+            {dedupe(outLinks).map((link, i) => (
+              <li key={`${link.label}-${link.href ?? ""}-${i}`}>
+                <MetaLink link={link} corpus={corpus} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </MetaCard>
+      {markdownDoc && (
+        <MetaCard title="Referenced by" icon="call_received">
+          <ReferencedBy path={markdownDoc.path} />
         </MetaCard>
       )}
     </aside>

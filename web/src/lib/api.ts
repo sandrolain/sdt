@@ -95,27 +95,6 @@ export interface GraphEdge {
   kind: string;
 }
 
-export interface RelEntry {
-  source?: string;
-  target?: string;
-  label?: string;
-  kind: string;
-  title?: string;
-  type?: string;
-  status?: string;
-  summary?: string;
-  path: string;
-}
-
-export type RelGroup = Record<string, RelEntry[]>;
-
-export interface RelResponse {
-  id: string;
-  title: string;
-  inbound?: RelGroup;
-  outbound?: RelGroup;
-}
-
 /** Canvas payload natively returned by /api/doc for `.canvas` files. */
 export interface CanvasFile {
   nodes?: unknown[];
@@ -147,6 +126,23 @@ export interface SearchResult {
   mermaidId?: string;
   /** true for `.canvas` board documents */
   isCanvas?: boolean;
+}
+
+/** One referring document from /api/backlinks. */
+export interface Backlink {
+  path: string;
+  title?: string;
+  kind?: string;
+  summary?: string;
+  /** which list produced the edge: `sources`, `links` or `relation` */
+  via: string;
+  modified?: string;
+}
+
+export interface BacklinksResponse {
+  path: string;
+  total: number;
+  referrers: Backlink[];
 }
 
 export interface SearchResponse {
@@ -197,8 +193,9 @@ export function fetchSearch(query: SearchQuery): Promise<SearchResponse> {
   return getJSON(buildSearchUrl(query));
 }
 
-export function fetchWikiRel(id: string): Promise<RelResponse> {
-  return getJSON(`/api/wiki/rel?id=${encodeURIComponent(id)}`);
+/** Fetch the documents referencing `path` (the "Referenced by" list). */
+export function fetchBacklinks(path: string): Promise<BacklinksResponse> {
+  return getJSON(`/api/backlinks?path=${encodeURIComponent(path)}`);
 }
 
 /** Fetch the API-generated board, or a specific `.canvas` file when given. */
