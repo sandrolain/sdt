@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CommandDialog,
@@ -8,22 +8,21 @@ import {
   CommandItem,
   CommandList,
 } from "cmdk";
-import { fetchSearch } from "../lib/api";
+import { fetchSearch, fetchVocab, type VocabResponse } from "../lib/api";
 import { MAP_ICON } from "../lib/documentModes";
 import { formatFieldDateOnly } from "../lib/frontmatter";
 import { kindLabel } from "../lib/kinds";
 import { Icon } from "../lib/icon";
+import { STATUS_VALUES } from "../lib/frontmatter";
 import { SkeletonLines } from "./Skeleton";
 import {
-  isSearchable,
+  hasMore,
   KIND_OPTIONS,
-  MIN_QUERY_LENGTH,
   paletteReducer,
   initialPaletteState,
   highlightSegments,
   resultRoute,
   resultTitle,
-  SEARCH_LIMIT,
   useDebouncedValue,
 } from "../lib/searchPalette";
 
@@ -32,34 +31,71 @@ interface SearchPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
-/** Modal command palette: debounced /api/search with kind/date filters. */
+/**
+ * The status vocabulary of the matrix, flattened for one select. Keys are
+ * `<kind>.<value>`; the first kind that offers a value supplies its label, so a
+ * shared value reads once rather than once per kind.
+ */
+function statusOptions(): { id: string; label: string }[] {
+  const seen = new Map<string, string>();
+  for (const [key, entry] of Object.entries(STATUS_VALUES)) {
+    const value = key.slice(key.indexOf(".") + 1);
+    if (!seen.has(value)) seen.set(value, entry.label);
+  }
+  return [...seen.entries()]
+    .map(([id, label]) => ({ id, label }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/**
+ * Modal command palette over /api/search. With no query it browses the corpus
+ * (server order `modified_desc`); with one it ranks by relevance. The filters
+ * come from the corpus registers (`/api/vocab`) plus the status matrix, so the
+ * palette offers values the corpus accepts instead of free text.
+ */
 export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
   const [state, dispatch] = useReducer(paletteReducer, initialPaletteState);
+  const [vocab, setVocab] = useState<VocabResponse | null>(null);
   const debouncedQuery = useDebouncedValue(state.query, 200);
   const navigate = useNavigate();
-  const { kind, objective, category, from, to } = state.filters;
+  const { kind, objective, status, topic, category, from, to } = state.filters;
 
   useEffect(() => {
-    if (open) return;
-    dispatch({ type: "resetFilters" });
-    dispatch({ type: "cleared" });
+    if (!open) {
+      dispatch({ type: "resetFilters" });
+      dispatch({ type: "cleared" });
+    }
   }, [open]);
 
+  // the registers change rarely: fetch once per session, cache in the module
   useEffect(() => {
-    if (!isSearchable(debouncedQuery)) {
-      dispatch({ type: "cleared" });
-      return;
-    }
+    if (vocab) return;
+    let alive = true;
+    fetchVocab()
+      .then((res) => {
+        if (alive) setVocab(res);
+      })
+      .catch(() => {
+        // free-form facets degrade to the empty option
+      });
+    return () => {
+      alive = false;
+    };
+  }, [vocab]);
+
+  useEffect(() => {
     let alive = true;
     dispatch({ type: "load" });
     fetchSearch({
       q: debouncedQuery.trim(),
       kind,
       objective,
+      status,
+      topic,
       category,
       from,
       to,
-      limit: SEARCH_LIMIT,
+      limit: state.limit,
     })
       .then((res) => {
         if (alive) dispatch({ type: "loaded", results: res.results ?? [], total: res.total });
@@ -71,12 +107,14 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
     return () => {
       alive = false;
     };
-  }, [debouncedQuery, kind, objective, category, from, to]);
+  }, [debouncedQuery, kind, objective, status, topic, category, from, to, state.limit]);
 
-  const select = (path: string) => {
+  const select = (path: string, section?: string) => {
     onOpenChange(false);
-    navigate(resultRoute(path));
+    navigate(resultRoute(path, section));
   };
+
+  const more = hasMore(state);
 
   return (
     <CommandDialog
@@ -103,9 +141,8 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
         tabIndex={0}
         onKeyDown={(e) => {
           // Arrow keys belong to the control that received them (a select
-          // changes value, a text input moves its caret); only the row itself
-          // lets them through, so focus parked here still arrows into the
-          // results instead of dead-ending.
+          // changes value); only the row itself lets them through, so focus
+          // parked here still arrows into the results instead of dead-ending.
           if (e.target !== e.currentTarget && e.key.startsWith("Arrow")) e.stopPropagation();
         }}
       >
@@ -124,28 +161,36 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
             ))}
           </select>
         </label>
-        <label className="search-filters__field">
-          <span className="search-filters__label">Objective</span>
-          <input
-            type="text"
-            className="search-filters__control"
-            placeholder="any"
+        <FacetSelect
+          label="Status"
+          value={status}
+          options={statusOptions()}
+          onChange={(value) => dispatch({ type: "status", value })}
+        />
+        {(vocab?.objectives ?? []).length > 0 && (
+          <FacetSelect
+            label="Objective"
             value={objective}
-            onChange={(e) => dispatch({ type: "objective", value: e.target.value })}
-            aria-label="Objective filter"
+            options={(vocab?.objectives ?? []).map((id) => ({ id, label: id }))}
+            onChange={(value) => dispatch({ type: "objective", value })}
           />
-        </label>
-        <label className="search-filters__field">
-          <span className="search-filters__label">Category</span>
-          <input
-            type="text"
-            className="search-filters__control"
-            placeholder="any"
+        )}
+        {(vocab?.topics ?? []).length > 0 && (
+          <FacetSelect
+            label="Topic"
+            value={topic}
+            options={(vocab?.topics ?? []).map((id) => ({ id, label: id }))}
+            onChange={(value) => dispatch({ type: "topic", value })}
+          />
+        )}
+        {(vocab?.categories ?? []).length > 0 && (
+          <FacetSelect
+            label="Category"
             value={category}
-            onChange={(e) => dispatch({ type: "category", value: e.target.value })}
-            aria-label="Category filter"
+            options={(vocab?.categories ?? []).map((id) => ({ id, label: id }))}
+            onChange={(value) => dispatch({ type: "category", value })}
           />
-        </label>
+        )}
         <label className="search-filters__field">
           <span className="search-filters__label">From</span>
           <input
@@ -168,11 +213,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
         </label>
       </div>
       <CommandList className="search-palette__list">
-        <PaletteEmpty
-          status={state.status}
-          error={state.error}
-          searchable={isSearchable(debouncedQuery)}
-        />
+        <PaletteEmpty status={state.status} error={state.error} />
         {state.results.length > 0 && (
           <CommandGroup
             className="search-palette__group"
@@ -183,7 +224,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
                 key={r.path}
                 value={r.path}
                 className="search-result"
-                onSelect={() => select(r.path)}
+                onSelect={() => select(r.path, r.section)}
               >
                 <div className="search-result__head">
                   <span className="search-result__title">{resultTitle(r)}</span>
@@ -194,6 +235,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
                     {r.modified && r.modified !== r.created
                       ? ` · updated ${formatFieldDateOnly(r.modified)}`
                       : ""}
+                    {r.section ? " · §" : ""}
                   </span>
                 </div>
                 <span className="search-result__path">{r.path}</span>
@@ -215,26 +257,61 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
           </CommandGroup>
         )}
       </CommandList>
+      <div className="search-palette__footer">
+        {/* the count is the async state a screen reader needs announced */}
+        <span className="search-palette__status" role="status">
+          {state.status === "loading"
+            ? "Searching…"
+            : state.status === "error"
+              ? "Search failed"
+              : `${state.results.length} of ${state.total} shown`}
+        </span>
+        {more && (
+          <button
+            type="button"
+            className="search-palette__more"
+            onClick={() => dispatch({ type: "more" })}
+          >
+            Show more
+          </button>
+        )}
+      </div>
     </CommandDialog>
   );
 }
 
-function PaletteEmpty({
-  status,
-  error,
-  searchable,
+/** One register-backed facet: a select over a controlled vocabulary. */
+function FacetSelect({
+  label,
+  value,
+  options,
+  onChange,
 }: {
-  status: string;
-  error: string | null;
-  searchable: boolean;
+  label: string;
+  value: string;
+  options: { id: string; label: string }[];
+  onChange: (value: string) => void;
 }) {
-  if (!searchable) {
-    return (
-      <CommandEmpty className="search-palette__empty">
-        Type at least {MIN_QUERY_LENGTH} characters to search.
-      </CommandEmpty>
-    );
-  }
+  return (
+    <label className="search-filters__field">
+      <span className="search-filters__label">{label}</span>
+      <select
+        className="search-filters__control"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">any</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PaletteEmpty({ status, error }: { status: string; error: string | null }) {
   if (status === "loading") {
     return (
       <CommandEmpty className="search-palette__empty">

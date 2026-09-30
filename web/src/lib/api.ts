@@ -103,6 +103,8 @@ export interface CanvasFile {
 
 export interface SearchResult {
   path: string;
+  /** matched section anchor, when the hit was attributed to a section */
+  section?: string;
   /** omitted for .md entries without frontmatter kind */
   kind?: string;
   title?: string;
@@ -156,12 +158,23 @@ export interface SearchQuery {
   kind?: string;
   /** exact frontmatter objective filter; omitted when empty */
   objective?: string;
+  /** exact frontmatter status filter; omitted when empty */
+  status?: string;
+  /** exact frontmatter topic filter; omitted when empty */
+  topic?: string;
   /** exact frontmatter category filter; omitted when empty */
   category?: string;
   /** inclusive frontmatter created-date bounds (YYYY-MM-DD); omitted when empty */
   from?: string;
   to?: string;
   limit?: number;
+}
+
+/** Corpus controlled vocabularies for the filter selects (/api/vocab). */
+export interface VocabResponse {
+  objectives: string[];
+  categories: string[];
+  topics: string[];
 }
 
 async function getJSON<T>(url: string): Promise<T> {
@@ -176,12 +189,14 @@ export function fetchDoc(path: string): Promise<DocResponse | CanvasResponse | M
   return getJSON(`/api/doc?path=${encodeURIComponent(path)}`);
 }
 
-/** Compose the /api/search URL, omitting empty q/kind/objective/category/from/to params. */
+/** Compose the /api/search URL, omitting empty q/kind/objective/status/topic/category/from/to params. */
 export function buildSearchUrl(query: SearchQuery): string {
   const params = new URLSearchParams();
   params.set("q", query.q);
   if (query.kind) params.set("kind", query.kind);
   if (query.objective) params.set("objective", query.objective);
+  if (query.status) params.set("status", query.status);
+  if (query.topic) params.set("topic", query.topic);
   if (query.category) params.set("category", query.category);
   if (query.from) params.set("from", query.from);
   if (query.to) params.set("to", query.to);
@@ -199,6 +214,10 @@ export function fetchBacklinks(path: string): Promise<BacklinksResponse> {
 }
 
 /** Fetch the API-generated board, or a specific `.canvas` file when given. */
+export function fetchVocab(): Promise<VocabResponse> {
+  return getJSON("/api/vocab");
+}
+
 export function fetchWikiBoard(file?: string): Promise<unknown> {
   const suffix = file ? `?file=${encodeURIComponent(file)}` : "";
   return getJSON<unknown>(`/api/wiki/board${suffix}`);

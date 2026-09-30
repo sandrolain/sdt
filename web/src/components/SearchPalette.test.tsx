@@ -8,7 +8,12 @@ import { SearchPalette } from "./SearchPalette";
 
 function LocationProbe() {
   const loc = useLocation();
-  return <span data-testid="location">{loc.pathname}</span>;
+  return (
+    <span data-testid="location">
+      {loc.pathname}
+      {loc.hash}
+    </span>
+  );
 }
 
 function renderPalette(onOpenChange = vi.fn()) {
@@ -47,8 +52,29 @@ function mockSearch(payload: unknown, ok = true) {
     if (url.startsWith("/api/search")) {
       return Promise.resolve({ ok, json: () => Promise.resolve(payload) });
     }
+    if (url.startsWith("/api/vocab")) {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            objectives: ["viewer", "cli"],
+            categories: ["bug"],
+            topics: ["ui-ux"],
+          }),
+      });
+    }
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
   });
+}
+
+const VOCAB = { objectives: ["viewer", "cli"], categories: ["bug"], topics: ["ui-ux"] };
+
+/** A register with nothing in it (a project that has not declared topics). */
+const EMPTY_VOCAB = { objectives: [], categories: [], topics: [] };
+
+function fetchVocabCalls(): number {
+  const mock = globalThis.fetch as unknown as { mock?: { calls: string[][] } };
+  return (mock.mock?.calls ?? []).filter((c) => String(c[0]).startsWith("/api/vocab")).length;
 }
 
 afterEach(() => {
@@ -57,10 +83,112 @@ afterEach(() => {
 });
 
 describe("SearchPalette", () => {
-  it("prompts for a longer query before searching", () => {
+  it("browses the corpus with an empty query", async () => {
+    const fetchMock = mockSearch({
+      results: [{ path: "context/notes/n.md", kind: "notes", title: "Note", score: 0 }],
+      total: 1,
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    renderPalette();
+    expect(await screen.findByText("Note")).toBeTruthy();
+    // browse mode is an empty q; the server decides the order (modified_desc)
+    const url = fetchMock.mock.calls
+      .map((c) => String(c[0]))
+      .find((u) => u.includes("/api/search"));
+    expect(url).toContain("q=&");
+  });
+
+  it("offers the corpus registers as facet options", async () => {
     globalThis.fetch = mockSearch({ results: [], total: 0 }) as unknown as typeof fetch;
     renderPalette();
-    expect(screen.getByText(/Type at least 2 characters/)).toBeTruthy();
+    await waitFor(() => expect(fetchVocabCalls()).toBeGreaterThan(0));
+    const options = (name: string) =>
+      Array.from((screen.getByLabelText(name) as HTMLSelectElement).options).map((o) => o.value);
+    expect(options("Objective")).toEqual(["", ...VOCAB.objectives]);
+    expect(options("Topic")).toEqual(["", ...VOCAB.topics]);
+    expect(options("Category")).toEqual(["", ...VOCAB.categories]);
+    // the status select comes from the matrix, and offers active
+    expect(options("Status")).toContain("active");
+  });
+
+  it("hides a facet whose register is empty", async () => {
+    globalThis.fetch = vi.fn((url: string) =>
+      url.startsWith("/api/vocab")
+        ? Promise.resolve({ ok: true, json: () => Promise.resolve(EMPTY_VOCAB) })
+        : Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [], total: 0 }) }),
+    ) as unknown as typeof fetch;
+    renderPalette();
+    await waitFor(() => expect(fetchVocabCalls()).toBeGreaterThan(0));
+    expect(screen.queryByLabelText("Topic")).toBeNull();
+    expect(screen.queryByLabelText("Objective")).toBeNull();
+    // the kind, status and date filters never depend on a register
+    expect(screen.getByLabelText("Kind")).toBeTruthy();
+    expect(screen.getByLabelText("Status")).toBeTruthy();
+  });
+
+  it("composes the status and topic facets into the request", async () => {
+    const fetchMock = mockSearch({ results: [], total: 0 });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    renderPalette();
+    await waitFor(() => expect(fetchVocabCalls()).toBeGreaterThan(0));
+    await userEvent.selectOptions(screen.getByLabelText("Status"), "active");
+    await userEvent.selectOptions(screen.getByLabelText("Topic"), "ui-ux");
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("status=active"))).toBe(true);
+      expect(urls.some((u) => u.includes("topic=ui-ux"))).toBe(true);
+    });
+  });
+
+  it("pages past the first page with Show more", async () => {
+    const page = (n: number, total: number) =>
+      mockSearch({
+        results: Array.from({ length: n }, (_, i) => ({
+          path: `context/notes/n${i}.md`,
+          kind: "notes",
+          title: `Note ${i}`,
+          score: 0,
+        })),
+        total,
+      });
+    globalThis.fetch = page(20, 35) as unknown as typeof fetch;
+    renderPalette();
+    expect(await screen.findByText("35 results")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show more" })).toBeTruthy();
+
+    globalThis.fetch = page(35, 35) as unknown as typeof fetch;
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Show more" })).toBeNull());
+    expect(screen.getByText("35 of 35 shown")).toBeTruthy();
+  });
+
+  it("announces the result count in a live region", async () => {
+    globalThis.fetch = mockSearch({ results: [], total: 0 }) as unknown as typeof fetch;
+    renderPalette();
+    const status = await screen.findByRole("status");
+    expect(status.textContent).toContain("shown");
+  });
+
+  it("deep-links a hit that matched a section", async () => {
+    globalThis.fetch = mockSearch({
+      results: [
+        {
+          path: "context/notes/n.md",
+          kind: "notes",
+          title: "Note",
+          score: 1,
+          section: "findings",
+          snippet: "the token lives here",
+        },
+      ],
+      total: 1,
+    }) as unknown as typeof fetch;
+    renderPalette();
+    const item = await screen.findByText("Note");
+    await userEvent.click(item);
+    await waitFor(() => {
+      expect(screen.getByTestId("location").textContent).toBe("/docs/context/notes/n.md#findings");
+    });
   });
 
   it("renders ranked results and navigates on select", async () => {
@@ -187,10 +315,11 @@ describe("SearchPalette", () => {
   it("leaves arrow keys to the control that received them", async () => {
     globalThis.fetch = mockSearch({ results: [], total: 0 }) as unknown as typeof fetch;
     renderPalette();
-    const objective = screen.getByLabelText("Objective filter");
-    objective.focus();
-    await userEvent.type(objective, "viewer");
-    expect((objective as HTMLInputElement).value).toBe("viewer");
+    await waitFor(() => expect(fetchVocabCalls()).toBeGreaterThan(0));
+    const topic = screen.getByLabelText("Topic");
+    topic.focus();
+    await userEvent.selectOptions(topic, "ui-ux");
+    expect((topic as HTMLSelectElement).value).toBe("ui-ux");
   });
 
   it("resets every filter on close, so a reopen cannot show a stale empty result", async () => {
@@ -211,7 +340,7 @@ describe("SearchPalette", () => {
     await userEvent.click(screen.getByRole("button", { name: "toggle" }));
 
     expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("");
-    expect((screen.getByLabelText("Objective filter") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Status") as HTMLSelectElement).value).toBe("");
     expect((screen.getByLabelText("Search query") as HTMLInputElement).value).toBe("tokens");
   });
 });

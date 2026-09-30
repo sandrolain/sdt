@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/sandrolain/sdt/internal/mdindex"
 	"github.com/sandrolain/sdt/internal/search"
@@ -66,11 +67,13 @@ func (s *server) index() *search.Index {
 }
 
 // handleSearch serves ranked results from the in-memory bleve index:
-// GET /api/search?q=&kind=&objective=&from=&to=&limit=. kind is an exact
-// frontmatter kind filter; objective is an exact frontmatter objective filter;
-// from/to bound the frontmatter created date (inclusive). Empty or missing q
-// returns an empty result (never an error). When the opt-in semantic branch is
-// enabled at the server level, `semantic=1` returns RRF-fused hybrid results;
+// GET /api/search?q=&kind=&objective=&status=&topic=&category=&from=&to=&limit=.
+// kind is an exact frontmatter kind filter; objective/status/topic/category are
+// exact frontmatter filters; from/to bound the frontmatter created date
+// (inclusive). An empty or missing q browses the corpus instead: relevance is
+// undefined without a query, so the order is `modified_desc` (the semantic
+// branch has no meaning there and is skipped). When the opt-in semantic branch
+// is enabled at the server level, `semantic=1` returns RRF-fused hybrid results;
 // filters apply to the lexical branch (semantic hits outside the filter set are
 // dropped). Disabled or unavailable semantic never errors: it serves lexical.
 func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
@@ -88,23 +91,24 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			max = n
 		}
 	}
-	if s.index() == nil || q == "" {
+	if s.index() == nil {
 		writeJSON(w, http.StatusOK, search.Results{Results: []search.Result{}, Total: 0})
 		return
 	}
+	hq := search.HybridQuery{
+		Q: q, Kind: kind, Objective: objective, Status: status,
+		Topic: topic, Category: category, From: from, To: to, Max: max,
+	}
 	var res search.Results
 	var err error
-	if r.URL.Query().Get("semantic") == "1" {
-		hq := search.HybridQuery{
-			Q: q, Kind: kind, Objective: objective, Status: status,
-			Topic: topic, Category: category, From: from, To: to, Max: max,
-		}
+	switch {
+	case strings.TrimSpace(q) == "":
+		// browse mode: newest-modified first, the same filter, a true total
+		res, err = s.index().Browse(hq.ResolvedFilter(), max)
+	case r.URL.Query().Get("semantic") == "1":
 		res, err = s.index().SearchHybrid(r.Context(), hq, search.HybridOptions{Semantic: s.semanticIndex()})
-	} else {
-		res, err = s.index().SearchQuery(search.HybridQuery{
-			Q: q, Kind: kind, Objective: objective, Status: status,
-			Topic: topic, Category: category, From: from, To: to, Max: max,
-		})
+	default:
+		res, err = s.index().SearchQuery(hq)
 	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})

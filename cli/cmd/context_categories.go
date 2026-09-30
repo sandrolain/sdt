@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
-	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/ctxvocab"
 )
 
 // Controlled vocabulary for the `categories` frontmatter field: the kind of
@@ -26,34 +25,15 @@ type ctxCategoryRegister struct {
 }
 
 // loadCategoryRegister reads context/categories.yaml. A missing file yields an
-// empty register (the vocabulary is advisory; absence never blocks lint).
+// empty register (the vocabulary is advisory; absence never blocks lint). The
+// parsing lives in internal/ctxvocab, the one place the register files are read
+// (the viewer serves the same vocabulary from there).
 func loadCategoryRegister() (*ctxCategoryRegister, error) {
-	reg := &ctxCategoryRegister{Categories: map[string][]string{}, Aliases: map[string]string{}}
-	data, err := os.ReadFile(ctxCategoriesFilePath) //#nosec G304 -- fixed repo path
-	if os.IsNotExist(err) {
-		return reg, nil
-	}
+	reg, err := ctxvocab.LoadCategories(".")
 	if err != nil {
 		return nil, err
 	}
-	var doc struct {
-		Categories map[string][]string `yaml:"categories"`
-	}
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("%s: %w", ctxCategoriesFilePath, err)
-	}
-	for canonical, aliases := range doc.Categories {
-		c := sanitizeSlug(canonical)
-		if c == "" {
-			continue
-		}
-		reg.Categories[c] = aliases
-		reg.Aliases[c] = c
-		for _, a := range aliases {
-			reg.Aliases[sanitizeSlug(a)] = c
-		}
-	}
-	return reg, nil
+	return &ctxCategoryRegister{Categories: reg.Values, Aliases: reg.Aliases}, nil
 }
 
 // canonical returns the canonical category for a value and whether the value is

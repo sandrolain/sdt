@@ -7,10 +7,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/sandrolain/sdt/internal/ctxvocab"
 )
 
 const (
@@ -40,8 +41,6 @@ var contextNow = time.Now
 
 var contextRunEditor = contextRunEditorDefault
 
-var ctxSlugRegexp = regexp.MustCompile(`[^a-z0-9-]+`)
-
 var ctxTaskLineRegexp = regexp.MustCompile(`^- \[([ x~!])\] (.*)$`)
 
 // ctxWikiIDRegexp is the wiki page id grammar: kebab-case segments joined by
@@ -65,10 +64,7 @@ const ctxResearchSubjectPlaceholder = "<research subject — the question this r
 // a type and whether the instruction contract requires an `updated` field.
 
 func sanitizeSlug(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = ctxSlugRegexp.ReplaceAllString(s, "-")
-	s = strings.Trim(s, "-")
-	return s
+	return ctxvocab.Slug(s)
 }
 
 // sanitizeSlugList normalizes a list of slugs, dropping empties and duplicates

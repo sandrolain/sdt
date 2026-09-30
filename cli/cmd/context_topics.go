@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
-	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/ctxvocab"
 )
 
 // Controlled subject vocabulary for `context/*.md` frontmatter: `topics` (what
@@ -29,34 +28,14 @@ type ctxTopicRegister struct {
 }
 
 // loadTopicRegister reads context/topics.yaml. A missing file yields an empty
-// register (the vocabulary is advisory; absence never blocks lint).
+// register. The parsing lives in internal/ctxvocab, the one place the register
+// files are read (the viewer serves the same vocabulary from there).
 func loadTopicRegister() (*ctxTopicRegister, error) {
-	reg := &ctxTopicRegister{Topics: map[string][]string{}, Aliases: map[string]string{}}
-	data, err := os.ReadFile(ctxTopicsFilePath) //#nosec G304 -- fixed repo path
-	if os.IsNotExist(err) {
-		return reg, nil
-	}
+	reg, err := ctxvocab.LoadTopics(".")
 	if err != nil {
 		return nil, err
 	}
-	var doc struct {
-		Topics map[string][]string `yaml:"topics"`
-	}
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("%s: %w", ctxTopicsFilePath, err)
-	}
-	for canonical, aliases := range doc.Topics {
-		c := sanitizeSlug(canonical)
-		if c == "" {
-			continue
-		}
-		reg.Topics[c] = aliases
-		reg.Aliases[c] = c
-		for _, a := range aliases {
-			reg.Aliases[sanitizeSlug(a)] = c
-		}
-	}
-	return reg, nil
+	return &ctxTopicRegister{Topics: reg.Values, Aliases: reg.Aliases}, nil
 }
 
 // canonical returns the canonical topic for a value and whether the value is

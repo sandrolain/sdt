@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { DocumentView } from "./DocumentView";
 import { getSectionRequest, requestSection, resetSectionRequest } from "../lib/sectionRequests";
 import { activeSectionKey, resetActiveSection } from "../lib/activeSection";
@@ -17,6 +17,11 @@ vi.mock("./MindmapView", () => ({
 vi.mock("../lib/mermaidRender", () => ({
   renderMermaid: vi.fn(() => Promise.resolve()),
 }));
+
+function LocationProbe() {
+  const loc = useLocation();
+  return <span data-testid="probe">{loc.pathname + loc.search + loc.hash}</span>;
+}
 
 function renderView(
   props: Partial<Parameters<typeof DocumentView>[0]> & { path: string },
@@ -252,6 +257,74 @@ describe("DocumentView", () => {
         activeSectionKey("context/wiki/alpha.md"),
       );
       expect(stored.recent[0]).toBe("context/wiki/alpha.md");
+    });
+  });
+  describe("deep links", () => {
+    const LONG = "# Title\n\n## One\n\ntext\n\n## Findings\n\ntext\n\n";
+
+    // the fragment is read from the real location, so every case resets it
+    beforeEach(() => window.history.replaceState(null, "", "/docs/x"));
+    afterEach(() => window.history.replaceState(null, "", "/docs/x"));
+
+    it("resolves a fragment to its heading and asks for the scroll", async () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      window.history.replaceState(null, "", "/docs/context/notes/x.md#findings");
+      render(
+        <MemoryRouter initialEntries={["/docs/context/notes/x.md#findings"]}>
+          <DocumentView path="context/notes/x.md" markdown={LONG} />
+        </MemoryRouter>,
+      );
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+      expect(getSectionRequest()).toBeNull();
+    });
+
+    it("keeps the fragment when the deep link has to switch to render mode", async () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      window.history.replaceState(null, "", "/docs/context/notes/x.md?view=code#findings");
+      render(
+        <MemoryRouter initialEntries={["/docs/context/notes/x.md?view=code#findings"]}>
+          <Routes>
+            <Route path="/docs/*" element={<LocationProbe />} />
+          </Routes>
+          <DocumentView path="context/notes/x.md" markdown={LONG} />
+        </MemoryRouter>,
+      );
+      // the router location is what changes; window.location is untouched
+      // under MemoryRouter
+      await waitFor(() => {
+        expect(screen.getByTestId("probe").textContent).toContain("#findings");
+      });
+      expect(screen.getByTestId("probe").textContent).toContain("view=render");
+    });
+
+    it("ignores a fragment with no matching heading", async () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      render(
+        <MemoryRouter initialEntries={["/docs/x#no-such-section"]}>
+          <DocumentView path="context/notes/x.md" markdown={LONG} />
+        </MemoryRouter>,
+      );
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    });
+
+    it("prefers the deep link over the remembered offset", () => {
+      // with a fragment present the reader lands on the section, not the offset
+      recordReading("context/notes/x.md", 900, "Findings", 0);
+      const article = document.createElement("div");
+      Object.defineProperty(article, "scrollHeight", { value: 4000, configurable: true });
+      Object.defineProperty(article, "clientHeight", { value: 800, configurable: true });
+      document.body.appendChild(article);
+      window.history.replaceState(null, "", "/docs/context/notes/x.md#findings");
+      render(
+        <MemoryRouter initialEntries={["/docs/context/notes/x.md#findings"]}>
+          <DocumentView path="context/notes/x.md" markdown={LONG} />
+        </MemoryRouter>,
+      );
+      expect(getSectionRequest()).toBeNull();
+      document.body.innerHTML = "";
     });
   });
 });

@@ -105,7 +105,9 @@ func TestSearchHandlerObjectiveFilter(t *testing.T) {
 	}
 }
 
-func TestSearchHandlerEmptyQ(t *testing.T) {
+func TestSearchHandlerEmptyQBrowses(t *testing.T) {
+	// an empty q browses the corpus (adoption Q4) instead of returning nothing:
+	// relevance is undefined, so the order is modified_desc
 	root := makeSearchCorpus(t)
 	h, _ := newHandler(root)
 	rec := httptest.NewRecorder()
@@ -117,8 +119,11 @@ func TestSearchHandlerEmptyQ(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Results) != 0 || out.Total != 0 {
-		t.Errorf("empty q: %+v", out)
+	if out.Total == 0 || len(out.Results) == 0 {
+		t.Fatalf("empty q: %+v", out)
+	}
+	if out.Results[0].Section != "" {
+		t.Errorf("browse hit carries a section: %+v", out.Results[0])
 	}
 }
 

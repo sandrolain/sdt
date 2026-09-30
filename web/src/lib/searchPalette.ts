@@ -3,10 +3,7 @@ import type { SearchResult } from "./api";
 import { KIND_ORDER, type EntryKind } from "./kinds";
 import { displayTitle } from "./titles";
 
-/** Minimum trimmed query length before a search request is issued. */
-export const MIN_QUERY_LENGTH = 2;
-
-/** Server-side result cap passed as the `limit` param. */
+/** Results per request; "show more" asks for one more page on top of what is shown. */
 export const SEARCH_LIMIT = 20;
 
 /** Kind options shown in the palette; canvas is not searchable. */
@@ -15,9 +12,13 @@ export const KIND_OPTIONS: EntryKind[] = [...KIND_ORDER];
 export interface SearchFilters {
   /** exact frontmatter kind; "" = any */
   kind: string;
-  /** exact frontmatter objective; "" = any */
+  /** exact frontmatter objective (from the corpus register); "" = any */
   objective: string;
-  /** exact frontmatter category; "" = any */
+  /** exact frontmatter status; "" = any */
+  status: string;
+  /** exact frontmatter topic (from the corpus register); "" = any */
+  topic: string;
+  /** exact frontmatter category (from the corpus register); "" = any */
   category: string;
   /** inclusive created-date lower bound (YYYY-MM-DD); "" = none */
   from: string;
@@ -28,6 +29,8 @@ export interface SearchFilters {
 export const EMPTY_FILTERS: SearchFilters = {
   kind: "",
   objective: "",
+  status: "",
+  topic: "",
   category: "",
   from: "",
   to: "",
@@ -40,6 +43,8 @@ export interface PaletteState {
   filters: SearchFilters;
   status: PaletteStatus;
   results: SearchResult[];
+  /** number of results requested so far (SEARCH_LIMIT * pages) */
+  limit: number;
   total: number;
   error: string | null;
 }
@@ -49,23 +54,22 @@ export const initialPaletteState: PaletteState = {
   filters: { ...EMPTY_FILTERS },
   status: "idle",
   results: [],
+  limit: SEARCH_LIMIT,
   total: 0,
   error: null,
 };
 
-/**
- * A cleared palette drops its results and status but keeps the query (the input
- * owns it) and the filters the user is still typing against; closing the
- * palette dispatches `resetFilters` so a reopen starts unfiltered.
- */
 export type PaletteAction =
   | { type: "query"; value: string }
   | { type: "kind"; value: string }
   | { type: "objective"; value: string }
+  | { type: "status"; value: string }
+  | { type: "topic"; value: string }
   | { type: "category"; value: string }
   | { type: "from"; value: string }
   | { type: "to"; value: string }
   | { type: "resetFilters" }
+  | { type: "more" }
   | { type: "load" }
   | { type: "loaded"; results: SearchResult[]; total: number }
   | { type: "failed"; error: string }
@@ -75,19 +79,26 @@ export type PaletteAction =
 export function paletteReducer(state: PaletteState, action: PaletteAction): PaletteState {
   switch (action.type) {
     case "query":
-      return { ...state, query: action.value };
+      // a new query restarts paging
+      return { ...state, query: action.value, limit: SEARCH_LIMIT };
     case "kind":
-      return { ...state, filters: { ...state.filters, kind: action.value } };
+      return withFilter(state, { kind: action.value });
     case "objective":
-      return { ...state, filters: { ...state.filters, objective: action.value } };
+      return withFilter(state, { objective: action.value });
+    case "status":
+      return withFilter(state, { status: action.value });
+    case "topic":
+      return withFilter(state, { topic: action.value });
     case "category":
-      return { ...state, filters: { ...state.filters, category: action.value } };
+      return withFilter(state, { category: action.value });
     case "from":
-      return { ...state, filters: { ...state.filters, from: action.value } };
+      return withFilter(state, { from: action.value });
     case "to":
-      return { ...state, filters: { ...state.filters, to: action.value } };
+      return withFilter(state, { to: action.value });
     case "resetFilters":
       return { ...state, filters: { ...EMPTY_FILTERS } };
+    case "more":
+      return { ...state, limit: state.limit + SEARCH_LIMIT };
     case "load":
       return { ...state, status: "loading", error: null };
     case "loaded":
@@ -104,18 +115,21 @@ export function paletteReducer(state: PaletteState, action: PaletteAction): Pale
       // results only: the query stays (the input owns it) and so do the filters,
       // which the user may still be typing against. `resetFilters` drops them on
       // close, so a reopened palette never filters silently.
-      return { ...state, status: "idle", results: [], total: 0, error: null };
+      return { ...state, status: "idle", results: [], total: 0, error: null, limit: SEARCH_LIMIT };
   }
 }
 
-/** Whether the query is long enough to hit /api/search. */
-export function isSearchable(query: string): boolean {
-  return query.trim().length >= MIN_QUERY_LENGTH;
+/** Apply a filter patch and restart paging. */
+function withFilter(state: PaletteState, patch: Partial<SearchFilters>): PaletteState {
+  return { ...state, filters: { ...state.filters, ...patch }, limit: SEARCH_LIMIT };
 }
 
-/** Document-detail browser route for a corpus path. */
-export function resultRoute(path: string): string {
-  return `/docs/${path}`;
+/**
+ * Document-detail browser route for a corpus path. A matched section anchor
+ * becomes the fragment, so the hit deep-links to where it matched.
+ */
+export function resultRoute(path: string, section?: string): string {
+  return section ? `/docs/${path}#${section}` : `/docs/${path}`;
 }
 
 export interface HighlightSegment {
@@ -168,6 +182,11 @@ export function highlightSegments(text: string, query: string): HighlightSegment
 /** Display title for a result via the shared cascade (title → formatted path). */
 export function resultTitle(r: SearchResult): string {
   return displayTitle({ title: r.title, path: r.path });
+}
+
+/** Whether more results exist beyond what has been requested. */
+export function hasMore(state: PaletteState): boolean {
+  return state.results.length < state.total;
 }
 
 /** Debounce a value by delayMs (used to pace /api/search calls). */

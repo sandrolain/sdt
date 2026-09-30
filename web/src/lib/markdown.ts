@@ -114,8 +114,9 @@ const CALLOUTS: Record<string, string> = {
   caution: "Caution",
 };
 
-/** Lowercase dash slug for heading anchors. */
-function slugify(text: string): string {
+/** Lowercase dash slug for heading anchors (exported so a deep link can be
+ *  resolved against the rendered headings with the same function). */
+export function slugify(text: string): string {
   const slug = text
     .toLowerCase()
     .normalize("NFKD")

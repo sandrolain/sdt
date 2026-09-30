@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { activeSectionKey, setActiveSection } from "../lib/activeSection";
 import { codeBlockText, lineNumbers } from "../lib/codeLines";
 import {
@@ -14,11 +14,22 @@ import {
 } from "../lib/documentModes";
 import { Icon } from "../lib/icon";
 import { renderMath } from "../lib/katexRender";
-import { highlightCode, highlightMarkdown, highlightYaml, renderMarkdown } from "../lib/markdown";
+import {
+  highlightCode,
+  highlightMarkdown,
+  highlightYaml,
+  renderMarkdown,
+  slugify,
+} from "../lib/markdown";
 import { renderMermaid } from "../lib/mermaidRender";
 import { useOpenDocsOptional } from "../lib/openDocsContext";
 import { flushReading, recordReading, restoreScrollOffset } from "../lib/readingState";
-import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
+import {
+  consumeSectionRequest,
+  getSectionRequest,
+  requestSection,
+  useSectionRequest,
+} from "../lib/sectionRequests";
 import { useFindInDoc } from "../lib/findInDocStore";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
 import { useActiveHeading } from "../lib/useActiveHeading";
@@ -68,6 +79,22 @@ function docsTargetFromHref(href: string): string | null {
 }
 
 /** Copy the sibling `<code>` text and flash a success glyph on the button. */
+/**
+ * Heading text for a fragment anchor: by element id first, then by comparing the
+ * slugified heading text. The server slug and the renderer slug agree for plain
+ * headings; the fallback covers a heading with punctuation.
+ */
+function resolveHeadingText(root: HTMLElement | null, anchor: string): string | null {
+  if (!root) return null;
+  const byId = root.querySelector<HTMLElement>(`[id="${CSS.escape(anchor)}"]`);
+  if (byId) return (byId.dataset.heading ?? byId.textContent ?? "").trim() || null;
+  for (const heading of root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")) {
+    const text = (heading.dataset.heading ?? heading.textContent ?? "").trim();
+    if (text && slugify(text) === anchor) return text;
+  }
+  return null;
+}
+
 function copyCodeBlock(button: Element): void {
   const code = button.closest(".md-code-block")?.querySelector("code");
   if (!code || !navigator.clipboard) return;
@@ -99,6 +126,8 @@ function mermaidPlaceholder(source: string): string {
 /** Code / Render / Map / Mermaid surface shared by the docs and wiki detail routes. */
 export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentViewProps) {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const mapDoc = isMap ?? isMapPath(path);
   const mermaidDoc = isMermaidPath(path);
   const modes = useMemo(() => modesFor(mapDoc, mermaidDoc), [mapDoc, mermaidDoc]);
@@ -169,6 +198,18 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   // publish the heading in view so the Sections sidebar can highlight it
   useActiveHeading(renderedRef, path, mode === "render");
 
+  // a deep link (#anchor from a search hit) resolves to a heading and reuses the
+  // Sections path, so a hit lands where it matched rather than at the top. The
+  // fragment belongs to the route, so it only applies to the document it names;
+  // `consumed` records the anchor already turned into a request, which keeps a
+  // later re-render from requesting it again.
+  const routeAnchor =
+    location.pathname === `/docs/${path}`
+      ? decodeURIComponent(location.hash.replace(/^#/, "")) || null
+      : null;
+  const [consumed, setConsumed] = useState<string | null>(null);
+  const pendingAnchor = routeAnchor && routeAnchor !== consumed ? routeAnchor : null;
+
   // reading position: restore where this document was left, record where it is.
   // The scroller is `.doc-rendered`, not the article; `articleEl` is in the deps
   // because it changes with the mount that populates `renderedRef`.
@@ -176,8 +217,10 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   useEffect(() => {
     const root = renderedRef.current;
     if (!root || !readingMode) return;
+    // an explicit deep link wins over the remembered offset
+    if (pendingAnchor || getSectionRequest()?.path === path) return;
     restoreScrollOffset(root, path);
-  }, [articleEl, path, html, readingMode]);
+  }, [articleEl, path, html, readingMode, pendingAnchor]);
 
   useEffect(() => {
     const root = renderedRef.current;
@@ -217,7 +260,11 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     if (mode !== "render") {
       const nextParams = new URLSearchParams(params);
       nextParams.set("view", "render");
-      setParams(nextParams, { replace: true });
+      // one navigation, hash included: a deep link must survive the mode switch
+      navigate(
+        { pathname: location.pathname, search: nextParams.toString(), hash: location.hash },
+        { replace: true },
+      );
       return;
     }
     const root = renderedRef.current;
@@ -229,7 +276,38 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
     setActiveSection(path, sectionRequest.text);
     consumeSectionRequest(sectionRequest);
-  }, [sectionRequest, mode, path, params, setParams]);
+  }, [sectionRequest, mode, path, params, navigate, location.pathname, location.hash]);
+
+  // resolve the deep-link anchor once the rendered headings exist; a deep link
+  // opens in render mode, because that is the only surface with headings
+  useEffect(() => {
+    if (!pendingAnchor) return;
+    if (mode !== "render") {
+      const nextParams = new URLSearchParams(params);
+      nextParams.set("view", "render");
+      navigate(
+        { pathname: location.pathname, search: nextParams.toString(), hash: location.hash },
+        { replace: true },
+      );
+      return;
+    }
+    const text = resolveHeadingText(renderedRef.current, pendingAnchor);
+    // an anchor no heading answers to: keep the reader at the top, and do not ask
+    // again on the next render
+    // oxlint-disable-next-line react-hooks/set-state-in-effect
+    setConsumed(pendingAnchor);
+    if (text) requestSection(path, text);
+  }, [
+    pendingAnchor,
+    consumed,
+    mode,
+    path,
+    html,
+    params,
+    navigate,
+    location.pathname,
+    location.hash,
+  ]);
 
   const onRenderedClick = (event: MouseEvent<HTMLDivElement>) => {
     const anchorButton = (event.target as HTMLElement | null)?.closest?.(".md-anchor");

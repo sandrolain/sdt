@@ -36,6 +36,9 @@ type Index struct {
 	// sections holds the section metadata per document path, keyed by the
 	// stable section id `path#anchor`, for hybrid fusion and `show`-style reads.
 	sections map[string]SectionMeta
+	// byPath holds the same sections grouped per document in document order, so
+	// a lexical hit can be attributed to the section that matched.
+	byPath map[string][]SectionMeta
 }
 
 // SectionMeta is the section descriptor retained for hybrid fusion.
@@ -245,19 +248,65 @@ func buildFromEntries(idx bleve.Index, entries []*mdindex.Entry, indexDocs bool)
 // addSections derives the embeddable sections of a document and stores their
 // metadata keyed by the stable id `path#anchor`.
 func (ix *Index) addSections(e *mdindex.Entry) {
+	if ix.byPath == nil {
+		ix.byPath = map[string][]SectionMeta{}
+	}
 	for _, s := range mdstruct.SplitSections(e.Body) {
 		if s.Level == 0 && strings.TrimSpace(s.Body) == "" {
 			continue // empty preamble: nothing to embed
 		}
 		anchor := s.ID
 		id := e.ID + "#" + anchor
-		ix.sections[id] = SectionMeta{
+		meta := SectionMeta{
 			ID:     id,
 			Path:   e.ID,
 			Anchor: anchor,
 			Text:   sectionRecipe(e, s),
 		}
+		ix.sections[id] = meta
+		ix.byPath[e.ID] = append(ix.byPath[e.ID], meta)
 	}
+}
+
+// sectionAnchor returns the anchor of the first section of a document whose own
+// text (heading + body, without the document title/summary prefix) contains a
+// query term, or "" when no section matches. It is how a whole-document lexical
+// hit is attributed to a section, so a viewer can deep-link to it.
+func (ix *Index) sectionAnchor(d doc, terms []string) string {
+	sections := ix.byPath[d.Path]
+	if len(sections) == 0 {
+		return ""
+	}
+	prefix := sectionPrefix(d.Title, d.Summary)
+	for _, s := range sections {
+		body := s.Text
+		if prefix != "" && strings.HasPrefix(body, prefix) {
+			body = strings.TrimPrefix(body, prefix)
+		}
+		lower := strings.ToLower(body)
+		for _, t := range terms {
+			if t != "" && strings.Contains(lower, t) {
+				return s.Anchor
+			}
+		}
+	}
+	return ""
+}
+
+// sectionPrefix is the document title+summary the section recipe prepends, so a
+// term that only appears there is not attributed to a section.
+func sectionPrefix(title, summary string) string {
+	parts := []string{}
+	if title != "" {
+		parts = append(parts, title)
+	}
+	if summary != "" {
+		parts = append(parts, summary)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(strings.Join(parts, "\n"))
 }
 
 // sectionRecipe composes the embedding text of a section: document title,
@@ -599,7 +648,7 @@ func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
 		}
 		matched++
 		if len(out) < q.Max {
-			out = append(out, resultForDoc(d, hit.Score, text))
+			out = append(out, ix.resultForDoc(d, hit.Score, text))
 		}
 	}
 	total := sr.Total
@@ -612,7 +661,51 @@ func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
 	return Results{Results: out, Total: int64(total)}, nil
 }
 
-// resultForDoc builds a search Result from a registry doc.
+// Browse lists documents without a query — the "browse the corpus" mode of
+// the search palette. Relevance is undefined with no query, so the order is
+// `modified_desc` (path as the tiebreak) and the filter is the same one
+// SearchQuery applies. Total is the true match count, not the page size.
+func (ix *Index) Browse(f *ctxquery.Filter, max int) (Results, error) {
+	if max <= 0 || max > 100 {
+		max = 20
+	}
+	matched := make([]doc, 0, len(ix.registry))
+	for _, d := range ix.registry {
+		if f != nil && !f.Match(d.facets()) {
+			continue
+		}
+		matched = append(matched, d)
+	}
+	sort.Slice(matched, func(i, j int) bool {
+		if matched[i].Modified != matched[j].Modified {
+			return matched[i].Modified > matched[j].Modified
+		}
+		return matched[i].Path < matched[j].Path
+	})
+	out := make([]Result, 0, min(max, len(matched)))
+	for _, d := range matched[:min(max, len(matched))] {
+		out = append(out, resultForDoc(d, 0, ""))
+	}
+	return Results{Results: out, Total: int64(len(matched))}, nil
+}
+
+// ResolvedFilter exposes the filter SearchQuery derives from the legacy
+// positional fields, so a caller can run the same filter over Browse.
+func (q HybridQuery) ResolvedFilter() *ctxquery.Filter {
+	return q.effectiveFilter()
+}
+
+// resultForDoc builds a search Result from a registry doc, attributing a
+// whole-document hit to the section that matched when the sections are known.
+func (ix *Index) resultForDoc(d doc, score float64, text string) Result {
+	res := resultForDoc(d, score, text)
+	if res.Section == "" && text != "" {
+		res.Section = ix.sectionAnchor(d, strings.Fields(strings.ToLower(text)))
+	}
+	return res
+}
+
+// resultForDoc builds a display Result from a registry doc.
 func resultForDoc(d doc, score float64, text string) Result {
 	isMap := contextwiki.IsMapDoc(d.Path)
 	isMermaid := contextwiki.IsMermaidDoc(d.Path)
