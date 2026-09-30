@@ -40,7 +40,9 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
   const { kind, objective, category, from, to } = state.filters;
 
   useEffect(() => {
-    if (!open) dispatch({ type: "cleared" });
+    if (open) return;
+    dispatch({ type: "resetFilters" });
+    dispatch({ type: "cleared" });
   }, [open]);
 
   useEffect(() => {
@@ -96,9 +98,15 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
       />
       <div
         className="search-filters"
+        role="group"
         aria-label="Search filters"
+        tabIndex={0}
         onKeyDown={(e) => {
-          if (e.key.startsWith("Arrow")) e.stopPropagation();
+          // Arrow keys belong to the control that received them (a select
+          // changes value, a text input moves its caret); only the row itself
+          // lets them through, so focus parked here still arrows into the
+          // results instead of dead-ending.
+          if (e.target !== e.currentTarget && e.key.startsWith("Arrow")) e.stopPropagation();
         }}
       >
         <label className="search-filters__field">

@@ -104,6 +104,18 @@ describe("DocumentView", () => {
     expect(screen.getByRole("button", { name: "Copied" })).toBeTruthy();
   });
 
+  it("copies a multi-line block verbatim, one line per source line", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    const source = "const a = 1;\nconst b = 2;\nreturn a + b;";
+    renderView({ path: "context/wiki/alpha.md", markdown: `\`\`\`js\n${source}\n\`\`\`` });
+    await userEvent.click(screen.getByRole("button", { name: "Copy code" }));
+    expect(writeText).toHaveBeenCalledWith(source);
+  });
+
   it("switches to Code mode showing highlighted raw markdown", async () => {
     renderView({ path: "context/wiki/alpha.md" });
     await userEvent.click(screen.getByRole("button", { name: "Code" }));

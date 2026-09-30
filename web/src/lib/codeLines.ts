@@ -48,12 +48,29 @@ export function splitHighlightedLines(html: string): string[] {
   });
 }
 
-/** Wrap highlighted HTML lines in `.md-code__line`, marking the highlighted set. */
+/**
+ * Wrap highlighted HTML lines in `.md-code__line`, marking the highlighted set.
+ * The wrappers are block-level and joined without a newline: inside `<pre>`
+ * (`white-space: pre`) an inter-span newline would render as a blank line
+ * between every source line. Copy re-joins them with `\n` via `codeBlockText`.
+ */
 export function wrapHighlightedLines(html: string, highlighted: Set<number>): string {
   return splitHighlightedLines(html)
     .map(
       (line, index) =>
         `<span class="md-code__line${highlighted.has(index + 1) ? " is-hl" : ""}">${line}</span>`,
     )
-    .join("\n");
+    .join("");
+}
+
+/**
+ * Plain text of a rendered `<code>`, with `.md-code__line` wrappers re-joined by
+ * newlines (they carry none of their own). Elements without the wrappers fall
+ * back to their `textContent`.
+ */
+export function codeBlockText(code: Element | null | undefined): string {
+  if (!code) return "";
+  const lines = code.querySelectorAll(".md-code__line");
+  if (lines.length === 0) return code.textContent ?? "";
+  return Array.from(lines, (line) => line.textContent ?? "").join("\n");
 }

@@ -8,6 +8,7 @@ import {
   initialPaletteState,
   isSearchable,
   paletteReducer,
+  queryTerms,
   resultRoute,
   resultTitle,
   useDebouncedValue,
@@ -56,6 +57,35 @@ describe("paletteReducer", () => {
     expect(state.status).toBe("idle");
     expect(state.results).toHaveLength(0);
     expect(state.query).toBe("tokens");
+  });
+
+  it("keeps the filters while clearing results, so a short query does not drop them", () => {
+    const state = paletteReducer(
+      {
+        ...initialPaletteState,
+        query: "t",
+        filters: { kind: "wiki", objective: "", category: "", from: "", to: "" },
+      },
+      { type: "cleared" },
+    );
+    expect(state.filters.kind).toBe("wiki");
+    expect(state.status).toBe("idle");
+  });
+
+  it("drops every filter on resetFilters but keeps the results", () => {
+    const state = paletteReducer(
+      {
+        ...initialPaletteState,
+        results: [result({})],
+        total: 1,
+        status: "ready",
+        filters: { kind: "wiki", objective: "viewer", category: "bug", from: "a", to: "b" },
+      },
+      { type: "resetFilters" },
+    );
+    expect(state.filters).toEqual(EMPTY_FILTERS);
+    expect(state.results).toHaveLength(1);
+    expect(state.status).toBe("ready");
   });
 
   it("records failures and drops stale results", () => {
@@ -125,10 +155,47 @@ describe("resultTitle", () => {
   });
 });
 
+describe("queryTerms", () => {
+  it("splits on whitespace like the server Snippet does", () => {
+    expect(queryTerms("  Alpha  Tokens  ")).toEqual(["tokens", "alpha"]);
+    expect(queryTerms("")).toEqual([]);
+    expect(queryTerms("   ")).toEqual([]);
+  });
+
+  it("sorts the longest term first so an overlapping term matches whole", () => {
+    expect(queryTerms("tok token")).toEqual(["token", "tok"]);
+  });
+});
+
 describe("highlightSegments", () => {
   it("flags case-insensitive matches", () => {
     const segs = highlightSegments("Tokens and tokens", "tokens");
     expect(segs.filter((s) => s.match).map((s) => s.text)).toEqual(["Tokens", "tokens"]);
+  });
+
+  it("flags each term of a multi-word query, as the server snippet is built", () => {
+    const segs = highlightSegments("alpha handles tokens today", "tokens alpha");
+    expect(segs.filter((s) => s.match).map((s) => s.text)).toEqual(["alpha", "tokens"]);
+  });
+
+  it("escapes regex metacharacters in a term", () => {
+    expect(highlightSegments("cost is a.b or a.b.c", "a.b")).toEqual([
+      { text: "cost is ", match: false },
+      { text: "a.b", match: true },
+      { text: " or ", match: false },
+      { text: "a.b", match: true },
+      { text: ".c", match: false },
+    ]);
+  });
+
+  it("keeps the surrounding text and order intact", () => {
+    expect(highlightSegments("a alpha b beta c", "alpha beta")).toEqual([
+      { text: "a ", match: false },
+      { text: "alpha", match: true },
+      { text: " b ", match: false },
+      { text: "beta", match: true },
+      { text: " c", match: false },
+    ]);
   });
 
   it("returns a single non-match segment without a query", () => {

@@ -1,6 +1,7 @@
-// @vitest-environment node
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import {
+  codeBlockText,
   lineNumbers,
   parseCodeInfo,
   splitHighlightedLines,
@@ -39,5 +40,39 @@ describe("wrapHighlightedLines", () => {
     const html = wrapHighlightedLines("a\nb", new Set([2]));
     expect(html).toContain('<span class="md-code__line">a</span>');
     expect(html).toContain('<span class="md-code__line is-hl">b</span>');
+  });
+
+  it("joins the line wrappers without a newline, so <pre> renders one line each", () => {
+    const html = wrapHighlightedLines("a\nb\nc", new Set());
+    expect(html).toBe(
+      '<span class="md-code__line">a</span><span class="md-code__line">b</span><span class="md-code__line">c</span>',
+    );
+    expect(html).not.toContain("</span>\n");
+  });
+});
+
+describe("codeBlockText", () => {
+  function codeEl(html: string): HTMLElement {
+    const code = document.createElement("code");
+    code.innerHTML = html;
+    return code;
+  }
+
+  it("re-joins the per-line wrappers with newlines", () => {
+    expect(codeBlockText(codeEl(wrapHighlightedLines("a\nb", new Set([1]))))).toBe("a\nb");
+  });
+
+  it("keeps a single-line block verbatim", () => {
+    expect(codeBlockText(codeEl(wrapHighlightedLines("const x = 1;", new Set())))).toBe(
+      "const x = 1;",
+    );
+  });
+
+  it("falls back to textContent when there are no line wrappers", () => {
+    expect(codeBlockText(codeEl("plain <b>code</b>"))).toBe("plain code");
+  });
+
+  it("returns an empty string for a missing element", () => {
+    expect(codeBlockText(null)).toBe("");
   });
 });

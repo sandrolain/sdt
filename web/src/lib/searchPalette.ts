@@ -53,6 +53,11 @@ export const initialPaletteState: PaletteState = {
   error: null,
 };
 
+/**
+ * A cleared palette drops its results and status but keeps the query (the input
+ * owns it) and the filters the user is still typing against; closing the
+ * palette dispatches `resetFilters` so a reopen starts unfiltered.
+ */
 export type PaletteAction =
   | { type: "query"; value: string }
   | { type: "kind"; value: string }
@@ -96,6 +101,9 @@ export function paletteReducer(state: PaletteState, action: PaletteAction): Pale
     case "failed":
       return { ...state, status: "error", results: [], total: 0, error: action.error };
     case "cleared":
+      // results only: the query stays (the input owns it) and so do the filters,
+      // which the user may still be typing against. `resetFilters` drops them on
+      // close, so a reopened palette never filters silently.
       return { ...state, status: "idle", results: [], total: 0, error: null };
   }
 }
@@ -115,24 +123,45 @@ export interface HighlightSegment {
   match: boolean;
 }
 
-/** Split text into segments, flagging case-insensitive occurrences of query. */
+/** Escape a literal term for use inside a RegExp. */
+function escapeRegExp(term: string): string {
+  return term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Query terms exactly as the server tokenises them: `internal/search.Snippet`
+ * splits on whitespace after lowercasing, and the snippet is a window around the
+ * first *individual* term. Longest first, so a term that contains another is
+ * still matched whole.
+ */
+export function queryTerms(query: string): string[] {
+  return query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Split text into segments, flagging case-insensitive occurrences of any query
+ * term. Matching per term (not per phrase) is what the server snippet is built
+ * from, so a multi-word hit shows why it matched.
+ */
 export function highlightSegments(text: string, query: string): HighlightSegment[] {
-  const term = query.trim();
-  if (!term) return [{ text, match: false }];
+  const pattern = queryTerms(query).map(escapeRegExp).join("|");
+  if (!pattern) return [{ text, match: false }];
+  const matches = [...text.matchAll(new RegExp(pattern, "gi"))];
+  if (matches.length === 0) return [{ text, match: false }];
   const segments: HighlightSegment[] = [];
-  const lower = text.toLowerCase();
-  const needle = term.toLowerCase();
-  let i = 0;
-  while (i < text.length) {
-    const at = lower.indexOf(needle, i);
-    if (at === -1) {
-      segments.push({ text: text.slice(i), match: false });
-      break;
-    }
-    if (at > i) segments.push({ text: text.slice(i, at), match: false });
-    segments.push({ text: text.slice(at, at + needle.length), match: true });
-    i = at + needle.length;
+  let cursor = 0;
+  for (const match of matches) {
+    const at = match.index ?? 0;
+    if (at > cursor) segments.push({ text: text.slice(cursor, at), match: false });
+    segments.push({ text: match[0], match: true });
+    cursor = at + match[0].length;
   }
+  if (cursor < text.length) segments.push({ text: text.slice(cursor), match: false });
   return segments;
 }
 

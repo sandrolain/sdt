@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { setActiveSection } from "../lib/activeSection";
-import { lineNumbers } from "../lib/codeLines";
+import { codeBlockText, lineNumbers } from "../lib/codeLines";
 import {
   defaultMode,
   isDocumentMode,
@@ -69,7 +69,7 @@ function docsTargetFromHref(href: string): string | null {
 function copyCodeBlock(button: Element): void {
   const code = button.closest(".md-code-block")?.querySelector("code");
   if (!code || !navigator.clipboard) return;
-  void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
+  void navigator.clipboard.writeText(codeBlockText(code)).then(() => {
     const glyph = button.querySelector(".ms-icon");
     const previous = glyph?.textContent ?? "content_copy";
     if (glyph) glyph.textContent = "check";
