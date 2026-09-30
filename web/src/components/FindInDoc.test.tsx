@@ -4,7 +4,13 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { FindInDoc } from "./FindInDoc";
-import { closeFind, openFind, setFindQuery, useFindInDoc } from "../lib/findInDocStore";
+import {
+  closeFind,
+  openFind,
+  resetFindOptions,
+  setFindQuery,
+  useFindInDoc,
+} from "../lib/findInDocStore";
 
 function Harness() {
   const [artEl, setArtEl] = useState<HTMLDivElement | null>(null);
@@ -22,11 +28,13 @@ function Harness() {
 beforeEach(() => {
   closeFind();
   setFindQuery("");
+  resetFindOptions();
 });
 
 afterEach(() => {
   closeFind();
   setFindQuery("");
+  resetFindOptions();
   cleanup();
 });
 
@@ -72,5 +80,53 @@ describe("FindInDoc", () => {
     await waitFor(() => {
       expect(screen.queryByRole("textbox", { name: "Find in document" })).toBeNull();
     });
+  });
+
+  it("exposes the match count as a live region", async () => {
+    render(<Harness />);
+    act(() => openFind());
+    const count = await screen.findByTestId("find-count");
+    expect(count.getAttribute("role")).toBe("status");
+  });
+
+  it("offers whole-word, case and regex toggles that change the match count", async () => {
+    render(<Harness />);
+    act(() => openFind());
+    const input = await screen.findByRole("textbox", { name: "Find in document" });
+    const target = document.querySelector(".doc-rendered")!;
+
+    await userEvent.type(input, "tokens");
+    await waitFor(() => expect(target.querySelectorAll("mark.find-hit")).toHaveLength(2));
+
+    // whole word: "tokens and tokens" keeps both, "token" would too; use the
+    // tokenizer case instead by narrowing with case sensitivity
+    await userEvent.click(screen.getByRole("button", { name: "Match case" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Match case" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      ),
+    );
+
+    await userEvent.clear(input);
+    await userEvent.type(input, "TOKENS");
+    await waitFor(() => expect(screen.getByTestId("find-count").textContent).toBe("0/0"));
+    await userEvent.click(screen.getByRole("button", { name: "Match case" }));
+    await waitFor(() => expect(target.querySelectorAll("mark.find-hit")).toHaveLength(2));
+
+    await userEvent.click(screen.getByRole("button", { name: "Regular expression" }));
+    await userEvent.clear(input);
+    await userEvent.type(input, "t\\w+ens");
+    await waitFor(() => expect(target.querySelectorAll("mark.find-hit")).toHaveLength(2));
+  });
+
+  it("narrows to whole words", async () => {
+    render(<Harness />);
+    act(() => openFind());
+    const input = await screen.findByRole("textbox", { name: "Find in document" });
+    const target = document.querySelector(".doc-rendered")!;
+    await userEvent.type(input, "oken");
+    await waitFor(() => expect(target.querySelectorAll("mark.find-hit")).toHaveLength(2));
+    await userEvent.click(screen.getByRole("button", { name: "Match whole word" }));
+    await waitFor(() => expect(target.querySelectorAll("mark.find-hit")).toHaveLength(0));
   });
 });

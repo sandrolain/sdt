@@ -14,8 +14,48 @@ export interface FindRange {
   index: number;
 }
 
+/** Match modes of the find bar (adoption R4). */
+export interface FindOptions {
+  /** match whole words only */
+  wholeWord: boolean;
+  /** respect case instead of the default case-insensitive match */
+  caseSensitive: boolean;
+  /** treat the query as a regular expression source */
+  regex: boolean;
+}
+
+export const DEFAULT_FIND_OPTIONS: FindOptions = {
+  wholeWord: false,
+  caseSensitive: false,
+  regex: false,
+};
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SKIP_CLASSES = ["md-math", "md-mermaid"];
+
+function escapeRegExp(source: string): string {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Matcher for the current options: a plain substring by default, a word-bounded
+ * one for whole-word, and the query itself when it is a regular expression. An
+ * invalid expression falls back to the literal query rather than throwing.
+ */
+export function findMatcher(
+  query: string,
+  options: FindOptions = DEFAULT_FIND_OPTIONS,
+): RegExp | null {
+  const q = query.trim();
+  if (!q) return null;
+  let source = options.regex ? q : escapeRegExp(q);
+  if (options.wholeWord) source = `\\b(?:${source})\\b`;
+  try {
+    return new RegExp(source, options.caseSensitive ? "g" : "gi");
+  } catch {
+    return options.regex ? new RegExp(escapeRegExp(q), options.caseSensitive ? "g" : "gi") : null;
+  }
+}
 
 function blockReject(node: Node): boolean {
   let el = node.parentElement;
@@ -32,10 +72,14 @@ function hasSkipClass(el: Element): boolean {
   return SKIP_CLASSES.some((c) => el.classList.contains(c));
 }
 
-/** Lists every case-insensitive substring match of the query in root. */
-export function collectFindRanges(root: Node, query: string): FindRange[] {
-  const q = query.trim().toLowerCase();
-  if (!q || !root) return [];
+/** Lists every match of the query in root, honouring the match options. */
+export function collectFindRanges(
+  root: Node,
+  query: string,
+  options: FindOptions = DEFAULT_FIND_OPTIONS,
+): FindRange[] {
+  const matcher = findMatcher(query, options);
+  if (!matcher || !root) return [];
   const ranges: FindRange[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
@@ -45,13 +89,21 @@ export function collectFindRanges(root: Node, query: string): FindRange[] {
   let node: Node | null;
   let index = 0;
   while ((node = walker.nextNode()) !== null) {
-    const text = (node.nodeValue ?? "").toLowerCase();
-    let cursor = 0;
-    let at = text.indexOf(q, cursor);
-    while (at >= 0) {
-      ranges.push({ node: node as Text, start: at, end: at + q.length, index: index++ });
-      cursor = at + q.length;
-      at = text.indexOf(q, cursor);
+    const text = node.nodeValue ?? "";
+    matcher.lastIndex = 0;
+    let match = matcher.exec(text);
+    while (match) {
+      // a zero-length match (e.g. `a*`) would loop forever on the same index
+      if (match[0].length === 0) matcher.lastIndex++;
+      else {
+        ranges.push({
+          node: node as Text,
+          start: match.index,
+          end: match.index + match[0].length,
+          index: index++,
+        });
+      }
+      match = matcher.exec(text);
     }
   }
   return ranges;

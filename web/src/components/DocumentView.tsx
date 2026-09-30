@@ -24,6 +24,7 @@ import { fallbackTitle, frontmatterTitle } from "../lib/titles";
 import { useActiveHeading } from "../lib/useActiveHeading";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
+import { DocProgress } from "./DocProgress";
 import { FindInDoc } from "./FindInDoc";
 import { HoverPreview } from "./HoverPreview";
 
@@ -159,6 +160,9 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
 
   const docsApi = useOpenDocsOptional();
   const renderedRef = useRef<HTMLDivElement | null>(null);
+  // the rendered node as state too: DocProgress needs it during render, and a
+  // ref alone would leave the first pass with null
+  const [renderedEl, setRenderedEl] = useState<HTMLDivElement | null>(null);
   const [articleEl, setArticleEl] = useState<HTMLElement | null>(null);
   const { open: findOpen } = useFindInDoc();
 
@@ -297,9 +301,13 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
       )}
       {(mode === "render" || mode === "mermaid") && (
         <>
+          <DocProgress container={renderedEl} path={path} />
           <div
             className={mode === "mermaid" ? "doc-rendered doc-rendered--mermaid" : "doc-rendered"}
-            ref={renderedRef}
+            ref={(el) => {
+              renderedRef.current = el;
+              setRenderedEl(el);
+            }}
             onClick={onRenderedClick}
             dangerouslySetInnerHTML={{ __html: html }}
           />

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { applyFindHighlights, clearFindHighlights, collectFindRanges } from "./findInDoc";
+import {
+  applyFindHighlights,
+  clearFindHighlights,
+  collectFindRanges,
+  DEFAULT_FIND_OPTIONS,
+  findMatcher,
+} from "./findInDoc";
 
 function mount(html: string): HTMLElement {
   const div = document.createElement("div");
@@ -77,5 +83,57 @@ describe("applyFindHighlights", () => {
     expect(root.querySelectorAll("mark.find-hit")).toHaveLength(0);
     expect(root.textContent).toBe("tokens tokens end");
     expect(root.innerHTML).toBe("<p>tokens <em>tokens</em> end</p>");
+  });
+});
+
+describe("match options", () => {
+  it("matches whole words only when asked", () => {
+    const root = mount("<p>token tokens tokenizer</p>");
+    expect(
+      collectFindRanges(root, "token", { ...DEFAULT_FIND_OPTIONS, wholeWord: true }),
+    ).toHaveLength(1);
+  });
+
+  it("respects case when asked, and ignores it otherwise", () => {
+    const root = mount("<p>Foo foo</p>");
+    const sensitive = { ...DEFAULT_FIND_OPTIONS, caseSensitive: true };
+    expect(collectFindRanges(root, "foo", sensitive)).toHaveLength(1);
+    expect(collectFindRanges(root, "Foo", sensitive)).toHaveLength(1);
+    expect(collectFindRanges(root, "foo", DEFAULT_FIND_OPTIONS)).toHaveLength(2);
+  });
+
+  it("treats the query as a regular expression when asked", () => {
+    const root = mount("<p>a1 b22 c333</p>");
+    const regex = { ...DEFAULT_FIND_OPTIONS, regex: true };
+    expect(collectFindRanges(root, "[a-c]\\d+", regex)).toHaveLength(3);
+    // without the option the same query is literal
+    expect(collectFindRanges(root, "[a-c]\\d+", DEFAULT_FIND_OPTIONS)).toHaveLength(0);
+  });
+
+  it("combines a regular expression with case sensitivity", () => {
+    const root = mount("<p>Alpha alpha ALPHA</p>");
+    const regexCase = { wholeWord: false, caseSensitive: true, regex: true };
+    // only the lowercase occurrence, and it terminates instead of looping
+    expect(collectFindRanges(root, "alpha", regexCase)).toHaveLength(1);
+    expect(collectFindRanges(root, "ALPHA", regexCase)).toHaveLength(1);
+  });
+
+  it("does not loop on a zero-length regular expression match", () => {
+    const root = mount("<p>abc</p>");
+    const ranges = collectFindRanges(root, "a*", { ...DEFAULT_FIND_OPTIONS, regex: true });
+    // only the real match counts; the empty ones are skipped, not looped on
+    expect(ranges).toHaveLength(1);
+    expect(ranges[0].end - ranges[0].start).toBe(1);
+  });
+
+  it("builds no matcher for an empty query", () => {
+    expect(findMatcher("   ")).toBeNull();
+  });
+
+  it("falls back to the literal query when the expression is invalid", () => {
+    const root = mount("<p>a(b</p>");
+    const ranges = collectFindRanges(root, "a(b", { ...DEFAULT_FIND_OPTIONS, regex: true });
+    expect(ranges).toHaveLength(1);
+    expect(ranges[0].end - ranges[0].start).toBe(3);
   });
 });

@@ -159,7 +159,26 @@ export function restoreScrollOffset(root: HTMLElement, path: string): void {
   const saved = readingPosition(path);
   if (!saved) return;
   const target = clampScrollTop(saved.scrollTop, root.scrollHeight, root.clientHeight);
-  if (target > 0) root.scrollTop = target;
+  if (target > 0) {
+    root.scrollTop = target;
+    return;
+  }
+  scrollToHeading(root, saved.headingId);
+}
+
+/**
+ * Scroll the heading recorded with the position. Used when the offset is gone
+ * (a document that never scrolled) or stale (the corpus shrank, so the stored
+ * offset no longer describes where the reader was).
+ */
+export function scrollToHeading(root: HTMLElement, headingId: string | null): boolean {
+  if (!headingId) return false;
+  const target = Array.from(root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")).find(
+    (h) => (h.dataset.heading ?? h.textContent ?? "").trim() === headingId,
+  );
+  if (!target) return false;
+  target.scrollIntoView({ block: "start" });
+  return true;
 }
 
 function subscribe(listener: () => void): () => void {

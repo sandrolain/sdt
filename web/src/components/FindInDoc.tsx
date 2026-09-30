@@ -5,7 +5,7 @@ import {
   collectFindRanges,
   scrollFindCurrent,
 } from "../lib/findInDoc";
-import { closeFind, setFindQuery, useFindInDoc } from "../lib/findInDocStore";
+import { closeFind, setFindQuery, toggleFindOption, useFindInDoc } from "../lib/findInDocStore";
 import type { DocumentMode } from "../lib/documentModes";
 import { Icon } from "../lib/icon";
 import { TooltipButton } from "./ui/Tooltip";
@@ -18,7 +18,7 @@ interface FindInDocProps {
 
 /** Find bar over the open document body: highlights and steps through matches. */
 export function FindInDoc({ root, mode }: FindInDocProps) {
-  const { open, query } = useFindInDoc();
+  const { open, query, options } = useFindInDoc();
   const [current, setCurrent] = useState(0);
   const [count, setCount] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -41,7 +41,7 @@ export function FindInDoc({ root, mode }: FindInDocProps) {
       return;
     }
     clearFindHighlights(target);
-    const found = collectFindRanges(target, query);
+    const found = collectFindRanges(target, query, options);
     // Mirror the external DOM match count into state for the counter.
     // oxlint-disable-next-line react-hooks/set-state-in-effect
     setCount(found.length);
@@ -51,7 +51,7 @@ export function FindInDoc({ root, mode }: FindInDocProps) {
       scrollFindCurrent(target);
     }
     return () => clearFindHighlights(target);
-  }, [target, open, query, current]);
+  }, [target, open, query, current, options]);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -82,9 +82,27 @@ export function FindInDoc({ root, mode }: FindInDocProps) {
           }
         }}
       />
-      <span className="find-doc__count" data-testid="find-count">
+      <span className="find-doc__count" role="status" data-testid="find-count">
         {count === 0 ? "0/0" : `${current + 1}/${count}`}
       </span>
+      <FindOptionToggle
+        label="Match whole word"
+        tooltip="Match whole word"
+        pressed={options.wholeWord}
+        onPress={() => toggleFindOption("wholeWord")}
+      />
+      <FindOptionToggle
+        label="Match case"
+        tooltip="Match case"
+        pressed={options.caseSensitive}
+        onPress={() => toggleFindOption("caseSensitive")}
+      />
+      <FindOptionToggle
+        label="Regular expression"
+        tooltip="Regular expression"
+        pressed={options.regex}
+        onPress={() => toggleFindOption("regex")}
+      />
       <TooltipButton
         className="find-doc__button"
         label="Previous match"
@@ -112,6 +130,39 @@ export function FindInDoc({ root, mode }: FindInDocProps) {
     </div>
   );
 }
+
+/** One find-bar match-mode toggle, pressed state exposed to assistive tech. */
+function FindOptionToggle({
+  label,
+  tooltip,
+  pressed,
+  onPress,
+}: {
+  label: string;
+  tooltip: string;
+  pressed: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TooltipButton
+      className="find-doc__button"
+      label={label}
+      tooltip={tooltip}
+      aria-pressed={pressed}
+      data-selected={pressed || undefined}
+      onPress={onPress}
+    >
+      <Icon name={TOGGLE_ICONS[label]} />
+    </TooltipButton>
+  );
+}
+
+/** Material Symbols ligatures for the three match-mode toggles. */
+const TOGGLE_ICONS: Record<string, string> = {
+  "Match whole word": "match_word",
+  "Match case": "match_case",
+  "Regular expression": "regular_expression",
+};
 
 function clamp(value: number, max: number): number {
   if (max <= 0) return 0;

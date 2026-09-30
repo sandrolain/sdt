@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
   clampScrollTop,
+  restoreScrollOffset,
+  scrollToHeading,
   clearReadingState,
   flushReading,
   loadReadingState,
@@ -95,5 +97,54 @@ describe("clampScrollTop", () => {
   it("clamps a negative or non-scrollable document to the top", () => {
     expect(clampScrollTop(-20, 1000, 400)).toBe(0);
     expect(clampScrollTop(500, 300, 400)).toBe(0);
+  });
+});
+
+describe("restore", () => {
+  function doc(scrollHeight: number, clientHeight: number): HTMLElement {
+    const el = document.createElement("div");
+    el.innerHTML = '<h2 data-heading="Findings">Findings</h2><h3 data-heading="Detail">Detail</h3>';
+    Object.defineProperty(el, "scrollHeight", { value: scrollHeight, configurable: true });
+    Object.defineProperty(el, "clientHeight", { value: clientHeight, configurable: true });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("restores the offset when the document can still scroll there", () => {
+    recordReading("a.md", 900, "Findings", 0);
+    const el = doc(3000, 600);
+    restoreScrollOffset(el, "a.md");
+    expect(el.scrollTop).toBe(900);
+  });
+
+  it("falls back to the recorded heading when the offset is gone", () => {
+    recordReading("a.md", 0, "Detail", 0);
+    const el = doc(3000, 600);
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    restoreScrollOffset(el, "a.md");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("falls back to the heading when the document shrank past the offset", () => {
+    recordReading("a.md", 5000, "Findings", 0);
+    const el = doc(500, 600); // nothing to scroll: the offset is stale
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    restoreScrollOffset(el, "a.md");
+    expect(el.scrollTop).toBe(0);
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("reports a heading that no longer exists", () => {
+    recordReading("a.md", 0, "Removed section", 0);
+    const el = doc(3000, 600);
+    expect(scrollToHeading(el, "Removed section")).toBe(false);
+    expect(scrollToHeading(el, "Findings")).toBe(true);
+    expect(scrollToHeading(el, null)).toBe(false);
   });
 });
