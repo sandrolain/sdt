@@ -80,3 +80,13 @@
   --info: var(--ctp-blue);
   --draft: var(--ctp-peach);
 }
+
+/* Reading preferences (decision 0018 wave, adoption Q2). The defaults live
+   here so the first paint is already readable; web/src/lib/readingPrefs.ts
+   overrides them on <html> from `sdt-reading-prefs`, and `--reading-size` is
+   derived from the scale. */
+:root {
+  --reading-scale: 1;
+  --reading-size: calc(0.9375rem * var(--reading-scale));
+  --reading-measure: 72ch;
+}

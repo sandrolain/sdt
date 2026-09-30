@@ -10,6 +10,7 @@ import { WikiBoardView } from "./components/WikiBoardView";
 import { WikiPageDetail } from "./components/WikiPageDetail";
 import { OpenDocsProvider } from "./components/OpenDocsProvider";
 import { applyLiveChange, connectLiveUpdates } from "./lib/liveUpdates";
+import { applyReadingPrefs, currentReadingPrefs } from "./lib/readingPrefs";
 
 export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -26,6 +27,12 @@ export function App() {
   }, []);
 
   useEffect(() => connectLiveUpdates(() => applyLiveChange()), []);
+
+  // publish the stored reading preferences on the root before the first
+  // document paints, so a reload keeps its text size and measure
+  useEffect(() => {
+    applyReadingPrefs(currentReadingPrefs());
+  }, []);
 
   return (
     <ThemeProvider>

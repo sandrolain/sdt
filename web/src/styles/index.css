@@ -137,6 +137,76 @@
     background: var(--bg-hover);
   }
 
+  /* reading settings (adoption Q2) */
+  .top-bar__icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 8px;
+    background: var(--bg-rise);
+    color: var(--fg-dim);
+  }
+  .top-bar__icon-button:hover {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+  .top-bar__icon-button[data-expanded] {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+  .reading-settings {
+    min-width: 15rem;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-mantle);
+    color: var(--fg);
+  }
+  .reading-settings__dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .reading-settings__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .reading-settings__label {
+    font-size: 0.8125rem;
+    color: var(--fg-dim);
+  }
+  .reading-settings__sizes {
+    display: inline-flex;
+    gap: 0.2rem;
+  }
+  .reading-settings__size {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-rise);
+    color: var(--fg-dim);
+  }
+  .reading-settings__size:hover {
+    color: var(--fg);
+  }
+  .reading-settings__size[data-selected] {
+    background: color-mix(in srgb, var(--accent) 22%, var(--bg-rise));
+    border-color: var(--accent);
+    color: var(--fg);
+  }
+  .reading-settings__measure {
+    font-size: 0.8125rem;
+  }
+
   .search-trigger {
     display: inline-flex;
     align-items: center;
@@ -1540,13 +1610,19 @@
 
   .doc-rendered {
     line-height: 1.75;
-    font-size: 0.9375rem;
+    font-size: var(--reading-size);
     color: var(--fg);
     flex: 1 1 auto;
     min-height: 0;
     min-width: 0;
     max-width: 100%;
     overflow: auto;
+  }
+  /* the reading measure (adoption Q2): a comfortable line length, centred, and
+     turned off by the settings popover through `--reading-measure` */
+  .doc-rendered > * {
+    max-width: var(--reading-measure);
+    margin-inline: auto;
   }
   .doc-rendered h1,
   .doc-rendered h2,

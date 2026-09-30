@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { Icon } from "../lib/icon";
 import { THEME_LABEL } from "../lib/theme";
 import { useTheme } from "../lib/useTheme";
+import { ReadingSettings } from "./ReadingSettings";
 
 interface TopBarProps {
   onOpenSearch: () => void;
@@ -45,6 +46,7 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           <span>Search</span>
           <kbd className="search-trigger__kbd">{IS_MAC ? "⌘K" : "Ctrl K"}</kbd>
         </button>
+        <ReadingSettings />
         <button
           type="button"
           className="theme-toggle"
