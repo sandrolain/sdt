@@ -837,6 +837,21 @@
   .tree-folder__header::-webkit-details-marker {
     display: none;
   }
+  /* recently read documents: a quiet route back, never sticky (unlike the
+     kind headers) and toned down so it does not compete with the corpus */
+  .tree-folder--recent {
+    background: color-mix(in srgb, var(--fg) 4%, var(--bg-mantle));
+    border-color: color-mix(in srgb, var(--fg) 15%, var(--border));
+  }
+  .tree-folder--recent > .tree-folder__header .tree-folder__icon {
+    color: var(--fg-faint);
+  }
+  .tree-folder--recent[open] > .tree-folder__header {
+    border-bottom-color: color-mix(in srgb, var(--fg) 15%, var(--border));
+  }
+  .tree-folder--recent .tree-entry {
+    padding-block: 0.2rem;
+  }
   .tree-folder__icon {
     font-size: 1.15rem;
   }

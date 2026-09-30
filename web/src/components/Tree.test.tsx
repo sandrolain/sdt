@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Tree } from "./Tree";
 import { resetTreeSort, setTreeSortKey } from "../lib/treeSortStore";
 import { resetTreeFilter, setGroupMode, setHiddenStates } from "../lib/treeFilterStore";
+import { clearReadingState, recordReading } from "../lib/readingState";
 
 const TREE = {
   entries: [
@@ -32,6 +33,7 @@ afterEach(() => {
   cleanup();
   resetTreeSort();
   resetTreeFilter();
+  clearReadingState();
   vi.restoreAllMocks();
 });
 
@@ -1208,5 +1210,62 @@ describe("Tree", () => {
     );
     expect(notesFolder()?.textContent).toContain("Dead end");
     expect(notesFolder()?.textContent).toContain("Plain note");
+  });
+  describe("recent documents", () => {
+    it("stays hidden until something has been read", async () => {
+      globalThis.fetch = vi.fn(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+      ) as unknown as typeof fetch;
+      renderTree();
+      await screen.findByText("Alpha");
+      expect(document.querySelector(".tree-folder--recent")).toBeNull();
+    });
+
+    it("lists what was read, newest first, and links to the document", async () => {
+      globalThis.fetch = vi.fn(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+      ) as unknown as typeof fetch;
+      recordReading("context/wiki/zeta.md", 10, null, 0);
+      recordReading("context/analysis/a.md", 20, null, 0);
+      renderTree();
+      await screen.findByText("Alpha");
+
+      const recent = document.querySelector(".tree-folder--recent");
+      expect(recent).toBeTruthy();
+      const links = Array.from(recent!.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+      expect(links).toEqual(["/docs/context/analysis/a.md", "/docs/context/wiki/zeta.md"]);
+      expect(recent!.querySelector(".tree-folder__count")?.textContent).toBe("2");
+    });
+
+    it("drops a document that left the corpus", async () => {
+      globalThis.fetch = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ entries: [TREE.entries[0]] }),
+        }),
+      ) as unknown as typeof fetch;
+      recordReading("context/wiki/zeta.md", 10, null, 0);
+      recordReading("context/analysis/a.md", 20, null, 0);
+      renderTree();
+      // "Zeta" appears twice: in the tree and in the recent list
+      await screen.findAllByText("Zeta");
+      const recent = document.querySelector(".tree-folder--recent");
+      expect(recent).toBeTruthy();
+      expect(recent!.querySelectorAll("a")).toHaveLength(1);
+      expect(recent!.querySelector("a")?.getAttribute("href")).toBe("/docs/context/wiki/zeta.md");
+    });
+
+    it("collapses with the shared open-state model", async () => {
+      globalThis.fetch = vi.fn(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+      ) as unknown as typeof fetch;
+      recordReading("context/wiki/zeta.md", 10, null, 0);
+      renderTree();
+      await screen.findAllByText("Zeta");
+      const recent = document.querySelector(".tree-folder--recent") as HTMLDetailsElement;
+      expect(recent.open).toBe(false);
+      await userEvent.click(recent.querySelector("summary") as HTMLElement);
+      await waitFor(() => expect(recent.open).toBe(true));
+    });
   });
 });

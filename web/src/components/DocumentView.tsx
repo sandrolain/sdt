@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { setActiveSection } from "../lib/activeSection";
+import { activeSectionKey, setActiveSection } from "../lib/activeSection";
 import { codeBlockText, lineNumbers } from "../lib/codeLines";
 import {
   defaultMode,
@@ -17,6 +17,7 @@ import { renderMath } from "../lib/katexRender";
 import { highlightCode, highlightMarkdown, highlightYaml, renderMarkdown } from "../lib/markdown";
 import { renderMermaid } from "../lib/mermaidRender";
 import { useOpenDocsOptional } from "../lib/openDocsContext";
+import { flushReading, recordReading, restoreScrollOffset } from "../lib/readingState";
 import { consumeSectionRequest, useSectionRequest } from "../lib/sectionRequests";
 import { useFindInDoc } from "../lib/findInDocStore";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
@@ -163,6 +164,35 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
 
   // publish the heading in view so the Sections sidebar can highlight it
   useActiveHeading(renderedRef, path, mode === "render");
+
+  // reading position: restore where this document was left, record where it is.
+  // The scroller is `.doc-rendered`, not the article; `articleEl` is in the deps
+  // because it changes with the mount that populates `renderedRef`.
+  const readingMode = mode === "render" || mode === "mermaid";
+  useEffect(() => {
+    const root = renderedRef.current;
+    if (!root || !readingMode) return;
+    restoreScrollOffset(root, path);
+  }, [articleEl, path, html, readingMode]);
+
+  useEffect(() => {
+    const root = renderedRef.current;
+    if (!root || !readingMode) return;
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        recordReading(path, root.scrollTop, activeSectionKey(path));
+      });
+    };
+    root.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      root.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+      flushReading();
+    };
+  }, [articleEl, path, readingMode]);
 
   // render $…$/$$…$$ math placeholders (lazy KaTeX chunk) after each render
   useEffect(() => {

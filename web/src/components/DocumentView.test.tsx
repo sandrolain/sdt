@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { DocumentView } from "./DocumentView";
 import { getSectionRequest, requestSection, resetSectionRequest } from "../lib/sectionRequests";
-import { resetActiveSection } from "../lib/activeSection";
+import { activeSectionKey, resetActiveSection } from "../lib/activeSection";
+import { clearReadingState, flushReading, recordReading } from "../lib/readingState";
 
 vi.mock("./MindmapView", () => ({
   MindmapView: ({ title }: { title?: string }) => (
@@ -43,6 +44,7 @@ function renderView(
 beforeEach(() => {
   resetActiveSection();
   resetSectionRequest();
+  clearReadingState();
 });
 
 afterEach(() => {
@@ -196,5 +198,60 @@ describe("DocumentView", () => {
   it("renders a mindmap for plain prose in Map mode", async () => {
     renderView({ path: "context/wiki/prose.md", isMap: true, markdown: "just prose" });
     expect(await screen.findByRole("img", { name: "Mindmap: prose" })).toBeTruthy();
+  });
+
+  describe("reading position", () => {
+    const LONG = "# Title\n\n## One\n\ntext\n\n## Two\n\ntext\n\n## Three\n\ntext\n";
+
+    /** jsdom reports zero for every layout box, so fake the scroll metrics. */
+    function stubScrollMetrics(scrollHeight: number, clientHeight: number) {
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(scrollHeight);
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(clientHeight);
+    }
+
+    function renderLong(path: string) {
+      const { container } = render(
+        <MemoryRouter>
+          <DocumentView path={path} markdown={LONG} />
+        </MemoryRouter>,
+      );
+      // `.doc-rendered` is the scroll container; the article is only its parent
+      return container.querySelector(".doc-rendered") as HTMLElement;
+    }
+
+    it("restores the stored offset for the document", () => {
+      stubScrollMetrics(4000, 800);
+      recordReading("context/wiki/alpha.md", 640, "Two", 0);
+      expect(renderLong("context/wiki/alpha.md").scrollTop).toBe(640);
+    });
+
+    it("clamps a stored offset the shorter document cannot reach", () => {
+      stubScrollMetrics(1200, 800);
+      recordReading("context/wiki/alpha.md", 5000, "Two", 0);
+      expect(renderLong("context/wiki/alpha.md").scrollTop).toBe(400);
+    });
+
+    it("leaves an unread document at the top", () => {
+      stubScrollMetrics(4000, 800);
+      expect(renderLong("context/wiki/alpha.md").scrollTop).toBe(0);
+    });
+
+    it("records the offset and the heading in view while scrolling", async () => {
+      stubScrollMetrics(4000, 800);
+      const article = renderLong("context/wiki/alpha.md");
+      article.scrollTop = 250;
+      await act(async () => {
+        article.dispatchEvent(new Event("scroll"));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      });
+      flushReading();
+      const stored = JSON.parse(localStorage.getItem("sdt-reading") ?? "{}");
+      expect(stored.positions["context/wiki/alpha.md"].scrollTop).toBe(250);
+      // the heading travels with the offset, so a restore can fall back to it
+      expect(stored.positions["context/wiki/alpha.md"].headingId).toBe(
+        activeSectionKey("context/wiki/alpha.md"),
+      );
+      expect(stored.recent[0]).toBe("context/wiki/alpha.md");
+    });
   });
 });

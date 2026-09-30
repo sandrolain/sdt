@@ -26,6 +26,7 @@ import {
   withTaskObjectives,
   type StatusDot,
 } from "../lib/statusDot";
+import { useRecentDocuments } from "../lib/readingState";
 import { displayTitle, filenameDate } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
 import {
@@ -53,6 +54,9 @@ const kindGroupId = (kind: string) => `kind:${kind}`;
 const objectiveGroupId = (kind: string, objective: string) => `objective:${kind}:${objective}`;
 const planGroupId = (plan: string) => `plan:${plan}`;
 const dirGroupId = (path: string) => `dir:${path}`;
+
+/** The recent-documents folder shares the controlled open-state with the rest. */
+const RECENT_GROUP_ID = "recent";
 
 /** Wiki folder ids on the path to an entry, outermost first. */
 function wikiAncestorIds(path: string): string[] {
@@ -198,6 +202,11 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
           <SkeletonLines count={6} label="Loading tree" />
         ) : (
           <div className="tree-groups">
+            <RecentDocs
+              entries={entries}
+              open={openGroups.has(RECENT_GROUP_ID)}
+              onToggle={(open) => setGroupOpen(RECENT_GROUP_ID, open)}
+            />
             {groupMode === "flat" ? (
               <div className="tree-flat">
                 <EntryList
@@ -287,6 +296,68 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
 }
 
 type PlannedAnalyses = ReturnType<typeof plansByAnalysis>;
+
+/**
+ * The most recently read documents, in reading order. It reuses the tree row
+ * styling but skips the state dot and the plan nesting: the point is the
+ * shortest route back to what was being read, not a second tree.
+ */
+function RecentDocs({
+  entries,
+  open,
+  onToggle,
+}: {
+  entries: TreeEntry[];
+  open: boolean;
+  onToggle: (open: boolean) => void;
+}) {
+  const recent = useRecentDocuments();
+  const byPath = useMemo(() => new Map(entries.map((entry) => [entry.path, entry])), [entries]);
+  // a document removed from the corpus drops out of the list
+  const rows = recent
+    .map((path) => byPath.get(path))
+    .filter((e): e is TreeEntry => e !== undefined);
+  if (rows.length === 0) return null;
+  return (
+    <details
+      className="tree-folder tree-folder--recent"
+      open={open}
+      onToggle={(e) => onToggle(e.currentTarget.open)}
+    >
+      <summary className="tree-folder__header">
+        <Icon name="expand_more" className="tree-folder__chevron" />
+        <Icon name="history" className="tree-folder__icon" title="Recently read" />
+        <span className="tree-folder__text">
+          <span className="tree-folder__title-row">
+            <span className="tree-folder__label">Recent</span>
+            <span className="tree-folder__count">{rows.length}</span>
+          </span>
+        </span>
+      </summary>
+      <ul role="list">
+        {rows.map((entry) => (
+          <li key={entry.path}>
+            <NavLink
+              to={`/docs/${entry.path}`}
+              className={({ isActive }) =>
+                `tree-entry tree-entry--recent${isActive ? " is-active" : ""}`
+              }
+              title={entry.path}
+              end
+            >
+              <span className="tree-entry__glyph">
+                <Icon name={kindIcon(entryKind(entry))} title={kindLabel(entryKind(entry))} />
+              </span>
+              <span className="tree-entry__text">
+                <span className="tree-entry__title">{entryTitle(entry)}</span>
+              </span>
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
 /** Flat entry list for a kind folder. The dot indexes are optional: kinds
  *  without a derived dot (notes) pass neither. */

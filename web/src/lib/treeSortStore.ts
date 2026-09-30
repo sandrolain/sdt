@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import type { TreeSortKey } from "./treeSort";
+import { TREE_SORTS, type TreeSortKey } from "./treeSort";
+import { loadTreeView, saveTreeView } from "./treeViewStore";
 
 /** Tree sort selection, shared between the list and the tab-bar controls. */
 export interface TreeSortState {
@@ -8,21 +9,35 @@ export interface TreeSortState {
 
 const DEFAULT: TreeSortState = { key: "created_desc" };
 
-let current: TreeSortState = DEFAULT;
+/** The persisted sort key, when it is still one the tree offers. */
+function storedKey(): TreeSortKey {
+  const stored = loadTreeView().sortKey;
+  return TREE_SORTS.some((sort) => sort.id === stored) ? (stored as TreeSortKey) : DEFAULT.key;
+}
+
+let current: TreeSortState | null = null;
 const listeners = new Set<() => void>();
 
 function emit(): void {
   for (const listener of listeners) listener();
 }
 
+/** Live state, seeded from storage on first use so a reload restores the sort. */
+function state(): TreeSortState {
+  current ??= { key: storedKey() };
+  return current;
+}
+
 export function setTreeSortKey(key: TreeSortKey): void {
-  if (current.key === key) return;
-  current = { ...current, key };
+  if (state().key === key) return;
+  current = { key };
+  saveTreeView({ sortKey: key });
   emit();
 }
 
 export function resetTreeSort(): void {
-  current = DEFAULT;
+  current = { ...DEFAULT };
+  saveTreeView({ sortKey: undefined });
   emit();
 }
 
@@ -34,7 +49,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 function snapshot(): TreeSortState {
-  return current;
+  return state();
 }
 
 export function useTreeSort(): TreeSortState {

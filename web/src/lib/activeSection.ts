@@ -41,6 +41,11 @@ export function resetActiveSection(): void {
   emit();
 }
 
+/** Heading currently published for `path`, or null when none is. */
+export function activeSectionKey(path: string): string | null {
+  return current.path === path ? current.key : null;
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
