@@ -12,6 +12,14 @@ const IS_MAC =
   typeof navigator !== "undefined" &&
   /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
+/** One icon idiom (V3): the theme state is a Material Symbols ligature like
+ *  every other icon in the shell, not a literal glyph. */
+const THEME_ICON: Record<string, string> = {
+  light: "light_mode",
+  dark: "dark_mode",
+  system: "contrast",
+};
+
 export function TopBar({ onOpenSearch }: TopBarProps) {
   const { pref, cycle } = useTheme();
   return (
@@ -54,7 +62,9 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           aria-label={`Theme: ${pref}, click to change`}
           title={`Theme: ${pref} — click to cycle`}
         >
-          <span aria-hidden="true">{pref === "light" ? "☼" : pref === "dark" ? "☾" : "◐"}</span>
+          <span className="ms-icon" aria-hidden="true">
+            {THEME_ICON[pref] ?? "contrast"}
+          </span>
           <span>{THEME_LABEL(pref)}</span>
         </button>
       </div>

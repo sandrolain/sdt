@@ -42,7 +42,7 @@
 @layer base {
   :root {
     font-family:
-      "IBM Plex Sans",
+      "IBM Plex Sans Variable",
       -apple-system,
       BlinkMacSystemFont,
       "Segoe UI",
@@ -1492,7 +1492,7 @@
     color: var(--fg-faint);
   }
   .referrers__kind-icon {
-    font-family: "Material Symbols Rounded";
+    font-family: "Material Symbols Outlined Variable";
     font-size: 0.85rem;
   }
   /* the hover card is short-lived: cap the list so a widely cited document
@@ -2744,7 +2744,7 @@
     white-space: nowrap;
   }
   .ms-icon {
-    font-family: "Material Symbols Outlined";
+    font-family: "Material Symbols Outlined Variable";
     font-weight: normal;
     font-style: normal;
     line-height: 1;
