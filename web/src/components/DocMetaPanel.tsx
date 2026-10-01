@@ -39,6 +39,7 @@ import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { ReferencedBy } from "./ReferencedBy";
+import { SidePanelToggle } from "./SidePanelToggle";
 
 interface DocMetaPanelProps {
   doc?: DocResponse | CanvasResponse | MermaidResponse | null;
@@ -181,20 +182,23 @@ export function DocMetaPanel({ doc }: DocMetaPanelProps) {
         onSelectionChange={(key) => setTab(String(key))}
         className="meta-tabs"
       >
-        <TabList className="meta-tabs__list" aria-label="Document panel">
-          <Tab id="info" className="meta-tabs__tab">
-            <Icon name="info" />
-            <span>Info</span>
-          </Tab>
-          <Tab id="sections" className="meta-tabs__tab">
-            <Icon name="toc" />
-            <span>Sections</span>
-          </Tab>
-          <Tab id="links" className="meta-tabs__tab">
-            <Icon name="link" />
-            <span>Links</span>
-          </Tab>
-        </TabList>
+        <div className="meta-tabs__top">
+          <TabList className="meta-tabs__list" aria-label="Document panel">
+            <Tab id="info" className="meta-tabs__tab">
+              <Icon name="info" />
+              <span>Info</span>
+            </Tab>
+            <Tab id="sections" className="meta-tabs__tab">
+              <Icon name="toc" />
+              <span>Sections</span>
+            </Tab>
+            <Tab id="links" className="meta-tabs__tab">
+              <Icon name="link" />
+              <span>Links</span>
+            </Tab>
+          </TabList>
+          <SidePanelToggle position="right" label="panel" />
+        </div>
 
         <TabPanel id="info" className="meta-tabs__panel">
           <div className="meta-panel">

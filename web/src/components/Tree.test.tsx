@@ -4,6 +4,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Tree } from "./Tree";
+import { SidePanelProvider } from "./SidePanelProvider";
 import { resetTreeSort, setTreeSortKey } from "../lib/treeSortStore";
 import { resetTreeFilter, setGroupMode, setHiddenStates } from "../lib/treeFilterStore";
 import { clearReadingState, recordReading } from "../lib/readingState";
@@ -1241,6 +1242,28 @@ describe("Tree", () => {
     expect(bar().textContent).toContain("3 total");
     expect(kindCount("Analyses")).toBe("1");
     expect(kindCount("Notes")).toBe("1");
+  });
+
+  it("shows the side-panel toggle only with the dockview bridge", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    const group = {
+      isCollapsed: () => false,
+      collapse: () => {},
+      expand: () => {},
+      onDidCollapsedChange: () => ({ dispose: () => {} }),
+    };
+    render(
+      <MemoryRouter>
+        <SidePanelProvider
+          api={{ getEdgeGroup: () => group, onDidLayoutChange: () => ({ dispose: () => {} }) }}
+        >
+          <Tree />
+        </SidePanelProvider>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("button", { name: "Hide tree" })).toBeTruthy();
   });
 
   it("renders an empty corpus status bar without kind counts", async () => {

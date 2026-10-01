@@ -21,6 +21,7 @@ import {
   COURTESY_PANEL_ID,
   DOC_PANEL_PREFIX,
   ensureCenterGroup,
+  SIDE_PANEL_TAB,
   type CenterGroup,
 } from "../lib/workspaceLayout";
 import { tabContextMenuItems } from "../lib/workspaceTabs";
@@ -32,6 +33,9 @@ import { DocDetail } from "./DocDetail";
 import { DocMetaPanel } from "./DocMetaPanel";
 import { WorkspaceTab } from "./WorkspaceTab";
 import { DocTabHeader } from "./DocTabHeader";
+import { SidePanelProvider } from "./SidePanelProvider";
+import { SidePanelToggle } from "./SidePanelToggle";
+import { SideRailTab } from "./SideRailTab";
 import { TooltipButton } from "./ui/Tooltip";
 import { kindColor, kindFromPath, kindIcon } from "../lib/kinds";
 
@@ -75,7 +79,17 @@ function MetaTab() {
   const { state } = useOpenDocs();
   const path = state.active;
   const { doc } = useDoc(path ?? "");
-  if (!path) return <p className="content__empty">No document selected.</p>;
+  if (!path) {
+    // the panel header (with its toggle) stays reachable with no document open
+    return (
+      <div className="meta-tabs">
+        <div className="meta-tabs__top">
+          <SidePanelToggle position="right" label="panel" />
+        </div>
+        <p className="content__empty">No document selected.</p>
+      </div>
+    );
+  }
   return <DocMetaPanel doc={doc} />;
 }
 
@@ -102,6 +116,7 @@ function DocHeaderActions({ group }: IDockviewHeaderActionsProps) {
 export function DocsWorkspace() {
   const { state, activate, close } = useOpenDocs();
   const apiRef = useRef<DockviewApi | null>(null);
+  const [api, setApi] = useState<DockviewApi | null>(null);
   const centerRef = useRef<CenterGroup | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -122,6 +137,7 @@ export function DocsWorkspace() {
     (event: DockviewReadyEvent) => {
       const api = event.api;
       apiRef.current = api;
+      setApi(api);
 
       const stored = loadLayout(WORKSPACE_STORAGE_KEY);
       if (stored) {
@@ -143,6 +159,13 @@ export function DocsWorkspace() {
         if (panel.id.startsWith(DOC_PREFIX)) close(panel.id.slice(DOC_PREFIX.length));
       });
       api.onDidLayoutChange(() => saveLayout(WORKSPACE_STORAGE_KEY, api.toJSON()));
+      // a collapse/expand of an edge group is part of the layout but does not
+      // always emit onDidLayoutChange, so persist it explicitly
+      for (const position of ["left", "right"] as const) {
+        api
+          .getEdgeGroup(position)
+          ?.onDidCollapsedChange(() => saveLayout(WORKSPACE_STORAGE_KEY, api.toJSON()));
+      }
       setReady(true);
     },
     [activate, close],
@@ -201,15 +224,17 @@ export function DocsWorkspace() {
   if (!DOCKVIEW_ENABLED) return <FallbackWorkspace />;
 
   return (
-    <DockviewReact
-      className={className}
-      components={components}
-      defaultTabComponent={WorkspaceTab}
-      tabComponents={{ doc: DocTabHeader }}
-      getTabContextMenuItems={(params) => tabContextMenuItems(params.panel.id)}
-      onReady={onReady}
-      rightHeaderActionsComponent={DocHeaderActions}
-    />
+    <SidePanelProvider api={api}>
+      <DockviewReact
+        className={className}
+        components={components}
+        defaultTabComponent={WorkspaceTab}
+        tabComponents={{ doc: DocTabHeader, [SIDE_PANEL_TAB]: SideRailTab }}
+        getTabContextMenuItems={(params) => tabContextMenuItems(params.panel.id)}
+        onReady={onReady}
+        rightHeaderActionsComponent={DocHeaderActions}
+      />
+    </SidePanelProvider>
   );
 }
 

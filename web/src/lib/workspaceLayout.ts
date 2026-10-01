@@ -12,6 +12,8 @@ export interface SidePanelSpec {
   groupId: string;
   position: EdgePosition;
   component: string;
+  /** custom tab component (the icon that toggles collapse) */
+  tabComponent: string;
   title: string;
   initialSize: number;
   minimumSize: number;
@@ -20,6 +22,10 @@ export interface SidePanelSpec {
 
 /** Thickness kept when an edge group is collapsed. */
 export const COLLAPSED_SIZE = 34;
+
+/** Tab component the edge panels render: the panel icon that doubles as the
+ *  collapsed rail (see `components/SideRailTab.tsx`). */
+export const SIDE_PANEL_TAB = "side-rail";
 
 /** Panel id prefix for open documents. */
 export const DOC_PANEL_PREFIX = "doc:";
@@ -33,6 +39,7 @@ export const SIDE_PANELS: SidePanelSpec[] = [
     groupId: "edge-tree",
     position: "left",
     component: "tree",
+    tabComponent: SIDE_PANEL_TAB,
     title: "Documents",
     initialSize: 210,
     minimumSize: 150,
@@ -43,6 +50,7 @@ export const SIDE_PANELS: SidePanelSpec[] = [
     groupId: "edge-meta",
     position: "right",
     component: "meta",
+    tabComponent: SIDE_PANEL_TAB,
     title: "Info",
     initialSize: 260,
     minimumSize: 180,
@@ -67,6 +75,7 @@ export interface SidePanelApi {
   addPanel(options: {
     id: string;
     component: string;
+    tabComponent?: string;
     title: string;
     position: { referenceGroup: string };
   }): unknown;
@@ -127,6 +136,7 @@ export function addSidePanels(api: SidePanelApi): void {
     api.addPanel({
       id: spec.id,
       component: spec.component,
+      tabComponent: spec.tabComponent,
       title: spec.title,
       position: { referenceGroup: spec.groupId },
     });

@@ -41,3 +41,10 @@
 .dv-tab.dv-active-tab {
   color: var(--fg);
 }
+
+/* Edge-group tabs render the icon rail (see SideRailTab): no title, centred in
+   the vertical strip, and upright despite the vertical writing mode. */
+.dv-groupview-edge .dv-tab {
+  justify-content: center;
+  padding: 0;
+}

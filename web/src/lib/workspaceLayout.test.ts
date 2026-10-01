@@ -4,6 +4,7 @@ import {
   COLLAPSED_SIZE,
   ensureCenterGroup,
   SIDE_PANELS,
+  SIDE_PANEL_TAB,
   type CenterApi,
   type CenterGroup,
   type EdgePosition,
@@ -78,6 +79,21 @@ describe("addSidePanels", () => {
     expect(spy).toHaveBeenCalledWith(
       expect.objectContaining({ id: "meta", position: { referenceGroup: "edge-meta" } }),
     );
+  });
+
+  it("tags the side panels with the icon-rail tab component", () => {
+    const spy = vi.fn(() => ({}));
+    addSidePanels({
+      getPanel: () => undefined,
+      getEdgeGroup: () => undefined,
+      addEdgeGroup: () => ({}),
+      addPanel: spy,
+    });
+    for (const id of ["tree", "meta"]) {
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ id, tabComponent: SIDE_PANEL_TAB }),
+      );
+    }
   });
 });
 
