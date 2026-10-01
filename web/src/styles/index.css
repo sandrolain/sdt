@@ -1125,6 +1125,7 @@
   /* corpus path bar: right-column breadcrumb surface with a copy affordance */
   .doc-path {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
     gap: 0.4rem;
     padding: 0.3rem 0.45rem;
@@ -1143,6 +1144,13 @@
     align-items: center;
     color: var(--accent);
     flex: none;
+  }
+  .doc-path__row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    width: 100%;
+    min-width: 0;
   }
   .doc-path__value {
     flex: 1 1 auto;

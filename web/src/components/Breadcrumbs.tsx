@@ -56,9 +56,20 @@ export function Breadcrumbs({ path }: BreadcrumbsProps) {
       >
         <Icon name="home" />
       </NavLink>
-      <span className="doc-path__value" title={path}>
-        {path}
-      </span>
+      <div className="doc-path__row">
+        <span className="doc-path__value" title={path}>
+          {path}
+        </span>
+        <button
+          type="button"
+          className="doc-path__copy"
+          aria-label={copied ? "Path copied" : "Copy path"}
+          title={copied ? "Copied" : "Copy path"}
+          onClick={copy}
+        >
+          <Icon name={copied ? "check" : "content_copy"} />
+        </button>
+      </div>
       {relation && (
         <NavLink
           className="doc-path__relation"
@@ -89,15 +100,6 @@ export function Breadcrumbs({ path }: BreadcrumbsProps) {
           ))}
         </select>
       )}
-      <button
-        type="button"
-        className="doc-path__copy"
-        aria-label={copied ? "Path copied" : "Copy path"}
-        title={copied ? "Copied" : "Copy path"}
-        onClick={copy}
-      >
-        <Icon name={copied ? "check" : "content_copy"} />
-      </button>
     </nav>
   );
 }
