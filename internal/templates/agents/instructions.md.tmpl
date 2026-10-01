@@ -52,6 +52,16 @@ This project is managed with SDT. This file carries two tagged blocks:
    for checklist items. Do not hand-edit frontmatter state or tick `- [ ]`
    markers, and never touch the CLI-assigned `<!-- c<N> -->` id anchors.
    *Don't:* flip `status:`/`updated:` or a checkbox with the file-editing tool.
+10. **Web capture via `sdt crawldown`** — read and keep web pages only through
+    `sdt crawldown`: to **stdout** when the content is needed in the conversation,
+    to a **file** under `context/refs/<topic>/` when it must be kept or cited. A
+    host web-fetch tool is never used for a web page. If `sdt crawldown` provably
+    cannot fetch it (auth wall, JavaScript-only page, non-HTML endpoint,
+    robots/rate-limit block), use the fallback and **record it in the document**:
+    `captured: <url> — crawldown failed: <reason>`. A statement resting on an
+    uncaptured page is not *verified*. Boundary: git clones, package managers,
+    JSON/API endpoints, authenticated pages and local files are not web pages.
+    *Don't:* fetch a web page with a host tool, or cite an uncaptured page as fact.
 
 ### Document ownership (who owns which text)
 

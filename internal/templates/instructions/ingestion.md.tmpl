@@ -44,6 +44,7 @@ style, specifying one of:
 - `all` — every pending file in `context/ingestion/` (default when no scope).
 - `<file>` — a single pending source (path, name or id).
 - `<glob>` — a specific group of files.
+- `<url>` — a web page to capture with `sdt crawldown` before distilling.
 
 Only files inside the requested scope are considered; already-archived files
 are always skipped.
@@ -77,6 +78,13 @@ the slug to be free.
 
 Sources are frequently not plain markdown — convert first, then distil.
 
+- **Capture web pages with `sdt crawldown`** — the only path for a URL (see the
+  AGENTS.md HARD RULES): read one on stdout (`sdt crawldown <url>`), keep one
+  with `sdt crawldown <url> --output-file <path>`, or keep several with
+  `sdt crawldown <url>... --output <dir>`. A captured page carries its
+  provenance frontmatter and lives in `context/ingestion/` while pending, then
+  in `context/refs/` once archived. A page `crawldown` cannot fetch (auth wall,
+  JavaScript-only, non-HTML) is a recorded exception, never a silent fallback.
 - **Convert with `sdt doc2md <file>`** — the agent's reference. It tries the
   first *runnable* converter in the order anydoc → docling → markitdown
   (availability means the tool launches, not that it is on PATH) and prints

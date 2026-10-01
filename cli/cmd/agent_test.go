@@ -1372,6 +1372,7 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 		"summary",
 		"Style & architecture agreed a priori",
 		"Library-first",
+		"sdt crawldown",
 		"### SESSION START",
 		"**Always read**",
 		"**On action**",

@@ -192,6 +192,11 @@ func (c *Crawler) Start() error {
 	return nil
 }
 
+// Errors returns the number of request/response errors seen so far.
+func (c *Crawler) Errors() int64 {
+	return atomic.LoadInt64(&c.errorsTotal)
+}
+
 //nolint:gocognit,gocyclo // pre-existing high-complexity callback registration; kept as-is to avoid behavioral changes
 func (c *Crawler) setupCallbacks() {
 	c.collector.OnHTML("html", func(e *colly.HTMLElement) {
@@ -233,47 +238,51 @@ func (c *Crawler) setupCallbacks() {
 		}
 	})
 
-	if !c.options.SinglePage {
-		c.collector.OnHTML("a[href]", func(e *colly.HTMLElement) {
-			link := e.Attr("href")
+	c.collector.OnHTML("a[href]", func(e *colly.HTMLElement) {
+		link := e.Attr("href")
 
-			if strings.HasPrefix(link, "#") ||
-				strings.HasPrefix(link, "javascript:") ||
-				strings.HasPrefix(link, "mailto:") ||
-				strings.HasPrefix(link, "tel:") ||
-				strings.HasPrefix(link, "sms:") ||
-				strings.HasPrefix(link, "fax:") ||
-				strings.HasPrefix(link, "data:") ||
-				strings.HasPrefix(link, "file:") {
+		if strings.HasPrefix(link, "#") ||
+			strings.HasPrefix(link, "javascript:") ||
+			strings.HasPrefix(link, "mailto:") ||
+			strings.HasPrefix(link, "tel:") ||
+			strings.HasPrefix(link, "sms:") ||
+			strings.HasPrefix(link, "fax:") ||
+			strings.HasPrefix(link, "data:") ||
+			strings.HasPrefix(link, "file:") {
+			return
+		}
+
+		if looksLikeEmail(link) || looksLikePhone(link) {
+			return
+		}
+
+		absoluteURL := e.Request.AbsoluteURL(link)
+		if c.isExcludedPath(absoluteURL) || !c.isAllowedPath(absoluteURL) {
+			return
+		}
+
+		if isDocumentLink(link) {
+			if !c.options.DownloadDocuments {
 				return
 			}
 
-			if looksLikeEmail(link) || looksLikePhone(link) {
-				return
-			}
-
-			absoluteURL := e.Request.AbsoluteURL(link)
-			if c.isExcludedPath(absoluteURL) || !c.isAllowedPath(absoluteURL) {
-				return
-			}
-
-			if isDocumentLink(link) {
-				if !c.options.DownloadDocuments {
-					return
+			if c.documentCollector != nil {
+				if err := c.documentCollector.Visit(absoluteURL); err != nil {
+					atomic.AddInt64(&c.errorsTotal, 1)
 				}
-
-				if c.documentCollector != nil {
-					if err := c.documentCollector.Visit(absoluteURL); err != nil {
-						atomic.AddInt64(&c.errorsTotal, 1)
-					}
-				}
-				return
 			}
+			return
+		}
 
-			//nolint:errcheck
-			_ = e.Request.Visit(link)
-		})
-	}
+		// Single-page mode captures exactly one page; only follow page links
+		// when actually crawling. Document links above are still honoured.
+		if c.options.SinglePage {
+			return
+		}
+
+		//nolint:errcheck
+		_ = e.Request.Visit(link)
+	})
 
 	c.collector.OnResponse(func(r *colly.Response) {
 		atomic.AddInt64(&c.responsesTotal, 1)

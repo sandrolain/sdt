@@ -38,9 +38,10 @@ planning or writing any non-trivial code.
 ## Library documentation — local, updated copy
 
 - For every library the project adopts, keep an updated local copy of its docs
-  under `context/refs/<lib>/` (fetch with
-  `sdt crawldown <docs-url> --output context/refs/<lib>` or the web-fetch
-  tool). Store a version marker (fetched version + date).
+  under `context/refs/<lib>/`, fetched with
+  `sdt crawldown <docs-url> --output context/refs/<lib>` — web pages are
+  captured only through `sdt crawldown` (see the AGENTS.md HARD RULES). Store a
+  version marker (fetched version + date).
 - Before using a library, check its latest version (changelog/releases) against
   what you know; APIs change — do not code against a stale API.
 - For an unfamiliar library, learn usage from its docs, not by reading its source.

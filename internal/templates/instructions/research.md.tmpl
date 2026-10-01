@@ -60,6 +60,10 @@ Feeds.
   Non-markdown evidence is converted first with `sdt doc2md` (anydoc → docling
   → markitdown — see `instructions/ingestion.md`) and the original kept in
   `context/refs/`.
+- **Web sources are captured, never fetched ad hoc.** A web/document sweep
+  captures every page it relies on with `sdt crawldown` — stdout to read, a file
+  under `context/refs/` to keep — and cites the capture; an uncaptured page is
+  not evidence (see the AGENTS.md HARD RULES).
 
 ## Deepsearch readiness
 
