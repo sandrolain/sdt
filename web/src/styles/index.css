@@ -2785,3 +2785,100 @@
     }
   }
 }
+
+/* Printing (plan phase 11): the page carries the document and nothing else.
+   The shell chrome (top bar, tree, meta panel, tab strips, breadcrumbs,
+   outline, progress bar, hover preview, code copy buttons) is dropped, every
+   height/overflow constraint is released so the content flows across pages,
+   the reading measure is switched off, and long code lines wrap instead of
+   being clipped. The palette comes from the print token block in tokens.css,
+   so links stay legible on white paper in either theme. Unlayered on purpose:
+   it has to beat the layered component rules. */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* the paper is wider than any measure: drop the reading column */
+  .app-shell {
+    --reading-measure: none !important;
+  }
+
+  .top-bar,
+  .panel--tree,
+  .panel--meta,
+  .doc-path,
+  .doc-progress,
+  .graph-tools,
+  .hover-preview,
+  .md-code__copy,
+  .dv-tabs-and-actions-container {
+    display: none !important;
+  }
+
+  .app-shell,
+  .workspace,
+  .docs-workspace,
+  .dock-layout,
+  .dock-layout--fallback,
+  .dv-grid-view,
+  .dv-view,
+  .dv-view-container,
+  .dv-split-view-container,
+  .dv-branch-node,
+  .dv-shell,
+  .dv-shell-middle-column,
+  .dv-groupview,
+  .dv-content-container,
+  .dv-react-part,
+  .dock-content,
+  .doc-view,
+  .doc-rendered {
+    /* dockview writes inline height/width/position on its wrappers, so the
+       release has to out-specify inline styles to reach the document */
+    position: static !important;
+    display: block !important;
+    flex: none !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    transform: none !important;
+  }
+
+  .doc-rendered > * {
+    max-width: none !important;
+    margin-inline: 0 !important;
+  }
+
+  /* code and tables must never be clipped by the pane: long lines wrap */
+  .doc-rendered pre.md-code,
+  .doc-rendered .md-code__wrap,
+  .doc-rendered .md-table-wrap {
+    overflow: visible !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+
+  .doc-rendered pre.md-code code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .doc-rendered .md-table-wrap table {
+    width: 100%;
+  }
+
+  .doc-rendered a {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+}
