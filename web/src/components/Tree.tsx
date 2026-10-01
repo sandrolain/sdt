@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -43,6 +44,8 @@ import {
   type GroupSort,
 } from "../lib/treeSort";
 import { useTreeSort } from "../lib/treeSortStore";
+import { useTreeKeyboard } from "../lib/treeKeyboard";
+import { useTreeFocusRequests } from "../lib/treeFocus";
 import { useReloadToken } from "../lib/useReloadToken";
 import { SkeletonLines } from "./Skeleton";
 import { TreeToolbar } from "./TreeToolbar";
@@ -104,6 +107,9 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
   const reloadToken = useReloadToken();
   const location = useLocation();
+  const groupsRef = useRef<HTMLDivElement | null>(null);
+  const focusRequests = useTreeFocusRequests();
+  useTreeKeyboard(groupsRef, focusRequests, entries);
 
   useEffect(() => {
     let alive = true;
@@ -201,7 +207,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
         ) : !entries ? (
           <SkeletonLines count={6} label="Loading tree" />
         ) : (
-          <div className="tree-groups">
+          <div className="tree-groups" ref={groupsRef}>
             <RecentDocs
               entries={entries}
               open={openGroups.has(RECENT_GROUP_ID)}

@@ -16,6 +16,8 @@ interface PreviewState {
   meta: PreviewMeta;
   left: number;
   top: number;
+  /** the anchor the card describes, for aria-describedby */
+  anchor: HTMLElement;
 }
 
 const WIDTH = 340;
@@ -41,9 +43,8 @@ export function HoverPreview({ delay = 150, leaveDelay = 160 }: HoverPreviewProp
     let controller: AbortController | null = null;
     let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const onOver = (event: Event) => {
-      const anchor = (event.target as HTMLElement | null)?.closest?.(".doc-rendered a");
-      if (!anchor) return;
+    /** Start a preview for the link the event landed on (hover or focus). */
+    const openFor = (anchor: HTMLElement) => {
       const path = previewPathFromHref(anchor.getAttribute("href") ?? "");
       if (!path) return;
       cancelHide();
@@ -56,13 +57,43 @@ export function HoverPreview({ delay = 150, leaveDelay = 160 }: HoverPreviewProp
       const signal = controller.signal;
       hoverTimer = setTimeout(() => {
         loadPreview(path, signal)
-          .then((meta) => setPreview({ meta, left, top }))
+          .then((meta) => setPreview({ meta, left, top, anchor }))
           .catch(() => undefined);
       }, delay);
     };
 
+    const onOver = (event: Event) => {
+      const anchor = (event.target as HTMLElement | null)?.closest?.<HTMLElement>(
+        ".doc-rendered a",
+      );
+      if (!anchor) return;
+      openFor(anchor);
+    };
+
     const onOut = (event: Event) => {
-      const anchor = (event.target as HTMLElement | null)?.closest?.(".doc-rendered a");
+      const anchor = (event.target as HTMLElement | null)?.closest?.<HTMLElement>(
+        ".doc-rendered a",
+      );
+      if (!anchor) return;
+      if (hoverTimer !== undefined) clearTimeout(hoverTimer);
+      controller?.abort();
+      scheduleHide();
+    };
+
+    // keyboard parity: focusing a link previews it too (analysis N6), so the
+    // card is not mouse-only information
+    const onFocusIn = (event: Event) => {
+      const anchor = (event.target as HTMLElement | null)?.closest?.<HTMLElement>(
+        ".doc-rendered a",
+      );
+      if (!anchor) return;
+      openFor(anchor);
+    };
+
+    const onFocusOut = (event: Event) => {
+      const anchor = (event.target as HTMLElement | null)?.closest?.<HTMLElement>(
+        ".doc-rendered a",
+      );
       if (!anchor) return;
       if (hoverTimer !== undefined) clearTimeout(hoverTimer);
       controller?.abort();
@@ -71,14 +102,30 @@ export function HoverPreview({ delay = 150, leaveDelay = 160 }: HoverPreviewProp
 
     document.addEventListener("mouseover", onOver);
     document.addEventListener("mouseout", onOut);
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
     return () => {
       document.removeEventListener("mouseover", onOver);
       document.removeEventListener("mouseout", onOut);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
       if (hoverTimer !== undefined) clearTimeout(hoverTimer);
       controller?.abort();
       cancelHide();
     };
   }, [delay, cancelHide, scheduleHide]);
+
+  // link the card to the anchor it describes, and keep that association only
+  // while the card is up
+  useEffect(() => {
+    const anchor = preview?.anchor;
+    if (!anchor) return;
+    const id = `hover-preview-${preview.meta.path.replace(/[^a-z0-9]+/gi, "-")}`;
+    anchor.setAttribute("aria-describedby", id);
+    return () => {
+      anchor.removeAttribute("aria-describedby");
+    };
+  }, [preview]);
 
   // clamp vertically once the card height is known (flip above the link if needed)
   useLayoutEffect(() => {
@@ -97,6 +144,7 @@ export function HoverPreview({ delay = 150, leaveDelay = 160 }: HoverPreviewProp
   return createPortal(
     <div
       ref={cardRef}
+      id={`hover-preview-${meta.path.replace(/[^a-z0-9]+/gi, "-")}`}
       className="hover-preview"
       role="tooltip"
       style={{ left: preview.left, top: preview.top, width: WIDTH }}

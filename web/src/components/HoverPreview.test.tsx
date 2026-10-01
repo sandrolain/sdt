@@ -81,4 +81,25 @@ describe("HoverPreview", () => {
     fireEvent.mouseOut(screen.getByText("Go B"));
     await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
   });
+  it("opens on keyboard focus, not only on hover", async () => {
+    mockDoc();
+    renderLink();
+    fireEvent.focus(screen.getByText("Go B"));
+    const tip = await screen.findByRole("tooltip");
+    expect(tip.textContent).toContain("Preview Title");
+  });
+
+  it("associates the card with the link through aria-describedby", async () => {
+    mockDoc();
+    renderLink();
+    const link = screen.getByText("Go B");
+    fireEvent.focus(link);
+    const tip = await screen.findByRole("tooltip");
+    await waitFor(() => expect(link.getAttribute("aria-describedby")).toBe(tip.id));
+    expect(tip.id).toBeTruthy();
+
+    // leaving the link drops the association again
+    fireEvent.focusOut(link);
+    await waitFor(() => expect(link.getAttribute("aria-describedby")).toBeNull());
+  });
 });

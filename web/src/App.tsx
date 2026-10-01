@@ -11,6 +11,8 @@ import { WikiPageDetail } from "./components/WikiPageDetail";
 import { OpenDocsProvider } from "./components/OpenDocsProvider";
 import { applyLiveChange, connectLiveUpdates } from "./lib/liveUpdates";
 import { applyReadingPrefs, currentReadingPrefs } from "./lib/readingPrefs";
+import { requestTreeFocus } from "./lib/treeFocus";
+import { isTreeFocusKey } from "./lib/treeKeyboard";
 
 export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -20,6 +22,12 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setSearchOpen((open) => !open);
+        return;
+      }
+      // ⌘\ / Ctrl+\ pulls focus into the documents tree
+      if (isTreeFocusKey(e)) {
+        e.preventDefault();
+        requestTreeFocus();
       }
     };
     window.addEventListener("keydown", onKeyDown);

@@ -1388,6 +1388,42 @@
     color: var(--accent);
     box-shadow: inset 2px 0 0 var(--accent);
   }
+  /* path bar: the ancestor link and the sibling jump */
+  .doc-path__relation,
+  .doc-path__siblings {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.3rem;
+    padding: 0.15rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-rise);
+    color: var(--fg-dim);
+    font-size: 0.75rem;
+    text-decoration: none;
+  }
+  .doc-path__relation:hover,
+  .doc-path__siblings:hover {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+  .doc-path__relation-icon {
+    font-size: 0.9rem;
+  }
+  .doc-path__relation-label {
+    color: var(--fg-faint);
+  }
+  .doc-path__relation-title {
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .doc-path__siblings {
+    max-width: 12rem;
+  }
+
   /* "Referenced by" (analysis N1/Q3): the inbound references served by
      /api/backlinks, shown in the metadata panel and (compact) in the hover card */
   .referrers {
