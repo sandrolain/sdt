@@ -12,6 +12,14 @@ generated command reference, see `context/instructions/reference.md`.
 - `sdt context search <query>` — ranked fulltext search over the same corpus; takes the same query filters as `list`
 - `sdt context status get|set` — read/update a document's status (per-type
   vocabularies in the status matrix: `context/architecture/stack.md`)
+- `sdt context get <doc> [<key>…]` — read a document's frontmatter: the raw
+  block when no key is given, else one value per top-level key (no nested keys)
+- `sdt context set|unset <doc> <key> [<value>]` — write/remove any top-level
+  frontmatter key with byte fidelity (comments, order, quoting preserved);
+  `--raw`, `--append`, `--remove`; `status`/`updated` validated, CLI-owned
+  `uid`/`analysis_id`/`plan_id` refused without `--force`
+- `sdt q get|set|del <file> <path>` — query/patch a JSON file by gjson path
+  (e.g. `sdt q get context/index.json 'documents.#(kind=="analysis")#.path'`)
 - `sdt context rename <ref> --slug <new>` — move a document to a new slug
 - `sdt context task add ["<step>"] [--phase <n>] [--stream <label>]` — task checklists
   (one file per plan by default, phases as `## Phase` sections)

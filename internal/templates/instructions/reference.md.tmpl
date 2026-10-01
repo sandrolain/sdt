@@ -61,6 +61,17 @@ Nothing is written by the CLI: the agent edits the Markdown files.
 same document set for the same filter; the grammar and match semantics are
 documented in `context/instructions/cli.md`.
 
+Frontmatter and structured data have generic read/write surfaces:
+`sdt context get <doc> [<key>…]` reads the raw block or top-level keys;
+`sdt context set|unset <doc> <key> [<value>]` writes or removes a top-level
+key with byte fidelity (comments, key order, quoting and block scalars
+preserved), validating `status`/`updated` and refusing CLI-owned
+`uid`/`analysis_id`/`plan_id` without `--force`. JSON files are queried and
+patched by gjson path with `sdt q get|set|del <file> <path> [<value>]`
+(byte-preserving writes, JSON only). `sdt context reindex` emits
+`context/index.json` beside `context/index.md`, so the largest index is
+queryable with `sdt q`.
+
 ## CLI usage & examples
 
 The curated command catalog, global flags and practical examples live in

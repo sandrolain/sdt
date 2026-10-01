@@ -200,10 +200,14 @@ func writeIndex(content string) error {
 
 var contextReindexCmd = &cobra.Command{
 	Use:   "reindex",
-	Short: "Regenerate context/index.md from frontmatter summaries",
+	Short: "Regenerate context/index.md and context/index.json from frontmatter summaries",
 	Long: `Scan the context/ knowledge directories, read the mandatory frontmatter
 summary of every document and regenerate context/index.md grouped by
-relevance tier (essential, important, medium, operational, history).
+relevance tier (essential, important, medium, operational, history), plus
+context/index.json — the same documents as a flat, queryable projection.
+
+Query the JSON with sdt q, e.g.:
+  sdt q get context/index.json ` + "`" + ctxIndexJSONDotPath + "`" + `
 
 Examples:
   sdt context reindex
@@ -214,17 +218,24 @@ Examples:
 		exitWithError(cmd, err)
 		written, err := writeIndexIfChanged(content)
 		exitWithError(cmd, err)
+
+		jsonContent, err := buildIndexJSON()
+		exitWithError(cmd, err)
+		jsonWritten, err := writeIndexJSONIfChanged(jsonContent)
+		exitWithError(cmd, err)
+
+		summary := ctxIndexJSONSummary{Markdown: written, JSON: ctxIndexWriteState(jsonWritten)}
 		switch getFormat(cmd) {
 		case fmtJSON:
-			out, err := json.MarshalIndent(map[string]string{ctxMapPath: sdtContextIndex, ctxMapStatus: written}, "", "  ")
+			out, err := json.MarshalIndent(summary, "", "  ")
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		case fmtYAML:
-			out, err := yaml.Marshal(map[string]string{ctxMapPath: sdtContextIndex, ctxMapStatus: written})
+			out, err := yaml.Marshal(summary)
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		default:
-			outputString(cmd, sdtContextIndex+" ("+written+")\n")
+			outputString(cmd, sdtContextIndex+" ("+written+"); "+ctxIndexJSONPath+" ("+summary.JSON+")\n")
 		}
 	},
 }

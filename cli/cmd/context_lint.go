@@ -149,7 +149,7 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"entity ", "use a kebab-case entity slug (lowercase letters, digits and '-')"},
 	{"unknown role", "use a role slug from the closed register (`sdt agent roles show`); unknown `role:` values on worklog/notes entries lose the vocabulary contract"},
 	{"role profile", "run `sdt agent roles check`; fix register/profile mismatches (`sdt agent roles init`/`--force`)"},
-	{"security: possible", "review the flagged content, redact or remove it, and re-ingest from a trusted source before it can influence the agent"},
+	{"undeclared frontmatter key", "either keep it (any key is writable with `sdt context set`) or, if it is a recurring convention, propose it as a declared field in the type registry"}, {"security: possible", "review the flagged content, redact or remove it, and re-ingest from a trusted source before it can influence the agent"},
 	{"security: invisible", "strip the invisible/zero-width Unicode characters from the document; they can hide instructions from human review"},
 }
 
@@ -326,6 +326,10 @@ func lintDoc(path string) []ctxLintIssue {
 	// (from the shared registry); documented in the stack.md status matrix.
 	issues = append(issues, lintStatusField(path, content, kind)...)
 	issues = append(issues, lintTimestampFields(path, content, prio)...)
+	// Advisory: a top-level frontmatter key outside the declared set is allowed
+	// (sdt context set is free with respect to keys) but made visible so the
+	// schema stays discoverable without being closed.
+	issues = append(issues, lintUndeclaredFrontmatterKeys(path, content)...)
 	// Optional `objective` grouping key: WARNING on a non-kebab-case value,
 	// SUGGESTION on absence so the convention is adopted gradually without
 	// breaking existing analyses; a plan's objective must match its analysis.

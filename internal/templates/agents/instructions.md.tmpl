@@ -99,6 +99,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/prompts.md` | Creating or running a tracked prompt |
 | `context/instructions/reference.md` | Looking up a command |
 | `context/instructions/cli.md` | Looking up usage examples |
+| `sdt context get/set/unset`, `sdt q` | Reading/writing frontmatter keys or querying JSON by gjson path (see `instructions/cli.md`) |
 | `context/scripts/` | Running bundled scripts (see `instructions/scripts.md`) |
 | `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
