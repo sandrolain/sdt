@@ -17,6 +17,7 @@ export function drawBoundaryLayer(mm: Markmap, rects: BoundaryRect[]): void {
     .attr("rx", 10)
     .attr("ry", 10)
     .attr("fill", "none")
+    // categorical identity (phase 9): one accent marks every #group boundary
     .attr("stroke", "#fab387")
     .attr("stroke-dasharray", "6 4");
   merged
@@ -25,7 +26,7 @@ export function drawBoundaryLayer(mm: Markmap, rects: BoundaryRect[]): void {
     .join("text")
     .attr("x", (d: BoundaryRect) => d.x + 8)
     .attr("y", (d: BoundaryRect) => d.y + 15)
-    .attr("fill", "#fab387")
+    .attr("fill", "#fab387") // same boundary accent as the stroke above
     .attr("font-size", 12)
     .text((d: BoundaryRect) => d.title ?? "");
 }

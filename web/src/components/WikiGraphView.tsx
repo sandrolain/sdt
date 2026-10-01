@@ -40,7 +40,9 @@ interface GraphHandle {
   zoomToFit?: (durationMs?: number, padding?: number, filter?: (n: GNode) => boolean) => void;
 }
 
-/** 3D background: dark enough that the node glow reads without washing the scene. */
+// Left raw by the token migration (phase 9): the 3D scene background is a
+// property of the medium, not a theme surface — it must stay dark for the node
+// glow in both schemes.
 const BG = "#0d0d15";
 
 /**
@@ -69,6 +71,8 @@ interface ForceGraphViewProps {
 
 const ForceGraph2D = ForceGraph2DBase as unknown as ComponentType<ForceGraphViewProps>;
 
+// Categorical identity in the graph palette (phase 9): label, edge, active edge
+// and de-emphasised edge are graph roles drawn on a canvas, not theme surfaces.
 const LABEL_COLOR = "#cdd6f4";
 const EDGE_COLOR = "#6c7086";
 const EDGE_ACTIVE = "#cba6f7";

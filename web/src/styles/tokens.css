@@ -81,6 +81,14 @@
   --draft: var(--ctp-peach);
 }
 
+/* Elevation. The shadow colour is the only part that is a theme role (a
+   surface lifted off another); the geometry stays with the surface that casts
+   it, so a popover can keep its own offset and blur. */
+:root {
+  --shadow-color: rgb(0 0 0 / 35%);
+  --shadow-color-soft: rgb(0 0 0 / 25%);
+}
+
 /* Reading preferences (decision 0018 wave, adoption Q2). The defaults live
    here so the first paint is already readable; web/src/lib/readingPrefs.ts
    overrides them on <html> from `sdt-reading-prefs`, and `--reading-size` is

@@ -251,7 +251,7 @@
     border-radius: 12px;
     border: 1px solid var(--border);
     background: var(--bg-mantle);
-    box-shadow: 0 16px 48px rgb(0 0 0 / 35%);
+    box-shadow: 0 16px 48px var(--shadow-color);
   }
   .search-palette__content [cmdk-root] {
     display: flex;
@@ -440,7 +440,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--bg-mantle);
-    box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+    box-shadow: 0 10px 30px var(--shadow-color);
     font-size: 0.8125rem;
     pointer-events: auto;
   }
@@ -685,7 +685,7 @@
     background: var(--bg-rise);
     color: var(--fg);
     font-size: 0.8125rem;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 6px 18px var(--shadow-color);
   }
 
   /* Untitled-UI-style controls (React Aria) styled with Catppuccin tokens. */
@@ -769,7 +769,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg-mantle);
-    box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+    box-shadow: 0 10px 30px var(--shadow-color);
   }
   .ui-select__presets {
     display: flex;
@@ -1695,7 +1695,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg-mantle);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+    box-shadow: 0 8px 24px var(--shadow-color-soft);
   }
   .doc-outline__item {
     display: block;

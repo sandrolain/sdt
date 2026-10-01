@@ -32,7 +32,9 @@ export const CLUSTER_KEYS: { id: ClusterKey; label: string }[] = [
   { id: "status", label: "Status" },
 ];
 
-/** Catppuccin Mocha accents used for canvas-rendered node colors. */
+// Categorical identity, not a theme role (phase 9): a cluster id *is* an
+// identity, so its colour is a palette entry and stays a raw value. The renderer
+// draws it on a canvas, where the active theme's CSS tokens do not apply.
 const CLUSTER_COLORS = [
   "#cba6f7",
   "#89b4fa",
@@ -48,6 +50,8 @@ const CLUSTER_COLORS = [
   "#eba0ac",
 ];
 
+// Categorical identity (phase 9): an unclustered node and a de-emphasised node
+// are identities in the graph palette, not theme roles.
 export const DEFAULT_NODE_COLOR = "#9399b2";
 export const DIM_NODE_COLOR = "#45475a";
 
@@ -125,6 +129,7 @@ export function adaptGraph(data: GraphData, opts: GraphAdapterOptions): AdaptedG
     .filter((e) => (opts.visibleKinds ? opts.visibleKinds.has(e.kind) : true))
     .map((e) => ({
       ...e,
+      // categorical identity (phase 9): every edge wears the same neutral
       color: "#6c7086",
     }));
   const allVerbs = [...new Set(data.edges.map((e) => e.verb))].sort();

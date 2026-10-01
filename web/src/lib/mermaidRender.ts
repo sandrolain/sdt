@@ -22,7 +22,11 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-/** Catppuccin-token theme variables so diagrams match the app theme. */
+/**
+ * Catppuccin-token theme variables so diagrams match the app theme. The hex
+ * values are fallbacks for a missing custom property, not a second palette
+ * (phase 9): the resolved token is what a diagram uses.
+ */
 function themeVariables(): Record<string, string> {
   return {
     background: cssVar("--bg-base") || "#1e1e2e",

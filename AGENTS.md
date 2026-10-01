@@ -333,6 +333,12 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
 ### Conventions
 
 - **Language**: all code, comments, and documentation in English.
+- **Colours**: `web/src/styles/tokens.css` owns every raw colour and the
+  semantic aliases. Outside it, migrate a literal only when it is a semantic
+  role (surface, border, text tone, state, focus ring, elevation); leave a
+  categorical identity (graph cluster, edge or boundary colour) as a raw value
+  with a one-line comment saying why.
+  `web/src/styles/tokenMigration.test.ts` guards the elevation role.
 - **Tests**: every new command must have a `_test.go` file; benchmark tests in a
   separate `_bench_test.go`.
 - **Coverage**: minimum 80% per package.

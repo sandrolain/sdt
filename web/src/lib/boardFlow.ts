@@ -10,6 +10,8 @@ export interface BoardNodeData extends Record<string, unknown> {
 export type BoardFlowNode = Node<BoardNodeData>;
 export type BoardFlowEdge = Edge;
 
+// Categorical identity in the graph palette (phase 9): board edges and their
+// labels are drawn on a canvas, so they stay raw values.
 const EDGE_COLOR = "#6c7086";
 const EDGE_LABEL_COLOR = "#9399b2";
 

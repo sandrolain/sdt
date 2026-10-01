@@ -46,6 +46,8 @@ export interface LabelSpriteSpec {
   radius: number;
 }
 
+// Categorical identity in the graph palette (phase 9): node labels and dot
+// colours are canvas-drawn, so they stay raw values.
 export const NODE_LABEL_COLOR = "#cdd6f4";
 
 /**
