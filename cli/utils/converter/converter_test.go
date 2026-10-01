@@ -91,3 +91,51 @@ func TestConvertLinksToLocal_MailtoUnchanged(t *testing.T) {
 		t.Errorf("ConvertLinksToLocal() mailto changed: got %q, want %q", result, input)
 	}
 }
+
+func TestDocumentExtension(t *testing.T) {
+	cases := []struct {
+		path string
+		want string
+	}{
+		{"report.pdf", ".pdf"},
+		{"REPORT.PDF", ".pdf"},
+		{"https://x.example/docs/file.docx?raw=1", ".docx"},
+		{"https://x.example/a/b.xlsx#sheet", ".xlsx"},
+		{"notes.md", ".md"},
+		{"image.png", ""},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		if got := converter.DocumentExtension(tc.path); got != tc.want {
+			t.Errorf("DocumentExtension(%q) = %q, want %q", tc.path, got, tc.want)
+		}
+	}
+}
+
+func TestDocumentExtensionsRegistry(t *testing.T) {
+	missing := map[string]bool{".pdf": true, ".docx": true, ".md": true, ".csv": true}
+	for _, ext := range converter.DocumentExtensions {
+		delete(missing, ext)
+	}
+	if len(missing) != 0 {
+		t.Errorf("registry is missing %v", missing)
+	}
+}
+
+func TestGenerateAssetFilename(t *testing.T) {
+	cases := []struct {
+		url  string
+		want string
+	}{
+		{"https://x.example/", "index.bin"},
+		{"https://x.example", "index.bin"},
+		{"https://x.example?file=a.pdf", "index-file-a.pdf.bin"},
+		{"https://x.example/docs/report", "docs-report.bin"},
+		{"%%%", "download.bin"},
+	}
+	for _, tc := range cases {
+		if got := converter.GenerateAssetFilename(tc.url); got != tc.want {
+			t.Errorf("GenerateAssetFilename(%q) = %q, want %q", tc.url, got, tc.want)
+		}
+	}
+}

@@ -180,7 +180,7 @@ func GenerateAssetFilename(pageURL string) string {
 
 	path := parsedURL.Path
 	query := parsedURL.RawQuery
-	docExt := findDocumentExtension(path)
+	docExt := DocumentExtension(path)
 
 	if path == "" || path == "/" {
 		filename := "index"
@@ -229,27 +229,31 @@ func GenerateAssetFilename(pageURL string) string {
 	return filename
 }
 
-func findDocumentExtension(path string) string {
-	extensions := []string{
-		".pdf",
-		".doc",
-		".docx",
-		".xls",
-		".xlsx",
-		".ppt",
-		".pptx",
-		".odt",
-		".ods",
-		".odp",
-		".rtf",
-		".txt",
-		markdownExt,
-		".markdown",
-		".csv",
-	}
+// DocumentExtensions is the single registry of convertible document
+// extensions, shared by the filename builder and the crawler's link filter.
+var DocumentExtensions = []string{
+	".pdf",
+	".doc",
+	".docx",
+	".xls",
+	".xlsx",
+	".ppt",
+	".pptx",
+	".odt",
+	".ods",
+	".odp",
+	".rtf",
+	".txt",
+	markdownExt,
+	".markdown",
+	".csv",
+}
 
+// DocumentExtension returns the registered extension matching path (a file
+// path or a URL path), or "" when path is not a convertible document.
+func DocumentExtension(path string) string {
 	lowerPath := strings.ToLower(path)
-	for _, ext := range extensions {
+	for _, ext := range DocumentExtensions {
 		if strings.HasSuffix(lowerPath, ext) || strings.Contains(lowerPath, ext+"/") || strings.Contains(lowerPath, ext+"?") || strings.Contains(lowerPath, ext+"#") {
 			return ext
 		}

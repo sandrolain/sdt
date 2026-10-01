@@ -12,6 +12,7 @@ import (
 
 	"codeberg.org/readeck/go-readability/v2"
 	"github.com/gocolly/colly"
+	"github.com/sandrolain/sdt/cli/utils/converter"
 )
 
 // Page represents a crawled web page.
@@ -520,31 +521,7 @@ func isDocumentLink(link string) bool {
 }
 
 func isDocumentPath(path string) bool {
-	extensions := []string{
-		".pdf",
-		".doc",
-		".docx",
-		".xls",
-		".xlsx",
-		".ppt",
-		".pptx",
-		".odt",
-		".ods",
-		".odp",
-		".rtf",
-		".txt",
-		".md",
-		".markdown",
-		".csv",
-	}
-
-	for _, ext := range extensions {
-		if strings.HasSuffix(path, ext) || strings.Contains(path, ext+"/") || strings.Contains(path, ext+"?") || strings.Contains(path, ext+"#") {
-			return true
-		}
-	}
-
-	return false
+	return converter.DocumentExtension(path) != ""
 }
 
 func isDocumentResponse(r *colly.Response) bool {

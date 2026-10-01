@@ -99,7 +99,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/questions.md` | Registering an open question |
 | `context/instructions/proposal.md` | Creating or reviewing a proposal |
 | `context/instructions/research.md` | Running or writing a research note |
-| `context/instructions/ingestion.md` | Ingesting sources; converting non-markdown (anydoc → docling) |
+| `context/instructions/ingestion.md` | Ingesting sources; converting non-markdown (`sdt doc2md`, anydoc → docling → markitdown) |
 | `context/instructions/prompts.md` | Creating or running a tracked prompt |
 | `context/instructions/reference.md` | Looking up a command |
 | `context/instructions/cli.md` | Looking up usage examples |

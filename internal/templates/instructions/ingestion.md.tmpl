@@ -77,17 +77,21 @@ the slug to be free.
 
 Sources are frequently not plain markdown — convert first, then distil.
 
-- **anydoc** is the preferred converter (PDF/DOCX/HTML and other formats →
-  clean markdown). Use **docling** as the alternative when anydoc yields no
-  usable result.
-- **Fallbacks** by source type: `markitdown` (Office/web), `marker`
-  (PDF-heavy), OCR for scans (e.g. tesseract) when the above yield no usable
-  text. Optional wrapper in `context/scripts/` (registered in
-  `scripts/index.md`) keeps the invocation reproducible.
-- Conversion output is transient: write intermediate markdown to
-  `context/tmp/` while distilling — never into `context/ingestion/`
-  (immutable) or directly into the wiki. Raw binaries stay untouched in
-  `context/ingestion/` until the archive step.
+- **Convert with `sdt doc2md <file>`** — the agent's reference. It tries the
+  first *runnable* converter in the order anydoc → docling → markitdown
+  (availability means the tool launches, not that it is on PATH) and prints
+  markdown to stdout to read. Use `--tool <name>` to pin one converter;
+  `sdt doc2md tools` probes the chain.
+- **Keep a document** with `sdt doc2md <file> --keep`: it stores a
+  content-addressed, provenance-stamped file under `context/refs/converted/`
+  and regenerates the index there (`list`, `set`, `reindex` are the read /
+  mutate / repair verbs). A document no longer needs to round-trip through
+  `context/tmp/`; `--output-file <path>` writes the stamped document to an
+  explicit path instead.
+- A PDF whose pages need OCR is reported as `needs_ocr` (its own status and
+  exit code), never an empty file reported as success. Raw binaries stay
+  untouched in `context/ingestion/` until the archive step; never convert
+  directly into `context/ingestion/` (immutable) or the wiki.
 - **Images** (diagrams, screenshots, scans): interpret via a vision-capable
   model; distil the facts into the wiki page; optionally archive the original
   in `context/refs/` on approval. Never embed binaries in wiki pages — point

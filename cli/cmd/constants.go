@@ -49,6 +49,7 @@ const (
 	sdtWikiDir         = "context/wiki"
 	sdtIngestionDir    = "context/ingestion"
 	sdtRefsDir         = "context/refs"
+	sdtConvertedDir    = "context/refs/converted"
 
 	// The tagged section names in AGENTS.md.
 	agentSectionNameInstructions = "instructions"

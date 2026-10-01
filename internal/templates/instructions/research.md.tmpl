@@ -57,8 +57,9 @@ Feeds.
   interpretation starts, write/extend an analysis (or proposal) instead.
 - **Provenance is mandatory.** Every run names its driving prompt
   (`prompts/<…>.md`) and the evidence it relied on under `sources`.
-  Non-markdown evidence is converted first (anydoc, then docling — see
-  `instructions/ingestion.md`) and the original kept in `context/refs/`.
+  Non-markdown evidence is converted first with `sdt doc2md` (anydoc → docling
+  → markitdown — see `instructions/ingestion.md`) and the original kept in
+  `context/refs/`.
 
 ## Deepsearch readiness
 
