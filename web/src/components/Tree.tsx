@@ -48,6 +48,7 @@ import { useTreeKeyboard } from "../lib/treeKeyboard";
 import { useTreeFocusRequests } from "../lib/treeFocus";
 import { useReloadToken } from "../lib/useReloadToken";
 import { SkeletonLines } from "./Skeleton";
+import { TreeStatusBar } from "./TreeStatusBar";
 import { TreeToolbar } from "./TreeToolbar";
 
 /** Stable ids for the tree's collapsible groups, so one controlled open-state
@@ -198,6 +199,11 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
         entries: sortEntries(group.entries, sortKey),
       }))
     : [];
+  // per-kind breakdown of the visible set, for the status bar; kinds with no
+  // visible document are dropped
+  const visibleKindCounts = groups
+    .filter((group) => group.entries.length > 0)
+    .map((group) => ({ kind: group.kind, count: group.entries.length }));
   return (
     <aside className="panel panel--tree" aria-label="Corpus tree">
       <TreeToolbar onResetLayout={onResetLayout} onCollapseAll={() => setOpenGroups(new Set())} />
@@ -297,6 +303,13 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
           </div>
         )}
       </GroupOpenContext.Provider>
+      {entries && !error && (
+        <TreeStatusBar
+          shown={visibleEntries?.length ?? 0}
+          total={entries.length}
+          kinds={visibleKindCounts}
+        />
+      )}
     </aside>
   );
 }

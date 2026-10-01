@@ -72,25 +72,34 @@ describe("DocMetaPanel", () => {
     const cmd = screen.getAllByText("C")[0];
     expect(cmd.getAttribute("href")).toBe("/docs/context/commands/c.md");
     expect(cmd.getAttribute("title")).toBeNull();
-    // each meta card carries an open/collapsed chevron
-    const chevrons = document.querySelectorAll(".meta-card__chevron");
-    expect(chevrons.length).toBe(document.querySelectorAll(".meta-card").length);
-    expect(chevrons.length).toBeGreaterThan(0);
+    // the panel is three tabs, Info selected by default
+    const tabLabels = () =>
+      Array.from(document.querySelectorAll(".meta-tabs__tab")).map(
+        (el) => el.querySelector("span:not(.ms-icon)")?.textContent,
+      );
+    expect(tabLabels()).toEqual(["Info", "Sections", "Links"]);
+    expect(document.querySelector(".meta-tabs__tab[data-selected]")?.textContent).toContain("Info");
   });
 
-  it("renders the Sections card above the Metadata card", () => {
+  it("keeps the three tabs stable and shows the TOC under Sections", async () => {
     mockFetch();
     renderPanel(DOC);
-    const titles = Array.from(document.querySelectorAll(".meta-card__label")).map(
-      (el) => el.textContent,
-    );
-    expect(titles.indexOf("Sections")).toBeGreaterThanOrEqual(0);
-    expect(titles.indexOf("Sections")).toBeLessThan(titles.indexOf("Metadata"));
+    const labels = () =>
+      Array.from(document.querySelectorAll(".meta-tabs__tab")).map(
+        (el) => el.querySelector("span:not(.ms-icon)")?.textContent,
+      );
+    expect(labels()).toEqual(["Info", "Sections", "Links"]);
+    // a hidden panel's text is inert; the TOC becomes reachable under Sections
+    expect(screen.queryByRole("button", { name: "Second" })).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
+    expect(screen.getByRole("button", { name: "Second" })).toBeTruthy();
+    expect(labels()).toEqual(["Info", "Sections", "Links"]);
   });
 
   it("requests the selected section (jump handled by the document panel)", async () => {
     mockFetch();
     renderPanel(DOC);
+    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
     await userEvent.click(screen.getByRole("button", { name: "Second" }));
     expect(getSectionRequest()).toMatchObject({ path: DOC.path, text: "Second" });
   });
@@ -183,9 +192,10 @@ describe("DocMetaPanel", () => {
     expect(current[0].className).toContain("is-current");
   });
 
-  it("highlights the heading currently in view", () => {
+  it("highlights the heading currently in view", async () => {
     mockFetch();
     renderPanel(DOC);
+    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
     expect(screen.getByRole("button", { name: "Second" }).getAttribute("aria-current")).toBeNull();
     act(() => setActiveSection(DOC.path, "Second"));
     const active = screen.getByRole("button", { name: "Second" });
@@ -485,6 +495,7 @@ describe("DocMetaPanel", () => {
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
     }) as unknown as typeof fetch;
     renderPanel(DOC);
+    await userEvent.click(screen.getByRole("tab", { name: "Links" }));
     const link = await screen.findByRole("link", { name: /Plan X/ });
     expect(link.getAttribute("href")).toBe("/docs/context/plan/plan-x.md");
     expect(
@@ -503,6 +514,7 @@ describe("DocMetaPanel", () => {
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
     }) as unknown as typeof fetch;
     renderPanel(DOC);
+    await userEvent.click(screen.getByRole("tab", { name: "Links" }));
     expect(await screen.findByText(/No document references/)).toBeTruthy();
   });
 });

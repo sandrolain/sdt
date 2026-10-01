@@ -77,6 +77,16 @@ describe("viewer styles", () => {
     expect(actions).toContain("align-items: center");
   });
 
+  it("resets list bullets across the whole tree, flat mode included", () => {
+    const reset = block(".tree-groups ul");
+    expect(reset).toContain("list-style: none");
+    expect(reset).toContain("margin: 0");
+    expect(reset).toContain("padding: 0");
+    // the reset is no longer scoped to kind folders, and flat mode needs no rule
+    expect(css.indexOf(".tree-folder ul {")).toBe(-1);
+    expect(css.indexOf(".tree-flat {")).toBe(-1);
+  });
+
   it("keeps the tree toolbar fixed and sticks only the kind headers", () => {
     const toolbar = block(".tree-toolbar");
     expect(toolbar).toContain("flex-wrap: wrap");
@@ -85,6 +95,30 @@ describe("viewer styles", () => {
     const headers = block(".tree-groups > .tree-folder > .tree-folder__header");
     expect(headers).toContain("position: sticky");
     expect(headers).toContain("top: 0");
+  });
+
+  it("keeps the sticky kind header flush with the scroll region top", () => {
+    // a block-start padding would leave a strip of moving content above a
+    // stuck header; the first folder carries the top gap instead
+    const groups = block(".tree-groups");
+    expect(groups).not.toContain("padding: 0.5rem");
+    expect(groups).not.toContain("padding-top");
+    expect(block(".tree-groups > :first-child")).toContain("margin-top: 0.5rem");
+    const headers = block(".tree-groups > .tree-folder > .tree-folder__header");
+    expect(headers).toContain("top: 0");
+  });
+
+  it("keeps the tree status bar fixed under the scroll region", () => {
+    const bar = block(".tree-status");
+    expect(bar).toContain("flex: none");
+    expect(bar).toContain("border-top");
+  });
+
+  it("styles the metadata panel tabs from the shared tokens", () => {
+    // the four collapsible cards are gone, replaced by one tab strip
+    expect(css.indexOf(".meta-card {")).toBe(-1);
+    expect(block(".meta-tabs__tab[data-selected]")).toContain("background: var(--bg-rise)");
+    expect(block(".meta-panel")).toContain("border: 1px solid var(--border)");
   });
 
   it("keeps the state filter and the drift warning on the shared tokens", () => {

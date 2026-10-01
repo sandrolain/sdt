@@ -27,6 +27,54 @@ const ZOOM_OPTIONS = {
 
 const instances = new WeakMap<HTMLElement, Entry>();
 
+/** The rendered size of a viewBox scaled to `availableWidth`; never upscales
+ *  past the diagram's natural size. Zero when the viewBox or width is unset. */
+export function fittedSvgSize(
+  viewBox: { width: number; height: number },
+  availableWidth: number,
+): { width: number; height: number } {
+  if (viewBox.width <= 0 || viewBox.height <= 0 || availableWidth <= 0) {
+    return { width: 0, height: 0 };
+  }
+  const scale = Math.min(1, availableWidth / viewBox.width);
+  return { width: viewBox.width * scale, height: viewBox.height * scale };
+}
+
+/** Read an SVG's viewBox dimensions from the attribute (jsdom-safe). */
+function viewBoxOf(svg: SVGSVGElement): { width: number; height: number } {
+  const parts = (svg.getAttribute("viewBox") ?? "")
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map(Number);
+  if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+    return { width: parts[2], height: parts[3] };
+  }
+  const base = svg.viewBox?.baseVal;
+  return { width: base?.width ?? 0, height: base?.height ?? 0 };
+}
+
+/**
+ * Give the SVG a definite box matching its viewBox aspect at the wrapper's
+ * content width before svg-pan-zoom measures it. Mermaid emits
+ * `width="100%"` with no height, so a `height: auto` SVG resolves against the
+ * flex line and svg-pan-zoom measures the wrong (short) viewport, which clips
+ * tall diagrams. Sizing the box here makes the wrapper grow to the diagram.
+ */
+function sizeSvgToViewBox(node: HTMLElement, svg: SVGSVGElement): void {
+  const styles = getComputedStyle(node);
+  const padding = parseFloat(styles.paddingLeft || "0") + parseFloat(styles.paddingRight || "0");
+  const available = node.clientWidth - padding;
+  const size = fittedSvgSize(viewBoxOf(svg), available);
+  if (size.width > 0 && size.height > 0) {
+    // inline style beats the `height: auto` rule, which would otherwise
+    // re-collapse the SVG once svg-pan-zoom removes the viewBox attribute
+    svg.style.width = `${size.width}px`;
+    svg.style.height = `${size.height}px`;
+    svg.setAttribute("width", String(size.width));
+    svg.setAttribute("height", String(size.height));
+  }
+}
+
 /** Build a Material Symbols control button wired to `onClick`. */
 function controlButton(icon: string, label: string, onClick: () => void): HTMLButtonElement {
   const button = document.createElement("button");
@@ -77,6 +125,7 @@ export function enhanceMermaid(node: HTMLElement): MermaidZoomHandle | null {
   if (existing && existing.svg === svg) return handleOf(existing);
   if (existing) destroyMermaidZoom(node);
 
+  sizeSvgToViewBox(node, svg);
   const api = svgPanZoom(svg, { ...ZOOM_OPTIONS });
   const controls = buildControls(svg, api);
   node.classList.add("md-mermaid--zoomable");

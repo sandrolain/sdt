@@ -59,11 +59,11 @@ describe("DocumentsPage", () => {
     await screen.findByText(/Alpha body text/);
     await userEvent.click(screen.getByText("Go B"));
     expect(await screen.findByText(/Beta body text/)).toBeTruthy();
-    const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((t) => t.querySelector(".dock-doc-tab__label")?.textContent)).toEqual([
-      "A",
-      "B",
-    ]);
+    const tabs = screen
+      .getAllByRole("tab")
+      .map((t) => t.querySelector(".dock-doc-tab__label")?.textContent)
+      .filter(Boolean);
+    expect(tabs).toEqual(["A", "B"]);
   });
 
   it("shows a courtesy notice until a document opens, then clears it", async () => {

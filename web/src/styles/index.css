@@ -807,7 +807,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    padding: 0.3rem 0.5rem;
+    padding: 0.45rem 0.6rem;
     border-radius: 6px;
     font-size: 0.8125rem;
     color: var(--fg);
@@ -829,7 +829,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    padding: 0.25rem 0.5rem 0.1rem;
+    padding: 0.45rem 0.6rem 0.2rem;
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.04em;
@@ -857,10 +857,51 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    padding: 0.5rem;
+    /* no block-start padding: the scrollport top must coincide with the sticky
+       headers' `top: 0`, so a stuck kind header has no content strip above it.
+       The first folder keeps the top gap through its own margin. */
+    padding: 0 0.5rem 0.5rem;
     flex: 1;
     min-height: 0;
     overflow: auto;
+  }
+  .tree-groups > :first-child {
+    margin-top: 0.5rem;
+  }
+  /* fixed single row under the scroll region: visible/total and a per-kind
+     breakdown that scrolls horizontally when the panel is narrow */
+  .tree-status {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.5rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-mantle);
+    color: var(--fg-faint);
+    font-size: 0.75rem;
+    overflow: hidden;
+  }
+  .tree-status__counts {
+    flex: none;
+    white-space: nowrap;
+  }
+  .tree-status__kinds {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+  }
+  .tree-status__kind {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  .tree-status__icon {
+    font-size: 0.9rem;
   }
   /* each kind folder reads as its own block, visually separated from the next */
   .tree-folder {
@@ -1049,7 +1090,9 @@
     font-size: 0.9rem;
     color: var(--warn);
   }
-  .tree-folder ul {
+  /* one reset for every tree list: kind folders, sub-folders and the flat mode,
+     which renders its own <ul> outside a folder */
+  .tree-groups ul {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -1195,41 +1238,65 @@
     /* let the edge group shrink below its content's min-content width */
     min-width: 0;
   }
-  .meta-card {
+  .meta-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .meta-tabs__list {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--bg-base);
-    min-width: 0;
   }
-  .meta-card__title {
-    display: flex;
+  .meta-tabs__tab {
+    flex: 1;
+    display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.6rem;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.4rem;
+    border-radius: 7px;
+    color: var(--fg-dim);
     font-size: 0.8125rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--fg-dim);
     cursor: pointer;
-    list-style: none;
   }
-  .meta-card__title::-webkit-details-marker {
-    display: none;
+  .meta-tabs__tab .ms-icon {
+    font-size: 1rem;
   }
-  .meta-card__label {
-    flex: 1;
+  .meta-tabs__tab[data-selected] {
+    background: var(--bg-rise);
+    color: var(--fg);
   }
-  .meta-card__chevron {
-    color: var(--fg-faint);
-    transition: transform 0.15s ease;
-    transform: rotate(-90deg);
+  .meta-tabs__tab[data-focus-visible] {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
-  .meta-card[open] .meta-card__chevron {
-    transform: rotate(0deg);
+  .meta-tabs__panel {
+    outline: none;
+    min-width: 0;
   }
-  .meta-card__body {
-    padding: 0 0.6rem 0.6rem;
+  .meta-panel {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-base);
+    padding: 0.6rem;
+    min-width: 0;
+  }
+  .meta-panel__title {
+    margin: 0 0 0.4rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--fg-dim);
+  }
+  .meta-panel__title--spaced {
+    margin-top: 0.75rem;
   }
   .meta-status {
     display: flex;

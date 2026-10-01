@@ -1211,6 +1211,50 @@ describe("Tree", () => {
     expect(notesFolder()?.textContent).toContain("Dead end");
     expect(notesFolder()?.textContent).toContain("Plain note");
   });
+  it("renders a status bar with visible/total and per-kind counts that follow the filter", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              { path: "context/analysis/a.md", kind: "analysis", title: "A", status: "active" },
+              { path: "context/analysis/b.md", kind: "analysis", title: "B", status: "completed" },
+              { path: "context/notes/n.md", kind: "notes", title: "N" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("A");
+    const bar = () => document.querySelector(".tree-status") as HTMLElement;
+    const kindCount = (label: string) =>
+      bar().querySelector(`.tree-status__kind[title="${label}"] .tree-status__num`)?.textContent;
+    expect(bar().textContent).toContain("3 shown");
+    expect(bar().textContent).toContain("3 total");
+    expect(kindCount("Analyses")).toBe("2");
+    expect(kindCount("Notes")).toBe("1");
+
+    // the counts describe the visible set: hiding completed drops one analysis
+    act(() => setHiddenStates(["completed"]));
+    await waitFor(() => expect(bar().textContent).toContain("2 shown"));
+    expect(bar().textContent).toContain("3 total");
+    expect(kindCount("Analyses")).toBe("1");
+    expect(kindCount("Notes")).toBe("1");
+  });
+
+  it("renders an empty corpus status bar without kind counts", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ entries: [] }) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await waitFor(() => expect(document.querySelector(".tree-status")).toBeTruthy());
+    const bar = document.querySelector(".tree-status") as HTMLElement;
+    expect(bar.textContent).toContain("0 shown");
+    expect(bar.textContent).toContain("0 total");
+    expect(bar.querySelector(".tree-status__kinds")).toBeNull();
+  });
+
   describe("recent documents", () => {
     it("stays hidden until something has been read", async () => {
       globalThis.fetch = vi.fn(() =>

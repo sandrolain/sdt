@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 import { useActiveSection } from "../lib/activeSection";
 import {
   isCanvas,
@@ -169,121 +170,137 @@ export function DocMetaPanel({ doc }: DocMetaPanelProps) {
     return { value, valueInfo: valueLabel(docKind, value) };
   }, [docKind, fields]);
 
+  const [tab, setTab] = useState<string>("info");
+
   if (!doc) return null;
 
   return (
     <aside className="panel panel--meta" aria-label="Document metadata">
-      <Breadcrumbs path={doc.path} />
+      <Tabs
+        selectedKey={tab}
+        onSelectionChange={(key) => setTab(String(key))}
+        className="meta-tabs"
+      >
+        <TabList className="meta-tabs__list" aria-label="Document panel">
+          <Tab id="info" className="meta-tabs__tab">
+            <Icon name="info" />
+            <span>Info</span>
+          </Tab>
+          <Tab id="sections" className="meta-tabs__tab">
+            <Icon name="toc" />
+            <span>Sections</span>
+          </Tab>
+          <Tab id="links" className="meta-tabs__tab">
+            <Icon name="link" />
+            <span>Links</span>
+          </Tab>
+        </TabList>
 
-      {headings.length > 0 && (
-        <MetaCard title="Sections" icon="toc">
-          <ul className="meta-toc" role="list">
-            {headings.map((h, i) => {
-              const isActive = activeHeading === h.text;
-              return (
-                <li key={`${h.text}-${i}`} style={{ paddingLeft: `${(h.level - 1) * 0.6}rem` }}>
-                  <button
-                    type="button"
-                    className={`meta-toc__link${isActive ? " is-active" : ""}`}
-                    aria-current={isActive ? "true" : undefined}
-                    onClick={() => {
-                      requestSection(doc.path, h.text);
-                    }}
-                  >
-                    {h.text}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </MetaCard>
-      )}
+        <TabPanel id="info" className="meta-tabs__panel">
+          <div className="meta-panel">
+            <Breadcrumbs path={doc.path} />
 
-      <MetaCard title="Metadata" icon="info">
-        {declaredStatus && (
-          <MetaStatusRow
-            label="Status"
-            dotTone={declaredStatus.valueInfo?.tone ?? "neutral"}
-            value={declaredStatus.valueInfo?.label ?? declaredStatus.value}
-            title={declaredStatus.valueInfo?.meaning ?? declaredStatus.value}
-          />
-        )}
-        {progress && (
-          <MetaStatusRow label="Progress" dotTone={progress.tone} value={progress.label} />
-        )}
-        {drift && <MetaDriftWarning drift={drift} />}
-        {docKind && (
-          <div className="meta-status" role="listitem">
-            <MetaKindIcon kind={docKind} />
-            <span className="meta-status__label">Kind</span>
-            <span className="meta-status__value">{kindLabel(docKind)}</span>
-          </div>
-        )}
-        {isCanvas(doc) ? (
-          <CanvasMeta canvas={doc.canvas} />
-        ) : isMermaid(doc) ? (
-          <MermaidMeta source={doc.source} />
-        ) : (
-          <>
-            {yamlError && <MetaParseWarning raw={doc.frontmatter} />}
-            {fields.length === 0 && !yamlError && <p className="content__empty">No frontmatter.</p>}
-            {fields.length > 0 && (
-              <dl className="meta-rows" role="list">
-                {fields
-                  .filter((field) => field.key !== "status" && field.key !== "kind")
-                  .map((field, i) => (
-                    <MetaRow
-                      key={`${field.path.join(".")}-${i}`}
-                      field={field}
-                      basePath={doc.path}
-                      index={index}
-                      corpus={corpus}
-                    />
-                  ))}
-              </dl>
+            {declaredStatus && (
+              <MetaStatusRow
+                label="Status"
+                dotTone={declaredStatus.valueInfo?.tone ?? "neutral"}
+                value={declaredStatus.valueInfo?.label ?? declaredStatus.value}
+                title={declaredStatus.valueInfo?.meaning ?? declaredStatus.value}
+              />
             )}
-          </>
-        )}
-      </MetaCard>
+            {progress && (
+              <MetaStatusRow label="Progress" dotTone={progress.tone} value={progress.label} />
+            )}
+            {drift && <MetaDriftWarning drift={drift} />}
+            {docKind && (
+              <div className="meta-status" role="listitem">
+                <MetaKindIcon kind={docKind} />
+                <span className="meta-status__label">Kind</span>
+                <span className="meta-status__value">{kindLabel(docKind)}</span>
+              </div>
+            )}
+            {isCanvas(doc) ? (
+              <CanvasMeta canvas={doc.canvas} />
+            ) : isMermaid(doc) ? (
+              <MermaidMeta source={doc.source} />
+            ) : (
+              <>
+                {yamlError && <MetaParseWarning raw={doc.frontmatter} />}
+                {fields.length === 0 && !yamlError && (
+                  <p className="content__empty">No frontmatter.</p>
+                )}
+                {fields.length > 0 && (
+                  <dl className="meta-rows" role="list">
+                    {fields
+                      .filter((field) => field.key !== "status" && field.key !== "kind")
+                      .map((field, i) => (
+                        <MetaRow
+                          key={`${field.path.join(".")}-${i}`}
+                          field={field}
+                          basePath={doc.path}
+                          index={index}
+                          corpus={corpus}
+                        />
+                      ))}
+                  </dl>
+                )}
+              </>
+            )}
+          </div>
+        </TabPanel>
 
-      <MetaCard title="Links out" icon="link">
-        {outLinks.length === 0 ? (
-          <p className="content__empty">No linked documents.</p>
-        ) : (
-          <ul className="meta-links" role="list">
-            {dedupe(outLinks).map((link, i) => (
-              <li key={`${link.label}-${link.href ?? ""}-${i}`}>
-                <MetaLink link={link} corpus={corpus} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </MetaCard>
-      {markdownDoc && (
-        <MetaCard title="Referenced by" icon="call_received">
-          <ReferencedBy path={markdownDoc.path} />
-        </MetaCard>
-      )}
+        <TabPanel id="sections" className="meta-tabs__panel">
+          <div className="meta-panel">
+            {headings.length > 0 ? (
+              <ul className="meta-toc" role="list">
+                {headings.map((h, i) => {
+                  const isActive = activeHeading === h.text;
+                  return (
+                    <li key={`${h.text}-${i}`} style={{ paddingLeft: `${(h.level - 1) * 0.6}rem` }}>
+                      <button
+                        type="button"
+                        className={`meta-toc__link${isActive ? " is-active" : ""}`}
+                        aria-current={isActive ? "true" : undefined}
+                        onClick={() => {
+                          requestSection(doc.path, h.text);
+                        }}
+                      >
+                        {h.text}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="content__empty">No sections.</p>
+            )}
+          </div>
+        </TabPanel>
+
+        <TabPanel id="links" className="meta-tabs__panel">
+          <div className="meta-panel">
+            <h3 className="meta-panel__title">Links out</h3>
+            {outLinks.length === 0 ? (
+              <p className="content__empty">No linked documents.</p>
+            ) : (
+              <ul className="meta-links" role="list">
+                {dedupe(outLinks).map((link, i) => (
+                  <li key={`${link.label}-${link.href ?? ""}-${i}`}>
+                    <MetaLink link={link} corpus={corpus} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {markdownDoc && (
+              <>
+                <h3 className="meta-panel__title meta-panel__title--spaced">Referenced by</h3>
+                <ReferencedBy path={markdownDoc.path} />
+              </>
+            )}
+          </div>
+        </TabPanel>
+      </Tabs>
     </aside>
-  );
-}
-
-interface MetaCardProps {
-  title: string;
-  icon: string;
-  children: ReactNode;
-}
-
-function MetaCard({ title, icon, children }: MetaCardProps) {
-  return (
-    <details className="meta-card" open>
-      <summary className="meta-card__title">
-        <Icon name={icon} />
-        <span className="meta-card__label">{title}</span>
-        <Icon name="expand_more" className="meta-card__chevron" title={title} />
-      </summary>
-      <div className="meta-card__body">{children}</div>
-    </details>
   );
 }
 

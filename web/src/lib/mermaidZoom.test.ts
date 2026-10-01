@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import svgPanZoom from "svg-pan-zoom";
-import { destroyMermaidZoom, enhanceMermaid, openFullscreen } from "./mermaidZoom";
+import { destroyMermaidZoom, enhanceMermaid, fittedSvgSize, openFullscreen } from "./mermaidZoom";
 
 interface Api {
   zoomIn: ReturnType<typeof vi.fn>;
@@ -83,6 +83,35 @@ describe("enhanceMermaid", () => {
     expect(apiAt(0).destroy).toHaveBeenCalledOnce();
     expect(node.querySelector(".md-mermaid__controls")).toBeNull();
     expect(node.classList.contains("md-mermaid--zoomable")).toBe(false);
+  });
+
+  it("sizes the SVG from its viewBox so a tall diagram is not clipped", () => {
+    const node = document.createElement("div");
+    node.className = "md-mermaid";
+    node.innerHTML = '<svg viewBox="0 0 800 1600"><g></g></svg>';
+    Object.defineProperty(node, "clientWidth", { value: 400, configurable: true });
+    document.body.append(node);
+    enhanceMermaid(node);
+    const svg = node.querySelector("svg") as SVGSVGElement;
+    // 400 / 800 = 0.5 scale; the box keeps the diagram aspect
+    expect(svg.style.width).toBe("400px");
+    expect(svg.style.height).toBe("800px");
+    expect(svg.getAttribute("width")).toBe("400");
+    expect(svg.getAttribute("height")).toBe("800");
+  });
+});
+
+describe("fittedSvgSize", () => {
+  it("keeps the viewBox aspect at the available width", () => {
+    expect(fittedSvgSize({ width: 800, height: 1600 }, 400)).toEqual({ width: 400, height: 800 });
+    expect(fittedSvgSize({ width: 300, height: 150 }, 900)).toEqual({ width: 300, height: 150 });
+  });
+
+  it("never upscales past the natural size and guards empty inputs", () => {
+    expect(fittedSvgSize({ width: 200, height: 100 }, 1000)).toEqual({ width: 200, height: 100 });
+    expect(fittedSvgSize({ width: 0, height: 100 }, 400)).toEqual({ width: 0, height: 0 });
+    expect(fittedSvgSize({ width: 100, height: 0 }, 400)).toEqual({ width: 0, height: 0 });
+    expect(fittedSvgSize({ width: 100, height: 100 }, 0)).toEqual({ width: 0, height: 0 });
   });
 });
 
