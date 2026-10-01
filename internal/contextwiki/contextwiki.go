@@ -38,6 +38,9 @@ const (
 	MapSuffix = ".map.md"
 	// MermaidSuffix marks a standalone mermaid diagram document (`.mmd`).
 	MermaidSuffix = ".mmd"
+	// SlideSuffix marks a document as a slide deck (`.slide.md`), a suffix
+	// modifier over an existing document kind (the `.map.md` precedent).
+	SlideSuffix = ".slide.md"
 	// WikiDirPrefix is the corpus-relative wiki directory prefix.
 	WikiDirPrefix = "context/wiki/"
 	// frontmatterDelim delimits a YAML frontmatter block.
@@ -93,6 +96,14 @@ func IsMapDoc(path string) bool {
 // document (`.mmd`).
 func IsMermaidDoc(path string) bool {
 	return strings.HasSuffix(filepath.ToSlash(path), MermaidSuffix)
+}
+
+// IsSlideDoc reports whether a corpus path is a slide deck (`.slide.md`), a
+// suffix modifier over an existing document kind. The id is derived by
+// DocID (which strips only ".md"), so a deck carries its own id
+// ("context/notes/plan.slide.md" -> "context/notes/plan.slide").
+func IsSlideDoc(path string) bool {
+	return strings.HasSuffix(filepath.ToSlash(path), SlideSuffix)
 }
 
 // DocID returns the canonical document id for a corpus path: for wiki pages

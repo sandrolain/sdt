@@ -14,6 +14,12 @@ vi.mock("./MindmapView", () => ({
   ),
 }));
 
+vi.mock("./SlidesView", () => ({
+  SlidesView: ({ markdown }: { markdown: string }) => (
+    <div data-testid="slides-view" data-len={markdown.length} />
+  ),
+}));
+
 vi.mock("../lib/mermaidRender", () => ({
   renderMermaid: vi.fn(() => Promise.resolve()),
 }));
@@ -87,6 +93,31 @@ describe("DocumentView", () => {
     expect(screen.queryByRole("button", { name: "Map" })).toBeNull();
     expect(screen.getByRole("img", { name: "Mermaid document" })).toBeTruthy();
     expect(document.querySelector(".doc-rendered--mermaid .md-mermaid")).toBeTruthy();
+  });
+
+  it("defaults .slide.md decks to Slides mode with Code+Render, no Map/Mermaid", async () => {
+    renderView({ path: "context/notes/deck.slide.md", markdown: "# One\n\n---\n\n# Two\n" });
+    expect(screen.getByRole("button", { name: "Slides", pressed: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Code" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Render" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Map" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mermaid" })).toBeNull();
+    expect(screen.getByRole("img", { name: "Slide deck" })).toBeTruthy();
+    expect(await screen.findByTestId("slides-view")).toBeTruthy();
+  });
+
+  it("offers Slides mode only for .slide.md documents", () => {
+    renderView({ path: "context/wiki/alpha.md" }, "/docs/x?view=slides");
+    expect(screen.queryByRole("button", { name: "Slides" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Render", pressed: true })).toBeTruthy();
+  });
+
+  it("still opens a deck in Render and Code modes", async () => {
+    renderView({ path: "context/notes/deck.slide.md", markdown: "# One\n\nbody\n" });
+    await userEvent.click(screen.getByRole("button", { name: "Render" }));
+    expect(screen.getByRole("button", { name: "Render", pressed: true })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Code" }));
+    expect(screen.getByRole("button", { name: "Code", pressed: true })).toBeTruthy();
   });
 
   it("shows the raw mermaid source in Code mode for .mmd documents", async () => {

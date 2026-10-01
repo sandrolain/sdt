@@ -1856,6 +1856,112 @@
     line-height: 1.5;
   }
 
+  /* Slide mode: a fixed 16:9 frame that scales the 1280x720 slide to the
+     container with CSS alone (container query units), so a deck looks the same
+     at any window size. The slide theme is injected by SlidesView as a <style>
+     built from the design tokens (web/src/lib/slidesTheme.ts). */
+  .slides-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    padding: 0.5rem;
+  }
+  .slides-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: none;
+  }
+  .slides-toolbar__btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem;
+    border-radius: 6px;
+    color: var(--fg-dim);
+    background: none;
+  }
+  .slides-toolbar__btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+  .slides-toolbar__btn:disabled {
+    opacity: 0.4;
+  }
+  .slides-toolbar__btn.is-active {
+    background: var(--bg-rise);
+    color: var(--accent);
+  }
+  .slides-toolbar__counter {
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-dim);
+    min-width: 4.5ch;
+    text-align: center;
+  }
+  .slides-frame {
+    container-type: size;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 100%;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-base);
+    box-shadow: 0 8px 24px var(--shadow-color-soft);
+  }
+  .slides-frame__slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1280px;
+    height: 720px;
+    transform-origin: top left;
+    /* 100cqw = the frame width; the slide is authored at 1280px wide */
+    transform: scale(calc(100cqw / 1280));
+  }
+  .slides-frame__slide > section {
+    width: 1280px;
+    height: 720px;
+    margin: 0;
+    overflow: hidden;
+  }
+  .slides-notes {
+    flex: none;
+    max-height: 30%;
+    overflow: auto;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-mantle);
+    color: var(--fg-dim);
+    font-size: 0.85rem;
+  }
+  .slides-notes ul {
+    margin: 0;
+    padding-left: 1.1rem;
+  }
+  .slides-degraded {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    flex: 1 1 auto;
+    padding: 2rem;
+    color: var(--fg-dim);
+    text-align: center;
+  }
+  .slides-degraded .ms-icon {
+    font-size: 2rem;
+    color: var(--warn);
+  }
+  .slides-degraded__hint {
+    font-size: 0.85rem;
+    color: var(--fg-faint);
+  }
   .doc-rendered {
     line-height: 1.75;
     font-size: var(--reading-size);

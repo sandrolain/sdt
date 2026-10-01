@@ -366,6 +366,45 @@ func TestIsMermaidDoc(t *testing.T) {
 	}
 }
 
+func TestIsSlideDoc(t *testing.T) {
+	cases := map[string]bool{
+		"context/analysis/analy-x.slide.md": true,
+		"context/notes/plan.slide.md":       true,
+		"context/wiki/deck.slide.md":        true,
+		"context/notes/plan.md":             false,
+		"context/notes/plan.map.md":         false,
+		"context/notes/slide.md":            false,
+		"context/notes/plan.slide":          false,
+	}
+	for path, want := range cases {
+		if got := IsSlideDoc(path); got != want {
+			t.Errorf("IsSlideDoc(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+// TestSlideDocIDAndKind: a deck reuses DocID (strip ".md" only), so it keeps its
+// own id and, being a plain ".md" to the walk, inherits the base document's kind
+// rather than gaining a "slide" kind of its own.
+func TestSlideDocIDAndKind(t *testing.T) {
+	path := "context/analysis/analy-x.slide.md"
+	if got, want := DocID(path), "context/analysis/analy-x.slide"; got != want {
+		t.Errorf("DocID(%q) = %q, want %q", path, got, want)
+	}
+	if got, want := DocID("context/wiki/topic.slide.md"), "topic.slide"; got != want {
+		t.Errorf("DocID(wiki deck) = %q, want %q", got, want)
+	}
+
+	content := "---\nkind: analysis\nstatus: active\ntitle: Deck\n---\n\n# Body\n"
+	page := ParseContent(content, path, DocID(path))
+	if page.Kind != "analysis" {
+		t.Errorf("deck kind = %q, want the inherited kind analysis", page.Kind)
+	}
+	if page.FileID != "context/analysis/analy-x.slide" {
+		t.Errorf("deck FileID = %q, want its own id", page.FileID)
+	}
+}
+
 func TestMermaidID(t *testing.T) {
 	cases := map[string]string{
 		"context/wiki/flow.mmd":  "context/wiki/flow",

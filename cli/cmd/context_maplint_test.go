@@ -116,10 +116,10 @@ func TestLintMapDocMixing(t *testing.T) {
 
 func TestLintMarkdownBodyMapH1Exception(t *testing.T) {
 	body := []byte("# root\n\n## a\n")
-	if got := lintMarkdownBody("x.map.md", body, true); len(got) != 0 {
+	if got := lintMarkdownBody("x.map.md", body, true, false); len(got) != 0 {
 		t.Fatalf("map H1 should be exempt, got %#v", got)
 	}
-	if got := lintMarkdownBody("x.md", body, false); len(got) != 1 || !strings.Contains(got[0].Message, "markdown H1") {
+	if got := lintMarkdownBody("x.md", body, false, false); len(got) != 1 || !strings.Contains(got[0].Message, "markdown H1") {
 		t.Fatalf("non-map H1 should warn, got %#v", got)
 	}
 }

@@ -7,9 +7,11 @@ import {
   isDocumentMode,
   isMapPath,
   isMermaidPath,
+  isSlidePath,
   MAP_ICON,
   MERMAID_ICON,
   modesFor,
+  SLIDES_ICON,
   type DocumentMode,
 } from "../lib/documentModes";
 import { Icon } from "../lib/icon";
@@ -40,6 +42,7 @@ import { FindInDoc } from "./FindInDoc";
 import { HoverPreview } from "./HoverPreview";
 
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
+const SlidesView = lazy(() => import("./SlidesView").then((m) => ({ default: m.SlidesView })));
 
 /** Serialize a rendered diagram's SVG and download it. */
 function downloadDiagramSvg(button: Element): void {
@@ -130,12 +133,17 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   const navigate = useNavigate();
   const mapDoc = isMap ?? isMapPath(path);
   const mermaidDoc = isMermaidPath(path);
-  const modes = useMemo(() => modesFor(mapDoc, mermaidDoc), [mapDoc, mermaidDoc]);
+  const slideDoc = isSlidePath(path);
+  const shape = useMemo(
+    () => ({ isMap: mapDoc, isMermaid: mermaidDoc, isSlide: slideDoc }),
+    [mapDoc, mermaidDoc, slideDoc],
+  );
+  const modes = useMemo(() => modesFor(shape), [shape]);
   const paramMode = params.get("view");
   const mode: DocumentMode =
     isDocumentMode(paramMode) && modes.some((m) => m.id === paramMode)
       ? paramMode
-      : defaultMode(mapDoc, mermaidDoc);
+      : defaultMode(shape);
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
 
   useEffect(() => {
@@ -366,6 +374,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
         ))}
         {mapDoc && <Icon name={MAP_ICON} className="map-icon" label="Map document" />}
         {mermaidDoc && <Icon name={MERMAID_ICON} className="map-icon" label="Mermaid document" />}
+        {slideDoc && <Icon name={SLIDES_ICON} className="map-icon" label="Slide deck" />}
       </div>
       {mode === "code" && (
         <div className="doc-code-wrap">
@@ -395,6 +404,11 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
       {mode === "map" && (
         <Suspense fallback={<p className="content__empty">Loading map…</p>}>
           <MindmapView markdown={markdown} basePath={path} title={title} />
+        </Suspense>
+      )}
+      {mode === "slides" && (
+        <Suspense fallback={<p className="content__empty">Loading slides…</p>}>
+          <SlidesView markdown={markdown} />
         </Suspense>
       )}
     </article>

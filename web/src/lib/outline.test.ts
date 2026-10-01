@@ -1,21 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { defaultMode, isDocumentMode, isMapPath, isMermaidPath, modesFor } from "./documentModes";
+import {
+  defaultMode,
+  isDocumentMode,
+  isMapPath,
+  isMermaidPath,
+  isSlidePath,
+  modesFor,
+} from "./documentModes";
 import { parseOutline, stripFrontmatter } from "./outline";
 
 describe("documentModes", () => {
   it("defaults map docs to Map and others to Render", () => {
-    expect(defaultMode(true)).toBe("map");
-    expect(defaultMode(false)).toBe("render");
+    expect(defaultMode({ isMap: true })).toBe("map");
+    expect(defaultMode()).toBe("render");
   });
 
-  it("defaults mermaid docs to Mermaid", () => {
-    expect(defaultMode(false, true)).toBe("mermaid");
+  it("defaults mermaid docs to Mermaid and decks to Slides", () => {
+    expect(defaultMode({ isMermaid: true })).toBe("mermaid");
+    expect(defaultMode({ isSlide: true })).toBe("slides");
   });
 
   it("guards mode values", () => {
     expect(isDocumentMode("code")).toBe(true);
     expect(isDocumentMode("map")).toBe(true);
     expect(isDocumentMode("mermaid")).toBe(true);
+    expect(isDocumentMode("slides")).toBe(true);
     expect(isDocumentMode("bogus")).toBe(false);
     expect(isDocumentMode(null)).toBe(false);
   });
@@ -30,10 +39,21 @@ describe("documentModes", () => {
     expect(isMermaidPath("context/wiki/flow.md")).toBe(false);
   });
 
+  it("detects the .slide.md convention", () => {
+    expect(isSlidePath("context/notes/plan.slide.md")).toBe(true);
+    expect(isSlidePath("context/notes/plan.md")).toBe(false);
+  });
+
   it("offers Code+Mermaid for mermaid docs and no Mermaid elsewhere", () => {
-    expect(modesFor(false, true).map((m) => m.id)).toEqual(["code", "mermaid"]);
-    expect(modesFor(true).map((m) => m.id)).toEqual(["code", "render", "map"]);
-    expect(modesFor(false).map((m) => m.id)).toEqual(["code", "render"]);
+    expect(modesFor({ isMermaid: true }).map((m) => m.id)).toEqual(["code", "mermaid"]);
+    expect(modesFor({ isMap: true }).map((m) => m.id)).toEqual(["code", "render", "map"]);
+    expect(modesFor().map((m) => m.id)).toEqual(["code", "render"]);
+  });
+
+  it("offers Code+Render+Slides for a deck, and Slides nowhere else", () => {
+    expect(modesFor({ isSlide: true }).map((m) => m.id)).toEqual(["code", "render", "slides"]);
+    expect(modesFor().some((m) => m.id === "slides")).toBe(false);
+    expect(modesFor({ isMap: true }).some((m) => m.id === "slides")).toBe(false);
   });
 });
 

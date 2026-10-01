@@ -149,7 +149,11 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"entity ", "use a kebab-case entity slug (lowercase letters, digits and '-')"},
 	{"unknown role", "use a role slug from the closed register (`sdt agent roles show`); unknown `role:` values on worklog/notes entries lose the vocabulary contract"},
 	{"role profile", "run `sdt agent roles check`; fix register/profile mismatches (`sdt agent roles init`/`--force`)"},
-	{"undeclared frontmatter key", "either keep it (any key is writable with `sdt context set`) or, if it is a recurring convention, propose it as a declared field in the type registry"}, {"security: possible", "review the flagged content, redact or remove it, and re-ingest from a trusted source before it can influence the agent"},
+	{"undeclared frontmatter key", "either keep it (any key is writable with `sdt context set`) or, if it is a recurring convention, propose it as a declared field in the type registry"},
+	{"slide separator `---`", "put a blank line before the ruler (or use `***`, `___` or `- - -`) so the slides split instead of parsing as a setext heading and merging"},
+	{"unknown directive", "fix the directive name (see the built-in set in `context/instructions/slides-marp.md`); the engine ignores an unknown directive silently"},
+	{"relative asset path does not resolve", "fix the path so it resolves relative to the deck, or remove the image; a broken path ships a missing image"},
+	{"security: possible", "review the flagged content, redact or remove it, and re-ingest from a trusted source before it can influence the agent"},
 	{"security: invisible", "strip the invisible/zero-width Unicode characters from the document; they can hide instructions from human review"},
 }
 
@@ -405,9 +409,12 @@ func lintDoc(path string) []ctxLintIssue {
 		issues = append(issues, lintTaskFileRules(path, content)...)
 	}
 	isMap := contextwiki.IsMapDoc(path)
-	issues = append(issues, lintMarkdownBody(path, frontmatterBody(data), isMap)...)
+	issues = append(issues, lintMarkdownBody(path, frontmatterBody(data), isMap, contextwiki.IsSlideDoc(path))...)
 	if isMap {
 		issues = append(issues, lintMapDoc(path, content, frontmatterBody(data))...)
+	}
+	if contextwiki.IsSlideDoc(path) {
+		issues = append(issues, lintDeck(path, content, frontmatterBody(data))...)
 	}
 	return issues
 }
@@ -466,7 +473,7 @@ func lintFrontmatterAndLegacyBody(path string, data []byte) []ctxLintIssue {
 	if issue.Priority == ctxLintWarning {
 		// A legacy document without frontmatter still has a Markdown body.
 		isMap := contextwiki.IsMapDoc(path)
-		issues = append(issues, lintMarkdownBody(path, data, isMap)...)
+		issues = append(issues, lintMarkdownBody(path, data, isMap, contextwiki.IsSlideDoc(path))...)
 		if isMap {
 			issues = append(issues, lintMapDoc(path, string(data), data)...)
 		}
@@ -491,7 +498,7 @@ func frontmatterBody(data []byte) []byte {
 	return nil
 }
 
-func lintMarkdownBody(path string, body []byte, isMap bool) []ctxLintIssue {
+func lintMarkdownBody(path string, body []byte, isMap, isDeck bool) []ctxLintIssue {
 	root := parser.New().Parse(body)
 	var issues []ctxLintIssue
 	if err := ast.Walk(root, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -500,7 +507,9 @@ func lintMarkdownBody(path string, body []byte, isMap bool) []ctxLintIssue {
 		}
 		// A map legitimately has one `#` root; lintMapDoc owns the single-root
 		// check, so the generic no-H1 rule is skipped for `.map.md` documents.
-		if heading, ok := node.(*ast.Heading); ok && heading.Level == 1 && !isMap {
+		// A deck's `#` is a slide title (one per slide), not a document H1, so
+		// the rule is skipped for `.slide.md` too.
+		if heading, ok := node.(*ast.Heading); ok && heading.Level == 1 && !isMap && !isDeck {
 			line := markdownLineNumber(body, heading.Pos())
 			issues = append(issues, ctxLintIssue{
 				Path: path, Priority: ctxLintWarning,

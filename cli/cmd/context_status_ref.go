@@ -44,7 +44,16 @@ func ctxCwd() string {
 }
 
 func resolveContextDocPath(ref string) (ctxResolvedDoc, error) {
-	ref = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(ref), sdtMarkdownExt))
+	ref = strings.TrimSpace(ref)
+	// A full markdown path (including a suffix-modified one such as
+	// `.slide.md` or `.map.md`) keeps its extension: only a bare ref has
+	// ".md" appended later. Trimming a blind ".md" here would turn
+	// "x.slide.md" into "x.slide" and then re-append ".md" onto the wrong
+	// stem.
+	hadExt := strings.HasSuffix(ref, sdtMarkdownExt)
+	if hadExt {
+		ref = strings.TrimSuffix(ref, sdtMarkdownExt)
+	}
 	if ref == "" {
 		return ctxResolvedDoc{}, errors.New("document reference is required (a path or --type/--slug identity)")
 	}
@@ -68,8 +77,12 @@ func resolveContextDocPath(ref string) (ctxResolvedDoc, error) {
 		return ctxResolvedDoc{}, fmt.Errorf("path %q is outside %s/", ref, sdtWorkDir)
 	}
 
-	// tmp entries have no .md suffix; every other work file is markdown.
-	if filepath.Ext(candidate) == "" && ctxFirstSegment(candidate) != ctxTypeTmp {
+	// A full markdown ref had its ".md" stripped above: restore it exactly.
+	// Otherwise tmp entries have no suffix; every other bare stem is markdown.
+	switch {
+	case hadExt:
+		candidate += sdtMarkdownExt
+	case filepath.Ext(candidate) == "" && ctxFirstSegment(candidate) != ctxTypeTmp:
 		candidate += sdtMarkdownExt
 	}
 
