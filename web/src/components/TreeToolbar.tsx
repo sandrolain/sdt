@@ -7,7 +7,6 @@ import {
   type GroupMode,
 } from "../lib/treeFilterStore";
 import { TreeSortControls } from "./TreeSortControls";
-import { SidePanelToggle } from "./SidePanelToggle";
 import { Select } from "./ui/Select";
 import { TooltipButton } from "./ui/Tooltip";
 import { Icon } from "../lib/icon";
@@ -104,7 +103,6 @@ export function TreeToolbar({ onResetLayout, onCollapseAll }: TreeToolbarProps) 
           <Icon name="restart_alt" />
         </TooltipButton>
       )}
-      <SidePanelToggle position="left" label="tree" />
     </div>
   );
 }

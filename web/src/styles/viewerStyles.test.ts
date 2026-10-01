@@ -121,15 +121,6 @@ describe("viewer styles", () => {
     expect(block(".meta-panel")).toContain("border: 1px solid var(--border)");
   });
 
-  it("renders the side-panel toggles from the shared tokens", () => {
-    // header toggle (tree toolbar + meta row) and the icon rail tab
-    expect(block(".side-panel-toggle")).toContain("color: var(--fg-dim)");
-    expect(block(".meta-tabs__top")).toContain("display: flex");
-    expect(block(".side-rail-tab")).toContain("writing-mode: horizontal-tb");
-    // the edge-group tab is restyled to the icon rail, never title text
-    expect(dockviewCss).toContain(".dv-groupview-edge .dv-tab");
-  });
-
   it("keeps the state filter and the drift warning on the shared tokens", () => {
     // the tree drift glyph and the metadata-panel block must not invent colours
     const warn = block(".tree-entry__warn");

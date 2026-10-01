@@ -1,13 +1,6 @@
-/** Versioned localStorage persistence for dockview layouts. A stored layout
- *  carries its own panel `tabComponent`, so the version is bumped whenever the
- *  side panels' structural options change (e.g. the icon rail) — otherwise an
- *  older record would restore them without it. */
+/** Versioned localStorage persistence for dockview layouts. */
 
-const VERSION = 6;
-
-/** The stored-record version, shared by every layout-backed store (the
- *  open-documents stack persists through this module too). */
-export const LAYOUT_VERSION = VERSION;
+const VERSION = 5;
 const PREFIX = "sdt-layout:";
 
 /** Layout id for the documents workspace. */

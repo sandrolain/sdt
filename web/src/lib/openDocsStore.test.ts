@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { initialOpenDocs, loadOpenDocs, saveOpenDocs } from "./openDocs";
-import { LAYOUT_VERSION } from "./layoutStore";
 
 afterEach(() => localStorage.clear());
 
@@ -25,7 +24,7 @@ describe("openDocs persistence", () => {
     saveOpenDocs({ docs: ["a", "b"], active: "b", seen: [] });
     localStorage.setItem(
       "sdt-layout:open-docs",
-      JSON.stringify({ version: LAYOUT_VERSION, layout: { docs: ["a", "b"], active: "zzz" } }),
+      JSON.stringify({ version: 5, layout: { docs: ["a", "b"], active: "zzz" } }),
     );
     expect(loadOpenDocs()?.active).toBe("b");
   });
@@ -33,7 +32,7 @@ describe("openDocs persistence", () => {
   it("ignores a corrupt stored shape", () => {
     localStorage.setItem(
       "sdt-layout:open-docs",
-      JSON.stringify({ version: LAYOUT_VERSION, layout: { docs: "nope" } }),
+      JSON.stringify({ version: 5, layout: { docs: "nope" } }),
     );
     expect(loadOpenDocs()).toBeNull();
   });
