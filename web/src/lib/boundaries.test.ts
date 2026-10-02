@@ -1,118 +1,99 @@
 import { describe, expect, it } from "vitest";
-import {
-  annotateBoundaries,
-  boundaryRects,
-  boundaryText,
-  nodeText,
-  parseBoundaries,
-  stripBoundaryMarks,
-  stripBoundaryMarksDeep,
-} from "./boundaries";
-import type { MindNode } from "./mindmap";
+import { annotateBoundaries, annotateSummaries, boundaryRects, nodeText } from "./boundaries";
+import { measureTree } from "./mapMetrics";
+import { parseMapDocument } from "./mindmap";
 
-function node(
-  content: string,
-  children: MindNode[] = [],
-  rect?: { x: number; y: number; width: number; height: number },
-): MindNode {
-  return { content, children, state: rect ? { rect } : undefined };
+/** Parse a map fragment and measure it, so ids, boxes and markers are real. */
+function parse(md: string) {
+  return parseMapDocument(`# Root\n\n${md}`);
 }
 
-describe("boundaryText / nodeText", () => {
-  it("strips list markers, heading prefixes and boundary markers", () => {
-    expect(boundaryText("- topic one [B1]")).toBe("topic one");
-    expect(boundaryText("## Heading [B]")).toBe("Heading");
-    expect(nodeText(node("<strong>Alpha</strong> &amp; Beta"))).toBe("Alpha & Beta");
-  });
-});
+function measured(md: string) {
+  return measureTree(parse(md));
+}
 
-describe("stripBoundaryMarks", () => {
-  it("removes the marker from a label and from a whole tree", () => {
-    expect(stripBoundaryMarks("alpha [B1]")).toBe("alpha");
-    const root = node("root", [node("alpha [B1]", [node("child [B]")])]);
-    const stripped = stripBoundaryMarksDeep(root);
-    expect(stripped.children[0].content).toBe("alpha");
-    expect(stripped.children[0].children[0].content).toBe("child");
+function labels(nodes: { content: string }[]): string[] {
+  return nodes.map((n) => nodeText(n));
+}
+
+describe("annotateBoundaries", () => {
+  it("groups only consecutive same-boundary siblings and titles them", () => {
+    const root = parse(
+      ["## a [B1]", "## b [B1]", "## c", "## d [B1]", "[B1]: Wrap title"].join("\n\n"),
+    );
+    const tree = measureTree(root);
+    const groups = annotateBoundaries(tree, root.payload?.titles);
+    expect(groups).toHaveLength(2);
+    expect(labels(groups[0].nodes)).toEqual(["a", "b"]);
+    expect(groups[0].title).toBe("Wrap title");
+    expect(labels(groups[1].nodes)).toEqual(["d"]);
   });
 
-  it("lets annotateBoundaries match a node whose label still carries the marker", () => {
-    const root = node("root", [node("alpha [B1]"), node("beta [B1]")]);
-    const parsed = parseBoundaries("- alpha [B1]\n- beta [B1]\n  [B1]: G");
-    const groups = annotateBoundaries(root, parsed);
+  it("scans nested levels and reads the marker off the node's own annotations", () => {
+    const root = parse("## parent\n\n- child1 [B2]\n- child2 [B2]\n");
+    const tree = measureTree(root);
+    const groups = annotateBoundaries(tree, root.payload?.titles);
     expect(groups).toHaveLength(1);
-    expect(groups[0].nodes).toHaveLength(2);
+    expect(labels(groups[0].nodes)).toEqual(["child1", "child2"]);
+    expect(groups[0].nodes.map((n) => n.id)).toEqual(["n0.1.1", "n0.1.2"]);
+    // The label itself carries no marker: it was stripped at parse time.
+    expect(nodeText(groups[0].nodes[0])).toBe("child1");
   });
-});
 
-describe("parseBoundaries", () => {
-  it("collects membership and titles", () => {
-    const md = [
-      "- alpha [B1]",
-      "- beta",
-      "  [B1]: Group title",
-      "- gamma [B2]",
-      "  [B2]: Other",
-    ].join("\n");
-    const parsed = parseBoundaries(md);
-    expect(parsed.mark.get("alpha")).toBe("1");
-    expect(parsed.mark.get("gamma")).toBe("2");
-    expect(parsed.mark.has("beta")).toBe(false);
-    expect(parsed.titles.get("1")).toBe("Group title");
-    expect(parsed.titles.get("2")).toBe("Other");
+  it("does not share a membership between two nodes with the same text", () => {
+    const tree = measureTree(parseMapDocument("# Root\n\n- dup [B1]\n- other\n- dup [B1]\n"));
+    const groups = annotateBoundaries(tree);
+    expect(groups).toHaveLength(2);
+    expect(labels(groups[0].nodes)).toEqual(["dup"]);
+    expect(labels(groups[1].nodes)).toEqual(["dup"]);
   });
 
   it("treats an unnumbered marker as boundary 0", () => {
-    const parsed = parseBoundaries("- alpha [B]\n  [B]: Plain");
-    expect(parsed.mark.get("alpha")).toBe("0");
-    expect(parsed.titles.get("0")).toBe("Plain");
+    const root = parse("## a [B]\n## b [B]\n[B]: Plain\n");
+    const groups = annotateBoundaries(measureTree(root), root.payload?.titles);
+    expect(groups[0].id).toBe("0");
+    expect(groups[0].title).toBe("Plain");
   });
 });
 
-describe("annotateBoundaries", () => {
-  it("groups only consecutive same-boundary siblings", () => {
-    const root = node("root", [node("alpha"), node("beta"), node("gamma"), node("delta")]);
-    const parsed = {
-      mark: new Map([
-        ["alpha", "1"],
-        ["beta", "1"],
-        ["delta", "1"],
-      ]),
-      titles: new Map([["1", "G"]]),
-    };
-    const groups = annotateBoundaries(root, parsed);
-    expect(groups).toHaveLength(2);
-    expect(groups[0].nodes.map((n) => nodeText(n))).toEqual(["alpha", "beta"]);
-    expect(groups[0].title).toBe("G");
-    expect(groups[1].nodes.map((n) => nodeText(n))).toEqual(["delta"]);
+describe("annotateSummaries", () => {
+  it("groups consecutive same-summary siblings under their own title map", () => {
+    const root = parse(
+      ["## a [S1]", "## b [S1]", "## c [B1]", "[B1]: B title", "[S1]: S title"].join("\n\n"),
+    );
+    const summaries = annotateSummaries(measureTree(root), root.payload?.titles);
+    expect(summaries).toHaveLength(1);
+    expect(labels(summaries[0].nodes)).toEqual(["a", "b"]);
+    expect(summaries[0].title).toBe("S title");
   });
 
-  it("scans nested levels", () => {
-    const root = node("root", [node("parent", [node("child1"), node("child2")])]);
-    const parsed = {
-      mark: new Map([
-        ["child1", "9"],
-        ["child2", "9"],
-      ]),
-      titles: new Map<string, string>(),
-    };
-    const groups = annotateBoundaries(root, parsed);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].nodes).toHaveLength(2);
+  it("keeps a boundary and a summary on the same node independent", () => {
+    const root = parse("## a [B1][S1]\n## b [B1][S1]\n");
+    const tree = measureTree(root);
+    expect(annotateBoundaries(tree, root.payload?.titles)).toHaveLength(1);
+    expect(annotateSummaries(tree, root.payload?.titles)).toHaveLength(1);
   });
 });
 
 describe("boundaryRects", () => {
-  it("unions member rects with padding and skips members without rects", () => {
-    const a = node("a", [], { x: 10, y: 10, width: 50, height: 20 });
-    const b = node("b", [], { x: 10, y: 40, width: 80, height: 20 });
-    const rects = boundaryRects(
-      [
-        { id: "1", title: "G", nodes: [a, b] },
-        { id: "2", nodes: [node("c")] },
-      ],
+  it("unions the member rects with padding and skips members without one", () => {
+    const tree = measured("## a [B1]\n\n## b [B1]");
+    const rects = new Map([
+      ["n0.1", { x: 10, y: 10, width: 50, height: 20 }],
+      ["n0.2", { x: 10, y: 40, width: 80, height: 20 }],
+    ]);
+    const groups = annotateBoundaries(tree);
+    const out = boundaryRects(
+      [...groups, { id: "9", nodes: [{ id: "nope" } as (typeof groups)[number]["nodes"][number]] }],
+      rects,
       5,
     );
-    expect(rects).toHaveLength(1);
-    expect(rects[0]).toEqual({ id: "1", title: "G", x: 5, y: 5, width: 90, height: 60 });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toEqual({ id: "1", title: undefined, x: 5, y: 5, width: 90, height: 60 });
+  });
+
+  it("returns nothing when no group has geometry", () => {
+    const tree = measured("## a [B1]\n\n## b [B1]");
+    expect(boundaryRects(annotateBoundaries(tree), new Map())).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
 import { polygonHull } from "d3-polygon";
+import type { NodeRectLike } from "./boundaries";
 import type { Group } from "./groups";
 
 export interface GroupHull {
@@ -52,18 +53,22 @@ function bounds(points: Point[]) {
 /**
  * Convex-hull shape per group: the member rects are inflated by `padding`, then
  * hulled, so scattered members are wrapped by one path. Groups of fewer than
- * three nodes (and any collinear set) fall back to a padded bounding rect;
- * groups whose members carry no `state.rect` are skipped.
+ * three members (and any collinear set) fall back to a padded bounding rect;
+ * groups whose members have no rect are skipped.
  */
-export function groupHulls(groups: Group[], padding = GROUP_PADDING): GroupHull[] {
+export function groupHulls(
+  groups: Group[],
+  rects: Map<string, NodeRectLike>,
+  padding = GROUP_PADDING,
+): GroupHull[] {
   const out: GroupHull[] = [];
   for (const group of groups) {
-    const rects = group.nodes
-      .map((n) => n.state?.rect)
-      .filter((r): r is NonNullable<typeof r> => Boolean(r));
-    if (rects.length === 0) continue;
+    const boxes = group.nodes
+      .map((n) => rects.get(n.id))
+      .filter((r): r is NodeRectLike => Boolean(r));
+    if (boxes.length === 0) continue;
     const corners: Point[] = [];
-    for (const r of rects) {
+    for (const r of boxes) {
       const x0 = r.x - padding;
       const y0 = r.y - padding;
       const x1 = r.x + r.width + padding;
@@ -72,7 +77,7 @@ export function groupHulls(groups: Group[], padding = GROUP_PADDING): GroupHull[
     }
     const box = bounds(corners);
     const points =
-      rects.length >= 3
+      boxes.length >= 3
         ? (polygonHull(corners) ?? [
             [box.minX, box.minY],
             [box.maxX, box.minY],

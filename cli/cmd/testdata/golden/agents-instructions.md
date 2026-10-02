@@ -129,7 +129,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/ui-performance.md` | Performance, budgets and measurement |
 | `context/instructions/ui-adapters.md` | Mapping a framework's idioms to the UI doctrine |
 | `context/instructions/mindmap.md` | Authoring or reviewing a mind map |
-| `context/instructions/mindmap-markmap.md` | Writing the markmap markdown dialect |
+| `context/instructions/mindmap-markmap.md` | Writing the map markdown dialect and its markers |
 | `context/instructions/slides.md` | Authoring or reviewing a slide deck |
 | `context/instructions/slides-marp.md` | Writing the Marp markdown dialect |
 | `context/commands/` | Invoking an agent command: `>trigger` or `>trigger: payload` (e.g. `>ingestion: context/refs/ui-ux`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md`. The payload is verbatim after the first `:`; precedence is payload > working context > ask; a payload never relaxes a gate (approve before write) |

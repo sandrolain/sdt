@@ -1841,8 +1841,8 @@ func TestAgentUITemplatesViewerFree(t *testing.T) {
 }
 
 // TestAgentMindmapTemplatesCoherence guards the mind-map module contract: the
-// format-agnostic doctrine (mindmap.md) and the markmap dialect plus .map.md
-// document-management contract (mindmap-markmap.md) must survive edits.
+// format-agnostic doctrine (mindmap.md) and the map markdown dialect plus the
+// .map.md document-management contract (mindmap-markmap.md) must survive edits.
 func TestAgentMindmapTemplatesCoherence(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1866,13 +1866,20 @@ func TestAgentMindmapTemplatesCoherence(t *testing.T) {
 			"context/instructions/development.md",
 		}},
 		{"mindmap-markmap.md", instrMindmapMarkmapTemplate, []string{
-			"# Mind maps — the markmap markdown dialect",
-			"The silent-drop list (read this first)",
+			"# Mind maps — the map markdown dialect",
+			"Nothing is dropped",
 			"Exactly one root",
-			"One child level per parent",
-			"Frontmatter is the options channel",
-			"<!-- markmap: fold -->",
-			"0.18.x",
+			"innermost open heading",
+			"| `[B]` / `[B<n>]` | boundary membership",
+			"| `[S]` / `[S<n>]`",
+			"| `[n]` / `[^n]` | relationship source / target",
+			"| `[N:text]` | note",
+			"| `[L:url]` | hyperlink",
+			"| `[F]` | folded",
+			"| `[!name]` | SDT sticker",
+			"| `#group/<name>` | SDT cross-cutting group membership",
+			"## Deviations from XMindMark",
+			"## Parser scope",
 			"suffix modifier on an existing document kind",
 			"relations:",
 			"No duplication",

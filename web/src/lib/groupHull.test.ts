@@ -1,10 +1,19 @@
 import { polygonContains } from "d3-polygon";
 import { describe, expect, it } from "vitest";
+import { type NodeRectLike } from "./boundaries";
 import { GROUP_PADDING, groupColor, groupHulls } from "./groupHull";
-import type { MindNode } from "./mindmap";
+import type { Group } from "./groups";
 
-function node(rect?: { x: number; y: number; width: number; height: number }): MindNode {
-  return { content: "x", children: [], state: rect ? { rect } : undefined };
+/** A group of id-less members: the hull only reads the rect map by node id. */
+function group(id: string, ids: string[]): Group {
+  return {
+    id,
+    nodes: ids.map((nodeId) => ({ id: nodeId }) as unknown as Group["nodes"][number]),
+  };
+}
+
+function rects(entries: Record<string, NodeRectLike>): Map<string, NodeRectLike> {
+  return new Map(Object.entries(entries));
 }
 
 type Point = [number, number];
@@ -16,7 +25,7 @@ function pointsOf(path: string): Point[] {
   return points;
 }
 
-function cornersOf(rect: { x: number; y: number; width: number; height: number }): Point[] {
+function cornersOf(rect: NodeRectLike): Point[] {
   return [
     [rect.x, rect.y],
     [rect.x + rect.width, rect.y],
@@ -34,12 +43,12 @@ describe("groupColor", () => {
 
 describe("groupHulls", () => {
   it("skips groups whose members carry no rect", () => {
-    expect(groupHulls([{ id: "empty", nodes: [node()] }])).toEqual([]);
+    expect(groupHulls([group("empty", ["a"])], rects({}))).toEqual([]);
   });
 
   it("falls back to a padded rect for a single member", () => {
     const rect = { x: 10, y: 10, width: 50, height: 20 };
-    const [hull] = groupHulls([{ id: "one", nodes: [node(rect)] }]);
+    const [hull] = groupHulls([group("one", ["a"])], rects({ a: rect }));
     const points = pointsOf(hull.path);
     expect(points).toHaveLength(4);
     for (const [x, y] of cornersOf(rect)) {
@@ -55,7 +64,7 @@ describe("groupHulls", () => {
     const a = { x: 0, y: 0, width: 40, height: 20 };
     const b = { x: 200, y: 120, width: 40, height: 20 };
     const c = { x: 80, y: 300, width: 40, height: 20 };
-    const [hull] = groupHulls([{ id: "scattered", nodes: [node(a), node(b), node(c)] }]);
+    const [hull] = groupHulls([group("scattered", ["a", "b", "c"])], rects({ a, b, c }));
     const points = pointsOf(hull.path);
     expect(points.length).toBeGreaterThanOrEqual(3);
     expect(hull.path.endsWith("Z")).toBe(true);
@@ -67,11 +76,22 @@ describe("groupHulls", () => {
   });
 
   it("keeps one hull per group and preserves first-seen order", () => {
-    const hulls = groupHulls([
-      { id: "one", nodes: [node({ x: 0, y: 0, width: 10, height: 10 })] },
-      { id: "two", nodes: [node({ x: 50, y: 0, width: 10, height: 10 })] },
-    ]);
+    const hulls = groupHulls(
+      [group("one", ["a"]), group("two", ["b"])],
+      rects({
+        a: { x: 0, y: 0, width: 10, height: 10 },
+        b: { x: 50, y: 0, width: 10, height: 10 },
+      }),
+    );
     expect(hulls.map((h) => h.id)).toEqual(["one", "two"]);
     expect(hulls[0].color).toBe(groupColor("one"));
+  });
+
+  it("reads the member rects by node id, so a pruned member is skipped", () => {
+    const [hull] = groupHulls(
+      [group("g", ["a", "hidden"])],
+      rects({ a: { x: 0, y: 0, width: 10, height: 10 } }),
+    );
+    expect(pointsOf(hull.path)).toHaveLength(4);
   });
 });

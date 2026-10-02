@@ -1,62 +1,72 @@
-# Mind maps — the markmap markdown dialect
+# Mind maps — the map markdown dialect
 
 `context/instructions/mindmap-markmap.md` is the contract for writing a mind map
-as markdown in the markmap dialect, and for managing the resulting `.map.md`
-document in the project's corpus. Read it together with
-`context/instructions/mindmap.md` (the format-agnostic doctrine: the outline
-first, one keyword per node, the budgets) and `context/instructions/wiki.md`
-(the relation discipline for corpus documents). The doctrine file owns the
-budgets; this file owns the dialect mechanics.
+as markdown, and for managing the resulting `.map.md` document in the project's
+corpus. Read it together with `context/instructions/mindmap.md` (the
+format-agnostic doctrine: the outline first, one keyword per node, the budgets)
+and `context/instructions/wiki.md` (the relation discipline for corpus
+documents). The doctrine file owns the budgets; this file owns the dialect
+mechanics. The file keeps its historical name; the dialect is now the project's
+own parser (a `marked` lexer walk plus the marker layer), not markmap.
 
-## The silent-drop list (read this first)
+## Nothing is dropped
 
-The parser decides what the document *is* by discarding what it does not
-recognise. There is no error and no warning — only absence.
+Every block of the document becomes a node, so no content disappears silently:
 
-- **Plain paragraphs are dropped verbatim.**
-- **Blockquotes are dropped.**
-- Anything outside this selector is dropped: `h1..h6`, `ul`, `ol`, `li`, `table`,
-  `pre` (fenced code), and a paragraph whose only child is an image.
+| Block | Node |
+|---|---|
+| `h1..h6` | topic |
+| `ul` / `ol` items (nested lists included) | topic |
+| paragraph | topic (prose) |
+| blockquote | quote, one line per quoted paragraph |
+| fenced code block | code leaf (escaped, monospace) |
+| table | table leaf (cells joined with ` · `, rows on separate lines) |
+| anything else (raw HTML, a definition list) | text leaf holding its raw source |
 
-So never put a sentence in a map where you expect it to appear as a node. The
-failure mode is content disappearing silently, which is why this list comes
-first: check it before trusting anything you wrote.
+Raw HTML is **escaped**, never rendered: a node label can carry emphasis, links,
+`sup`/`sub` and images, but a document can never inject markup.
 
 ## Skeleton
 
 - Exactly one root: a single `#` heading, or a frontmatter `title` as the root.
 - `##` for main branches; deeper nesting through `###` headings and nested `-`
   lists.
-- Headings and lists only — see the silent-drop list above.
+- A list attaches to the **innermost open heading**. Do not mix a loose
+  document-level list with sub-headings under one parent: the list lands under
+  the deepest heading instead of where you meant it. Pick one level per parent.
 
-## One child level per parent
+## Markers
 
-Do not mix a loose top-level list with sub-headings under the same parent: a new
-child of a smaller level resets the parent's children, so the discarded block
-does not merge — it disappears. Pick one level per parent and stay in it.
+Markers are appended to a topic and abut its content (no space between the text
+and the first marker). Several markers on one topic are allowed. `\[\]` is a
+literal `[]`.
 
-## Frontmatter is the options channel, not a container
+| Marker | Meaning |
+|---|---|
+| `[B]` / `[B<n>]` | boundary membership (id `0` when unnumbered); consecutive siblings with the same id are wrapped by one rounded rectangle |
+| `[B<n>]: title` | names that boundary; the line is a declaration, never a topic |
+| `[S]` / `[S<n>]`, `[S<n>]: title` | summary membership and title, wrapped like a boundary |
+| `[n]` / `[^n]` | relationship source / target; the same number joins them. `[^n](Title)` gives the edge a title |
+| `[N:text]` | note on the topic, plain text, repeatable |
+| `[L:url]` | hyperlink on the topic |
+| `[F]` | folded: the children start hidden and the topic carries a toggle |
+| `[!name]` | SDT sticker — a small icon on the topic (see below) |
+| `#group/<name>` | SDT cross-cutting group membership (see below) |
 
-- Options go under the `markmap:` frontmatter key: `title`, `color`,
-  `colorFreezeLevel`, `duration`, `maxWidth`, `initialExpandLevel`, `extraJs`,
-  `extraCss`, `htmlParser`.
-- Content never belongs in frontmatter.
-- These options are honoured only by renderers that implement them; the plugins a
-  consuming tool registers decide whether maths, syntax highlighting and
-  checkboxes render at all.
+Markers are read from a **topic** — a heading, a list item or a paragraph — and
+from nowhere else: inside a code block, a table cell or a blockquote they stay
+literal text, and inside an inline code span or a link label they are still
+read. Both implementations agree on that rule, so a marker never half-applies.
 
-## Inline formatting survives
+### Stickers (SDT extension)
 
-Emphasis, `sup`/`sub`, links, images and `[ ]`/`[x]` checkboxes render inside a
-node — subject to the plugin caveat above.
+XMindMark has no sticker syntax, so SDT spells it `[!name]` — `[n]` is taken by
+relationships. The vocabulary is closed and renders as a Material Symbols icon:
+`star`, `flag`, `idea`, `done`, `risk`, `question`, `goal`, `time`, `data`,
+`priority`. An unknown name still renders as a chip, so a typo is visible rather
+than silent.
 
-## Folding markers (with a cost)
-
-`<!-- markmap: fold -->` and `<!-- markmap: foldAll -->` set the initial fold
-state. The cost: they are not standard markdown, so any renderer that is not this
-dialect shows the raw comment.
-
-## Group tags (overlay)
+### Group tags (overlay)
 
 `#group/<name>` inside a node's text marks it as a member of a cross-cutting
 group. This is a display convention, not parser syntax: a rendering tool strips
@@ -71,16 +81,43 @@ rounded rectangles cannot wrap.
   document's `tags:` frontmatter.
 - A group of fewer than three members falls back to its bounding rectangle.
 
+## Inline formatting survives
+
+Emphasis, `sup`/`sub`, links and images render inside a topic. A GFM task item
+keeps its state as a literal `[ ]` / `[x]` prefix on the label.
+
+## Frontmatter is not an options channel
+
+There is no renderer options block: a `markmap:` key (and the old
+`<!-- markmap: fold -->` comments) is inert, and the lint reports it. Folding is
+`[F]`; the layout is a choice the rendering surface offers. Content never
+belongs in frontmatter.
+
 ## Leaves
 
-Tables, fenced code blocks and image-only paragraphs become leaf nodes. Use them
-as leaves only; never hide prose inside one.
+Tables, fenced code and blockquotes become leaves. Use them as leaves only;
+never hide a branch inside one.
 
-## Version scope
+## Deviations from XMindMark
 
-The element mapping above was read against the 0.18.x `markmap-html-parser`.
-Re-verify it against the installed version before relying on a parser edge case,
-because a version bump degrades silently: content drops rather than erroring.
+Deliberate, so the dialect does not drift toward a half-implemented copy of the
+specification:
+
+- **No summary sub-topics.** `[S<n>]: title` declares a title only.
+- **No relationship on a title line.** XMindMark treats a boundary title as a
+  topic and allows `[n]` on it; the marker layer ignores such a marker and the
+  lint reports it.
+- **Ids are document-global**, not scoped by indentation depth.
+- **`[!name]` stickers are SDT's own** (see above).
+
+## Parser scope
+
+The map tree is built by `web/src/lib/mindmap.ts` (a `marked` lexer walk) and
+annotated by `web/src/lib/mapMarkers.ts` (the marker layer). There is no
+third-party parser to re-verify against a version: the re-verification duty is
+the dialect's own test suite (`mindmap.test.ts`, `mapMarkers.test.ts`). Change a
+rule here and change those tests with it — the lint in
+`cli/cmd/context_maplint.go` mirrors this file, so the three move together.
 
 ## Document management (`.map.md`)
 

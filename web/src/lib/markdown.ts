@@ -252,6 +252,11 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
   return DOMPurify.sanitize(raw as string, SANITIZE_CONFIG) as unknown as string;
 }
 
+/** Sanitize a fragment of already-rendered inline HTML (a map node label). */
+export function sanitizeInline(html: string): string {
+  return DOMPurify.sanitize(html, SANITIZE_CONFIG) as unknown as string;
+}
+
 /** Highlight raw markdown source (Code mode) as markdown. */
 export function highlightMarkdown(md: string): string {
   return highlightCode(md, "markdown");

@@ -1,16 +1,21 @@
-import type { MindNode } from "./mindmap";
+import type { MeasuredNode } from "./mapMetrics";
+import type { MarkerTitles } from "./mapMarkers";
 
-export interface BoundaryMark {
-  /** plain topic text → boundary id */
-  mark: Map<string, string>;
-  /** boundary id → optional title */
-  titles: Map<string, string>;
-}
+/**
+ * XMindMark wrap groups and their geometry. A boundary (`[B]`) or a summary
+ * (`[S]`) wraps **consecutive siblings** that carry the same marker id — one
+ * group level, per the XMindMark specification. Membership comes from each
+ * node's own annotations, so a duplicated topic text can no longer make two
+ * nodes share a membership.
+ *
+ * The rectangles come from the computed layout (`mapModel.nodeRects`), not from
+ * a renderer: the same geometry feeds the overlay and the exporter.
+ */
 
 export interface BoundaryGroup {
   id: string;
   title?: string;
-  nodes: MindNode[];
+  nodes: MeasuredNode[];
 }
 
 export interface BoundaryRect {
@@ -22,43 +27,15 @@ export interface BoundaryRect {
   height: number;
 }
 
-const TITLE_LINE_RE = /^\s*\[B(\d*)\]:\s*(.*?)\s*$/;
-const MARK_RE = /\[B(\d*)\]/g;
-
-/** Plain topic text: strip list/heading prefixes and XMindMark markers. */
-export function boundaryText(line: string): string {
-  return line
-    .replace(/^\s*#{1,6}\s+/, "")
-    .replace(/^\s*(?:[-*+]|\d+\.)\s+/, "")
-    .replace(MARK_RE, "")
-    .replace(/^\*\*(.*)\*\*$/, "$1")
-    .trim();
-}
-
-/**
- * Parse XMindMark boundary syntax from page markdown:
- * `[B]`/`[B<n>]` appended to a topic marks membership; `[B<n>]: title` lines
- * name the boundary. Boundary titles are not topics themselves.
- */
-export function parseBoundaries(md: string): BoundaryMark {
-  const mark = new Map<string, string>();
-  const titles = new Map<string, string>();
-  for (const raw of md.split("\n")) {
-    const title = TITLE_LINE_RE.exec(raw);
-    if (title) {
-      titles.set(title[1] || "0", title[2]);
-      continue;
-    }
-    const idMatch = /\[B(\d*)\]/.exec(raw);
-    if (!idMatch) continue;
-    const text = boundaryText(raw);
-    if (text) mark.set(text, idMatch[1] || "0");
-  }
-  return { mark, titles };
+export interface NodeRectLike {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /** Text content of a node, with HTML tags stripped. */
-export function nodeText(node: MindNode): string {
+export function nodeText(node: { content: string }): string {
   return node.content
     .replace(/<[^>]*>/g, "")
     .replace(/&amp;/g, "&")
@@ -68,39 +45,23 @@ export function nodeText(node: MindNode): string {
     .trim();
 }
 
-/** Remove XMindMark `[B]`/`[Bn]` markers from a node label. */
-export function stripBoundaryMarks(content: string): string {
-  return content
-    .replace(MARK_RE, "")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/^\s+/, "")
-    .replace(/\s+$/, "");
-}
-
-/** Deep copy of a tree with the XMindMark boundary markers removed. */
-export function stripBoundaryMarksDeep(node: MindNode): MindNode {
-  return {
-    ...node,
-    content: stripBoundaryMarks(node.content),
-    children: node.children.map(stripBoundaryMarksDeep),
-  };
-}
-
-/**
- * Collect boundary groups: consecutive sibling nodes sharing the same
- * boundary id (one group level, per XMind semantics).
- */
-export function annotateBoundaries(root: MindNode, parsed: BoundaryMark): BoundaryGroup[] {
+/** Walk sibling runs sharing the id their markers declare, under `titles`. */
+function annotateWraps(
+  root: MeasuredNode,
+  slot: "boundary" | "summary",
+  titles?: MarkerTitles,
+): BoundaryGroup[] {
   const groups: BoundaryGroup[] = [];
-  const visit = (node: MindNode) => {
+  const declared = slot === "boundary" ? titles?.boundaries : titles?.summaries;
+  const visit = (node: MeasuredNode) => {
     let current: BoundaryGroup | null = null;
     let currentId: string | null = null;
     for (const child of node.children) {
-      const id = parsed.mark.get(boundaryText(nodeText(child)));
+      const id = child.markers[slot];
       if (id !== undefined && id === currentId) {
         current?.nodes.push(child);
       } else if (id !== undefined) {
-        current = { id, title: parsed.titles.get(id), nodes: [child] };
+        current = { id, title: declared?.get(id), nodes: [child] };
         groups.push(current);
         currentId = id;
       } else {
@@ -114,18 +75,32 @@ export function annotateBoundaries(root: MindNode, parsed: BoundaryMark): Bounda
   return groups;
 }
 
-/** Union rects (layout coords) for each group, expanded by padding. */
-export function boundaryRects(groups: BoundaryGroup[], padding = 8): BoundaryRect[] {
+/** Consecutive same-boundary siblings, titled by their `[B<n>]: title` line. */
+export function annotateBoundaries(root: MeasuredNode, titles?: MarkerTitles): BoundaryGroup[] {
+  return annotateWraps(root, "boundary", titles);
+}
+
+/** Consecutive same-summary siblings, titled by their `[S<n>]: title` line. */
+export function annotateSummaries(root: MeasuredNode, titles?: MarkerTitles): BoundaryGroup[] {
+  return annotateWraps(root, "summary", titles);
+}
+
+/** Union rects of a group, expanded by padding; members without a rect are skipped. */
+export function boundaryRects(
+  groups: BoundaryGroup[],
+  rects: Map<string, NodeRectLike>,
+  padding = 8,
+): BoundaryRect[] {
   const out: BoundaryRect[] = [];
   for (const group of groups) {
-    const rects = group.nodes
-      .map((n) => n.state?.rect)
-      .filter((r): r is NonNullable<typeof r> => Boolean(r));
-    if (rects.length === 0) continue;
-    const x = Math.min(...rects.map((r) => r.x)) - padding;
-    const y = Math.min(...rects.map((r) => r.y)) - padding;
-    const right = Math.max(...rects.map((r) => r.x + r.width)) + padding;
-    const bottom = Math.max(...rects.map((r) => r.y + r.height)) + padding;
+    const boxes = group.nodes
+      .map((n) => rects.get(n.id))
+      .filter((r): r is NodeRectLike => Boolean(r));
+    if (boxes.length === 0) continue;
+    const x = Math.min(...boxes.map((b) => b.x)) - padding;
+    const y = Math.min(...boxes.map((b) => b.y)) - padding;
+    const right = Math.max(...boxes.map((b) => b.x + b.width)) + padding;
+    const bottom = Math.max(...boxes.map((b) => b.y + b.height)) + padding;
     out.push({ id: group.id, title: group.title, x, y, width: right - x, height: bottom - y });
   }
   return out;
