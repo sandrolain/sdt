@@ -56,4 +56,11 @@ project: <project>
 Store durable facts in `decisions/` (decisions) and `architecture/`; the rest of
 the directory keeps the chronological work history.
 
+## Environment (.env)
+
+Every `sdt` command loads a project-root `.env` (found by walking up, like
+`.sdt.yaml`) before its body runs. Only variables **not already set** in the
+shell are loaded — an exported value wins — and a missing file is a no-op. Use
+`--no-env` to skip the load. Keep `.env` git-ignored.
+
 {{.CommandsSection}}

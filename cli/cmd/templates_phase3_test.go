@@ -32,7 +32,7 @@ updated: "2026-09-20T17:30:00Z"
 ## ` + "`>triage`" + ` — read this when the command fires
 
 **Do not re-implement the task here.** The durable contract lives in
-` + "`context/instructions/triage.md`" + `; this file is the thin trigger.
+` + "`context/instructions/research.md`" + `; this file is the thin trigger.
 
 ## Invocation
 
@@ -89,8 +89,8 @@ updated: "2026-09-20T17:30:00Z"
 func TestCommandsIndexTemplateGolden(t *testing.T) {
 	now := time.Date(2026, 9, 20, 17, 31, 0, 0, time.UTC)
 	got := instrCommandsIndexTemplate([]commandIndexEntry{
-		{Trigger: "analysis", Payload: "subject or scope of the analysis to create or extend"},
-		{Trigger: "ingestion", Payload: "paths and/or URLs to ingest"},
+		{Trigger: "analysis", Contract: "analysis", Payload: "subject or scope of the analysis to create or extend"},
+		{Trigger: "ingestion", Contract: "ingestion", Payload: "paths and/or URLs to ingest"},
 	}, "tm", now)
 	want := `---
 kind: commands
@@ -116,8 +116,10 @@ text.
 
 Invocation method: an **agent command** — opencode slash-command style,
 ` + "`>trigger`" + `, e.g. ` + "`>ingestion`" + `. The trigger resolves deterministically to
-` + "`context/commands/<trigger>.md`" + `, then to the contract under
-` + "`context/instructions/<trigger>.md`" + `.
+` + "`context/commands/<trigger>.md`" + `, then to the durable contract named in the
+registry below (usually ` + "`context/instructions/<trigger>.md`" + `, but a trigger may
+declare a different contract, e.g. the ` + "`sdt research`" + ` family resolves to
+` + "`context/instructions/research.md`" + `).
 
 ### Grammar
 
@@ -156,9 +158,9 @@ verbatim.
 | ` + "`>analysis`" + ` | ` + "`context/commands/analysis.md`" + ` | ` + "`context/instructions/analysis.md`" + ` | subject or scope of the analysis to create or extend |
 | ` + "`>ingestion`" + ` | ` + "`context/commands/ingestion.md`" + ` | ` + "`context/instructions/ingestion.md`" + ` | paths and/or URLs to ingest |
 
-Lookup order for a trigger ` + "`>T`" + `: ` + "`context/commands/T.md`" + ` → if absent, fall
-back to ` + "`context/instructions/T.md`" + `. If neither exists, ask the user (never
-invent a contract).
+Lookup order for a trigger ` + "`>T`" + `: ` + "`context/commands/T.md`" + ` → the durable contract
+named in the registry above (` + "`context/instructions/T.md`" + ` by default). If neither
+exists, ask the user (never invent a contract).
 
 ## Invocation contract
 
@@ -301,7 +303,7 @@ func TestWorkReadmeTemplateGolden(t *testing.T) {
 	if !strings.Contains(section, ctxListHelpText()) {
 		t.Errorf("Commands section missing list help: %q", ctxListHelpText())
 	}
-	if !strings.HasSuffix(shell, "history.\n\n") {
+	if !strings.HasSuffix(shell, "`.env` git-ignored.\n\n") {
 		t.Errorf("static shell must end with a blank line before Commands:\n%q", shell[len(shell)-20:])
 	}
 }

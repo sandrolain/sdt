@@ -12,13 +12,14 @@ import (
 
 const commandPayloadUndeclared = "_not declared_"
 
-// commandIndexEntry is one row of the commands registry: the trigger and the
-// payload phrase it accepts. The command file and durable contract columns are
-// derived from the trigger id itself.
+// commandIndexEntry is one row of the commands registry: the trigger, the
+// durable contract id it invokes and the payload phrase it accepts. The command
+// file column is derived from the trigger id itself.
 
 type commandIndexEntry struct {
-	Trigger string
-	Payload string
+	Trigger  string
+	Contract string
+	Payload  string
 }
 
 // declaredCommandPayload returns the payload phrase declared for a trigger in
@@ -32,6 +33,18 @@ func declaredCommandPayload(id string) string {
 		}
 	}
 	return commandPayloadUndeclared
+}
+
+// declaredCommandContract returns the durable instruction id a trigger invokes
+// from agentCommandStubs, or the trigger id itself for an undeclared (user)
+// trigger, whose contract defaults to the trigger name.
+func declaredCommandContract(id string) string {
+	for _, s := range agentCommandStubs {
+		if s.id == id {
+			return s.contract
+		}
+	}
+	return id
 }
 
 type commandsIndexTemplateData struct {

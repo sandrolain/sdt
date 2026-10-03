@@ -89,7 +89,7 @@ func commandsIndexContent(project string, now time.Time) string {
 	sort.Strings(ids)
 	entries := make([]commandIndexEntry, 0, len(ids))
 	for _, id := range ids {
-		entries = append(entries, commandIndexEntry{Trigger: id, Payload: commandPayloadFor(id)})
+		entries = append(entries, commandIndexEntry{Trigger: id, Contract: declaredCommandContract(id), Payload: commandPayloadFor(id)})
 	}
 	return instrCommandsIndexTemplate(entries, project, now)
 }

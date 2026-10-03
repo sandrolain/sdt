@@ -6,6 +6,7 @@ require (
 	codeberg.org/readeck/go-readability/v2 v2.1.2
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/blevesearch/bleve/v2 v2.6.1
+	github.com/firecrawl/firecrawl/apps/go-sdk v1.3.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gocolly/colly v1.2.0

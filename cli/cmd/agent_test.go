@@ -1484,7 +1484,7 @@ func TestAgentNoH1TitleRule(t *testing.T) {
 }
 
 // TestAgentResearchTemplateCoherence guards the research instruction contract:
-// provenance, analysis boundary and deepsearch readiness must survive edits.
+// the note provenance/boundary and the run-manifest contract must survive edits.
 func TestAgentResearchTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
 		"# Research Documents",
@@ -1493,8 +1493,10 @@ func TestAgentResearchTemplateCoherence(t *testing.T) {
 		"subject:",
 		"sources:",
 		"driving prompt",
-		"deepsearch",
-		"## Deepsearch readiness",
+		"## Research runs (`sdt research`)",
+		"manifest.yaml",
+		"sdt research verify",
+		"sdt research populate-wiki",
 		"Research = raw results, not a decision",
 	} {
 		if !strings.Contains(instrResearchTemplate, want) {

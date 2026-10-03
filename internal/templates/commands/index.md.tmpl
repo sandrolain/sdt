@@ -22,8 +22,10 @@ text.
 
 Invocation method: an **agent command** — opencode slash-command style,
 `>trigger`, e.g. `>ingestion`. The trigger resolves deterministically to
-`context/commands/<trigger>.md`, then to the contract under
-`context/instructions/<trigger>.md`.
+`context/commands/<trigger>.md`, then to the durable contract named in the
+registry below (usually `context/instructions/<trigger>.md`, but a trigger may
+declare a different contract, e.g. the `sdt research` family resolves to
+`context/instructions/research.md`).
 
 ### Grammar
 
@@ -59,11 +61,11 @@ verbatim.
 
 | Trigger | Command file | Durable contract | Payload |
 |---|---|---|---|
-{{range .Triggers}}| `>{{.Trigger}}` | `context/commands/{{.Trigger}}.md` | `context/instructions/{{.Trigger}}.md` | {{.Payload}} |
+{{range .Triggers}}| `>{{.Trigger}}` | `context/commands/{{.Trigger}}.md` | `context/instructions/{{.Contract}}.md` | {{.Payload}} |
 {{end}}
-Lookup order for a trigger `>T`: `context/commands/T.md` → if absent, fall
-back to `context/instructions/T.md`. If neither exists, ask the user (never
-invent a contract).
+Lookup order for a trigger `>T`: `context/commands/T.md` → the durable contract
+named in the registry above (`context/instructions/T.md` by default). If neither
+exists, ask the user (never invent a contract).
 
 ## Invocation contract
 

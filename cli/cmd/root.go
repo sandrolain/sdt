@@ -83,9 +83,12 @@ var rootCmd = &cobra.Command{
 	Short: "Smart Developer Tools",
 	Long:  logo + `Smart Developer Tools is a collection of CLI utilities for developers`,
 	// installLogger runs after flag parsing and before the command body, so
-	// every command logs through the same handler.
+	// every command logs through the same handler. initProjectEnv then loads a
+	// project-root .env so commands can read project credentials (never
+	// overriding a value already present in the shell environment).
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		installLogger(cmd)
+		initProjectEnv(cmd)
 		return nil
 	},
 }
@@ -98,6 +101,7 @@ func init() {
 	pf.String("format", "text", "Output format: text|json|yaml")
 	pf.Bool("quiet", false, "Suppress informational messages, only output result")
 	pf.Bool("no-color", false, "Disable ANSI color codes")
+	pf.Bool("no-env", false, "Do not load a project-root .env file")
 	pf.String("log-format", "text", "Log format: text|json")
 	// Install a plain logger up front so errors raised before flag parsing
 	// (an unknown flag, for instance) render like every other log line.

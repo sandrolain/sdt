@@ -65,11 +65,80 @@ Feeds.
   under `context/refs/` to keep — and cites the capture; an uncaptured page is
   not evidence (see the AGENTS.md HARD RULES).
 
-## Deepsearch readiness
+## Research runs (`sdt research`)
 
-- One run → one dated file, so a future `sdt deepsearch` integration can
-  append machine-produced runs and link them like any other source.
-- Keep findings atomic and citable (claim + source + scope + date) so a
-  downstream analysis or the wiki can reference them without re-reading the run.
-- Prefer `refs/` for immutable raw captures; the research note summarizes
-  and links, it does not duplicate the raw payload.
+A research note summarises *a run*; the run itself is an auditable, machine-
+readable artefact managed by the `sdt research` family. The two are distinct:
+the **run** is transient working state; the **note** is the durable document.
+
+### Run manifest
+
+A run lives under `context/tmp/research/<run-id>/` and holds:
+
+- `manifest.yaml` — the machine-readable record: `run_id`, `query`, `scope`,
+  `created`/`updated`, `tool`/`config`, `budget`
+  (`max_results`/`max_credits`/`credits_used`/`results`), `checkpoint`
+  (last completed operation), and one `sources[]` entry per source with
+  `canonical_url`, `title`, `author`, `date`, `license`, `content_type`,
+  `bytes`, `sha256`, `raw_path`, `status` and `error`/`retries`;
+- `provenance.md` — a human-readable sidecar;
+- `raw/<slug>.md` — the captured payload of each source.
+
+Source status is a closed set: `discovered` (found, not acquired) → `fetched`
+(payload stored and hashed) → `parsed`/`verified`; `rejected` is a terminal
+failure. A source is never promoted past a status the CLI could not check.
+
+### Run commands
+
+- `sdt research init --query "<q>" [--scope "<s>"]` — create a run.
+- `sdt research search --query "<q>" --network --confirm [--limit N]
+  [--max-credits N] [--api-url <url>]` — discover sources with the configured
+  provider (Firecrawl). **Search is opt-in**: it refuses to run without
+  `--network` and `--confirm` because it reaches the network and spends
+  provider credits. The key comes from `FIRECRAWL_API_KEY` (shell or the
+  project `.env`); only discovery happens here.
+- `sdt research fetch <url>...` (or no URL = every `discovered` source) —
+  acquire pages with the **crawldown pipeline** (Markdown + provenance: title,
+  date, content type, size, SHA-256). Content acquisition is always crawldown,
+  never another engine (HARD RULE 10).
+- `sdt research inspect [--run <id>]` — read-only view of sources, status,
+  budget and checkpoint.
+- `sdt research verify [--run <id>]` — deterministically recompute the SHA-256,
+  check the payload and schema, and mark each source `verified`/`rejected` with
+  a reason. It never upgrades a source it cannot check; it exits non-zero when
+  any checked source is rejected.
+- `sdt research resume [--run <id>]` — continue from the checkpoint: fetch the
+  still-`discovered` sources, verify what has a payload, skip finished work. It
+  is idempotent — replaying a completed run repeats nothing.
+- `sdt research synthesize [--out <path>] [--include-unverified]
+  [--max-lines N]` — assemble a **cited draft** from verified sources (no model,
+  no network). Unverified sources are excluded unless requested, then flagged;
+  the draft is written only under `context/tmp/` or to a `*.draft.md` file.
+- `sdt research populate-wiki --brief "<why>" [--max-pages N] [--apply
+  --confirm]` — propose and, only on approval, apply the promotion of verified
+  findings to the wiki. Preview is the default and writes nothing.
+
+### Policy
+
+- **Budget before the network.** Declare results/credits bounds; the run refuses
+  to start when the remaining credits are below `--max-credits`.
+- **Provenance is data, not prose.** Every source carries URL, hash, size and
+  the raw path; a claim cites its source.
+- **Checkpoints.** Each stage records its completion; an interrupted run resumes
+  without repeating completed work.
+- **Promotion is separate and gated.** A verified run is evidence; a wiki page is
+  curated knowledge. `populate-wiki` previews, then applies only on `--confirm`,
+  archives each raw capture into `context/refs/` and cites it, then reindexes and
+  runs the wiki lint. A page is never created from an unverified claim; conflicts
+  become relations or open questions.
+- **Negatives are kept.** A failed fetch keeps its error and retry count and
+  stays retryable; rejected sources stay recorded.
+
+### From a run to a note
+
+When a run concludes, write the durable `context/research/<date>-<slug>.md` note
+(above): summarise the findings, list the evidence under `sources` (the archived
+`refs/` captures), and link forward to the analysis/proposal/wiki that consumes
+it. Keep findings atomic and citable (claim + source + scope + date). Prefer
+`refs/` for immutable raw captures; the note summarises and links, it does not
+duplicate the payload.

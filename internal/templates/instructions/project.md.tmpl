@@ -17,6 +17,19 @@ Project-scoped commands resolve project/group from:
 
 Without explicit flags the default identity is `<dirname>_<short-path-hash>`.
 
+## Environment (.env)
+
+Every command loads a project-root `.env` before its body runs:
+
+1. `.env` is found by walking up from the current directory (like `.sdt.yaml`).
+2. Only variables **not already set** in the shell environment are loaded — an
+   exported value always wins.
+3. A missing `.env` is a no-op; malformed lines are skipped, never fatal.
+4. The global `--no-env` flag disables the load for a single invocation.
+
+Use it for project credentials (for example an API key) instead of exporting
+them in the shell. Keep `.env` git-ignored; never commit secrets.
+
 ## Discovering capabilities
 
 ```

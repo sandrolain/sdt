@@ -108,7 +108,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/lessons.md` | Recording lessons, Do-Not-Repeat rules or a decision-log entry |
 | `context/instructions/questions.md` | Registering an open question |
 | `context/instructions/proposal.md` | Creating or reviewing a proposal |
-| `context/instructions/research.md` | Running or writing a research note |
+| `context/instructions/research.md` | Running research (`sdt research`) or writing a research note |
 | `context/instructions/ingestion.md` | Ingesting sources; converting non-markdown (`sdt doc2md`, anydoc → docling → markitdown) |
 | `context/instructions/prompts.md` | Creating or running a tracked prompt |
 | `context/instructions/reference.md` | Looking up a command |
@@ -136,7 +136,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/mindmap-markmap.md` | Writing the map markdown dialect and its markers |
 | `context/instructions/slides.md` | Authoring or reviewing a slide deck |
 | `context/instructions/slides-marp.md` | Writing the Marp markdown dialect |
-| `context/commands/` | Invoking an agent command: `>trigger` or `>trigger: payload` (e.g. `>ingestion: context/refs/ui-ux`) → `context/commands/<trigger>.md` → contract `context/instructions/<trigger>.md`. The payload is verbatim after the first `:`; precedence is payload > working context > ask; a payload never relaxes a gate (approve before write) |
+| `context/commands/` | Invoking an agent command: `>trigger` or `>trigger: payload` (e.g. `>ingestion: context/refs/ui-ux`) → `context/commands/<trigger>.md` → its durable contract (usually `context/instructions/<trigger>.md`; the `sdt research` family resolves to `context/instructions/research.md`). The payload is verbatim after the first `:`; precedence is payload > working context > ask; a payload never relaxes a gate (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
 

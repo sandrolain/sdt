@@ -202,6 +202,16 @@ var agentCommandStubs = []commandStub{
 		examples: []string{">reference: cobra", ">reference: how do agents invoke commands"}},
 	{id: ctxTypeResearch, contract: ctxTypeResearch, payload: "the question the run answers",
 		examples: []string{">research: does ctxquery keep list and search in lockstep", ">research: what the host passes to an agent command"}},
+	{id: "deepsearch", contract: ctxTypeResearch, payload: "the question the deepsearch answers",
+		examples: []string{">deepsearch: embedded vector stores for a Go CLI", ">deepsearch: how other Markdown KBs model claim provenance"}},
+	{id: "search", contract: ctxTypeResearch, payload: "the query to discover sources for",
+		examples: []string{">search: embedded vector store Go", ">search: crawldown capture options"}},
+	{id: "fetch", contract: ctxTypeResearch, payload: "the URL(s) to acquire, or none for the discovered sources",
+		examples: []string{">fetch: https://example.com/doc", ">fetch: every discovered source"}},
+	{id: "verify", contract: ctxTypeResearch, payload: "the run to verify (default: the latest)",
+		examples: []string{">verify: the latest run", ">verify: 01a0f…"}},
+	{id: "populate-wiki", contract: ctxTypeResearch, payload: "the brief explaining why the knowledge is useful",
+		examples: []string{">populate-wiki: embedded vector stores for sdt context search", ">populate-wiki: preview only, budget 3 pages"}},
 }
 
 // commandFiles returns the generated command files under context/commands/:
