@@ -380,8 +380,8 @@
   }
   .search-result__meta {
     font-size: 0.6875rem;
-    padding: 0 0.35rem;
-    border-radius: 999px;
+    padding: 0.1rem 0.4rem;
+    border-radius: 8px;
     background: var(--ctp-surface1);
     color: var(--ctp-subtext0);
   }

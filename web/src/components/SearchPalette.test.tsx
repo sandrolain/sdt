@@ -245,6 +245,37 @@ describe("SearchPalette", () => {
     expect(meta).not.toContain("2026-09-20T");
   });
 
+  it("keeps every fact in the result metadata chip when all four are present", async () => {
+    // Regression guard for the chip markup: kind · created · updated · § must
+    // all render (the two-line wrap is expected and fine; a dropped fact is not).
+    globalThis.fetch = mockSearch({
+      results: [
+        {
+          path: "context/analysis/a.md",
+          kind: "analysis",
+          title: "Analysis",
+          created: "2026-09-30",
+          modified: "2026-10-01",
+          section: "findings",
+          score: 2,
+          snippet: "matched body",
+        },
+      ],
+      total: 1,
+    }) as unknown as typeof fetch;
+    renderPalette();
+    await userEvent.type(screen.getByLabelText("Search query"), "tokens");
+    await screen.findByText("Analysis");
+
+    const meta = document.querySelector(".search-result__meta")?.textContent ?? "";
+    expect(meta).toContain("analysis");
+    expect(meta).toContain("2026");
+    expect(meta).toContain("updated");
+    expect(meta).toContain("§");
+    // the ISO value is formatted for display, never shown raw
+    expect(meta).not.toContain("2026-09-30T");
+  });
+
   it("shows a no-results state", async () => {
     globalThis.fetch = mockSearch({ results: [], total: 0 }) as unknown as typeof fetch;
     renderPalette();
