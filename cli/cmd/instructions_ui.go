@@ -11,4 +11,5 @@ var (
 	instrUIAdaptersTemplate    = templates.Must("instructions/ui-adapters.md.tmpl", nil, nil)
 	instrUIPerformanceTemplate = templates.Must("instructions/ui-performance.md.tmpl", nil, nil)
 	instrUILayoutTemplate      = templates.Must("instructions/ui-layout.md.tmpl", nil, nil)
+	instrUIMotionTemplate      = templates.Must("instructions/ui-motion.md.tmpl", nil, nil)
 )

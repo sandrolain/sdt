@@ -1727,6 +1727,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"context/instructions/browser.md",
 			"context/instructions/ui-layout.md",
 			"context/instructions/ui-performance.md",
+			"context/instructions/ui-motion.md",
 		}},
 		{"ui-tokens.md", instrUITokensTemplate, []string{
 			"# UI/UX — tokens by intent",
@@ -1737,6 +1738,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"three or more times with the same",
 			"never reference primitives or raw values",
 			"ui-adapters.md",
+			"ui-motion.md",
 		}},
 		{"ui-components.md", instrUIComponentsTemplate, []string{
 			"# UI/UX — components",
@@ -1767,6 +1769,13 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"could a stranger tell these were authored separately",
 			"Vary **composition** inside one artifact",
 			"signals to investigate",
+			"as an absolute ban",
+			"Never report a signal against",
+			"question, never a replacement",
+			"Allowed patterns:",
+			"A vague adjective authorises nothing",
+			"Over-correction is its own failure",
+			"visitor-success mode in",
 			"do not replace a distinctive existing choice",
 			"category",
 		}},
@@ -1802,6 +1811,23 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"ui-taste.md",
 			"ui-components.md",
 		}},
+		{"ui-motion.md", instrUIMotionTemplate, []string{
+			"# UI/UX — motion",
+			"Decide before you animate",
+			"How often does it play",
+			"Direction decides the curve",
+			"never by animating its box",
+			"One hero per moment",
+			"A stagger has a budget",
+			"Substitute, do not delete",
+			"Keep the transition that explains what changed",
+			"Never auto-play a loop",
+			"Symptom to fix",
+			"No personality",
+			"The product's motion identity",
+			"ui-accessibility.md",
+			"ui-tokens.md",
+		}},
 	}
 	for _, tc := range cases {
 		for _, want := range tc.want {
@@ -1823,6 +1849,7 @@ func TestAgentUITemplatesViewerFree(t *testing.T) {
 	names := []string{
 		"ui.md", "ui-tokens.md", "ui-components.md", "ui-accessibility.md",
 		"ui-taste.md", "ui-adapters.md", "ui-performance.md", "ui-layout.md",
+		"ui-motion.md",
 	}
 	var files []string
 	for _, name := range names {

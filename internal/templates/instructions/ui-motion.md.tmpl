@@ -1,0 +1,131 @@
+# UI/UX — motion
+
+`context/instructions/ui-motion.md` is the reference for motion: what moves, how
+long it may take, what it costs, and what it becomes when motion is unwelcome. It
+is project-agnostic — it names the decisions, not the numbers. Read it with
+`context/instructions/ui.md` (the doctrine), `context/instructions/ui-tokens.md`
+(the values), `context/instructions/ui-accessibility.md` (the reduced-motion
+principle) and `context/instructions/ui-components.md` (the states that move).
+
+## When this applies
+
+- Use it when a change adds, removes or changes motion — a transition, a feedback
+  animation, a state change, an entrance. If the change does not move anything,
+  this file does not apply: say so and stop.
+- The project's own scale supplies every value. If the project has no motion
+  tokens, this file still applies as decisions to follow, but never invent a scale
+  as a side effect (see `ui-tokens.md`).
+
+## Decide before you animate
+
+Answer three questions, in this order. The third one is what makes the other two
+bite.
+
+1. **What kind of element is it?** A micro-feedback on a control, a card, a
+   surface that takes focus, or a context switch. A heavier element can carry a
+   longer movement than a lighter one, never a shorter one.
+2. **How far does it travel?** Duration follows distance. The further something
+   moves, the longer it needs — otherwise a long slide reads as a jump.
+3. **How often does it play?** **The more often a motion plays, the shorter and
+   plainer it must be.** A hover the user sees a thousand times a day earns a
+   change of colour and nothing else; a first-run reveal that plays once can
+   carry the full treatment.
+
+A value you can measure is not a value to estimate: if the project already has a
+duration or an easing, use it; if it has none, say so rather than inventing one.
+
+## Duration and easing
+
+- **Direction decides the curve.** Something entering **decelerates** — it moves
+  quickly at first and settles. Something leaving **accelerates** — it eases in
+  and leaves. Something that stays on screen moves smoothly at both ends. A loop
+  must be seamless, so its two ends must match. **Linear is only for progress and
+  continuous rotation** — a bar that fills, a spinner that turns.
+- **Entering takes longer than leaving.** What appears is what the user reads;
+  what disappears is cleanup. Give the exit a fraction of the entrance.
+- **Direct response beats smooth.** A press, a hover and a release must answer
+  before the user can notice the delay; the settling can take its time afterwards.
+
+## What moves
+
+- **Move and fade are cheap; anything else is not.** Transforming an element and
+  changing its opacity are handled by the compositor and do not force the browser
+  to recompute the page. Animating width, height, margin or padding does force a
+  layout recalculation on every frame, so the page visibly stalls on a mid-range
+  device: **move the element with a transform, never by animating its box.**
+- An element scaled to zero disappears into a hole: keep a floor, and pair a
+  scale with opacity rather than replacing one with the other.
+- **Motion alone is not enough for an important change.** If a state change
+  matters, it must be visible without relying on the animation alone — a
+  transition that is skipped entirely must still leave a correct result.
+
+## Staging
+
+- **One hero per moment.** Give the surface a single focal movement; everything
+  else supports it. Repeating the same entrance on every section is the failure
+  mode this replaces.
+- **Many elements means stagger, not a chorus.** When several things change at
+  once, move them in an order a reader can follow — reading order, or outward
+  from the focus — never all at the same instant.
+- **A stagger has a budget.** The whole cascade must finish well under a second;
+  anything longer makes the user wait for decoration. When a list outgrows the
+  budget, animate fewer items rather than slowing the stagger.
+- **Keep the motion vocabulary small.** A product whose every element moves
+  differently reads as unfinished; name the three constants at the end of this
+  file and hold to them.
+
+## Motion and reduced motion
+
+`ui-accessibility.md` owns the principle: `prefers-reduced-motion` must preserve
+**hierarchy and feedback**, not kill every transition. This section is what that
+principle substitutes:
+
+- **Substitute, do not delete.** Remove the spatial part and keep the state
+  change: a sliding entrance becomes a fade, a spring becomes a short ease, a
+  parallax layer becomes a static position, a multi-step sequence collapses to one
+  step, a continuous background loop becomes still.
+- **Keep the transition that explains what changed.** If a change of state is
+  carried by its animation, a reduced-motion user needs another way to read it —
+  a visible state, a label, a position change — not silence.
+- **Never auto-play a loop.** A movement that starts by itself and never stops is
+  a distraction and an accessibility failure. Anything long enough to need a pause
+  control needs one.
+- **Avoid motion that provokes.** Large scale changes, full-screen movement,
+  spinning elements and stacked parallax can cause real discomfort. When one is
+  genuinely needed, provide an alternative.
+
+## Symptom to fix
+
+| It feels | Likely cause | Fix |
+|---|---|---|
+| Robotic | no deceleration, or a perfectly straight path | decelerate the arrival; let the path bend slightly |
+| Slow | the movement is longer than the element deserves | shorten toward the project's shortest tier, keep only the decelerating half |
+| Cheap or flat | only the moved thing moves | let what supports it answer too — the shadow, the icon, the neighbour |
+| Distracting | too much moving at once | apply the one-hero rule, shorten the stagger budget |
+| Jarring | no settling beat | add a fraction of a second of stillness and let the eye land |
+| No personality | every screen picks its own timing | take the three constants below instead of choosing per screen |
+| Inconsistent | the same kind of change moves differently in two places | take the values from the project's own scale, not from the screen |
+
+## The product's motion identity
+
+Name three things once, then hold to them:
+
+- **one signature easing** used by most of the product's motion;
+- **a small duration palette** — a quick, a normal and a slow tier — rather than a
+  value chosen per screen;
+- **one way of arriving** for repeated elements.
+
+Record them where the project keeps conventions, not in this file.
+
+## Boundary
+
+- The doctrine is `context/instructions/ui.md`; the values come from
+  `context/instructions/ui-tokens.md`.
+- The reduced-motion principle and the review checklist are
+  `context/instructions/ui-accessibility.md`; this file supplies its
+  substitutions.
+- States, focus and overlays are `context/instructions/ui-components.md`.
+- How a framework declares transitions, and honours reduced motion without
+  flattening it, is `context/instructions/ui-adapters.md`.
+- Confirming the motion actually settled needs a real render:
+  `context/instructions/browser.md`.
