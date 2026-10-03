@@ -1,0 +1,39 @@
+`context/instructions/capture.md` owns the bounded self-improvement capture loop.
+Read it at closeout or session end, or when a correction or repeated friction
+recurs.
+
+## Four-part signal test
+
+Before persisting a capture, answer all four:
+
+1. **Generalisable?** — could the correction, repeated friction, missed step or
+   rule failure help future sessions? If no, record `none`.
+2. **Already recorded?** — does an existing artifact cover it? If yes, link to it
+   and record `none`.
+3. **Which artifact owns the fix?** — pick exactly one destination from the
+   routing table (or `none`); never split one signal.
+4. **Which output?** — the specific element to write there, minimal, in that
+   artifact's normal shape.
+
+## Routing table
+
+| Signal | Destination |
+|---|---|
+| One-off fact, small decision or concrete result | A dated note in `context/notes/` (a dead-end sets `note_type: dead-end` + `objective`). |
+| Stable lesson, preference or Do-Not-Repeat rule | The lessons note in `context/notes/`. |
+| Rejected approach worth remembering | A `context/notes/` note with `note_type: dead-end` + `objective` and why. |
+| Open design choice needing the user | `context/questions/`. |
+| Reusable workflow or instruction gap | `>draft: ...` first, then the normal analysis gate. |
+| Mechanical defect or repeated rule failure | The owning CLI, template, test/golden or lint surface. |
+| Scope gap in an existing chain | The existing analysis, plan or task file. |
+
+## Boundaries
+
+- **Observation ≠ adoption ≠ implementation.** A candidate signal is never
+  permission to change an instruction, tool or project rule.
+- **Keep the gates.** Every write follows its destination's normal approval gate;
+  this loop yields a routed capture or `none` only.
+- **Reject non-generalisable signals** — output `none`, do not persist.
+- **Single owner.** This file is the only place defining the test and table;
+  `worklog.md` and `AGENTS.md` link to it.
+- **No automatic mutation** — no store, scheduler or new command.

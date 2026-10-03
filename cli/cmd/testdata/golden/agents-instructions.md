@@ -134,6 +134,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/mindmap-markmap.md` | Writing the map markdown dialect and its markers |
 | `context/instructions/slides.md` | Authoring or reviewing a slide deck |
 | `context/instructions/slides-marp.md` | Writing the Marp markdown dialect |
+| `context/instructions/capture.md` | Recognizing a reusable correction or friction at closeout or session end |
 | `context/commands/` | Invoking an agent command: `>trigger` or `>trigger: payload` (e.g. `>ingestion: context/refs/example-repo`) → `context/commands/<trigger>.md` → its durable contract (usually `context/instructions/<trigger>.md`; the `sdt research` family resolves to `context/instructions/research.md`). Each trigger is a **document** command (produces/edits a document of a fixed type) or a **workflow** command (`>plan`, `>execute`, `>decision`) that advances the lifecycle of a declared subject and resolves it via the working-context ladder — **ask when it is not unique, never guess**. The payload is verbatim after the first `:`; precedence is payload > working-context resolution > ask; a payload never relaxes a gate (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |
@@ -201,7 +202,8 @@ standardized claim vocabulary in task files: **passed** (ran and verified),
 **expected** (written, not run), **inferred** (static analysis only).
 
 At session end: note open tasks and questions in `context/tasks/` or
-`context/questions/` for continuity.
+`context/questions/` for continuity, and run the bounded signal check
+(see `context/instructions/capture.md`), recording a routed capture or `none`.
 
 **File answers back**: substantive query answers and discoveries are filed into
 `context/` (`notes/`, `analysis/`, `wiki/`) — never left in chat.
