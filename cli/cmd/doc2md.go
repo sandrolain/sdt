@@ -68,7 +68,7 @@ with no relation simply carries no links.
 
 Examples:
   sdt doc2md set report-ab12cd34ef56.md --summary "Q3 financials"
-  sdt doc2md set report-ab12cd34ef56.md --link analysis/20260929-064509-example.md`,
+  sdt doc2md set report-ab12cd34ef56.md --link analysis/<analysis-file>.md`,
 	Args: cobra.ExactArgs(1),
 	Run:  runDoc2mdSet,
 }

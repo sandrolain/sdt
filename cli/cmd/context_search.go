@@ -183,7 +183,7 @@ var contextShowCmd = &cobra.Command{
 restricted to one section or a line range.
 
 Examples:
-  sdt context show context/analysis/20260920-133906-analysis-harness-improvements-integrations.md
+  sdt context show context/analysis/<analysis-file>.md
   sdt context show context/analysis/x.md --section wave-2
   sdt context show context/analysis/x.md --lines 10:40`,
 	Args: cobra.ExactArgs(1),

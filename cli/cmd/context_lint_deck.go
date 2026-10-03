@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// Advisory structural checks for `.slide.md` decks (analysis 20260928-214648,
-// plan 20260929-131401). The rules mirror the dialect contract in
+// Advisory structural checks for `.slide.md` decks. The rules mirror the
+// dialect contract in
 // context/instructions/slides-marp.md — change the two together. Findings are
 // WARNING (content the engine drops or ignores: a mis-split separator, an
 // unknown directive, an unresolved asset) or SUGGESTION (budgets), never

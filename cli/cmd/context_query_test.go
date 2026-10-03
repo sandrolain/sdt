@@ -120,8 +120,8 @@ func TestContextListStatusVocabularyValidation(t *testing.T) {
 	writeCtxDoc(t, "context/analysis/b.md", "---\nkind: analysis\nsummary: s\nstatus: postponed\n---\nbody\n")
 
 	// Every value of the kind's closed vocabulary is accepted, and the filter
-	// really selects on it (analysis 20260925-195434 risks: a postponed option
-	// must be one command away, and validation must not be a silent empty list).
+	// really selects on it (a postponed option must be one command away, and
+	// validation must not be a silent empty list).
 	for _, value := range []string{"active", "draft", "completed", "postponed", "archived"} {
 		out := string(execute(t, contextListCmd, nil, "--type", "analysis", "--status", value))
 		switch value {

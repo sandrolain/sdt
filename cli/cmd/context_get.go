@@ -28,8 +28,8 @@ empty line on stdout, a note on stderr, and exits 1. Under --format json|yaml
 the result is a mapping, so a missing key is an explicit null.
 
 Examples:
-  sdt context get plan/20261001-102040-...        # the raw block
-  sdt context get plan/20261001-102040-... status # one value
+  sdt context get plan/<plan-file>        # the raw block
+  sdt context get plan/<plan-file> status # one value
   sdt context get --type analysis --slug x objective title`,
 	Args: cobra.MinimumNArgs(0),
 	Run:  runContextGet,

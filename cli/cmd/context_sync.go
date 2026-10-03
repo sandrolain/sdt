@@ -109,7 +109,7 @@ to one subtree (the document and its ancestors).
 Examples:
   sdt context sync
   sdt context sync --dry-run
-  sdt context sync --doc plan/20260927-211743-cli-only-...-plan`,
+  sdt context sync --doc plan/<plan-file>`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		dryRun := getBoolFlag(cmd, "dry-run", false)

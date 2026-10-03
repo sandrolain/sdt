@@ -25,8 +25,8 @@ hand-stamped; no other field, the body or the filename is changed.
 Types without an ` + "`updated`" + ` field (notes, decision) are rejected.
 
 Examples:
-  sdt context touch context/plan/20260927-211743-cli-only-...-plan.md
-  sdt context touch plan/20260927-211743-cli-only-...-plan
+  sdt context touch context/plan/<plan-file>.md
+  sdt context touch plan/<plan-file>
   sdt context touch --type analysis --slug backend --format json`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {

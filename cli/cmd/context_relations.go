@@ -19,7 +19,7 @@ import (
 // The lifecycle chain is typed explicitly, keyed by the immutable `uid`:
 // a plan carries `analysis_id` and the analysis carries the reverse `plans_ids`;
 // a task file carries `plan_id` and the plan carries `tasks_ids`. The fields
-// complement `sources` (analysis 20260927-135445, decisions Q6/Q7).
+// complement `sources`.
 
 // ctxParentField is the child→parent scalar field for a child kind.
 func ctxParentField(childKind string) string {

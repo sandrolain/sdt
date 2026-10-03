@@ -40,7 +40,7 @@ var renderCases = map[string]any{
 		"ID":       "ingestion",
 		"Contract": "ingestion",
 		"Payload":  "paths and/or URLs to ingest",
-		"Examples": []string{">ingestion: context/refs/ui-ux", ">ingestion: https://example.com/doc"},
+		"Examples": []string{">ingestion: context/refs/example-repo", ">ingestion: https://example.com/doc"},
 		"Project":  "p",
 		"Now":      "2026-09-24T00:00:00Z",
 	},

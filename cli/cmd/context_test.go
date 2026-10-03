@@ -826,8 +826,8 @@ func TestContextTaskLifecycle(t *testing.T) {
 func TestTaskFileFor(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 	cases := []struct{ phase, plan, want string }{
-		{"1", "20260911-062956-plan-llm-wiki-pipeline.md", "20260806-070000-plan-llm-wiki-pipeline.md"},
-		{"1A", "20260911-062956-plan-llm-wiki-pipeline.md", "20260806-070000-plan-llm-wiki-pipeline.md"},
+		{"1", "20260911-062956-plan-sample-pipeline.md", "20260806-070000-plan-sample-pipeline.md"},
+		{"1A", "20260911-062956-plan-sample-pipeline.md", "20260806-070000-plan-sample-pipeline.md"},
 		{"2", "20260912-000000-pipeline.md", "20260806-070000-pipeline.md"},
 		{"1", "custom", "20260806-070000-custom.md"},
 		{"", "custom", "20260806-070000-custom.md"},
@@ -875,10 +875,10 @@ func TestContextTaskFileStatusTransitions(t *testing.T) {
 
 func TestTaskSlugFromPlan(t *testing.T) {
 	for in, want := range map[string]string{
-		"20260911-062956-plan-llm-wiki-pipeline.md": "plan-llm-wiki-pipeline",
-		"20260912-000000-pipeline.md":               "pipeline",
-		"custom":                                    "custom",
-		"custom.md":                                 "custom",
+		"20260911-062956-plan-sample-pipeline.md": "plan-sample-pipeline",
+		"20260912-000000-pipeline.md":             "pipeline",
+		"custom":                                  "custom",
+		"custom.md":                               "custom",
 	} {
 		if got := taskSlugFromPlan(in); got != want {
 			t.Errorf("taskSlugFromPlan(%q) = %q, want %q", in, got, want)
@@ -896,9 +896,9 @@ func TestTaskFileForResolution(t *testing.T) {
 		t.Errorf("expected existing phase file, got %q", got)
 	}
 	// Alphanumeric phase and real plan slug both resolve.
-	other := filepath.Join("context", "tasks", "20260806-070000-plan-llm-wiki-pipeline-phase-2b.md")
+	other := filepath.Join("context", "tasks", "20260806-070000-plan-sample-pipeline-phase-2b.md")
 	writeCtxDoc(t, other, "---\nkind: tasks\nsummary: t\n---\n")
-	if got := taskFileFor("2B", "20260911-062956-plan-llm-wiki-pipeline.md"); got != other {
+	if got := taskFileFor("2B", "20260911-062956-plan-sample-pipeline.md"); got != other {
 		t.Errorf("expected resolved alphanumeric phase file, got %q", got)
 	}
 }
@@ -907,9 +907,9 @@ func TestContextPathTasks(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 	out := execute(t, contextPathCmd, nil, "--type", "tasks", "--phase", "2",
-		"--plan", "20260911-062956-plan-llm-wiki-pipeline.md")
+		"--plan", "20260911-062956-plan-sample-pipeline.md")
 	got := strings.TrimSpace(string(out))
-	want := filepath.Join("context", "tasks", "20260806-070000-plan-llm-wiki-pipeline.md")
+	want := filepath.Join("context", "tasks", "20260806-070000-plan-sample-pipeline.md")
 	if got != want {
 		t.Errorf("expected %q, got %q", want, got)
 	}

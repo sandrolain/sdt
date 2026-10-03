@@ -68,8 +68,8 @@ optional --reason. The document's ` + "`updated`" + ` is refreshed when its kind
 requires it.
 
 Examples:
-  sdt context check plan/20260927-211743-cli-only-...-plan --done c4
-  sdt context check context/tasks/20260927-212018-...-phase-1.md --wip 2
+  sdt context check plan/<plan-file> --done c4
+  sdt context check context/tasks/<task-file>.md --wip 2
   sdt context check questions/20260927-091146-... --block c3 --reason "needs data"`,
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {

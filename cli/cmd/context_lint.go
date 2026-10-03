@@ -863,7 +863,7 @@ var ctxOptionOutcomeRegexp = regexp.MustCompile(`(?im)^\s*[-*]?\s*\**\s*(outcome
 // section to carry a recorded outcome (rule R3): the analysis must say which
 // option was accepted, which were rejected and why, and which are postponed.
 // Advisory SUGGESTION: it checks that a verdict is present, never its quality
-// (a known and accepted limit — see analysis 20260925-195434).
+// (a known and accepted limit).
 func lintAnalysisOptions(path, content, kind string) []ctxLintIssue {
 	if kind != ctxTypeAnalysis {
 		return nil

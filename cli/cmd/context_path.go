@@ -46,7 +46,7 @@ architecture (<slug>.md), wiki (<slug-or/subpath>.md), decision
 
 Examples:
   sdt context path --type worklog --slug review-deps
-  sdt context path --type tasks --phase 1 --plan 20260911-155545-plan-context-file-formats-cli.md
+  sdt context path --type tasks --phase 1 --plan <plan-file>
   sdt context path --type plan --format json
   sdt context path --type decision --number 0001 --slug auth-choice`,
 	Args: cobra.NoArgs,

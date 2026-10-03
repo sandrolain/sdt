@@ -108,9 +108,9 @@ outsideonly unique term not in the corpus.
 `)
 	// filename-match ranking: the tasks doc's name carries the full query while
 	// the analysis only mentions the terms in its body
-	write("context/tasks/20260911-084500-plan-llm-wiki-pipeline-phase-1.md", `---
+	write("context/tasks/20260911-084500-plan-sample-pipeline-phase-1.md", `---
 kind: tasks
-title: LLM wiki pipeline phase 1
+title: Sample pipeline phase 1
 created: 2026-09-15
 ---
 
@@ -299,11 +299,11 @@ func TestSearchFilenameRanksFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	res, err := ix.Search("plan llm wiki pipeline phase 1", "", "", "", "", "", "", 0)
+	res, err := ix.Search("plan sample pipeline phase 1", "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "context/tasks/20260911-084500-plan-llm-wiki-pipeline-phase-1.md"
+	want := "context/tasks/20260911-084500-plan-sample-pipeline-phase-1.md"
 	if len(res.Results) == 0 || res.Results[0].Path != want {
 		t.Fatalf("rank1 = %+v, want %s first", res.Results, want)
 	}

@@ -16,8 +16,8 @@ import (
 	"github.com/sandrolain/sdt/internal/contextwiki"
 )
 
-// Advisory structural checks for `.map.md` documents (analysis 20260925-171754,
-// revised by plan 20261002-063031). The rules mirror the dialect contract in
+// Advisory structural checks for `.map.md` documents. The rules mirror the
+// dialect contract in
 // context/instructions/mindmap-markmap.md — change the two together. Findings
 // are WARNING (an inert `markmap:` key, unresolvable links, a malformed
 // structure, a marker mistake) or SUGGESTION (budgets), never CRITICAL, so a map

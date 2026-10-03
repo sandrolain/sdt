@@ -41,7 +41,7 @@ per-type rule; uid, analysis_id and plan_id are refused without --force, since
 dedicated commands own them.
 
 Examples:
-  sdt context set plan/20261001-102040-... status active
+  sdt context set plan/<plan-file> status active
   sdt context set analysis/x.md categories '[new-feature, research]'
   sdt context set notes/x.md tags cli --append
   sdt context set analysis/x.md summary "a quoted: value" --raw`,

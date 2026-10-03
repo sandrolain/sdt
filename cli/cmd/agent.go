@@ -165,9 +165,8 @@ func writeInstructionFiles(project, group string, force bool) []FileResult {
 // kind/subject are the taxonomy projection: a document command produces or edits
 // a document of a fixed type (subject empty, the trigger is the type); a
 // workflow command advances the lifecycle and declares the subject type it
-// resolves (e.g. >plan resolves an analysis). See analysis
-// 20260923-212948 for the working-context resolution ladder the workflow
-// commands use.
+// resolves (e.g. >plan resolves an analysis) through the working-context
+// resolution ladder documented in the generated commands index.
 
 type commandStub struct {
 	id       string
@@ -202,23 +201,23 @@ func workflowTrigger(id, contract, subject, payload string, examples ...string) 
 
 var agentCommandStubs = []commandStub{
 	docTrigger("ingestion", "ingestion", "paths and/or URLs to ingest",
-		">ingestion: context/refs/ui-ux", ">ingestion: https://example.com/doc"),
+		">ingestion: context/refs/example-repo", ">ingestion: https://example.com/doc"),
 	docTrigger(ctxTypeWiki, ctxTypeWiki, "topic or page id",
 		">wiki: backend/auth", ">wiki: list the pages under web/"),
 	docTrigger(ctxTypeAnalysis, ctxTypeAnalysis, "subject or scope of the analysis to create or extend",
 		">analysis: why does sdt context lint skip .map.md notes?",
-		">analysis: extend analysis/20260925-195438-agent-command-invocation-grammar.md with the host-registration trade-off"),
+		">analysis: extend analysis/<analysis-file>.md with the host-registration trade-off"),
 	docTrigger("draft", "draft", "the raw notes to capture",
 		">draft: check whether bleve ranking can carry the objective facet",
 		">draft: three ideas about phase splitting, see the open question"),
 	docTrigger("scope", "scope", "the objective to scope",
 		">scope: give sdt context lint a closed-schema payload rule", ">scope: replace the sdt context lint entry point with a single filter engine"),
 	workflowTrigger(ctxTypePlan, ctxTypePlan, ctxTypeAnalysis, "the analysis the plan is built from",
-		">plan: analysis/20260925-195438-agent-command-invocation-grammar.md", ">plan: analysis/20260927-101140-context-query-filters-date-ranges-type-status-and-generic-frontmatter-filters-for-list-and-search.md"),
+		">plan: analysis/<analysis-file>.md", ">plan: the analysis just discussed"),
 	workflowTrigger("execute", ctxTypeTasks, ctxTypePlan, "the plan (and phase) to execute",
-		">execute: plan/20261003-135937-agent-command-taxonomy-the-working-context-subject-ladder-and-execute.md", ">execute: phase 3 of the taxonomy wave"),
+		">execute: plan/<plan-file>.md", ">execute: phase 3 of the plan just discussed"),
 	docTrigger(ctxTypeTasks, ctxTypeTasks, "the plan whose task file(s) are created",
-		">tasks: plan/20260929-062200-agent-command-invocation-grammar-payload-contract-in-the-generated-command-surfaces.md", ">tasks: plan/20260928-073925-context-query-filters-one-shared-filter-engine-for-list-and-search.md"),
+		">tasks: plan/<plan-file>.md", ">tasks: the plan just approved"),
 	docTrigger(ctxTypeProposal, ctxTypeProposal, "subject of the proposal",
 		">proposal: replace the hand-written command stubs with a generated set", ">proposal: register the triggers with the opencode command registry"),
 	workflowTrigger(ctxTypeDecision, ctxTypeDecision, ctxTypeProposal, "the proposal to convert",
@@ -226,7 +225,7 @@ var agentCommandStubs = []commandStub{
 	docTrigger(ctxTypeArchitecture, ctxTypeArchitecture, "component or topic to document",
 		">architecture: the search index pipeline", ">architecture: how the corpus is scanned and indexed"),
 	docTrigger(ctxTypeWorklog, ctxTypeWorklog, "the phase or task being closed out",
-		">worklog: phase 3 of plan/20260929-062200", ">worklog: close out the whole plan/20260929-062200 run"),
+		">worklog: phase 3 of plan/<plan-file>.md", ">worklog: close out the whole plan/<plan-file> run"),
 	docTrigger(ctxTypeNotes, ctxTypeNotes, "subject of the note",
 		">notes: bleve filter clauses were dropped for ctxquery", ">notes: the map document that markmap silently truncates"),
 	docTrigger(ctxTypeQuestions, ctxTypeQuestions, "topic to raise questions about",
