@@ -173,6 +173,17 @@ hand.
    task and **ask the user whether to commit**; commit only on explicit
    approval.
 
+**Durable ledger.** Conversation memory does not survive compaction. Keep the
+record of progress in durable files — this task file, the plan and the worklog —
+not only in short-lived todos; narration between steps is at most one short
+line.
+
+**Rulings, not stalls.** Inside an approved plan, settle execution-level details
+the plan already authorizes and record each as
+`Ruling: <what was decided> — <why> — <cost if wrong>` in the task file or
+worklog, then keep going. A decision that changes scope, style, architecture or
+cost is not a ruling — it is a question for the user (HARD RULE 7).
+
 ### The `>execute` trigger
 
 `>execute` is the **workflow** command that drives this file. Its subject is a
@@ -186,11 +197,17 @@ task file → the plan under discussion → **ask**. Then:
   a time.
 - **Take in** — `sdt context task wip <id> --phase <n>` before any work (step 2).
 - **Execute / complete** — steps 3-4, including the verify-step.
-- **Stop conditions** (never invent work):
-  - the plan has **no task file** → stop and point to `>tasks` (task creation is
-    gated on plan approval);
-  - the plan is already `completed` → do not reopen it silently; ask;
-  - the plan or task file is ambiguous → list the candidates and **ask**.
+- **Stop conditions** — exactly four; never invent work:
+  - an operation the workflow reserves for the user — a commit, an AGENTS.md
+    write, or any irreversible, destructive or security-sensitive action → stop
+    and **ask**;
+  - a side effect outside the task's scope — a merge, a push, a publish, or
+    touching another work stream's files → stop and **ask**;
+  - a broken or missing plan — no task file (point to `>tasks`) or a plan where
+    every path forward is a guess → stop and **ask**;
+  - an ambiguous or already-closed subject — more than one candidate plan/task,
+    or a `completed` plan (do not reopen it silently) → list the candidates and
+    **ask**.
 
 ## Stale task files
 
@@ -220,6 +237,28 @@ explicitly retires.
 Run the verify-step before closing a phase (completeness, coherence,
 correctness) and use the standardized claim vocabulary (**passed** / **expected**
 / **inferred**) — see AGENTS.md (5-stage development lifecycle).
+
+**No completion claim without fresh evidence.** Before writing a status as done,
+run the check now and read its result: identify what proves the claim, run it,
+read the output, verify it against the claim, then write the claim. Evidence
+from an earlier run does not substitute for a fresh one.
+
+Match each claim to the evidence it needs:
+
+| Claim | Required evidence |
+|-------|-------------------|
+| passed | the command output from this run |
+| expected | the artefact was written and inspected, not executed |
+| inferred | a static reading only (file, diff, type) — say so |
+
+Two rules bound what the evidence may conclude:
+
+- **Absence of evidence is not evidence of absence.** A search that finds
+  nothing proves only that the search found nothing: state the search and its
+  scope, and mark the conclusion UNVERIFIED.
+- **A schema-valid artefact is not a complete one.** Passing a structural check
+  does not establish coverage; pair it with a declared coverage check or record
+  coverage as unproven.
 
 Record it as a file-level `## Review` block in the task file (write it with
 `sdt context task review --phase <n>`; a completed file without the block gets

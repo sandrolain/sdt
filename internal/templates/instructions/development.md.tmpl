@@ -56,6 +56,43 @@ planning or writing any non-trivial code.
   not thoroughness. This mirrors library-first from the other direction: don't
   reinvent what exists, and don't over-build what is new.
 
+Before writing code, take the cheapest rung that actually solves the problem,
+in this order:
+
+1. **Nothing** — confirm the requirement is real (YAGNI).
+2. **Reuse** — call the existing function, or extend it, instead of adding a
+   twin.
+3. **Standard library.**
+4. **The platform/native primitive.**
+5. **An installed dependency** the project already has.
+6. **One line** that does the job.
+7. **The minimum new code.**
+
+Stop at the first rung that works. Reuse beats rewrite: grep every caller and
+fix the shared function once, rather than patching the symptom in one place.
+
+## One runnable check
+
+- For non-trivial logic, leave exactly one executable check that proves it
+  works — a small test, a runnable script, or a command that demonstrates the
+  behaviour.
+- Keep the check self-contained: no framework and no fixture ceremony beyond
+  what the package already uses.
+- If the check would need more code than the logic it guards, simplify the
+  logic instead.
+
+## Mark deliberate shortcuts
+
+A deliberate shortcut is allowed when the full solution is not worth its cost.
+Give it two explicit facts so the debt is visible, not silent:
+
+- **ceiling** — what it covers today, i.e. the boundary within which it is
+  valid;
+- **upgrade trigger** — the condition that means it is time to replace it.
+
+Record the marker beside the shortcut (a code comment) or in the task/note that
+tracks the work.
+
 ## Surgical changes
 
 - Touch only what the task requires: every changed line traces to the request.

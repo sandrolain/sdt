@@ -114,6 +114,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
 | `context/instructions/development.md` | Writing code: style/architecture agreement, library-first, coding behavior (simplicity, diff-discipline), library docs |
+| `context/instructions/authoring.md` | Writing or reviewing instructions, skills or agent-facing rules |
 | `context/instructions/git.md` | Committing or branching: the commit gate, Conventional Commits and branch rules |
 | `context/instructions/browser.md` | Navigating a web page or verifying a rendered layout |
 | `context/instructions/browser-tools.md` | Choosing or using a browser-automation tool |
@@ -183,6 +184,11 @@ Follow this cycle for any non-trivial task:
    without explicit approval.
 5. **Final reports** — append `context/worklog/` and `notes/` entries.
 
+**No silent downgrades.** When in doubt between two paths, take the heavier one,
+and never weaken an agreed plan mid-task without saying so. An approval covers
+the stage actually presented: replying to a plan approves that plan, not a later
+or different stage — re-ask when the stage changes (HARD RULE 1).
+
 Before closing a phase run the **verify-step**: completeness, coherence, correctness
 (prioritize CRITICAL / WARNING / SUGGESTION, degrade gracefully). Then reindex: run
 `sdt context reindex` and `sdt context lint`; run `sdt context status` to
@@ -211,6 +217,9 @@ Pattern: `[thing] [action] [reason]. [next step]`.
 Not: "Sure! I'd be happy to help you with that."
 Yes: "Auth middleware has a bug. Fixing:"
 Code only — user-requested docs written normal (concise)
+
+Output size: code first, then at most three lines of explanation. If the
+explanation is longer than the code, cut the explanation.
 
 Commits: after each completed task, propose a Conventional Commits message and
 **ask before committing** — never commit without explicit user approval (see

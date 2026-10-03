@@ -1,0 +1,62 @@
+`context/instructions/authoring.md` is the contract for writing or editing an
+instruction file, an agent skill, or an AGENTS.md rule. Read it before adding
+guidance an agent will follow.
+
+## A description is a trigger, not a summary
+
+State **when to use** the guidance, not what it does. A description that
+summarises the workflow becomes a shortcut the agent follows instead of reading
+the body.
+
+- Good: "Use when tests have race conditions or pass/fail inconsistently."
+- Bad: "Use for flaky tests: wait for the condition, then assert."
+
+Describe the problem (a symptom, a situation), keep it technology-agnostic
+unless the guidance is technology-specific, and write in the third person.
+
+## Spend the reader's context
+
+Progressive disclosure: keep the always-loaded text short and push detail into
+an on-demand file.
+
+- Word budget: a frequently-loaded instruction under ~200 words; any other under
+  ~500. Check with `wc -w`.
+- Point at a command's `--help` instead of restating every flag.
+- Cross-reference by name with an explicit marker (`**REQUIRED:** read
+  `<file>``) — never force-include a file with `@`; it loads immediately and
+  burns context before it is needed.
+- Compress examples, and do not repeat what a referenced file already says.
+
+## Author from a failure, not from a feeling
+
+Watch an agent fail without the rule first (RED). Write the rule that addresses
+exactly that failure, then confirm the agent complies (GREEN). Wording that was
+never tested against a failure is a guess.
+
+Match the form to the failure (form-to-failure):
+
+| Baseline failure | Right form |
+|---|---|
+| Knows the rule and skips it under pressure | Prohibition + rationalization table + red flags |
+| Complies but the output has the wrong shape | Positive recipe: state the shape of the output |
+| Omits a required element | A REQUIRED slot in the template being filled |
+| Behaviour depends on a condition | A conditional keyed to an observable predicate |
+
+Prohibitions backfire on shaping problems — prefer a recipe. Add no nuance
+clauses ("... unless it matters" reopens the negotiation), and remember that an
+exemption clause does not scope: restructure instead.
+
+## Micro-test the wording
+
+Before a full run, test the wording: one fresh context per sample, with the
+guidance inside its realistic surroundings; a **no-guidance control** every time
+(if the control does not fail, there is nothing to fix); 5+ repetitions; read
+every flagged match by hand; and treat variance as a signal — five different
+interpretations mean the wording is not binding.
+
+## Where a rule belongs
+
+- Project conventions → the AGENTS.md project block.
+- A judgement call the agent must make → an instruction file (here).
+- A mechanical constraint enforceable by a check → automation (a test or lint),
+  not prose.
