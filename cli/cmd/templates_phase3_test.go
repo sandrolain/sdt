@@ -323,8 +323,8 @@ func TestTopicsSeedGolden(t *testing.T) {
 		"#     - knowledge\n" +
 		"#   document-management:\n" +
 		"#     - docs\n" +
-		"#   viewer:\n" +
-		"#     - web\n" +
+		"#   testing:\n" +
+		"#     - tests\n" +
 		"#   cli:\n" +
 		"#     - commands\n"
 	if got := topicsRegisterTemplate; got != want {

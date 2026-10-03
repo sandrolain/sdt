@@ -260,7 +260,7 @@ section of the `<!-- sdt:begin:project -->` block and record the change in
 ### Document conventions
 
 - **No H1 title** — document bodies start at H2; the frontmatter title is the
-  document title, rendered once by the viewer.
+  document title.
 - **Statuses** — per-type `status` vocabularies (defaults, `draft`/`active`/
   `archived` semantics, `reference` kind) are defined once in the status matrix:
   `context/architecture/stack.md`. Validate before setting.

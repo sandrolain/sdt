@@ -3,7 +3,9 @@ package templates
 import (
 	"bytes"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"text/template"
@@ -253,4 +255,94 @@ func TestProjectTemplateIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+// viewerTokenRe matches the viewer-independence invariant: no `viewer` /
+// `sdtviewer` token, word-boundary matched so `reviewer` and `reviewViewer`
+// are not flagged.
+var viewerTokenRe = regexp.MustCompile(`\b(viewer|sdtviewer)\b`)
+
+// TestGeneratedSetIsViewerFree enforces the viewer-independence invariant over
+// the whole generated set: the instruction/agent/workspace templates, the
+// AGENTS.md instructions block and the roles core layer. The project layer and
+// this repository's own AGENTS.md project block are host data and excluded.
+// Word boundaries keep `reviewer`/`reviewViewer` clean.
+func TestGeneratedSetIsViewerFree(t *testing.T) {
+	// Surface 1: every embedded template file under the generated top-level dirs.
+	for _, dir := range []string{"instructions", "agents", "workspace", "roles"} {
+		err := fs.WalkDir(templatesFS, dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			data, rerr := templatesFS.ReadFile(path)
+			if rerr != nil {
+				return rerr
+			}
+			if m := viewerTokenRe.FindAllString(string(data), -1); m != nil {
+				t.Errorf("%s: viewer token(s) %v (the generated set must not know the viewer)", path, m)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", dir, err)
+		}
+	}
+
+	// Surfaces 2 and 3 live in the working tree, which is absent on a fresh CI
+	// checkout of context/ (gitignored) — skip only the parts that are missing.
+	root := filepath.Join("..", "..")
+	if data, err := os.ReadFile(filepath.Join(root, "AGENTS.md")); err == nil {
+		re := regexp.MustCompile(`(?ms)^<!-- sdt:begin:instructions -->.*?^<!-- sdt:end:instructions -->`)
+		if block := re.FindString(string(data)); block != "" {
+			if m := viewerTokenRe.FindAllString(block, -1); m != nil {
+				t.Errorf("AGENTS.md instructions block: viewer token(s) %v", m)
+			}
+		} else {
+			t.Error("AGENTS.md: instructions block markers not found")
+		}
+	}
+
+	// Roles core layer: marker-delimited, so the (repo) project layer that
+	// legitimately carries host tokens is excluded.
+	rolesDir := filepath.Join(root, "context", "roles")
+	if entries, err := os.ReadDir(rolesDir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || filepath.Ext(e.Name()) != ".md" {
+				continue
+			}
+			data, rerr := os.ReadFile(filepath.Join(rolesDir, e.Name()))
+			if rerr != nil {
+				t.Fatalf("read roles/%s: %v", e.Name(), rerr)
+			}
+			slug := strings.TrimSuffix(e.Name(), ".md")
+			core, ok := roleCoreRegion(string(data), slug)
+			if !ok {
+				continue // shared.md and any non-profile file
+			}
+			if m := viewerTokenRe.FindAllString(core, -1); m != nil {
+				t.Errorf("context/roles/%s core layer: viewer token(s) %v", e.Name(), m)
+			}
+		}
+	}
+}
+
+// roleCoreRegion extracts the marker-delimited `roles/<slug>/core` body from a
+// generated role profile, mirroring the extraction the cmd package uses. It
+// reports ok=false when the markers are absent (e.g. the shared rules file).
+func roleCoreRegion(content, slug string) (string, bool) {
+	begin := "<!-- sdt:begin:roles/" + slug + "/core -->"
+	end := "<!-- sdt:end:roles/" + slug + "/core -->"
+	bi := strings.Index(content, begin)
+	if bi < 0 {
+		return "", false
+	}
+	rest := content[bi+len(begin):]
+	ei := strings.Index(rest, end)
+	if ei < 0 {
+		return "", false
+	}
+	return rest[:ei], true
 }

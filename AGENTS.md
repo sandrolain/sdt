@@ -264,7 +264,7 @@ section of the `<!-- sdt:begin:project -->` block and record the change in
 ### Document conventions
 
 - **No H1 title** — document bodies start at H2; the frontmatter title is the
-  document title, rendered once by the viewer.
+  document title.
 - **Statuses** — per-type `status` vocabularies (defaults, `draft`/`active`/
   `archived` semantics, `reference` kind) are defined once in the status matrix:
   `context/architecture/stack.md`. Validate before setting.
@@ -374,5 +374,22 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
 - **Project-scoped commands** (e.g. `sdt context`) read identity from `--project`/`--group`
   flags, then `.sdt.yaml` (walking up from `$CWD` like `.git`); error if absent.
   Create with `sdt agent init --project … --group … --yes` or `sdt config init`.
+- **Instruction-module portability** — the instructions `sdt agent init` writes
+  into *every* bootstrapped project must be portable: the agent must not need, or
+  know, this repository's own implementation. This rule is **this repository
+  only** (SDT develops the instruction modules and the viewer) and is not shipped
+  to bootstrapped projects. A new or edited instruction module is judged by six
+  tests — **SUBJECT** (portable doctrine, not the viewer's design), **PRESUPPOSITION**
+  (nothing a generic project may lack, with an explicit no-op/degradation rule),
+  **LOCATION** (a generated surface, never a repo-local path), **PRESCRIPTION**
+  (defers to the project/`development.md`; numbers are overridable defaults, not
+  law, and a pinned version is re-verified against the installed tool), **DELIVERY**
+  (the delivery surface is named and consistent with `agent init`) and **BOUNDARY**
+  (non-overlap with `development.md` and sibling modules stated). The
+  viewer-independence invariant — no `viewer`/`sdtviewer` token, word-boundary
+  matched — is enforced by `internal/templates/templates_test.go`
+  (`TestGeneratedSetIsViewerFree`) over the templates, the AGENTS.md instructions
+  block and the roles core layer. A mechanical constraint becomes a gate, not
+  prose (`context/instructions/authoring.md`).
 
 <!-- sdt:end:project -->
