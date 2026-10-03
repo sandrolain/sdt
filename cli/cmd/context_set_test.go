@@ -83,6 +83,81 @@ func TestContextSetListAppendRemove(t *testing.T) {
 	}
 }
 
+// TestContextSetListAppendKeepsBlockSequence is the D1 guard: appending to a
+// block-sequence list must keep every existing entry, not replace the list with
+// the appended item.
+func TestContextSetListAppendKeepsBlockSequence(t *testing.T) {
+	runInTempDir(t)
+	doc := "---\nkind: analysis\nsummary: block list\nlinks:\n  - a.md\n  - b.md\n  - c.md\n---\nbody\n"
+	writeContextDoc(t, "analysis/x.md", doc)
+
+	execute(t, contextSetCmd, nil, "analysis/x.md", "links", "d.md", "--append")
+	got := readDoc(t, "analysis/x.md")
+	for _, want := range []string{"a.md", "b.md", "c.md", "d.md"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("append dropped %q:\n%s", want, got)
+		}
+	}
+
+	execute(t, contextSetCmd, nil, "analysis/x.md", "links", "b.md", "--remove")
+	got = readDoc(t, "analysis/x.md")
+	if strings.Contains(got, "b.md") {
+		t.Errorf("remove failed:\n%s", got)
+	}
+	for _, want := range []string{"a.md", "c.md", "d.md"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("remove dropped %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestContextSetAbsentListBecomesBlock guards the corpus default: appending to
+// an absent key writes a block sequence, not an inline flow list.
+func TestContextSetAbsentListBecomesBlock(t *testing.T) {
+	runInTempDir(t)
+	writeContextDoc(t, "analysis/x.md", "---\nkind: analysis\nsummary: absent\n---\nbody\n")
+
+	execute(t, contextSetCmd, nil, "analysis/x.md", "links", "a.md", "--append")
+	got := readDoc(t, "analysis/x.md")
+	if !strings.Contains(got, "links:\n  - a.md") {
+		t.Errorf("absent key not written as a block sequence:\n%s", got)
+	}
+}
+
+// TestContextSetScalarListUpgraded guards the one-element scalar case: it is
+// read as a one-item list and upgraded, not mistaken for an unreadable value.
+func TestContextSetScalarListUpgraded(t *testing.T) {
+	runInTempDir(t)
+	writeContextDoc(t, "analysis/x.md", "---\nkind: analysis\nsummary: scalar list\nlinks: a.md\n---\nbody\n")
+
+	execute(t, contextSetCmd, nil, "analysis/x.md", "links", "b.md", "--append")
+	got := readDoc(t, "analysis/x.md")
+	for _, want := range []string{"a.md", "b.md"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("scalar upgrade dropped %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestContextSetUnreadableListRefuses is the refuse-don't-shrink guard: a
+// non-empty value the shared reader cannot parse as a list is a hard error and
+// the file keeps its bytes.
+func TestContextSetUnreadableListRefuses(t *testing.T) {
+	runInTempDir(t)
+	const doc = "---\nkind: analysis\nsummary: map\nlinks:\n  a: b\n---\nbody\n"
+	writeContextDoc(t, "analysis/x.md", doc)
+
+	captureCmdErr(t)
+	shouldExitWithCode(t, 1, func() string {
+		execute(t, contextSetCmd, nil, "analysis/x.md", "links", "c.md", "--append")
+		return ""
+	})
+	got := readDoc(t, "analysis/x.md")
+	if got != doc {
+		t.Errorf("refused write still changed the file:\n%s", got)
+	}
+}
+
 func TestContextSetStatusValidation(t *testing.T) {
 	runInTempDir(t)
 	writeContextDoc(t, "analysis/x.md", setDoc)

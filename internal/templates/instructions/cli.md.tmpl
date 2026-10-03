@@ -16,7 +16,9 @@ generated command reference, see `context/instructions/reference.md`.
   block when no key is given, else one value per top-level key (no nested keys)
 - `sdt context set|unset <doc> <key> [<value>]` — write/remove any top-level
   frontmatter key with byte fidelity (comments, order, quoting preserved);
-  `--raw`, `--append`, `--remove`; `status`/`updated` validated, CLI-owned
+  `--raw`, `--append`, `--remove` (both YAML list shapes are read and the key's
+  existing shape is kept; an unreadable non-empty value is refused);
+  `status`/`updated` validated, CLI-owned
   `uid`/`analysis_id`/`plan_id` refused without `--force`
 - `sdt q get|set|del <file> <path>` — query/patch a JSON file by gjson path
   (e.g. `sdt q get context/index.json 'documents.#(kind=="analysis")#.path'`)

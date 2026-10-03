@@ -114,6 +114,108 @@ func (b *Block) RawValue(key string) string {
 	return strings.TrimSpace(line[idx+1:])
 }
 
+// ListShape is the YAML representation a list value used, so a write can keep
+// the key's existing style instead of forcing one shape onto every document.
+type ListShape int
+
+const (
+	// ShapeAbsent is an empty/missing value.
+	ShapeAbsent ListShape = iota
+	// ShapeScalar is a single scalar value, read as a one-item list.
+	ShapeScalar
+	// ShapeFlow is an inline flow list, e.g. "[a, b]".
+	ShapeFlow
+	// ShapeBlock is a YAML block sequence ("key:" then "  - item" lines).
+	ShapeBlock
+)
+
+// ParseListValue parses a raw YAML value fragment (the text after a key's colon
+// and, for a block sequence, its following indented "- " lines) into its items
+// and the shape it used. It accepts both list representations by construction:
+// the fragment is parsed as YAML, so a block sequence and a flow list are one
+// shape to this function and two to nobody.
+//
+// A scalar becomes a one-item list (ShapeScalar); an absent value is
+// ShapeAbsent with no items; a malformed list fragment returns an error so a
+// caller can refuse rather than shrink.
+func ParseListValue(value string) ([]string, ListShape, error) {
+	trimmed := strings.TrimSpace(strings.TrimRight(value, "\r"))
+	if trimmed == "" {
+		return nil, ShapeAbsent, nil
+	}
+
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(trimmed), &doc); err != nil {
+		return nil, ShapeAbsent, fmt.Errorf("parse list value: %w", err)
+	}
+	node := &doc
+	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+		node = node.Content[0]
+	}
+
+	switch node.Kind {
+	case yaml.SequenceNode:
+		items := make([]string, 0, len(node.Content))
+		for _, item := range node.Content {
+			if item.Kind == yaml.ScalarNode {
+				items = append(items, item.Value)
+				continue
+			}
+			// A nested map/complex item is not a reference list; refuse.
+			return nil, ShapeAbsent, fmt.Errorf("list item is not a scalar")
+		}
+		if isFlowList(trimmed) {
+			return items, ShapeFlow, nil
+		}
+		return items, ShapeBlock, nil
+	case yaml.ScalarNode:
+		if node.Tag == "!!null" || node.Value == "" {
+			return nil, ShapeAbsent, nil
+		}
+		return []string{node.Value}, ShapeScalar, nil
+	default:
+		return nil, ShapeAbsent, fmt.Errorf("value is not a scalar or list")
+	}
+}
+
+// isFlowList reports whether a list fragment was written inline ("[a, b]").
+func isFlowList(trimmed string) bool {
+	return strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]")
+}
+
+// ListValue returns the raw YAML value text of a key: the inline text after the
+// colon for a scalar or flow list, or the block sequence lines (rendered with
+// their indentation stripped into a fragment YAML can parse) for a block value.
+// An absent key returns "".
+func (b *Block) ListValue(key string) string {
+	start, end, found := b.keySpan(key)
+	if !found {
+		return ""
+	}
+	line := b.lines[start]
+	idx := strings.IndexByte(line, ':')
+	if idx < 0 {
+		return ""
+	}
+	inline := strings.TrimSpace(line[idx+1:])
+	if inline != "" {
+		return inline
+	}
+	// Block sequence: keep the "- item" continuation lines.
+	var out []string
+	for i := start + 1; i < end; i++ {
+		out = append(out, strings.TrimSpace(b.lines[i]))
+	}
+	return strings.Join(out, "\n")
+}
+
+// ListItems returns the items of a key's list value and the shape it used.
+// It is the shared reader behind both the writer (`context set`) and every
+// downstream consumer, so the two never disagree about the same file.
+func (b *Block) ListItems(key string) ([]string, ListShape, error) {
+	return ParseListValue(b.ListValue(key))
+}
+
 // Key reports whether the block has a top-level key.
 func (b *Block) Key(key string) (value string, ok bool) {
 	for i := 0; i+1 < len(b.Mapping.Content); i += 2 {
@@ -138,10 +240,10 @@ func (b *Block) Set(key, value string, after []string) (string, error) {
 	start, end, found := b.keySpan(key)
 	replacement := keyLine(key, value)
 	if found {
-		lines = splice(lines, start, end, []string{replacement})
+		lines = splice(lines, start, end, replacement)
 	} else {
 		insertAt := b.insertionLine(after)
-		lines = splice(lines, insertAt, insertAt, []string{replacement})
+		lines = splice(lines, insertAt, insertAt, replacement)
 	}
 	return strings.Join(lines, "\n"), nil
 }
@@ -272,11 +374,58 @@ func topLevelKey(line string) (string, bool) {
 	return key, true
 }
 
-func keyLine(key, value string) string {
+// keyLine produces the replacement lines for a key: the value verbatim when it
+// holds no newline, else the key line plus its indented continuation lines.
+func keyLine(key, value string) []string {
 	if value == "" {
-		return key + ":"
+		return []string{key + ":"}
 	}
-	return key + ": " + value
+	if !strings.Contains(value, "\n") {
+		return []string{key + ": " + value}
+	}
+	parts := strings.Split(value, "\n")
+	out := make([]string, 0, len(parts)+1)
+	out = append(out, key+":")
+	out = append(out, parts...)
+	return out
+}
+
+// SetList writes a list value for a top-level key in the given shape, returning
+// the new block YAML. It is the style-preserving write behind
+// `context set --append/--remove`: a block sequence is rendered as one
+// "  - item" line per entry and a flow list as "[a, b]", so a write never
+// forces one representation onto a document that used the other. An absent or
+// scalar key becomes a block sequence, the corpus default. Items are rendered
+// as YAML scalars by the caller (see Scalar).
+func (b *Block) SetList(key string, items []string, shape ListShape, after []string) (string, error) {
+	if err := validateKey(key); err != nil {
+		return "", err
+	}
+	var replacement []string
+	if shape == ShapeFlow {
+		// A flow list stays flow.
+		replacement = []string{key + ": [" + strings.Join(items, ", ") + "]"}
+	} else if len(items) == 0 {
+		// Block is the corpus default: a block sequence stays block, and an
+		// absent or scalar key is upgraded to a block sequence (what
+		// `context new` and appendFrontmatterListValue write).
+		replacement = []string{key + ": []"}
+	} else {
+		replacement = []string{key + ":"}
+		for _, it := range items {
+			replacement = append(replacement, "  - "+it)
+		}
+	}
+
+	lines := b.lines
+	start, end, found := b.keySpan(key)
+	if found {
+		lines = splice(lines, start, end, replacement)
+	} else {
+		insertAt := b.insertionLine(after)
+		lines = splice(lines, insertAt, insertAt, replacement)
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 func validateKey(key string) error {

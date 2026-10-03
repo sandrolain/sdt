@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/sandrolain/sdt/internal/corpus"
+	"github.com/sandrolain/sdt/internal/frontmatter"
 )
 
 // Closed vocabulary and schema-frozen constants for wiki page frontmatter.
@@ -209,42 +210,60 @@ func trimYAMLQuotes(value string) string {
 	return value
 }
 
-// FrontmatterList parses a YAML block-list frontmatter field (a line `key:`
-// followed by `  - item` lines), returning the list items. Falls back to a
-// single inline value when present. Returns nil when the key is absent.
+// FrontmatterList parses a YAML list frontmatter field, accepting both a block
+// sequence (a line `key:` followed by `  - item` lines) and an inline flow list
+// (`key: [a, b]`). A scalar value is read as a one-item list. Returns nil when
+// the key is absent. The parsing is delegated to internal/frontmatter so the
+// reader and the writer never disagree about the same file.
 func FrontmatterList(content, key string) []string {
-	lines := strings.Split(content, "\n")
-	var out []string
-	if len(lines) < 2 || strings.TrimSpace(lines[0]) != frontmatterDelim {
+	value := frontmatterListValue(content, key)
+	if value == "" {
 		return nil
 	}
-	in := false
-	for _, line := range lines[1:] {
-		trim := strings.TrimSpace(line)
-		if trim == frontmatterDelim {
-			break
+	items, _, err := frontmatter.ParseListValue(value)
+	if err != nil {
+		return nil
+	}
+	return items
+}
+
+// frontmatterListValue extracts the raw YAML value text of a top-level key from
+// a document: the inline text after the colon, or the block sequence lines.
+func frontmatterListValue(content, key string) string {
+	lines := strings.Split(content, "\n")
+	if len(lines) < 2 || strings.TrimSpace(strings.TrimRight(lines[0], "\r")) != frontmatterDelim {
+		return ""
+	}
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimRight(lines[i], "\r")
+		if strings.TrimSpace(line) == frontmatterDelim {
+			return ""
 		}
-		if !in {
-			if strings.HasPrefix(line, key+":") {
-				val := strings.TrimSpace(strings.TrimPrefix(line, key+":"))
-				if val != "" {
-					out = append(out, strings.TrimSpace(strings.Trim(val, `"'`)))
-				}
-				in = true
-			}
+		if !strings.HasPrefix(line, key+":") {
 			continue
 		}
-		if strings.HasPrefix(strings.TrimSpace(line), "-") {
-			out = append(out, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-")))
-		} else if line != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
-			// a new top-level key ends the list
-			break
+		inline := strings.TrimSpace(strings.TrimPrefix(line, key+":"))
+		if inline != "" {
+			return inline
 		}
+		var out []string
+		for j := i + 1; j < len(lines); j++ {
+			next := strings.TrimRight(lines[j], "\r")
+			trim := strings.TrimSpace(next)
+			if trim == frontmatterDelim {
+				break
+			}
+			if strings.HasPrefix(trim, "-") {
+				out = append(out, trim)
+				continue
+			}
+			if next != "" && !strings.HasPrefix(next, " ") && !strings.HasPrefix(next, "\t") {
+				break // a new top-level key ends the list
+			}
+		}
+		return strings.Join(out, "\n")
 	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return ""
 }
 
 // FrontmatterValues parses the top-level scalar and block-list fields of a

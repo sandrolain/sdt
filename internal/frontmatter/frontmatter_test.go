@@ -39,6 +39,86 @@ func TestParseNoFrontmatter(t *testing.T) {
 	}
 }
 
+func TestParseListValueShapes(t *testing.T) {
+	// absent
+	if items, shape, err := ParseListValue(""); err != nil || shape != ShapeAbsent || items != nil {
+		t.Errorf("empty: items=%v shape=%v err=%v", items, shape, err)
+	}
+	// scalar (one-item list)
+	items, shape, err := ParseListValue("notes/20260101-x.md")
+	if err != nil || shape != ShapeScalar || len(items) != 1 || items[0] != "notes/20260101-x.md" {
+		t.Errorf("scalar: items=%v shape=%v err=%v", items, shape, err)
+	}
+	// flow list
+	items, shape, err = ParseListValue("[a.md, b.md]")
+	if err != nil || shape != ShapeFlow || len(items) != 2 || items[0] != "a.md" || items[1] != "b.md" {
+		t.Errorf("flow: items=%v shape=%v err=%v", items, shape, err)
+	}
+	// one-item flow list
+	items, shape, err = ParseListValue("[a.md]")
+	if err != nil || shape != ShapeFlow || len(items) != 1 || items[0] != "a.md" {
+		t.Errorf("flow one: items=%v shape=%v err=%v", items, shape, err)
+	}
+	// block sequence (fragment as ListValue renders it)
+	items, shape, err = ParseListValue("- a.md\n- b.md\n- c.md")
+	if err != nil || shape != ShapeBlock || len(items) != 3 || items[2] != "c.md" {
+		t.Errorf("block: items=%v shape=%v err=%v", items, shape, err)
+	}
+}
+
+func TestParseListValueMalformed(t *testing.T) {
+	if _, _, err := ParseListValue("[a.md, b.md"); err == nil {
+		t.Error("unterminated flow list should error")
+	}
+	// A mapping is not a list; the writer must refuse, not shrink.
+	if _, _, err := ParseListValue("a: b"); err == nil {
+		t.Error("a mapping should error")
+	}
+}
+
+func TestSetListKeepsShape(t *testing.T) {
+	block := mustParse(t, "---\nkind: analysis\nlinks:\n  - a.md\nsources: [c.md]\n---\n")
+	// A block sequence stays block.
+	got, err := block.SetList("links", []string{"a.md", "b.md"}, ShapeBlock, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "links:\n  - a.md\n  - b.md") {
+		t.Errorf("block not preserved:\n%s", got)
+	}
+	// A flow list stays flow.
+	got, err = block.SetList("sources", []string{"c.md", "d.md"}, ShapeFlow, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "sources: [c.md, d.md]") {
+		t.Errorf("flow not preserved:\n%s", got)
+	}
+	// An absent key becomes a block sequence (the corpus default).
+	got, err = block.SetList("topics", []string{"x"}, ShapeAbsent, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "topics:\n  - x") {
+		t.Errorf("absent key not written as block:\n%s", got)
+	}
+}
+
+func TestBlockListItemsBothShapes(t *testing.T) {
+	blockDoc := mustParse(t, "---\nkind: analysis\nlinks:\n  - a.md\n  - b.md\nsources: [c.md, d.md]\n---\n")
+	items, shape, err := blockDoc.ListItems("links")
+	if err != nil || shape != ShapeBlock || len(items) != 2 || items[0] != "a.md" || items[1] != "b.md" {
+		t.Errorf("block links: items=%v shape=%v err=%v", items, shape, err)
+	}
+	items, shape, err = blockDoc.ListItems("sources")
+	if err != nil || shape != ShapeFlow || len(items) != 2 || items[0] != "c.md" || items[1] != "d.md" {
+		t.Errorf("flow sources: items=%v shape=%v err=%v", items, shape, err)
+	}
+	if items, shape, err := blockDoc.ListItems("absent"); err != nil || shape != ShapeAbsent || items != nil {
+		t.Errorf("absent key: items=%v shape=%v err=%v", items, shape, err)
+	}
+}
+
 func TestParseMalformed(t *testing.T) {
 	if _, err := Parse("---\n: : :\n---\n"); err == nil {
 		t.Error("expected a parse error")

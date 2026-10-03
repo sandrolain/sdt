@@ -30,7 +30,11 @@ var contextSetCmd = &cobra.Command{
 	Short: "Write a top-level frontmatter key with byte fidelity",
 	Long: `Write a top-level frontmatter key of a context document. The value is parsed
 as a YAML scalar (so 3 is a number, true a bool, [a, b] a list); --raw forces
-a string. --append and --remove add or drop one item of a list value.
+a string. --append and --remove add or drop one item of a list value. Both YAML
+list shapes are read (a block sequence and an inline flow list) and the key's
+existing shape is kept: a block sequence stays block, a flow list stays flow,
+an absent key becomes a block sequence. A non-empty value that cannot be read as
+a list is refused rather than silently shrunk.
 
 Only the target key's bytes are replaced: comments, key order, quoting, block
 scalars and the body are preserved. A missing key is inserted after its
@@ -87,21 +91,12 @@ func runContextSet(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	rendered, err := renderSetValue(cmd, block, key, value)
+	newYAML, rendered, err := applySetValue(cmd, doc, block, key, value)
 	if err != nil {
-		exitWithError(cmd, err)
-		return
-	}
-	if err := validateSetValue(doc, key, rendered); err != nil {
 		exitWithError(cmd, err)
 		return
 	}
 
-	newYAML, err := block.Set(key, rendered, ctxKeyOrder(doc.Type.kind))
-	if err != nil {
-		exitWithError(cmd, err)
-		return
-	}
 	doc0 := block.ReplaceBody(content, newYAML)
 	doc0 = refreshUpdated(cmd, doc, key, doc0)
 	if err := writeContextDocFile(doc.Path, doc0); err != nil {
@@ -109,6 +104,58 @@ func runContextSet(cmd *cobra.Command, args []string) {
 		return
 	}
 	outputString(cmd, fmt.Sprintf("%s: %s\n", key, rendered))
+}
+
+// applySetValue computes the new block YAML and the value to echo, routing the
+// list verbs through the shared reader and the style-preserving writer and
+// every other write through the scalar path.
+func applySetValue(
+	cmd *cobra.Command,
+	doc ctxResolvedDoc,
+	block *frontmatter.Block,
+	key, value string,
+) (string, string, error) {
+	appendFlag := getBoolFlag(cmd, "append", false)
+	removeFlag := getBoolFlag(cmd, "remove", false)
+	if appendFlag || removeFlag {
+		if appendFlag && removeFlag {
+			return "", "", fmt.Errorf("--append and --remove are mutually exclusive")
+		}
+		items, shape, err := block.ListItems(key)
+		if err != nil {
+			// Refuse rather than shrink: a non-empty value the reader cannot
+			// parse as a list is a hard error naming the key and the value.
+			return "", "", fmt.Errorf("cannot read list %q as a YAML list (value %q): %w",
+				key, block.ListValue(key), err)
+		}
+		if appendFlag {
+			items = append(items, value)
+		} else {
+			items = removeListItem(items, value)
+		}
+		quoted := make([]string, 0, len(items))
+		for _, it := range items {
+			quoted = append(quoted, frontmatter.Scalar(it))
+		}
+		newYAML, err := block.SetList(key, quoted, shape, ctxKeyOrder(doc.Type.kind))
+		if err != nil {
+			return "", "", err
+		}
+		return newYAML, "[" + strings.Join(quoted, ", ") + "]", nil
+	}
+
+	rendered, err := renderSetValue(cmd, key, value)
+	if err != nil {
+		return "", "", err
+	}
+	if err := validateSetValue(doc, key, rendered); err != nil {
+		return "", "", err
+	}
+	newYAML, err := block.Set(key, rendered, ctxKeyOrder(doc.Type.kind))
+	if err != nil {
+		return "", "", err
+	}
+	return newYAML, rendered, nil
 }
 
 func runContextUnset(cmd *cobra.Command, args []string) {
@@ -158,24 +205,10 @@ func checkSetKey(cmd *cobra.Command, key string) error {
 	return nil
 }
 
-// renderSetValue turns the value argument into a YAML scalar, honouring --raw
-// and the list verbs --append/--remove.
-func renderSetValue(cmd *cobra.Command, block *frontmatter.Block, key, value string) (string, error) {
-	appendFlag := getBoolFlag(cmd, "append", false)
-	removeFlag := getBoolFlag(cmd, "remove", false)
-	if appendFlag && removeFlag {
-		return "", fmt.Errorf("--append and --remove are mutually exclusive")
-	}
-	if appendFlag || removeFlag {
-		items := parseInlineList(block.RawValue(key))
-		quoted := frontmatter.Scalar(value)
-		if appendFlag {
-			items = append(items, quoted)
-		} else {
-			items = removeListItem(items, quoted)
-		}
-		return "[" + strings.Join(items, ", ") + "]", nil
-	}
+// renderSetValue turns a scalar value argument into its YAML representation,
+// honouring --raw. The list verbs --append/--remove are handled by
+// applySetValue, which owns the shared reader and the style-preserving writer.
+func renderSetValue(cmd *cobra.Command, key, value string) (string, error) {
 	if getBoolFlag(cmd, "raw", false) {
 		return frontmatter.Scalar(value), nil
 	}
@@ -277,29 +310,8 @@ func isNumeric(s string) bool {
 	return len(s) > 0
 }
 
-// parseInlineList parses a flow list "[a, b]" into its raw items (already
-// appearing as YAML). A non-list value becomes a one-element list.
-func parseInlineList(s string) []string {
-	trimmed := strings.TrimSpace(s)
-	if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-		inner := strings.TrimSpace(trimmed[1 : len(trimmed)-1])
-		if inner == "" {
-			return nil
-		}
-		parts := strings.Split(inner, ",")
-		out := make([]string, 0, len(parts))
-		for _, p := range parts {
-			if v := strings.TrimSpace(p); v != "" {
-				out = append(out, v)
-			}
-		}
-		return out
-	}
-	if trimmed == "" {
-		return nil
-	}
-	return []string{trimmed}
-}
+// parseInlineList was removed: list parsing is owned by
+// frontmatter.Block.ListItems, so the writer and the reader share one parser.
 
 func removeListItem(items []string, needle string) []string {
 	out := make([]string, 0, len(items))

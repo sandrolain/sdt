@@ -29,6 +29,20 @@ func TestLintFrontmatterReferencesResolution(t *testing.T) {
 	if issues := lintFrontmatterReferences("context/notes/rel.md", relative, noPrio); len(issues) != 1 {
 		t.Fatalf("expected only the unresolvable ref to be flagged, got %v", issues)
 	}
+
+	// D2: an inline flow list must resolve every entry, not be read as one path.
+	flow := "---\nkind: notes\nsummary: flow\nsources: [analysis/source.md, analysis/other.md]\nlinks: [analysis/source.md]\n---\nbody\n"
+	writeCtxDoc(t, "context/analysis/other.md", "---\nkind: analysis\nsummary: other\n---\nbody\n")
+	if issues := lintFrontmatterReferences("context/notes/flow.md", flow, noPrio); len(issues) != 0 {
+		t.Fatalf("flow list should resolve cleanly, got %v", issues)
+	}
+
+	// The same flow list with one unresolvable entry flags exactly that entry.
+	flowBroken := "---\nkind: notes\nsummary: flowb\nsources: [analysis/source.md, analysis/gone.md]\n---\nbody\n"
+	issues = lintFrontmatterReferences("context/notes/flowb.md", flowBroken, noPrio)
+	if len(issues) != 1 || !strings.Contains(issues[0].Message, "analysis/gone.md") {
+		t.Fatalf("expected only analysis/gone.md flagged, got %v", issues)
+	}
 }
 
 // TestContextLintProvenanceWarningNonDestructive guards the Phase 3 contract:
