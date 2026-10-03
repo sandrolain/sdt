@@ -87,6 +87,35 @@ Examples:
 	},
 }
 
+// ctxStatusActiveHint surfaces the `sdt context resolve` helper for a workflow
+// subject type: when the type carries an "active" status and at least one
+// document holds it, the hint reports how many active candidates exist — one
+// auto-resolves, several force the ask step of the ladder. Non-subject types and
+// types without an active status return "" (the caller keeps its static hint).
+func ctxStatusActiveHint(t ctxDocType) string {
+	if !ctxStatusInVocab(t, ctxWikiStatusActive) {
+		return ""
+	}
+	cands, err := resolveCandidates(t, ctxWikiStatusActive)
+	if err != nil {
+		return ""
+	}
+	active := 0
+	for _, c := range cands {
+		if c.Status == ctxWikiStatusActive {
+			active++
+		}
+	}
+	switch active {
+	case 0:
+		return ""
+	case 1:
+		return "1 active"
+	default:
+		return fmt.Sprintf("%d active - resolve", active)
+	}
+}
+
 func ctxStatusRows() []ctxStatusEntry {
 	type kindDescr struct {
 		kind    string
@@ -121,6 +150,13 @@ func ctxStatusRows() []ctxStatusEntry {
 		next := d.next
 		if len(files) == 0 {
 			next = d.ifClean
+		}
+		// The active-candidate hint is the `sdt context resolve` helper surfaced
+		// read-only: for a workflow subject type (analysis, plan) it names how
+		// many active candidates exist, so `>plan`/`>execute` know whether the
+		// ladder can auto-resolve or must ask.
+		if hint := ctxStatusActiveHint(t); hint != "" {
+			next = hint
 		}
 		rows = append(rows, ctxStatusEntry{Type: ctxKindLabel(t), Count: len(files), Next: next, IfClean: d.ifClean})
 	}

@@ -10,7 +10,7 @@ import (
 // stub (context commands new / agent init command files).
 func TestCommandsStubTemplateGolden(t *testing.T) {
 	now := time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC)
-	got := instrCommandStubTemplate("triage", "research", "the question the run answers",
+	got := instrCommandStubTemplate("triage", "research", commandKindDocument, "", "the question the run answers",
 		[]string{">triage: what does ctxquery guarantee about list and search", ">triage: the topic to look up"}, "tm", now)
 	want := `---
 kind: commands
@@ -37,6 +37,7 @@ updated: "2026-09-20T17:30:00Z"
 ## Invocation
 
 - Canonical trigger: ` + "`>triage`" + ` (see ` + "`context/commands/index.md`" + `).
+- Kind: **document**
 - Scope: ` + "`all`" + ` (default) · single file · glob — see the contract for the
   task's scope semantics.
 - No settle: **resolve ` + "`context/commands/triage.md`" + ` → read
@@ -84,13 +85,67 @@ updated: "2026-09-20T17:30:00Z"
 	}
 }
 
+// TestExecuteTriggerResolves proves the >execute workflow trigger is registered
+// with a resolvable contract and the plan subject, and that its resolved
+// instruction file exists — the same lookup an agent performs when the trigger
+// fires.
+func TestExecuteTriggerResolves(t *testing.T) {
+	var found *commandStub
+	for i := range agentCommandStubs {
+		if agentCommandStubs[i].id == "execute" {
+			found = &agentCommandStubs[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal(">execute is not registered in agentCommandStubs")
+	}
+	if found.kind != commandKindWorkflow {
+		t.Errorf(">execute kind = %q, want %q", found.kind, commandKindWorkflow)
+	}
+	if found.subject != ctxTypePlan {
+		t.Errorf(">execute subject = %q, want %q", found.subject, ctxTypePlan)
+	}
+	if found.contract != ctxTypeTasks {
+		t.Errorf(">execute contract = %q, want %q", found.contract, ctxTypeTasks)
+	}
+	generated := map[string]bool{}
+	for _, f := range instructionFiles("", "") {
+		generated[f.name] = true
+	}
+	if !generated[found.contract+sdtMarkdownExt] {
+		t.Errorf(">execute contract %q has no generated instruction file", found.contract)
+	}
+}
+
+// TestCommandsIndexHasResolutionLadder asserts the working-context resolution
+// ladder is present in the generated index (the single authoritative place the
+// workflow stubs reference) with its four rungs and the ask rule.
+func TestCommandsIndexHasResolutionLadder(t *testing.T) {
+	idx := instrCommandsIndexTemplate([]commandIndexEntry{
+		{Trigger: "plan", Contract: "plan", Kind: commandKindWorkflow, Subject: "analysis", Payload: "the analysis the plan is built from"},
+	}, "p", time.Now())
+	for _, want := range []string{
+		"## Working-context resolution",
+		"1. **Explicit**",
+		"2. **Active / unique**",
+		"3. **Under discussion**",
+		"4. **Ask**",
+		"tie-break to propose, never to decide",
+	} {
+		if !strings.Contains(idx, want) {
+			t.Errorf("index missing %q", want)
+		}
+	}
+}
+
 // TestCommandsIndexTemplateGolden locks the exact bytes of the commands index
 // (context commands new/rm rewrite and agent init --force regenerate).
 func TestCommandsIndexTemplateGolden(t *testing.T) {
 	now := time.Date(2026, 9, 20, 17, 31, 0, 0, time.UTC)
 	got := instrCommandsIndexTemplate([]commandIndexEntry{
-		{Trigger: "analysis", Contract: "analysis", Payload: "subject or scope of the analysis to create or extend"},
-		{Trigger: "ingestion", Contract: "ingestion", Payload: "paths and/or URLs to ingest"},
+		{Trigger: "analysis", Contract: "analysis", Kind: commandKindDocument, Payload: "subject or scope of the analysis to create or extend"},
+		{Trigger: "ingestion", Contract: "ingestion", Kind: commandKindDocument, Payload: "paths and/or URLs to ingest"},
 	}, "tm", now)
 	want := `---
 kind: commands
@@ -153,14 +208,47 @@ verbatim.
 
 ## Registry
 
-| Trigger | Command file | Durable contract | Payload |
-|---|---|---|---|
-| ` + "`>analysis`" + ` | ` + "`context/commands/analysis.md`" + ` | ` + "`context/instructions/analysis.md`" + ` | subject or scope of the analysis to create or extend |
-| ` + "`>ingestion`" + ` | ` + "`context/commands/ingestion.md`" + ` | ` + "`context/instructions/ingestion.md`" + ` | paths and/or URLs to ingest |
+| Trigger | Kind | Subject | Command file | Durable contract | Payload |
+|---|---|---|---|---|---|
+| ` + "`>analysis`" + ` | document | — | ` + "`context/commands/analysis.md`" + ` | ` + "`context/instructions/analysis.md`" + ` | subject or scope of the analysis to create or extend |
+| ` + "`>ingestion`" + ` | document | — | ` + "`context/commands/ingestion.md`" + ` | ` + "`context/instructions/ingestion.md`" + ` | paths and/or URLs to ingest |
+
+**Kind** — ` + "`document`" + ` (produces/edits a document of a fixed type) or ` + "`workflow`" + `
+(advances the lifecycle of the **Subject** document type). A workflow command
+resolves its subject via the ladder in *Working-context resolution* below and
+**asks** when it is not unique.
 
 Lookup order for a trigger ` + "`>T`" + `: ` + "`context/commands/T.md`" + ` → the durable contract
 named in the registry above (` + "`context/instructions/T.md`" + ` by default). If neither
 exists, ask the user (never invent a contract).
+
+## Working-context resolution
+
+A **workflow** command (Kind ` + "`workflow`" + `) operates on a specific subject document
+of its declared **Subject** type. It resolves that subject through this fixed
+ladder — deterministic where possible, explicit where needed, never a guess:
+
+1. **Explicit** — the subject named in the payload (` + "`>plan analysis/2026…-slug`" + `).
+   Rung 1 is the ` + "`>id[: payload]`" + ` grammar; it wins even when it contradicts the
+   working context (state the contradiction in one line).
+2. **Active / unique** — exactly one candidate of the subject type carries the
+   "active" status for that type: ` + "`analysis`" + `/` + "`plan`" + ` → ` + "`status: active`" + `;
+   ` + "`proposal`" + ` → ` + "`accepted`" + ` or ` + "`review`" + `; ` + "`tasks`" + ` → ` + "`pending`" + ` or ` + "`in-progress`" + `;
+   a plan's task files are the files linked from the plan.
+3. **Under discussion** — the subject document the session is currently about
+   (just read, created or edited in this conversation).
+4. **Ask** — 0 or >1 candidate after rungs 1-3: list them and ask. ` + "`updated`" + `
+   recency orders the list as a **hint**; it never picks for you.
+
+A **document** command already declares its type by construction; it follows the
+same rules whenever it extends an existing document (e.g. ` + "`>architecture`" + `
+updating a living doc, ` + "`>worklog`" + ` closing a phase) and the same "ask, don't
+guess" default.
+
+` + "`updated`" + ` recency is a **tie-break to propose, never to decide**: with more than
+one candidate the agent shows them (most recent first) and asks. There is no
+persisted "current document" pointer — resolution is read-only over frontmatter
+` + "`status`" + `/` + "`updated`" + `, the ` + "`links`" + `/` + "`sources`" + ` graph and the session context.
 
 ## Invocation contract
 

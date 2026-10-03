@@ -150,68 +150,103 @@ func writeInstructionFiles(project, group string, force bool) []FileResult {
 }
 
 // commandStub declares one agent-invocable trigger generated under
-// context/commands/: its trigger id and the durable instruction contract it
-// invokes. The generated stubs and the commands index derive from this single
-// declared set — it is deliberately not a pure function of the instruction set,
-// because only some instruction types are agent-invocable.
+// context/commands/: its trigger id, the durable instruction contract it
+// invokes, its kind (document vs workflow), and — for a workflow command — the
+// subject document type it advances the lifecycle of. The generated stubs and
+// the commands index derive from this single declared set — it is deliberately
+// not a pure function of the instruction set, because only some instruction
+// types are agent-invocable.
 //
 // payload is the one-phrase summary of what the trigger takes after the colon
 // in `>id: payload`; examples are rendered into the stub's ## Payload block.
 // This table is the single source of the per-trigger payload semantics: the
 // index column and the stub are both projections of it, never a second copy.
+//
+// kind/subject are the taxonomy projection: a document command produces or edits
+// a document of a fixed type (subject empty, the trigger is the type); a
+// workflow command advances the lifecycle and declares the subject type it
+// resolves (e.g. >plan resolves an analysis). See analysis
+// 20260923-212948 for the working-context resolution ladder the workflow
+// commands use.
 
 type commandStub struct {
 	id       string
 	contract string // instruction id (no extension), e.g. "analysis"
+	kind     string // commandKindDocument | commandKindWorkflow
+	subject  string // doc type slug a workflow command resolves; empty for a document command
 	payload  string // one phrase: what the trigger accepts as its payload
 	examples []string
 }
 
+// Command kinds: a document command produces/edits a document of a fixed type;
+// a workflow command advances the lifecycle and declares the subject type it
+// resolves from the working context.
+
+const (
+	commandKindDocument = "document"
+	commandKindWorkflow = "workflow"
+)
+
+// doc is the shorthand for a document command: kind document, no subject.
+
+func docTrigger(id, contract, payload string, examples ...string) commandStub {
+	return commandStub{id: id, contract: contract, kind: commandKindDocument, payload: payload, examples: examples}
+}
+
+// workflow is the shorthand for a workflow command: it advances the lifecycle of
+// one subject document type.
+
+func workflowTrigger(id, contract, subject, payload string, examples ...string) commandStub {
+	return commandStub{id: id, contract: contract, kind: commandKindWorkflow, subject: subject, payload: payload, examples: examples}
+}
+
 var agentCommandStubs = []commandStub{
-	{id: "ingestion", contract: "ingestion", payload: "paths and/or URLs to ingest",
-		examples: []string{">ingestion: context/refs/ui-ux", ">ingestion: https://example.com/doc"}},
-	{id: ctxTypeWiki, contract: ctxTypeWiki, payload: "topic or page id",
-		examples: []string{">wiki: backend/auth", ">wiki: list the pages under web/"}},
-	{id: ctxTypeAnalysis, contract: ctxTypeAnalysis, payload: "subject or scope of the analysis to create or extend",
-		examples: []string{">analysis: why does sdt context lint skip .map.md notes?",
-			">analysis: extend analysis/20260925-195438-agent-command-invocation-grammar.md with the host-registration trade-off"}},
-	{id: "draft", contract: "draft", payload: "the raw notes to capture",
-		examples: []string{">draft: check whether bleve ranking can carry the objective facet",
-			">draft: three ideas about phase splitting, see the open question"}},
-	{id: "scope", contract: "scope", payload: "the objective to scope",
-		examples: []string{">scope: give sdt context lint a closed-schema payload rule", ">scope: replace the sdt context lint entry point with a single filter engine"}},
-	{id: ctxTypePlan, contract: ctxTypePlan, payload: "the analysis the plan is built from",
-		examples: []string{">plan: analysis/20260925-195438-agent-command-invocation-grammar.md", ">plan: analysis/20260927-101140-context-query-filters-date-ranges-type-status-and-generic-frontmatter-filters-for-list-and-search.md"}},
-	{id: ctxTypeTasks, contract: ctxTypeTasks, payload: "the plan whose task file(s) are created",
-		examples: []string{">tasks: plan/20260929-062200-agent-command-invocation-grammar-payload-contract-in-the-generated-command-surfaces.md", ">tasks: plan/20260928-073925-context-query-filters-one-shared-filter-engine-for-list-and-search.md"}},
-	{id: ctxTypeProposal, contract: ctxTypeProposal, payload: "subject of the proposal",
-		examples: []string{">proposal: replace the hand-written command stubs with a generated set", ">proposal: register the triggers with the opencode command registry"}},
-	{id: ctxTypeDecision, contract: ctxTypeDecision, payload: "the proposal to convert",
-		examples: []string{">decision: proposal/20260927-120000-replace-command-stubs", ">decision: proposal/20260929-063000-register-the-commands-with-the-host"}},
-	{id: ctxTypeArchitecture, contract: ctxTypeArchitecture, payload: "component or topic to document",
-		examples: []string{">architecture: the search index pipeline", ">architecture: how the corpus is scanned and indexed"}},
-	{id: ctxTypeWorklog, contract: ctxTypeWorklog, payload: "the phase or task being closed out",
-		examples: []string{">worklog: phase 3 of plan/20260929-062200", ">worklog: close out the whole plan/20260929-062200 run"}},
-	{id: ctxTypeNotes, contract: ctxTypeNotes, payload: "subject of the note",
-		examples: []string{">notes: bleve filter clauses were dropped for ctxquery", ">notes: the map document that markmap silently truncates"}},
-	{id: ctxTypeQuestions, contract: ctxTypeQuestions, payload: "topic to raise questions about",
-		examples: []string{">questions: whether the payload needs a closed schema", ">questions: which triggers need a subject and which accept a free subject"}},
-	{id: "prompts", contract: "prompts", payload: "intent of the tracked prompt",
-		examples: []string{">prompts: the release note for the query filters", ">prompts: the reusable review checklist for a new instruction module"}},
-	{id: "reference", contract: "reference", payload: "library or topic to look up",
-		examples: []string{">reference: cobra", ">reference: how do agents invoke commands"}},
-	{id: ctxTypeResearch, contract: ctxTypeResearch, payload: "the question the run answers",
-		examples: []string{">research: does ctxquery keep list and search in lockstep", ">research: what the host passes to an agent command"}},
-	{id: "deepsearch", contract: ctxTypeResearch, payload: "the question the deepsearch answers",
-		examples: []string{">deepsearch: embedded vector stores for a Go CLI", ">deepsearch: how other Markdown KBs model claim provenance"}},
-	{id: "search", contract: ctxTypeResearch, payload: "the query to discover sources for",
-		examples: []string{">search: embedded vector store Go", ">search: crawldown capture options"}},
-	{id: "fetch", contract: ctxTypeResearch, payload: "the URL(s) to acquire, or none for the discovered sources",
-		examples: []string{">fetch: https://example.com/doc", ">fetch: every discovered source"}},
-	{id: "verify", contract: ctxTypeResearch, payload: "the run to verify (default: the latest)",
-		examples: []string{">verify: the latest run", ">verify: 01a0f…"}},
-	{id: "populate-wiki", contract: ctxTypeResearch, payload: "the brief explaining why the knowledge is useful",
-		examples: []string{">populate-wiki: embedded vector stores for sdt context search", ">populate-wiki: preview only, budget 3 pages"}},
+	docTrigger("ingestion", "ingestion", "paths and/or URLs to ingest",
+		">ingestion: context/refs/ui-ux", ">ingestion: https://example.com/doc"),
+	docTrigger(ctxTypeWiki, ctxTypeWiki, "topic or page id",
+		">wiki: backend/auth", ">wiki: list the pages under web/"),
+	docTrigger(ctxTypeAnalysis, ctxTypeAnalysis, "subject or scope of the analysis to create or extend",
+		">analysis: why does sdt context lint skip .map.md notes?",
+		">analysis: extend analysis/20260925-195438-agent-command-invocation-grammar.md with the host-registration trade-off"),
+	docTrigger("draft", "draft", "the raw notes to capture",
+		">draft: check whether bleve ranking can carry the objective facet",
+		">draft: three ideas about phase splitting, see the open question"),
+	docTrigger("scope", "scope", "the objective to scope",
+		">scope: give sdt context lint a closed-schema payload rule", ">scope: replace the sdt context lint entry point with a single filter engine"),
+	workflowTrigger(ctxTypePlan, ctxTypePlan, ctxTypeAnalysis, "the analysis the plan is built from",
+		">plan: analysis/20260925-195438-agent-command-invocation-grammar.md", ">plan: analysis/20260927-101140-context-query-filters-date-ranges-type-status-and-generic-frontmatter-filters-for-list-and-search.md"),
+	workflowTrigger("execute", ctxTypeTasks, ctxTypePlan, "the plan (and phase) to execute",
+		">execute: plan/20261003-135937-agent-command-taxonomy-the-working-context-subject-ladder-and-execute.md", ">execute: phase 3 of the taxonomy wave"),
+	docTrigger(ctxTypeTasks, ctxTypeTasks, "the plan whose task file(s) are created",
+		">tasks: plan/20260929-062200-agent-command-invocation-grammar-payload-contract-in-the-generated-command-surfaces.md", ">tasks: plan/20260928-073925-context-query-filters-one-shared-filter-engine-for-list-and-search.md"),
+	docTrigger(ctxTypeProposal, ctxTypeProposal, "subject of the proposal",
+		">proposal: replace the hand-written command stubs with a generated set", ">proposal: register the triggers with the opencode command registry"),
+	workflowTrigger(ctxTypeDecision, ctxTypeDecision, ctxTypeProposal, "the proposal to convert",
+		">decision: proposal/20260927-120000-replace-command-stubs", ">decision: proposal/20260929-063000-register-the-commands-with-the-host"),
+	docTrigger(ctxTypeArchitecture, ctxTypeArchitecture, "component or topic to document",
+		">architecture: the search index pipeline", ">architecture: how the corpus is scanned and indexed"),
+	docTrigger(ctxTypeWorklog, ctxTypeWorklog, "the phase or task being closed out",
+		">worklog: phase 3 of plan/20260929-062200", ">worklog: close out the whole plan/20260929-062200 run"),
+	docTrigger(ctxTypeNotes, ctxTypeNotes, "subject of the note",
+		">notes: bleve filter clauses were dropped for ctxquery", ">notes: the map document that markmap silently truncates"),
+	docTrigger(ctxTypeQuestions, ctxTypeQuestions, "topic to raise questions about",
+		">questions: whether the payload needs a closed schema", ">questions: which triggers need a subject and which accept a free subject"),
+	docTrigger("prompts", "prompts", "intent of the tracked prompt",
+		">prompts: the release note for the query filters", ">prompts: the reusable review checklist for a new instruction module"),
+	docTrigger("reference", "reference", "library or topic to look up",
+		">reference: cobra", ">reference: how do agents invoke commands"),
+	docTrigger(ctxTypeResearch, ctxTypeResearch, "the question the run answers",
+		">research: does ctxquery keep list and search in lockstep", ">research: what the host passes to an agent command"),
+	docTrigger("deepsearch", ctxTypeResearch, "the question the deepsearch answers",
+		">deepsearch: embedded vector stores for a Go CLI", ">deepsearch: how other Markdown KBs model claim provenance"),
+	docTrigger("search", ctxTypeResearch, "the query to discover sources for",
+		">search: embedded vector store Go", ">search: crawldown capture options"),
+	docTrigger("fetch", ctxTypeResearch, "the URL(s) to acquire, or none for the discovered sources",
+		">fetch: https://example.com/doc", ">fetch: every discovered source"),
+	docTrigger("verify", ctxTypeResearch, "the run to verify (default: the latest)",
+		">verify: the latest run", ">verify: 01a0f…"),
+	docTrigger("populate-wiki", ctxTypeResearch, "the brief explaining why the knowledge is useful",
+		">populate-wiki: embedded vector stores for sdt context search", ">populate-wiki: preview only, budget 3 pages"),
 }
 
 // commandFiles returns the generated command files under context/commands/:
@@ -222,7 +257,7 @@ var agentCommandStubs = []commandStub{
 func commandFiles(project string, now time.Time) []instructionFile {
 	var files []instructionFile
 	for _, s := range agentCommandStubs {
-		files = append(files, instructionFile{name: s.id + sdtMarkdownExt, body: instrCommandStubTemplate(s.id, s.contract, s.payload, s.examples, project, now)})
+		files = append(files, instructionFile{name: s.id + sdtMarkdownExt, body: instrCommandStubTemplate(s.id, s.contract, s.kind, s.subject, s.payload, s.examples, project, now)})
 	}
 	files = append(files, instructionFile{name: filepath.Base(sdtCommandsIndex), body: commandsIndexContent(project, now)})
 	return files

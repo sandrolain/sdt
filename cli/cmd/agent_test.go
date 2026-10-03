@@ -2290,12 +2290,40 @@ func TestCommandStubsDeclarePayload(t *testing.T) {
 	}
 }
 
+// TestCommandStubsDeclareTaxonomy is the completeness guard for the command
+// taxonomy: every trigger declares a known kind, and only a workflow command
+// declares a subject (the doc type it advances the lifecycle of). A document
+// command's subject is the trigger itself, so the field stays empty.
+func TestCommandStubsDeclareTaxonomy(t *testing.T) {
+	kinds := map[string]bool{commandKindDocument: true, commandKindWorkflow: true}
+	workflows := map[string]bool{ctxTypePlan: true, "execute": true, ctxTypeDecision: true}
+	for _, s := range agentCommandStubs {
+		if !kinds[s.kind] {
+			t.Errorf("command stub %q: kind %q is not %q or %q", s.id, s.kind, commandKindDocument, commandKindWorkflow)
+			continue
+		}
+		switch s.kind {
+		case commandKindWorkflow:
+			if strings.TrimSpace(s.subject) == "" {
+				t.Errorf("workflow stub %q declares no subject", s.id)
+			}
+		case commandKindDocument:
+			if s.subject != "" {
+				t.Errorf("document stub %q declares subject %q, want empty", s.id, s.subject)
+			}
+		}
+		if workflows[s.id] != (s.kind == commandKindWorkflow) {
+			t.Errorf("command stub %q: kind %q does not match the declared workflow set", s.id, s.kind)
+		}
+	}
+}
+
 // TestCommandPayloadSurfaces asserts the payload contract is present in the
 // generated surfaces. It deliberately checks section headers and table shape,
 // never the exact wording: re-phrasing the grammar must not break the suite.
 func TestCommandPayloadSurfaces(t *testing.T) {
 	now := time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC)
-	stub := instrCommandStubTemplate("wiki", "wiki", "topic or page id",
+	stub := instrCommandStubTemplate("wiki", "wiki", commandKindDocument, "", "topic or page id",
 		[]string{">wiki: backend/auth", ">wiki: list the pages under web/"}, "p", now)
 	for _, want := range []string{"## Payload", ">wiki: <payload>", "topic or page id", ">wiki: backend/auth"} {
 		if !strings.Contains(stub, want) {
@@ -2310,7 +2338,7 @@ func TestCommandPayloadSurfaces(t *testing.T) {
 		{Trigger: "wiki", Payload: "topic or page id"},
 		{Trigger: "scratch", Payload: commandPayloadUndeclared},
 	}, "p", now)
-	for _, want := range []string{"### Grammar", "| Trigger | Command file | Durable contract | Payload |", "topic or page id", commandPayloadUndeclared} {
+	for _, want := range []string{"### Grammar", "| Trigger | Kind | Subject | Command file | Durable contract | Payload |", "topic or page id", commandPayloadUndeclared} {
 		if !strings.Contains(idx, want) {
 			t.Errorf("index missing %q", want)
 		}

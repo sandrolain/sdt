@@ -140,6 +140,66 @@ func TestContextCommandsNewPayloadRejects(t *testing.T) {
 	}
 }
 
+// TestContextCommandsNewTaxonomy verifies a user trigger can declare its kind
+// and subject, that the declarations persist in frontmatter and reach the index
+// row, and that the default is a document command.
+func TestContextCommandsNewTaxonomy(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC))
+
+	execute(t, contextCommandsNewCmd, nil, "advance", "--contract", "plan", "--kind", "workflow", "--subject", "analysis")
+	execute(t, contextCommandsNewCmd, nil, "plain", "--contract", "research")
+
+	stub := mustReadFile(t, "context/commands/advance.md")
+	if got := frontmatterField(stub, "command_kind"); got != commandKindWorkflow {
+		t.Errorf("workflow stub command_kind = %q, want %q", got, commandKindWorkflow)
+	}
+	if got := frontmatterField(stub, "subject"); got != "analysis" {
+		t.Errorf("workflow stub subject = %q, want analysis", got)
+	}
+	if !strings.Contains(stub, "## Subject") {
+		t.Error("workflow stub must render the ## Subject block")
+	}
+
+	idx := mustReadFile(t, "context/commands/index.md")
+	if !strings.Contains(idx, "| `>advance` | workflow | `analysis` |") {
+		t.Errorf("index row missing the workflow taxonomy:\n%s", idx)
+	}
+	if !strings.Contains(idx, "| `>plain` | document | — |") {
+		t.Errorf("index row missing the document default:\n%s", idx)
+	}
+
+	// Resolution: the table wins, then the frontmatter, then the document default.
+	if got := commandKindFor("advance"); got != commandKindWorkflow {
+		t.Errorf("commandKindFor(advance) = %q", got)
+	}
+	if got := commandSubjectFor("advance"); got != "analysis" {
+		t.Errorf("commandSubjectFor(advance) = %q", got)
+	}
+	if got := commandKindFor("plain"); got != commandKindDocument {
+		t.Errorf("commandKindFor(plain) = %q", got)
+	}
+}
+
+// TestContextCommandsNewTaxonomyRejects guards the taxonomy shape: an unknown
+// kind, a non-slug subject, or a subject without the workflow kind is rejected
+// and creates nothing.
+func TestContextCommandsNewTaxonomyRejects(t *testing.T) {
+	runInTempDir(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextCommandsNewCmd, nil, "bad", "--kind", "sideways"))
+	})
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextCommandsNewCmd, nil, "bad", "--kind", "workflow", "--subject", "Not A Slug"))
+	})
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextCommandsNewCmd, nil, "bad", "--subject", "analysis"))
+	})
+	if _, err := os.Stat("context/commands/bad.md"); !os.IsNotExist(err) {
+		t.Errorf("a rejected taxonomy must not create the trigger: %v", err)
+	}
+}
+
 // TestContextCommandsRm verifies the stub deletion and index regeneration.
 func TestContextCommandsRm(t *testing.T) {
 	runInTempDir(t)

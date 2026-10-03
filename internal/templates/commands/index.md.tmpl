@@ -59,13 +59,46 @@ verbatim.
 
 ## Registry
 
-| Trigger | Command file | Durable contract | Payload |
-|---|---|---|---|
-{{range .Triggers}}| `>{{.Trigger}}` | `context/commands/{{.Trigger}}.md` | `context/instructions/{{.Contract}}.md` | {{.Payload}} |
+| Trigger | Kind | Subject | Command file | Durable contract | Payload |
+|---|---|---|---|---|---|
+{{range .Triggers}}| `>{{.Trigger}}` | {{.Kind}} | {{if .Subject}}`{{.Subject}}`{{else}}—{{end}} | `context/commands/{{.Trigger}}.md` | `context/instructions/{{.Contract}}.md` | {{.Payload}} |
 {{end}}
+**Kind** — `document` (produces/edits a document of a fixed type) or `workflow`
+(advances the lifecycle of the **Subject** document type). A workflow command
+resolves its subject via the ladder in *Working-context resolution* below and
+**asks** when it is not unique.
+
 Lookup order for a trigger `>T`: `context/commands/T.md` → the durable contract
 named in the registry above (`context/instructions/T.md` by default). If neither
 exists, ask the user (never invent a contract).
+
+## Working-context resolution
+
+A **workflow** command (Kind `workflow`) operates on a specific subject document
+of its declared **Subject** type. It resolves that subject through this fixed
+ladder — deterministic where possible, explicit where needed, never a guess:
+
+1. **Explicit** — the subject named in the payload (`>plan analysis/2026…-slug`).
+   Rung 1 is the `>id[: payload]` grammar; it wins even when it contradicts the
+   working context (state the contradiction in one line).
+2. **Active / unique** — exactly one candidate of the subject type carries the
+   "active" status for that type: `analysis`/`plan` → `status: active`;
+   `proposal` → `accepted` or `review`; `tasks` → `pending` or `in-progress`;
+   a plan's task files are the files linked from the plan.
+3. **Under discussion** — the subject document the session is currently about
+   (just read, created or edited in this conversation).
+4. **Ask** — 0 or >1 candidate after rungs 1-3: list them and ask. `updated`
+   recency orders the list as a **hint**; it never picks for you.
+
+A **document** command already declares its type by construction; it follows the
+same rules whenever it extends an existing document (e.g. `>architecture`
+updating a living doc, `>worklog` closing a phase) and the same "ask, don't
+guess" default.
+
+`updated` recency is a **tie-break to propose, never to decide**: with more than
+one candidate the agent shows them (most recent first) and asks. There is no
+persisted "current document" pointer — resolution is read-only over frontmatter
+`status`/`updated`, the `links`/`sources` graph and the session context.
 
 ## Invocation contract
 

@@ -31,6 +31,14 @@ A task file is owned by its plan: it carries the optional `phases` list (the
 phase sections it covers; omitted on the whole-plan file) and **inherits the
 plan's `objective`** for grouping — it never declares `objective` itself.
 
+**Subject resolution (`>tasks`, `>execute`).** Both triggers are **workflow**
+commands. `>tasks`'s subject is a `plan`; `>execute`'s subject is a `plan` and
+one of its task files. They resolve it through the working-context ladder
+(`context/commands/index.md`, *Working-context resolution*): explicit payload →
+exactly one active/unique candidate → the plan under discussion → **ask**. When
+`>execute` finds a plan with no task file, it stops and points to `>tasks` (task
+creation is gated on plan approval); it never invents a task file.
+
 ## Structure
 
 ```markdown
@@ -164,6 +172,25 @@ hand.
    Conventional Commits message (see `instructions/git.md`) scoped to this
    task and **ask the user whether to commit**; commit only on explicit
    approval.
+
+### The `>execute` trigger
+
+`>execute` is the **workflow** command that drives this file. Its subject is a
+`plan` and one of that plan's task files; it resolves the subject through the
+working-context ladder (`context/commands/index.md`, *Working-context
+resolution*) — explicit payload → exactly one active plan with an unfinished
+task file → the plan under discussion → **ask**. Then:
+
+- **Pick** — select the task file with no pending dependency; if several are
+  eligible, apply the ladder and **ask** when it is not unique. Work one file at
+  a time.
+- **Take in** — `sdt context task wip <id> --phase <n>` before any work (step 2).
+- **Execute / complete** — steps 3-4, including the verify-step.
+- **Stop conditions** (never invent work):
+  - the plan has **no task file** → stop and point to `>tasks` (task creation is
+    gated on plan approval);
+  - the plan is already `completed` → do not reopen it silently; ask;
+  - the plan or task file is ambiguous → list the candidates and **ask**.
 
 ## Stale task files
 

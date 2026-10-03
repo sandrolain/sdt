@@ -31,6 +31,14 @@ AGENTS.md (HARD RULE 1). The plan is built on top of the analysis (set
 `sources`); within a running plan, integrate/modify in place — do not
 restart the chain.
 
+**Subject resolution (`>plan`).** The `>plan` trigger is a **workflow** command
+whose subject is an `analysis`. It resolves that analysis through the
+working-context ladder (`context/commands/index.md`, *Working-context
+resolution*): explicit payload → exactly one `status: active` analysis → the
+analysis under discussion → **ask**. When more than one remains, list them and
+ask; `updated` recency orders the list but never picks. Bare plan creation (no
+source analysis) stays reachable via `sdt context new --type plan`.
+
 **R2 — one analysis may feed several plans (waves).** The analysis/plan
 relation is not 1:1: several plans may declare the same analysis in `sources`,
 each covering a slice of it, and each is an independently shippable wave with
@@ -70,7 +78,10 @@ Follow strictly — the plan defines the work, the task files execute it:
   explicit user approval before implementation.
 5. **Execute one task file at a time** — never work from the plan itself. Pick
    a task file with no pending dependencies, mark it **in progress** on
-   take-in, complete items as they finish, then move to the next.
+   take-in, complete items as they finish, then move to the next. The `>execute`
+   trigger drives this step (subject: a plan and its task file; see
+   `instructions/tasks.md` and the working-context ladder in
+   `context/commands/index.md`).
 6. **Update in place** — plan and task files are **living**: reflect progress,
    decisions and deviations as they happen through the CLI (`sdt context check`
    for phase/checklist items, `sdt context touch` for a body-only edit), never

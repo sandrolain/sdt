@@ -55,6 +55,51 @@ func contextCommandPayload(path string) string {
 	return strings.Trim(strings.TrimSpace(frontmatterField(string(data), "payload")), `"`)
 }
 
+// contextCommandKind returns the `command_kind:` declared in a command file's
+// frontmatter, or "" when none. The key is `command_kind` (not `kind`) because
+// `kind` is the file's own document kind (`commands`).
+func contextCommandKind(path string) string {
+	data, err := os.ReadFile(path) //#nosec G304 -- fixed commands dir, listed entry
+	if err != nil {
+		return ""
+	}
+	return strings.Trim(strings.TrimSpace(frontmatterField(string(data), "command_kind")), `"`)
+}
+
+// contextCommandSubject returns the `subject:` declared in a command file's
+// frontmatter, or "" when none.
+func contextCommandSubject(path string) string {
+	data, err := os.ReadFile(path) //#nosec G304 -- fixed commands dir, listed entry
+	if err != nil {
+		return ""
+	}
+	return strings.Trim(strings.TrimSpace(frontmatterField(string(data), "subject")), `"`)
+}
+
+// commandKindFor resolves the kind of one trigger: the agentCommandStubs table
+// first, then the command file's own `kind:` frontmatter, else `document`. The
+// order mirrors commandPayloadFor — a generated trigger's kind lives in the
+// table, and only a user trigger reaches the frontmatter (whose `kind:` is
+// `commands`, hence the separate `command_kind` field).
+func commandKindFor(id string) string {
+	if k := declaredCommandKind(id); k != commandKindDocument {
+		return k
+	}
+	if k := contextCommandKind(filepath.Join(sdtCommandsDir, id+sdtMarkdownExt)); k == commandKindWorkflow {
+		return k
+	}
+	return commandKindDocument
+}
+
+// commandSubjectFor resolves the subject of one trigger: the table first, then
+// the command file's `subject:` frontmatter, else "".
+func commandSubjectFor(id string) string {
+	if s := declaredCommandSubject(id); s != "" {
+		return s
+	}
+	return contextCommandSubject(filepath.Join(sdtCommandsDir, id+sdtMarkdownExt))
+}
+
 // commandPayloadFor resolves the payload phrase of one trigger: the
 // agentCommandStubs table first, then the command file's own `payload:`
 // frontmatter, else the explicit undeclared placeholder. The order is a
@@ -89,7 +134,7 @@ func commandsIndexContent(project string, now time.Time) string {
 	sort.Strings(ids)
 	entries := make([]commandIndexEntry, 0, len(ids))
 	for _, id := range ids {
-		entries = append(entries, commandIndexEntry{Trigger: id, Contract: declaredCommandContract(id), Payload: commandPayloadFor(id)})
+		entries = append(entries, commandIndexEntry{Trigger: id, Contract: declaredCommandContract(id), Kind: commandKindFor(id), Subject: commandSubjectFor(id), Payload: commandPayloadFor(id)})
 	}
 	return instrCommandsIndexTemplate(entries, project, now)
 }
@@ -123,9 +168,14 @@ var contextCommandsNewCmd = &cobra.Command{
 durable contract stays in context/instructions/<contract>.md and is referenced,
 never duplicated. The file uses the same generated format as ` + "`sdt agent init`" + `.
 
+A trigger is a document command by default (it produces/edits a document of a
+fixed type). Pass --kind workflow --subject <type> to declare a lifecycle
+transition that resolves a subject document from the working context.
+
 Examples:
   sdt context commands new triage
   sdt context commands new triage --contract research
+  sdt context commands new triage --kind workflow --subject analysis
   sdt context commands new triage --force`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -154,16 +204,43 @@ Examples:
 				return
 			}
 		}
+		kind := getStringFlag(cmd, "kind", false)
+		if kind == "" {
+			kind = commandKindDocument
+		}
+		if kind != commandKindDocument && kind != commandKindWorkflow {
+			exitWithError(cmd, fmt.Errorf("invalid --kind %q (use document or workflow)", kind))
+			return
+		}
+		subject := getStringFlag(cmd, "subject", false)
+		if subject != "" {
+			if !ctxObjectiveRegexp.MatchString(subject) {
+				exitWithError(cmd, fmt.Errorf("invalid --subject %q (single kebab-case segment)", subject))
+				return
+			}
+			if kind != commandKindWorkflow {
+				exitWithError(cmd, fmt.Errorf("--subject requires --kind workflow"))
+				return
+			}
+		}
 		path := filepath.Join(sdtCommandsDir, id+sdtMarkdownExt)
 		if _, err := os.Stat(path); err == nil && !getBoolFlag(cmd, "force", false) {
 			exitWithError(cmd, fmt.Errorf("%s already exists (use --force to overwrite)", path))
 			return
 		}
-		body := instrCommandStubTemplate(id, contract, "", nil, project, contextNow())
+		body := instrCommandStubTemplate(id, contract, kind, subject, "", nil, project, contextNow())
 		if payload != "" {
 			// The declared payload goes in the frontmatter, which --force
 			// preserves, so the phrase survives every later regeneration.
 			body = addCommandPayloadField(body, payload)
+		}
+		if kind == commandKindWorkflow {
+			// A user workflow trigger persists its taxonomy in frontmatter,
+			// like the payload: outside the generated markers, kept by --force.
+			body = addCommandFrontmatterField(body, "command_kind", commandKindWorkflow)
+			if subject != "" {
+				body = addCommandFrontmatterField(body, "subject", subject)
+			}
 		}
 		content := agentRenderGenerated(agentGeneratedMarkerName(filepath.Base(sdtCommandsDir), id+sdtMarkdownExt), body)
 		if err := os.MkdirAll(sdtCommandsDir, 0o750); err != nil { //#nosec G301 -- user work dir
@@ -204,13 +281,22 @@ func validateCommandPayload(payload string) error {
 // preserved by `sdt agent init --force`.
 
 func addCommandPayloadField(rendered, payload string) string {
+	return addCommandFrontmatterField(rendered, "payload", strings.TrimSpace(payload))
+}
+
+// addCommandFrontmatterField inserts `key: <value>` into a rendered command
+// file's frontmatter, just before the closing delimiter. Returns the rendered
+// text unchanged when there is no frontmatter to extend (the template changed),
+// rather than writing a field outside the frontmatter.
+
+func addCommandFrontmatterField(rendered, key, value string) string {
 	fm, body := contextwiki.SplitFrontmatter(rendered)
 	if fm == "" || !strings.HasSuffix(strings.TrimRight(fm, "\n"), ctxFrontmatterDelim) {
 		// No frontmatter to extend (the template changed): leave the file
 		// alone rather than write a field outside the frontmatter.
 		return rendered
 	}
-	line := "payload: " + yamlScalar(strings.TrimSpace(payload))
+	line := key + ": " + yamlScalar(value)
 	fm = strings.TrimRight(strings.TrimSuffix(strings.TrimRight(fm, "\n"), ctxFrontmatterDelim), "\n") +
 		"\n" + line + "\n" + ctxFrontmatterDelim + "\n"
 	return fm + body
@@ -266,6 +352,8 @@ agent init --force.
 func init() {
 	contextCommandsNewCmd.Flags().String("contract", "", "Durable instruction id referenced by the stub (default: the trigger)")
 	contextCommandsNewCmd.Flags().String("payload", "", "One phrase describing what the trigger accepts after the colon in `>trigger: payload`; stored in the stub frontmatter and shown in the commands index")
+	contextCommandsNewCmd.Flags().String("kind", "", "Command kind: document (default) or workflow (advances the lifecycle of the --subject type)")
+	contextCommandsNewCmd.Flags().String("subject", "", "Subject doc type a workflow trigger resolves (requires --kind workflow); stored in frontmatter and shown in the commands index")
 	contextCommandsNewCmd.Flags().Bool("force", false, "Overwrite an existing trigger file")
 	contextCommandsCmd.AddCommand(contextCommandsNewCmd, contextCommandsRmCmd)
 	contextCmd.AddCommand(contextCommandsCmd)

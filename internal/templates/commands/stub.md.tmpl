@@ -23,11 +23,22 @@ updated: "{{.Now}}"
 ## Invocation
 
 - Canonical trigger: `>{{.ID}}` (see `context/commands/index.md`).
+- Kind: **{{.Kind}}**{{if .Workflow}} — this command advances the lifecycle of a
+  **{{.Subject}}** document and resolves which one from the working context
+  (see the ladder in `context/commands/index.md`).{{end}}
 - Scope: `all` (default) · single file · glob — see the contract for the
   task's scope semantics.
 - No settle: **resolve `context/commands/{{.ID}}.md` → read
   `context/instructions/{{.Contract}}.md` → proceed per that contract.**
+{{if .Workflow}}
+## Subject
 
+- **Subject type:** `{{.Subject}}`. Resolve it via the working-context ladder
+  (`context/commands/index.md`): explicit payload → exactly one active/unique
+  candidate → the document under discussion → **ask**.
+- **Never guess:** if more than one candidate remains, list them and ask. `updated`
+  recency orders the list as a hint; it never picks for you.
+{{end}}
 ## Payload
 
 - **Form:** `>{{.ID}}` for no payload · `>{{.ID}}: <payload>` for one. The
