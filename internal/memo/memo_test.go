@@ -169,6 +169,15 @@ func TestDueOnMemos(t *testing.T) {
 	}
 }
 
+func TestRuleNextDue(t *testing.T) {
+	if _, ok := (Rule{ID: "r", Summary: "s", EveryDays: 7}).NextDue(); ok {
+		t.Error("a rule with no last_done must have no computed next-due day")
+	}
+	if next, ok := (Rule{ID: "r", Summary: "s", EveryDays: 7, LastDone: "2026-09-27"}).NextDue(); !ok || next != "2026-10-04" {
+		t.Errorf("NextDue = %q,%v; want 2026-10-04,true", next, ok)
+	}
+}
+
 func TestFindAndRemove(t *testing.T) {
 	reg := &Register{
 		Rules: []Rule{{ID: "r", Summary: "s", EveryDays: 1}},

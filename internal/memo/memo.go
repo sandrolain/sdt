@@ -250,6 +250,20 @@ func (rule Rule) EnabledNow() bool {
 	return rule.Enabled == nil || *rule.Enabled
 }
 
+// NextDue returns the day the rule next becomes due and whether it is known: a
+// rule with no last_done (or an unparseable one) has no computed next-due day
+// and is due now.
+func (rule Rule) NextDue() (string, bool) {
+	if rule.LastDone == "" {
+		return "", false
+	}
+	last, err := time.Parse(DateLayout, rule.LastDone)
+	if err != nil {
+		return "", false
+	}
+	return last.AddDate(0, 0, rule.EveryDays).Format(DateLayout), true
+}
+
 // DateOnly truncates a time to its UTC calendar day.
 func DateOnly(t time.Time) time.Time {
 	y, m, d := t.UTC().Date()

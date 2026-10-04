@@ -236,10 +236,8 @@ func memoListViews(reg *memo.Register) []memoListView {
 	views := []memoListView{}
 	for _, r := range reg.Rules {
 		v := memoListView{Kind: memo.KindRule, ID: r.ID, Summary: r.Summary, EveryDays: r.EveryDays, LastDone: r.LastDone, Enabled: r.EnabledNow()}
-		if r.LastDone != "" {
-			if last, err := time.Parse(memo.DateLayout, r.LastDone); err == nil {
-				v.NextDue = last.AddDate(0, 0, r.EveryDays).Format(memo.DateLayout)
-			}
+		if next, ok := r.NextDue(); ok {
+			v.NextDue = next
 		}
 		views = append(views, v)
 	}
