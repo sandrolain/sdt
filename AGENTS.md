@@ -117,6 +117,7 @@ Read `context/index.md` first (single entry point, generated). Then the
 | `context/scripts/` | Running bundled scripts (see `instructions/scripts.md`) |
 | `context/instructions/scripts.md` | Adding or reading scripts in `context/scripts/` |
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
+| `context/instructions/debugging.md` | Diagnosing an unexpected failure or regression |
 | `context/instructions/development.md` | Writing code: style/architecture agreement, library-first, coding behavior (simplicity, diff-discipline), library docs |
 | `context/instructions/authoring.md` | Writing or reviewing instructions, skills or agent-facing rules |
 | `context/instructions/git.md` | Committing or branching: the commit gate, Conventional Commits and branch rules |

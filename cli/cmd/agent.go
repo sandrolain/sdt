@@ -234,6 +234,8 @@ var agentCommandStubs = []commandStub{
 		">prompts: the release note for the query filters", ">prompts: the reusable review checklist for a new instruction module"),
 	docTrigger("reference", "reference", "library or topic to look up",
 		">reference: cobra", ">reference: how do agents invoke commands"),
+	docTrigger("debug", "debugging", "the failure, regression or failing check to diagnose",
+		">debug: the failing TestX in ctxquery", ">debug: the regression the user reported"),
 	docTrigger(ctxTypeResearch, ctxTypeResearch, "the question the run answers",
 		">research: does ctxquery keep list and search in lockstep", ">research: what the host passes to an agent command"),
 	docTrigger("deepsearch", ctxTypeResearch, "the question the deepsearch answers",
