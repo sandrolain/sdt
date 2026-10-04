@@ -66,13 +66,13 @@ type Register struct {
 
 // DueItem is one entry returned by a due listing.
 type DueItem struct {
-	Kind        string // KindRule | KindMemo
-	ID          string
-	Summary     string
-	DueDate     string // the day it became due; empty for a rule with no last_done
-	OverdueDays int    // days past DueDate as of the query day (0 when due today)
-	Action      string
-	Source      string
+	Kind        string `json:"kind" yaml:"kind"` // KindRule | KindMemo
+	ID          string `json:"id" yaml:"id"`
+	Summary     string `json:"summary" yaml:"summary"`
+	DueDate     string `json:"due_date,omitempty" yaml:"due_date,omitempty"` // the day it became due; empty for a rule with no last_done
+	OverdueDays int    `json:"overdue_days" yaml:"overdue_days"`             // days past DueDate as of the query day (0 when due today)
+	Action      string `json:"action,omitempty" yaml:"action,omitempty"`
+	Source      string `json:"source,omitempty" yaml:"source,omitempty"`
 }
 
 // Path returns the register path for a project root.
@@ -205,7 +205,7 @@ func (r *Register) Remove(id string) bool {
 // with no last_done sorts first (empty due date).
 func (r *Register) DueOn(today time.Time) ([]DueItem, error) {
 	today = DateOnly(today)
-	var out []DueItem
+	out := []DueItem{}
 	for _, rule := range r.Rules {
 		if !rule.EnabledNow() {
 			continue
