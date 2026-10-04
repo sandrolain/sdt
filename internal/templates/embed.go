@@ -16,7 +16,7 @@ import (
 	"text/template"
 )
 
-//go:embed workspace instructions commands roles agents
+//go:embed workspace instructions commands roles agents skills
 var templatesFS embed.FS
 
 // The embed pattern is extended with each populated top-level directory
@@ -45,6 +45,45 @@ func List(dir string) []string {
 			continue
 		}
 		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ListFiles returns the sorted base names of every *.tmpl file directly under
+// dir in the embedded tree (any extension), e.g. ListFiles("skills/ui-ux") ->
+// ["SKILL.md.tmpl"]. A missing or empty directory yields an empty slice. It is
+// the single source a nested generated set derives from.
+
+func ListFiles(dir string) []string {
+	entries, err := fs.ReadDir(templatesFS, dir)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".tmpl") {
+			continue
+		}
+		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+	return names
+}
+
+// Dirs returns the sorted subdirectory names under dir in the embedded tree. A
+// missing or empty directory yields an empty slice.
+
+func Dirs(dir string) []string {
+	entries, err := fs.ReadDir(templatesFS, dir)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() {
+			names = append(names, e.Name())
+		}
 	}
 	sort.Strings(names)
 	return names

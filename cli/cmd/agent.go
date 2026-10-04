@@ -400,6 +400,10 @@ Examples:
 		//     triggers; contracts stay in context/instructions/).
 		cmdResults := writeCommandFiles(cfg.Project, force)
 
+		// 4c. Agent Skills under .agents/skills/ (thin case→instruction
+		//     routers in the open agentskills.io format).
+		skillResults := writeSkillFiles(force)
+
 		// 5. AGENTS.md: ensure the instructions block (--force refreshable) and,
 		//    unless declined, the write-once project block. Prompts only when
 		//    interactive; --project-block forces insertion non-interactively;
@@ -418,6 +422,7 @@ Examples:
 		results = append(results, gitIgnoreResults...)
 		results = append(results, instrResults...)
 		results = append(results, cmdResults...)
+		results = append(results, skillResults...)
 		results = append(results, mdResult)
 		outputFileResults(cmd, results)
 	},

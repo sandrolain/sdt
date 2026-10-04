@@ -1,0 +1,30 @@
+---
+name: sdt-ui-ux
+description: >
+  Use this skill for any user-interface or user-experience work on a frontend:
+  laying out a screen, building or changing a component, choosing colour,
+  spacing, type or radius tokens, animating, adapting to a device, or reviewing
+  a surface for visual quality and accessibility — even when the request does
+  not mention "UI", "design" or "accessibility" explicitly. It routes to the
+  project's UI/UX instruction files; it does not replace them.
+---
+
+# SDT UI/UX skill
+
+Read the project's UI/UX instruction files before doing UI work; this skill routes
+to them and never restates them.
+
+1. Read `context/instructions/ui.md` **before any UI change** (the doctrine).
+2. Read `context/instructions/ui-tokens.md` when choosing or changing colour,
+   spacing, type or radius tokens — before touching a literal value.
+3. Read `context/instructions/ui-components.md` when building or changing a
+   component; `context/instructions/ui-layout.md` when arranging a surface.
+4. Read `context/instructions/ui-accessibility.md` for any interactive or visual
+   change, plus the accessibility review.
+5. Read `context/instructions/ui-motion.md` when animating; `ui-taste.md` for
+   layout, visual direction and copy review; `ui-performance.md` for budgets;
+   `ui-adapters.md` when mapping the framework's idioms.
+
+Verify a rendered result with `context/instructions/browser.md` before claiming a
+layout looks right. If a number in an instruction conflicts with the installed
+tool, re-verify the tool and follow the project.
