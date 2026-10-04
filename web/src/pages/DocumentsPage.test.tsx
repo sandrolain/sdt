@@ -162,4 +162,22 @@ describe("DocumentsPage", () => {
     await userEvent.click(screen.getByText("go b"));
     expect(await screen.findByText(/Beta body text/)).toBeTruthy();
   });
+
+  it("uses the static fallback workspace, with no dockview tab groups", async () => {
+    mockFetch();
+    const { container } = render(
+      <MemoryRouter initialEntries={["/docs/context/a.md"]}>
+        <OpenDocsProvider>
+          <Routes>
+            <Route path="/docs/*" element={<DocumentsPage />} />
+          </Routes>
+        </OpenDocsProvider>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText(/Alpha body text/);
+    expect(container.querySelector(".dock-layout--fallback")).toBeTruthy();
+    // no dockview shell means no theme/tab-group machinery under test
+    expect(container.querySelector(".dv-shell")).toBeNull();
+  });
 });

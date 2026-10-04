@@ -3,6 +3,8 @@
  * so `collapse()`/`expand()` actually work (plain grid panels are a no-op), and
  * the setup + recovery paths share one spec.
  */
+import { kindColor, kindLabel, type EntryFilterKind } from "./kinds";
+
 export type EdgePosition = "left" | "right";
 
 export interface SidePanelSpec {
@@ -18,8 +20,12 @@ export interface SidePanelSpec {
   maximumSize: number;
 }
 
-/** Thickness kept when an edge group is collapsed. */
-export const COLLAPSED_SIZE = 34;
+/**
+ * Thickness kept when an edge group is collapsed. Matches the
+ * `themeCatppuccinMochaSpaced` tab strip height (44 px, set through the theme
+ * object), so the collapsed rail and the tab strip read as one height.
+ */
+export const COLLAPSED_SIZE = 44;
 
 /** Panel id prefix for open documents. */
 export const DOC_PANEL_PREFIX = "doc:";
@@ -130,5 +136,53 @@ export function addSidePanels(api: SidePanelApi): void {
       title: spec.title,
       position: { referenceGroup: spec.groupId },
     });
+  }
+}
+
+/** Minimal dockview tab-group API needed to cluster document tabs by kind. */
+export interface TabGroupApi {
+  getTabGroupForPanel(options: { groupId: string; panelId: string }): { id: string } | undefined;
+  getTabGroups(options: { groupId: string }): readonly { id: string; label: string }[];
+  createTabGroup(options: { groupId: string; label?: string; color?: string }): { id: string };
+  addPanelToTabGroup(options: { groupId: string; tabGroupId: string; panelId: string }): void;
+}
+
+/**
+ * Ensure a document panel sits in the tab group labelled for its kind, inside
+ * the panel's own group. Idempotent: a panel already in a tab group is left
+ * alone, and an existing kind group is reused so one kind shares one chip.
+ * Colour comes from `kindColor`, the label from `kindLabel`; the courtesy
+ * placeholder is never passed here.
+ */
+export function ensureKindTabGroup(
+  api: TabGroupApi,
+  panel: { id: string; group: { id: string } },
+  kind: EntryFilterKind,
+): void {
+  const groupId = panel.group.id;
+  if (api.getTabGroupForPanel({ groupId, panelId: panel.id })) return;
+  const label = kindLabel(kind);
+  const existing = api.getTabGroups({ groupId }).find((g) => g.label === label);
+  const tabGroup = existing ?? api.createTabGroup({ groupId, label, color: kindColor(kind) });
+  api.addPanelToTabGroup({ groupId, tabGroupId: tabGroup.id, panelId: panel.id });
+}
+
+/** Minimal dockview API needed to prune tab groups left without panels. */
+export interface TabGroupPruneApi {
+  groups: readonly { id: string }[];
+  getTabGroups(options: { groupId: string }): readonly { id: string; isEmpty: boolean }[];
+  dissolveTabGroup(options: { groupId: string; tabGroupId: string }): void;
+}
+
+/**
+ * Dissolve every tab group whose last panel has closed, so a closed kind never
+ * leaves an orphaned chip behind (dockview keeps an emptied group until it is
+ * dissolved explicitly).
+ */
+export function pruneEmptyTabGroups(api: TabGroupPruneApi): void {
+  for (const group of api.groups) {
+    for (const tabGroup of api.getTabGroups({ groupId: group.id })) {
+      if (tabGroup.isEmpty) api.dissolveTabGroup({ groupId: group.id, tabGroupId: tabGroup.id });
+    }
   }
 }

@@ -8,7 +8,14 @@
   min-height: 0;
 }
 
-.dock-layout.dockview-theme-dark {
+/* Dockview applies the theme object's class to its own `.dv-shell` element,
+   which is an ancestor of `.dock-layout` (the workspace's dockview element
+   nests inside it). A custom property defined on `.dock-layout` is nearer to
+   the tabs/groups than the shell's theme defaults, so it wins for the whole
+   workspace subtree. Unlayered: the bundled stylesheet is layered, and a
+   layered rule loses to an unlayered one. The spaced theme's
+   `--dv-border-radius` (12px) is deliberately not overridden. */
+.dock-layout {
   --dv-group-view-background-color: var(--bg-base);
   --dv-tabs-and-actions-container-background-color: var(--bg-mantle);
   --dv-activegroup-visiblepanel-tab-background-color: var(--bg-rise);
@@ -22,22 +29,31 @@
   --dv-separator-border: var(--border);
   --dv-sash-color: transparent;
   --dv-active-sash-color: var(--accent);
-  --dv-border-radius: 0px;
 }
 
-/* Panel content paints the Catppuccin base so no area falls back to dockview's
-   theme colour. `.dv-react-part` is intentionally left transparent: painting it
-   too produced a duplicated background band against `.dv-tab`. */
-.dv-groupview,
-.dv-content-container,
-.dock-content {
+/* The spaced theme hardcodes `color-scheme: dark` on its shell; the app theme
+   decides, so light mode keeps native form controls and scrollbars light. */
+[data-theme="light"] .dock-layout {
+  color-scheme: light;
+}
+[data-theme="dark"] .dock-layout {
+  color-scheme: dark;
+}
+
+/* Panel content paints the Catppuccin base so no area falls back to the theme
+   colour. `.dv-react-part` is intentionally left transparent: painting it too
+   produced a duplicated background band against `.dv-tab`. The content rule
+   out-specifies the theme's own `.dv-groupview .dv-content-container` rule. */
+.dock-layout .dv-groupview,
+.dock-layout .dv-groupview .dv-content-container,
+.dock-layout .dock-content {
   background-color: var(--bg-base);
 }
 
-.dv-tabs-and-actions-container {
+.dock-layout .dv-tabs-and-actions-container {
   background-color: var(--bg-mantle);
 }
 
-.dv-tab.dv-active-tab {
+.dock-layout .dv-tab.dv-active-tab {
   color: var(--fg);
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   DockviewReact,
+  themeCatppuccinMochaSpaced,
   type DockviewApi,
   type DockviewReadyEvent,
   type IDockviewHeaderActionsProps,
@@ -21,6 +22,8 @@ import {
   COURTESY_PANEL_ID,
   DOC_PANEL_PREFIX,
   ensureCenterGroup,
+  ensureKindTabGroup,
+  pruneEmptyTabGroups,
   type CenterGroup,
 } from "../lib/workspaceLayout";
 import { tabContextMenuItems } from "../lib/workspaceTabs";
@@ -166,16 +169,21 @@ export function DocsWorkspace() {
       });
     }
     for (const path of state.docs) {
-      if (api.getPanel(docPanelId(path))) continue;
-      api.addPanel({
-        id: docPanelId(path),
-        component: "doc",
-        tabComponent: "doc",
-        title: displayTitle({ path }),
-        params: { path },
-        position: { referenceGroup: center.id },
-        minimumWidth: 320,
-      });
+      let panel = api.getPanel(docPanelId(path));
+      if (!panel) {
+        panel = api.addPanel({
+          id: docPanelId(path),
+          component: "doc",
+          tabComponent: "doc",
+          title: displayTitle({ path }),
+          params: { path },
+          position: { referenceGroup: center.id },
+          minimumWidth: 320,
+        });
+      }
+      // cluster document tabs into a kind-coloured tab group; idempotent, and
+      // the group follows the restored layout when the panel already exists.
+      ensureKindTabGroup(api, panel, kindFromPath(path));
     }
     for (const panel of api.panels) {
       if (
@@ -190,19 +198,26 @@ export function DocsWorkspace() {
       const courtesy = api.getPanel(COURTESY_ID);
       if (courtesy) api.removePanel(courtesy);
     }
+    // a closed kind must not leave an orphaned empty tab-group chip behind
+    pruneEmptyTabGroups(api);
     if (state.active) {
       const panel = api.getPanel(docPanelId(state.active));
       if (panel && !panel.api.isActive) panel.api.setActive();
     }
   }, [ready, state.docs, state.active]);
 
-  const className = useMemo(() => "docs-workspace dockview-theme-dark dock-layout", []);
+  // The spaced catppuccin theme is applied through the theme object (its gap,
+  // collapsed-rail size and dnd options are JS options, not CSS); the class it
+  // adds is dockview's own, on its `.dv-shell` element. Colour stays the app's
+  // Catppuccin tokens via the unlayered `styles/dockview.css` overrides.
+  const className = useMemo(() => "docs-workspace dock-layout", []);
 
   if (!DOCKVIEW_ENABLED) return <FallbackWorkspace />;
 
   return (
     <DockviewReact
       className={className}
+      theme={themeCatppuccinMochaSpaced}
       components={components}
       defaultTabComponent={WorkspaceTab}
       tabComponents={{ doc: DocTabHeader }}

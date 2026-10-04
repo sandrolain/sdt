@@ -22,18 +22,17 @@ describe("openDocs persistence", () => {
 
   it("repairs an active pointer that is not part of the stack", () => {
     saveOpenDocs({ docs: ["a", "b"], active: "b", seen: [] });
-    localStorage.setItem(
-      "sdt-layout:open-docs",
-      JSON.stringify({ version: 5, layout: { docs: ["a", "b"], active: "zzz" } }),
-    );
+    const stored = JSON.parse(localStorage.getItem("sdt-layout:open-docs") ?? "{}");
+    stored.layout.active = "zzz";
+    localStorage.setItem("sdt-layout:open-docs", JSON.stringify(stored));
     expect(loadOpenDocs()?.active).toBe("b");
   });
 
   it("ignores a corrupt stored shape", () => {
-    localStorage.setItem(
-      "sdt-layout:open-docs",
-      JSON.stringify({ version: 5, layout: { docs: "nope" } }),
-    );
+    saveOpenDocs({ docs: ["a"], active: "a", seen: [] });
+    const stored = JSON.parse(localStorage.getItem("sdt-layout:open-docs") ?? "{}");
+    stored.layout.docs = "nope";
+    localStorage.setItem("sdt-layout:open-docs", JSON.stringify(stored));
     expect(loadOpenDocs()).toBeNull();
   });
 });

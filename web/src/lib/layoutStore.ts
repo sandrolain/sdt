@@ -1,6 +1,6 @@
 /** Versioned localStorage persistence for dockview layouts. */
 
-const VERSION = 5;
+const VERSION = 6;
 const PREFIX = "sdt-layout:";
 
 /** Layout id for the documents workspace. */

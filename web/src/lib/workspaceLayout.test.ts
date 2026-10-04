@@ -3,12 +3,16 @@ import {
   addSidePanels,
   COLLAPSED_SIZE,
   ensureCenterGroup,
+  ensureKindTabGroup,
+  pruneEmptyTabGroups,
   SIDE_PANELS,
   type CenterApi,
   type CenterGroup,
   type EdgePosition,
   type SidePanelApi,
+  type TabGroupApi,
 } from "./workspaceLayout";
+import { kindColor } from "./kinds";
 
 function fakeApi(existing: { panels?: string[]; edges?: EdgePosition[] } = {}) {
   const panels = new Set(existing.panels ?? []);
@@ -127,5 +131,94 @@ describe("ensureCenterGroup", () => {
     expect(ensureCenterGroup(fakeCenter([], [group("edge", "edge")]), { current: null }).id).toBe(
       "center-new",
     );
+  });
+});
+
+describe("ensureKindTabGroup", () => {
+  function fakeTabApi() {
+    const groups: { id: string; label: string; color?: string }[] = [];
+    const added: { groupId: string; tabGroupId: string; panelId: string }[] = [];
+    const membership = new Map<string, string>();
+    let n = 0;
+    const api: TabGroupApi = {
+      getTabGroupForPanel: ({ panelId }) => {
+        const id = membership.get(panelId);
+        return id ? groups.find((g) => g.id === id) : undefined;
+      },
+      getTabGroups: () => groups,
+      createTabGroup: ({ label, color }) => {
+        const g = { id: `tg${++n}`, label: label ?? "", color };
+        groups.push(g);
+        return g;
+      },
+      addPanelToTabGroup: ({ groupId, tabGroupId, panelId }) => {
+        membership.set(panelId, tabGroupId);
+        added.push({ groupId, tabGroupId, panelId });
+      },
+    };
+    return { api, groups, added };
+  }
+
+  const panel = (id: string, groupId = "center") => ({ id, group: { id: groupId } });
+
+  it("creates a kind-coloured group and adds the panel", () => {
+    const { api, groups, added } = fakeTabApi();
+    ensureKindTabGroup(api, panel("doc:context/analysis/a.md"), "analysis");
+    expect(groups).toEqual([{ id: "tg1", label: "Analyses", color: kindColor("analysis") }]);
+    expect(added).toEqual([
+      { groupId: "center", tabGroupId: "tg1", panelId: "doc:context/analysis/a.md" },
+    ]);
+  });
+
+  it("reuses one group per kind", () => {
+    const { api, groups, added } = fakeTabApi();
+    ensureKindTabGroup(api, panel("doc:a"), "analysis");
+    ensureKindTabGroup(api, panel("doc:b"), "analysis");
+    expect(groups).toHaveLength(1);
+    expect(added).toHaveLength(2);
+  });
+
+  it("is a no-op for a panel already in a tab group", () => {
+    const { api, groups, added } = fakeTabApi();
+    ensureKindTabGroup(api, panel("doc:a"), "wiki");
+    const before = added.length;
+    ensureKindTabGroup(api, panel("doc:a"), "wiki");
+    expect(groups).toHaveLength(1);
+    expect(added).toHaveLength(before);
+  });
+
+  it("groups an unknown kind under Other", () => {
+    const { api, groups } = fakeTabApi();
+    ensureKindTabGroup(api, panel("doc:x"), "other");
+    expect(groups[0].label).toBe("Other");
+  });
+});
+
+describe("pruneEmptyTabGroups", () => {
+  it("dissolves only the empty tab groups", () => {
+    const dissolved: { groupId: string; tabGroupId: string }[] = [];
+    const api = {
+      groups: [{ id: "center" }, { id: "edge" }],
+      getTabGroups: ({ groupId }: { groupId: string }) =>
+        groupId === "center"
+          ? [
+              { id: "tg-full", isEmpty: false },
+              { id: "tg-empty", isEmpty: true },
+            ]
+          : [],
+      dissolveTabGroup: (o: { groupId: string; tabGroupId: string }) => dissolved.push(o),
+    };
+    pruneEmptyTabGroups(api);
+    expect(dissolved).toEqual([{ groupId: "center", tabGroupId: "tg-empty" }]);
+  });
+
+  it("does nothing when no tab group is empty", () => {
+    const dissolve = vi.fn();
+    pruneEmptyTabGroups({
+      groups: [{ id: "center" }],
+      getTabGroups: () => [{ id: "tg", isEmpty: false }],
+      dissolveTabGroup: dissolve,
+    });
+    expect(dissolve).not.toHaveBeenCalled();
   });
 });
