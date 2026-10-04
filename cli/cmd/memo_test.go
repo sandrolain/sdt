@@ -74,3 +74,35 @@ func TestMemoSessionStartCheck(t *testing.T) {
 		}
 	}
 }
+
+// TestMemoTriggerResolves proves the >memo document trigger is registered with a
+// resolvable contract and that the generated instruction file exists — the same
+// lookup an agent performs when the trigger fires.
+func TestMemoTriggerResolves(t *testing.T) {
+	var found *commandStub
+	for i := range agentCommandStubs {
+		if agentCommandStubs[i].id == "memo" {
+			found = &agentCommandStubs[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal(">memo is not registered in agentCommandStubs")
+	}
+	if found.kind != commandKindDocument {
+		t.Errorf(">memo kind = %q, want %q", found.kind, commandKindDocument)
+	}
+	if found.subject != "" {
+		t.Errorf(">memo subject = %q, want empty for a document command", found.subject)
+	}
+	if found.contract != "memo" {
+		t.Errorf(">memo contract = %q, want %q", found.contract, "memo")
+	}
+	generated := map[string]bool{}
+	for _, f := range instructionFiles("", "") {
+		generated[f.name] = true
+	}
+	if !generated[found.contract+sdtMarkdownExt] {
+		t.Errorf(">memo contract %q has no generated instruction file", found.contract)
+	}
+}
