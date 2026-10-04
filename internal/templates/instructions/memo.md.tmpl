@@ -1,0 +1,52 @@
+---
+kind: instructions
+title: "Planned operations \u2014 rules and memos"
+summary: "Planned operations: the context/memo.yaml register, its due check and how to act on a due item."
+---
+
+`context/instructions/memo.md` is the contract for planned operations that have
+no host scheduler here. Read it when `context/memo.yaml` is relevant: a session
+start, a due listing, or a request to add or record an operation.
+
+## The register
+
+`context/memo.yaml` is the planned-operation register: recurring **rules** and
+one-off **memos**. It is **CLI-owned** — read it, and change it only through
+`sdt context memo` (see `context/instructions/cli.md`), never by hand.
+
+- A **rule** is an operation with a cadence (`every_days`) and the day it was
+  last done (`last_done`). It is due when `last_done + every_days <= today`; a
+  rule with no `last_done` is due now.
+- A **memo** is a one-off reminder with a `due` date. It is due when
+  `today >= due` and it is not done.
+
+Both carry an optional `action` (the project's command or hint) and `source`
+(where the operation is documented).
+
+## The due check
+
+At session start, run `sdt context memo due`; it reads the system date. When
+nothing is due it prints nothing and costs no context. This check is the only
+trigger: SDT has no scheduler, hook or daemon and cannot enforce it, so a
+missed check is possible and visible only in the register.
+
+## Acting on a due item
+
+- **Propose, never block or run silently.** Tell the user what is due and ask
+  whether to run it before or after the work they requested. Never refuse the
+  requested task because something is overdue.
+- **One operation per run, bounded scope.** A due dependency update is not a
+  general refactor. The project owns the safety rules — what may run
+  automatically, what is only reported (for example majors), on which branch,
+  and what to test — and the register's `action`/`source` point at them.
+- **Record `done` only after success.** `sdt context memo done <id>` sets
+  `last_done` (a rule) or `done` (a memo). Call it only after the operation
+  succeeded: SDT cannot verify it, and a failed run must not update the
+  register.
+
+## Boundaries
+
+- The check reads recorded state and emits a signal; it never mutates the
+  register, never fixes anything and never enforces.
+- Adding an operation means a rule or a memo in the register, not a new
+  document kind or lifecycle stage.
