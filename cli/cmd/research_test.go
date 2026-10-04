@@ -48,6 +48,61 @@ func TestResearchInitCreatesRun(t *testing.T) {
 	}
 }
 
+func TestResearchInitObjectiveFlag(t *testing.T) {
+	root := researchTestProject(t)
+	out := strings.TrimSpace(string(execute(t, researchInitCmd, nil, "--query", "capture layout", "--objective", "web-capture-tooling")))
+	r, err := research.Load(root, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Objective != "web-capture-tooling" {
+		t.Errorf("objective = %q, want web-capture-tooling", r.Objective)
+	}
+
+	inspect := string(execute(t, researchInspectCmd, nil))
+	if !strings.Contains(inspect, "objective: web-capture-tooling") {
+		t.Errorf("inspect must show the objective:\n%s", inspect)
+	}
+}
+
+func TestResearchInitDerivesObjectiveFromQuery(t *testing.T) {
+	root := researchTestProject(t)
+	out := strings.TrimSpace(string(execute(t, researchInitCmd, nil, "--query", "clean architecture notes")))
+	r, err := research.Load(root, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Objective != "clean-architecture-notes" {
+		t.Errorf("derived objective = %q, want clean-architecture-notes", r.Objective)
+	}
+}
+
+func TestResearchInitObjectiveBadSlug(t *testing.T) {
+	researchTestProject(t)
+	if code := runResearchInitExit(t, "--query", "q", "--objective", "Not A Slug"); code != 1 {
+		t.Fatalf("a non-kebab-case objective must exit 1, got %d", code)
+	}
+}
+
+// runResearchInitExit executes research init and reports the exit code it
+// triggered, recovering from the test exit override.
+func runResearchInitExit(t *testing.T, args ...string) (exited int) {
+	t.Helper()
+	origExit := exit
+	exit = func(code int) {
+		exited = code
+		panic("exit")
+	}
+	defer func() {
+		exit = origExit
+		if r := recover(); r != nil && r != "exit" {
+			panic(r)
+		}
+	}()
+	execute(t, researchInitCmd, nil, args...)
+	return exited
+}
+
 func TestResearchInspectLatestText(t *testing.T) {
 	root := researchTestProject(t)
 	out := strings.TrimSpace(string(execute(t, researchInitCmd, nil, "--query", "q1")))

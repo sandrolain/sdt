@@ -82,7 +82,9 @@ the **run** is transient working state; the **note** is the durable document.
 A run lives under `context/tmp/research/<run-id>/` and holds:
 
 - `manifest.yaml` — the machine-readable record: `run_id`, `query`, `scope`,
-  `created`/`updated`, `tool`/`config`, `budget`
+  `objective` (the kebab-case grouping key naming the archive directory; derived
+  from the query when `--objective` is omitted), `archive_dir` (set on first
+  archive), `created`/`updated`, `tool`/`config`, `budget`
   (`max_results`/`max_credits`/`credits_used`/`results`), `checkpoint`
   (last completed operation), and one `sources[]` entry per source with
   `canonical_url`, `title`, `author`, `date`, `license`, `content_type`,
@@ -94,9 +96,34 @@ Source status is a closed set: `discovered` (found, not acquired) → `fetched`
 (payload stored and hashed) → `parsed`/`verified`; `rejected` is a terminal
 failure. A source is never promoted past a status the CLI could not check.
 
+### Archive layout
+
+`fetch` writes only under the run's transient `context/tmp/research/<run-id>/raw/`.
+The approved promotion (`populate-wiki --apply --confirm`) archives each verified
+capture into a **dated, objective-scoped directory** of `context/refs/`:
+
+```
+context/refs/<YYYYMMDD-HHMMSS>-<research-objective>/<result>.md
+```
+
+- the `<YYYYMMDD-HHMMSS>` stamp is the run's `created` instant, so the directory
+  is unique by construction and two runs on one objective stay separate;
+- `<research-objective>` is the run's objective slug (`--objective`, else derived
+  from the query, else `research`);
+- `<result>` is the source title slug (URL last-segment fallback), with a
+  `-<sha256[:8]>` suffix only when another capture in the run yields the same
+  name.
+
+The archive refuses a pre-existing directory that is not this run's own (a
+foreign collision) without writing, records `archive_dir` in the manifest, and
+lets the promoted wiki page cite `refs/<dir>/<result>.md@<sha>`. The legacy flat
+`refs/<slug>-<hash8>.md` captures are left untouched.
+
 ### Run commands
 
-- `sdt research init --query "<q>" [--scope "<s>"]` — create a run.
+- `sdt research init --query "<q>" [--scope "<s>"] [--objective "<kebab-slug>"]`
+  — create a run; `--objective` names the archive directory and is derived from
+  the query when omitted.
 - `sdt research search --query "<q>" --network --confirm [--limit N]
   [--max-credits N] [--api-url <url>]` — discover sources with the configured
   provider (Firecrawl). **Search is opt-in**: it refuses to run without
@@ -134,9 +161,10 @@ failure. A source is never promoted past a status the CLI could not check.
   without repeating completed work.
 - **Promotion is separate and gated.** A verified run is evidence; a wiki page is
   curated knowledge. `populate-wiki` previews, then applies only on `--confirm`,
-  archives each raw capture into `context/refs/` and cites it, then reindexes and
-  runs the wiki lint. A page is never created from an unverified claim; conflicts
-  become relations or open questions.
+  archives each raw capture into the run's dated directory under
+  `context/refs/<YYYYMMDD-HHMMSS>-<research-objective>/` and cites it, then
+  reindexes and runs the wiki lint. A page is never created from an unverified
+  claim; conflicts become relations or open questions.
 - **Negatives are kept.** A failed fetch keeps its error and retry count and
   stays retryable; rejected sources stay recorded.
 

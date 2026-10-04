@@ -90,20 +90,27 @@ var researchInitCmd = &cobra.Command{
 	Short: "Create a research run",
 	Long: `Create a new research run under context/tmp/research/<run-id>/ with its
 manifest and provenance sidecar. --query is the question the run answers;
---scope narrows it. The run id is printed (or the manifest in --format
-json|yaml).
+--scope narrows it; --objective is the kebab-case grouping key that names the
+run's archive directory (derived from the query when omitted). The run id is
+printed (or the manifest in --format json|yaml).
 
 Examples:
   sdt research init --query "which embedded vector store fits SDT"
-  sdt research init --query "crawldown options" --scope "capture flags only"`,
+  sdt research init --query "crawldown options" --scope "capture flags only"
+  sdt research init --query "capture layout" --objective web-capture-tooling`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		query := getStringFlag(cmd, "query", true)
 		scope := getStringFlag(cmd, "scope", false)
+		objective := getStringFlag(cmd, "objective", false)
+		if objective != "" && !ctxObjectiveRegexp.MatchString(objective) {
+			exitWithError(cmd, fmt.Errorf("--objective must be a kebab-case slug (lowercase alphanumeric and '-'), got %q", objective))
+			return
+		}
 		root, err := researchRoot()
 		exitWithError(cmd, err)
 
-		r := research.NewRun(query, scope, time.Now())
+		r := research.NewRun(query, scope, objective, time.Now())
 		if err := r.Save(root); err != nil {
 			exitWithError(cmd, err)
 		}
@@ -118,6 +125,8 @@ type researchInspectView struct {
 	RunID      string              `json:"run_id" yaml:"run_id"`
 	Query      string              `json:"query" yaml:"query"`
 	Scope      string              `json:"scope,omitempty" yaml:"scope,omitempty"`
+	Objective  string              `json:"objective,omitempty" yaml:"objective,omitempty"`
+	ArchiveDir string              `json:"archive_dir,omitempty" yaml:"archive_dir,omitempty"`
 	Created    string              `json:"created" yaml:"created"`
 	Updated    string              `json:"updated" yaml:"updated"`
 	Budget     research.Budget     `json:"budget,omitempty" yaml:"budget,omitempty"`
@@ -149,6 +158,8 @@ Examples:
 			RunID:      r.RunID,
 			Query:      r.Query,
 			Scope:      r.Scope,
+			Objective:  r.Objective,
+			ArchiveDir: r.ArchiveDir,
 			Created:    r.Created,
 			Updated:    r.Updated,
 			Budget:     r.Budget,
@@ -164,6 +175,10 @@ func researchInspectText(r *research.Run, counts map[string]int) string {
 	out := fmt.Sprintf("run %s\n  query: %s\n", r.RunID, r.Query)
 	if r.Scope != "" {
 		out += fmt.Sprintf("  scope: %s\n", r.Scope)
+	}
+	out += fmt.Sprintf("  objective: %s\n", r.Objective)
+	if r.ArchiveDir != "" {
+		out += fmt.Sprintf("  archive: %s\n", r.ArchiveDir)
 	}
 	out += fmt.Sprintf("  created: %s\n  updated: %s\n", r.Created, r.Updated)
 	if r.Checkpoint.Operation != "" {
@@ -203,6 +218,7 @@ func researchInspectText(r *research.Run, counts map[string]int) string {
 func init() {
 	researchInitCmd.Flags().String("query", "", "The question the run answers")
 	researchInitCmd.Flags().String("scope", "", "Optional scope narrowing the run")
+	researchInitCmd.Flags().String("objective", "", "Kebab-case grouping key naming the archive directory (default: derived from the query)")
 	researchInspectCmd.Flags().String("run", "", "Run id (default: the latest run)")
 	researchCmd.AddCommand(researchInitCmd, researchInspectCmd)
 	rootCmd.AddCommand(researchCmd)

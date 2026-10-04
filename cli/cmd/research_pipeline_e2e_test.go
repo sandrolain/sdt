@@ -25,7 +25,7 @@ func TestResearchPipelineEndToEnd(t *testing.T) {
 		remaining: 50,
 	}
 	withFakeProvider(t, f)
-	runID := strings.TrimSpace(string(execute(t, researchInitCmd, nil, "--query", "why")))
+	runID := strings.TrimSpace(string(execute(t, researchInitCmd, nil, "--query", "why", "--objective", "pipeline-e2e")))
 	execute(t, researchSearchCmd, nil, "--run", runID, "--limit", "5", "--network", "--confirm")
 
 	r, _ := research.Load(root, runID)
@@ -45,6 +45,13 @@ func TestResearchPipelineEndToEnd(t *testing.T) {
 	for _, s := range r.Sources {
 		if s.SHA256 == "" || s.RawPath == "" {
 			t.Errorf("source missing provenance: %+v", s)
+		}
+	}
+	// Fetch writes only under the run's tmp raw/ — never into context/refs/.
+	refsDir := filepath.Join(root, "context", "refs")
+	if entries, err := os.ReadDir(refsDir); err == nil {
+		for _, e := range entries {
+			t.Errorf("fetch must not create anything under context/refs/: %s", e.Name())
 		}
 	}
 
@@ -92,5 +99,35 @@ func TestResearchPipelineEndToEnd(t *testing.T) {
 				t.Errorf("preview must not write a page: %s", e.Name())
 			}
 		}
+	}
+
+	// 7. populate-wiki apply → dated archive directory, <result>.md files, and
+	// citations carrying the subpath.
+	r, _ = research.Load(root, runID)
+	archiveDir := research.ArchiveRefDir(r)
+	execute(t, researchPopulateWikiCmd, nil, "--run", runID, "--brief", "why", "--apply", "--confirm")
+
+	r, _ = research.Load(root, runID)
+	if r.ArchiveDir != archiveDir {
+		t.Errorf("run archive_dir = %q, want %q", r.ArchiveDir, archiveDir)
+	}
+	absDir := filepath.Join(root, "context", filepath.FromSlash(archiveDir))
+	files, err := os.ReadDir(absDir)
+	if err != nil {
+		t.Fatalf("dated archive directory missing at %s: %v", absDir, err)
+	}
+	if len(files) != 2 {
+		t.Errorf("archive dir should hold 2 captures, got %d", len(files))
+	}
+	for _, s := range r.Sources {
+		rel := research.RefRelPath(r, s)
+		if _, err := os.Stat(filepath.Join(root, "context", filepath.FromSlash(rel))); err != nil {
+			t.Errorf("archived capture %s missing: %v", rel, err)
+		}
+	}
+	// At least one written wiki page cites the subpath.
+	pageData, _ := os.ReadFile(research.WikiPagePath(root, research.SourceSlug(r.Sources[0].CanonicalURL)))
+	if !strings.Contains(string(pageData), archiveDir+"/") {
+		t.Errorf("wiki page must cite the %s subpath:\n%s", archiveDir, pageData)
 	}
 }

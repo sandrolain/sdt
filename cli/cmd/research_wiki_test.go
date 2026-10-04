@@ -53,9 +53,18 @@ func TestResearchPopulateWikiApplyWritesPage(t *testing.T) {
 			t.Errorf("page missing %q:\n%s", want, body)
 		}
 	}
-	// The cited refs/ capture must exist alongside the page.
-	if !strings.Contains(body, "refs/") {
-		t.Fatalf("claim must cite a refs/ file:\n%s", body)
+	// The claim cites the run's dated archive subpath, and the capture exists.
+	wantRel := research.RefRelPath(r, verified)
+	if !strings.Contains(body, wantRel) {
+		t.Fatalf("claim must cite %q:\n%s", wantRel, body)
+	}
+	if _, err := os.Stat(filepath.Join(root, "context", filepath.FromSlash(wantRel))); err != nil {
+		t.Errorf("cited refs capture missing at %s: %v", wantRel, err)
+	}
+	// The run records its archive directory.
+	reloaded, _ := research.Load(root, runID)
+	if reloaded.ArchiveDir != research.ArchiveRefDir(r) {
+		t.Errorf("archive_dir = %q, want %q", reloaded.ArchiveDir, research.ArchiveRefDir(r))
 	}
 }
 
@@ -67,6 +76,23 @@ func TestResearchPopulateWikiRefusesUnverifiedOnly(t *testing.T) {
 	// Deliberately not verified.
 	if code := runPopulate(t, "--run", runID, "--brief", "why", "--apply", "--confirm"); code == 0 {
 		t.Fatal("promoting with no verified source must fail")
+	}
+}
+
+func TestResearchPopulateWikiRefusesForeignArchiveDir(t *testing.T) {
+	root, runID := synthesizedRun(t)
+	r, _ := research.Load(root, runID)
+	// Plant a foreign directory at the run's target archive name.
+	foreign := filepath.Join(root, "context", "refs", research.ArchiveDirName(r))
+	if err := os.MkdirAll(foreign, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if code := runPopulate(t, "--run", runID, "--brief", "why", "--apply", "--confirm"); code == 0 {
+		t.Fatal("a pre-existing foreign archive directory must fail the apply")
+	}
+	entries, _ := os.ReadDir(foreign)
+	if len(entries) != 0 {
+		t.Errorf("refusal must not write into the foreign directory, found %d entries", len(entries))
 	}
 }
 

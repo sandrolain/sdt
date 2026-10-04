@@ -31,6 +31,10 @@ const ProvenanceName = "provenance.md"
 // RawDirName holds the captured payloads of a run.
 const RawDirName = "raw"
 
+// objectiveSlugMax bounds a run objective slug, so a noisy query cannot produce
+// an over-long archive directory name.
+const objectiveSlugMax = 48
+
 // Source statuses. A source advances discovered → fetched → parsed → verified,
 // or ends rejected.
 const (
@@ -79,6 +83,8 @@ type Run struct {
 	RunID      string     `json:"run_id" yaml:"run_id"`
 	Query      string     `json:"query" yaml:"query"`
 	Scope      string     `json:"scope,omitempty" yaml:"scope,omitempty"`
+	Objective  string     `json:"objective,omitempty" yaml:"objective,omitempty"`
+	ArchiveDir string     `json:"archive_dir,omitempty" yaml:"archive_dir,omitempty"`
 	Created    string     `json:"created" yaml:"created"`
 	Updated    string     `json:"updated" yaml:"updated"`
 	Tool       string     `json:"tool,omitempty" yaml:"tool,omitempty"`
@@ -98,20 +104,47 @@ func ManifestPath(root, runID string) string {
 	return filepath.Join(RunDir(root, runID), ManifestName)
 }
 
-// NewRun builds a fresh run with a time-ordered id.
-func NewRun(query, scope string, now time.Time) *Run {
+// NewRun builds a fresh run with a time-ordered id. objective is the explicit
+// grouping key; when empty it is derived from the query (see ObjectiveSlug).
+func NewRun(query, scope, objective string, now time.Time) *Run {
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
 	stamp := now.UTC().Format(time.RFC3339)
-	return &Run{
-		RunID:   uuid.NewV7().String(),
-		Query:   query,
-		Scope:   scope,
-		Created: stamp,
-		Updated: stamp,
-		Sources: []Source{},
+	if strings.TrimSpace(objective) == "" {
+		objective = ObjectiveSlug(&Run{Query: query})
 	}
+	return &Run{
+		RunID:     uuid.NewV7().String(),
+		Query:     query,
+		Scope:     scope,
+		Objective: objective,
+		Created:   stamp,
+		Updated:   stamp,
+		Sources:   []Source{},
+	}
+}
+
+// ObjectiveSlug returns the slug used for the run's archive directory: the
+// run's explicit objective when set, otherwise a kebab-case slug derived from
+// the query, otherwise "research". The result is always a valid, non-empty
+// kebab-case slug bounded to objectiveSlugMax characters, so it can never yield
+// an empty path segment.
+func ObjectiveSlug(r *Run) string {
+	if r == nil {
+		return "research"
+	}
+	s := slugifySlug(r.Objective)
+	if s == "" {
+		s = slugifySlug(r.Query)
+	}
+	if len(s) > objectiveSlugMax {
+		s = strings.Trim(s[:objectiveSlugMax], "-")
+	}
+	if s == "" {
+		return "research"
+	}
+	return s
 }
 
 // Save writes the manifest and the provenance sidecar, creating the run
@@ -280,6 +313,15 @@ func (r *Run) RecordFailure(canonical string, err error) {
 // SourceSlug derives a stable, filesystem-safe slug for a source URL.
 func SourceSlug(rawURL string) string {
 	u := CanonicalURL(rawURL)
+	sum := sha256.Sum256([]byte(u))
+	return fmt.Sprintf("%s-%s", urlSlug(u), fmt.Sprintf("%x", sum[:])[:8])
+}
+
+// urlSlug derives a filesystem-safe slug from a URL's last path segment, or its
+// host when the path is empty. It never returns an empty string ("result" is the
+// last resort), so it is safe inside a path segment.
+func urlSlug(rawURL string) string {
+	u := CanonicalURL(rawURL)
 	// Prefer the last path segment; fall back to the host.
 	trimmed := strings.TrimPrefix(u, "http://")
 	trimmed = strings.TrimPrefix(trimmed, "https://")
@@ -302,8 +344,10 @@ func SourceSlug(rawURL string) string {
 	if slug == "" {
 		slug = slugifySlug(host)
 	}
-	sum := sha256.Sum256([]byte(u))
-	return fmt.Sprintf("%s-%s", slug, fmt.Sprintf("%x", sum[:])[:8])
+	if slug == "" {
+		slug = "result"
+	}
+	return slug
 }
 
 func slugifySlug(s string) string {

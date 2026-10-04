@@ -9,7 +9,7 @@ import (
 )
 
 func fixedRun() *Run {
-	return NewRun("vector backends", "compare embedded stores", time.Unix(0, 0).UTC())
+	return NewRun("vector backends", "compare embedded stores", "", time.Unix(0, 0).UTC())
 }
 
 func TestNewRunIsTimeOrderedAndStamped(t *testing.T) {
@@ -179,5 +179,79 @@ func TestCanonicalURL(t *testing.T) {
 		if got := CanonicalURL(in); got != want {
 			t.Errorf("CanonicalURL(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestNewRunDerivesObjectiveFromQuery(t *testing.T) {
+	r := NewRun("vector backends", "", "", time.Unix(0, 0).UTC())
+	if r.Objective != "vector-backends" {
+		t.Errorf("derived objective = %q, want vector-backends", r.Objective)
+	}
+
+	explicit := NewRun("ignored query", "", "refs-layout", time.Unix(0, 0).UTC())
+	if explicit.Objective != "refs-layout" {
+		t.Errorf("explicit objective = %q, want refs-layout", explicit.Objective)
+	}
+}
+
+func TestObjectiveSlug(t *testing.T) {
+	cases := []struct {
+		name      string
+		objective string
+		query     string
+		want      string
+	}{
+		{"explicit wins", "refs-layout", "ignored query", "refs-layout"},
+		{"explicit sanitized", "Refs Layout!", "", "refs-layout"},
+		{"query derived", "", "clean architecture notes", "clean-architecture-notes"},
+		{"long slug bounded", "", strings.Repeat("a", 60), strings.Repeat("a", 48)},
+		{"bound trims a trailing dash", "", strings.Repeat("a", 47) + " " + strings.Repeat("b", 10), strings.Repeat("a", 47)},
+		{"sparse query falls back", "", "!!! ???", "research"},
+		{"empty query falls back", "", "", "research"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ObjectiveSlug(&Run{Objective: tc.objective, Query: tc.query})
+			if got != tc.want {
+				t.Errorf("ObjectiveSlug(objective=%q, query=%q) = %q, want %q", tc.objective, tc.query, got, tc.want)
+			}
+		})
+	}
+	if got := ObjectiveSlug(nil); got != "research" {
+		t.Errorf("ObjectiveSlug(nil) = %q, want research", got)
+	}
+}
+
+func TestObjectiveRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	r := fixedRun()
+	r.Objective = "web-capture-tooling"
+	if err := r.Save(root); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(root, r.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Objective != "web-capture-tooling" {
+		t.Errorf("objective round-trip = %q, want web-capture-tooling", got.Objective)
+	}
+
+	// A legacy manifest without `objective` loads with an empty objective (the
+	// archive dir then derives from the query).
+	legacy := filepath.Join(root, RunDirName, "legacy-run", ManifestName)
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	body := "run_id: legacy-run\nquery: old query\ncreated: 2020-01-01T00:00:00Z\nupdated: 2020-01-01T00:00:00Z\nsources: []\n"
+	if err := os.WriteFile(legacy, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old, err := Load(root, "legacy-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if old.Objective != "" {
+		t.Errorf("legacy objective = %q, want empty", old.Objective)
 	}
 }

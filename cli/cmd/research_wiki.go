@@ -83,8 +83,9 @@ Examples:
 			if !ok {
 				continue
 			}
-			// Archive the raw capture into context/refs/ and cite it: the wiki
-			// contract requires every claim to cite a refs/ file.
+			// Archive the raw capture into the run's dated directory under
+			// context/refs/ and cite it: the wiki contract requires every claim
+			// to cite a refs/ file.
 			refRel, aerr := r.ArchiveSource(root, src)
 			if aerr != nil {
 				exitWithError(cmd, aerr)
