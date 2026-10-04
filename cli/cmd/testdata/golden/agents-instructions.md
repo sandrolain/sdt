@@ -87,6 +87,11 @@ Read `context/index.md` first (single entry point, generated). Then the
 - `context/architecture/` — living architecture docs (essential tier)
 - `context/decisions/` — decisions (essential tier)
 
+**Due operations (opportunistic)** — run `sdt context memo due` at session
+start; when it reports something due, surface it and ask whether to run it
+before or after the requested task — never block the task and never run it
+silently (see `context/instructions/memo.md`).
+
 **On action** — read when you take that action:
 
 | File | When to read |

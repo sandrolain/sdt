@@ -60,3 +60,17 @@ func TestMemoInstructionDiscoverable(t *testing.T) {
 		t.Error("expected an On-action row for context/instructions/memo.md")
 	}
 }
+
+// TestMemoSessionStartCheck asserts the SESSION START section runs the due check
+// and states the propose-never-block behaviour.
+func TestMemoSessionStartCheck(t *testing.T) {
+	block := agentBlockInstructions("p", "g")
+	if !strings.Contains(block, "sdt context memo due") {
+		t.Error("SESSION START must run `sdt context memo due`")
+	}
+	for _, want := range []string{"before or after the requested task", "never block the task", "never run it\nsilently", "context/instructions/memo.md"} {
+		if !strings.Contains(block, want) {
+			t.Errorf("SESSION START due check missing %q", want)
+		}
+	}
+}
