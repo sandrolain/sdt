@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { relationFor, siblingsOf } from "./docRelations";
+import { relationFor } from "./docRelations";
 import type { CorpusIndex } from "./corpusIndex";
 import type { TreeEntry } from "./api";
 
@@ -42,27 +42,5 @@ describe("relationFor", () => {
   it("has nothing to link without an index or a typed edge", () => {
     expect(relationFor("context/notes/n.md", null)).toBeNull();
     expect(relationFor("context/notes/n.md", index([{ path: "context/notes/n.md" }]))).toBeNull();
-  });
-});
-
-describe("siblingsOf", () => {
-  const ix = index([
-    { path: "context/tasks/t1.md", kind: "tasks", title: "First" },
-    { path: "context/tasks/t2.md", kind: "tasks", title: "Second" },
-    { path: "context/plan/p1.md", kind: "plan", title: "Plan" },
-  ]);
-
-  it("lists the other documents in the same folder, title-sorted", () => {
-    const siblings = siblingsOf("context/tasks/t1.md", ix);
-    expect(siblings).toEqual([{ path: "context/tasks/t2.md", title: "Second" }]);
-  });
-
-  it("excludes the document itself and other folders", () => {
-    const siblings = siblingsOf("context/tasks/t1.md", ix);
-    expect(siblings.some((s) => s.path === "context/plan/p1.md")).toBe(false);
-  });
-
-  it("is empty without an index", () => {
-    expect(siblingsOf("context/tasks/t1.md", null)).toEqual([]);
   });
 });

@@ -732,6 +732,17 @@
     display: inline-flex;
     flex-direction: column;
   }
+  .ui-field {
+    display: inline-flex;
+    flex-direction: column;
+  }
+  .ui-field__label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--fg-faint);
+    padding: 0 0.15rem 0.15rem;
+  }
   .ui-select__button {
     display: inline-flex;
     align-items: center;
@@ -868,8 +879,7 @@
   .tree-groups > :first-child {
     margin-top: 0.5rem;
   }
-  /* fixed single row under the scroll region: visible/total and a per-kind
-     breakdown that scrolls horizontally when the panel is narrow */
+  /* fixed single row under the scroll region: visible/total and the open count */
   .tree-status {
     flex: none;
     display: flex;
@@ -885,23 +895,6 @@
   .tree-status__counts {
     flex: none;
     white-space: nowrap;
-  }
-  .tree-status__kinds {
-    display: flex;
-    flex: 1;
-    min-width: 0;
-    align-items: center;
-    gap: 0.5rem;
-    overflow-x: auto;
-  }
-  .tree-status__kind {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 0.15rem;
-  }
-  .tree-status__icon {
-    font-size: 0.9rem;
   }
   /* each kind folder reads as its own block, visually separated from the next */
   .tree-folder {
@@ -1138,6 +1131,10 @@
   }
   .tree-entry__glyph .ms-icon {
     font-size: 1.1rem;
+  }
+  .tree-entry__category {
+    flex: none;
+    font-size: 0.9rem;
   }
   .tree-entry__thumb {
     width: 1.35rem;
@@ -1437,6 +1434,14 @@
     background: var(--ctp-surface1);
     color: var(--ctp-subtext1);
   }
+  .meta-chip--category {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+  .meta-chip__icon {
+    font-size: 0.85rem;
+  }
   .meta-toc {
     list-style: none;
     margin: 0;
@@ -1463,9 +1468,8 @@
     color: var(--accent);
     box-shadow: inset 2px 0 0 var(--accent);
   }
-  /* path bar: the ancestor link and the sibling jump */
-  .doc-path__relation,
-  .doc-path__siblings {
+  /* path bar: the ancestor link for the typed relation */
+  .doc-path__relation {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
@@ -1478,8 +1482,7 @@
     font-size: 0.75rem;
     text-decoration: none;
   }
-  .doc-path__relation:hover,
-  .doc-path__siblings:hover {
+  .doc-path__relation:hover {
     background: var(--bg-hover);
     color: var(--fg);
   }
@@ -1494,9 +1497,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .doc-path__siblings {
-    max-width: 12rem;
   }
 
   /* "Referenced by" (analysis N1/Q3): the inbound references served by

@@ -132,7 +132,13 @@ title: Outside docs
 not in the corpus
 `)
 	writeFixture(t, root, "context/commands/ingest.md", "agent command contract")
-	writeFixture(t, root, "context/instructions/project.md", "agent instructions")
+	writeFixture(t, root, "context/instructions/project.md", `---
+kind: instructions
+title: Project
+---
+
+agent instructions
+`)
 	writeFixture(t, root, "context/sdtdocs/README.md", "generated per-command reference")
 	writeFixture(t, root, "context/README.md", "context umbrella readme")
 	return root
@@ -431,8 +437,8 @@ func TestTreeOutput(t *testing.T) {
 	}
 	// corpus exclusions (shared set) plus anything outside the corpus.
 	assertExcludedPaths(t, byPath)
-	if len(out.Entries) != 10 {
-		t.Errorf("expected 10 entries, got %d: %v", len(out.Entries), out.Entries)
+	if len(out.Entries) != 11 {
+		t.Errorf("expected 11 entries, got %d: %v", len(out.Entries), out.Entries)
 	}
 }
 
@@ -476,7 +482,6 @@ func assertExcludedPaths(t *testing.T, byPath map[string]treeEntry) {
 		"context/tmp/scratch.md",
 		"context/scripts/behind.md",
 		"context/refs/clone.md",
-		"context/instructions/project.md",
 		"context/sdtdocs/README.md",
 		"context/README.md",
 		"docs/sdt_tokens.md",
@@ -511,6 +516,34 @@ func TestTreeCommandsEntry(t *testing.T) {
 		}
 	}
 	t.Error("commands entry missing: context/commands/ingest.md")
+}
+
+// TestTreeInstructionsEntry checks that context/instructions is corpus content
+// and keeps its own frontmatter kind.
+func TestTreeInstructionsEntry(t *testing.T) {
+	root := makeCorpus(t)
+	h, _ := newHandler(root)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Entries []treeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range out.Entries {
+		if e.Path != "context/instructions/project.md" {
+			continue
+		}
+		if e.Kind != "instructions" {
+			t.Errorf("instruction entry kind = %q, want instructions", e.Kind)
+		}
+		return
+	}
+	t.Error("instructions entry missing: context/instructions/project.md")
 }
 
 // TestTreeLegacyCreatedAt checks the `created_at` fallback for pre-rename docs.
@@ -678,7 +711,6 @@ func TestDocExcludedCorpus(t *testing.T) {
 	root := makeCorpus(t)
 	h, _ := newHandler(root)
 	for _, path := range []string{
-		"context/instructions/project.md",
 		"context/sdtdocs/README.md",
 		"context/README.md",
 		"context/refs/clone.md",
@@ -690,8 +722,8 @@ func TestDocExcludedCorpus(t *testing.T) {
 			t.Errorf("path %q: status = %d, body = %s", path, rec.Code, rec.Body.String())
 		}
 	}
-	// commands are corpus content and must be servable now.
-	for _, path := range []string{"context/commands/ingest.md"} {
+	// commands and instructions are corpus content and must be servable now.
+	for _, path := range []string{"context/commands/ingest.md", "context/instructions/project.md"} {
 		req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape(path), nil)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)

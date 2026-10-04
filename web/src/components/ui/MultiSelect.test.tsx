@@ -134,4 +134,18 @@ describe("MultiSelect", () => {
     const unselected = screen.getByRole("option", { name: "Draft" });
     expect(unselected.querySelector(".ui-select__item-check")).toBeNull();
   });
+
+  it("renders a visible label without changing the accessible name", () => {
+    render(
+      <MultiSelect
+        ariaLabel="Visible states"
+        label="States"
+        options={options}
+        selected={[]}
+        onChange={() => {}}
+      />,
+    );
+    expect(document.querySelector(".ui-field__label")?.textContent).toBe("States");
+    expect(trigger()).toBeTruthy();
+  });
 });

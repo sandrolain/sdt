@@ -414,6 +414,10 @@ describe("DocMetaPanel", () => {
     expect(screen.getByText("Categories")).toBeTruthy();
     expect(screen.getByText("bug")).toBeTruthy();
     expect(screen.getByText("refactor")).toBeTruthy();
+    // each category chip carries its icon
+    const chips = Array.from(document.querySelectorAll(".meta-chip--category"));
+    expect(chips).toHaveLength(2);
+    expect(chips[0].querySelector(".meta-chip__icon")?.textContent).toBe("bug_report");
   });
 
   it("shows a draft analysis with the dedicated draft tone", async () => {

@@ -6,6 +6,7 @@ import {
   firstH1,
   formatFilename,
   frontmatterTitle,
+  objectiveLabel,
   stripDatePrefix,
   unwrapQuotes,
 } from "./titles";
@@ -105,5 +106,68 @@ describe("displayTitle", () => {
 
   it("returns an empty string without any source", () => {
     expect(displayTitle({})).toBe("");
+  });
+});
+
+// Every objective slug currently present in the corpus, so the display label is
+// pinned against the real vocabulary rather than a sample.
+const CORPUS_OBJECTIVES = [
+  "agent-command-workflows",
+  "agent-commit-branch-and-task-design",
+  "agent-harness",
+  "agent-harness-enforcement",
+  "agent-instruction-modules",
+  "agent-maintenance",
+  "agent-skill-source-evaluation",
+  "analysis-decomposition",
+  "analysis-triage",
+  "awesome-opencode-inspiration",
+  "canvas-board-replacement",
+  "cli-doc-management-homogeneity",
+  "cli-logging",
+  "context-query-filters",
+  "context-reference-neutralization",
+  "deepsearch",
+  "doc-conversion-tooling",
+  "doc-grouping",
+  "doc-identity",
+  "doc-lifecycle",
+  "doc-setup-status-guide",
+  "github-actions-ci-failures",
+  "graph-react-integration",
+  "harness-improvements",
+  "improvement-triage",
+  "instruction-module-portability",
+  "instruction-templates-static-embed",
+  "mindmap-renderer",
+  "refs-skills-instruction-triage",
+  "search-cache-persistence",
+  "structured-data-access",
+  "viewer",
+  "viewer-document-navigator",
+  "web-capture-tooling",
+  "wiki-population",
+  "workflow-lean-artifacts",
+];
+
+describe("objectiveLabel", () => {
+  it("de-slugs an objective into readable words", () => {
+    expect(objectiveLabel("agent-command-workflows")).toBe("Agent command workflows");
+    expect(objectiveLabel("viewer-document-navigator")).toBe("Viewer document navigator");
+    expect(objectiveLabel("viewer")).toBe("Viewer");
+  });
+
+  it("restores the acronym allow-list", () => {
+    expect(objectiveLabel("sdt-cli-ui")).toBe("SDT CLI UI");
+    expect(objectiveLabel("api-json-yaml-git")).toBe("API JSON YAML GIT");
+  });
+
+  it("renders every corpus objective without losing its words", () => {
+    for (const slug of CORPUS_OBJECTIVES) {
+      const label = objectiveLabel(slug);
+      expect(label.split(" ")).toHaveLength(slug.split("-").length);
+      expect(label).not.toContain("-");
+    }
+    expect(objectiveLabel("agent-harness")).toBe("Agent harness");
   });
 });

@@ -129,6 +129,53 @@ func TestAgentReplaceSectionDriftParity(t *testing.T) {
 	}
 }
 
+func TestAgentWriteGeneratedFileAdoptsFrontmatter(t *testing.T) {
+	dir := runInTempDir(t)
+	path := filepath.Join("context/instructions", "x.md")
+	name := "instructions/x"
+	tmpl := "---\nkind: instructions\ntitle: \"T\"\nsummary: \"S\"\n---\n\n# Body\n\ntext\n"
+	abs := filepath.Join(dir, path)
+
+	// fresh create: the generated file carries the template frontmatter
+	res := agentWriteGeneratedFile(path, name, tmpl, false)
+	if res.Status != statusCreated {
+		t.Fatalf("expected created, got %s", res.Status)
+	}
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(data), "---\nkind: instructions\n") {
+		t.Fatalf("fresh file missing frontmatter:\n%s", data)
+	}
+
+	// a marker-carrying file created before the template gained frontmatter
+	// adopts it on a --force refresh
+	if err := os.WriteFile(abs, []byte(sectionBlock(name, "old body")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	agentWriteGeneratedFile(path, name, tmpl, true)
+	data, _ = os.ReadFile(abs)
+	if !strings.HasPrefix(string(data), "---\nkind: instructions\n") {
+		t.Fatalf("refresh did not adopt frontmatter:\n%s", data)
+	}
+	if !strings.Contains(string(data), "text") {
+		t.Fatalf("refresh did not apply the template body:\n%s", data)
+	}
+
+	// an existing frontmatter is preserved verbatim, including a key the
+	// template does not carry
+	head := "---\nkind: instructions\ntitle: \"Mine\"\nstatus: active\n---\n\n"
+	if err := os.WriteFile(abs, []byte(head+sectionBlock(name, "old body")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	agentWriteGeneratedFile(path, name, tmpl, true)
+	data, _ = os.ReadFile(abs)
+	if !strings.Contains(string(data), "title: \"Mine\"") || !strings.Contains(string(data), "status: active") {
+		t.Fatalf("existing frontmatter was rewritten:\n%s", data)
+	}
+}
+
 func TestAgentAppendIfMissing(t *testing.T) {
 	content := agentAppendIfMissing("# H\n", agentSectionNameProject, "body")
 	if !strings.Contains(content, "<!-- sdt:begin:"+agentSectionNameProject+" -->") {

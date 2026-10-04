@@ -77,19 +77,6 @@ describe("Breadcrumbs relations", () => {
     expect(link.getAttribute("href")).toBe("/docs/context/plan/p1.md");
   });
 
-  it("offers a sibling jump within the same folder", async () => {
-    mockTree();
-    renderPath("context/tasks/t1.md");
-    const select = (await screen.findByLabelText("Sibling document")) as HTMLSelectElement;
-    await waitFor(() => expect(select.options).toHaveLength(2));
-    expect(select.options[0].value).toBe("");
-    expect(select.options[1].textContent).toBe("Second");
-    await fireEvent.change(select, { target: { value: "context/tasks/t2.md" } });
-    await waitFor(() =>
-      expect(screen.getByTestId("probe").textContent).toBe("/docs/context/tasks/t2.md"),
-    );
-  });
-
   it("offers no relation for a document with no typed parent", async () => {
     mockTree();
     renderPath("context/plan/p1.md");
@@ -106,6 +93,5 @@ describe("Breadcrumbs relations", () => {
     renderPath("context/tasks/t1.md");
     expect(screen.getByText("context/tasks/t1.md")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Copy path/ })).toBeTruthy();
-    expect(screen.queryByLabelText("Sibling document")).toBeNull();
   });
 });

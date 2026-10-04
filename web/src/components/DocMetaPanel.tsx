@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 import { useActiveSection } from "../lib/activeSection";
+import { categoryColor, categoryIcon } from "../lib/categories";
 import {
   isCanvas,
   isMermaid,
@@ -414,6 +415,20 @@ function MetaValue({
     return <span className="meta-row__text">{formatFieldDate(value)}</span>;
   }
   if (CHIP_KEYS.has(field.key)) {
+    // a category carries its icon so the work type is recognisable at a glance
+    if (field.key === "categories") {
+      return (
+        <span className="meta-chip meta-chip--category">
+          <Icon
+            name={categoryIcon(value)}
+            className="meta-chip__icon"
+            style={{ color: categoryColor(value) }}
+            label={value}
+          />
+          {value}
+        </span>
+      );
+    }
     return <span className="meta-chip">{value}</span>;
   }
   if (IMAGE_KEYS.has(field.key)) {

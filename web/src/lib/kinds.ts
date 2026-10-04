@@ -2,6 +2,7 @@ import type { TreeEntry } from "./api";
 
 export type EntryKind =
   | "wiki"
+  | "instructions"
   | "analysis"
   | "notes"
   | "tasks"
@@ -21,6 +22,7 @@ export type EntryFilterKind = EntryKind | "canvas";
 /** Stable, deduped list of visible kinds, in corpus-sensible order. */
 export const KIND_ORDER: EntryKind[] = [
   "wiki",
+  "instructions",
   "analysis",
   "notes",
   "plan",
@@ -40,6 +42,7 @@ export const KIND_ORDER: EntryKind[] = [
 /** Human plural labels for every kind's tree section header. */
 const KIND_LABELS: Record<EntryFilterKind, string> = {
   wiki: "Wiki",
+  instructions: "Instructions",
   analysis: "Analyses",
   notes: "Notes",
   tasks: "Tasks",
@@ -72,6 +75,7 @@ export function kindLabel(k: EntryFilterKind): string {
 /** Material Symbols glyph for a kind folder/entry. */
 const KIND_ICONS: Record<EntryFilterKind, string> = {
   wiki: "menu_book",
+  instructions: "rule",
   analysis: "analytics",
   notes: "sticky_note_2",
   tasks: "checklist",
@@ -92,6 +96,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
 /** Catppuccin token (CSS var reference) for a kind. */
 const KIND_COLORS: Record<EntryFilterKind, string> = {
   wiki: "var(--ctp-blue)",
+  instructions: "var(--ctp-rosewater)",
   analysis: "var(--ctp-mauve)",
   notes: "var(--ctp-green)",
   tasks: "var(--ctp-yellow)",

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"text/template"
+
+	"github.com/sandrolain/sdt/internal/contextwiki"
 )
 
 // parseFuncs supplies the func names referenced by dynamic templates built in
@@ -247,8 +249,12 @@ func TestProjectTemplateIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatalf("render project.md.tmpl: %v", err)
 			}
-			if !strings.HasPrefix(got, tc.want) {
-				t.Errorf("head mismatch\ngot:  %q\nwant: %q", got[:len(tc.want)], tc.want)
+			// The module carries corpus frontmatter; the identity block below it
+			// is what this test pins.
+			_, body := contextwiki.SplitFrontmatter(got)
+			body = strings.TrimLeft(body, "\n")
+			if !strings.HasPrefix(body, tc.want) {
+				t.Errorf("head mismatch\ngot:  %q\nwant: %q", body[:len(tc.want)], tc.want)
 			}
 			if !strings.HasSuffix(got, "\n") {
 				t.Errorf("project.md.tmpl must end with a trailing newline")

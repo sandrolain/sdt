@@ -68,6 +68,7 @@ export function TreeToolbar({ onResetLayout, onCollapseAll }: TreeToolbarProps) 
       <TreeSortControls />
       <MultiSelect
         ariaLabel="Visible states"
+        label="States"
         sections={STATE_SECTIONS}
         presets={STATE_PRESETS_UI}
         selected={selected}
@@ -78,6 +79,7 @@ export function TreeToolbar({ onResetLayout, onCollapseAll }: TreeToolbarProps) 
       />
       <Select
         ariaLabel="Grouping"
+        label="Group"
         className="tree-grouping"
         options={GROUP_MODE_OPTIONS}
         value={groupMode}

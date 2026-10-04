@@ -15,7 +15,6 @@ describe("isExcludedPath", () => {
       "context/tmp/x.md",
       "context/scripts/a.go",
       "context/refs/repo/a.md",
-      "context/instructions/plan.md",
       "context/sdtdocs/README.md",
     ]) {
       expect(isExcludedPath(p)).toBe(true);
@@ -32,6 +31,7 @@ describe("isExcludedPath", () => {
       "context/wiki/topic.md",
       "context/wiki/commands.md",
       "context/commands/index.md",
+      "context/instructions/plan.md",
       "context/plan/x.md",
     ]) {
       expect(isExcludedPath(p)).toBe(false);

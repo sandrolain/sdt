@@ -33,6 +33,8 @@ interface UiMultiSelectProps {
   selected: string[];
   onChange: (ids: string[]) => void;
   ariaLabel: string;
+  /** visible label above the control; the aria label stays the accessible name */
+  label?: string;
   placeholder?: string;
   /** summary shown when nothing is selected; defaults to the placeholder */
   emptyLabel?: string;
@@ -50,6 +52,7 @@ export function MultiSelect({
   selected,
   onChange,
   ariaLabel,
+  label,
   placeholder = "Any",
   emptyLabel,
   allLabel,
@@ -89,7 +92,7 @@ export function MultiSelect({
     </>
   );
 
-  return (
+  const control = (
     <AriaSelect
       aria-label={ariaLabel}
       selectionMode="multiple"
@@ -162,5 +165,12 @@ export function MultiSelect({
         )}
       </Popover>
     </AriaSelect>
+  );
+  if (!label) return control;
+  return (
+    <div className="ui-field">
+      <span className="ui-field__label">{label}</span>
+      {control}
+    </div>
   );
 }

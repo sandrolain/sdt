@@ -34,6 +34,10 @@ describe("entryKind", () => {
     expect(entryKind(entry({ kind: "commands" }))).toBe("commands");
   });
 
+  it("uses the instructions kind for the per-type contract modules", () => {
+    expect(entryKind(entry({ kind: "instructions" }))).toBe("instructions");
+  });
+
   it("treats mermaid entries as their own kind", () => {
     expect(entryKind(entry({ mermaid: true, kind: "mermaid" }))).toBe("mermaid");
     expect(entryKind(entry({ mermaid: true }))).toBe("mermaid");
@@ -43,6 +47,7 @@ describe("entryKind", () => {
 describe("kindFromPath", () => {
   it("maps corpus folders to kinds, including commands and plurals", () => {
     expect(kindFromPath("context/commands/index.md")).toBe("commands");
+    expect(kindFromPath("context/instructions/analysis.md")).toBe("instructions");
     expect(kindFromPath("context/proposals/p.md")).toBe("proposal");
     expect(kindFromPath("context/questions/q.md")).toBe("questions");
     expect(kindFromPath("context/research/r.md")).toBe("research");
@@ -59,6 +64,7 @@ describe("kindLabel", () => {
   it("labels kinds with human plurals", () => {
     expect(kindLabel("analysis")).toBe("Analyses");
     expect(kindLabel("notes")).toBe("Notes");
+    expect(kindLabel("instructions")).toBe("Instructions");
     expect(kindLabel("plan")).toBe("Plans");
     expect(kindLabel("worklog")).toBe("Work log");
     expect(kindLabel("decision")).toBe("Decisions");

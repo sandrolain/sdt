@@ -131,6 +131,25 @@ describe("Tree", () => {
     expect(titles()[0]).toContain("Alpha");
   });
 
+  it("labels the sort, state and grouping controls", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("Alpha");
+
+    const labels = Array.from(document.querySelectorAll(".ui-field__label")).map(
+      (el) => el.textContent,
+    );
+    expect(labels).toContain("Sort");
+    expect(labels).toContain("States");
+    expect(labels).toContain("Group");
+    // the accessible names are unchanged: a visible label is added, not swapped
+    expect(screen.getByRole("button", { name: /Sort entries by/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Visible states" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Grouping/ })).toBeTruthy();
+  });
+
   it("groups prompt-kind entries under the prompts section", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
@@ -802,7 +821,8 @@ describe("Tree", () => {
     await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
     const objectiveFolders = Array.from(document.querySelectorAll(".tree-folder--objective"));
     expect(objectiveFolders).toHaveLength(1);
-    expect(objectiveFolders[0].querySelector(".tree-folder__label")?.textContent).toBe("viewer");
+    // the folder shows a readable label; the grouping key stays the raw slug
+    expect(objectiveFolders[0].querySelector(".tree-folder__label")?.textContent).toBe("Viewer");
     expect(objectiveFolders[0].querySelector(".tree-folder__count")?.textContent).toBe("2");
     expect(objectiveFolders[0].textContent).toContain("Alpha");
     expect(objectiveFolders[0].textContent).toContain("Beta");
@@ -882,9 +902,9 @@ describe("Tree", () => {
     setGroupMode("full");
     await waitFor(() => expect(document.querySelector(".tree-folder--objective")).toBeTruthy());
     const viewer = Array.from(document.querySelectorAll(".tree-folder--objective")).find(
-      (folder) => folder.querySelector(".tree-folder__label")?.textContent === "viewer",
+      (folder) => folder.querySelector(".tree-folder__label")?.textContent === "Viewer",
     ) as HTMLElement;
-    expect(viewer.querySelector(".tree-folder__label")?.textContent).toBe("viewer");
+    expect(viewer.querySelector(".tree-folder__label")?.textContent).toBe("Viewer");
     expect(viewer.querySelector(".tree-folder__dot--warn")?.getAttribute("aria-label")).toBe(
       "1/2 analyses completed",
     );
@@ -894,7 +914,7 @@ describe("Tree", () => {
       ),
     ).toBeTruthy();
     const retired = Array.from(document.querySelectorAll(".tree-folder--objective")).find(
-      (folder) => folder.querySelector(".tree-folder__label")?.textContent === "retired",
+      (folder) => folder.querySelector(".tree-folder__label")?.textContent === "Retired",
     );
     expect(retired?.querySelector(".tree-folder__dot")).toBeNull();
     expect(screen.getByLabelText("Question unresolved")).toBeTruthy();
@@ -913,7 +933,7 @@ describe("Tree", () => {
       );
       expect(
         Array.from(document.querySelectorAll(".tree-folder--objective")).some(
-          (folder) => folder.querySelector(".tree-folder__label")?.textContent === "retired",
+          (folder) => folder.querySelector(".tree-folder__label")?.textContent === "Retired",
         ),
       ).toBe(false);
     });
@@ -954,7 +974,7 @@ describe("Tree", () => {
         (f) => f.querySelector(".tree-folder__label")?.textContent,
       );
     // default created_desc: the group with the latest created comes first
-    expect(objectiveNames()).toEqual(["zeta", "alpha"]);
+    expect(objectiveNames()).toEqual(["Zeta", "Alpha"]);
 
     // header dates mirror the latest created, shown regardless of the sort
     const dateSpans = Array.from(document.querySelectorAll(".tree-folder__date"));
@@ -973,7 +993,7 @@ describe("Tree", () => {
     ]);
 
     act(() => setTreeSortKey("name_asc"));
-    await waitFor(() => expect(objectiveNames()).toEqual(["alpha", "zeta"]));
+    await waitFor(() => expect(objectiveNames()).toEqual(["Alpha", "Zeta"]));
     // header dates remain under a name sort
     expect(document.querySelectorAll(".tree-folder__date")).toHaveLength(2);
   });
@@ -1035,14 +1055,14 @@ describe("Tree", () => {
       );
     const planObjective = Array.from(
       folder("Plans")?.querySelectorAll(".tree-folder--objective") ?? [],
-    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "viewer");
+    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "Viewer");
     expect(planObjective?.textContent).toContain("Plan");
     // the objective-less plan stays at the plan-folder root
     expect(planObjective?.textContent).not.toContain("Other plan");
 
     const taskObjective = Array.from(
       folder("Tasks")?.querySelectorAll(".tree-folder--objective") ?? [],
-    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "viewer");
+    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "Viewer");
     const planSubGroup = taskObjective?.querySelector(".tree-folder--plan");
     expect(planSubGroup?.textContent).toContain("Task one");
     expect(planSubGroup?.textContent).toContain("Task two");
@@ -1108,7 +1128,7 @@ describe("Tree", () => {
         (f) => f.querySelector(".tree-folder__label")?.textContent === "Tasks",
       );
       const objective = Array.from(tasks?.querySelectorAll(".tree-folder--objective") ?? []).find(
-        (f) => f.querySelector(".tree-folder__label")?.textContent === "viewer",
+        (f) => f.querySelector(".tree-folder__label")?.textContent === "Viewer",
       );
       return objective?.querySelector(".tree-folder__count")?.textContent;
     };
@@ -1197,7 +1217,7 @@ describe("Tree", () => {
 
     const objective = Array.from(
       notesFolder()?.querySelectorAll(".tree-folder--objective") ?? [],
-    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "viewer");
+    ).find((f) => f.querySelector(".tree-folder__label")?.textContent === "Viewer");
     expect(objective?.querySelector(".tree-folder__count")?.textContent).toBe("1");
     expect(objective?.textContent).toContain("Dead end");
     // the objective-less note stays at the notes-folder root
@@ -1211,7 +1231,35 @@ describe("Tree", () => {
     expect(notesFolder()?.textContent).toContain("Dead end");
     expect(notesFolder()?.textContent).toContain("Plain note");
   });
-  it("renders a status bar with visible/total and per-kind counts that follow the filter", async () => {
+  it("shows one category icon per row", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              {
+                path: "context/analysis/a.md",
+                kind: "analysis",
+                title: "A",
+                status: "active",
+                categories: ["bug", "refactor"],
+              },
+              { path: "context/analysis/b.md", kind: "analysis", title: "B", status: "active" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("A");
+    const icons = Array.from(document.querySelectorAll(".tree-entry__category"));
+    // one per row: the first category only, and none for a row without one
+    expect(icons).toHaveLength(1);
+    expect(icons[0].textContent).toBe("bug_report");
+    expect(icons[0].getAttribute("title")).toBe("bug");
+  });
+
+  it("renders a status bar with visible, total and open counts that follow the filter", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
@@ -1228,19 +1276,47 @@ describe("Tree", () => {
     renderTree();
     await screen.findByText("A");
     const bar = () => document.querySelector(".tree-status") as HTMLElement;
-    const kindCount = (label: string) =>
-      bar().querySelector(`.tree-status__kind[title="${label}"] .tree-status__num`)?.textContent;
     expect(bar().textContent).toContain("3 shown");
     expect(bar().textContent).toContain("3 total");
-    expect(kindCount("Analyses")).toBe("2");
-    expect(kindCount("Notes")).toBe("1");
+    // the active analysis is the only open-family document; no-state and
+    // completed are not
+    expect(bar().textContent).toContain("1 open");
 
     // the counts describe the visible set: hiding completed drops one analysis
     act(() => setHiddenStates(["completed"]));
     await waitFor(() => expect(bar().textContent).toContain("2 shown"));
     expect(bar().textContent).toContain("3 total");
-    expect(kindCount("Analyses")).toBe("1");
-    expect(kindCount("Notes")).toBe("1");
+    expect(bar().textContent).toContain("1 open");
+  });
+
+  it("reads the open count from the effective state, not the declared status", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            entries: [
+              // declared active, but every task is done: the effective state
+              // concludes, so the plan is not open
+              { path: "context/plan/p.md", kind: "plan", title: "P", status: "active" },
+              {
+                path: "context/tasks/t.md",
+                kind: "tasks",
+                title: "T",
+                status: "completed",
+                plan: "context/plan/p.md",
+              },
+              // declared active with no plan: stays open
+              { path: "context/plan/q.md", kind: "plan", title: "Q", status: "active" },
+            ],
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    await screen.findByText("P");
+    const bar = document.querySelector(".tree-status") as HTMLElement;
+    expect(bar.textContent).toContain("3 shown");
+    expect(bar.textContent).toContain("1 open");
   });
 
   it("renders an empty corpus status bar without kind counts", async () => {
@@ -1252,6 +1328,7 @@ describe("Tree", () => {
     const bar = document.querySelector(".tree-status") as HTMLElement;
     expect(bar.textContent).toContain("0 shown");
     expect(bar.textContent).toContain("0 total");
+    expect(bar.textContent).toContain("0 open");
     expect(bar.querySelector(".tree-status__kinds")).toBeNull();
   });
 

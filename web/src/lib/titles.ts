@@ -64,3 +64,25 @@ export function displayTitle({ title, markdown, path }: TitleSource): string {
   if (path) return formatFilename(path);
   return "";
 }
+
+/** Acronyms restored verbatim by `objectiveLabel` instead of being title-cased. */
+const OBJECTIVE_ACRONYMS = new Set(["sdt", "cli", "ui", "api", "json", "yaml", "git"]);
+
+/**
+ * Display label for an `objective` slug: hyphens become spaces, words are
+ * lowercased and only the first is capitalised, with a small acronym
+ * allow-list restored (`sdt`, `cli`, `ui`, …). The slug stays the grouping key
+ * and the group id — this is a display transform only.
+ */
+export function objectiveLabel(slug: string): string {
+  const words = slug
+    .split("-")
+    .filter(Boolean)
+    .map((word) =>
+      OBJECTIVE_ACRONYMS.has(word.toLowerCase()) ? word.toUpperCase() : word.toLowerCase(),
+    );
+  if (words.length === 0) return slug;
+  const first = words[0];
+  words[0] = first === first.toUpperCase() ? first : first.charAt(0).toUpperCase() + first.slice(1);
+  return words.join(" ");
+}

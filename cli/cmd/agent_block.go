@@ -165,6 +165,22 @@ func agentRenderGenerated(name, templateBody string) string {
 	return sectionBlock(name, body)
 }
 
+// adoptGeneratedFrontmatter prepends the template's frontmatter to a generated
+// file that carries none, so a file created before the template gained
+// frontmatter adopts it on a --force refresh. An existing frontmatter block is
+// never rewritten: a user edit to the generated header survives.
+
+func adoptGeneratedFrontmatter(content, templateBody string) string {
+	if strings.HasPrefix(content, "---\n") {
+		return content
+	}
+	fm, _ := contextwiki.SplitFrontmatter(templateBody)
+	if fm = strings.TrimRight(fm, "\n"); fm == "" {
+		return content
+	}
+	return fm + "\n\n" + content
+}
+
 // agentWriteGeneratedFile creates or refreshes a single generated file whose
 // body comes from a template. Without --force an existing file is skipped
 // (write-once semantics). With --force a file that already carries the marker
@@ -189,6 +205,7 @@ func agentWriteGeneratedFile(path, name, templateBody string, force bool) FileRe
 	if exists && force && hasSection(content, name) {
 		_, secBody := contextwiki.SplitFrontmatter(templateBody)
 		content = agentReplaceSection(content, name, strings.TrimSpace(secBody))
+		content = adoptGeneratedFrontmatter(content, templateBody)
 	} else {
 		content = agentRenderGenerated(name, templateBody)
 	}

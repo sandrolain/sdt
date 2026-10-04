@@ -1,3 +1,9 @@
+---
+kind: instructions
+title: "Project"
+summary: "Project conventions for the bootstrapped project: stack, build, test and lint."
+---
+
 # Project
 
 - Project: p

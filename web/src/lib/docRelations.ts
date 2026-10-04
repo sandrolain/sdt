@@ -26,21 +26,3 @@ export function relationFor(path: string, index: CorpusIndex | null): Relation |
     title: displayTitle({ title: parentEntry?.title, path: parent }),
   };
 }
-
-/** The other documents in the same folder, title-sorted. */
-export function siblingsOf(
-  path: string,
-  index: CorpusIndex | null,
-): { path: string; title: string }[] {
-  if (!index) return [];
-  const folder = path.slice(0, path.lastIndexOf("/") + 1);
-  const out: { path: string; title: string }[] = [];
-  for (const [entryPath, info] of index) {
-    if (entryPath === path || !entryPath.startsWith(folder)) continue;
-    out.push({
-      path: entryPath,
-      title: displayTitle({ title: info.entry.title, path: entryPath }),
-    });
-  }
-  return out.sort((a, b) => a.title.localeCompare(b.title));
-}

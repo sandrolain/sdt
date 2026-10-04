@@ -3,12 +3,12 @@ package corpus
 import "testing"
 
 func TestExcludedDirName(t *testing.T) {
-	for _, name := range []string{"tmp", "scripts", "refs", "instructions", "sdtdocs"} {
+	for _, name := range []string{"tmp", "scripts", "refs", "sdtdocs"} {
 		if !ExcludedDirName(name) {
 			t.Errorf("ExcludedDirName(%q) = false, want true", name)
 		}
 	}
-	for _, name := range []string{"wiki", "plan", "notes", "commands", "commandsx", "Tmp"} {
+	for _, name := range []string{"wiki", "plan", "notes", "commands", "instructions", "commandsx", "Tmp"} {
 		if ExcludedDirName(name) {
 			t.Errorf("ExcludedDirName(%q) = true, want false", name)
 		}
@@ -23,7 +23,7 @@ func TestExcludedPath(t *testing.T) {
 		{"context/tmp/x.md", true},
 		{"context/scripts/a.go", true},
 		{"context/refs/repo/readme.md", true},
-		{"context/instructions/plan.md", true},
+		{"context/instructions/plan.md", false},
 		{"context/sdtdocs/sdt_context_docs.md", true},
 		{"context/README.md", true},
 		{"context/./README.md", true},

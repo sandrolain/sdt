@@ -56,8 +56,8 @@ func TestSearchSemanticDisabledFallsBackToLexical(t *testing.T) {
 	}
 	with := searchGET(t, h, "tokens&semantic=1")
 	without := searchGET(t, h, "tokens")
-	if with.Total != without.Total || with.Total != 4 {
-		t.Errorf("disabled branch: semantic=1 total=%d, default total=%d, want 4", with.Total, without.Total)
+	if with.Total != without.Total || with.Total != 5 {
+		t.Errorf("disabled branch: semantic=1 total=%d, default total=%d, want 5", with.Total, without.Total)
 	}
 	if _, err := os.Stat(semantic.SnapshotPath(root)); !os.IsNotExist(err) {
 		t.Error("disabled branch must not create a vector snapshot")
@@ -151,8 +151,8 @@ func TestSearchSemanticUnavailableModelFallsBack(t *testing.T) {
 	}
 	h := s.mux()
 	out := searchGET(t, h, "tokens&semantic=1")
-	if out.Total != 4 {
-		t.Errorf("unavailable model must degrade to lexical, total=%d want 4", out.Total)
+	if out.Total != 5 {
+		t.Errorf("unavailable model must degrade to lexical, total=%d want 5", out.Total)
 	}
 	if _, err := os.Stat(semantic.SnapshotPath(root)); !os.IsNotExist(err) {
 		t.Error("failed semantic build must not write a snapshot")

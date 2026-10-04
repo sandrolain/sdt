@@ -105,7 +105,6 @@ func TestScanSkipsExcludedDirs(t *testing.T) {
 	root := t.TempDir()
 	writeDoc(t, root, "context/analysis/keep.md", "---\nkind: analysis\n---\nbody\n")
 	writeDoc(t, root, "context/refs/big/ignore.md", "---\nkind: analysis\n---\nbody\n")
-	writeDoc(t, root, "context/instructions/ignore.md", "---\nkind: analysis\n---\nbody\n")
 	writeDoc(t, root, "context/tmp/ignore.md", "---\nkind: analysis\n---\nbody\n")
 
 	res, err := Scan(root, nil)
@@ -117,6 +116,26 @@ func TestScanSkipsExcludedDirs(t *testing.T) {
 	}
 	if _, ok := res.Manifest.Entries["context/analysis/keep.md"]; !ok {
 		t.Error("kept doc missing")
+	}
+}
+
+// TestScanIncludesInstructions guards that context/instructions is corpus
+// content: the shared exclusion set (mirrored in the web bundle) no longer
+// skips it, so the index and the tree carry the per-type contract modules.
+func TestScanIncludesInstructions(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "context/instructions/plan.md", "---\nkind: instructions\n---\nbody\n")
+
+	res, err := Scan(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := res.Manifest.Entries["context/instructions/plan.md"]
+	if !ok {
+		t.Fatalf("instruction doc not scanned: %v", res.Manifest.Entries)
+	}
+	if e.Kind != "instructions" {
+		t.Errorf("instruction kind = %q, want instructions", e.Kind)
 	}
 }
 

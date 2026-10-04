@@ -13,6 +13,7 @@ export function TreeSortControls() {
     <div className="tree-sort-controls">
       <Select
         ariaLabel="Sort entries by"
+        label="Sort"
         className="ui-select--compact"
         options={TREE_SORTS.map((s) => ({ id: s.id, label: s.label }))}
         selectedKey={key}

@@ -19,14 +19,16 @@ interface UiSelectProps extends Omit<
 > {
   options: UiOption[];
   ariaLabel: string;
+  /** visible label above the control; the aria label stays the accessible name */
+  label?: string;
   className?: string;
   /** icon + value only, for toolbars */
   compact?: boolean;
 }
 
 /** Untitled-UI-style single select (React Aria) styled with Catppuccin tokens. */
-export function Select({ options, ariaLabel, className, compact, ...props }: UiSelectProps) {
-  return (
+export function Select({ options, ariaLabel, label, className, compact, ...props }: UiSelectProps) {
+  const control = (
     <AriaSelect
       {...props}
       aria-label={ariaLabel}
@@ -50,5 +52,12 @@ export function Select({ options, ariaLabel, className, compact, ...props }: UiS
         </ListBox>
       </Popover>
     </AriaSelect>
+  );
+  if (!label) return control;
+  return (
+    <div className="ui-field">
+      <span className="ui-field__label">{label}</span>
+      {control}
+    </div>
   );
 }

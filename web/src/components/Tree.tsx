@@ -15,11 +15,13 @@ import { formatFieldDate } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel } from "../lib/kinds";
+import { categoryColor, categoryIcon } from "../lib/categories";
 import {
   entryState,
   groupDot,
   normalizeRef,
   plansByAnalysis,
+  stateMeta,
   taskObjective,
   taskProgress,
   taskProgressLabel,
@@ -28,7 +30,7 @@ import {
   type StatusDot,
 } from "../lib/statusDot";
 import { useRecentDocuments } from "../lib/readingState";
-import { displayTitle, filenameDate } from "../lib/titles";
+import { displayTitle, filenameDate, objectiveLabel } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
 import {
   folderCount,
@@ -199,11 +201,13 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
         entries: sortEntries(group.entries, sortKey),
       }))
     : [];
-  // per-kind breakdown of the visible set, for the status bar; kinds with no
-  // visible document are dropped
-  const visibleKindCounts = groups
-    .filter((group) => group.entries.length > 0)
-    .map((group) => ({ kind: group.kind, count: group.entries.length }));
+  // the status row's third count: visible documents whose effective state is in
+  // the `open` lifecycle family (the same family the toolbar groups by)
+  const openCount = visibleEntries
+    ? visibleEntries.filter(
+        (entry) => stateMeta[entryState(entry, plannedAnalyses, taskIndex).key].family === "open",
+      ).length
+    : 0;
   return (
     <aside className="panel panel--tree" aria-label="Corpus tree">
       <TreeToolbar onResetLayout={onResetLayout} onCollapseAll={() => setOpenGroups(new Set())} />
@@ -307,7 +311,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
         <TreeStatusBar
           shown={visibleEntries?.length ?? 0}
           total={entries.length}
-          kinds={visibleKindCounts}
+          open={openCount}
         />
       )}
     </aside>
@@ -539,7 +543,7 @@ function ObjectiveFolder({
         <Icon name="flag" className="tree-folder__icon" />
         <span className="tree-folder__text">
           <span className="tree-folder__title-row">
-            <span className="tree-folder__label">{objective}</span>
+            <span className="tree-folder__label">{objectiveLabel(objective)}</span>
             <GroupProgressDot dot={dot} />
             <span className="tree-folder__count">{entries.length}</span>
           </span>
@@ -831,6 +835,14 @@ function TreeEntryRow({
             <Icon name={kindIcon(kind)} title={kindName} />
           )}
         </span>
+        {entry.categories?.[0] && (
+          <Icon
+            name={categoryIcon(entry.categories[0])}
+            className="tree-entry__category"
+            style={{ color: categoryColor(entry.categories[0]) }}
+            title={entry.categories[0]}
+          />
+        )}
         <span className="tree-entry__text">
           <span className="tree-entry__title">{entryTitle(entry)}</span>
           {entryDate(entry) && <span className="tree-entry__date">{entryDate(entry)}</span>}

@@ -29,8 +29,8 @@ func TestSearchHandlerRanked(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Total != 4 {
-		t.Errorf("total = %d, want 4", out.Total)
+	if out.Total != 5 {
+		t.Errorf("total = %d, want 5", out.Total)
 	}
 	has := map[string]bool{}
 	for _, r := range out.Results {
@@ -39,7 +39,7 @@ func TestSearchHandlerRanked(t *testing.T) {
 			t.Errorf("empty snippet for %s", r.Path)
 		}
 	}
-	for _, p := range []string{"context/wiki/model.md", "context/wiki/api.md", "context/notes/note.md", "context/commands/cmd.md"} {
+	for _, p := range []string{"context/wiki/model.md", "context/wiki/api.md", "context/notes/note.md", "context/commands/cmd.md", "context/instructions/ins.md"} {
 		if !has[p] {
 			t.Errorf("missing %s in %v", p, has)
 		}
@@ -194,8 +194,8 @@ func TestSearchPersistentStoreWiring(t *testing.T) {
 		t.Fatalf("goldentoken search: total=%d err=%v", res.Total, err)
 	}
 	res, err = s.index().Search("tokens", "", "", "", "", "", "", 20)
-	if err != nil || res.Total != 3 {
-		t.Errorf("tokens after model change = %d, want 3 (api+note+cmd)", res.Total)
+	if err != nil || res.Total != 4 {
+		t.Errorf("tokens after model change = %d, want 4 (api+note+cmd+instructions)", res.Total)
 	}
 
 	// A fresh server on the same root reuses the stored index.
