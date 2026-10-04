@@ -1,0 +1,24 @@
+# context/memo.yaml — the planned-operation register: recurring `rules` (a
+# cadence) and one-off `memos` (a due date), together with the last-run state.
+#
+# This file is CLI-owned: mutate it only through `sdt context memo`
+# (add / done / remove). A rule is due when `last_done + every_days <= today`,
+# and a rule with no `last_done` is due immediately; a memo is due when
+# `today >= due` and it is not done. Dates are UTC calendar dates (YYYY-MM-DD).
+# The due check is advisory: it is surfaced, never enforced.
+#
+# rules:
+#   - id: deps-update
+#     summary: "Update dependencies (patch/minor only)"
+#     every_days: 14
+#     last_done: 2026-09-20
+#     action: "the project dependency-update command"
+#     source: ""
+#     enabled: true
+# memos:
+#   - id: rotate-deploy-token
+#     summary: "Rotate the deploy token"
+#     due: 2026-10-15
+#     action: ""
+#     source: ""
+#     done: false

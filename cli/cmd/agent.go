@@ -557,6 +557,7 @@ func ensureWorkDirs(force bool) []FileResult {
 		{sdtScriptsIndex, scriptsIndexTemplate},
 		{ctxTopicsFilePath, topicsRegisterTemplate},
 		{ctxCategoriesFilePath, categoriesRegisterTemplate},
+		{ctxMemoFilePath, memoRegisterTemplate},
 	}
 	for _, f := range files {
 		res := FileResult{Path: f.path}

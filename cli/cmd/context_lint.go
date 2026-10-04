@@ -1292,6 +1292,9 @@ Examples:
 			catReg = &ctxCategoryRegister{Categories: map[string][]string{}, Aliases: map[string]string{}}
 		}
 		ctxCategoryReg = catReg
+		if memoErr := validateMemoRegister(); memoErr != nil {
+			issues = append(issues, ctxLintIssue{Path: ctxMemoFilePath, Priority: ctxLintWarning, Message: memoErr.Error()})
+		}
 		if len(args) > 0 {
 			for _, ref := range args {
 				path, err := resolveContextLintPath(ref)
