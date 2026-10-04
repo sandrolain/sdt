@@ -2175,6 +2175,9 @@ func TestAgentTasksTemplateCoherence(t *testing.T) {
 		"ask the user whether to commit",
 		"instructions/git.md",
 		"## Phase 1",
+		"indented continuation lines; the id is written on the checklist line",
+		"**unique per document**",
+		"`sdt context checklist backfill` renumbers duplicates",
 	} {
 		if !strings.Contains(instrTasksTemplate, want) {
 			t.Errorf("expected %q in tasks template:\n%s", want, instrTasksTemplate)

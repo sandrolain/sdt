@@ -90,7 +90,10 @@ Examples:
 			reason = getStringFlag(cmd, "reason", false)
 		}
 		updated, err := updateChecklistItem(content, args[1], status, reason)
-		exitWithError(cmd, err)
+		if err != nil {
+			exitWithError(cmd, err)
+			return
+		}
 		if doc.Type.hasUpdated {
 			if patched, changed := setFrontmatterFields(updated, []frontmatterPatch{{key: statusUpdated, value: contextNow().UTC().Format(time.RFC3339)}}); changed {
 				updated = patched

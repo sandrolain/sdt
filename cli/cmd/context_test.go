@@ -823,6 +823,61 @@ func TestContextTaskLifecycle(t *testing.T) {
 	}
 }
 
+// ambiguousTaskFile writes a whole-plan task file whose two phases reuse the
+// same anchors, and returns its path.
+func ambiguousTaskFile(t *testing.T, dir string) string {
+	t.Helper()
+	p := filepath.Join(dir, "context", "tasks", "20260101-000000-custom.md")
+	writeTestFile(t, p, `---
+kind: tasks
+uid: 01a0e43d-a000-7000-a000-000000000003
+summary: "duplicate anchors"
+status: pending
+created: 2026-01-01T00:00:00Z
+updated: 2026-01-01T00:00:00Z
+project: p
+---
+
+## Phase 1
+
+- [ ] a1 <!-- c1 -->
+
+## Phase 2
+
+- [ ] b1 <!-- c1 -->
+`)
+	return p
+}
+
+// TestTaskListAnnotatesAmbiguousIDs: a repeated anchor id is surfaced in the
+// list output instead of looking like a unique id.
+func TestTaskListAnnotatesAmbiguousIDs(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	ambiguousTaskFile(t, dir)
+
+	out := string(execute(t, contextTaskListCmd, nil, "--plan", "custom"))
+	if !strings.Contains(out, "c1 (ambiguous)") {
+		t.Errorf("list should annotate the ambiguous id:\n%s", out)
+	}
+}
+
+// TestTaskDoneRefusesAmbiguousIDAcrossPhases is the regression for the reported
+// symptom: `task done <id> --phase <n>` must not mutate another phase's item.
+func TestTaskDoneRefusesAmbiguousIDAcrossPhases(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	p := ambiguousTaskFile(t, dir)
+	before := mustReadFile(t, p)
+
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextTaskDoneCmd, nil, "c1", "--phase", "2", "--plan", "custom"))
+	})
+	if after := mustReadFile(t, p); after != before {
+		t.Errorf("an ambiguous `done` must not write:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
 func TestTaskFileFor(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 	cases := []struct{ phase, plan, want string }{

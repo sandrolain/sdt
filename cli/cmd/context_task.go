@@ -141,10 +141,18 @@ func outputTaskItems(cmd *cobra.Command, items []taskItem) {
 			taskStatusDone:    "x",
 			taskStatusBlocked: "!",
 		}
+		counts := map[string]int{}
+		for _, it := range items {
+			if it.ID != "" {
+				counts[it.ID]++
+			}
+		}
 		for _, it := range items {
 			label := it.ID
 			if label == "" {
 				label = strconv.Itoa(it.Line)
+			} else if counts[it.ID] > 1 {
+				label += " (ambiguous)"
 			}
 			outputString(cmd, fmt.Sprintf("%s. [%s] %s\n", label, marker[it.Status], it.Text))
 		}
@@ -649,7 +657,10 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			content, err := readTaskFile(phase, stream, plan)
 			exitWithError(cmd, err)
 			updated, err := updateChecklistItem(content, args[0], status, reason)
-			exitWithError(cmd, err)
+			if err != nil {
+				exitWithError(cmd, err)
+				return
+			}
 			updated = setTaskFileStatus(updated, taskFileNextStatus(status, updated))
 			path := taskFileForRef(phase, stream, plan)
 			//#nosec G306 -- user work file

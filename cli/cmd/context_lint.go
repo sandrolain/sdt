@@ -120,6 +120,7 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"missing frontmatter `status` for kind", "add `status: <vocab value>`; see the per-type vocabularies in the status matrix (context/architecture/stack.md)"},
 	{"does not parse as RFC3339 UTC", "format `created`/`updated` as RFC3339 UTC (e.g. `2026-09-25T05:00:00Z`; see `sdt time iso`)"},
 	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
+	{"duplicate checklist id(s)", "run `sdt context checklist backfill` to renumber duplicate anchors so each id addresses one item"},
 	{"completed task file has no `## Review`", "record the verify-step verdicts with `sdt context task review --phase <n>` (CONFIRMED | DISPROVED | UNVERIFIED per finding)"},
 	{"task declares completed but its checklist", "tick the remaining items with `sdt context check`/`task done`, or reopen the file with `sdt context task wip`; `sdt context sync` will not regress a completed file"},
 	{"task checklist is complete but the file status", "run `sdt context sync` (or `sdt context task done` on the last item) to derive `completed`"},
@@ -408,6 +409,9 @@ func lintDoc(path string) []ctxLintIssue {
 	if kind == ctxTypeTasks {
 		issues = append(issues, lintTaskFileRules(path, content)...)
 	}
+	// An id must address exactly one item (decision 0014): a repeated
+	// `<!-- c<N> -->` in one document is a WARNING.
+	issues = append(issues, lintChecklistAnchors(path, content, kind)...)
 	isMap := contextwiki.IsMapDoc(path)
 	issues = append(issues, lintMarkdownBody(path, frontmatterBody(data), isMap, contextwiki.IsSlideDoc(path))...)
 	if isMap {
@@ -1078,6 +1082,54 @@ func lintPlanTaskAgreement(planFiles, taskFiles []string, edges *ctxrel.Edges) [
 		}
 	}
 	return issues
+}
+
+// ctxChecklistKinds are the kinds whose bodies carry addressable checklist
+// items and therefore must keep their ids unique per document.
+var ctxChecklistKinds = map[string]bool{
+	ctxTypeTasks:     true,
+	ctxTypePlan:      true,
+	ctxTypeAnalysis:  true,
+	ctxTypeQuestions: true,
+}
+
+// lintChecklistAnchors flags a repeated `<!-- c<N> -->` id in one document: an
+// id must address exactly one item (decision 0014). Advisory WARNING, never a
+// failure; the repair is `sdt context checklist backfill`.
+func lintChecklistAnchors(path, content, kind string) []ctxLintIssue {
+	if !ctxChecklistKinds[kind] {
+		return nil
+	}
+	counts := map[string]int{}
+	for _, it := range parseChecklistItems(content) {
+		if it.ID != "" {
+			counts[it.ID]++
+		}
+	}
+	var ids []string
+	for id, n := range counts {
+		if n > 1 {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		a, _ := parseChecklistID(ids[i])
+		b, _ := parseChecklistID(ids[j])
+		return a < b
+	})
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		parts = append(parts, fmt.Sprintf("%s ×%d", id, counts[id]))
+	}
+	return []ctxLintIssue{{
+		Path:     path,
+		Priority: ctxLintWarning,
+		Message:  "duplicate checklist id(s): " + strings.Join(parts, ", ") + " (each id must address one item)",
+		Hint:     "run `sdt context checklist backfill` to renumber duplicate anchors so each id addresses one item",
+	}}
 }
 
 // lintTaskFileRules covers the per-file task advisories: an oversized

@@ -86,8 +86,9 @@ func stampChecklistFiles(dryRun bool) (ctxChecklistBackfillResult, error) {
 		}
 		content := string(data)
 		res.Scanned++
-		stamped, changed := stampChecklistIDs(content)
-		if !changed {
+		stamped, sChanged := stampChecklistIDs(content)
+		repaired, rChanged := repairChecklistIDs(stamped)
+		if !sChanged && !rChanged {
 			res.Skipped++
 			continue
 		}
@@ -96,7 +97,7 @@ func stampChecklistFiles(dryRun bool) (ctxChecklistBackfillResult, error) {
 		if dryRun {
 			continue
 		}
-		if werr := writeWorkFile(path, stamped); werr != nil {
+		if werr := writeWorkFile(path, repaired); werr != nil {
 			return res, werr
 		}
 	}
@@ -147,8 +148,10 @@ var contextChecklistBackfillCmd = &cobra.Command{
 	Short: "Stamp a missing id anchor on every context/ checklist item",
 	Long: `Stamp a missing ` + "`<!-- c<N> -->`" + ` anchor on every checklist item of every
 context/ document (task files, plan Phases/Completion criteria, questions and
-any other checklist). Existing anchors are never rewritten, so the command is
-idempotent. A real run writes the marker
+any other checklist), normalize an item's anchor onto its checklist line, and
+renumber a repeated ` + "`c<N>`" + ` so every id addresses exactly one item.
+Existing distinct anchors are preserved, so the command is idempotent. A real run
+writes the marker
 ` + "`.sdt/cache/checklist-backfill.json`" + ` so lint starts treating a missing
 anchor as a WARNING; --dry-run only reports.
 

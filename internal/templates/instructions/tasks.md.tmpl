@@ -113,8 +113,12 @@ sections handle that.
 
 Each item gets a trailing `<!-- c<N> -->` id when the CLI writes it; the anchor
 is invisible when rendered and lets `sdt context check`/`task <verb>` address the
-item without depending on its position. Do not add, edit or reorder anchors by
-hand.
+item without depending on its position. An item is a checklist line plus its
+indented continuation lines; the id is written on the checklist line and is
+**unique per document** (ids are not per phase), so do not add, edit, reorder or
+reuse an anchor by hand — `--phase` selects the file, it does not scope an id
+search. A repeated id in one document is a `sdt context lint` WARNING, and
+`sdt context checklist backfill` renumbers duplicates.
 
 ## Frontmatter properties
 
