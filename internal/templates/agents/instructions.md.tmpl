@@ -142,6 +142,7 @@ silently (see `context/instructions/memo.md`).
 | `context/instructions/slides-marp.md` | Writing the Marp markdown dialect |
 | `context/instructions/capture.md` | Recognizing a reusable correction or friction at closeout or session end |
 | `context/instructions/memo.md` | Planned operations: the `context/memo.yaml` register, its due check and how to act on a due item |
+| `context/instructions/todo.md` | Capturing a short idea for the centralized TODO inbox, or listing/closing an item |
 | `context/commands/` | Invoking an agent command: `>trigger` or `>trigger: payload` (e.g. `>ingestion: context/refs/example-repo`) → `context/commands/<trigger>.md` → its durable contract (usually `context/instructions/<trigger>.md`; the `sdt research` family resolves to `context/instructions/research.md`). Each trigger is a **document** command (produces/edits a document of a fixed type) or a **workflow** command (`>plan`, `>execute`, `>decision`) that advances the lifecycle of a declared subject and resolves it via the working-context ladder — **ask when it is not unique, never guess**. The payload is verbatim after the first `:`; precedence is payload > working-context resolution > ask; a payload never relaxes a gate (approve before write) |
 | `context/roles/` | Working as one of the SDT roles (read the shared rules + your role profile; `sdt agent roles` manages them) |
 | `context/sdtdocs/README.md` | Needing per-command docs (`sdt context docs`, when present) |

@@ -239,6 +239,9 @@ var agentCommandStubs = []commandStub{
 	docTrigger("memo", "memo", "the planned operation to add, record or review",
 		">memo: add a rule to update dependencies every 14 days",
 		">memo: record the vulnerability scan as done"),
+	docTrigger("todo", "todo", "one or more short ideas to add to the inbox",
+		">todo: integrate chatbot",
+		">todo: rethink the lint pipeline"),
 	docTrigger(ctxTypeResearch, ctxTypeResearch, "the question the run answers",
 		">research: does ctxquery keep list and search in lockstep", ">research: what the host passes to an agent command"),
 	docTrigger("deepsearch", ctxTypeResearch, "the question the deepsearch answers",
@@ -561,6 +564,7 @@ func ensureWorkDirs(force bool) []FileResult {
 		{ctxTopicsFilePath, topicsRegisterTemplate},
 		{ctxCategoriesFilePath, categoriesRegisterTemplate},
 		{ctxMemoFilePath, memoRegisterTemplate},
+		{ctxTodoFilePath, todoRegisterTemplate},
 	}
 	for _, f := range files {
 		res := FileResult{Path: f.path}

@@ -31,6 +31,7 @@ var excludedDirs = map[string]struct{}{
 // excludedFiles are project-root-relative files never served or indexed.
 var excludedFiles = map[string]struct{}{
 	ContextDir + "/README.md": {},
+	ContextDir + "/todo.md":   {},
 }
 
 // ExcludedDirName reports whether a directory name is excluded from the corpus.

@@ -1,0 +1,44 @@
+---
+kind: instructions
+title: "TODO inbox — short annotate-only ideas"
+summary: "The idea inbox: context/todo.yaml, its annotate-only rule and how to add, list and close an item."
+---
+
+`context/instructions/todo.md` is the contract for the centralized idea inbox.
+Read it when `context/todo.yaml` is relevant: a `>todo` capture, or a request to
+list or close an item.
+
+## The inbox
+
+`context/todo.yaml` is the idea inbox: very short objectives or ideas for future
+analyses. It is **CLI-owned** — read it, and change it only through
+`sdt context todo`, never by hand. One short idea per item.
+
+The human-readable projection is `context/todo.md`, regenerated on every
+mutation; the register stays the source of truth.
+
+## Annotate only
+
+`>todo` (and `sdt context todo add`) **only records** the idea. It never starts
+an analysis, a plan, a task or any operation:
+
+- **Never begin work from `>todo`.** Capture the line and stop.
+- A capture is not a commitment: draining the inbox is a later, separate
+  `>draft`/`>analysis`.
+- Keep each item short — an objective or an idea, not a plan.
+
+## The verbs
+
+- `sdt context todo add "<text>" [--id <slug>] [--source <ref>]` — add one idea.
+- `sdt context todo list` — show the items.
+- `sdt context todo done <id>` — mark an item done (kept in the list).
+- `sdt context todo remove <id>` — drop an item.
+
+`>todo: <text>` is the agent trigger; a bullet list adds one item per line.
+
+## Boundaries
+
+- The inbox holds the *idea* only: the work type belongs to the analysis
+  `categories`, the subject to `topics`, and the *how* to an instruction — none
+  duplicates another.
+- An item is register data, not a document kind or a lifecycle stage.

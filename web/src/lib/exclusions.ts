@@ -13,9 +13,10 @@ export function normalizeCorpusPath(rel: string): string {
   return parts.join("/");
 }
 
-/** True when a corpus-relative path is excluded (excluded dir segment or corpus README). */
+/** True when a corpus-relative path is excluded (excluded dir segment or a generated corpus file). */
 export function isExcludedPath(rel: string): boolean {
   const clean = normalizeCorpusPath(rel);
   if (clean === "context/README.md") return true;
+  if (clean === "context/todo.md") return true;
   return clean.split("/").some((seg) => EXCLUDED_DIRS.has(seg));
 }

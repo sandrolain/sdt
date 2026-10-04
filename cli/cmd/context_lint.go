@@ -1295,6 +1295,9 @@ Examples:
 		if memoErr := validateMemoRegister(); memoErr != nil {
 			issues = append(issues, ctxLintIssue{Path: ctxMemoFilePath, Priority: ctxLintWarning, Message: memoErr.Error()})
 		}
+		if todoErr := validateTodoRegister(); todoErr != nil {
+			issues = append(issues, ctxLintIssue{Path: ctxTodoFilePath, Priority: ctxLintWarning, Message: todoErr.Error()})
+		}
 		if len(args) > 0 {
 			for _, ref := range args {
 				path, err := resolveContextLintPath(ref)
