@@ -74,6 +74,22 @@ describe("paletteReducer", () => {
     expect(state.query).toBe("tokens");
   });
 
+  it("carries the server's partial flag and clears it with the results", () => {
+    const loaded = paletteReducer(initialPaletteState, {
+      type: "loaded",
+      results: [result({})],
+      total: 1,
+      partial: true,
+    });
+    expect(loaded.partial).toBe(true);
+    expect(paletteReducer(loaded, { type: "cleared" }).partial).toBe(false);
+    expect(paletteReducer(loaded, { type: "failed", error: "boom" }).partial).toBe(false);
+    // a plain response (no flag) is not partial
+    expect(
+      paletteReducer(initialPaletteState, { type: "loaded", results: [], total: 0 }).partial,
+    ).toBe(false);
+  });
+
   it("keeps the filters while clearing results, so an unfinished query does not drop them", () => {
     const state = paletteReducer(
       {

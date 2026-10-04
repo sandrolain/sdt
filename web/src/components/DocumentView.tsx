@@ -15,6 +15,7 @@ import {
   type DocumentMode,
 } from "../lib/documentModes";
 import { Icon } from "../lib/icon";
+import { normalizeHeadingText } from "../lib/headings";
 import { renderMath } from "../lib/katexRender";
 import {
   highlightCode,
@@ -32,7 +33,7 @@ import {
   requestSection,
   useSectionRequest,
 } from "../lib/sectionRequests";
-import { useFindInDoc } from "../lib/findInDocStore";
+import { resetFindQuery, useFindInDoc } from "../lib/findInDocStore";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
 import { useActiveHeading } from "../lib/useActiveHeading";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
@@ -90,9 +91,9 @@ function docsTargetFromHref(href: string): string | null {
 function resolveHeadingText(root: HTMLElement | null, anchor: string): string | null {
   if (!root) return null;
   const byId = root.querySelector<HTMLElement>(`[id="${CSS.escape(anchor)}"]`);
-  if (byId) return (byId.dataset.heading ?? byId.textContent ?? "").trim() || null;
+  if (byId) return normalizeHeadingText(byId.dataset.heading ?? byId.textContent ?? "") || null;
   for (const heading of root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")) {
-    const text = (heading.dataset.heading ?? heading.textContent ?? "").trim();
+    const text = normalizeHeadingText(heading.dataset.heading ?? heading.textContent ?? "");
     if (text && slugify(text) === anchor) return text;
   }
   return null;
@@ -203,6 +204,12 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   const [articleEl, setArticleEl] = useState<HTMLElement | null>(null);
   const { open: findOpen } = useFindInDoc();
 
+  // switching the open document empties the find query while the match options
+  // and the open bar survive; a mode switch within one document keeps it.
+  useEffect(() => {
+    resetFindQuery();
+  }, [path]);
+
   // publish the heading in view so the Sections sidebar can highlight it
   useActiveHeading(renderedRef, path, mode === "render");
 
@@ -278,7 +285,9 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     const root = renderedRef.current;
     const target = root
       ? Array.from(root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")).find(
-          (h) => (h.dataset.heading ?? h.textContent ?? "").trim() === sectionRequest.text,
+          (h) =>
+            normalizeHeadingText(h.dataset.heading ?? h.textContent ?? "") ===
+            normalizeHeadingText(sectionRequest.text),
         )
       : undefined;
     target?.scrollIntoView({ behavior: "smooth", block: "start" });

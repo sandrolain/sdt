@@ -7,6 +7,7 @@ import { DocumentView } from "./DocumentView";
 import { getSectionRequest, requestSection, resetSectionRequest } from "../lib/sectionRequests";
 import { activeSectionKey, resetActiveSection } from "../lib/activeSection";
 import { clearReadingState, flushReading, recordReading } from "../lib/readingState";
+import { closeFind, openFind, resetFindOptions, setFindQuery } from "../lib/findInDocStore";
 
 vi.mock("./MindmapView", () => ({
   MindmapView: ({ title }: { title?: string }) => (
@@ -56,10 +57,16 @@ beforeEach(() => {
   resetActiveSection();
   resetSectionRequest();
   clearReadingState();
+  closeFind();
+  setFindQuery("");
+  resetFindOptions();
 });
 
 afterEach(() => {
   cleanup();
+  closeFind();
+  setFindQuery("");
+  resetFindOptions();
   Reflect.deleteProperty(navigator, "clipboard");
 });
 
@@ -195,6 +202,37 @@ describe("DocumentView", () => {
     expect(pre.classList.contains("is-wrapped")).toBe(true);
   });
 
+  it("clears the find query when the open document changes", async () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <DocumentView path="context/notes/a.md" markdown={"# A\n\n## One\n\ntokens\n"} />
+      </MemoryRouter>,
+    );
+    act(() => openFind());
+    const input = (await screen.findByRole("textbox", {
+      name: "Find in document",
+    })) as HTMLInputElement;
+    await userEvent.type(input, "tokens");
+    await userEvent.click(screen.getByRole("button", { name: "Match case" }));
+    expect(input.value).toBe("tokens");
+    expect(screen.getByRole("button", { name: "Match case" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+
+    rerender(
+      <MemoryRouter>
+        <DocumentView path="context/notes/b.md" markdown={"# B\n\n## Two\n\nother\n"} />
+      </MemoryRouter>,
+    );
+    const switched = (await screen.findByRole("textbox", {
+      name: "Find in document",
+    })) as HTMLInputElement;
+    await waitFor(() => expect(switched.value).toBe(""));
+    expect(screen.getByRole("button", { name: "Match case" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+  });
+
   it("copies a deep link from a heading anchor", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", {
@@ -227,6 +265,19 @@ describe("DocumentView", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Render", pressed: true })).toBeTruthy();
     });
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    expect(getSectionRequest()).toBeNull();
+  });
+
+  it("scrolls to a heading whose normalised text matches, inline code included", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    renderView({
+      path: "context/notes/code.md",
+      markdown: "# Top\n\n## Option A: fold into `development.md`\n\ntext\n",
+    });
+
+    act(() => requestSection("context/notes/code.md", "Option A: fold into development.md"));
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
     expect(getSectionRequest()).toBeNull();
   });

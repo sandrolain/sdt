@@ -1,5 +1,6 @@
 import { useEffect, type RefObject } from "react";
 import { clearActiveSection, setActiveSection } from "./activeSection";
+import { normalizeHeadingText } from "./headings";
 
 /** Fraction of the scroll viewport below which a heading becomes the active one. */
 const THRESHOLD = 0.1;
@@ -36,7 +37,10 @@ export function useActiveHeading(
           dist = actDist;
         }
       }
-      setActiveSection(path, (current.dataset.heading ?? current.textContent ?? "").trim() || null);
+      setActiveSection(
+        path,
+        normalizeHeadingText(current.dataset.heading ?? current.textContent ?? "") || null,
+      );
     };
 
     compute();

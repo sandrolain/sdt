@@ -150,6 +150,8 @@ export interface BacklinksResponse {
 export interface SearchResponse {
   results: SearchResult[];
   total: number;
+  /** true when the server answered with substring matches (no lexical hit) */
+  partial?: boolean;
 }
 
 export interface SearchQuery {

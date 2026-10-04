@@ -203,6 +203,41 @@ describe("DocMetaPanel", () => {
     expect(active.className).toContain("is-active");
   });
 
+  it("highlights a heading with inline code under its normalised text", async () => {
+    mockFetch();
+    const doc = {
+      path: "context/notes/code.md",
+      frontmatter: "---\nkind: notes\ntitle: X\n---\n",
+      markdown: "# Top\n\n## Option A: fold into `development.md`\n\ntext\n",
+    };
+    renderPanel(doc);
+    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
+    // the TOC shows the normalised text, matching the rendered heading
+    const label = "Option A: fold into development.md";
+    const button = screen.getByRole("button", { name: label });
+    expect(button.getAttribute("aria-current")).toBeNull();
+    act(() => setActiveSection(doc.path, label));
+    expect(screen.getByRole("button", { name: label }).getAttribute("aria-current")).toBe("true");
+  });
+
+  it("requests the normalised heading text for a jump", async () => {
+    mockFetch();
+    const doc = {
+      path: "context/notes/code.md",
+      frontmatter: "---\nkind: notes\ntitle: X\n---\n",
+      markdown: "# Top\n\n## Option A: fold into `development.md`\n\ntext\n",
+    };
+    renderPanel(doc);
+    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Option A: fold into development.md" }),
+    );
+    expect(getSectionRequest()).toMatchObject({
+      path: doc.path,
+      text: "Option A: fold into development.md",
+    });
+  });
+
   it("shows canvas node/edge counts instead of frontmatter", () => {
     mockFetch();
     renderPanel({ path: "context/board.canvas", canvas: { nodes: [{}, {}], edges: [{}] } });

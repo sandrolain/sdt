@@ -78,6 +78,10 @@ type Result struct {
 type Results struct {
 	Results []Result `json:"results"`
 	Total   int64    `json:"total"`
+	// Partial is true when no lexical hit existed and the query was answered by
+	// the case-insensitive substring fallback, so the client can label the set
+	// rather than present it as an exact match.
+	Partial bool `json:"partial,omitempty"`
 }
 
 // doc is the indexing representation of a markdown corpus file. The bleve doc
@@ -658,7 +662,63 @@ func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
 	if total > math.MaxInt64 {
 		total = math.MaxInt64
 	}
+	if len(out) == 0 {
+		// No lexical hit survived the filter: fall back to a substring scan so a
+		// query that is only a fragment of a token still resolves, flagged so the
+		// palette never presents it as an exact match.
+		return ix.substringFallback(q, text, filter), nil
+	}
 	return Results{Results: out, Total: int64(total)}, nil
+}
+
+// substringFallback answers a query the lexical index matched nothing for with
+// a case-insensitive substring scan over the in-memory registry. Fields are
+// ranked by a fixed priority (Name > Title > Summary > Body) with a path
+// tiebreak, the shared filter still applies, and the set is capped at q.Max;
+// Total is the full match count so the palette can report it honestly.
+func (ix *Index) substringFallback(q HybridQuery, text string, filter *ctxquery.Filter) Results {
+	lower := strings.ToLower(text)
+	type match struct {
+		d     doc
+		field int
+	}
+	matches := make([]match, 0, len(ix.registry))
+	for _, d := range ix.registry {
+		if filter != nil && !filter.Match(d.facets()) {
+			continue
+		}
+		if field, ok := substringField(d, lower); ok {
+			matches = append(matches, match{d: d, field: field})
+		}
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		if matches[i].field != matches[j].field {
+			return matches[i].field > matches[j].field
+		}
+		return matches[i].d.Path < matches[j].d.Path
+	})
+	out := make([]Result, 0, min(q.Max, len(matches)))
+	for _, m := range matches[:min(q.Max, len(matches))] {
+		out = append(out, ix.resultForDoc(m.d, 0, text))
+	}
+	return Results{Results: out, Total: int64(len(matches)), Partial: true}
+}
+
+// substringField reports the highest-priority field of d containing lower and
+// its rank (3 Name, 2 Title, 1 Summary, 0 Body), or false when none matches.
+func substringField(d doc, lower string) (int, bool) {
+	switch {
+	case strings.Contains(strings.ToLower(d.Name), lower):
+		return 3, true
+	case strings.Contains(strings.ToLower(d.Title), lower):
+		return 2, true
+	case strings.Contains(strings.ToLower(d.Summary), lower):
+		return 1, true
+	case strings.Contains(strings.ToLower(d.Body), lower):
+		return 0, true
+	default:
+		return 0, false
+	}
 }
 
 // Browse lists documents without a query — the "browse the corpus" mode of
@@ -885,7 +945,7 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 	if len(fused) > q.Max && q.Max > 0 {
 		fused = fused[:q.Max]
 	}
-	return Results{Results: fused, Total: lexical.Total}, nil
+	return Results{Results: fused, Total: lexical.Total, Partial: lexical.Partial}, nil
 }
 
 // HybridQuery is the filter/size set shared by lexical and hybrid search. The

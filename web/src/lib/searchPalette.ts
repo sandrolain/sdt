@@ -46,6 +46,8 @@ export interface PaletteState {
   /** number of results requested so far (SEARCH_LIMIT * pages) */
   limit: number;
   total: number;
+  /** true when the server answered with substring matches, not lexical hits */
+  partial: boolean;
   error: string | null;
 }
 
@@ -56,6 +58,7 @@ export const initialPaletteState: PaletteState = {
   results: [],
   limit: SEARCH_LIMIT,
   total: 0,
+  partial: false,
   error: null,
 };
 
@@ -71,7 +74,7 @@ export type PaletteAction =
   | { type: "resetFilters" }
   | { type: "more" }
   | { type: "load" }
-  | { type: "loaded"; results: SearchResult[]; total: number }
+  | { type: "loaded"; results: SearchResult[]; total: number; partial?: boolean }
   | { type: "failed"; error: string }
   | { type: "cleared" };
 
@@ -107,15 +110,31 @@ export function paletteReducer(state: PaletteState, action: PaletteAction): Pale
         status: "ready",
         results: action.results,
         total: action.total,
+        partial: action.partial ?? false,
         error: null,
       };
     case "failed":
-      return { ...state, status: "error", results: [], total: 0, error: action.error };
+      return {
+        ...state,
+        status: "error",
+        results: [],
+        total: 0,
+        partial: false,
+        error: action.error,
+      };
     case "cleared":
       // results only: the query stays (the input owns it) and so do the filters,
       // which the user may still be typing against. `resetFilters` drops them on
       // close, so a reopened palette never filters silently.
-      return { ...state, status: "idle", results: [], total: 0, error: null, limit: SEARCH_LIMIT };
+      return {
+        ...state,
+        status: "idle",
+        results: [],
+        total: 0,
+        partial: false,
+        error: null,
+        limit: SEARCH_LIMIT,
+      };
   }
 }
 

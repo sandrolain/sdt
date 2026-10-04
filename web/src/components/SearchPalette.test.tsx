@@ -283,6 +283,19 @@ describe("SearchPalette", () => {
     expect(await screen.findByText("No results.")).toBeTruthy();
   });
 
+  it("labels a partial result set as substring matches", async () => {
+    globalThis.fetch = mockSearch({
+      results: [
+        { path: "context/notes/n.md", kind: "notes", title: "Note", score: 0, snippet: "x" },
+      ],
+      total: 1,
+      partial: true,
+    }) as unknown as typeof fetch;
+    renderPalette();
+    await userEvent.type(screen.getByLabelText("Search query"), "ken");
+    expect(await screen.findByText("No exact match — showing partial matches")).toBeTruthy();
+  });
+
   it("shows an error state when the search fails", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ error: "boom" }) }),

@@ -33,6 +33,7 @@ import {
   type EntryFilterKind,
 } from "../lib/kinds";
 import { parseOutline, type OutlineItem } from "../lib/outline";
+import { normalizeHeadingText } from "../lib/headings";
 import { requestSection } from "../lib/sectionRequests";
 import { entryState, plansByAnalysis, statusDot, tasksByPlan } from "../lib/statusDot";
 import { useReloadToken } from "../lib/useReloadToken";
@@ -530,7 +531,8 @@ function headingToc(items: OutlineItem[]): HeadingRef[] {
   const out: HeadingRef[] = [];
   const walk = (nodes: OutlineItem[]) => {
     for (const node of nodes) {
-      if (node.kind === "heading") out.push({ level: node.depth, text: node.text });
+      if (node.kind === "heading")
+        out.push({ level: node.depth, text: normalizeHeadingText(node.text) });
       walk(node.children);
     }
   };

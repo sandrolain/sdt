@@ -32,6 +32,15 @@ export function setFindQuery(query: string): void {
   emit();
 }
 
+/**
+ * Clear the query on a document switch; the match options and the open state
+ * survive, so the bar keeps its configuration and stays visible.
+ */
+export function resetFindQuery(): void {
+  current = { ...current, query: "" };
+  emit();
+}
+
 /** Flip one match option; the query and the current match index are kept. */
 export function toggleFindOption(option: keyof FindOptions): void {
   current = { ...current, options: { ...current.options, [option]: !current.options[option] } };

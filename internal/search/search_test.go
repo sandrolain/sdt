@@ -1,6 +1,7 @@
 package search
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -585,6 +586,70 @@ func TestSearchLimitAndMax(t *testing.T) {
 	res, _ = ix.Search("tokens", "", "", "", "", "", "", 999)
 	if len(res.Results) > 20 {
 		t.Errorf("cap at 20 returned %d", len(res.Results))
+	}
+}
+
+func TestSearchSubstringFallback(t *testing.T) {
+	root := corpus(t)
+	ix, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+
+	// a token query keeps the lexical path and is never flagged partial
+	res, err := ix.SearchQuery(HybridQuery{Q: "tokens", Max: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Partial {
+		t.Error("lexical hit must not be flagged partial")
+	}
+	if res.Total != 3 {
+		t.Errorf("lexical total = %d, want 3", res.Total)
+	}
+
+	// a substring of a token matches no term, so the fallback answers it
+	sub, err := ix.SearchQuery(HybridQuery{Q: "oken", Max: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sub.Partial {
+		t.Error("substring fallback must be flagged partial")
+	}
+	if sub.Total != 3 || len(sub.Results) != 3 {
+		t.Fatalf("substring results = %+v, want the three token docs", sub)
+	}
+	// Name > Title > Summary > Body: alpha matches in its summary, so it leads
+	if sub.Results[0].Path != "context/wiki/alpha.md" {
+		t.Errorf("field priority: rank1 = %s, want alpha", sub.Results[0].Path)
+	}
+
+	// the shared filter still applies on the fallback pass
+	kw, _ := ix.SearchQuery(HybridQuery{Q: "oken", Kind: "wiki", Max: 10})
+	if !kw.Partial || kw.Total != 2 || len(kw.Results) != 2 {
+		t.Errorf("kind=wiki substring = %+v, want 2 partial wiki docs", kw)
+	}
+
+	// the cap holds while Total stays the full match count
+	capped, _ := ix.SearchQuery(HybridQuery{Q: "oken", Max: 1})
+	if !capped.Partial || len(capped.Results) != 1 || capped.Total != 3 {
+		t.Errorf("cap: %+v, want 1 result of total 3", capped)
+	}
+
+	// an empty query stays on the browse/no-op path
+	empty, _ := ix.SearchQuery(HybridQuery{Q: "   ", Max: 10})
+	if empty.Partial || empty.Total != 0 || len(empty.Results) != 0 {
+		t.Errorf("empty query must be unaffected: %+v", empty)
+	}
+
+	// the hybrid entry point carries the flag through
+	hyb, err := ix.SearchHybrid(context.Background(), HybridQuery{Q: "oken", Max: 5}, HybridOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hyb.Partial {
+		t.Error("SearchHybrid must propagate Partial")
 	}
 }
 

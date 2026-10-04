@@ -98,7 +98,13 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
       limit: state.limit,
     })
       .then((res) => {
-        if (alive) dispatch({ type: "loaded", results: res.results ?? [], total: res.total });
+        if (alive)
+          dispatch({
+            type: "loaded",
+            results: res.results ?? [],
+            total: res.total,
+            partial: res.partial ?? false,
+          });
       })
       .catch((err: unknown) => {
         if (alive)
@@ -217,7 +223,11 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
         {state.results.length > 0 && (
           <CommandGroup
             className="search-palette__group"
-            heading={`${state.total} result${state.total === 1 ? "" : "s"}`}
+            heading={
+              state.partial
+                ? "No exact match — showing partial matches"
+                : `${state.total} result${state.total === 1 ? "" : "s"}`
+            }
           >
             {state.results.map((r) => (
               <CommandItem
