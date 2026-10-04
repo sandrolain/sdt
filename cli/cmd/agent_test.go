@@ -2246,6 +2246,9 @@ func TestAgentAnalysisTemplateCoherence(t *testing.T) {
 		"Leave **no open points**",
 		"**R1 — split a too-broad analysis into siblings",
 		"**R3 — every option records its fate.**",
+		"Before writing an analysis, **type it**",
+		"Ask **one** question only when the answer changes that outcome",
+		"`research` is information-only",
 	} {
 		if !strings.Contains(instrAnalysisTemplate, want) {
 			t.Errorf("expected %q in analysis template:\n%s", want, instrAnalysisTemplate)

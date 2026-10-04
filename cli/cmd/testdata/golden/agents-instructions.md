@@ -163,8 +163,11 @@ scripts in `context/scripts/` are listed in
 
 Follow this cycle for any non-trivial task:
 
-1. **Analysis** — perform it; integrate/modify existing analysis files. It
-   carries context, evidence and decisions only — the "how" belongs to the plan.
+1. **Analysis** — perform it; integrate/modify existing analysis files. **Type it
+   first**: record its `categories` (from the controlled register) and state the
+   expected outcome — information-only vs implementation — asking one question
+   only when it changes the outcome. It carries context, evidence and decisions
+   only — the "how" belongs to the plan.
    A too-broad analysis is split into siblings only after **asking the user**
    (R1), one analysis may feed several numbered wave plans (R2), and every
    option ends as accepted, rejected or preserved as a `postponed` analysis

@@ -31,6 +31,14 @@ A new objective outside an existing analysis/plan starts here: create the
 analysis and stop, then proceed plan → tasks → execution only with explicit
 approval — see AGENTS.md (HARD RULE 1).
 
+Before writing an analysis, **type it**: determine and record its `categories`
+(the work type, from the register below) and state the expected outcome —
+**information-only** (no plan expected) vs **implementation** (a plan is
+expected). Ask **one** question only when the answer changes that outcome; never
+ask by rote (see the non-pedantry rule in `scope.md`). `>draft` stays
+zero-question raw capture and `>scope` records the categories during its Specify
+phase.
+
 ## Structure
 
 ```markdown
@@ -186,7 +194,10 @@ session: <session id>        # optional
   distinct from `topics` (subject) and `objective` (initiative). Set it with
   `sdt context new --type analysis --category <slug>`; `sdt context lint` reports
   unknown categories (SUGGESTION, with the canonical form for aliases) and
-  `context list`/`search` filter on them.
+  `context list`/`search` filter on them. The **expected outcome** is a
+  convention read off the category: `research` is information-only (no plan
+  expected); the other categories expect implementation (a plan is expected).
+  State it at analysis start (see *When to start here*).
 - **Find prior art before writing.** `sdt context new --type analysis --prior-art`
   searches the corpus on the objective/title/topics and proposes candidates in a
   `## Prior art` section (add `--prior-art-links` to pre-fill `links`).
