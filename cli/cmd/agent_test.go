@@ -1547,6 +1547,8 @@ func TestAgentResearchTemplateCoherence(t *testing.T) {
 		"context/refs/<YYYYMMDD-HHMMSS>-<research-objective>/<result>.md",
 		"sdt research verify",
 		"sdt research populate-wiki",
+		"sdt research archive",
+		"The CLI never writes a `context/wiki/` page",
 		"Research = raw results, not a decision",
 	} {
 		if !strings.Contains(instrResearchTemplate, want) {

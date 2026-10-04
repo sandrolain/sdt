@@ -252,8 +252,8 @@ var agentCommandStubs = []commandStub{
 		">fetch: https://example.com/doc", ">fetch: every discovered source"),
 	docTrigger("verify", ctxTypeResearch, "the run to verify (default: the latest)",
 		">verify: the latest run", ">verify: 01a0f…"),
-	docTrigger("populate-wiki", ctxTypeResearch, "the brief explaining why the knowledge is useful",
-		">populate-wiki: embedded vector stores for sdt context search", ">populate-wiki: preview only, budget 3 pages"),
+	docTrigger("populate-wiki", ctxTypeResearch, "the brief explaining why the knowledge is useful (the agent then authors the pages)",
+		">populate-wiki: embedded vector stores for sdt context search", ">populate-wiki: archive the run, then author the pages"),
 }
 
 // commandFiles returns the generated command files under context/commands/:

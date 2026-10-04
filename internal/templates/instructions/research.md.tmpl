@@ -99,8 +99,8 @@ failure. A source is never promoted past a status the CLI could not check.
 ### Archive layout
 
 `fetch` writes only under the run's transient `context/tmp/research/<run-id>/raw/`.
-The approved promotion (`populate-wiki --apply --confirm`) archives each verified
-capture into a **dated, objective-scoped directory** of `context/refs/`:
+The approved archive (`sdt research archive --apply --confirm`) copies each
+verified capture into a **dated, objective-scoped directory** of `context/refs/`:
 
 ```
 context/refs/<YYYYMMDD-HHMMSS>-<research-objective>/<result>.md
@@ -116,8 +116,9 @@ context/refs/<YYYYMMDD-HHMMSS>-<research-objective>/<result>.md
 
 The archive refuses a pre-existing directory that is not this run's own (a
 foreign collision) without writing, records `archive_dir` in the manifest, and
-lets the promoted wiki page cite `refs/<dir>/<result>.md@<sha>`. The legacy flat
-`refs/<slug>-<hash8>.md` captures are left untouched.
+prints the citation pack (`refs/<dir>/<result>.md@<sha>`) the agent cites when
+authoring a wiki page. The legacy flat `refs/<slug>-<hash8>.md` captures are
+left untouched.
 
 ### Run commands
 
@@ -147,9 +148,15 @@ lets the promoted wiki page cite `refs/<dir>/<result>.md@<sha>`. The legacy flat
   [--max-lines N]` — assemble a **cited draft** from verified sources (no model,
   no network). Unverified sources are excluded unless requested, then flagged;
   the draft is written only under `context/tmp/` or to a `*.draft.md` file.
-- `sdt research populate-wiki --brief "<why>" [--max-pages N] [--apply
-  --confirm]` — propose and, only on approval, apply the promotion of verified
-  findings to the wiki. Preview is the default and writes nothing.
+- `sdt research archive [--run <id>] [--apply --confirm]` — archive a run's
+  verified captures into the run's dated, objective-scoped directory under
+  `context/refs/`. Preview is the default and writes nothing; `--apply` requires
+  `--confirm`. It prints the citation pack (`refs/<dir>/<result>.md@<sha8>`) and
+  never writes a wiki page.
+- `sdt research populate-wiki [--run <id>] [--brief "<why>"]` — print the
+  **read-only** wiki brief: the verified sources and the citation each authored
+  page must carry. The CLI never writes a `context/wiki/` page; populating the
+  wiki is agent editorial work (see *Wiki population is agent editorial work*).
 
 ### Policy
 
@@ -159,12 +166,16 @@ lets the promoted wiki page cite `refs/<dir>/<result>.md@<sha>`. The legacy flat
   the raw path; a claim cites its source.
 - **Checkpoints.** Each stage records its completion; an interrupted run resumes
   without repeating completed work.
-- **Promotion is separate and gated.** A verified run is evidence; a wiki page is
-  curated knowledge. `populate-wiki` previews, then applies only on `--confirm`,
-  archives each raw capture into the run's dated directory under
-  `context/refs/<YYYYMMDD-HHMMSS>-<research-objective>/` and cites it, then
-  reindexes and runs the wiki lint. A page is never created from an unverified
-  claim; conflicts become relations or open questions.
+- **Archiving is separate and gated.** A verified run is evidence; a wiki page is
+  curated knowledge. `sdt research archive` previews, then applies only on
+  `--confirm`, archiving each verified capture into the run's dated directory
+  under `context/refs/<YYYYMMDD-HHMMSS>-<research-objective>/` and printing the
+  citation pack. A capture SDT could not verify is never archived.
+- **Wiki population is agent editorial work.** The CLI never writes a
+  `context/wiki/` page: after archiving, the agent reads the captures, distils
+  concepts and writes the pages per `instructions/ingestion.md` (a real `##
+  Summary`, atomic cited `## Claims`, typed `relations`), presents the write plan
+  and writes only on approval. The `>populate-wiki` trigger drives this.
 - **Negatives are kept.** A failed fetch keeps its error and retry count and
   stays retryable; rejected sources stay recorded.
 

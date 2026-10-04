@@ -7,80 +7,51 @@ import (
 	"testing"
 )
 
-func TestPlanWikiOnlyVerified(t *testing.T) {
-	r, root := runWithMixedSources(t)
-	plan := r.PlanWiki(RunDir(root, r.RunID), "brief", nil, 0)
+func TestPlanArchiveOnlyVerified(t *testing.T) {
+	r, _ := runWithMixedSources(t)
+	plan := r.PlanArchive()
 
-	if len(plan.Pages) != 1 || plan.Pages[0].Action != "create" {
-		t.Fatalf("plan = %+v", plan.Pages)
+	if len(plan.Entries) != 1 || plan.Entries[0].CanonicalURL != "https://example.com/verified" {
+		t.Fatalf("archive plan = %+v", plan.Entries)
 	}
 	joined := strings.Join(plan.Refused, "\n")
 	if !strings.Contains(joined, "not verified") {
 		t.Errorf("an unverified/rejected source must be refused:\n%s", joined)
 	}
-}
-
-func TestPlanWikiDedupAgainstExistingIsUpdate(t *testing.T) {
-	r, root := runWithMixedSources(t)
-	// The verified source's slug already exists.
-	id := SourceSlug("https://example.com/verified")
-	plan := r.PlanWiki(RunDir(root, r.RunID), "brief", []string{id}, 0)
-
-	if len(plan.Pages) != 1 || plan.Pages[0].Action != "update" {
-		t.Fatalf("existing id must yield an update: %+v", plan.Pages)
+	if !strings.Contains(plan.Entries[0].Citation, "@") {
+		t.Errorf("an entry must carry a cited reference: %+v", plan.Entries[0])
+	}
+	if !plan.Establishable() {
+		t.Error("a plan with a verified entry must be establishable")
 	}
 }
 
-func TestPlanWikiBudget(t *testing.T) {
-	root := t.TempDir()
-	r := fixedRun()
-	rawDir := filepath.Join(RunDir(root, r.RunID), RawDirName)
-	for _, u := range []string{"https://example.com/a", "https://example.com/b", "https://example.com/c"} {
-		if err := r.RecordFetch(rawDir, Source{CanonicalURL: u, Title: strings.ToUpper(u)}, []byte("body")); err != nil {
-			t.Fatal(err)
-		}
-		r.Sources[len(r.Sources)-1].Status = StatusVerified
-	}
-	plan := r.PlanWiki(RunDir(root, r.RunID), "brief", nil, 2)
-	if len(plan.Pages) != 2 {
-		t.Fatalf("budget 2 must cap pages at 2: %d\n%+v", len(plan.Pages), plan.Pages)
-	}
-	if !strings.Contains(strings.Join(plan.Refused, "\n"), "page budget 2 reached") {
-		t.Errorf("refusal must name the budget: %v", plan.Refused)
-	}
-}
-
-func TestPlanWikiPageHasEvidenceCitation(t *testing.T) {
-	r, root := runWithMixedSources(t)
-	plan := r.PlanWiki(RunDir(root, r.RunID), "", nil, 0)
-	if len(plan.Pages) != 1 || len(plan.Pages[0].Evidence) != 1 {
-		t.Fatalf("plan = %+v", plan.Pages)
-	}
-	if !strings.Contains(plan.Pages[0].Evidence[0], "@") {
-		t.Errorf("evidence must be a cited reference: %v", plan.Pages[0].Evidence)
-	}
-}
-
-func TestPlanWikiRenderIsReadOnlyText(t *testing.T) {
-	r, root := runWithMixedSources(t)
-	out := r.PlanWiki(RunDir(root, r.RunID), "why", nil, 0).RenderPlan()
-	for _, want := range []string{"Wiki promotion plan", "brief: why", "refused"} {
+func TestPlanArchiveRenderIsReadOnlyText(t *testing.T) {
+	r, _ := runWithMixedSources(t)
+	out := r.PlanArchive().RenderPlan()
+	for _, want := range []string{"Archive plan", "refused"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("render missing %q:\n%s", want, out)
 		}
 	}
+	if applied := r.PlanArchive().RenderApplied(); !strings.Contains(applied, "archived 1 capture") {
+		t.Errorf("applied render missing the count:\n%s", applied)
+	}
 }
 
-func TestRenderPageCarriesEvidenceAndDraftStatus(t *testing.T) {
-	r, root := runWithMixedSources(t)
-	plan := r.PlanWiki(RunDir(root, r.RunID), "", nil, 0)
-	page := plan.Pages[0]
-	src := *r.Source("https://example.com/verified")
-	md := RenderPage(page, src, r.RunID, RefRelPath(r, src))
-
-	for _, want := range []string{"kind: wiki", "id: " + page.ID, "status: draft", "## Claims", "refs/"} {
-		if !strings.Contains(md, want) {
-			t.Errorf("page missing %q:\n%s", want, md)
+func TestPlanWikiBriefReadOnly(t *testing.T) {
+	r, _ := runWithMixedSources(t)
+	brief := r.PlanWikiBrief("why")
+	if brief.RunID != r.RunID || brief.Brief != "why" {
+		t.Fatalf("brief = %+v", brief)
+	}
+	if len(brief.Sources) != 1 || len(brief.Refused) != 2 {
+		t.Fatalf("brief must list the verified source and refuse the other two: %+v", brief)
+	}
+	out := brief.Render()
+	for _, want := range []string{"Wiki brief", "brief: why", "never writes a page"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("brief render missing %q:\n%s", want, out)
 		}
 	}
 }
@@ -228,12 +199,5 @@ func TestArchiveSourceRejectsPayloadless(t *testing.T) {
 	r.AddSource(Source{CanonicalURL: "https://example.com/x", Status: StatusVerified})
 	if _, err := r.ArchiveSource(t.TempDir(), r.Sources[0]); err == nil {
 		t.Error("archiving a source without a payload must fail")
-	}
-}
-
-func TestWikiPagePath(t *testing.T) {
-	got := WikiPagePath("/root", "backend/auth")
-	if want := filepath.Join("/root", "context", "wiki", "backend", "auth.md"); got != want {
-		t.Errorf("WikiPagePath = %q, want %q", got, want)
 	}
 }

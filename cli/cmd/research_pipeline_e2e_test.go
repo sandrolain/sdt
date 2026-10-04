@@ -87,25 +87,20 @@ func TestResearchPipelineEndToEnd(t *testing.T) {
 		t.Errorf("synthesize should cite both sources:\n%s", out)
 	}
 
-	// 6. populate-wiki preview → plan, no write.
-	planOut := string(execute(t, researchPopulateWikiCmd, nil, "--run", runID, "--brief", "why", "--max-pages", "3"))
-	if !strings.Contains(planOut, "pages: 2") {
-		t.Errorf("populate-wiki preview should plan 2 pages:\n%s", planOut)
+	// 6. populate-wiki brief → citation pack, read-only (no page written).
+	briefOut := string(execute(t, researchPopulateWikiCmd, nil, "--run", runID, "--brief", "why"))
+	if !strings.Contains(briefOut, "verified sources: 2") {
+		t.Errorf("populate-wiki brief should list 2 verified sources:\n%s", briefOut)
 	}
-	wikiDir := filepath.Join(root, "context", "wiki")
-	if entries, err := os.ReadDir(wikiDir); err == nil {
-		for _, e := range entries {
-			if strings.HasPrefix(e.Name(), "a-") || strings.HasPrefix(e.Name(), "b-") {
-				t.Errorf("preview must not write a page: %s", e.Name())
-			}
-		}
+	if _, err := os.Stat(filepath.Join(root, "context", "wiki")); err == nil {
+		t.Errorf("populate-wiki must not write a wiki page")
 	}
 
-	// 7. populate-wiki apply → dated archive directory, <result>.md files, and
-	// citations carrying the subpath.
+	// 7. research archive apply → dated archive directory, <result>.md files and
+	// the citation pack; no wiki page is written by any verb.
 	r, _ = research.Load(root, runID)
 	archiveDir := research.ArchiveRefDir(r)
-	execute(t, researchPopulateWikiCmd, nil, "--run", runID, "--brief", "why", "--apply", "--confirm")
+	execOut := string(execute(t, researchArchiveCmd, nil, "--run", runID, "--apply", "--confirm"))
 
 	r, _ = research.Load(root, runID)
 	if r.ArchiveDir != archiveDir {
@@ -125,9 +120,10 @@ func TestResearchPipelineEndToEnd(t *testing.T) {
 			t.Errorf("archived capture %s missing: %v", rel, err)
 		}
 	}
-	// At least one written wiki page cites the subpath.
-	pageData, _ := os.ReadFile(research.WikiPagePath(root, research.SourceSlug(r.Sources[0].CanonicalURL)))
-	if !strings.Contains(string(pageData), archiveDir+"/") {
-		t.Errorf("wiki page must cite the %s subpath:\n%s", archiveDir, pageData)
+	if !strings.Contains(execOut, archiveDir+"/") {
+		t.Errorf("archive output must cite the %s subpath:\n%s", archiveDir, execOut)
+	}
+	if _, err := os.Stat(filepath.Join(root, "context", "wiki")); err == nil {
+		t.Errorf("archive must not write a wiki page")
 	}
 }
