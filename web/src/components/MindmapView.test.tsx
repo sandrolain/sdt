@@ -77,6 +77,21 @@ describe("MindmapView", () => {
     expect(balanced.getAttribute("aria-pressed")).toBe("false");
   });
 
+  it("offers a 2D/3D toggle and a switch per depth layer", async () => {
+    globalThis.fetch = mockFetch() as unknown as typeof fetch;
+    renderInRouter(
+      <MindmapView
+        markdown={"# Root\n\n- child\n  - grandchild\n"}
+        basePath="context/wiki/topic.map.md"
+        title="Topic"
+      />,
+    );
+    await screen.findByText("Root");
+    expect(screen.getByRole("button", { name: /3D/ })).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "Depth 1" })).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "Depth 2" })).toBeTruthy();
+  });
+
   it("collapses and expands a branch from its node toggle", async () => {
     globalThis.fetch = mockFetch() as unknown as typeof fetch;
     renderInRouter(

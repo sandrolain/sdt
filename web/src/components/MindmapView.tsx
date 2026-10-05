@@ -19,6 +19,7 @@ import {
   toCanvasDocument,
   visibleNodes,
 } from "../lib/mapModel";
+import { canvasLayers } from "../lib/jsoncanvas/document";
 import { measureTree, METRICS, type MeasuredNode } from "../lib/mapMetrics";
 import { parseMapDocument, type MapNodeKind, type MindNode } from "../lib/mindmap";
 import { fetchDoc, isCanvas, isMermaid } from "../lib/api";
@@ -29,6 +30,7 @@ import type { WikiIndex } from "../lib/wikiLinks";
 import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
 import { MapNodeBody } from "./MindMapNode";
 import { MapOverlay } from "./MapOverlay";
+import { Switch } from "./ui/Switch";
 
 interface MindmapViewProps {
   markdown: string;
@@ -60,6 +62,8 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
   );
   const [refError, setRefError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const [hiddenLayers, setHiddenLayers] = useState<number[]>([]);
   const viewRef = useRef<JsonCanvasHandle | null>(null);
 
   useEffect(() => {
@@ -151,6 +155,7 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
     [tree, positions, collapsed, toggle, open, layout],
   );
   const document = useMemo(() => toCanvasDocument(graph), [graph]);
+  const layers = useMemo(() => canvasLayers(document), [document]);
   const rects = useMemo(() => nodeRects(graph.nodes), [graph]);
   const overlay = useMemo(() => {
     const titles = activeRoot.payload?.titles;
@@ -228,6 +233,37 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
             PNG
           </button>
         </div>
+        <div className="graph-tools__row" role="group" aria-label="Map view">
+          {(["2d", "3d"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`graph-tools__chip${viewMode === m ? " is-active" : ""}`}
+              aria-pressed={viewMode === m}
+              onClick={() => setViewMode(m)}
+            >
+              <Icon name={m === "2d" ? "grid_view" : "view_in_ar"} />
+              {m.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        {layers.length > 1 && (
+          <div className="mindmap__layers" role="group" aria-label="Map layers">
+            {layers.map((l) => (
+              <Switch
+                key={l.id}
+                isSelected={!hiddenLayers.includes(l.id)}
+                onChange={() =>
+                  setHiddenLayers((h) =>
+                    h.includes(l.id) ? h.filter((x) => x !== l.id) : [...h, l.id],
+                  )
+                }
+              >
+                {l.name}
+              </Switch>
+            ))}
+          </div>
+        )}
         {mode === "fused" && fusedStats && (
           <span className="mindmap__stats">
             {fusedStats.imported.length} imported
@@ -265,6 +301,8 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
         <JsonCanvas
           ref={viewRef}
           data={document}
+          mode={viewMode}
+          hiddenLayers={hiddenLayers}
           fitKey={layout}
           showMinimap={false}
           ariaLabel={`Mind map: ${title} (read-only)`}

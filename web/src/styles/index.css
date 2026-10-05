@@ -1830,6 +1830,12 @@
     font-size: 0.75rem;
     color: var(--fg-faint);
   }
+  .mindmap__layers {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
   .mindmap__viewport {
     position: relative;
     height: calc(100vh - 14rem);

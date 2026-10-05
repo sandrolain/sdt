@@ -193,6 +193,10 @@ export function nodeRects(nodes: MapNode[]): Map<string, NodeRect> {
 
 /** The map graph as a shared JSON Canvas document for the `JsonCanvas` view. */
 export function toCanvasDocument(graph: MapGraph): CanvasDocument {
+  // Depth becomes the 3D layer: `x-layer` per node, `x-layers` names each column
+  // (the reference's non-standard property the layered view reads).
+  const depths = [...new Set(graph.nodes.map((n) => n.data.depth))].sort((a, b) => a - b);
+  const layers = depths.map((d) => ({ id: d, name: `Depth ${d}` }));
   return {
     nodes: graph.nodes.map(
       (node) =>
@@ -205,10 +209,12 @@ export function toCanvasDocument(graph: MapGraph): CanvasDocument {
           height: node.height,
           text: node.data.content,
           label: node.data.text,
+          "x-layer": node.data.depth,
           "x-map": node.data,
         }) as CanvasNode,
     ),
     edges: graph.edges,
+    "x-layers": layers,
   };
 }
 

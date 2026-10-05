@@ -126,6 +126,17 @@ describe("toCanvasDocument", () => {
     expect(mapNodeData(doc.nodes[1])?.stickers).toEqual(["star"]);
     expect(doc.edges).toBe(edges);
   });
+
+  it("maps depth to x-layer and names the columns in x-layers", () => {
+    const { nodes, edges } = graph("# Root\n\n- child\n  - grandchild\n");
+    const doc = toCanvasDocument({ nodes, edges });
+    expect(doc.nodes.map((n) => n["x-layer"])).toEqual([0, 1, 2]);
+    expect(doc["x-layers"]).toEqual([
+      { id: 0, name: "Depth 0" },
+      { id: 1, name: "Depth 1" },
+      { id: 2, name: "Depth 2" },
+    ]);
+  });
 });
 
 /** A tree measured by hand, to check the model without the parser. */
