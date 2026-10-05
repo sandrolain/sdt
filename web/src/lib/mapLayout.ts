@@ -171,51 +171,78 @@ export function layoutBalanced(root: MeasuredNode): Map<string, MapPoint> {
 }
 
 /**
- * Concentric layout: every leaf owns an equal angular slot in document order,
- * a parent sits at the angular mean of its leaves, and depth becomes the radius.
+ * Concentric layout: every leaf owns an equal angular slot in document order, an
+ * internal node owns the arc spanning its leaves and sits at the arc centre, and
+ * depth becomes the radius.
  *
- * Non-overlap is by construction rather than by luck: two points are at least
- * as far apart as the difference of their radii, so consecutive rings are
- * separated by more than the largest possible box diagonal, and each ring is
- * pushed out until the chord between its closest slots clears a box width.
+ * Non-overlap is by construction: sibling subtrees have **disjoint** angular
+ * spans, and each ring radius is chosen so every node's box fits inside its own
+ * span — `r ≥ D / sin(halfSpan)` with `D` the box half-diagonal — so two boxes in
+ * disjoint spans cannot share an interior. Rings stay separated by at least
+ * `ringGap` and monotonic with depth.
  */
 export function layoutRadial(root: MeasuredNode): Map<string, MapPoint> {
   const positions = new Map<string, MapPoint>();
   positions.set(root.id, { x: 0, y: 0 });
   if (root.children.length === 0) return positions;
+
   const nodes = flattenMeasured(root);
   const leaves = leavesOf(root);
   const maxDepth = Math.max(...nodes.map((n) => n.depth));
   const widest = Math.max(...nodes.map((n) => Math.max(n.box.width, n.box.height)));
 
-  const ringGap = Math.ceil(Math.SQRT2 * widest) + METRICS.siblingGap;
-  const radii: number[] = [0];
-  for (let d = 1; d <= maxDepth; d++) radii[d] = radii[d - 1] + ringGap;
-
-  // The chord between neighbouring slots must clear a box width, so a crowded
-  // ring moves outward; the factor applies to every ring, keeping them apart.
-  // A ring counts every node on it: parents share their leaves' angles and are
-  // as crowded as the leaves are.
-  let scale = 1;
-  for (let d = 1; d <= maxDepth; d++) {
-    const perRing = Math.max(nodes.filter((n) => n.depth === d).length, 2);
-    const needed = (widest + METRICS.siblingGap) / (2 * Math.sin(Math.PI / perRing));
-    scale = Math.max(scale, needed / radii[d]);
-  }
+  // The leaf-index range of each subtree, assigned in document order.
+  const range = new Map<string, [number, number]>();
+  let leafIndex = 0;
+  const walk = (node: MeasuredNode): [number, number] => {
+    if (node.children.length === 0) {
+      const i = leafIndex++;
+      range.set(node.id, [i, i]);
+      return [i, i];
+    }
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const child of node.children) {
+      const [a, b] = walk(child);
+      lo = Math.min(lo, a);
+      hi = Math.max(hi, b);
+    }
+    range.set(node.id, [lo, hi]);
+    return [lo, hi];
+  };
+  for (const child of root.children) walk(child);
 
   const step = (2 * Math.PI) / leaves.length;
-  const angles = new Map<string, number>();
-  // Start at the top and run clockwise, the way the balanced tree reads.
-  leaves.forEach((leaf, i) => angles.set(leaf.id, -Math.PI / 2 + i * step));
-  const place = (node: MeasuredNode): void => {
-    for (const child of node.children) place(child);
-    if (!angles.has(node.id)) {
-      const own = leavesOf(node).map((l) => angles.get(l.id) ?? 0);
-      angles.set(node.id, (own[0] + own[own.length - 1]) / 2);
+  const angleOf = (nodeId: string): number => {
+    const [lo, hi] = range.get(nodeId) ?? [0, 0];
+    return -Math.PI / 2 + ((lo + hi) / 2) * step;
+  };
+  const halfSpanOf = (nodeId: string): number => {
+    const [lo, hi] = range.get(nodeId) ?? [0, 0];
+    return ((hi - lo + 1) * step) / 2;
+  };
+
+  // Each ring is at least ringGap beyond the previous, and far enough that every
+  // box at that depth fits its angular span (half-diagonal over sin(half-span)).
+  const ringGap = Math.ceil(Math.SQRT2 * widest) + METRICS.siblingGap;
+  const radii: number[] = [0];
+  for (let d = 1; d <= maxDepth; d++) {
+    let needed = radii[d - 1] + ringGap;
+    for (const node of nodes) {
+      if (node.depth !== d) continue;
+      const half = halfSpanOf(node.id);
+      const halfDiagonal = Math.hypot(node.box.width, node.box.height) / 2;
+      const s = Math.sin(Math.min(half, Math.PI / 2));
+      needed = Math.max(needed, s > 0 ? halfDiagonal / s : halfDiagonal);
     }
-    const r = radii[node.depth] * scale;
-    const angle = angles.get(node.id) ?? 0;
+    radii[d] = needed;
+  }
+
+  const place = (node: MeasuredNode): void => {
+    const angle = angleOf(node.id);
+    const r = radii[node.depth] ?? 0;
     positions.set(node.id, { x: r * Math.cos(angle), y: r * Math.sin(angle) });
+    for (const child of node.children) place(child);
   };
   for (const child of root.children) place(child);
   return positions;

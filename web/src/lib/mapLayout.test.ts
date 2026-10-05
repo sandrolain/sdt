@@ -299,17 +299,41 @@ describe("corpus maps lay out without overlap", () => {
     "../../../context/notes/building-distributed-systems-go-nats.map.md",
   ];
 
-  it("has no overlapping boxes in the balanced layout on the shipped .map.md documents", () => {
-    // Defect 3 is a balanced-layout slot problem (subtreeHeight). The radial
-    // layout is untouched by this wave and still overlaps on the writing map
-    // (n0.1/n0.7, a tall depth-1 node) — a pre-existing, out-of-scope defect
-    // recorded in notes/20261005-…-radial-map-layout-overlaps.
+  it("has no overlapping boxes in either layout on the shipped .map.md documents", () => {
     for (const rel of MAPS) {
       const raw = readFileSync(new URL(rel, import.meta.url), "utf8");
       // The corpus carries YAML frontmatter; the parser takes the body.
       const md = raw.replace(/^---\n[\s\S]*?\n---\n/, "");
       const tree = measureTree(parseMapDocument(md));
-      expectNoOverlap(tree, layoutBalanced(tree));
+      for (const kind of ["balanced", "radial"] as const) {
+        expectNoOverlap(tree, layoutMap(tree, kind).positions);
+      }
     }
+  });
+});
+
+describe("layoutRadial — tall-label adversarial shapes", () => {
+  const tall = (n: number) => Array.from({ length: n }, (_, i) => `line ${i}`).join("<br>");
+
+  function cases(): MeasuredNode[] {
+    return [
+      // Two adjacent tall headings, each with its own leaves.
+      measureTree(
+        node("Root", [
+          node(tall(5), [node("a"), node("b")]),
+          node(tall(5), [node("c"), node("d")]),
+        ]),
+      ),
+      // Adjacent tall leaf headings next to a short one.
+      measureTree(node("Root", [node(tall(6)), node(tall(6)), node("short")])),
+      // A single-child chain (a near-full-turn span).
+      measureTree(node("Root", [node(tall(4), [node(tall(4), [node("leaf")])])])),
+      // A root with one leaf.
+      measureTree(node("Root", [node("only")])),
+    ];
+  }
+
+  it("has no overlapping boxes on any adversarial shape", () => {
+    for (const tree of cases()) expectNoOverlap(tree, layoutRadial(tree));
   });
 });
