@@ -631,8 +631,8 @@ const (
 	gitIgnoreModeContext = "context" // ignore the whole context/
 )
 
-// gitIgnoreTmpEntry keeps context/tmp out of version control. The pattern is
-// not root-anchored so it also applies when context lives in a subdirectory.
+// gitIgnoreTmpEntry, gitIgnoreDocsEntry and gitIgnoreContextEntry are rooted at
+// the project .gitignore so they cannot hide nested test fixtures.
 
 func init() {
 	agentInitCmd.Flags().String("project", "", "Project name")

@@ -39,9 +39,9 @@ trivi-results.json
 /node_modules
 
 # sdt:start
-context/tmp/
-context/sdtdocs/
-context/
+/context/tmp/
+/context/sdtdocs/
+/context/
 # sdt:end
 
 .env

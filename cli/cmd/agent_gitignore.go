@@ -85,17 +85,17 @@ func agentPromptGitIgnoreMode(cmd *cobra.Command, yes bool, def string) string {
 	return def
 }
 
-const gitIgnoreTmpEntry = "context/tmp/"
+const gitIgnoreTmpEntry = "/context/tmp/"
 
 // gitIgnoreDocsEntry keeps generated agent docs out of version control. The
 // reference is regenerated per binary version, so it is never committed.
 
-const gitIgnoreDocsEntry = "context/sdtdocs/"
+const gitIgnoreDocsEntry = "/context/sdtdocs/"
 
 // gitIgnoreContextEntry ignores the entire context/ working directory,
 // including plans, work logs, notes and instruction files.
 
-const gitIgnoreContextEntry = "context/"
+const gitIgnoreContextEntry = "/context/"
 
 // gitIgnoreWorkEntries lists the context/ entries ensured by default (work).
 

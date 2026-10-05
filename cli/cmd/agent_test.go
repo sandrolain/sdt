@@ -845,11 +845,9 @@ func TestEnsureGitIgnoreCreate(t *testing.T) {
 		t.Errorf("expected created, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if !strings.Contains(string(data), gitIgnoreTmpEntry) || !strings.Contains(string(data), gitIgnoreDocsEntry) {
-		t.Errorf("expected %q and %q in .gitignore:\n%s", gitIgnoreTmpEntry, gitIgnoreDocsEntry, data)
-	}
-	if !strings.HasPrefix(string(data), gitIgnoreBlockStart+"\n") || !strings.HasSuffix(string(data), gitIgnoreBlockEnd+"\n") {
-		t.Errorf("expected entries wrapped in # sdt:start / # sdt:end:\n%s", data)
+	want := "# sdt:start\n/context/tmp/\n/context/sdtdocs/\n# sdt:end\n"
+	if string(data) != want {
+		t.Errorf("expected root-anchored managed block %q, got:\n%s", want, data)
 	}
 }
 
@@ -918,7 +916,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 	if err := os.Mkdir(".git", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, ".gitignore", "context/tmp\ncontext/sdtdocs\n")
+	writeTestFile(t, ".gitignore", "/context/tmp\n/context/sdtdocs\n")
 	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
@@ -927,7 +925,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 		t.Errorf("expected skipped for entries without trailing slash, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if strings.Contains(string(data), "context/tmp/") || strings.Contains(string(data), "context/sdtdocs/") {
+	if strings.Contains(string(data), "/context/tmp/") || strings.Contains(string(data), "/context/sdtdocs/") {
 		t.Errorf("expected no duplicate entries in .gitignore:\n%s", data)
 	}
 }
@@ -1087,11 +1085,11 @@ func TestAgentInitGitIgnoreInvalid(t *testing.T) {
 func TestGitIgnoreEntriesForMode(t *testing.T) {
 	cases := map[string][]string{
 		gitIgnoreModeNone:    nil,
-		gitIgnoreModeTmp:     {gitIgnoreTmpEntry},
-		gitIgnoreModeDocs:    {gitIgnoreDocsEntry},
-		gitIgnoreModeWork:    {gitIgnoreTmpEntry, gitIgnoreDocsEntry},
-		gitIgnoreModeContext: {gitIgnoreContextEntry},
-		"":                   {gitIgnoreTmpEntry, gitIgnoreDocsEntry},
+		gitIgnoreModeTmp:     {"/context/tmp/"},
+		gitIgnoreModeDocs:    {"/context/sdtdocs/"},
+		gitIgnoreModeWork:    {"/context/tmp/", "/context/sdtdocs/"},
+		gitIgnoreModeContext: {"/context/"},
+		"":                   {"/context/tmp/", "/context/sdtdocs/"},
 	}
 	for mode, want := range cases {
 		got := gitIgnoreEntriesForMode(mode)
