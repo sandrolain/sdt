@@ -70,6 +70,8 @@ export interface JsonCanvasProps {
     theme: { accent: string };
   }) => ReactNode;
   placeholderScale?: number;
+  /** Accessible name of the canvas root. */
+  ariaLabel?: string;
   onOpenNode?: (node: CanvasNode) => void;
   onSelectNode?: (id: string | null) => void;
   onViewChange?: (zoom: number) => void;
@@ -120,6 +122,7 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
     renderNode,
     renderOverlay,
     placeholderScale = 0.9,
+    ariaLabel,
     onOpenNode,
     onSelectNode,
     onViewChange,
@@ -138,6 +141,7 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
   const [selected, setSelected] = useState<string[]>([]);
   const hostRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
+  const sizedOnce = useRef(false);
 
   // Re-derive concrete theme colours from the semantic tokens on mode change.
   useEffect(() => {
@@ -149,6 +153,9 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
     if (!el || !nodes.length) return;
     const w = el.clientWidth;
     const h = el.clientHeight;
+    // A panel that has not laid out yet has no size: keep the current view
+    // rather than fitting to 0 (the ResizeObserver re-fits once it is sized).
+    if (!w || !h) return;
     const x0 = Math.min(...nodes.map((n) => n.x));
     const x1 = Math.max(...nodes.map((n) => n.x + n.width));
     const y0 = Math.min(...nodes.map((n) => n.y - 32));
@@ -185,7 +192,17 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
     const el = hostRef.current;
     fit();
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      setSize({ w, h });
+      // First time the panel has a real size, fit to it (the mount fit may have
+      // run before layout and returned early).
+      if (!sizedOnce.current && w > 0 && h > 0) {
+        sizedOnce.current = true;
+        fit();
+      }
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [fit]);
@@ -369,7 +386,7 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
       }}
       tabIndex={0}
       role="application"
-      aria-label="JSON Canvas (read-only)"
+      aria-label={ariaLabel ?? "JSON Canvas (read-only)"}
       className={`jc ${className ?? ""}`}
       style={{
         ...cssVars,
@@ -411,15 +428,22 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
                 const g = edgeGeom(e, byId);
                 if (!g) return null;
                 const col = resolveColor(e.color, presets) || resolvedTheme.edge;
+                const dash = typeof e["x-dash"] === "string" ? e["x-dash"] : undefined;
                 return (
                   <g key={e.id} className="jc-edge">
-                    <path d={g.d} className="line" stroke={col} />
+                    <path d={g.d} className="line" stroke={col} strokeDasharray={dash} />
                     {(e.toEnd || "arrow") === "arrow" && (
                       <polygon points={arrow(g.q, g.db)} fill={col} />
                     )}
                     {e.fromEnd === "arrow" && <polygon points={arrow(g.p, g.da)} fill={col} />}
                     {e.label && (
-                      <text x={g.mid.x} y={g.mid.y} textAnchor="middle" dominantBaseline="middle">
+                      <text
+                        x={g.mid.x}
+                        y={g.mid.y}
+                        fill={col}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                      >
                         {e.label}
                       </text>
                     )}

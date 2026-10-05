@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { layoutMap } from "./mapLayout";
-import { buildMapGraph, nodeRects, visibleNodes } from "./mapModel";
+import { buildMapGraph, mapNodeData, nodeRects, toCanvasDocument, visibleNodes } from "./mapModel";
 import { measureTree, type MeasuredNode } from "./mapMetrics";
 import { parseMapDocument } from "./mindmap";
 
@@ -11,7 +11,7 @@ function graph(
 ) {
   const tree = measureTree(parseMapDocument(md));
   const { positions } = layoutMap(tree, kind);
-  return { tree, ...buildMapGraph(tree, positions, options) };
+  return { tree, ...buildMapGraph(tree, positions, { ...options, layout: kind }) };
 }
 
 describe("visibleNodes", () => {
@@ -32,14 +32,9 @@ describe("buildMapGraph", () => {
     const { tree, nodes } = graph("# Root\n\n- child\n");
     const root = nodes[0];
     expect(root.id).toBe("n0");
-    expect(root.type).toBe("map");
-    expect(root.position).toEqual({
-      x: -tree.box.width / 2,
-      y: -tree.box.height / 2,
-    });
-    expect(root.initialWidth).toBe(tree.box.width);
-    expect(root.draggable).toBe(false);
-    expect(root.connectable).toBe(false);
+    expect(root.position).toEqual({ x: -tree.box.width / 2, y: -tree.box.height / 2 });
+    expect(root.width).toBe(tree.box.width);
+    expect(root.height).toBe(tree.box.height);
     expect(nodes.map((n) => n.id)).toEqual(["n0", "n0.1"]);
   });
 
@@ -55,7 +50,7 @@ describe("buildMapGraph", () => {
   it("draws one labelled edge per paired relationship", () => {
     const { edges } = graph("# Root\n\n- a [1]\n- b [^1](Cool)\n");
     const relation = edges.find((e) => e.id === "r:1");
-    expect(relation).toMatchObject({ source: "n0.1", target: "n0.2", label: "Cool" });
+    expect(relation).toMatchObject({ fromNode: "n0.1", toNode: "n0.2", label: "Cool" });
     expect(edges).toHaveLength(3);
   });
 
@@ -70,7 +65,6 @@ describe("buildMapGraph", () => {
     );
     expect(nodes[1].data.href).toBe("/wiki/other.map");
     expect(nodes[2].data.href).toBeUndefined();
-    expect(nodes[2].data.links).toBeUndefined();
     expect(nodes[2].data.text).toBe("see Other");
   });
 
@@ -116,6 +110,24 @@ describe("nodeRects", () => {
   });
 });
 
+describe("toCanvasDocument", () => {
+  it("emits a JSON Canvas document whose nodes carry the x-map payload", () => {
+    const { nodes, edges } = graph("# Root\n\n- child [!star]\n");
+    const doc = toCanvasDocument({ nodes, edges });
+    expect(doc.nodes[0]).toMatchObject({
+      id: "n0",
+      type: "text",
+      x: nodes[0].position.x,
+      y: nodes[0].position.y,
+      width: nodes[0].width,
+      height: nodes[0].height,
+      label: "Root",
+    });
+    expect(mapNodeData(doc.nodes[1])?.stickers).toEqual(["star"]);
+    expect(doc.edges).toBe(edges);
+  });
+});
+
 /** A tree measured by hand, to check the model without the parser. */
 const HAND: MeasuredNode = measureTree({
   content: "Root",
@@ -141,9 +153,11 @@ describe("buildMapGraph edge sides", () => {
     const { edges } = graph("# Root\n\n- a\n- b [1]\n- c [^1](Cool)\n");
     const eA = edges.find((e) => e.id === "e:n0->n0.1");
     const eB = edges.find((e) => e.id === "e:n0->n0.2");
-    expect(eA?.data).toEqual({ fromSide: "left", toSide: "right" });
-    expect(eB?.data).toEqual({ fromSide: "right", toSide: "left" });
-    expect(edges.find((e) => e.id.startsWith("r:"))?.data).toBeUndefined();
+    expect(eA?.fromSide).toBe("left");
+    expect(eA?.toSide).toBe("right");
+    expect(eB?.fromSide).toBe("right");
+    expect(eB?.toSide).toBe("left");
+    expect(edges.find((e) => e.id.startsWith("r:"))?.fromSide).toBeUndefined();
   });
 
   it("uses the radial dominant axis on a vertical parent edge", () => {
@@ -155,6 +169,7 @@ describe("buildMapGraph edge sides", () => {
       ]),
       { layout: "radial" },
     );
-    expect(built.edges[0].data).toEqual({ fromSide: "top", toSide: "bottom" });
+    expect(built.edges[0].fromSide).toBe("top");
+    expect(built.edges[0].toSide).toBe("bottom");
   });
 });

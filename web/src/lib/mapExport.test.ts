@@ -5,7 +5,7 @@ import { groupHulls } from "./groupHull";
 import { layoutMap } from "./mapLayout";
 import { escapeXml, mapToSvg, type MapExportInput } from "./mapExport";
 import { arrow, edgeGeom } from "./jsoncanvas/geometry";
-import type { CanvasNode, CanvasSide } from "./jsoncanvas/document";
+import type { CanvasNode } from "./jsoncanvas/document";
 import { buildMapGraph, nodeRects } from "./mapModel";
 import { measureTree } from "./mapMetrics";
 import { parseMapDocument } from "./mindmap";
@@ -121,23 +121,13 @@ describe("mapToSvg", () => {
           type: "text",
           x: n.position.x,
           y: n.position.y,
-          width: n.initialWidth ?? 0,
-          height: n.initialHeight ?? 0,
+          width: n.width,
+          height: n.height,
         },
       ]),
     );
     for (const edge of input.edges) {
-      const data = edge.data as { fromSide?: CanvasSide; toSide?: CanvasSide } | undefined;
-      const g = edgeGeom(
-        {
-          id: edge.id,
-          fromNode: edge.source,
-          toNode: edge.target,
-          fromSide: data?.fromSide,
-          toSide: data?.toSide,
-        },
-        byId,
-      );
+      const g = edgeGeom(edge, byId);
       if (!g) continue;
       expect(svg).toContain(`d="${g.d}"`);
       expect(svg).toContain(`points="${arrow(g.q, g.db)}"`);

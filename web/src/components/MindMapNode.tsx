@@ -1,18 +1,30 @@
-import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Icon } from "../lib/icon";
-import type { MapFlowNode } from "../lib/mapModel";
+import type { MapNodeData } from "../lib/mapModel";
 import { isKnownSticker, stickerIcon } from "../lib/mapStickers";
 import { sanitizeInline } from "../lib/markdown";
 
 /**
- * One map topic: its label rendered through the shared DOMPurify allowlist, the
- * collapse toggle, its note and its stickers. A node whose whole label is a
- * single link is a button that opens the target; otherwise the node is a
- * focusable region and any link inside the label stays ordinary navigation.
+ * One map topic body, mounted by the shared `JsonCanvas` view through its
+ * `renderText` seam. The label renders through the shared DOMPurify allowlist;
+ * the collapse toggle, the note and the stickers sit beside it. A node whose
+ * whole label is a single link is a button that opens the target; otherwise any
+ * link inside the label stays ordinary navigation. The box (border, radius,
+ * padding) belongs to the view's `.jc-node`, so this is the content only.
  */
-export function MapNodeView({ id, data, selected }: NodeProps<MapFlowNode>) {
-  const { text, kind, href, hasChildren, collapsed, notes, link, stickers, onToggle, onOpen } =
-    data;
+export function MapNodeBody({ id, data }: { id: string; data: MapNodeData }) {
+  const {
+    text,
+    kind,
+    href,
+    hasChildren,
+    collapsed,
+    notes,
+    link,
+    stickers,
+    onToggle,
+    onOpen,
+    depth,
+  } = data;
   const label = (
     <span
       className="map-node__label"
@@ -20,19 +32,7 @@ export function MapNodeView({ id, data, selected }: NodeProps<MapFlowNode>) {
     />
   );
   return (
-    <div
-      className={`map-node map-node--${kind}${selected ? " is-selected" : ""}`}
-      title={text}
-      tabIndex={href ? undefined : 0}
-      role={href ? undefined : "group"}
-      aria-label={href ? undefined : text}
-    >
-      <Handle
-        type="target"
-        position={Position.Left}
-        isConnectable={false}
-        className="map-node__handle"
-      />
+    <div className={`map-node map-node--${kind}${depth === 0 ? " map-node--root" : ""}`}>
       {href && onOpen ? (
         <button
           type="button"
@@ -90,12 +90,6 @@ export function MapNodeView({ id, data, selected }: NodeProps<MapFlowNode>) {
           <Icon name={collapsed ? "add" : "remove"} />
         </button>
       )}
-      <Handle
-        type="source"
-        position={Position.Right}
-        isConnectable={false}
-        className="map-node__handle"
-      />
     </div>
   );
 }

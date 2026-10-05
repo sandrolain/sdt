@@ -1,24 +1,22 @@
 import type { BoundaryRect } from "./boundaries";
 import type { GroupHull } from "./groupHull";
-import type { MapFlowEdge, MapFlowNode } from "./mapModel";
+import type { MapNode } from "./mapModel";
 import { METRICS } from "./mapMetrics";
 import type { MapBounds } from "./mapLayout";
 import { arrow, edgeGeom } from "./jsoncanvas/geometry";
-import type { CanvasEdge, CanvasNode, CanvasSide } from "./jsoncanvas/document";
+import type { CanvasEdge, CanvasNode } from "./jsoncanvas/document";
 
 /**
  * Export by serializing the model, not the DOM (plan D12): the same boxes, the
  * same shapes and the same text the viewer draws, emitted as a standalone SVG.
- * React Flow ships no exporter and `html-to-image` is not a dependency, so the
- * serializer is ours and deterministic — the output is testable without a
- * browser, and PNG is that SVG rasterized through `Image` + `canvas`.
+ * The edges use the shared `lib/jsoncanvas/geometry.ts` `edgeGeom`, so the
+ * export and the canvas cannot draw different curves. PNG is that SVG rasterized
+ * through `Image` + `canvas`.
  */
 
 /** The palette, shared with the overlay so an export matches what is on screen. */
 const BOUNDARY_COLOR = "#fab387";
 const SUMMARY_COLOR = "#94e2d5";
-const EDGE_COLOR = "#6c7086";
-const RELATION_COLOR = "#f38ba8";
 const NODE_BG = "#1e1e2e";
 const NODE_FG = "#cdd6f4";
 const NODE_BORDER = "#45475a";
@@ -26,8 +24,8 @@ const ROOT_BORDER = "#89b4fa";
 const BACKGROUND = "#11111b";
 
 export interface MapExportInput {
-  nodes: MapFlowNode[];
-  edges: MapFlowEdge[];
+  nodes: MapNode[];
+  edges: CanvasEdge[];
   boundaries: BoundaryRect[];
   summaries: BoundaryRect[];
   hulls: GroupHull[];
@@ -48,31 +46,16 @@ export function escapeXml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
 }
 
-interface Size {
-  width: number;
-  height: number;
-}
-
-function nodeBox(node: MapFlowNode): Size {
-  return { width: node.initialWidth ?? 0, height: node.initialHeight ?? 0 };
-}
-
-/** A flow node as the shared geometry model sees it (top-left + box). */
-function exportNode(node: MapFlowNode): CanvasNode {
+/** A map node as the shared geometry model sees it (top-left + box). */
+function canvasNode(node: MapNode): CanvasNode {
   return {
     id: node.id,
     type: "text",
     x: node.position.x,
     y: node.position.y,
-    width: node.initialWidth ?? 0,
-    height: node.initialHeight ?? 0,
+    width: node.width,
+    height: node.height,
   };
-}
-
-/** The sides a parent edge carries (from the layout), or none for relations. */
-function edgeSidesOf(edge: MapFlowEdge): { fromSide?: CanvasSide; toSide?: CanvasSide } {
-  const data = edge.data as { fromSide?: CanvasSide; toSide?: CanvasSide } | undefined;
-  return { fromSide: data?.fromSide, toSide: data?.toSide };
 }
 
 function shapeSvg(rect: BoundaryRect, color: string, dash: string): string {
@@ -89,6 +72,10 @@ export function mapToSvg(input: MapExportInput): string {
   const width = Math.max(bounds.width + padding * 2, 1);
   const height = Math.max(bounds.height + padding * 2, 1);
 
+  const geoById: Record<string, CanvasNode> = Object.fromEntries(
+    nodes.map((node) => [node.id, canvasNode(node)]),
+  );
+
   const hullSvg = hulls
     .map(
       (hull) =>
@@ -99,27 +86,19 @@ export function mapToSvg(input: MapExportInput): string {
   const boundarySvg = boundaries.map((rect) => shapeSvg(rect, BOUNDARY_COLOR, "6 4")).join("");
   const summarySvg = summaries.map((rect) => shapeSvg(rect, SUMMARY_COLOR, "none")).join("");
 
-  const geoById: Record<string, CanvasNode> = Object.fromEntries(
-    nodes.map((node) => [node.id, exportNode(node)]),
-  );
-
   const edgeSvg = edges
     .map((edge) => {
-      if (!geoById[edge.source] || !geoById[edge.target]) return "";
-      const { fromSide, toSide } = edgeSidesOf(edge);
-      const g = edgeGeom(
-        { id: edge.id, fromNode: edge.source, toNode: edge.target, fromSide, toSide } as CanvasEdge,
-        geoById,
-      );
+      if (!geoById[edge.fromNode] || !geoById[edge.toNode]) return "";
+      const g = edgeGeom(edge, geoById);
       if (!g) return "";
-      const relation = edge.id.startsWith("r:");
-      const color = relation ? RELATION_COLOR : EDGE_COLOR;
+      const color = typeof edge.color === "string" ? edge.color : NODE_BORDER;
+      const dash = typeof edge["x-dash"] === "string" ? edge["x-dash"] : undefined;
       const label = edge.label
-        ? `<text x="${g.mid.x}" y="${g.mid.y}" fill="${RELATION_COLOR}" font-size="11" text-anchor="middle" font-family="system-ui, sans-serif">${escapeXml(String(edge.label))}</text>`
+        ? `<text x="${g.mid.x}" y="${g.mid.y}" fill="${color}" font-size="11" text-anchor="middle" font-family="system-ui, sans-serif">${escapeXml(edge.label)}</text>`
         : "";
       return (
         `<path d="${g.d}" fill="none" stroke="${color}" stroke-width="1.5"` +
-        `${relation ? ' stroke-dasharray="5 4"' : ""}/>` +
+        `${dash ? ` stroke-dasharray="${dash}"` : ""}/>` +
         `<polygon points="${arrow(g.q, g.db)}" fill="${color}"/>${label}`
       );
     })
@@ -127,7 +106,8 @@ export function mapToSvg(input: MapExportInput): string {
 
   const nodeSvg = nodes
     .map((node) => {
-      const { width: w, height: h } = nodeBox(node);
+      const w = node.width;
+      const h = node.height;
       const x = node.position.x;
       const y = node.position.y;
       const border =
@@ -142,7 +122,7 @@ export function mapToSvg(input: MapExportInput): string {
       const stickers = node.data.stickers
         .map(
           (marker) =>
-            `<text x="${x + w - 10}" y="${y + METRICS.paddingY + METRICS.nodeFontSize}" fill="${RELATION_COLOR}" font-size="10" text-anchor="end" font-family="system-ui, sans-serif">${escapeXml(marker)}</text>`,
+            `<text x="${x + w - 10}" y="${y + METRICS.paddingY + METRICS.nodeFontSize}" fill="${SUMMARY_COLOR}" font-size="10" text-anchor="end" font-family="system-ui, sans-serif">${escapeXml(marker)}</text>`,
         )
         .join("");
       return (

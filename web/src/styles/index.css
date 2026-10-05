@@ -1838,23 +1838,16 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--bg-base);
-    cursor: grab;
-    touch-action: none;
-  }
-  .mindmap__viewport:active {
-    cursor: grabbing;
-  }
-  .mindmap__viewport .react-flow {
-    background: transparent;
   }
   .mindmap__overlay {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    overflow: visible;
     z-index: 0;
     pointer-events: none;
-    overflow: visible;
   }
   .mindmap__boundary,
   .mindmap__summary {
@@ -1880,16 +1873,6 @@
     stroke: var(--bg-base);
     stroke-width: 3px;
   }
-  .mindmap__viewport .react-flow__minimap {
-    background: var(--bg-mantle);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-  }
-  .mindmap__viewport .react-flow__controls-button {
-    background: var(--bg-mantle);
-    border-bottom: 1px solid var(--border);
-    fill: var(--fg-dim);
-  }
   .mindmap__controls {
     position: absolute;
     top: 0.5rem;
@@ -1898,47 +1881,42 @@
     display: flex;
     gap: 0.35rem;
   }
+  /* The node box is the shared JsonCanvas chrome; feed it METRICS so the painted
+     box equals the computed box (analysis A2, metric parity). */
+  .mindmap .jc-node {
+    border-radius: var(--map-radius, 8px);
+  }
+  .mindmap .jc-body {
+    padding: var(--map-pad-y, 8px) var(--map-pad-x, 10px);
+    font-size: var(--map-font, 13px);
+    line-height: var(--map-line, 20px);
+  }
   .map-node {
-    box-sizing: border-box;
     display: flex;
     align-items: center;
     gap: 0.35rem;
     width: 100%;
     height: 100%;
-    padding: 0.4rem 0.6rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-mantle);
-    font-size: 0.8125rem;
-    line-height: 1.55;
-    color: var(--fg);
     overflow: hidden;
   }
-  .map-node--root {
+  .mindmap .jc-node:has(.map-node--root) {
     border-color: var(--accent);
     font-weight: 600;
   }
-  .map-node--quote {
+  .mindmap .jc-node:has(.map-node--quote) {
     border-left: 3px solid var(--ctp-lavender);
+  }
+  .mindmap .jc-node:has(.map-node--quote) .map-node {
     font-style: italic;
   }
-  .map-node--code {
+  .mindmap .jc-node:has(.map-node--code) {
     font-family: var(--font-mono, ui-monospace, monospace);
     font-size: 0.75rem;
-    white-space: pre-wrap;
   }
-  .map-node--table,
-  .map-node--text {
+  .mindmap .jc-node:has(.map-node--table),
+  .mindmap .jc-node:has(.map-node--text) {
     font-size: 0.75rem;
     color: var(--fg-dim);
-  }
-  .map-node.is-selected {
-    border-color: var(--accent);
-    outline: 2px solid var(--accent-soft);
-    outline-offset: 1px;
-  }
-  .map-node__handle {
-    opacity: 0;
   }
   .map-node__label {
     flex: 1 1 auto;

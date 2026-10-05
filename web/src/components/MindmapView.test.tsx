@@ -6,56 +6,8 @@ import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { MindmapView } from "./MindmapView";
 
-const flow = vi.hoisted(() => ({
-  zoomIn: vi.fn(),
-  zoomOut: vi.fn(),
-  fitView: vi.fn(),
-}));
-
-// React Flow relies on real layout/d3 event wiring that jsdom cannot provide;
-// the mock renders each node through its registered nodeType and each edge
-// label, so the map wiring, model and node component are still exercised.
-// Geometry and pixels are the browser pass's job.
-vi.mock("@xyflow/react", async () => {
-  const React = await import("react");
-  type AnyProps = Record<string, unknown> & {
-    children?: unknown;
-    nodes?: Array<{ id: string; type?: string; data: unknown }>;
-    edges?: Array<{ id: string; label?: unknown }>;
-    nodeTypes?: Record<string, (props: unknown) => unknown>;
-  };
-  const Fragment = React.Fragment;
-  return {
-    Background: () => null,
-    Controls: () => null,
-    MiniMap: () => null,
-    Handle: () => null,
-    Position: { Left: "left", Right: "right" },
-    ReactFlowProvider: ({ children }: { children?: unknown }) =>
-      React.createElement(Fragment, null, children as never),
-    useReactFlow: () => flow,
-    useViewport: () => ({ x: 0, y: 0, zoom: 1 }),
-    ReactFlow: (props: AnyProps) =>
-      React.createElement(
-        "div",
-        { "data-testid": "flow" },
-        (props.nodes ?? []).map((node) => {
-          const Component = props.nodeTypes?.[node.type ?? "map"];
-          return Component
-            ? React.createElement(Component as never, {
-                key: node.id,
-                id: node.id,
-                type: node.type,
-                data: node.data,
-              })
-            : null;
-        }),
-        (props.edges ?? []).map((edge) =>
-          edge.label ? React.createElement("span", { key: edge.id }, String(edge.label)) : null,
-        ),
-      ),
-  };
-});
+// The map renders through the shared JsonCanvas view, which is plain DOM in
+// jsdom (no WebGL in 2D). Geometry and pixels remain the browser pass's job.
 
 const TREE_FIXTURE = {
   entries: [
@@ -94,7 +46,7 @@ afterEach(() => {
 });
 
 describe("MindmapView", () => {
-  it("renders a read-only React Flow map with the topics as nodes", async () => {
+  it("renders a read-only shared-canvas map with the topics as nodes", async () => {
     globalThis.fetch = mockFetch() as unknown as typeof fetch;
     renderInRouter(
       <MindmapView

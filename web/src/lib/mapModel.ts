@@ -1,17 +1,18 @@
-import type { Edge, Node } from "@xyflow/react";
 import { edgeSides, type MapLayoutKind, type MapPoint } from "./mapLayout";
 import type { MeasuredNode } from "./mapMetrics";
 import type { MapNodeKind } from "./mindmap";
+import type { CanvasDocument, CanvasEdge, CanvasNode } from "./jsoncanvas/document";
 
 /**
- * The measured tree as a React Flow graph: nodes carry the label, the node
- * kind, the markers and the callbacks; edges are the parent→child links plus
- * one labelled edge per paired `[n]`/`[^n]` relationship. A collapsed node
- * removes its descendants, so the graph always describes the visible map and
- * the layout only ever sees visible nodes.
+ * The measured tree as a JSON Canvas document (decision 0025): each node
+ * carries the label HTML and its map payload under `x-map`, and edges are the
+ * parent→child links (with layout-emitted sides) plus one labelled edge per
+ * paired `[n]`/`[^n]` relationship. A collapsed node removes its descendants, so
+ * the document always describes the visible map and the layout only ever sees
+ * visible nodes.
  */
 
-/** Data carried by every map node. */
+/** Data carried by every map node (the `x-map` payload the body consumes). */
 export interface MapNodeData extends Record<string, unknown> {
   /** label HTML, sanitised at render time */
   content: string;
@@ -34,8 +35,14 @@ export interface MapNodeData extends Record<string, unknown> {
   onOpen?: (href: string) => void;
 }
 
-export type MapFlowNode = Node<MapNodeData>;
-export type MapFlowEdge = Edge;
+/** One visible map node: its box (top-left) and its payload. */
+export interface MapNode {
+  id: string;
+  position: MapPoint;
+  width: number;
+  height: number;
+  data: MapNodeData;
+}
 
 export interface NodeRect {
   x: number;
@@ -45,8 +52,8 @@ export interface NodeRect {
 }
 
 export interface MapGraph {
-  nodes: MapFlowNode[];
-  edges: MapFlowEdge[];
+  nodes: MapNode[];
+  edges: CanvasEdge[];
 }
 
 export interface BuildOptions {
@@ -82,7 +89,7 @@ function soleHref(content: string, links: string[]): string | undefined {
   return SINGLE_LINK_RE.exec(content)?.[1];
 }
 
-/** Build the read-only React Flow graph for a measured tree. */
+/** Build the read-only map graph for a measured tree and its layout. */
 export function buildMapGraph(
   tree: MeasuredNode,
   positions: Map<string, MapPoint>,
@@ -90,7 +97,7 @@ export function buildMapGraph(
 ): MapGraph {
   const collapsed = options.collapsed ?? new Set<string>();
   const visible = visibleNodes(tree, collapsed);
-  const nodes: MapFlowNode[] = visible.map((node) => {
+  const nodes: MapNode[] = visible.map((node) => {
     const point = positions.get(node.id) ?? { x: 0, y: 0 };
     const data: MapNodeData = {
       content: node.content,
@@ -110,16 +117,10 @@ export function buildMapGraph(
     };
     return {
       id: node.id,
-      type: "map",
       position: { x: point.x - node.box.width / 2, y: point.y - node.box.height / 2 },
+      width: node.box.width,
+      height: node.box.height,
       data,
-      initialWidth: node.box.width,
-      initialHeight: node.box.height,
-      style: { width: node.box.width, height: node.box.height },
-      draggable: false,
-      connectable: false,
-      selectable: true,
-      zIndex: 1,
     };
   });
   return { nodes, edges: buildEdges(visible, collapsed, positions, options.layout ?? "balanced") };
@@ -131,9 +132,9 @@ function buildEdges(
   collapsed: ReadonlySet<string>,
   positions: Map<string, MapPoint>,
   layout: MapLayoutKind,
-): MapFlowEdge[] {
+): CanvasEdge[] {
   const byId = new Map(visible.map((n) => [n.id, n]));
-  const edges: MapFlowEdge[] = [];
+  const edges: CanvasEdge[] = [];
   for (const node of visible) {
     if (!node.parent) continue;
     if (!byId.has(node.parent)) continue;
@@ -144,11 +145,12 @@ function buildEdges(
       parentPoint && childPoint ? edgeSides(layout, parentPoint, childPoint) : undefined;
     edges.push({
       id: `e:${node.parent}->${node.id}`,
-      source: node.parent,
-      target: node.id,
-      type: "default",
-      data: sides ? { fromSide: sides[0], toSide: sides[1] } : undefined,
-      style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+      fromNode: node.parent,
+      toNode: node.id,
+      fromSide: sides?.[0],
+      toSide: sides?.[1],
+      color: EDGE_COLOR,
+      "x-kind": "parent",
     });
   }
   const sources = new Map<string, MeasuredNode>();
@@ -164,28 +166,53 @@ function buildEdges(
     if (!target) continue;
     edges.push({
       id: `r:${id}`,
-      source: source.id,
-      target: target.id,
-      type: "default",
+      fromNode: source.id,
+      toNode: target.id,
       label: source.markers.relation?.title ?? target.markers.relation?.title,
-      labelStyle: { fill: RELATION_COLOR, fontSize: 11 },
-      style: { stroke: RELATION_COLOR, strokeWidth: 1.5, strokeDasharray: "5 4" },
-      zIndex: 0,
+      color: RELATION_COLOR,
+      "x-dash": "5 4",
+      "x-kind": "relation",
     });
   }
   return edges;
 }
 
 /** Node rectangles in layout coordinates, for the boundary/hull overlays. */
-export function nodeRects(nodes: MapFlowNode[]): Map<string, NodeRect> {
+export function nodeRects(nodes: MapNode[]): Map<string, NodeRect> {
   const rects = new Map<string, NodeRect>();
   for (const node of nodes) {
     rects.set(node.id, {
       x: node.position.x,
       y: node.position.y,
-      width: node.initialWidth ?? 0,
-      height: node.initialHeight ?? 0,
+      width: node.width,
+      height: node.height,
     });
   }
   return rects;
+}
+
+/** The map graph as a shared JSON Canvas document for the `JsonCanvas` view. */
+export function toCanvasDocument(graph: MapGraph): CanvasDocument {
+  return {
+    nodes: graph.nodes.map(
+      (node) =>
+        ({
+          id: node.id,
+          type: "text",
+          x: node.position.x,
+          y: node.position.y,
+          width: node.width,
+          height: node.height,
+          text: node.data.content,
+          label: node.data.text,
+          "x-map": node.data,
+        }) as CanvasNode,
+    ),
+    edges: graph.edges,
+  };
+}
+
+/** The `x-map` payload of a canvas node the view renders for the map. */
+export function mapNodeData(node: CanvasNode): MapNodeData | undefined {
+  return node["x-map"] as MapNodeData | undefined;
 }

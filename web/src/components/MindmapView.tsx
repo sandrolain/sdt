@@ -1,15 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Background,
-  Controls,
-  MiniMap,
-  ReactFlow,
-  ReactFlowProvider,
-  useReactFlow,
-  type ReactFlowProps,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
 import { annotateBoundaries, annotateSummaries, boundaryRects } from "../lib/boundaries";
 import {
   DEFAULT_FUSE_OPTIONS,
@@ -24,19 +14,20 @@ import { downloadBlob, mapToSvg, svgToPng } from "../lib/mapExport";
 import { layoutMap, MAP_LAYOUTS, type MapLayoutKind } from "../lib/mapLayout";
 import {
   buildMapGraph,
+  mapNodeData,
   nodeRects,
+  toCanvasDocument,
   visibleNodes,
-  type MapFlowEdge,
-  type MapFlowNode,
 } from "../lib/mapModel";
-import { measureTree, type MeasuredNode } from "../lib/mapMetrics";
+import { measureTree, METRICS, type MeasuredNode } from "../lib/mapMetrics";
 import { parseMapDocument, type MapNodeKind, type MindNode } from "../lib/mindmap";
 import { fetchDoc, isCanvas, isMermaid } from "../lib/api";
 import { isMapPath } from "../lib/documentModes";
 import { Icon } from "../lib/icon";
 import { loadMapIndex, loadWikiIndex, type MapIndexEntry } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
-import { MapNodeView } from "./MindMapNode";
+import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
+import { MapNodeBody } from "./MindMapNode";
 import { MapOverlay } from "./MapOverlay";
 
 interface MindmapViewProps {
@@ -45,59 +36,20 @@ interface MindmapViewProps {
   title: string;
 }
 
-/** Stable node-type registry (module scope: React Flow warns on identity churn). */
-const mapNodeTypes = { map: MapNodeView };
-
-/** Zoom controls wired to the React Flow viewport (must sit inside the provider). */
-function MapZoom() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
-  return (
-    <div className="mindmap__controls" role="group" aria-label="Map zoom">
-      <button type="button" className="graph-tools__button" onClick={() => zoomIn()}>
-        Zoom in
-      </button>
-      <button type="button" className="graph-tools__button" onClick={() => zoomOut()}>
-        Zoom out
-      </button>
-      <button type="button" className="graph-tools__button" onClick={() => fitView()}>
-        Fit
-      </button>
-    </div>
-  );
-}
-
 /**
- * Re-fit when the layout changes: the two layouts have very different extents,
- * so keeping the old viewport would leave half the map off-screen. The first
- * fit is React Flow's own `fitView` prop, so it is skipped here.
+ * The node box is painted from the shared view's chrome, so the map host feeds
+ * its computed `METRICS` into CSS custom properties: the painted box and the
+ * computed box stay the same numbers (analysis A2, metric parity).
  */
-function FitOnChange({ token }: { token: string }) {
-  const { fitView } = useReactFlow();
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    const frame = requestAnimationFrame(() => void fitView({ padding: 0.08, duration: 200 }));
-    return () => cancelAnimationFrame(frame);
-  }, [token, fitView]);
-  return null;
-}
+const METRIC_VARS = {
+  "--map-radius": "8px",
+  "--map-pad-x": `${METRICS.paddingX}px`,
+  "--map-pad-y": `${METRICS.paddingY}px`,
+  "--map-font": `${METRICS.nodeFontSize}px`,
+  "--map-line": `${METRICS.lineHeight}px`,
+} as CSSProperties;
 
-const FLOW_PROPS: Partial<ReactFlowProps> = {
-  minZoom: 0.1,
-  maxZoom: 4,
-  nodesDraggable: false,
-  nodesConnectable: false,
-  elementsSelectable: true,
-  panOnDrag: true,
-  zoomOnScroll: true,
-  fitView: true,
-  proOptions: { hideAttribution: true },
-};
-
-/** React Flow mind map with the XMindMark boundary, summary and group overlays. */
+/** React-Flow-free mind map on the shared JsonCanvas view (decision 0025). */
 export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
   const [wikiIndex, setWikiIndex] = useState<WikiIndex | undefined>(undefined);
   const [mapIndex, setMapIndex] = useState<Map<string, MapIndexEntry>>(new Map());
@@ -108,6 +60,7 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
   );
   const [refError, setRefError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const viewRef = useRef<JsonCanvasHandle | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -180,8 +133,6 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
   }
   const visible = useMemo(() => visibleNodes(tree, collapsed), [tree, collapsed]);
 
-  // A node whose whole label is one link opens its target: the label is already
-  // an anchor in the label HTML, so the node itself is a button.
   const navigate = useNavigate();
   const open = useCallback((href: string) => navigate(href), [navigate]);
 
@@ -195,11 +146,12 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
   }, []);
 
   const { positions, bounds } = layoutMap(tree, layout);
-  const { nodes, edges } = useMemo(
+  const graph = useMemo(
     () => buildMapGraph(tree, positions, { collapsed, onToggle: toggle, onOpen: open, layout }),
     [tree, positions, collapsed, toggle, open, layout],
   );
-  const rects = useMemo(() => nodeRects(nodes), [nodes]);
+  const document = useMemo(() => toCanvasDocument(graph), [graph]);
+  const rects = useMemo(() => nodeRects(graph.nodes), [graph]);
   const overlay = useMemo(() => {
     const titles = activeRoot.payload?.titles;
     const pruned = pruneToVisible(tree, visible);
@@ -213,21 +165,21 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
 
   const exportName = basePath.split("/").pop() ?? "map";
   const exportSvg = useCallback(() => {
-    const svg = mapToSvg({ nodes, edges, ...overlay, bounds, title });
+    const svg = mapToSvg({ nodes: graph.nodes, edges: graph.edges, ...overlay, bounds, title });
     downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${exportName}.svg`);
-  }, [nodes, edges, overlay, bounds, title, exportName]);
+  }, [graph, overlay, bounds, title, exportName]);
   const exportPng = useCallback(async () => {
     try {
-      const svg = mapToSvg({ nodes, edges, ...overlay, bounds, title });
+      const svg = mapToSvg({ nodes: graph.nodes, edges: graph.edges, ...overlay, bounds, title });
       downloadBlob(await svgToPng(svg), `${exportName}.png`);
       setExportError(null);
     } catch (err: unknown) {
       setExportError(err instanceof Error ? err.message : String(err));
     }
-  }, [nodes, edges, overlay, bounds, title, exportName]);
+  }, [graph, overlay, bounds, title, exportName]);
 
   return (
-    <div className="mindmap">
+    <div className="mindmap" style={METRIC_VARS}>
       <div className="mindmap__toolbar">
         <span className="mindmap__title">Mindmap</span>
         <div className="graph-tools__row" role="group" aria-label="Map layout">
@@ -286,35 +238,47 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
       </div>
       {refError && <p className="content__empty">Fused map error: {refError}</p>}
       {exportError && <p className="content__empty">Export failed: {exportError}</p>}
-      <ReactFlowProvider>
-        <MapZoom />
-        <FitOnChange token={layout} />
-        <div
-          className="mindmap__viewport"
-          role="application"
-          aria-label={`Mind map: ${title} (read-only)`}
-        >
-          <MapOverlay {...overlay} />
-          <ReactFlow
-            nodes={nodes as MapFlowNode[]}
-            edges={edges as MapFlowEdge[]}
-            nodeTypes={mapNodeTypes}
-            {...FLOW_PROPS}
+      <div className="mindmap__viewport">
+        <div className="mindmap__controls" role="group" aria-label="Map zoom">
+          <button
+            type="button"
+            className="graph-tools__button"
+            onClick={() => viewRef.current?.zoomIn()}
           >
-            <Background />
-            <Controls showInteractive={false} />
-            {/* bgColor/maskColor are inline styles on React Flow's minimap, so
-                the tokens have to travel with the props, not with CSS. */}
-            <MiniMap
-              pannable
-              zoomable
-              bgColor="var(--bg-mantle)"
-              maskColor="var(--bg-base)"
-              nodeColor={() => "#6c7086"}
-            />
-          </ReactFlow>
+            Zoom in
+          </button>
+          <button
+            type="button"
+            className="graph-tools__button"
+            onClick={() => viewRef.current?.zoomOut()}
+          >
+            Zoom out
+          </button>
+          <button
+            type="button"
+            className="graph-tools__button"
+            onClick={() => viewRef.current?.fit()}
+          >
+            Fit
+          </button>
         </div>
-      </ReactFlowProvider>
+        <JsonCanvas
+          ref={viewRef}
+          data={document}
+          fitKey={layout}
+          showMinimap={false}
+          ariaLabel={`Mind map: ${title} (read-only)`}
+          renderText={(node) => {
+            const data = mapNodeData(node);
+            return data ? <MapNodeBody id={node.id} data={data} /> : null;
+          }}
+          renderOverlay={() => <MapOverlay {...overlay} />}
+          onOpenNode={(node) => {
+            const href = mapNodeData(node)?.href;
+            if (href) open(href);
+          }}
+        />
+      </div>
     </div>
   );
 }
