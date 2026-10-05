@@ -2,7 +2,9 @@ import type { BoundaryRect } from "./boundaries";
 import type { GroupHull } from "./groupHull";
 import type { MapFlowEdge, MapFlowNode } from "./mapModel";
 import { METRICS } from "./mapMetrics";
-import type { MapBounds, MapPoint } from "./mapLayout";
+import type { MapBounds } from "./mapLayout";
+import { arrow, edgeGeom } from "./jsoncanvas/geometry";
+import type { CanvasEdge, CanvasNode, CanvasSide } from "./jsoncanvas/document";
 
 /**
  * Export by serializing the model, not the DOM (plan D12): the same boxes, the
@@ -46,19 +48,6 @@ export function escapeXml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
 }
 
-/** Straight edge between two node centres, clipped at the node box. */
-function edgePath(from: MapPoint, to: MapPoint, fromBox: Size, toBox: Size): string {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const length = Math.hypot(dx, dy) || 1;
-  const ux = dx / length;
-  const uy = dy / length;
-  // Clip at the box edge: an axis-aligned box reaches half its larger side.
-  const fromHalf = Math.max(fromBox.width, fromBox.height) / 2;
-  const toHalf = Math.max(toBox.width, toBox.height) / 2;
-  return `M${from.x + ux * fromHalf} ${from.y + uy * fromHalf}L${to.x - ux * toHalf} ${to.y - uy * toHalf}`;
-}
-
 interface Size {
   width: number;
   height: number;
@@ -68,11 +57,22 @@ function nodeBox(node: MapFlowNode): Size {
   return { width: node.initialWidth ?? 0, height: node.initialHeight ?? 0 };
 }
 
-function nodeCentre(node: MapFlowNode): MapPoint {
+/** A flow node as the shared geometry model sees it (top-left + box). */
+function exportNode(node: MapFlowNode): CanvasNode {
   return {
-    x: node.position.x + (node.initialWidth ?? 0) / 2,
-    y: node.position.y + (node.initialHeight ?? 0) / 2,
+    id: node.id,
+    type: "text",
+    x: node.position.x,
+    y: node.position.y,
+    width: node.initialWidth ?? 0,
+    height: node.initialHeight ?? 0,
   };
+}
+
+/** The sides a parent edge carries (from the layout), or none for relations. */
+function edgeSidesOf(edge: MapFlowEdge): { fromSide?: CanvasSide; toSide?: CanvasSide } {
+  const data = edge.data as { fromSide?: CanvasSide; toSide?: CanvasSide } | undefined;
+  return { fromSide: data?.fromSide, toSide: data?.toSide };
 }
 
 function shapeSvg(rect: BoundaryRect, color: string, dash: string): string {
@@ -88,7 +88,6 @@ export function mapToSvg(input: MapExportInput): string {
   const padding = METRICS.shapePadding;
   const width = Math.max(bounds.width + padding * 2, 1);
   const height = Math.max(bounds.height + padding * 2, 1);
-  const byId = new Map(nodes.map((n) => [n.id, n]));
 
   const hullSvg = hulls
     .map(
@@ -100,19 +99,28 @@ export function mapToSvg(input: MapExportInput): string {
   const boundarySvg = boundaries.map((rect) => shapeSvg(rect, BOUNDARY_COLOR, "6 4")).join("");
   const summarySvg = summaries.map((rect) => shapeSvg(rect, SUMMARY_COLOR, "none")).join("");
 
+  const geoById: Record<string, CanvasNode> = Object.fromEntries(
+    nodes.map((node) => [node.id, exportNode(node)]),
+  );
+
   const edgeSvg = edges
     .map((edge) => {
-      const from = byId.get(edge.source);
-      const to = byId.get(edge.target);
-      if (!from || !to) return "";
+      if (!geoById[edge.source] || !geoById[edge.target]) return "";
+      const { fromSide, toSide } = edgeSidesOf(edge);
+      const g = edgeGeom(
+        { id: edge.id, fromNode: edge.source, toNode: edge.target, fromSide, toSide } as CanvasEdge,
+        geoById,
+      );
+      if (!g) return "";
       const relation = edge.id.startsWith("r:");
-      const d = edgePath(nodeCentre(from), nodeCentre(to), nodeBox(from), nodeBox(to));
+      const color = relation ? RELATION_COLOR : EDGE_COLOR;
       const label = edge.label
-        ? `<text x="${(nodeCentre(from).x + nodeCentre(to).x) / 2}" y="${(nodeCentre(from).y + nodeCentre(to).y) / 2 - 6}" fill="${RELATION_COLOR}" font-size="11" text-anchor="middle" font-family="system-ui, sans-serif">${escapeXml(String(edge.label))}</text>`
+        ? `<text x="${g.mid.x}" y="${g.mid.y}" fill="${RELATION_COLOR}" font-size="11" text-anchor="middle" font-family="system-ui, sans-serif">${escapeXml(String(edge.label))}</text>`
         : "";
       return (
-        `<path d="${d}" fill="none" stroke="${relation ? RELATION_COLOR : EDGE_COLOR}" stroke-width="1.5"` +
-        `${relation ? ' stroke-dasharray="5 4"' : ""}/>${label}`
+        `<path d="${g.d}" fill="none" stroke="${color}" stroke-width="1.5"` +
+        `${relation ? ' stroke-dasharray="5 4"' : ""}/>` +
+        `<polygon points="${arrow(g.q, g.db)}" fill="${color}"/>${label}`
       );
     })
     .join("");

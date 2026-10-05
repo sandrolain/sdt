@@ -1,4 +1,5 @@
 import { METRICS, flattenMeasured, type MeasuredNode } from "./mapMetrics";
+import type { CanvasSide } from "./jsoncanvas/document";
 
 /**
  * Map layouts (plan D9): two deterministic position functions over a measured
@@ -35,17 +36,46 @@ export interface LayoutResult {
   bounds: MapBounds;
 }
 
+/**
+ * Outward side a parent→child edge leaves/enters, from the layout (behaviour
+ * decision 1): balanced never leaves horizontally-excepted sides — it is a
+ * column layout, so a parent edge is always right/left even when the child is
+ * far vertically; radial picks the dominant axis of the parent→child vector.
+ * Relation edges (`r:`) keep the component fallback and are not passed here.
+ */
+export function edgeSides(
+  kind: MapLayoutKind,
+  parent: MapPoint,
+  child: MapPoint,
+): [CanvasSide, CanvasSide] {
+  if (kind === "balanced") {
+    return child.x >= parent.x ? ["right", "left"] : ["left", "right"];
+  }
+  const dx = child.x - parent.x;
+  const dy = child.y - parent.y;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? ["right", "left"] : ["left", "right"];
+  return dy >= 0 ? ["bottom", "top"] : ["top", "bottom"];
+}
+
 /** Leaves of a subtree, in document order — the unit both layouts work in. */
 function leavesOf(node: MeasuredNode): MeasuredNode[] {
   if (node.children.length === 0) return [node];
   return node.children.flatMap(leavesOf);
 }
 
-/** Vertical extent a subtree needs: its leaves plus the gaps between them. */
+/**
+ * Vertical extent a subtree needs: its own box (an internal node may be taller
+ * than the stack its leaves reserve, e.g. a 5-line label) or its leaves plus the
+ * gaps between them, whichever is larger. This is the slot the sibling cursor
+ * advances by, so a tall internal node can no longer overlap a same-column
+ * sibling (analysis defect 3).
+ */
 function subtreeHeight(node: MeasuredNode): number {
   if (node.children.length === 0) return node.box.height;
-  const sum = node.children.reduce((acc, child) => acc + subtreeHeight(child), 0);
-  return sum + METRICS.siblingGap * (node.children.length - 1);
+  const stack =
+    node.children.reduce((acc, child) => acc + subtreeHeight(child), 0) +
+    METRICS.siblingGap * (node.children.length - 1);
+  return Math.max(node.box.height, stack);
 }
 
 /** Width of each depth column, so columns never overlap. */
@@ -75,18 +105,23 @@ function stackY(
   out: Map<string, MapPoint>,
 ): number {
   const x = side * (xs[node.depth] ?? 0);
+  const slot = subtreeHeight(node);
   if (node.children.length === 0) {
     const y = top + node.box.height / 2;
     out.set(node.id, { x, y });
     return y;
   }
-  let cursor = top;
-  const childYs: number[] = [];
+  // Centre the children stack inside the node's slot, so a node taller than its
+  // leaves reserves the extra room symmetrically and cannot spill into a sibling.
+  const childStack =
+    node.children.reduce((acc, child) => acc + subtreeHeight(child), 0) +
+    METRICS.siblingGap * (node.children.length - 1);
+  let cursor = top + (slot - childStack) / 2;
   for (const child of node.children) {
-    childYs.push(stackY(child, xs, side, cursor, out));
+    stackY(child, xs, side, cursor, out);
     cursor += subtreeHeight(child) + METRICS.siblingGap;
   }
-  const y = (childYs[0] + childYs[childYs.length - 1]) / 2;
+  const y = top + slot / 2;
   out.set(node.id, { x, y });
   return y;
 }

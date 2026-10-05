@@ -135,3 +135,26 @@ describe("buildMapGraph on a hand-built tree", () => {
     expect(nodes.map((n) => n.id)).toEqual(["n0", "n0.1"]);
   });
 });
+
+describe("buildMapGraph edge sides", () => {
+  it("carries layout-emitted sides on parent edges, none on relation edges", () => {
+    const { edges } = graph("# Root\n\n- a\n- b [1]\n- c [^1](Cool)\n");
+    const eA = edges.find((e) => e.id === "e:n0->n0.1");
+    const eB = edges.find((e) => e.id === "e:n0->n0.2");
+    expect(eA?.data).toEqual({ fromSide: "left", toSide: "right" });
+    expect(eB?.data).toEqual({ fromSide: "right", toSide: "left" });
+    expect(edges.find((e) => e.id.startsWith("r:"))?.data).toBeUndefined();
+  });
+
+  it("uses the radial dominant axis on a vertical parent edge", () => {
+    const built = buildMapGraph(
+      HAND,
+      new Map([
+        ["n0", { x: 0, y: 0 }],
+        ["n0.1", { x: 0, y: -100 }],
+      ]),
+      { layout: "radial" },
+    );
+    expect(built.edges[0].data).toEqual({ fromSide: "top", toSide: "bottom" });
+  });
+});

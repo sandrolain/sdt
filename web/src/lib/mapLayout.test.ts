@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   MAP_LAYOUTS,
+  edgeSides,
   layoutBalanced,
   layoutBounds,
   layoutMap,
@@ -248,6 +250,66 @@ describe("layoutMap", () => {
     const tree = measureTree(parseMapDocument("# Root\n\n- a\n- b\n  - c\n\n## Branch\n\n- d\n"));
     for (const kind of ["balanced", "radial"] as const) {
       expectNoOverlap(tree, layoutMap(tree, kind).positions);
+    }
+  });
+});
+
+describe("edgeSides", () => {
+  it("balanced is a column layout: a parent edge always leaves right/left", () => {
+    // n0 -> n0.7 is dx 296, dy 405 in the corpus, but stays horizontal here.
+    expect(edgeSides("balanced", { x: 0, y: 0 }, { x: 300, y: 400 })).toEqual(["right", "left"]);
+    expect(edgeSides("balanced", { x: 0, y: 0 }, { x: -300, y: 400 })).toEqual(["left", "right"]);
+  });
+
+  it("radial picks the dominant axis of the parent→child vector", () => {
+    expect(edgeSides("radial", { x: 0, y: 0 }, { x: 0, y: -200 })).toEqual(["top", "bottom"]);
+    expect(edgeSides("radial", { x: 0, y: 0 }, { x: 0, y: 200 })).toEqual(["bottom", "top"]);
+    expect(edgeSides("radial", { x: 0, y: 0 }, { x: 200, y: 40 })).toEqual(["right", "left"]);
+    expect(edgeSides("radial", { x: 0, y: 0 }, { x: -200, y: -40 })).toEqual(["left", "right"]);
+  });
+});
+
+describe("subtreeHeight — a tall internal node reserves its own box", () => {
+  /** A leaf's box is 36 px; a 5-line label measures 116 px. */
+  const tall = "one<br>two<br>three<br>four<br>five";
+
+  function tallTree(): MeasuredNode {
+    return measureTree(
+      node("Root", [node("branch", [node(tall, [node("tip")]), node("short sibling")])]),
+    );
+  }
+
+  it("measures the tall label taller than a single leaf", () => {
+    const tree = tallTree();
+    const internal = tree.children[0].children[0];
+    expect(internal.box.height).toBe(116);
+    expect(internal.children[0].box.height).toBe(36);
+  });
+
+  it("no longer overlaps a same-column sibling (the probe's overlap)", () => {
+    const tree = tallTree();
+    expectNoOverlap(tree, layoutBalanced(tree));
+    expectNoOverlap(tree, layoutRadial(tree));
+  });
+});
+
+describe("corpus maps lay out without overlap", () => {
+  const MAPS = [
+    "../../../context/notes/writing-sdt-mind-maps.map.md",
+    "../../../context/notes/building-distributed-systems-go-nats.map.md",
+  ];
+
+  it("has no overlapping boxes in the balanced layout on the shipped .map.md documents", () => {
+    // Defect 3 is a balanced-layout slot problem (subtreeHeight). The radial
+    // layout is untouched by this wave and still overlaps on the writing map
+    // (n0.1/n0.7, a tall depth-1 node) — a pre-existing, out-of-scope defect
+    // recorded in notes/20261005-…-radial-map-layout-overlaps.
+    for (const rel of MAPS) {
+      const raw = readFileSync(new URL(rel, import.meta.url), "utf8");
+      // The corpus carries YAML frontmatter; the parser takes the body.
+      const md = raw.replace(/^---\n[\s\S]*?\n---\n/, "");
+      const tree = measureTree(parseMapDocument(md));
+      expectNoOverlap(tree, layoutBalanced(tree));
     }
   });
 });

@@ -196,8 +196,8 @@ export function MindmapView({ markdown, basePath, title }: MindmapViewProps) {
 
   const { positions, bounds } = layoutMap(tree, layout);
   const { nodes, edges } = useMemo(
-    () => buildMapGraph(tree, positions, { collapsed, onToggle: toggle, onOpen: open }),
-    [tree, positions, collapsed, toggle, open],
+    () => buildMapGraph(tree, positions, { collapsed, onToggle: toggle, onOpen: open, layout }),
+    [tree, positions, collapsed, toggle, open, layout],
   );
   const rects = useMemo(() => nodeRects(nodes), [nodes]);
   const overlay = useMemo(() => {

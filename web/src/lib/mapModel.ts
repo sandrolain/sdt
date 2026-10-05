@@ -1,5 +1,5 @@
 import type { Edge, Node } from "@xyflow/react";
-import type { MapPoint } from "./mapLayout";
+import { edgeSides, type MapLayoutKind, type MapPoint } from "./mapLayout";
 import type { MeasuredNode } from "./mapMetrics";
 import type { MapNodeKind } from "./mindmap";
 
@@ -53,6 +53,8 @@ export interface BuildOptions {
   collapsed?: ReadonlySet<string>;
   onToggle?: (id: string) => void;
   onOpen?: (href: string) => void;
+  /** Layout that produced `positions`, so parent edges carry the right sides. */
+  layout?: MapLayoutKind;
 }
 
 // Categorical identity in the graph palette: like the board edges, these are
@@ -120,22 +122,32 @@ export function buildMapGraph(
       zIndex: 1,
     };
   });
-  return { nodes, edges: buildEdges(visible, collapsed) };
+  return { nodes, edges: buildEdges(visible, collapsed, positions, options.layout ?? "balanced") };
 }
 
 /** Parent→child edges plus one edge per paired relationship. */
-function buildEdges(visible: MeasuredNode[], collapsed: ReadonlySet<string>): MapFlowEdge[] {
+function buildEdges(
+  visible: MeasuredNode[],
+  collapsed: ReadonlySet<string>,
+  positions: Map<string, MapPoint>,
+  layout: MapLayoutKind,
+): MapFlowEdge[] {
   const byId = new Map(visible.map((n) => [n.id, n]));
   const edges: MapFlowEdge[] = [];
   for (const node of visible) {
     if (!node.parent) continue;
     if (!byId.has(node.parent)) continue;
     if (collapsed.has(node.parent)) continue;
+    const parentPoint = positions.get(node.parent);
+    const childPoint = positions.get(node.id);
+    const sides =
+      parentPoint && childPoint ? edgeSides(layout, parentPoint, childPoint) : undefined;
     edges.push({
       id: `e:${node.parent}->${node.id}`,
       source: node.parent,
       target: node.id,
       type: "default",
+      data: sides ? { fromSide: sides[0], toSide: sides[1] } : undefined,
       style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
     });
   }

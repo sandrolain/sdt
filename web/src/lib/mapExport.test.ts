@@ -4,6 +4,8 @@ import { annotateGroups } from "./groups";
 import { groupHulls } from "./groupHull";
 import { layoutMap } from "./mapLayout";
 import { escapeXml, mapToSvg, type MapExportInput } from "./mapExport";
+import { arrow, edgeGeom } from "./jsoncanvas/geometry";
+import type { CanvasNode, CanvasSide } from "./jsoncanvas/document";
 import { buildMapGraph, nodeRects } from "./mapModel";
 import { measureTree } from "./mapMetrics";
 import { parseMapDocument } from "./mindmap";
@@ -106,5 +108,39 @@ describe("mapToSvg", () => {
     const svg = mapToSvg(model("# Root\n"));
     expect(svg).toMatch(/width="\d+"/);
     expect(svg).not.toContain("NaN");
+  });
+
+  it("draws each edge with the shared side-anchored bezier, an arrow head and the mid label", () => {
+    const input = model(MD);
+    const svg = mapToSvg(input);
+    const byId: Record<string, CanvasNode> = Object.fromEntries(
+      input.nodes.map((n) => [
+        n.id,
+        {
+          id: n.id,
+          type: "text",
+          x: n.position.x,
+          y: n.position.y,
+          width: n.initialWidth ?? 0,
+          height: n.initialHeight ?? 0,
+        },
+      ]),
+    );
+    for (const edge of input.edges) {
+      const data = edge.data as { fromSide?: CanvasSide; toSide?: CanvasSide } | undefined;
+      const g = edgeGeom(
+        {
+          id: edge.id,
+          fromNode: edge.source,
+          toNode: edge.target,
+          fromSide: data?.fromSide,
+          toSide: data?.toSide,
+        },
+        byId,
+      );
+      if (!g) continue;
+      expect(svg).toContain(`d="${g.d}"`);
+      expect(svg).toContain(`points="${arrow(g.q, g.db)}"`);
+    }
   });
 });
