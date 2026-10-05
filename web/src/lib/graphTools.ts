@@ -1,11 +1,11 @@
 import type { ClusterKey } from "./graphModel";
-import type { LayoutKind } from "./graphLayout";
+import type { GraphLayout, GraphMode } from "./graph/types";
 
-export type GraphMode = "2d" | "3d";
+export type GraphToolMode = GraphMode;
 
 export interface GraphToolsState {
   mode: GraphMode;
-  layout: LayoutKind;
+  layout: GraphLayout;
   clusterKey: ClusterKey;
   /** verbs to show; null = all visible */
   hiddenVerbs: string[];
@@ -14,6 +14,10 @@ export interface GraphToolsState {
   showLabels: boolean;
   /** node focused via the panel's Focus action */
   focusId: string | null;
+  /** highlight the most connected nodes (engine centrality) */
+  centrality: boolean;
+  /** show only the selected node and its direct neighbours */
+  neighborsOnly: boolean;
 }
 
 export const initialGraphTools: GraphToolsState = {
@@ -24,11 +28,13 @@ export const initialGraphTools: GraphToolsState = {
   hiddenKinds: [],
   showLabels: true,
   focusId: null,
+  centrality: false,
+  neighborsOnly: false,
 };
 
 export type GraphToolsAction =
   | { type: "mode"; value: GraphMode }
-  | { type: "layout"; value: LayoutKind }
+  | { type: "layout"; value: GraphLayout }
   | { type: "clusterKey"; value: ClusterKey }
   | { type: "toggleVerb"; value: string }
   | { type: "toggleKind"; value: string }
@@ -36,6 +42,8 @@ export type GraphToolsAction =
   | { type: "setHiddenKinds"; value: string[] }
   | { type: "labels"; value: boolean }
   | { type: "focus"; value: string | null }
+  | { type: "centrality"; value: boolean }
+  | { type: "neighbors"; value: boolean }
   | { type: "reset" };
 
 export function graphToolsReducer(
@@ -61,6 +69,10 @@ export function graphToolsReducer(
       return { ...state, showLabels: action.value };
     case "focus":
       return { ...state, focusId: action.value };
+    case "centrality":
+      return { ...state, centrality: action.value };
+    case "neighbors":
+      return { ...state, neighborsOnly: action.value };
     case "reset":
       return { ...initialGraphTools };
   }

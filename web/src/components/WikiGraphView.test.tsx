@@ -5,28 +5,34 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { WikiGraphView } from "./WikiGraphView";
 import { OpenDocsProvider } from "./OpenDocsProvider";
-import type { GNode } from "../lib/graphModel";
 
-vi.mock("react-force-graph-2d", () => ({
-  default: ({
-    graphData,
-    onNodeClick,
+// The ported engine is WebGL/RAF and cannot run in jsdom; the view is tested in
+// `GraphView.test.tsx`, so here it is replaced by a node list that drives the
+// same select/open callbacks.
+vi.mock("./GraphView", () => ({
+  GraphView: ({
+    nodes,
+    mode,
+    onSelect,
+    onNodeDoubleClick,
   }: {
-    graphData: { nodes: GNode[] };
-    onNodeClick?: (n: GNode) => void;
+    nodes: { id: string; label?: string }[];
+    mode: string;
+    onSelect: (id: string | null) => void;
+    onNodeDoubleClick?: (n: { id: string; label?: string }) => void;
   }) => (
-    <div data-testid="fg2d">
-      {graphData.nodes.map((n) => (
-        <button key={n.id} onClick={() => onNodeClick?.(n)}>
-          {n.title}
+    <div data-testid="graph-view" data-mode={mode}>
+      {nodes.map((n) => (
+        <button
+          key={n.id}
+          onClick={() => onSelect(n.id)}
+          onDoubleClick={() => onNodeDoubleClick?.(n)}
+        >
+          {n.label ?? n.id}
         </button>
       ))}
     </div>
   ),
-}));
-
-vi.mock("react-force-graph-3d", () => ({
-  default: () => <div data-testid="fg3d" />,
 }));
 
 const GRAPH = {
@@ -61,13 +67,12 @@ afterEach(() => {
 });
 
 describe("WikiGraphView", () => {
-  it("renders the tools panel, legend and 2D graph", async () => {
+  it("renders the controls, legend and the graph view", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(GRAPH) }),
     ) as unknown as typeof fetch;
     renderView();
-    expect(await screen.findByTestId("fg2d")).toBeTruthy();
-    expect(screen.getByLabelText("Graph tools")).toBeTruthy();
+    expect(await screen.findByTestId("graph-view")).toBeTruthy();
     expect(screen.getByRole("button", { name: "2D", pressed: true })).toBeTruthy();
     expect(screen.getByText("concept (1)")).toBeTruthy();
     expect(screen.getAllByText("depends_on").length).toBeGreaterThan(0);
@@ -86,13 +91,13 @@ describe("WikiGraphView", () => {
     );
   });
 
-  it("lazy-loads the 3D renderer on mode switch", async () => {
+  it("switches the mode and the layout", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(GRAPH) }),
     ) as unknown as typeof fetch;
     renderView();
     await userEvent.click(await screen.findByRole("button", { name: "3D" }));
-    expect(await screen.findByTestId("fg3d")).toBeTruthy();
+    expect(screen.getByTestId("graph-view").dataset.mode).toBe("3d");
   });
 
   it("shows an error state when the graph API fails", async () => {

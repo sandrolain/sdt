@@ -119,7 +119,16 @@ export function ensureCenterGroup(
  * the edge group is recreated when an older layout had none.
  */
 export function addSidePanels(api: SidePanelApi): void {
-  for (const spec of SIDE_PANELS) {
+  addPanels(api, SIDE_PANELS);
+}
+
+/**
+ * Ensure every panel of a spec list exists inside its edge group. Shared by the
+ * documents workspace and the `/wiki` surfaces (graph, board), which mount their
+ * own `DockviewReact` and pass their own panel spec.
+ */
+export function addPanels(api: SidePanelApi, specs: SidePanelSpec[]): void {
+  for (const spec of specs) {
     if (!api.getEdgeGroup(spec.position)) {
       api.addEdgeGroup(spec.position, {
         id: spec.groupId,

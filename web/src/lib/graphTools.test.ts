@@ -40,6 +40,13 @@ describe("graphToolsReducer", () => {
     s = graphToolsReducer(s, { type: "reset" });
     expect(s).toEqual(initialGraphTools);
   });
+
+  it("carries the engine exploration flags", () => {
+    let s = graphToolsReducer(initialGraphTools, { type: "centrality", value: true });
+    s = graphToolsReducer(s, { type: "neighbors", value: true });
+    expect(s.centrality).toBe(true);
+    expect(s.neighborsOnly).toBe(true);
+  });
 });
 
 describe("visibleSet", () => {

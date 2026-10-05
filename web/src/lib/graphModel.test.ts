@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  adaptGraph,
-  adjacency,
-  clusterOf,
-  clusterPalette,
-  DEFAULT_NODE_COLOR,
-  linkKey,
-  type GraphData,
-} from "./graphModel";
+import { clusterOf, clusterPalette, type GraphData } from "./graphModel";
 
 const DATA: GraphData = {
   nodes: [
@@ -59,53 +51,5 @@ describe("clusterPalette", () => {
     expect(palette.get("concept")).not.toBe(palette.get("module"));
     const again = clusterPalette(DATA.nodes, "type");
     expect(again.get("concept")).toBe(palette.get("concept"));
-  });
-});
-
-describe("adaptGraph", () => {
-  it("maps nodes with cluster/color/val and links with color", () => {
-    const g = adaptGraph(DATA, { clusterKey: "type" });
-    expect(g.nodes).toHaveLength(3);
-    expect(g.links).toHaveLength(2);
-    const a = g.nodes.find((n) => n.id === "a")!;
-    expect(a.cluster).toBe("concept");
-    expect(a.color).not.toBe(DEFAULT_NODE_COLOR);
-    expect(a.val).toBe(3); // degree 2 + 1
-    expect(g.links[0].color).toBeTruthy();
-  });
-
-  it("filters links by verb and kind", () => {
-    const g = adaptGraph(DATA, {
-      clusterKey: "type",
-      visibleVerbs: new Set(["refers_to"]),
-      visibleKinds: new Set(["link"]),
-    });
-    expect(g.links).toHaveLength(1);
-    expect(g.links[0].verb).toBe("refers_to");
-  });
-
-  it("reports the full verb/kind inventory", () => {
-    const g = adaptGraph(DATA, { clusterKey: "type" });
-    expect(g.allVerbs).toEqual(["depends_on", "refers_to"]);
-    expect(g.allKinds).toEqual(["link", "relation"]);
-  });
-});
-
-describe("linkKey", () => {
-  it("is stable across endpoint object vs string forms", () => {
-    const key = linkKey({ source: "a", target: "b", verb: "depends_on" });
-    expect(key).toBe("a--depends_on-->b");
-    expect(linkKey({ source: { id: "a" }, target: { id: "b" }, verb: "depends_on" } as never)).toBe(
-      key,
-    );
-  });
-});
-
-describe("adjacency", () => {
-  it("builds an undirected neighbor map", () => {
-    const g = adaptGraph(DATA, { clusterKey: "type" });
-    const adj = adjacency(g.links);
-    expect([...adj.get("a")!].sort()).toEqual(["b", "c"]);
-    expect([...adj.get("b")!]).toEqual(["a"]);
   });
 });
