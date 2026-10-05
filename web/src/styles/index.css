@@ -2783,6 +2783,15 @@
     height: 100%;
     min-height: 0;
   }
+
+  .board-panel {
+    height: 100%;
+    min-height: 0;
+  }
+  .board-controls-panel {
+    height: 100%;
+    min-height: 0;
+  }
   .graph-tools {
     display: flex;
     flex-direction: column;
@@ -2886,10 +2895,6 @@
   .wiki-shell > .content {
     min-height: 0;
   }
-  .wiki-shell > .content:has(> .board-page) {
-    overflow: hidden;
-    padding: 0;
-  }
   .wiki-shell > .content:has(> .dock-layout) {
     overflow: hidden;
     padding: 0;
@@ -2963,87 +2968,6 @@
     border-radius: 999px;
     background: var(--ctp-surface1);
     color: var(--ctp-subtext0);
-  }
-
-  .board-page {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    height: 100%;
-    min-height: 0;
-  }
-  .board-page__toolbar {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-  .board-page__hint {
-    font-size: 0.75rem;
-    color: var(--fg-faint);
-  }
-  .board {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-  }
-  .board__controls {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    z-index: 2;
-    display: flex;
-    gap: 0.35rem;
-  }
-  .board__viewport {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-base);
-    cursor: grab;
-    touch-action: none;
-  }
-  .board__viewport:active {
-    cursor: grabbing;
-  }
-  .board-card {
-    box-sizing: border-box;
-    width: 100%;
-    height: 100%;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-mantle);
-    overflow: hidden;
-  }
-  .board-card__handle {
-    opacity: 0;
-  }
-  .board-card--group {
-    border-style: dashed;
-    background: transparent;
-  }
-  .board-card__button {
-    display: block;
-    width: 100%;
-    height: 100%;
-    padding: 0.5rem 0.6rem;
-    text-align: left;
-    font-size: 0.8125rem;
-    color: var(--fg);
-    white-space: pre-wrap;
-    overflow: hidden;
-  }
-  .board-card__button:hover {
-    background: var(--bg-hover);
-  }
-  .board-card__text {
-    display: block;
-    padding: 0.5rem 0.6rem;
-    font-size: 0.8125rem;
-    color: var(--fg-dim);
-    white-space: pre-wrap;
   }
 }
 

@@ -23,23 +23,25 @@ describe("normalizeBoard", () => {
     expect(model.nodes).toHaveLength(2);
   });
 
-  it("applies geometry defaults and skips malformed entries", () => {
+  it("applies geometry defaults and preserves the raw node type", () => {
     const model = normalizeBoard({ nodes: [{ id: "a" }, { type: "nope" }, null], edges: [{}] });
-    expect(model.nodes[0]).toEqual({
+    expect(model.nodes[0]).toMatchObject({
       id: "a",
       type: "text",
       x: 0,
       y: 0,
       width: 220,
       height: 110,
-      color: undefined,
-      text: undefined,
-      file: undefined,
-      url: undefined,
-      label: undefined,
     });
     expect(model.nodes[1].id).toBe("1");
+    expect(model.nodes[1].type).toBe("nope");
     expect(model.edges[0].fromNode).toBe("");
+  });
+
+  it("carries x-layer and preserves unknown fields", () => {
+    const model = normalizeBoard({ nodes: [{ id: "a", type: "text", "x-layer": 2, "x-foo": 1 }] });
+    expect(model.nodes[0]["x-layer"]).toBe(2);
+    expect((model.nodes[0] as Record<string, unknown>)["x-foo"]).toBe(1);
   });
 
   it("handles empty/foreign input", () => {

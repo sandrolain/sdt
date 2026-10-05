@@ -1,0 +1,194 @@
+/**
+ * Styles for the shared JsonCanvas view (decision 0025).
+ *
+ * Adapted from `context/refs/react/jc-vite/src/JsonCanvas.jsx` (MIT), read-only:
+ * the toolbar, handles and resize grips are gone. Colours come from the
+ * `--bg`/`--grid`/… custom properties the component sets from the SDT tokens.
+ */
+.jc {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg);
+  color: var(--text);
+  font:
+    14px/1.5 var(--font-sans, ui-sans-serif),
+    system-ui,
+    sans-serif;
+  touch-action: none;
+  outline: none;
+  user-select: none;
+  cursor: grab;
+}
+.jc-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.jc-node {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c) 9%, var(--node));
+  border: 1.5px solid color-mix(in srgb, var(--c) 75%, transparent);
+  box-shadow:
+    0 1px 2px rgba(10, 20, 40, 0.08),
+    0 10px 24px -10px rgba(10, 20, 40, 0.22);
+  cursor: default;
+}
+.jc-node.sel {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent),
+    0 14px 32px -10px rgba(10, 20, 40, 0.35);
+}
+.jc-node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.jc-group {
+  background: var(--group);
+  border-style: dashed;
+  box-shadow: none;
+  pointer-events: none;
+}
+.jc-group.col {
+  background: color-mix(in srgb, var(--c) 7%, transparent);
+}
+.jc-gl {
+  position: absolute;
+  left: 10px;
+  top: -32px;
+  padding: 2px 12px;
+  border-radius: 9px;
+  background: var(--node);
+  border: 1.5px solid var(--c);
+  font-weight: 650;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: default;
+}
+.jc-body {
+  padding: 12px 14px;
+  height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+}
+.jc-h1 {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.jc-h2 {
+  font-size: 17px;
+  font-weight: 650;
+}
+.jc-h3 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.jc-li::before {
+  content: "•";
+  margin-right: 8px;
+  color: var(--muted);
+}
+.jc code {
+  font:
+    12.5px ui-monospace,
+    Menlo,
+    monospace;
+  background: var(--grid);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.jc-wl {
+  color: var(--accent);
+}
+.jc-card {
+  height: 100%;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+.jc-ct {
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jc-cp {
+  font:
+    12px ui-monospace,
+    Menlo,
+    monospace;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+a.jc-cp {
+  color: var(--accent);
+}
+.jc-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+.jc-edge .line {
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.jc-edge text {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--text);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 7px;
+  stroke-linejoin: round;
+}
+.jc-mm {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 180px;
+  height: 120px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--node) 84%, transparent);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.jc-3d {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+}
+.jc-3d canvas {
+  display: block;
+}
+.jc-3d-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .jc-node {
+    transition:
+      box-shadow 0.15s,
+      border-color 0.15s;
+  }
+}
