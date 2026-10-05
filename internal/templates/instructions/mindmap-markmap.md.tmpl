@@ -122,8 +122,8 @@ The map tree is built by `web/src/lib/mindmap.ts` (a `marked` lexer walk) and
 annotated by `web/src/lib/mapMarkers.ts` (the marker layer). There is no
 third-party parser to re-verify against a version: the re-verification duty is
 the dialect's own test suite (`mindmap.test.ts`, `mapMarkers.test.ts`). Change a
-rule here and change those tests with it — the lint in
-`cli/cmd/context_maplint.go` mirrors this file, so the three move together.
+rule here and change those tests with it — the repository's own lint for this
+dialect mirrors this file, so the three move together.
 
 ## Document management (`.map.md`)
 

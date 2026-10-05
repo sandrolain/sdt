@@ -208,10 +208,15 @@ or different stage — re-ask when the stage changes (HARD RULE 1).
 
 Before closing a phase run the **verify-step**: completeness, coherence, correctness
 (prioritize CRITICAL / WARNING / SUGGESTION, degrade gracefully). Then reindex: run
-`sdt context reindex` and `sdt context lint`; run `sdt context status` to
-detect stale in-progress files; `sdt agent doctor` reports workspace health, and
+`sdt context reindex` and `sdt context lint`; run `sdt context resume` to
+read the recorded execution state and spot a stale in-progress file (the view is
+read-only and states that it reports the recorded paper, not live work);
+`sdt agent doctor` reports workspace health, and
 `sdt agent gate` runs the strict delivery ladder (Build -> Vet -> Lint -> Test,
-fail-closed) when a hard gate is wanted. Regenerate the per-command docs
+fail-closed) when a hard gate is wanted — with `--record --plan <ref>` its run is
+appended to the task file's `## Review` block as a `### Gate` record, and a
+failing run is recorded with the step it failed at, never as a pass. Regenerate
+the per-command docs
 (`sdt context docs`) when the command help or the version changed. Use a
 standardized claim vocabulary in task files: **passed** (ran and verified),
 **expected** (written, not run), **inferred** (static analysis only).

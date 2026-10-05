@@ -76,7 +76,9 @@ func loadCascadeNode(path string) (*cascadeNode, bool) {
 		status:  strings.ToLower(strings.TrimSpace(parseFrontmatterField(content, ctxMapStatus))),
 		uid:     parseFrontmatterField(content, ctxFrontmatterUID),
 		content: content,
-		items:   parseChecklistItems(content),
+		// Only the work part: the derived status behind the cascade checks must
+		// not read a `## Deviations`/`## Review` record as open work.
+		items: parseChecklistItems(taskWorkContent(content)),
 	}
 	return n, true
 }

@@ -77,6 +77,8 @@ session: <session id>        # optional
 ## Options considered      # optional: only when there is a real trade-off
 ### Option A: <name>
 ### Option B: <name>
+## Objectives              # optional: one checklist item per outcome this analysis must deliver
+- [ ] <id> <outcome>       # id is the identity (e.g. O1, B3); the anchor <!-- c1 --> is CLI-assigned
 ## Plans                   # optional: ordered wave plans derived from this analysis (R2)
 ## Postponed from         # status: postponed only: origin option + why not now + revival condition
 ## Evidence / sources
@@ -115,6 +117,19 @@ session: <session id>        # optional
   Effort/risk, and `**Outcome:**` (accepted / rejected / postponed) — R3.
 - **Postponed from** — `status: postponed` analyses only: the origin option, the
   reason it was not chosen now, and the condition that would revive it (R3).
+- **Objectives** (optional) — the **checklist** of outcomes this analysis must
+  deliver, one item each: `- [ ] <id> <outcome>`. The `<id>` is the identity a
+  derived plan phase claims with `**Covers:** <id>`; it is authored text (a
+  leading uppercase letter plus digits, e.g. `O1`, `B3`), while the
+  `<!-- cN -->` anchor is CLI-assigned like every other checklist id. This is
+  the **only** place objective ids are declared: `sdt context lint` parses this
+  checklist and nothing else, so a `**B1.**` sentence or a `| B1 |` table cell
+  elsewhere in the corpus is never mistaken for a declaration. Ticking an item
+  records that the outcome is delivered.
+  The section is **optional and graceful**: an analysis without it is valid, and
+  the coverage check skips it in both directions rather than reporting a gap.
+  When it is present, the check reports a plan phase covering an undeclared id
+  (WARNING) and a declared id no derived plan phase covers (SUGGESTION).
 - **Plans** — the ordered list of wave plans derived from this analysis, one line
   each (number, slug, one-sentence scope, analysis objectives covered) when the
   analysis feeds more than one plan (R2).
@@ -179,6 +194,10 @@ session: <session id>        # optional
 - `objective` (optional): kebab-case slug identifying the initiative; use the same
   slug in every analysis that targets the same objective so
   `sdt context reindex` groups them together in `context/index.md`.
+- **Declare `## Objectives` when the analysis feeds a plan.** Every objective
+  gets a unique id and one item; ids are the traceability handle between this
+  document and the plan phases that cover it. Do not restate an objective id in
+  prose expecting the check to read it — only the checklist declares.
 - **Check the objective's dead ends first**: before opening an analysis for an
   objective, review its `note_type: dead-end` notes (`sdt context status`
   counts them; `sdt context reindex` groups them under the objective) and do

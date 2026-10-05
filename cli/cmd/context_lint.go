@@ -19,6 +19,7 @@ import (
 	"github.com/yuin/goldmark/v2/parser"
 
 	"github.com/sandrolain/sdt/internal/ctxrel"
+	"github.com/sandrolain/sdt/internal/mdstruct"
 )
 
 // ctxFrontmatterSources is the provenance field name shared by the reference
@@ -133,6 +134,16 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"plan missing `objective`", "add `objective: <kebab-case-slug>` matching the analysis this plan derives from so plans, tasks and analyses group in the index"},
 	{"plan `objective`", "set `objective` to the lowercase kebab-case slug shared with the analysis this plan derives from"},
 	{"task file carries legacy `objective`", "rename the field to `phase`; the task inherits the plan objective and never declares `objective`"},
+	{"orphan task file", "run `sdt context relations backfill` to derive the parent plan from `sources`, or set `plan_id` explicitly; an orphan escapes every plan-scoped check"},
+	{"plan status is ", "run `sdt context sync` (or complete the remaining phases) so the plan status matches its task files"},
+	{"task file is completed but its parent plan is still active", "close the plan (`sdt context sync`, or set its status with `sdt context status set`) so the two documents agree"},
+	{"stale task file", "receive the file and finish it, or reset its `[~]` items to `[ ]` and refresh `updated` with `sdt context touch`"},
+	{"undeclared objective ", "declare it as `- [ ] <id> <outcome>` in the source analysis `## Objectives`, or correct the phase's `**Covers:**` claim"},
+	{"uncovered objective ", "claim it from a derived plan phase with `**Covers:** <id>`, or drop it from the analysis when it is no longer intended"},
+	{"completed task file has a `## Review` block but no `### Gate` record", "run the delivery gate with `sdt agent gate --record --plan <plan>` so the run's real outcome is readable next session"},
+	{"finding under `### Findings` has no verdict token", "re-record it with `sdt context task review --finding \"<claim>\" --verdict " + ctxReviewVerdictHelp + "`"},
+	{"unknown kind ", "record the deviation with `sdt context task deviation add` using one of fix | add | unblock | stop-and-ask"},
+	{"completed task file carries an open deviation ", "resolve it (mark it done) or record why it stays open, so a completed file has no unresolved divergence"},
 	{"document missing `uid`", "run `sdt context uid backfill` to stamp every existing document, or create new documents with `sdt context new`/`sdt context task`"},
 	{"plan has no `analysis_id`", "run `sdt context relations backfill` to derive the typed parent relation from `sources`"},
 	{"task has no `plan_id`", "run `sdt context relations backfill` to derive the typed parent relation from `sources`"},
@@ -1150,7 +1161,44 @@ func lintTaskFileRules(path, content string) []ctxLintIssue {
 	if parseFrontmatterField(content, "status") == taskFileStatusCompleted && !hasReviewBlock(content) {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "completed task file has no `## Review` verify-step block (record verdicts; see `sdt context task review`)"})
 	}
+	issues = append(issues, lintFindingVerdict(path, content)...)
+	issues = append(issues, lintDeviation(path, content)...)
 	return issues
+}
+
+// lintFindingVerdict reports a `### Findings` item of a completed task file whose
+// text carries no verdict token. The verify-step vocabulary is closed by decision
+// 0013 and the verdict is the item's trailing token, so an item without one
+// records a claim nobody judged. SUGGESTION — the finding is still readable, it
+// just cannot be checked.
+func lintFindingVerdict(path, content string) []ctxLintIssue {
+	if parseFrontmatterField(content, "status") != taskFileStatusCompleted {
+		return nil
+	}
+	var issues []ctxLintIssue
+	for _, section := range mdstruct.SplitSections(content) {
+		if section.Level != 3 || !strings.EqualFold(section.Heading, "Findings") {
+			continue
+		}
+		for _, entry := range parseChecklistEntries(strings.Split(section.Body, "\n")) {
+			body, _ := splitChecklistAnchor(entry.Body)
+			if hasVerdictToken(body) {
+				continue
+			}
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion,
+				Message: fmt.Sprintf("finding under `### Findings` has no verdict token (want %s): %s", ctxReviewVerdictHelp, truncateLintText(body))})
+		}
+	}
+	return issues
+}
+
+// truncateLintText keeps a finding's claim short enough to read in a lint line.
+func truncateLintText(text string) string {
+	flat := strings.Join(strings.Fields(text), " ")
+	if len(flat) <= 80 {
+		return flat
+	}
+	return flat[:77] + "..."
 }
 
 // taskPlanCoverage unions the phase labels a task file covers (legacy scalar
@@ -1278,6 +1326,10 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		var issues []ctxLintIssue
 		security := getBoolFlag(cmd, "security", false)
+		staleDays := getIntFlag(cmd, "stale-days", false)
+		if staleDays <= 0 {
+			staleDays = ctxStaleInProgressDays
+		}
 		// Load the controlled topic register once; a malformed file is reported
 		// as a lint issue on the register itself.
 		reg, regErr := loadTopicRegister()
@@ -1352,6 +1404,20 @@ Examples:
 			// Advisory phase-coverage check: a plan already using the section
 			// model whose phase no task file covers.
 			issues = append(issues, lintTaskPhaseCoverage(planFiles, taskFiles, edges)...)
+			// Reconciler completion (B1): the orphan, status-drift and
+			// staleness checks, all reading the one shared report that
+			// `sdt context resume` renders.
+			reconcile := reconcileCorpus(staleDays, contextNow())
+			issues = append(issues, lintTaskOrphans(reconcile)...)
+			issues = append(issues, lintPlanTaskStatusDrift(reconcile)...)
+			issues = append(issues, lintStaleInProgress(reconcile)...)
+			// Gate evidence (B2): a closed phase whose Review block never
+			// recorded a delivery-gate run.
+			issues = append(issues, lintGateEvidence(reconcile)...)
+			// Objective-to-phase traceability (B4): a plan phase claiming an
+			// objective its source analysis does not declare, and a declared
+			// objective no derived plan phase covers.
+			issues = append(issues, lintObjectivePhaseCoverage(planFiles, edges)...)
 			// Declared-vs-derived drift across the whole chain (task, plan,
 			// analysis) at advisory WARNING severity (analysis Q4).
 			issues = append(issues, lintCascadeDrift()...)

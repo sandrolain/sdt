@@ -122,6 +122,10 @@ func ctxStatusRows() []ctxStatusEntry {
 		next    string
 		ifClean string
 	}
+	// The tasks row names the command that actually reports stale in-progress
+	// files. It used to claim `sdt context status` detected them, which it never
+	// did: the reconciler gained that check in Wave 4 and the view that shows it is
+	// `sdt context resume`.
 	const read = "read"
 	descs := []kindDescr{
 		{kind: ctxTypeArchitecture, next: read, ifClean: read},
@@ -133,7 +137,7 @@ func ctxStatusRows() []ctxStatusEntry {
 		{kind: ctxTypePrompt, next: "run or review", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeResearch, next: "read findings", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeQuestions, next: "answer open questions", ifClean: gitIgnoreModeNone},
-		{kind: ctxTypeTasks, next: "track per-phase", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeTasks, next: "sdt context resume", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeCommands, next: "review triggers", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeWorklog, next: ctxTierHistory, ifClean: ctxTierHistory},
 	}

@@ -205,6 +205,21 @@ func init() {
 	contextListCmd.Flags().StringArray("where", nil, "Generic frontmatter filter key=value or key!=value (repeatable; AND-ed)")
 
 	contextLintCmd.Flags().Bool("security", false, "Also scan for prompt-injection, credential and invisible-Unicode patterns (advisory WARNING)")
+	contextLintCmd.Flags().Int("stale-days", ctxStaleInProgressDays, "Days before an `in-progress` task file is reported as stale (advisory SUGGESTION)")
+
+	contextResumeCmd.Flags().String("plan", "", "Plan reference to report (default: every active plan)")
+	contextResumeCmd.Flags().Int("stale-days", ctxStaleInProgressDays, "Days before an `in-progress` task file is reported as stale")
+
+	contextDeviationCmd.AddCommand(contextDeviationAddCmd, contextDeviationListCmd)
+	contextDeviationAddCmd.Flags().String("kind", ctxDeviationDefaultKind, "Deviation kind: "+ctxDeviationKindHelp())
+	contextDeviationAddCmd.Flags().String("id", "", "Checklist id of the phase item the deviation concerns (marked, never deleted)")
+	contextDeviationAddCmd.Flags().String("reason", "", "Why the plan was departed from (recorded with the item)")
+	for _, c := range []*cobra.Command{contextDeviationAddCmd, contextDeviationListCmd} {
+		c.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+		c.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
+		c.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
+	}
+	addCascadeFlag(contextDeviationAddCmd)
 	contextSearchCmd.Flags().String("type", "", "Filter by frontmatter kind")
 	contextSearchCmd.Flags().String("status", "", "Filter by frontmatter status (default: active; use --all for any)")
 	contextSearchCmd.Flags().String("objective", "", "Filter by frontmatter objective")
@@ -230,6 +245,8 @@ func init() {
 	contextTaskDoneCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskBlockCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskWipCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskReviewCmd.Flags().StringArray("finding", nil, "Finding claim to record under `### Findings` (repeatable; pair by position with --verdict)")
+	contextTaskReviewCmd.Flags().StringArray("verdict", nil, "Verdict for the matching --finding: "+ctxReviewVerdictHelp+" (repeatable)")
 	contextTaskReviewCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskBlockCmd.Flags().String("reason", "", "Reason for blocking")
 	contextTaskAddCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
@@ -253,7 +270,7 @@ func init() {
 	addCascadeFlag(contextTaskWipCmd)
 	addCascadeFlag(contextTaskReviewCmd)
 
-	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd)
-	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextReindexCmd, contextLintCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
+	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextDeviationCmd)
+	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
 	rootCmd.AddCommand(contextCmd)
 }

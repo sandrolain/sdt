@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -222,7 +223,19 @@ const (
 
 // gateGoListExpr resolves the project Go packages, excluding context/ refs
 // (the reference clones hold C/broken-Go fixtures), exactly as Taskfile does.
-const gateGoListExpr = "$(go list -e ./... | grep -v /context/)"
+//
+// The `|| echo <sentinel>` keeps the ladder fail-closed: when `go list` fails
+// outright (a corpus clone can make the module loader error before the `-e`
+// tolerance applies) or resolves nothing, the expansion is the sentinel and the
+// go command fails on an unknown package. Without it the substitution was empty,
+// the step built or tested nothing and still exited 0, and the gate recorded a
+// `pass` for work it never did — the failure laundered into a pass that c20
+// forbids.
+const gateGoListExpr = "$(go list -e ./... | grep -v /context/ || echo " + gateNoPackagesSentinel + ")"
+
+// gateNoPackagesSentinel is the argument the go steps receive when the package
+// list could not be resolved. It is not a valid import path, so the step fails.
+const gateNoPackagesSentinel = "__sdt_no_packages__"
 
 // deliveryGateSteps is the fixed, fail-closed verification ladder. It stops at
 // the first failure: Build -> Vet -> Lint -> Test.
@@ -243,8 +256,15 @@ explicit counterpart of the advisory verify-step.
 The commands are the project's own Go toolchain (go build/vet/test) plus
 golangci-lint; a missing external tool is reported, never silently skipped.
 
+With --record the run is appended to the task file's ` + "`## Review`" + ` block as a
+` + "`### Gate`" + ` subsection, one line per step with its real status and duration.
+The record is written whether the run passed or failed, and a failing run is
+never summarised as a pass. Without --record the gate writes nothing (the CI
+path is unchanged).
+
 Examples:
   sdt agent gate
+  sdt agent gate --record --plan 20261005-example.md
   sdt agent gate --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -254,25 +274,31 @@ Examples:
 			Detail string `json:"detail,omitempty" yaml:"detail,omitempty"`
 		}
 		var results []gateResult
+		var recorded []gateStepResult
 		failed := ""
 		for _, step := range deliveryGateSteps {
 			exe, err := exec.LookPath(step.Bin)
 			if err != nil {
 				results = append(results, gateResult{Step: step.Name, Status: "error", Detail: step.Bin + " not found"})
+				recorded = append(recorded, gateStepResult{Step: step.Name, Status: "error"})
 				failed = step.Name
 				break
 			}
+			started := contextNow()
 			out, err := runGateStep(exe, step)
+			elapsed := contextNow().Sub(started)
 			if err != nil {
 				detail := strings.TrimSpace(string(out))
 				if len(detail) > 400 {
 					detail = detail[:400] + "…"
 				}
 				results = append(results, gateResult{Step: step.Name, Status: doctorStatusFail, Detail: detail})
+				recorded = append(recorded, gateStepResult{Step: step.Name, Status: doctorStatusFail, Duration: elapsed})
 				failed = step.Name
 				break
 			}
 			results = append(results, gateResult{Step: step.Name, Status: "pass"})
+			recorded = append(recorded, gateStepResult{Step: step.Name, Status: "pass", Duration: elapsed})
 		}
 		switch getFormat(cmd) {
 		case fmtJSON:
@@ -288,10 +314,34 @@ Examples:
 				outputString(cmd, fmt.Sprintf("[%s] %s %s\n", r.Status, r.Step, r.Detail))
 			}
 		}
+		if getBoolFlag(cmd, "record", false) {
+			// The record is written before the failure exit below: a failed
+			// run is exactly what the next session must be able to read back.
+			path, err := gateRecordPath(cmd)
+			if err == nil {
+				err = writeGateRecord(path, contextNow(), failed, recorded)
+			}
+			if err != nil {
+				exitWithError(cmd, err)
+			} else {
+				outputString(cmd, "recorded gate run in "+path+"\n")
+			}
+		}
 		if failed != "" {
 			exitWithError(cmd, fmt.Errorf("delivery gate failed at step %q", failed))
 		}
 	},
+}
+
+// gateRecordPath resolves the task file `--record` writes to. An explicit
+// `--plan` is required: the gate never guesses which task file to attribute a
+// run to, and never creates the `## Review` block by default.
+func gateRecordPath(cmd *cobra.Command) (string, error) {
+	plan := getStringFlag(cmd, "plan", false)
+	if plan == "" {
+		return "", errors.New("--record requires --plan <ref>: name the plan whose task file receives the run")
+	}
+	return taskFileForRef(sanitizeSlug(getStringFlag(cmd, "phase", false)), "", plan), nil
 }
 
 // runGateStep runs one ladder step. Shell steps expand the package expression
@@ -307,4 +357,8 @@ func runGateStep(exe string, step gateStep) ([]byte, error) {
 
 func init() {
 	agentCmd.AddCommand(agentDoctorCmd, agentGateCmd)
+
+	agentGateCmd.Flags().Bool("record", false, "Append the run to the task file's `## Review` block (requires --plan; without it the gate writes nothing)")
+	agentGateCmd.Flags().String("plan", "", "Plan reference whose task file receives the record (required by --record)")
+	agentGateCmd.Flags().String("phase", "", "Plan phase whose task file receives the record (default: the plan's whole-plan file)")
 }

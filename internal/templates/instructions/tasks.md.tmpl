@@ -82,7 +82,25 @@ session: <session id>        # optional
 - [x] step three (done) <!-- c3 -->
 - [!] step four (blocked) <!-- c4 -->
 
+## Deviations             <!-- one item per deliberate departure from the plan -->
+
+- [ ] fix — the phase order was wrong; corrected <!-- c7 -->
+- [ ] stop-and-ask — the dependency choice needs the user's decision <!-- c8 -->
+
 ## Review                 <!-- file-level; written by `task review` on completion -->
+
+### Findings             <!-- one item per finding; the verdict is the trailing token -->
+
+- [ ] <claim> — CONFIRMED <!-- c5 -->
+- [ ] <claim> — UNVERIFIED <!-- c6 -->
+
+### Gate                 <!-- appended by `agent gate --record`; a failed run says so -->
+
+2026-01-01T00:00:00Z (sdt agent gate) — passed
+- build: pass (1.20s)
+- vet: pass (0.40s)
+- lint: pass (3.00s)
+- test: pass (11.00s)
 ```
 
 The trailing `<!-- c<N> -->` is a stable per-document id the CLI assigns; never
@@ -221,8 +239,9 @@ task file → the plan under discussion → **ask**. Then:
 
 ## Stale task files
 
-At the start of any execution pass, run `sdt context status` (it flags
-`in-progress` files) and scan `context/tasks/` for stale files: status
+At the start of any execution pass, run `sdt context resume` (it reads the
+recorded execution state and names stale `in-progress` files) and scan
+`context/tasks/` for stale files: status
 `in-progress` (or legacy `active`) with `[~]` items that went unupdated for a
 long time (compare each file's `updated` with the current date and the recorded
 take-in). For each stale file:
@@ -241,6 +260,38 @@ Never leave `[~]` in-progress markers unattended across sessions, and never
 archive a stale task file to hide it: `completed` (or `pending` after a reset)
 is the normal terminal state, and archiving is reserved for a task file the user
 explicitly retires.
+
+## Deviations
+
+When the work departs from what the plan said, record it in the task file's
+`## Deviations` section instead of silently reinterpreting the plan. Write it with
+
+```bash
+sdt context task deviation add "<what departed from the plan>" --kind <kind> \
+  [--id <checklist-id>] [--reason "<why>"]
+```
+
+The kind is a closed vocabulary and is **never inferred**:
+
+| Kind | Meaning |
+|------|---------|
+| `fix` | the plan was wrong and the correction is made |
+| `add` | something had to be added that the plan did not have |
+| `unblock` | a blocker was resolved to continue |
+| `stop-and-ask` | the work halted for the user's decision |
+
+`stop-and-ask` is the **default**: when the caller does not say what kind of
+diversion this is, the recorded instruction is to ask the user, because "when in
+doubt, take the heavier path, and never weaken an agreed plan mid-task without
+saying so". An unknown kind is refused by the CLI and reported by
+`sdt context lint`, so the vocabulary cannot drift by hand-editing.
+
+With `--id <checklist-id>` the item the deviation concerns is **marked, never
+deleted**: `[!]` (stopped to ask) for `stop-and-ask`, `[~]` (in progress)
+otherwise. Its text and id stay, so a reviewer reads what was planned next to why
+it moved. `sdt context task deviation list` lists the section; an item is closed
+by ticking it like any other checklist item. A `completed` file that still
+carries an open deviation is a lint WARNING.
 
 ## Verify-step
 
@@ -277,10 +328,26 @@ a lint SUGGESTION). Every finding ends as one of the closed verdicts
 file path). Findings are validated in an **independent pass**; the author of the
 phase does not self-approve.
 
+Give each finding its own identity with `--finding "<claim>" --verdict <verdict>`
+(repeatable, paired by position): the pairs become one item per finding under the
+block's `### Findings` subsection, with a CLI-assigned id, so a review says
+*which* claim was judged rather than leaving verdicts in a blob of prose. The
+verdict is the item's trailing token — that is what lint reads — and re-recording
+the same claim with the same verdict is a no-op, so a finding's identity is
+stable across a re-run. A claim re-stated with a *different* verdict is a new
+finding with a new id; the earlier one is never overwritten.
+
+The delivery gate leaves its own evidence: `sdt agent gate --record --plan <ref>`
+appends a `### Gate` subsection under the same `## Review` block, one line per
+step with its status and duration, headed by the run timestamp. A run that failed
+is written with the step it failed at and that step's real status — never
+summarised as a pass. Without `--record` the gate writes nothing.
+
 Close-out checks, run before setting the file `completed`:
 
 - `sdt context reindex` and `sdt context lint` — index regenerated, no new
   findings.
-- `sdt context status` — no stale `in-progress` file left behind.
+- `sdt context resume` — read the recorded execution state; no stale
+  `in-progress` file left behind.
 - `sdt context docs` — regenerate the per-command docs when the command help or
   the version changed (see `context/sdtdocs/README.md`).

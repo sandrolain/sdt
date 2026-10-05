@@ -1032,8 +1032,11 @@ func TestContextTaskAddFrontmatterConvention(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
 	// An active plan exists → generated checklist must link it (links+sources).
+	// The uid is what the CLI stamps on creation and what the typed parent
+	// relation resolves, so a plan without one is not a state `sdt context new`
+	// can produce.
 	writeCtxDoc(t, filepath.Join("context", "plan", "20260912-000000-pipeline.md"),
-		"---\nkind: plan\nsummary: p\nstatus: active\n---\nbody\n")
+		"---\nkind: plan\nuid: 01a0e43d-a762-7bb6-a5e1-745dc26fd167\nanalysis_id: 01a0fae3-c14a-754f-bc67-e7b861b7f884\nsummary: p\nstatus: active\n---\nbody\n")
 	execute(t, contextTaskAddCmd, nil, "step one", "--phase", "demo",
 		"--summary", "Demo checklist")
 

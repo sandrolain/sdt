@@ -80,20 +80,26 @@ func taskSectionItemCounts(content string) []taskSectionCount {
 	counts := map[string]int{}
 	var labels []string
 	current := ""
-	for _, line := range strings.Split(content, "\n") {
+	// The preamble counts (a legacy unphased checklist); a file-level record
+	// section does not, so `## Deviations`/`## Review` items never inflate a
+	// count or trip the oversized-section check.
+	counting := true
+	for _, line := range strings.Split(taskWorkContent(content), "\n") {
 		t := strings.TrimSpace(line)
 		if strings.HasPrefix(t, "## ") {
 			if m := ctxTaskPhaseSectionRegexp.FindStringSubmatch(t); m != nil {
 				current = m[1]
+				counting = true
 				if _, seen := counts[current]; !seen {
 					labels = append(labels, current)
 				}
 			} else {
 				current = ""
+				counting = false
 			}
 			continue
 		}
-		if strings.HasPrefix(t, "- [") {
+		if counting && strings.HasPrefix(t, "- [") {
 			counts[current]++
 		}
 	}
@@ -360,6 +366,18 @@ func buildTaskFrontmatter(project, summary, planRef string, phases []string) str
 		b.WriteString("project: " + yamlScalar(project) + "\n")
 	}
 	b.WriteString("---\n\n")
+	// A file with no resolvable plan gets no typed parent, so it declares the
+	// standalone decision in its body: the reconciler reports an undeclared
+	// orphan as a WARNING, and the CLI must not scaffold a file that is born
+	// unexplained.
+	if planRef == "" || !planHasFile(planRef) {
+		reason := "no parent plan was named"
+		if planRef != "" {
+			reason = "`--plan " + planRef + "` is not a plan document"
+		}
+		b.WriteString(ctxStandaloneMarker + " " + reason +
+			", so this file records its own lifecycle.\n\n")
+	}
 	return b.String()
 }
 
@@ -617,14 +635,36 @@ func taskFileNextStatus(itemStatus string, content string) string {
 
 // hasUnfinishedTaskItem reports whether any `- [ ]` or `- [~]` item remains.
 
+// hasUnfinishedTaskItem reports whether any phase item is still open. Only the
+// work part of the file counts: `## Deviations` and `## Review` are file-level
+// records the CLI writes, and their checklist items (an open deviation, a
+// finding) are traces rather than work, so neither may keep a file from
+// completing.
 func hasUnfinishedTaskItem(content string) bool {
-	for _, line := range strings.Split(content, "\n") {
+	for _, line := range strings.Split(taskWorkContent(content), "\n") {
 		m := ctxTaskLineRegexp.FindStringSubmatch(line)
 		if m != nil && m[1] != "x" && m[1] != "!" {
 			return true
 		}
 	}
 	return false
+}
+
+// taskWorkContent returns the work part of a task file: everything before the
+// file-level record sections `## Deviations` and `## Review`. Every scan that
+// asks "what work is left in this file" — unfinished items, per-section item
+// counts, the derived status behind the cascade checks — goes through here, so a
+// record section is never mistaken for a phase. `## Review` is ignored too, even
+// though it predates the deviations section: once `### Findings` put checklist
+// items under it, a whole-document scan started seeing verdicts as open work.
+func taskWorkContent(content string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if t := strings.TrimSpace(line); t == ctxDeviationsHeader || t == ctxReviewBlockHeader {
+			return strings.Join(lines[:i], "\n")
+		}
+	}
+	return content
 }
 
 func taskSetStatusCmd(status string) *cobra.Command {
@@ -684,10 +724,19 @@ checklist item is done, mark the file completed.
 
 Each finding ends as one of the closed verdicts (` + ctxReviewVerdictHelp + `) with
 evidence; an independent pass validates findings and the phase author does not
-self-approve. Use --input/--file/piped stdin for the findings text.
+self-approve. Use --input/--file/piped stdin for the findings prose.
+
+Record per-finding verdicts with --finding and --verdict: the two flags pair by
+position and are repeatable, and each pair becomes one item under the block's
+` + "`### Findings`" + ` subsection with a CLI-assigned id. Re-running the same pair is
+a no-op, so a phase's finding identity is stable; a claim re-stated with a
+different verdict is a new finding and gets a new id.
 
 Examples:
-  sdt context task review --phase 1 --plan plan.md --input "all gates green (CONFIRMED)"`,
+  sdt context task review --phase 1 --plan plan.md --input "all gates green (CONFIRMED)"
+  sdt context task review --phase 1 --plan plan.md \
+    --finding "vet is clean" --verdict CONFIRMED \
+    --finding "coverage target met" --verdict UNVERIFIED`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		phase, plan, err := taskTarget(cmd)
@@ -696,8 +745,11 @@ Examples:
 		path := taskFileForRef(phase, stream, plan)
 		content, err := readTaskFile(phase, stream, plan)
 		exitWithError(cmd, err)
+		findings, err := reviewFindings(cmd)
+		exitWithError(cmd, err)
 		body := getContextBody(cmd, args)
-		content = appendReviewBlock(content, body)
+		content = appendReviewFindings(content, body)
+		content = appendFindingItems(content, findings)
 		if !hasUnfinishedTaskItem(content) {
 			content = setTaskFileStatus(content, taskFileStatusCompleted)
 		}
@@ -708,6 +760,33 @@ Examples:
 		outputString(cmd, path+"\n")
 		cascadeAfterWrite(cmd, path)
 	},
+}
+
+func reviewFindings(cmd *cobra.Command) ([]reviewFinding, error) {
+	claims := getStringArrayFlag(cmd, "finding", false)
+	verdicts := getStringArrayFlag(cmd, "verdict", false)
+	if len(claims) == 0 && len(verdicts) == 0 {
+		return nil, nil
+	}
+	if len(claims) == 0 {
+		return nil, errors.New("--verdict given without --finding; each finding needs a claim")
+	}
+	if len(claims) != len(verdicts) {
+		return nil, fmt.Errorf("%d --finding claim(s) but %d --verdict value(s); the flags pair by position", len(claims), len(verdicts))
+	}
+	findings := make([]reviewFinding, 0, len(claims))
+	for i, claim := range claims {
+		claim = strings.TrimSpace(claim)
+		if claim == "" {
+			return nil, fmt.Errorf("--finding %d is empty; a finding must name the claim under review", i+1)
+		}
+		verdict := strings.TrimSpace(verdicts[i])
+		if !validReviewVerdict(verdict) {
+			return nil, fmt.Errorf("--verdict %q is not a verify-step verdict; want one of %s", verdict, ctxReviewVerdictHelp)
+		}
+		findings = append(findings, reviewFinding{Claim: claim, Verdict: verdict})
+	}
+	return findings, nil
 }
 
 func frontmatterField(content, key string) string {
