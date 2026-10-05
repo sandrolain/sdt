@@ -19,19 +19,22 @@ import {
   type ReactNode,
 } from "react";
 import {
+  DockviewDefaultTab,
   DockviewReact,
   themeCatppuccinMochaSpaced,
   type DockviewApi,
   type DockviewReadyEvent,
+  type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
 } from "dockview-react";
 import { adaptToEngine, type AdaptedEngineGraph } from "../lib/graph/adapter";
 import { findShortestPath, type ShortestPath } from "../lib/graph/path";
+import { edgeHoverInfo } from "../lib/graph/tooltip";
+import type { GraphLinkInput } from "../lib/graph/types";
 import { fetchWikiGraph, type GraphData } from "../lib/graphModel";
 import {
   graphToolsReducer,
   initialGraphTools,
-  visibleSet,
   type GraphToolsAction,
   type GraphToolsState,
 } from "../lib/graphTools";
@@ -41,9 +44,11 @@ import { useOpenDocs } from "../lib/openDocsContext";
 import { useReloadToken } from "../lib/useReloadToken";
 import { GraphView, type GraphViewHandle } from "./GraphView";
 import { GraphControls } from "./GraphControls";
+import { GraphNodeDetail } from "./GraphNodeDetail";
+import { graphNeighbours } from "../lib/graph/neighbours";
 import { SkeletonLines } from "./Skeleton";
 
-export const WIKI_GRAPH_STORAGE_KEY = "wiki-graph";
+export const WIKI_GRAPH_STORAGE_KEY = "wiki-graph-v2";
 
 /** Dockview needs real layout measurement; tests use a plain columns fallback. */
 const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
@@ -63,7 +68,6 @@ interface GraphWorkspaceValue {
   clearPath: () => void;
   clusters: { id: string; color: string; count: number }[];
   nodeOptions: { id: string; label: string }[];
-  selectedTitle: string | null;
   setViewHandle: (handle: GraphViewHandle | null) => void;
   open: (id: string) => void;
   fit: () => void;
@@ -82,6 +86,13 @@ function useGraphWorkspace(): GraphWorkspaceValue {
 
 function GraphPanel() {
   const { setViewHandle, adapted, tools, selectedId, select, path } = useGraphWorkspace();
+  const [hoverEdge, setHoverEdge] = useState<GraphLinkInput | null>(null);
+  const labels = useMemo(
+    () => new Map(adapted.nodes.map((n) => [n.id, String(n.label ?? n.id)])),
+    [adapted],
+  );
+  const labelOf = useCallback((id: string) => labels.get(id) ?? id, [labels]);
+  const info = hoverEdge ? edgeHoverInfo(hoverEdge, labelOf) : null;
   return (
     <div className="graph-panel">
       <GraphView
@@ -94,9 +105,22 @@ function GraphPanel() {
         onSelect={select}
         highlightPath={path}
         labels={tools.showLabels ? "auto" : "none"}
+        hiddenGroups={tools.hiddenGroups}
+        hiddenRelations={tools.hiddenRelations}
+        hiddenKinds={tools.hiddenKinds}
         centrality={tools.centrality}
         neighborsOnly={tools.neighborsOnly}
+        onEdgeHover={setHoverEdge}
       />
+      {info ? (
+        <aside className="graph-edge-tooltip" role="status" aria-live="polite">
+          <span className="graph-edge-tooltip__verb">{info.verb}</span>
+          <span className="graph-edge-tooltip__ends">
+            {info.fromLabel} → {info.toLabel}
+          </span>
+          {info.label ? <span className="graph-edge-tooltip__label">{info.label}</span> : null}
+        </aside>
+      ) : null}
     </div>
   );
 }
@@ -111,7 +135,6 @@ function GraphControlsPanel() {
         allKinds={g.adapted.allKinds}
         clusters={g.clusters}
         selectedId={g.selectedId}
-        selectedTitle={g.selectedTitle}
         nodeOptions={g.nodeOptions}
         pathFrom={g.pathFrom}
         pathTo={g.pathTo}
@@ -123,10 +146,24 @@ function GraphControlsPanel() {
         onClearPath={g.clearPath}
         onFit={g.fit}
         onClear={g.clear}
-        onOpen={g.open}
         onExportSVG={g.exportSVG}
         onExportPNG={g.exportPNG}
       />
+    </div>
+  );
+}
+
+/** The right-hand node detail panel (B3): always present, explicit empty state. */
+function GraphDetailPanel() {
+  const { adapted, selectedId, select, open } = useGraphWorkspace();
+  const node = useMemo(
+    () => (selectedId ? (adapted.nodes.find((n) => n.id === selectedId) ?? null) : null),
+    [adapted, selectedId],
+  );
+  const neighbours = useMemo(() => graphNeighbours(adapted, selectedId), [adapted, selectedId]);
+  return (
+    <div className="dock-content graph-detail-panel">
+      <GraphNodeDetail node={node} neighbours={neighbours} onSelect={select} onOpen={open} />
     </div>
   );
 }
@@ -135,7 +172,17 @@ function GraphControlsPanel() {
 const components: Record<string, (props: IDockviewPanelProps) => ReactNode> = {
   graph: () => <GraphPanel />,
   "graph-controls": () => <GraphControlsPanel />,
+  "graph-detail": () => <GraphDetailPanel />,
 };
+
+/**
+ * Graph tabs render the title only: no close action exists on the graph
+ * surface (B1), while the edge group keeps its collapse chevron. The action is
+ * never created, so the guarantee does not rest on CSS.
+ */
+function GraphTab(props: IDockviewPanelHeaderProps) {
+  return <DockviewDefaultTab {...props} hideClose />;
+}
 
 export function WikiGraphView() {
   const [data, setData] = useState<GraphData | null>(null);
@@ -167,25 +214,12 @@ export function WikiGraphView() {
     };
   }, [reloadToken]);
 
-  const allVerbs = useMemo(
-    () => (data ? [...new Set(data.edges.map((e) => e.verb))].sort() : []),
-    [data],
-  );
-  const allKinds = useMemo(
-    () => (data ? [...new Set(data.edges.map((e) => e.kind))].sort() : []),
-    [data],
-  );
-
   const adapted = useMemo(
     () =>
       data
-        ? adaptToEngine(data, {
-            clusterKey: tools.clusterKey,
-            visibleVerbs: visibleSet(allVerbs, tools.hiddenVerbs),
-            visibleKinds: visibleSet(allKinds, tools.hiddenKinds),
-          })
+        ? adaptToEngine(data, { clusterKey: tools.clusterKey })
         : { nodes: [], links: [], palette: new Map(), allVerbs: [], allKinds: [] },
-    [data, tools.clusterKey, tools.hiddenVerbs, tools.hiddenKinds, allVerbs, allKinds],
+    [data, tools.clusterKey],
   );
 
   const clusters = useMemo(() => {
@@ -204,11 +238,6 @@ export function WikiGraphView() {
         .sort((a, b) => a.label.localeCompare(b.label)),
     [adapted],
   );
-
-  const selectedTitle = useMemo(() => {
-    if (!selectedId) return null;
-    return String(adapted.nodes.find((n) => n.id === selectedId)?.label ?? selectedId);
-  }, [selectedId, adapted]);
 
   const open = useCallback(
     (id: string) => {
@@ -281,7 +310,6 @@ export function WikiGraphView() {
     clearPath: () => setPath(null),
     clusters,
     nodeOptions,
-    selectedTitle,
     setViewHandle,
     open,
     fit,
@@ -306,6 +334,9 @@ export function WikiGraphView() {
           <section className="dock-content" aria-label="Graph controls">
             <GraphControlsPanel />
           </section>
+          <section className="dock-content" aria-label="Graph detail">
+            <GraphDetailPanel />
+          </section>
         </div>
       </GraphWorkspaceContext.Provider>
     );
@@ -314,9 +345,10 @@ export function WikiGraphView() {
   return (
     <GraphWorkspaceContext.Provider value={value}>
       <DockviewReact
-        className="wiki-workspace dock-layout"
+        className="wiki-graph-workspace wiki-workspace dock-layout"
         theme={themeCatppuccinMochaSpaced}
         components={components}
+        defaultTabComponent={GraphTab}
         onReady={onReady}
       />
     </GraphWorkspaceContext.Provider>

@@ -1,19 +1,20 @@
 /**
- * GraphControls — the right-docked sidebar content for the graph surface.
+ * GraphControls — the left-docked tools/filters sidebar content for the graph
+ * surface.
  *
- * Replaces `GraphToolsPanel` (analysis B2/D2): mode, layout, cluster, labels,
- * centrality (Hub), neighborhood (Neighbors), verb/kind filters, the path
- * finder, export and the legend/detail. It only dispatches into the view — the
- * canvas itself carries no chrome.
+ * Four collapsible groups (analysis B7/D8): View, Explore, Filters (the legend)
+ * and Actions. It only dispatches into the view — the canvas itself carries no
+ * chrome. The legend is the only filter surface (B4): cluster groups, relations
+ * and edge kinds, all driving the engine's dimming filters.
  */
-import type { Dispatch } from "react";
+import { useState, type Dispatch, type ReactNode } from "react";
 import { CLUSTER_KEYS, type ClusterKey } from "../lib/graphModel";
 import { LAYOUT_OPTIONS } from "../lib/graph/layout";
 import type { GraphLayout } from "../lib/graph/types";
 import type { GraphToolsAction, GraphToolsState } from "../lib/graphTools";
 import { Icon } from "../lib/icon";
 import { Select } from "./ui/Select";
-import { MultiSelect } from "./ui/MultiSelect";
+import { ComboBox } from "./ui/ComboBox";
 import { Switch } from "./ui/Switch";
 
 export interface GraphControlsProps {
@@ -22,7 +23,6 @@ export interface GraphControlsProps {
   allKinds: string[];
   clusters: { id: string; color: string; count: number }[];
   selectedId: string | null;
-  selectedTitle: string | null;
   nodeOptions: { id: string; label: string }[];
   pathFrom: string;
   pathTo: string;
@@ -34,9 +34,41 @@ export interface GraphControlsProps {
   onClearPath: () => void;
   onFit: () => void;
   onClear: () => void;
-  onOpen: (id: string) => void;
   onExportSVG: () => void;
   onExportPNG: () => void;
+}
+
+/** One collapsible tools group; its open state is local view furniture (D8). */
+function ToolSection({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <section className="graph-tools__section">
+      <div className="graph-tools__header">
+        <button
+          type="button"
+          className={`graph-tools__section-toggle${open ? "" : " is-collapsed"}`}
+          aria-expanded={open}
+          aria-label={title}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className="ms-icon graph-tools__caret" aria-hidden="true">
+            expand_more
+          </span>
+          {title}
+        </button>
+        {action}
+      </div>
+      {open ? <div className="graph-tools__body">{children}</div> : null}
+    </section>
+  );
 }
 
 export function GraphControls({
@@ -45,7 +77,6 @@ export function GraphControls({
   allKinds,
   clusters,
   selectedId,
-  selectedTitle,
   nodeOptions,
   pathFrom,
   pathTo,
@@ -57,14 +88,12 @@ export function GraphControls({
   onClearPath,
   onFit,
   onClear,
-  onOpen,
   onExportSVG,
   onExportPNG,
 }: GraphControlsProps) {
   return (
     <div className="graph-controls">
-      <section className="graph-tools__section">
-        <h3 className="graph-tools__title">Mode</h3>
+      <ToolSection title="View">
         <div className="graph-tools__row" role="group" aria-label="Graph mode">
           {(["2d", "3d"] as const).map((m) => (
             <button
@@ -79,9 +108,6 @@ export function GraphControls({
             </button>
           ))}
         </div>
-      </section>
-
-      <section className="graph-tools__section">
         <label className="graph-tools__field">
           <span className="graph-tools__label">Layout</span>
           <Select
@@ -105,55 +131,33 @@ export function GraphControls({
           />
         </label>
         <Switch
+          aria-label="Labels"
           isSelected={tools.showLabels}
           onChange={(isSelected) => onTools({ type: "labels", value: isSelected })}
         >
           Labels
         </Switch>
+      </ToolSection>
+
+      <ToolSection title="Explore">
         <Switch
+          aria-label="Hub"
           isSelected={tools.centrality}
           onChange={(isSelected) => onTools({ type: "centrality", value: isSelected })}
         >
           Hub
         </Switch>
         <Switch
+          aria-label="Neighbors"
           isSelected={tools.neighborsOnly}
           isDisabled={!selectedId}
           onChange={(isSelected) => onTools({ type: "neighbors", value: isSelected })}
         >
           Neighbors
         </Switch>
-      </section>
-
-      <section className="graph-tools__section">
-        <h3 className="graph-tools__title">Relations</h3>
-        <MultiSelect
-          ariaLabel="Visible relations"
-          options={allVerbs.map((verb) => ({ id: verb, label: verb }))}
-          selected={allVerbs.filter((v) => !tools.hiddenVerbs.includes(v))}
-          onChange={(ids) =>
-            onTools({ type: "setHiddenVerbs", value: allVerbs.filter((v) => !ids.includes(v)) })
-          }
-        />
-      </section>
-
-      <section className="graph-tools__section">
-        <h3 className="graph-tools__title">Edge kind</h3>
-        <MultiSelect
-          ariaLabel="Visible edge kinds"
-          options={allKinds.map((kind) => ({ id: kind, label: kind }))}
-          selected={allKinds.filter((k) => !tools.hiddenKinds.includes(k))}
-          onChange={(ids) =>
-            onTools({ type: "setHiddenKinds", value: allKinds.filter((k) => !ids.includes(k)) })
-          }
-        />
-      </section>
-
-      <section className="graph-tools__section">
-        <h3 className="graph-tools__title">Path</h3>
         <label className="graph-tools__field">
           <span className="graph-tools__label">From</span>
-          <Select
+          <ComboBox
             ariaLabel="Path from"
             options={nodeOptions}
             selectedKey={pathFrom || null}
@@ -162,7 +166,7 @@ export function GraphControls({
         </label>
         <label className="graph-tools__field">
           <span className="graph-tools__label">To</span>
-          <Select
+          <ComboBox
             ariaLabel="Path to"
             options={nodeOptions}
             selectedKey={pathTo || null}
@@ -191,72 +195,114 @@ export function GraphControls({
             Clear path
           </button>
         </div>
-      </section>
+      </ToolSection>
 
-      <section className="graph-tools__section">
-        <h3 className="graph-tools__title">Legend</h3>
+      <ToolSection
+        title="Filters"
+        action={
+          <button
+            type="button"
+            className="graph-tools__reset"
+            onClick={() => onTools({ type: "clearFilters" })}
+          >
+            Reset
+          </button>
+        }
+      >
+        <p className="graph-tools__subtitle">Groups</p>
         <ul className="graph-tools__list" role="list">
           {clusters.map((c) => (
-            <li key={c.id} className="graph-tools__legend">
-              <span className="graph-tools__swatch" style={{ background: c.color }} />
-              <span>
-                {c.id} ({c.count})
-              </span>
+            <li key={c.id}>
+              <label className="graph-tools__legend">
+                <input
+                  type="checkbox"
+                  aria-label={`${c.id} (${c.count})`}
+                  checked={!tools.hiddenGroups.includes(c.id)}
+                  onChange={() => onTools({ type: "toggleGroup", value: c.id })}
+                />
+                <span className="graph-tools__swatch" style={{ background: c.color }} />
+                <span>
+                  {c.id} ({c.count})
+                </span>
+              </label>
             </li>
           ))}
         </ul>
-      </section>
+        <p className="graph-tools__subtitle">Relations</p>
+        <ul className="graph-tools__list" role="list">
+          {allVerbs.map((verb) => (
+            <li key={verb}>
+              <label className="graph-tools__legend">
+                <input
+                  type="checkbox"
+                  aria-label={verb}
+                  checked={!tools.hiddenRelations.includes(verb)}
+                  onChange={() => onTools({ type: "toggleRelation", value: verb })}
+                />
+                <span>{verb}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+        <p className="graph-tools__subtitle">Edge kinds</p>
+        <ul className="graph-tools__list" role="list">
+          {allKinds.map((kind) => (
+            <li key={kind}>
+              <label className="graph-tools__legend">
+                <input
+                  type="checkbox"
+                  aria-label={kind}
+                  checked={!tools.hiddenKinds.includes(kind)}
+                  onChange={() => onTools({ type: "toggleKind", value: kind })}
+                />
+                <span>{kind}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </ToolSection>
 
-      <section className="graph-tools__section graph-tools__section--actions">
-        <button
-          type="button"
-          className="graph-tools__button"
-          onClick={onFit}
-          title="Fit graph to view"
-        >
-          <Icon name="center_focus_strong" />
-          Fit
-        </button>
-        <button
-          type="button"
-          className="graph-tools__button"
-          onClick={onClear}
-          disabled={!selectedId}
-          title="Clear selection and re-fit"
-        >
-          <Icon name="clear" />
-          Clear
-        </button>
-        <button
-          type="button"
-          className="graph-tools__button"
-          onClick={onExportSVG}
-          title="Export as SVG"
-        >
-          <Icon name="download" />
-          SVG
-        </button>
-        <button
-          type="button"
-          className="graph-tools__button"
-          onClick={onExportPNG}
-          title="Export as PNG"
-        >
-          <Icon name="download" />
-          PNG
-        </button>
-      </section>
-
-      {selectedId && (
-        <section className="graph-tools__section graph-tools__section--selected">
-          <h3 className="graph-tools__title">Selected</h3>
-          <p className="graph-tools__selected-title">{selectedTitle ?? selectedId}</p>
-          <button type="button" className="graph-tools__button" onClick={() => onOpen(selectedId)}>
-            <Icon name="open_in_new" />
-            Open page
+      <ToolSection title="Actions">
+        <div className="graph-tools__actions">
+          <button
+            type="button"
+            className="graph-tools__button"
+            onClick={onFit}
+            title="Fit graph to view"
+          >
+            <Icon name="center_focus_strong" />
+            Fit
           </button>
-        </section>
-      )}
+          <button
+            type="button"
+            className="graph-tools__button"
+            onClick={onClear}
+            disabled={!selectedId}
+            title="Clear selection and re-fit"
+          >
+            <Icon name="clear" />
+            Clear
+          </button>
+          <button
+            type="button"
+            className="graph-tools__button"
+            onClick={onExportSVG}
+            title="Export as SVG"
+          >
+            <Icon name="download" />
+            SVG
+          </button>
+          <button
+            type="button"
+            className="graph-tools__button"
+            onClick={onExportPNG}
+            title="Export as PNG"
+          >
+            <Icon name="download" />
+            PNG
+          </button>
+        </div>
+      </ToolSection>
     </div>
   );
 }

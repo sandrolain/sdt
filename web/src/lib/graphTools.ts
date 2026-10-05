@@ -7,9 +7,11 @@ export interface GraphToolsState {
   mode: GraphMode;
   layout: GraphLayout;
   clusterKey: ClusterKey;
-  /** verbs to show; null = all visible */
-  hiddenVerbs: string[];
-  /** edge kinds to show; null = all visible */
+  /** cluster groups to dim; the engine keeps the model complete (B4/B5) */
+  hiddenGroups: string[];
+  /** relation verbs to dim */
+  hiddenRelations: string[];
+  /** edge kinds to dim */
   hiddenKinds: string[];
   showLabels: boolean;
   /** node focused via the panel's Focus action */
@@ -24,7 +26,8 @@ export const initialGraphTools: GraphToolsState = {
   mode: "2d",
   layout: "force",
   clusterKey: "type",
-  hiddenVerbs: [],
+  hiddenGroups: [],
+  hiddenRelations: [],
   hiddenKinds: [],
   showLabels: true,
   focusId: null,
@@ -36,10 +39,10 @@ export type GraphToolsAction =
   | { type: "mode"; value: GraphMode }
   | { type: "layout"; value: GraphLayout }
   | { type: "clusterKey"; value: ClusterKey }
-  | { type: "toggleVerb"; value: string }
+  | { type: "toggleGroup"; value: string }
+  | { type: "toggleRelation"; value: string }
   | { type: "toggleKind"; value: string }
-  | { type: "setHiddenVerbs"; value: string[] }
-  | { type: "setHiddenKinds"; value: string[] }
+  | { type: "clearFilters" }
   | { type: "labels"; value: boolean }
   | { type: "focus"; value: string | null }
   | { type: "centrality"; value: boolean }
@@ -57,14 +60,14 @@ export function graphToolsReducer(
       return { ...state, layout: action.value };
     case "clusterKey":
       return { ...state, clusterKey: action.value };
-    case "toggleVerb":
-      return { ...state, hiddenVerbs: toggle(state.hiddenVerbs, action.value) };
+    case "toggleGroup":
+      return { ...state, hiddenGroups: toggle(state.hiddenGroups, action.value) };
+    case "toggleRelation":
+      return { ...state, hiddenRelations: toggle(state.hiddenRelations, action.value) };
     case "toggleKind":
       return { ...state, hiddenKinds: toggle(state.hiddenKinds, action.value) };
-    case "setHiddenVerbs":
-      return { ...state, hiddenVerbs: action.value };
-    case "setHiddenKinds":
-      return { ...state, hiddenKinds: action.value };
+    case "clearFilters":
+      return { ...state, hiddenGroups: [], hiddenRelations: [], hiddenKinds: [] };
     case "labels":
       return { ...state, showLabels: action.value };
     case "focus":
@@ -80,10 +83,4 @@ export function graphToolsReducer(
 
 function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
-}
-
-/** Visible verbs given the hidden set, or undefined when nothing is hidden. */
-export function visibleSet(all: string[], hidden: string[]): Set<string> | undefined {
-  if (hidden.length === 0) return undefined;
-  return new Set(all.filter((v) => !hidden.includes(v)));
 }

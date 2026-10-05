@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { WikiGraphView } from "./WikiGraphView";
@@ -12,14 +12,18 @@ import { OpenDocsProvider } from "./OpenDocsProvider";
 vi.mock("./GraphView", () => ({
   GraphView: ({
     nodes,
+    links,
     mode,
     onSelect,
     onNodeDoubleClick,
+    onEdgeHover,
   }: {
     nodes: { id: string; label?: string }[];
+    links: { source: string; target: string; type?: string }[];
     mode: string;
     onSelect: (id: string | null) => void;
     onNodeDoubleClick?: (n: { id: string; label?: string }) => void;
+    onEdgeHover?: (l: { source: string; target: string; type?: string } | null) => void;
   }) => (
     <div data-testid="graph-view" data-mode={mode}>
       {nodes.map((n) => (
@@ -31,6 +35,7 @@ vi.mock("./GraphView", () => ({
           {n.label ?? n.id}
         </button>
       ))}
+      <button onClick={() => onEdgeHover?.(links[0] ?? null)}>hover-edge</button>
     </div>
   ),
 }));
@@ -78,17 +83,32 @@ describe("WikiGraphView", () => {
     expect(screen.getAllByText("depends_on").length).toBeGreaterThan(0);
   });
 
-  it("selects a node, shows it and opens the detail route", async () => {
+  it("selects a node, shows it in the detail panel and opens the detail route", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve(GRAPH) }),
     ) as unknown as typeof fetch;
     renderView();
+    expect(await screen.findByText("Select a node")).toBeTruthy();
     await userEvent.click(await screen.findByRole("button", { name: "Alpha" }));
-    expect(screen.getByText("Selected")).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: "Open page" }));
+    expect(screen.getByRole("heading", { name: "Alpha" })).toBeTruthy();
+    const detail = screen.getByRole("region", { name: "Graph detail" });
+    expect(within(detail).getByRole("button", { name: "Beta" })).toBeTruthy();
+    await userEvent.click(within(detail).getByRole("button", { name: "Open page" }));
     await waitFor(() =>
       expect(screen.getByTestId("location").textContent).toBe("/docs/context/wiki/a.md"),
     );
+  });
+
+  it("shows the edge tooltip on hover", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(GRAPH) }),
+    ) as unknown as typeof fetch;
+    renderView();
+    await screen.findByTestId("graph-view");
+    await userEvent.click(screen.getByRole("button", { name: "hover-edge" }));
+    const tip = screen.getByRole("status");
+    expect(tip.textContent).toContain("depends_on");
+    expect(tip.textContent).toContain("Alpha → Beta");
   });
 
   it("switches the mode and the layout", async () => {

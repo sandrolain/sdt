@@ -54,6 +54,15 @@
   background-color: var(--bg-mantle);
 }
 
+/* Graph surface only (`.wiki-graph-workspace`): the centre panel's tab strip is
+   redundant — the panel holds the whole surface and, being `locked`, cannot be
+   closed. Edge groups keep their tab strip, which carries the collapse
+   affordance. Scoped to the graph so the board (which also carries
+   `.wiki-workspace`) keeps its own chrome. */
+.wiki-graph-workspace .dv-groupview:not(.dv-groupview-edge) > .dv-tabs-and-actions-container {
+  display: none;
+}
+
 .dock-layout .dv-tab.dv-active-tab {
   color: var(--fg);
 }

@@ -40,13 +40,10 @@ describe("adaptToEngine", () => {
     });
   });
 
-  it("pre-filters edges by verb and kind", () => {
-    const verbs = adaptToEngine(data, { clusterKey: "type", visibleVerbs: new Set(["refers_to"]) });
-    expect(verbs.links).toHaveLength(1);
-    expect(verbs.links[0].type).toBe("refers_to");
-    const kinds = adaptToEngine(data, { clusterKey: "type", visibleKinds: new Set(["relation"]) });
-    expect(kinds.links).toHaveLength(1);
-    expect(kinds.links[0].kind).toBe("relation");
+  it("keeps every edge and lets the engine filter", () => {
+    const g = adaptToEngine(data, { clusterKey: "type" });
+    expect(g.links).toHaveLength(2);
+    expect(g.links.map((l) => l.type)).toEqual(["depends_on", "refers_to"]);
   });
 
   it("supports the three cluster keys", () => {
@@ -55,8 +52,8 @@ describe("adaptToEngine", () => {
     expect(adaptToEngine(data, { clusterKey: "tag-root" }).nodes[1].group).toBe("untagged");
   });
 
-  it("lists all verbs and kinds before filtering", () => {
-    const g = adaptToEngine(data, { clusterKey: "type", visibleVerbs: new Set(["refers_to"]) });
+  it("lists all verbs and kinds", () => {
+    const g = adaptToEngine(data, { clusterKey: "type" });
     expect(g.allVerbs).toEqual(["depends_on", "refers_to"]);
     expect(g.allKinds).toEqual(["link", "relation"]);
   });

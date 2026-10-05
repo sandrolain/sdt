@@ -23,7 +23,18 @@ import {
   NEUTRAL,
   toRGB,
 } from "./colors";
-import { bounds, clamp, escapeSvg, fitDistance, smooth } from "./geometry";
+import { graphBackdrop } from "./theme";
+import {
+  bounds,
+  clamp,
+  escapeSvg,
+  fitDistance,
+  perpendicular3,
+  reciprocalSign,
+  RECIPROCAL_EDGE_OFFSET,
+  RECIPROCAL_EDGE_OFFSET_SVG,
+  smooth,
+} from "./geometry";
 import {
   circularPositions,
   computeLinkParams,
@@ -129,6 +140,7 @@ export class GraphEngine {
   pathLinks = new Set<GraphLinkInput>();
   hiddenGroups = new Set<string>();
   hiddenRelations = new Set<string>();
+  hiddenKinds = new Set<string>();
   focus = -1;
 
   w: number;
@@ -447,9 +459,14 @@ export class GraphEngine {
     this._refreshTargets(true);
   }
 
-  setFilters(hiddenGroups: Iterable<string>, hiddenRelations: Iterable<string>): void {
+  setFilters(
+    hiddenGroups: Iterable<string>,
+    hiddenRelations: Iterable<string>,
+    hiddenKinds: Iterable<string> = [],
+  ): void {
     this.hiddenGroups = new Set(hiddenGroups);
     this.hiddenRelations = new Set(hiddenRelations);
+    this.hiddenKinds = new Set(hiddenKinds);
     this._refreshTargets(true);
   }
 
@@ -482,8 +499,9 @@ export class GraphEngine {
     this._project();
     this._updateLabels();
 
+    const stops = graphBackdrop().stops;
     const defs = [
-      '<radialGradient id="bg" cx="50%" cy="38%" r="75%"><stop offset="0%" stop-color="#101a2e"/><stop offset="58%" stop-color="#080d18"/><stop offset="100%" stop-color="#04070d"/></radialGradient>',
+      `<radialGradient id="bg" cx="50%" cy="38%" r="75%"><stop offset="0%" stop-color="${escapeSvg(stops[0])}"/><stop offset="58%" stop-color="${escapeSvg(stops[1])}"/><stop offset="100%" stop-color="${escapeSvg(stops[2])}"/></radialGradient>`,
     ];
     const edges: string[] = [];
     for (let li = 0; li < this.links.length; li += 1) {
@@ -503,10 +521,14 @@ export class GraphEngine {
       const length = Math.hypot(dx, dy) || 1;
       const ux = dx / length;
       const uy = dy / length;
-      const x1 = this.sx[a] + ux * this.sr[a];
-      const y1 = this.sy[a] + uy * this.sr[a];
-      const x2 = this.sx[b] - ux * this.sr[b];
-      const y2 = this.sy[b] - uy * this.sr[b];
+      // Same reciprocal-pair separation as the WebGL geometry (D3b).
+      const shift = reciprocalSign(a, b, this.links) * RECIPROCAL_EDGE_OFFSET_SVG;
+      const ox = -uy * shift;
+      const oy = ux * shift;
+      const x1 = this.sx[a] + ux * this.sr[a] + ox;
+      const y1 = this.sy[a] + uy * this.sr[a] + oy;
+      const x2 = this.sx[b] - ux * this.sr[b] + ox;
+      const y2 = this.sy[b] - uy * this.sr[b] + oy;
       edges.push(
         `<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="${escapeSvg(color)}" stroke-width="1.4" opacity="${opacity.toFixed(3)}" marker-end="url(#${marker})"/>`,
       );
@@ -967,6 +989,7 @@ export class GraphEngine {
     this.links.forEach((link, li) => {
       const hidden =
         this.hiddenRelations.has(String(link.type ?? "")) ||
+        this.hiddenKinds.has(String(link.raw.kind ?? "")) ||
         this.hiddenGroups.has(this.nodes![link.a].group) ||
         this.hiddenGroups.has(this.nodes![link.b].group);
       if (hidden) this.ealphaTarget.fill(0.012, li * 8, li * 8 + 8);
@@ -1135,29 +1158,28 @@ export class GraphEngine {
       dy /= distance;
       dz /= distance;
 
-      const tipX = P[b] - dx * (this.radius[l.b] + 1);
-      const tipY = P[b + 1] - dy * (this.radius[l.b] + 1);
-      const tipZ = P[b + 2] - dz * (this.radius[l.b] + 1);
+      // True 3D perpendicular (D3a) and the reciprocal-pair separation (D3b).
+      const [px, py, pz] = perpendicular3(dx, dy, dz);
+      const shift = reciprocalSign(l.a, l.b, this.links) * RECIPROCAL_EDGE_OFFSET;
+      const ax = P[a] + px * shift;
+      const ay = P[a + 1] + py * shift;
+      const az = P[a + 2] + pz * shift;
+      const bx = P[b] + px * shift;
+      const by = P[b + 1] + py * shift;
+      const bz = P[b + 2] + pz * shift;
+
+      const tipX = bx - dx * (this.radius[l.b] + 1);
+      const tipY = by - dy * (this.radius[l.b] + 1);
+      const tipZ = bz - dz * (this.radius[l.b] + 1);
       const headLength = Math.min(12, Math.max(6, this.radius[l.b] * 1.65));
       const headWidth = headLength * 0.48;
-      let px = -dy;
-      let py = dx;
-      const pz = 0;
-      const perpLength = Math.sqrt(px * px + py * py + pz * pz);
-      if (perpLength < 0.001) {
-        px = 1;
-        py = 0;
-      } else {
-        px /= perpLength;
-        py /= perpLength;
-      }
       const baseX = tipX - dx * headLength;
       const baseY = tipY - dy * headLength;
       const baseZ = tipZ - dz * headLength;
 
-      E[o] = P[a];
-      E[o + 1] = P[a + 1];
-      E[o + 2] = P[a + 2];
+      E[o] = ax;
+      E[o + 1] = ay;
+      E[o + 2] = az;
       E[o + 3] = baseX;
       E[o + 4] = baseY;
       E[o + 5] = baseZ;
@@ -1451,6 +1473,7 @@ export class GraphEngine {
         el.style.display = "block";
         const filtered =
           this.hiddenRelations.has(String(l.type ?? "")) ||
+          this.hiddenKinds.has(String(l.raw.kind ?? "")) ||
           this.hiddenGroups.has(this.nodes![l.a].group) ||
           this.hiddenGroups.has(this.nodes![l.b].group);
         el.style.opacity = filtered ? "0.12" : "1";

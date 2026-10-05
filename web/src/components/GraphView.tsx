@@ -8,7 +8,7 @@
  */
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { GraphEngine, type EngineColors } from "../lib/graph/engine";
-import { DEFAULT_BG } from "../lib/graph/colors";
+import { GRAPH_BACKDROP_CSS } from "../lib/graph/theme";
 import type {
   GraphLayout,
   GraphLinkInput,
@@ -39,6 +39,7 @@ export interface GraphViewProps {
   highlightPath?: GraphPath | null;
   hiddenGroups?: string[];
   hiddenRelations?: string[];
+  hiddenKinds?: string[];
   labels?: LabelMode;
   nodeScale?: number;
   centrality?: boolean;
@@ -75,12 +76,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(function Gr
     highlightPath = null,
     hiddenGroups = [],
     hiddenRelations = [],
+    hiddenKinds = [],
     labels = "auto",
     nodeScale = 1,
     centrality = false,
     neighborsOnly = false,
     colors,
-    background = DEFAULT_BG,
+    background = GRAPH_BACKDROP_CSS,
     onNodeClick,
     onNodeDoubleClick,
     onNodeHover,
@@ -165,8 +167,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(function Gr
     engineRef.current?.setPath(highlightPath);
   }, [highlightPath]);
   useEffect(() => {
-    engineRef.current?.setFilters(hiddenGroups, hiddenRelations);
-  }, [hiddenGroups, hiddenRelations]);
+    engineRef.current?.setFilters(hiddenGroups, hiddenRelations, hiddenKinds);
+  }, [hiddenGroups, hiddenRelations, hiddenKinds]);
   useEffect(() => {
     engineRef.current?.setCentrality(centrality);
   }, [centrality]);

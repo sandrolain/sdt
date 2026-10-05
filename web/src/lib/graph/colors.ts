@@ -29,8 +29,11 @@ export const DEFAULT_PALETTE = [
 
 export const NEUTRAL = "#7f849c";
 export const DEFAULT_GROUP = "__default__";
+/** Fallback gradient stops when the theme tokens are unavailable (D1). */
+export const DEFAULT_BG_STOPS: [string, string, string] = ["#101a2e", "#080d18", "#04070d"];
 export const DEFAULT_BG =
-  "radial-gradient(1200px 800px at 50% 38%, #101a2e 0%, #080d18 58%, #04070d 100%)";
+  `radial-gradient(1200px 800px at 50% 38%, ${DEFAULT_BG_STOPS[0]} 0%, ` +
+  `${DEFAULT_BG_STOPS[1]} 58%, ${DEFAULT_BG_STOPS[2]} 100%)`;
 
 const _col = new THREE.Color();
 

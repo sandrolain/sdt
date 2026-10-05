@@ -4,8 +4,9 @@
  * Maps the read-only `/api/wiki/graph` payload (`GraphData`: nodes + typed
  * edges) onto the engine's generic `{nodes, links}` contract (analysis D3):
  * `verb` → link `type`, `kind` carried for filtering and the tooltip, cluster →
- * node `group`, title → `label`, summary → `description`. SDT's verb/kind
- * filtering is applied here (pre-filter edges) rather than in the engine.
+ * node `group`, title → `label`, summary → `description`. Filtering (groups,
+ * relations, kinds) is applied by the engine's `setFilters`, which dims rather
+ * than removes, so this keeps the model complete (B5/D4).
  */
 import {
   clusterOf,
@@ -26,10 +27,6 @@ export interface AdaptedEngineGraph {
 
 export interface AdapterOptions {
   clusterKey: ClusterKey;
-  /** verbs to keep; undefined keeps all */
-  visibleVerbs?: Set<string>;
-  /** edge kinds to keep; undefined keeps all */
-  visibleKinds?: Set<string>;
 }
 
 export function adaptToEngine(data: GraphData, opts: AdapterOptions): AdaptedEngineGraph {
@@ -48,16 +45,13 @@ export function adaptToEngine(data: GraphData, opts: AdapterOptions): AdaptedEng
       tags: n.tags,
     };
   });
-  const links: GraphLinkInput[] = data.edges
-    .filter((e) => (opts.visibleVerbs ? opts.visibleVerbs.has(e.verb) : true))
-    .filter((e) => (opts.visibleKinds ? opts.visibleKinds.has(e.kind) : true))
-    .map((e) => ({
-      source: e.source,
-      target: e.target,
-      type: e.verb,
-      label: e.label,
-      kind: e.kind,
-    }));
+  const links: GraphLinkInput[] = data.edges.map((e) => ({
+    source: e.source,
+    target: e.target,
+    type: e.verb,
+    label: e.label,
+    kind: e.kind,
+  }));
   const allVerbs = [...new Set(data.edges.map((e) => e.verb))].sort();
   const allKinds = [...new Set(data.edges.map((e) => e.kind))].sort();
   return { nodes, links, palette, allVerbs, allKinds };

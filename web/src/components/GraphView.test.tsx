@@ -101,6 +101,23 @@ describe("GraphView", () => {
     expect(engine.focusNode).toHaveBeenCalledWith("a");
   });
 
+  it("forwards all three filter dimensions to the engine", () => {
+    render(
+      <GraphView
+        nodes={nodes}
+        links={links}
+        mode="2d"
+        layout="force"
+        selectedId={null}
+        onSelect={() => {}}
+        hiddenGroups={["concept"]}
+        hiddenRelations={["part_of"]}
+        hiddenKinds={["link"]}
+      />,
+    );
+    expect(engine.setFilters).toHaveBeenLastCalledWith(["concept"], ["part_of"], ["link"]);
+  });
+
   it("disposes the engine on unmount", () => {
     const { unmount } = render(
       <GraphView

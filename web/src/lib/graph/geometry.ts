@@ -72,3 +72,48 @@ export function fitDistance(r: number, fovDeg: number, aspect: number, flat: num
   const d2 = r / Math.tan(half);
   return Math.max(60, ((d3 + (d2 - d3) * flat) * 1.08) / Math.min(1, asp));
 }
+
+/**
+ * A unit vector perpendicular to the direction `(dx,dy,dz)`, taken as the cross
+ * product against the least-aligned world axis so the result is never
+ * degenerate for a real edge (analysis D3). The old `(-dy, dx, 0)` is only
+ * perpendicular when `dz === 0`, which skewed every head in 3D.
+ */
+export function perpendicular3(dx: number, dy: number, dz: number): [number, number, number] {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  const az = Math.abs(dz);
+  let ux = 0;
+  let uy = 0;
+  let uz = 0;
+  if (ax <= ay && ax <= az) ux = 1;
+  else if (ay <= az) uy = 1;
+  else uz = 1;
+  const px = dy * uz - dz * uy;
+  const py = dz * ux - dx * uz;
+  const pz = dx * uy - dy * ux;
+  const len = Math.sqrt(px * px + py * py + pz * pz);
+  if (len < 1e-6) return [0, 0, 0];
+  return [px / len, py / len, pz / len];
+}
+
+/** Lateral separation (world units) applied to each direction of a mutual pair. */
+export const RECIPROCAL_EDGE_OFFSET = 1.5;
+/** Lateral separation (SVG px) applied to each direction of a mutual pair. */
+export const RECIPROCAL_EDGE_OFFSET_SVG = 3;
+
+/**
+ * `+1`/`-1` for one edge of a mutual pair (a reverse edge exists) so the two
+ * directions offset to opposite sides, `0` when there is no reverse edge.
+ */
+export function reciprocalSign(
+  a: number,
+  b: number,
+  links: ReadonlyArray<{ a: number; b: number }>,
+): number {
+  if (a === b) return 0;
+  for (const l of links) {
+    if (l.a === b && l.b === a) return a < b ? 1 : -1;
+  }
+  return 0;
+}

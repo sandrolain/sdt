@@ -12,22 +12,34 @@ export type { EdgePosition };
 
 /** Centre panel id on the graph surface. */
 export const GRAPH_CENTER_PANEL_ID = "wiki-graph";
-/** Right edge-panel id hosting the graph controls. */
+/** Left edge-panel id hosting the graph tools/filters. */
 export const GRAPH_CONTROLS_PANEL_ID = "wiki-graph-controls";
+/** Right edge-panel id hosting the node detail. */
+export const GRAPH_DETAIL_PANEL_ID = "wiki-graph-detail";
 /** Centre panel id on the board surface. */
 export const BOARD_CENTER_PANEL_ID = "wiki-board";
 /** Right edge-panel id hosting the board controls (sibling wave). */
 export const BOARD_CONTROLS_PANEL_ID = "wiki-board-controls";
 
-/** Right-docked controls panel for the graph surface. */
+/** Left tools panel plus right detail panel for the graph surface (B2/B3). */
 export const WIKI_GRAPH_PANELS: SidePanelSpec[] = [
   {
     id: GRAPH_CONTROLS_PANEL_ID,
     groupId: "edge-wiki-graph-controls",
-    position: "right",
+    position: "left",
     component: "graph-controls",
-    title: "Graph",
+    title: "Tools",
     initialSize: 288,
+    minimumSize: 260,
+    maximumSize: 520,
+  },
+  {
+    id: GRAPH_DETAIL_PANEL_ID,
+    groupId: "edge-wiki-graph-detail",
+    position: "right",
+    component: "graph-detail",
+    title: "Detail",
+    initialSize: 264,
     minimumSize: 200,
     maximumSize: 520,
   },
