@@ -404,5 +404,34 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
   (`TestGeneratedSetIsViewerFree`) over the templates, the AGENTS.md instructions
   block and the roles core layer. A mechanical constraint becomes a gate, not
   prose (`context/instructions/authoring.md`).
+- **Workflow self-assessment (per plan)** — at the end of **every executed
+  plan**, in its final Validation phase next to the crystallized closeout, the
+  agent reviews **its own** run and records it in `context/notes/`. Nothing is
+  asked to the user; the agent judges from its own evidence.
+  - **Difficulties encountered** — the friction actually observed,
+    *operational* (a command failed, a gate looped, context was missing, an
+    assumption was wrong) *and* *process-level* (the plan or phase split was
+    wrong, an instruction was ambiguous, a late gate caught what the verify-step
+    should have).
+  - **Optimizations for future workflows** — rules or instructions to change, a
+    missing tool or CLI verb, cost/velocity wins (tokens, re-read files,
+    avoidable steps).
+  - **Routed** — every item routed through the table in
+    `context/instructions/capture.md`, one link each; an item already routed
+    there is `none` for the session-end signal check. This block never
+    redefines what makes a signal generalisable: `capture.md` owns that test.
+  - **`nessuna`** — an empty section says `nessuna` explicitly, so "nothing
+    found" stays distinguishable from "not reviewed".
+
+  ```bash
+  bin/sdt context new --type notes --title "<plan title> — workflow self-assessment" \
+    --slug <plan-slug>-workflow-self-assessment --note-type self-assessment \
+    --agent opencode --objective <objective> --source plan/<plan-file> \
+    --summary "<one line>"
+  ```
+
+  One note per plan, `sources` to the plan, and the closeout entry links it, so
+  a skipped review is visible. Recall:
+  `sdt context list --type notes --where note_type=self-assessment`.
 
 <!-- sdt:end:project -->
