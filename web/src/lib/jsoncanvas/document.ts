@@ -27,6 +27,10 @@ export interface CanvasNode {
   label?: string;
   /** Non-standard: layer index for the 3D view (may be negative). */
   "x-layer"?: number;
+  /** Charkoal `nested-canvas`: the embedded sub-canvas (inline, one file). */
+  canvas?: CanvasDocument;
+  /** Charkoal `nested-canvas` label. */
+  title?: string;
   [key: string]: unknown;
 }
 
@@ -96,10 +100,14 @@ export function normalizeCanvas(input: unknown): CanvasDocument {
     const rawLayer = node["x-layer"];
     const layer =
       typeof rawLayer === "number" && Number.isFinite(rawLayer) ? { "x-layer": rawLayer } : {};
+    const type = String(node.type ?? "text");
+    // A `nested-canvas` embeds a whole sub-canvas inline; normalize it recursively
+    // (missing `canvas` → an empty child, rendered as an empty placeholder).
+    const nested = type === "nested-canvas" ? { canvas: normalizeCanvas(node.canvas) } : {};
     return {
       ...node,
       id: String(node.id ?? i),
-      type: String(node.type ?? "text"),
+      type,
       x: num(node.x, 0),
       y: num(node.y, 0),
       width: num(node.width, DEFAULT_WIDTH),
@@ -110,7 +118,9 @@ export function normalizeCanvas(input: unknown): CanvasDocument {
       subpath: typeof node.subpath === "string" ? node.subpath : undefined,
       url: typeof node.url === "string" ? node.url : undefined,
       label: typeof node.label === "string" ? node.label : undefined,
+      title: typeof node.title === "string" ? node.title : undefined,
       ...layer,
+      ...nested,
     } as CanvasNode;
   });
 
@@ -150,4 +160,27 @@ export function canvasLayers(doc: CanvasDocument): CanvasLayerInfo[] {
   const ids = [...new Set(doc.nodes.map(nodeLayer))].sort((a, b) => a - b);
   const names = Object.fromEntries((doc["x-layers"] ?? []).map((l) => [String(l.id), l.name]));
   return ids.map((id) => ({ id, name: names[String(id)] ?? `Level ${id}` }));
+}
+
+/** The embedded sub-canvas of a `nested-canvas` node, or null. */
+export function nestedCanvas(node: CanvasNode): CanvasDocument | null {
+  return node.type === "nested-canvas" ? (node.canvas ?? null) : null;
+}
+
+/**
+ * The nested-canvas node ids to enter to reach a deep node id, or null when the
+ * id is not in the tree. An id on a nested node itself is reached by entering
+ * that node, so its path is the ids *above* it (the caller then shows that
+ * level); a node in the root document resolves to `[]`.
+ */
+export function findNodeRecursively(doc: CanvasDocument, id: string): string[] | null {
+  for (const node of doc.nodes) {
+    if (node.id === id) return [];
+    const child = nestedCanvas(node);
+    if (child) {
+      const sub = findNodeRecursively(child, id);
+      if (sub) return [node.id, ...sub];
+    }
+  }
+  return null;
 }

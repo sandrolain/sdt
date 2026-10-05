@@ -2,10 +2,10 @@
  * WikiBoardView — the `/wiki/board` surface.
  *
  * Mounts a board-scoped `DockviewReact` (centre = the shared `JsonCanvas`, right
- * edge = `BoardControls`) and owns the data fetch, the source selection and the
- * view state (mode, layer visibility, minimap, zoom). The canvas carries no
- * chrome; every control is a sidebar control (analysis Behaviour decisions 3/4,
- * decision 0025).
+ * edge = `BoardControls`) and owns the data fetch, the source selection, the
+ * view state (mode, layer visibility, minimap, zoom) and the nested-canvas
+ * drill-down (decision 0025; analysis 20261003-224537). The canvas carries no
+ * chrome; every control is a sidebar control.
  */
 import {
   createContext,
@@ -32,7 +32,8 @@ import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
 import { displayTitle } from "../lib/titles";
 import { addBoardPanels, BOARD_CENTER_PANEL_ID } from "../lib/wikiEdgeLayout";
 import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
-import { BoardControls, type BoardLayer } from "./BoardControls";
+import { PLACEHOLDER_SCALE, renderNestedBody } from "./nestedCanvasBody";
+import { BoardControls, type BoardLayer, type BoardCrumb } from "./BoardControls";
 import { SkeletonLines } from "./Skeleton";
 import { useReloadToken } from "../lib/useReloadToken";
 import { useOpenDocs } from "../lib/openDocsContext";
@@ -42,8 +43,16 @@ export const WIKI_BOARD_STORAGE_KEY = "wiki-board";
 /** Dockview needs real layout measurement; tests use a plain columns fallback. */
 const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
 
-interface BoardWorkspaceValue {
+/** One entered nested-canvas level (in-place drill-down, no DOM reparenting). */
+interface BoardLevel {
+  nodeId: string;
+  label: string;
   model: BoardModel;
+}
+
+interface BoardWorkspaceValue {
+  /** The active level's document (root, or the deepest entered nested canvas). */
+  document: BoardModel;
   sources: { path: string; label: string }[];
   source: string;
   onSource: (path: string) => void;
@@ -59,6 +68,8 @@ interface BoardWorkspaceValue {
   zoomOut: () => void;
   fit: () => void;
   layers: BoardLayer[];
+  crumbs: BoardCrumb[];
+  onCrumb: (id: string | null) => void;
   setViewHandle: (handle: JsonCanvasHandle | null) => void;
   open: (node: BoardNode) => void;
 }
@@ -72,19 +83,29 @@ function useBoardWorkspace(): BoardWorkspaceValue {
 }
 
 function BoardPanel() {
-  const { model, mode, hiddenLayers, showMinimap, zoom, setZoom, setViewHandle, open } =
-    useBoardWorkspace();
+  const {
+    document: doc,
+    mode,
+    hiddenLayers,
+    showMinimap,
+    zoom,
+    setZoom,
+    setViewHandle,
+    open,
+  } = useBoardWorkspace();
   return (
     <div className="board-panel">
       <JsonCanvas
         ref={setViewHandle}
-        data={model}
+        data={doc}
         mode={mode}
         hiddenLayers={hiddenLayers}
         showMinimap={showMinimap}
-        fitKey={model}
+        fitKey={doc}
+        placeholderScale={PLACEHOLDER_SCALE}
         onViewChange={setZoom}
         onOpenNode={open}
+        renderNode={(node) => renderNestedBody(node, zoom)}
       />
       <span className="visually-hidden" aria-live="polite">
         Zoom {Math.round(zoom * 100)}%
@@ -101,6 +122,8 @@ function BoardControlsPanel() {
         sources={b.sources}
         source={b.source}
         onSource={b.onSource}
+        crumbs={b.crumbs}
+        onCrumb={b.onCrumb}
         zoom={b.zoom}
         onZoomIn={b.zoomIn}
         onZoomOut={b.zoomOut}
@@ -132,6 +155,7 @@ export function WikiBoardView() {
   const [error, setError] = useState<string | null>(null);
   const [canvases, setCanvases] = useState<TreeEntry[]>([]);
   const [mode, setMode] = useState<"2d" | "3d">("2d");
+  const [levels, setLevels] = useState<BoardLevel[]>([]);
   const [hiddenLayers, setHiddenLayers] = useState<number[]>([]);
   const [showMinimap, setShowMinimap] = useState(true);
   const [zoom, setZoom] = useState(1);
@@ -157,6 +181,8 @@ export function WikiBoardView() {
       .then((res) => {
         if (alive) {
           setModel(normalizeBoard(res));
+          // A new source (or reload) resets the drill-down to the root level.
+          setLevels([]);
           setError(null);
         }
       })
@@ -194,14 +220,52 @@ export function WikiBoardView() {
     [canvases],
   );
 
-  const layers = useMemo<BoardLayer[]>(() => (model ? canvasLayers(model) : []), [model]);
+  const activeDocument = levels.length > 0 ? levels[levels.length - 1].model : model;
+  const layers = useMemo<BoardLayer[]>(
+    () => (activeDocument ? canvasLayers(activeDocument) : []),
+    [activeDocument],
+  );
 
   const toggleLayer = useCallback((id: number) => {
     setHiddenLayers((h) => (h.includes(id) ? h.filter((x) => x !== id) : [...h, id]));
   }, []);
 
+  const sourceLabel = file ? displayTitle({ path: file }) : "Wiki graph";
+  const crumbs = useMemo<BoardCrumb[]>(
+    () => [
+      { id: "", label: sourceLabel },
+      ...levels.map((l) => ({ id: l.nodeId, label: l.label })),
+    ],
+    [sourceLabel, levels],
+  );
+
+  const onCrumb = useCallback((id: string | null) => {
+    setLevels((prev) => {
+      if (id === null || id === "") return [];
+      const index = prev.findIndex((l) => l.nodeId === id);
+      return index >= 0 ? prev.slice(0, index + 1) : prev;
+    });
+  }, []);
+
   const open = useCallback(
     (node: BoardNode) => {
+      if (node.type === "nested-canvas" && node.canvas) {
+        setLevels((prev) => [
+          ...prev,
+          { nodeId: node.id, label: String(node.title ?? "Nested canvas"), model: node.canvas! },
+        ]);
+        return;
+      }
+      // An external `.canvas` target reuses the `?file=` board flow.
+      const canvasTarget =
+        (node.file && node.file.endsWith(".canvas") && node.file) ||
+        (node.url && node.url.endsWith(".canvas") && node.url) ||
+        "";
+      if (canvasTarget) {
+        const path = canvasTarget.startsWith("context/") ? canvasTarget : `context/${canvasTarget}`;
+        onSource(path);
+        return;
+      }
       if (node.file) {
         const path = node.file.startsWith("context/") ? node.file : `context/${node.file}`;
         openDoc(path);
@@ -209,8 +273,18 @@ export function WikiBoardView() {
       }
       if (node.type === "text" && node.id) openDoc(`context/wiki/${node.id}.md`);
     },
-    [openDoc],
+    [openDoc, onSource],
   );
+
+  // Escape pops one drill-down level (the view keeps Escape for its selection).
+  useEffect(() => {
+    if (levels.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLevels((prev) => prev.slice(0, -1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [levels.length]);
 
   const zoomIn = useCallback(() => viewRef.current?.zoomIn(), []);
   const zoomOut = useCallback(() => viewRef.current?.zoomOut(), []);
@@ -240,10 +314,10 @@ export function WikiBoardView() {
   }, []);
 
   if (error) return <p className="content__empty">Board error: {error}</p>;
-  if (!model) return <SkeletonLines count={5} label="Loading board" />;
+  if (!model || !activeDocument) return <SkeletonLines count={5} label="Loading board" />;
 
   const value: BoardWorkspaceValue = {
-    model,
+    document: activeDocument,
     sources,
     source: file,
     onSource,
@@ -259,6 +333,8 @@ export function WikiBoardView() {
     zoomOut,
     fit,
     layers,
+    crumbs,
+    onCrumb,
     setViewHandle,
     open,
   };

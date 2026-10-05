@@ -2776,6 +2776,65 @@
     height: 100%;
     min-height: 0;
   }
+
+  /* Nested-canvas body (analysis 20261003-224537): a placeholder card or a
+     non-interactive nested JsonCanvas miniature scaled to the node rect. */
+  .nested-canvas {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+  }
+  .nested-canvas--placeholder {
+    background: var(--bg-mantle);
+    color: var(--fg-dim);
+  }
+  .nested-canvas__title {
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .nested-canvas__hint {
+    font-size: 0.6875rem;
+    color: var(--fg-faint);
+  }
+  .nested-canvas--mini {
+    padding: 0;
+  }
+  .nested-canvas--mini > .jc {
+    pointer-events: none;
+  }
+  .board-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  .board-breadcrumb__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  .board-breadcrumb__sep {
+    color: var(--fg-faint);
+  }
+  .board-breadcrumb__btn {
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.25rem;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .board-breadcrumb__btn:disabled {
+    color: var(--fg);
+    cursor: default;
+  }
   .graph-tools {
     display: flex;
     flex-direction: column;

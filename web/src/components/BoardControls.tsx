@@ -15,10 +15,18 @@ export interface BoardLayer {
   name: string;
 }
 
+/** One step of the nested-canvas breadcrumb. */
+export interface BoardCrumb {
+  id: string;
+  label: string;
+}
+
 export interface BoardControlsProps {
   sources: { path: string; label: string }[];
   source: string;
   onSource: (path: string) => void;
+  crumbs: BoardCrumb[];
+  onCrumb: (id: string | null) => void;
   zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -36,6 +44,8 @@ export function BoardControls({
   sources,
   source,
   onSource,
+  crumbs,
+  onCrumb,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -65,6 +75,31 @@ export function BoardControls({
         </label>
         <p className="graph-tools__hint">Read-only · pan by drag, zoom with the wheel</p>
       </section>
+
+      {crumbs.length > 1 && (
+        <section className="graph-tools__section">
+          <h3 className="graph-tools__title">Path</h3>
+          <nav className="board-breadcrumb" aria-label="Board path">
+            {crumbs.map((c, i) => (
+              <span key={c.id || "root"} className="board-breadcrumb__item">
+                {i > 0 && (
+                  <span className="board-breadcrumb__sep" aria-hidden="true">
+                    /
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="board-breadcrumb__btn"
+                  onClick={() => onCrumb(c.id)}
+                  disabled={i === crumbs.length - 1}
+                >
+                  {c.label}
+                </button>
+              </span>
+            ))}
+          </nav>
+        </section>
+      )}
 
       <section className="graph-tools__section">
         <h3 className="graph-tools__title">View</h3>

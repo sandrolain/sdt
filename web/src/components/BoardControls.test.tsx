@@ -11,6 +11,11 @@ function renderControls(overrides: Record<string, unknown> = {}) {
     sources: [{ path: "context/wiki/x.canvas", label: "X" }],
     source: "",
     onSource: vi.fn(),
+    crumbs: [
+      { id: "", label: "Wiki graph" },
+      { id: "n1", label: "Level one" },
+    ],
+    onCrumb: vi.fn(),
     zoom: 1,
     onZoomIn: vi.fn(),
     onZoomOut: vi.fn(),
@@ -54,5 +59,11 @@ describe("BoardControls", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Deep" }));
     expect(props.onShowMinimap).toHaveBeenCalledWith(false);
     expect(props.onToggleLayer).toHaveBeenCalledWith(1);
+  });
+
+  it("pops a drill-down level from the breadcrumb", async () => {
+    const props = renderControls();
+    await userEvent.click(screen.getByRole("button", { name: "Wiki graph" }));
+    expect(props.onCrumb).toHaveBeenCalledWith("");
   });
 });
