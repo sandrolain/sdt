@@ -168,7 +168,10 @@ overwrites them. The core does not inline user choices.
 
 ### 6. Working mode
 
-- independent pass: the author of the work does not self-approve
+- independent pass: the author of the work does not self-approve; a genuinely
+  independent pass comes from a **different model or host** with no shared
+  working context, and when none exists record that **no independent check was
+  possible** and treat the review as degraded
 - degrade gracefully: CRITICAL before WARNING before SUGGESTION
 - reproduce claims with the real commands before confirming them.
 

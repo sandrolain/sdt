@@ -21,6 +21,11 @@ own `context/instructions/project.md` (library-first, see
   self-contained engine. `obscura` is the profiled default.
 - **Neither present** → degrade: report the render step as **SKIPPED** (see
   `browser.md`), never PASSED; do not install a driver unprompted.
+- **CLI over MCP when both exist** → prefer a CLI invocation: it is more
+  token-efficient than an MCP tool, because it avoids loading a large tool schema
+  and verbose accessibility trees into context (`playwright-cli` @ `b85c7a7`).
+  MCP stays useful for long-running loops that need persistent state and rich
+  introspection.
 - Both drivers share the wait-by-outcome discipline and the
   pixel-diff-is-a-tripwire rule from `browser.md`.
 
@@ -51,6 +56,17 @@ own `context/instructions/project.md` (library-first, see
   rasterization may differ from Chromium: it is **not a layout oracle**.
 - Fit: quick content dumps, resource/SSR debugging, cheap checks and parallel
   extraction before deciding a real browser session is needed.
+
+## `page-agent` (Alibaba) — text-only, in-page
+
+- Shape: an agent embedded **in the page** (in-page JavaScript) that acts on a
+  **text DOM**; no screenshots, no multi-modal model and no headless browser, and
+  it brings its own LLM (`@9eb6b66`).
+- Fit: text-only navigation and form work when a real-engine driver is
+  unavailable. It is **not a layout oracle**: it cannot measure pixel geometry,
+  so for a layout claim the render step stays **SKIPPED** (see `browser.md`).
+- Costs: it runs inside the page it controls, so it cannot inspect a page it did
+  not author and it shares that page's origin and permissions.
 
 ## Version scope
 

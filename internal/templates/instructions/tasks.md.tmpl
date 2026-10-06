@@ -328,6 +328,13 @@ a lint SUGGESTION). Every finding ends as one of the closed verdicts
 file path). Findings are validated in an **independent pass**; the author of the
 phase does not self-approve.
 
+- **An independent opinion needs a separate context.** The independent pass must
+  come from a **different model or host** with no shared working context — a
+  second pass by the same agent that wrote the work is not independent. When no
+  second model/host is available, record **"no independent check was possible"**
+  as the verdict and treat the review as **degraded**; never self-approve
+  silently.
+
 Give each finding its own identity with `--finding "<claim>" --verdict <verdict>`
 (repeatable, paired by position): the pairs become one item per finding under the
 block's `### Findings` subsection, with a CLI-assigned id, so a review says

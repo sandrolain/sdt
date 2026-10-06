@@ -47,8 +47,8 @@ session: <session id>        # optional
 
 - **No H1 title** — body starts at H2; see AGENTS.md (document conventions).
 
-Body sections: Subject, Method, Findings, Evidence, Limits and open points,
-Feeds.
+Body sections: Subject, Method (which records the retrieval date and the
+search window), Findings, Evidence, Limits and open points, Feeds.
 
 ## Purpose and boundary
 
@@ -70,6 +70,11 @@ Feeds.
   captures every page it relies on with `sdt crawldown` — stdout to read, a file
   under `context/refs/` to keep — and cites the capture; an uncaptured page is
   not evidence (see the AGENTS.md HARD RULES).
+- **State freshness, not just findings.** Record each source's retrieval date
+  and the window the search covered (for example "last 30 days" or "since
+  2024"). Prefer recent primary sources, but recency never outranks primary
+  evidence: a recent summary loses to the primary source it summarises. When a
+  date is unknown, say so — never infer freshness.
 
 ## Research runs (`sdt research`)
 

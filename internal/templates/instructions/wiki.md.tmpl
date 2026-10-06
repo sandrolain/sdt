@@ -92,6 +92,26 @@ read that for the full schema.
 - Do not repeat a linked page's content — state the connection and point to the
   target.
 
+## Obsidian vault compatibility
+
+A `context/wiki/` page is plain Markdown + YAML frontmatter, so an Obsidian
+vault can read the same folder — the two models are close but not identical:
+
+- **Frontmatter = properties.** SDT's fixed envelope is valid YAML properties;
+  Obsidian keeps the keys it does not know and ignores them in its UI, so no
+  field is renamed or dropped.
+- **Wikilinks are navigation, not edges.** `[[id|label]]` resolves by SDT's
+  path-derived `id`; Obsidian resolves by note name and tracks renames. Keep the
+  difference in mind and keep typed relations in `relations` frontmatter —
+  Obsidian has no typed edge.
+- **Block refs are not claim anchors.** SDT's `#claim-<n>` anchor is not an
+  Obsidian `^block-id`; do not rely on Obsidian-only syntax in a page.
+- **Obsidian syntax is tolerated, not required.** Callouts (`> [!note]`),
+  embeds (`![[…]]`), comments (`%%…%%`) and inline tags may appear on read, but
+  the body stays plain GitHub-Flavored Markdown so it renders without Obsidian.
+- **Boundary.** No `.base`/`.canvas`, no live integration and no export command:
+  this is a readability/interop note, not an Obsidian client.
+
 ## Verification
 
 - Run `sdt context wiki lint` after every change and fix issues caused by
