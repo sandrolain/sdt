@@ -1,0 +1,97 @@
+---
+kind: instructions
+title: "Distillation \u2014 book-scale references"
+summary: "Distilling a source too large to read whole into a structured, load-on-demand reference."
+---
+
+# Distillation — book-scale references
+
+`context/instructions/distillation.md` is the contract for turning a source too
+large to hold in working context at once into a structured, load-on-demand
+reference in `context/` — structure over summary, sections loaded on demand, and
+a merge that folds new material into an existing reference. Read it together
+with `context/instructions/ingestion.md` (conversion and archiving),
+`context/instructions/wiki.md` (the page model) and
+`context/instructions/development.md` (the process contract). Conversion is
+`sdt doc2md`; this module is the procedure that follows it. It names no
+converter and no runtime.
+
+## When this applies (no-op rule)
+
+- Use it when a source is too large to read whole, or must become a queryable
+  reference. If the source is small enough to read in one pass, do **not**
+  distil — read it (`ingestion.md`). Say which case applies.
+- The module describes a procedure over `doc2md` output; it never selects a
+  converter, a library or a runtime.
+
+## Choose the mode first
+
+State the mode before extracting — it decides the budget and the output:
+
+- **analyze-only** — map the source and propose the structure; write no
+  reference yet.
+- **generate** — produce the reference.
+- **fold-in** — merge new material into an existing reference.
+
+## Map before you extract
+
+- Build a **source map** first (headings, table of contents): the outline, not
+  the content. It is navigation, never a substitute for reading the evidence.
+- Process **source-native sections** (chapters, sections), carrying provenance
+  per segment. Never one-shot the whole book, and never summarise a section you
+  did not read.
+
+## Structure over summary
+
+- One file per section, loaded on demand, plus a core index.
+- The core carries the table of contents, a topic index and a glossary.
+- Do not dump the book, and do not mirror its chapters as prose summaries: the
+  reference is a structure to navigate, not a shortened copy.
+
+## Budget the depth
+
+- The budget is a **shape**, not a set of constants: a reference section and a
+  study section earn different depth, and depth is earned by containing a worked
+  example, not by a bigger number.
+- Calibrate the shape to the source; never copy another source's numbers.
+
+## Cost pre-flight
+
+- State the estimated output before generating, so the cost is a decision, not a
+  surprise.
+- For a very large source, probe it (grep, slice) rather than re-read it whole.
+
+## Fold-in merge
+
+Folding new material into an existing reference is a **structured merge**, not a
+regeneration:
+
+- Classify the new material: **revisions** merge into the existing section;
+  **additions** append after a numbered high-watermark, so numbering never
+  collides.
+- Stitch the references: a glossary entry gains its section, the topic index
+  appends.
+- Regenerate the core index under budget.
+- Never silently drop or renumber an existing anchor. Any state write goes
+  through the shipped CLI verbs — never hand-edit `status`, `updated` or a
+  checklist marker.
+
+## Provenance and boundary
+
+- Every artifact cites its source; a distillation without provenance is a
+  summary, not a reference.
+- `ingestion.md` owns conversion and archiving; `wiki.md` owns the page model;
+  this module owns the book-scale distillation and its fold-in.
+- The destination is `context/` (the wiki corpus or a generated skill body),
+  never a host skills directory.
+- Research collects evidence and an analysis interprets it; distillation
+  restructures a source into a reference — do not confuse the three.
+
+## Boundary
+
+- Conversion and archiving defer to `context/instructions/ingestion.md`.
+- The wiki page model defers to `context/instructions/wiki.md`.
+- Tool choice, install and any code defer to
+  `context/instructions/development.md` (library-first, simplicity, surgical
+  changes).
+- This module names no converter and no runtime.

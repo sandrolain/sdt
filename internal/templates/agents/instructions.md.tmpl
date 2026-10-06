@@ -111,6 +111,7 @@ silently (see `context/instructions/memo.md`).
 | `context/instructions/proposal.md` | Creating or reviewing a proposal |
 | `context/instructions/research.md` | Running research (`sdt research`) or writing a research note |
 | `context/instructions/ingestion.md` | Ingesting sources; converting non-markdown (`sdt doc2md`, anydoc → docling → markitdown) |
+| `context/instructions/distillation.md` | Distilling a source too large to read whole into a load-on-demand reference |
 | `context/instructions/prompts.md` | Creating or running a tracked prompt |
 | `context/instructions/reference.md` | Looking up a command |
 | `context/instructions/cli.md` | Looking up usage examples |
