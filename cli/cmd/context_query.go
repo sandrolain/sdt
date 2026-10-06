@@ -97,10 +97,10 @@ func stringList(s string) []string {
 func searchAliasTerms(cmd *cobra.Command) []ctxquery.Term {
 	var terms []ctxquery.Term
 	if o := getStringFlag(cmd, "objective", false); o != "" {
-		terms = append(terms, ctxquery.Term{Key: "objective", Value: o})
+		terms = append(terms, ctxquery.Term{Key: ctxFrontmatterObjective, Value: o})
 	}
 	if topic := getStringFlag(cmd, "topic", false); topic != "" {
-		terms = append(terms, ctxquery.Term{Key: "topics", Value: topic})
+		terms = append(terms, ctxquery.Term{Key: ctxFrontmatterTopics, Value: topic})
 	}
 	return terms
 }

@@ -25,9 +25,9 @@ import (
 func ctxParentField(childKind string) string {
 	switch childKind {
 	case ctxTypePlan:
-		return "analysis_id"
+		return ctxKeyAnalysisID
 	case ctxTypeTasks:
-		return "plan_id"
+		return ctxKeyPlanID
 	}
 	return ""
 }
@@ -36,9 +36,9 @@ func ctxParentField(childKind string) string {
 func ctxChildrenField(parentKind string) string {
 	switch parentKind {
 	case ctxTypeAnalysis:
-		return "plans_ids"
+		return ctxKeyPlansIDs
 	case ctxTypePlan:
-		return "tasks_ids"
+		return ctxKeyTasksIDs
 	}
 	return ""
 }
@@ -302,12 +302,12 @@ func lintParentRelations(files []string) []ctxLintIssue {
 		content := string(data)
 		doc := ctxRelDoc{
 			path:       path,
-			kind:       parseFrontmatterField(content, "kind"),
+			kind:       parseFrontmatterField(content, ctxFrontmatterKind),
 			uid:        parseFrontmatterField(content, ctxFrontmatterUID),
-			analysisID: parseFrontmatterField(content, "analysis_id"),
-			planID:     parseFrontmatterField(content, "plan_id"),
-			plansIDs:   parseFrontmatterList(content, "plans_ids"),
-			tasksIDs:   parseFrontmatterList(content, "tasks_ids"),
+			analysisID: parseFrontmatterField(content, ctxKeyAnalysisID),
+			planID:     parseFrontmatterField(content, ctxKeyPlanID),
+			plansIDs:   parseFrontmatterList(content, ctxKeyPlansIDs),
+			tasksIDs:   parseFrontmatterList(content, ctxKeyTasksIDs),
 			content:    content,
 		}
 		all = append(all, doc)
@@ -321,7 +321,7 @@ func lintParentRelations(files []string) []ctxLintIssue {
 		switch doc.kind {
 		case ctxTypePlan:
 			if doc.analysisID != "" {
-				issues = append(issues, checkChildRelation(docs, doc, doc.analysisID, ctxTypeAnalysis, "analysis_id", "plans_ids")...)
+				issues = append(issues, checkChildRelation(docs, doc, doc.analysisID, ctxTypeAnalysis, ctxKeyAnalysisID, ctxKeyPlansIDs)...)
 			} else if _, uid := ctxSourceParent(doc.content, ctxTypeAnalysis); uid != "" {
 				issues = append(issues, ctxLintIssue{Path: doc.path, Priority: ctxLintSuggestion, Message: "plan has no `analysis_id` for its sourced analysis (run `sdt context relations backfill`)"})
 			}
@@ -329,15 +329,15 @@ func lintParentRelations(files []string) []ctxLintIssue {
 			// correlation, and saying so is cheaper than letting a reader assume
 			// it derives (decision 0013's singular relation, the wave-2 analysis).
 			issues = append(issues, checkNoSecondAnalysisInSources(docs, doc)...)
-			issues = append(issues, checkParentListRelation(docs, doc, doc.tasksIDs, ctxTypeTasks, "plan_id", "tasks_ids")...)
+			issues = append(issues, checkParentListRelation(docs, doc, doc.tasksIDs, ctxTypeTasks, ctxKeyPlanID, ctxKeyTasksIDs)...)
 		case ctxTypeTasks:
 			if doc.planID != "" {
-				issues = append(issues, checkChildRelation(docs, doc, doc.planID, ctxTypePlan, "plan_id", "tasks_ids")...)
+				issues = append(issues, checkChildRelation(docs, doc, doc.planID, ctxTypePlan, ctxKeyPlanID, ctxKeyTasksIDs)...)
 			} else if _, uid := ctxSourceParent(doc.content, ctxTypePlan); uid != "" {
 				issues = append(issues, ctxLintIssue{Path: doc.path, Priority: ctxLintSuggestion, Message: "task has no `plan_id` for its sourced plan (run `sdt context relations backfill`)"})
 			}
 		case ctxTypeAnalysis:
-			issues = append(issues, checkParentListRelation(docs, doc, doc.plansIDs, ctxTypePlan, "analysis_id", "plans_ids")...)
+			issues = append(issues, checkParentListRelation(docs, doc, doc.plansIDs, ctxTypePlan, ctxKeyAnalysisID, ctxKeyPlansIDs)...)
 		}
 	}
 	return issues
@@ -382,9 +382,9 @@ func checkParentListRelation(docs map[string]ctxRelDoc, doc ctxRelDoc, ids []str
 
 func ctxRelField(doc ctxRelDoc, field string) string {
 	switch field {
-	case "analysis_id":
+	case ctxKeyAnalysisID:
 		return doc.analysisID
-	case "plan_id":
+	case ctxKeyPlanID:
 		return doc.planID
 	}
 	return ""
@@ -603,9 +603,9 @@ func init() {
 func relListContains(doc ctxRelDoc, field, value string) bool {
 	var list []string
 	switch field {
-	case "plans_ids":
+	case ctxKeyPlansIDs:
 		list = doc.plansIDs
-	case "tasks_ids":
+	case ctxKeyTasksIDs:
 		list = doc.tasksIDs
 	}
 	for _, v := range list {

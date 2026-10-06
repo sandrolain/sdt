@@ -52,7 +52,7 @@ var contextTodoAddCmd = &cobra.Command{
 }
 
 var contextTodoListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List the inbox items",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
@@ -73,7 +73,7 @@ var contextTodoListCmd = &cobra.Command{
 }
 
 var contextTodoDoneCmd = &cobra.Command{
-	Use:   "done <id>",
+	Use:   useDoneID,
 	Short: "Mark an idea done (kept in the list)",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {

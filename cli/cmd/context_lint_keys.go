@@ -14,17 +14,17 @@ import (
 // as a SUGGESTION so the schema stays discoverable without being closed.
 var ctxDeclaredKeys = map[string]bool{
 	// Identity and type.
-	"kind": true, ctxFrontmatterUID: true, "number": true, ctxDocTitleKey: true,
-	"summary": true, "context": true, "objective": true, "phase": true, "phases": true,
-	"topics": true, "entities": true, "categories": true,
+	ctxFrontmatterKind: true, ctxFrontmatterUID: true, ctxFrontmatterNumber: true, ctxDocTitleKey: true,
+	"summary": true, "context": true, ctxFrontmatterObjective: true, "phase": true, "phases": true,
+	ctxFrontmatterTopics: true, "entities": true, "categories": true,
 	// Lifecycle.
 	ctxMapStatus: true, "created": true, statusUpdated: true,
 	// Relations.
-	"links": true, "sources": true, "supersedes": true, "contradicts": true,
-	"analysis_id": true, "plan_id": true, "plans_ids": true, "tasks_ids": true,
+	ctxFrontmatterLinks: true, "sources": true, "supersedes": true, ctxFrontmatterContradicts: true,
+	ctxKeyAnalysisID: true, ctxKeyPlanID: true, ctxKeyPlansIDs: true, ctxKeyTasksIDs: true,
 	"derived_from": true, "results": true,
 	// Provenance and annotations.
-	"agent": true, "model": true, "session": true, "role": true, "note_type": true,
+	ctxFrontmatterAgent: true, "model": true, "session": true, "role": true, "note_type": true,
 	"via": true, "project": true, "group": true, "id": true, "tier": true,
 	// Index/viewer generated markers.
 	"_generated": true, "position": true, "order": true,

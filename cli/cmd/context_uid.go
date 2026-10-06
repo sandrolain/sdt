@@ -82,7 +82,7 @@ func stampUIDMissing(content string) (string, bool) {
 		switch strings.TrimSpace(strings.SplitN(lines[i], ":", 2)[0]) {
 		case ctxFrontmatterUID:
 			return content, false
-		case "kind":
+		case ctxFrontmatterKind:
 			kindIdx = i
 		}
 	}

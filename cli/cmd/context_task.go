@@ -569,7 +569,7 @@ var contextTaskAddCmd = &cobra.Command{
 			exitWithError(cmd, err)
 		}
 		if planPath != "" && taskUID != "" {
-			if err := linkChildToParent(planPath, taskUID, "tasks_ids"); err != nil {
+			if err := linkChildToParent(planPath, taskUID, ctxKeyTasksIDs); err != nil {
 				exitWithError(cmd, err)
 			}
 		}
@@ -671,7 +671,7 @@ func taskSetStatusCmd(status string) *cobra.Command {
 	var use, short string
 	switch status {
 	case taskStatusDone:
-		use, short = "done <id>", "Mark a task step done"
+		use, short = useDoneID, "Mark a task step done"
 	case taskStatusBlock:
 		use, short = "block <id>", "Mark a task step blocked"
 	case taskStatusWip:

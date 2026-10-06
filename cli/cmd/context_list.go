@@ -79,7 +79,7 @@ Examples:
 
 		var terms []ctxquery.Term
 		if agent := getStringFlag(cmd, "agent", false); agent != "" {
-			terms = append(terms, ctxquery.Term{Key: "agent", Value: agent})
+			terms = append(terms, ctxquery.Term{Key: ctxFrontmatterAgent, Value: agent})
 		}
 		if role := getStringFlag(cmd, "role", false); role != "" {
 			terms = append(terms, ctxquery.Term{Key: "role", Value: role})

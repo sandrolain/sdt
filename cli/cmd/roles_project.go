@@ -112,13 +112,13 @@ func deriveRoleProjectFacts() roleProjectFacts {
 // `sdt agent roles init` itself creates (context/), which would otherwise make
 // the layout scan non-deterministic between runs.
 var roleLayoutIgnoredDirs = map[string]bool{
-	"context":      true, // SDT workspace, created by this command
-	"bin":          true,
-	"dist":         true,
-	"node_modules": true,
-	"vendor":       true,
-	"tmp":          true,
-	"refs":         true,
+	gitIgnoreModeContext: true, // SDT workspace, created by this command
+	"bin":                true,
+	"dist":               true,
+	"node_modules":       true,
+	"vendor":             true,
+	"tmp":                true,
+	"refs":               true,
 }
 
 // repoTopLevelDirs returns the visible top-level directories of the current

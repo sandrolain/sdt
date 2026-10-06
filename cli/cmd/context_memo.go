@@ -91,7 +91,7 @@ var contextMemoAddMemoCmd = &cobra.Command{
 }
 
 var contextMemoListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List the register entries",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
@@ -141,7 +141,7 @@ something is due (advisory otherwise — decision 0023).`,
 }
 
 var contextMemoDoneCmd = &cobra.Command{
-	Use:   "done <id>",
+	Use:   useDoneID,
 	Short: "Record a rule as done today, or a memo as done",
 	Long: `Record that a rule was performed (sets last_done to today, or --today), or
 that a memo is done. Call it only after the operation succeeded: it records a
@@ -260,7 +260,7 @@ func memoListLine(v memoListView) string {
 	}
 	state := "due " + v.Due
 	if v.Done {
-		state = "done"
+		state = taskStatusDone
 	}
 	return fmt.Sprintf("%s\t%s\t%s", v.ID, v.Kind, state)
 }

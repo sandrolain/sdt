@@ -69,11 +69,13 @@ const (
 	statusPostponed = "postponed"
 
 	// Cobra command Use strings shared across files.
-	useInit  = "init"
-	useList  = "list"
-	useShow  = "show"
-	useCheck = "check"
-	cmdDocs  = "docs"
+	useInit   = "init"
+	useList   = "list"
+	useShow   = "show"
+	useCheck  = "check"
+	cmdDocs   = "docs"
+	useDoneID = "done <id>"
+	useAgent  = "agent"
 
 	// Role slugs, the closed register namespace. Kept as constants so the same
 	// literal is never repeated across register/templates/derivation.
@@ -92,6 +94,22 @@ const (
 	taskStatusBlocked   = "blocked"
 	taskStatusBlock     = "block"
 	ctxFrontmatterDelim = "---"
+
+	// Context work file frontmatter keys. These name the same field wherever it
+	// is read, written, linted or used as a query term, so a single literal per
+	// key keeps the field name from drifting between those call sites.
+	ctxFrontmatterKind        = "kind"
+	ctxFrontmatterNumber      = "number"
+	ctxFrontmatterObjective   = "objective"
+	ctxFrontmatterTopics      = "topics"
+	ctxFrontmatterAgent       = "agent"
+	ctxFrontmatterContradicts = "contradicts"
+
+	// Reverse parent→children list fields complementing ctxKeyAnalysisID and
+	// ctxKeyPlanID.
+	ctxKeyPlansIDs = "plans_ids"
+	ctxKeyTasksIDs = "tasks_ids"
+
 	// ctxBackfillVerb names the one-shot backfill subcommand shared by the uid,
 	// relations and checklist command groups.
 	ctxBackfillVerb = "backfill"

@@ -44,7 +44,7 @@ This command replaces the removed context/scripts/convert-to-md.sh wrapper
 }
 
 var doc2mdListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List the kept converted documents",
 	Long: `List the kept converted corpus. The rows are read from the per-file
 frontmatter under context/refs/converted/ (never from index.md), so the

@@ -35,7 +35,7 @@ func agentTargetPath(cmd *cobra.Command) string {
 // ── agent command group ────────────────────────────────────────────────────────
 
 var agentCmd = &cobra.Command{
-	Use:   "agent",
+	Use:   useAgent,
 	Short: "Agent instruction tools (AGENTS.md, instruction files)",
 	Long: `Generate and maintain agent instruction files.
 

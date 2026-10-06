@@ -34,7 +34,7 @@ const ctxFrontmatterResults = "results"
 
 // ctxReferenceFields are the frontmatter list fields that carry document
 // references validated against the context tree.
-var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", ctxFrontmatterResults, ctxTypeSupersedes, "contradicts"}
+var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", ctxFrontmatterResults, ctxTypeSupersedes, ctxFrontmatterContradicts}
 
 func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
@@ -279,7 +279,7 @@ func lintTimestampFields(path, content string, prio func(string) string) []ctxLi
 // self-contained command is valid.
 func lintCommandFile(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
-	if kind := parseFrontmatterField(content, "kind"); kind != "" && kind != ctxTypeCommands {
+	if kind := parseFrontmatterField(content, ctxFrontmatterKind); kind != "" && kind != ctxTypeCommands {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "command file `kind` must be `" + ctxTypeCommands + "`, got " + kind})
 	}
 	base := strings.TrimSuffix(filepath.Base(path), sdtMarkdownExt)
@@ -289,7 +289,7 @@ func lintCommandFile(path, content string, prio func(string) string) []ctxLintIs
 	if s := parseFrontmatterField(content, "summary"); len([]rune(s)) > ctxCommandSummaryMax {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("command `summary` is %d chars (max %d)", len([]rune(s)), ctxCommandSummaryMax)})
 	}
-	for _, field := range []string{"sources", "links", "derived_from", "results"} {
+	for _, field := range []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", ctxFrontmatterResults} {
 		for _, ref := range parseFrontmatterList(content, field) {
 			if !strings.HasPrefix(strings.TrimSpace(ref), "instructions/") {
 				continue
@@ -319,7 +319,7 @@ func lintDoc(path string) []ctxLintIssue {
 	if issues := lintFrontmatterAndLegacyBody(path, data); issues != nil {
 		return issues
 	}
-	kind := parseFrontmatterField(content, "kind")
+	kind := parseFrontmatterField(content, ctxFrontmatterKind)
 	summary := parseFrontmatterField(content, "summary")
 
 	// Legacy documents lack both kind and summary. Treat them as WARNING so the
@@ -670,7 +670,7 @@ func lintObjectiveField(path, content, kind string, prio func(string) string) []
 	if kind != ctxTypeAnalysis && kind != ctxTypePlan {
 		return nil
 	}
-	if o := parseFrontmatterField(content, "objective"); o == "" {
+	if o := parseFrontmatterField(content, ctxFrontmatterObjective); o == "" {
 		return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: kind + " missing `objective` group key (kebab-case slug)"}}
 	} else if !ctxObjectiveRegexp.MatchString(o) {
 		return []ctxLintIssue{{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("%s `objective` %q must be a kebab-case slug (lowercase letters, digits and '-')", kind, o)}}
@@ -684,7 +684,7 @@ func lintPlanObjectiveConsistency(path, content, kind string, prio func(string) 
 	if kind != ctxTypePlan {
 		return nil
 	}
-	o := parseFrontmatterField(content, "objective")
+	o := parseFrontmatterField(content, ctxFrontmatterObjective)
 	if o == "" {
 		return nil
 	}
@@ -697,10 +697,10 @@ func lintPlanObjectiveConsistency(path, content, kind string, prio func(string) 
 		if err != nil {
 			continue
 		}
-		if parseFrontmatterField(string(data), "kind") != ctxTypeAnalysis {
+		if parseFrontmatterField(string(data), ctxFrontmatterKind) != ctxTypeAnalysis {
 			continue
 		}
-		if ao := parseFrontmatterField(string(data), "objective"); ao != "" && ao != o {
+		if ao := parseFrontmatterField(string(data), ctxFrontmatterObjective); ao != "" && ao != o {
 			return []ctxLintIssue{{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("plan `objective` %q differs from its analysis %s objective %q", o, ref, ao)}}
 		}
 		return nil
@@ -741,7 +741,7 @@ func lintUIDDuplicates(files []string) []ctxLintIssue {
 			continue
 		}
 		content := string(data)
-		if !ctxUIDEligibleKind(parseFrontmatterField(content, "kind")) {
+		if !ctxUIDEligibleKind(parseFrontmatterField(content, ctxFrontmatterKind)) {
 			continue
 		}
 		uid := parseFrontmatterField(content, ctxFrontmatterUID)
@@ -767,7 +767,7 @@ func lintUIDDuplicates(files []string) []ctxLintIssue {
 // `objective` field (renamed to `phase`; the objective is inherited from the
 // plan, never declared on the task).
 func lintTaskObjectiveLegacy(path, content, kind string) []ctxLintIssue {
-	if kind != ctxTypeTasks || parseFrontmatterField(content, "objective") == "" {
+	if kind != ctxTypeTasks || parseFrontmatterField(content, ctxFrontmatterObjective) == "" {
 		return nil
 	}
 	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "task file carries legacy `objective`; rename it to `phase` (the plan objective is inherited, not declared)"}}
@@ -952,7 +952,7 @@ func lintAnalysisRelations(path, content, kind string, prio func(string) string)
 	if parseFrontmatterField(content, "links") == "none" {
 		return nil
 	}
-	for _, field := range []string{ctxFrontmatterLinks, ctxTypeSupersedes, "contradicts"} {
+	for _, field := range []string{ctxFrontmatterLinks, ctxTypeSupersedes, ctxFrontmatterContradicts} {
 		if len(parseFrontmatterList(content, field)) > 0 {
 			return nil
 		}
@@ -1015,7 +1015,7 @@ func contextLintCorpusPath(path string) bool {
 var ctxDoneStatuses = map[string]bool{
 	taskFileStatusCompleted: true,
 	"complete":              true,
-	"done":                  true,
+	taskStatusDone:          true,
 	"executed":              true,
 	taskFileStatusArchived:  true,
 }

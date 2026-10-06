@@ -130,7 +130,7 @@ func ctxStatusRows() []ctxStatusEntry {
 	descs := []kindDescr{
 		{kind: ctxTypeArchitecture, next: read, ifClean: read},
 		{kind: ctxTypeDecision, next: read, ifClean: read},
-		{kind: ctxTypeAnalysis, next: "read if current", ifClean: "done"},
+		{kind: ctxTypeAnalysis, next: "read if current", ifClean: taskStatusDone},
 		{kind: ctxTypePlan, next: "active plan", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeNotes, next: ctxReviewVerb, ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeProposal, next: "review or draft", ifClean: gitIgnoreModeNone},

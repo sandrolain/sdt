@@ -266,9 +266,9 @@ func ctxKeyOrder(_ string) []string {
 //
 //nolint:goconst // the neighbour order is inherently a list of field names
 var ctxFrontmatterOrder = []string{
-	"kind", ctxFrontmatterUID, "number", ctxDocTitleKey, "summary", "objective",
-	"topics", "entities", "categories", ctxMapStatus, "created", statusUpdated,
-	"links", "sources",
+	ctxFrontmatterKind, ctxFrontmatterUID, ctxFrontmatterNumber, ctxDocTitleKey, "summary", ctxFrontmatterObjective,
+	ctxFrontmatterTopics, "entities", "categories", ctxMapStatus, "created", statusUpdated,
+	ctxFrontmatterLinks, "sources",
 }
 
 // isYAMLValue reports whether s parses as a non-string YAML scalar or a

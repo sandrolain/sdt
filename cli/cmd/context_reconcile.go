@@ -163,7 +163,7 @@ func reconcileTaskDoc(path string, edges *ctxrel.Edges, now time.Time, staleDays
 		Path:       path,
 		Ref:        normalizeContextRef(path),
 		Status:     strings.ToLower(strings.TrimSpace(parseFrontmatterField(content, "status"))),
-		PlanID:     strings.TrimSpace(parseFrontmatterField(content, "plan_id")),
+		PlanID:     strings.TrimSpace(parseFrontmatterField(content, ctxKeyPlanID)),
 		PlanRef:    edges.ParentOf(normalizeContextRef(path)),
 		Standalone: declaresStandaloneTask(content),
 		HasReview:  hasReviewBlock(content),
