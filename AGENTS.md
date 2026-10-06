@@ -144,6 +144,8 @@ silently (see `context/instructions/memo.md`).
 | `context/instructions/mindmap-markmap.md` | Writing the map markdown dialect and its markers |
 | `context/instructions/slides.md` | Authoring or reviewing a slide deck |
 | `context/instructions/slides-marp.md` | Writing the Marp markdown dialect |
+| `context/instructions/diagram.md` | Authoring or reviewing a diagram (type, layout, honesty) |
+| `context/instructions/diagram-mermaid.md` | Writing the Mermaid text-diagram dialect |
 | `context/instructions/capture.md` | Recognizing a reusable correction or friction at closeout or session end |
 | `context/instructions/memo.md` | Planned operations: the `context/memo.yaml` register, its due check and how to act on a due item |
 | `context/instructions/todo.md` | Capturing a short idea for the centralized TODO inbox, or listing/closing an item |

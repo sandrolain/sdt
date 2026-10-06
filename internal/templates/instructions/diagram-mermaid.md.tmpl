@@ -1,0 +1,84 @@
+---
+kind: instructions
+title: "Diagrams \u2014 the Mermaid dialect"
+summary: "The Mermaid dialect for text diagrams, its portable subset and how a diagram document is managed."
+---
+
+# Diagrams — the Mermaid dialect
+
+`context/instructions/diagram-mermaid.md` is the format contract for a diagram
+written in **Mermaid**: a fenced `mermaid` block inside a Markdown document, so
+the diagram stays diffable in git and readable by an agent without image
+rendering. Read it together with `context/instructions/diagram.md` (the doctrine:
+type, layout, honesty) and `context/instructions/development.md` (the process
+contract).
+
+## Nothing is dropped
+
+The diagram is the document: a renderer draws it, it never rewrites it. A
+diagram that only survives as a rendered image has lost its source, and every
+edit has to start over.
+
+## The block
+
+A diagram is a fenced code block tagged `mermaid`, embedded in the document that
+owns it:
+
+```mermaid
+flowchart LR
+  A[request] --> B[service]
+  B --> C[(store)]
+```
+
+It is not a separate asset file: the diagram lives next to the prose it
+explains, so the two move together. Authored SVG assets are a different lane
+(`context/instructions/vector-svg.md`).
+
+## Type keywords
+
+Map the reader's question (see `diagram.md`) to a Mermaid keyword:
+
+| Question | Keyword |
+|---|---|
+| steps and decisions over time | `flowchart` |
+| messages exchanged in order | `sequenceDiagram` |
+| states and transitions | `stateDiagram-v2` |
+| data between stores and processes | `flowchart` with data-shaped nodes |
+| entities and relations | `erDiagram` |
+| parts and boundaries of a system | `flowchart` with subgraphs |
+| a schedule over time | `gantt` |
+
+## Portable subset
+
+Write the standard Mermaid the project's renderer draws. Prefer the plain
+constructs — node shapes, arrows with short labels, a subgraph for a boundary —
+over renderer-specific tweaks.
+
+## Anti-patterns
+
+- Styling-only changes: a theme or colour tweak is not a diagram improvement.
+- `classDef` sprawl: a class per node is a stylesheet, not a diagram.
+- Relying on automatic layout: place by connection (`diagram.md`); never accept a
+  default that scrambles the reading order.
+- Beautifying the renderer: a prettier theme does not add information.
+
+## Label semantics
+
+A relationship label carries meaning (action, protocol, direction, async,
+cross-boundary). Keep it short; never delete it to make room.
+
+## Where a diagram lives
+
+- Embedded in the owning document (an architecture page, an analysis, a worklog).
+- `.map.md` (mind maps) and `.slide.md` (decks) are their own lanes, not this
+  one.
+- Every diagram keeps its source block; a canonical export strips
+  presentation-only marks.
+
+## Boundary
+
+- Doctrine (type, layout, honesty) defers to `context/instructions/diagram.md`.
+- Authored SVG assets defer to `context/instructions/vector-svg.md`.
+- Tool choice, install and code defer to
+  `context/instructions/development.md`.
+- This module names no rendering tool and no exporter.

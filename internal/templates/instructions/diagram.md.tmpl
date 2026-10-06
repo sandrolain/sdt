@@ -1,0 +1,95 @@
+---
+kind: instructions
+title: "Diagrams \u2014 authoring doctrine"
+summary: "Diagram authoring doctrine: choose the type, place by connection, measure and stay honest."
+---
+
+# Diagrams — authoring doctrine
+
+`context/instructions/diagram.md` is the contract for authoring or reviewing a
+diagram a human reads: a picture that makes a structure legible at a glance. It
+is format-agnostic — it names the decisions, not the tool. When the diagram is
+written in the project's text-diagram dialect, read it together with
+`context/instructions/diagram-mermaid.md` (the dialect and document contract) and
+`context/instructions/development.md` (the process contract: agreement,
+library-first, simplicity, surgical changes). It names no rendering tool: a
+diagram is a document, and any tool that reads the chosen dialect can draw it.
+
+## When this applies (no-op rule)
+
+- Use it when the project authors or reviews a diagram. If it authors none, this
+  file does not apply — say so and stop.
+- The doctrine is about the *shape* of the diagram, not the tooling. Choosing a
+  renderer or writing code is a `development.md` decision (library-first), not a
+  rule of this module.
+
+## Choose the type first (question → form)
+
+State what the reader must see **before** choosing a form, then pick the type
+that answers it:
+
+- steps and decisions over time → a flow/workflow
+- messages exchanged in order → a sequence
+- a machine's states and transitions → a state/lifecycle diagram
+- data moving between stores and processes → a dataflow
+- entities and their relations → an entity/relationship diagram
+- parts and boundaries of a system → an architecture view (subgraphs over a flow)
+- a schedule over time → a timeline/gantt
+
+Recommend a type and draw nothing until the question is answered. When the
+material cannot answer the reader's question, say so instead of drawing a
+plausible picture.
+
+## Constraints fixed, layout free
+
+- Semantics are constrained: a node's role fixes its shape/colour vocabulary, and
+  a relationship's label carries meaning (action, protocol, direction, async,
+  cross-boundary). A label is not decoration — deleting it is not a spacing fix.
+- Positions are the author's judgement. Never let a tool's default layout decide
+  the reading order.
+
+## Place by connection, not by grid
+
+- Main path in reading order.
+- A branch or store sits directly above or below its owner, so the edge is one
+  straight segment.
+- A return runs on the side with no branches, through an empty corridor.
+- A second entrance enters from another side.
+- Fan-out widens with the number of children.
+- Place nodes by their actual connections first; assign coordinates last.
+- Start from the automatic route; pin a side or add a detour only for a measured
+  defect.
+
+## Measured, not "pretty"
+
+- A label keeps a clear gap from the line it labels; a segment has a minimum
+  length; an edge never crosses an unrelated node.
+- A rendering defect is a measurement, not an opinion: state the gap, the overlap
+  or the detour in the artefact, not "it looks off".
+- These are the diagram analogue of a lint rule; where the project can run such a
+  check, run it (see `development.md`).
+
+## Repair bounded
+
+- Render → measure → repair the connected neighbourhood named by the defect →
+  rerun the whole render.
+- One coherent scene reflow beats independent label nudges.
+- Use a bounded number of rounds; after that, report the concrete gap instead of
+  looping.
+
+## Honesty and anti-slop
+
+- Reachability is not runtime impact, blast radius or breakage.
+- Motion must be finite, reader-controlled, and never carry meaning that
+  disappears in a still frame.
+- One spatial narrative first; progressive disclosure over permanent chrome.
+- Strip focus, glow, overlays and temporary marks from a canonical export.
+- Never invent a node, an edge or a boundary the source does not support.
+
+## Boundary
+
+- Tool choice, install and any code defer to `context/instructions/development.md`
+  (library-first, simplicity, surgical changes).
+- Dialect syntax and where a diagram lives defer to
+  `context/instructions/diagram-mermaid.md`.
+- This module names no rendering tool and no exporter.
