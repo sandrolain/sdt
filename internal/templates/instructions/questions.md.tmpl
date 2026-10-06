@@ -30,9 +30,12 @@ Or hand-write the file from the template below.
 kind: questions
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<objective / what triggered the open points>"
-status: active            # active | resolved — statuses defined in the matrix (architecture/stack.md)
+status: active            # active | investigating | blocked | deferred | resolved — statuses defined in the matrix (architecture/stack.md)
 sources:                  # document(s) where the points surfaced
   - analysis/<date>-<slug>.md
+evidence:                 # optional references backing or bearing on the questions
+  - analysis/<date>-<slug>.md
+deferred_reason: ""       # required (advisory) when status: deferred
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 project: <project>
@@ -97,4 +100,13 @@ obvious-answer questions here.
 - Help the user cover the open points, but keep the user in control of the
   decisions. Once answered, resolve the point in the analysis/plan and mark the
   question resolved (`status: resolved`).
+- **Status** — `active` (awaiting an answer; legacy), `investigating` (being
+  worked through), `blocked` (cannot progress until an external dependency
+  resolves), `deferred` (deliberately parked), `resolved` (answered, kept as a
+  record). Any status other than `resolved` is an open question, and that is
+  what `sdt context status` counts for the questions row.
+- **`evidence`** — optional list of references (analysis, decision, research or
+  task) that back or bear on the question; `sdt context lint` resolves each.
+  **`deferred_reason`** — free text recording why a question is parked and its
+  revival condition; expected when `status: deferred`.
 - Tier: **medium** — see `architecture/stack.md` for the tier taxonomy.

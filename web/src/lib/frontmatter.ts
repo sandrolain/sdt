@@ -273,6 +273,21 @@ export const STATUS_VALUES: Record<string, ValueLabel> = {
     meaning: "Answered, kept as a record",
     tone: "ok",
   },
+  "questions.investigating": {
+    label: "Investigating",
+    meaning: "Being investigated, not yet resolved",
+    tone: "warn",
+  },
+  "questions.blocked": {
+    label: "Blocked",
+    meaning: "Cannot progress until an external dependency is resolved",
+    tone: "danger",
+  },
+  "questions.deferred": {
+    label: "Deferred",
+    meaning: "Deliberately deferred; carries a recorded reason",
+    tone: "neutral",
+  },
   "wiki.draft": { label: "Draft", meaning: "Being written", tone: "warn" },
   "wiki.active": { label: "Active", meaning: "Live page", tone: "ok" },
   "wiki.archived": { label: "Archived", meaning: "Retired", tone: "neutral" },

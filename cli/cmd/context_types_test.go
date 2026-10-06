@@ -140,7 +140,7 @@ func TestContextTypeStatuses(t *testing.T) {
 	}{
 		{ctxTypePlan, ctxWikiStatusActive, "active|completed|abandoned"},
 		{ctxTypeAnalysis, ctxWikiStatusActive, "active|draft|completed|postponed|archived"},
-		{ctxTypeQuestions, ctxWikiStatusActive, "active|resolved"},
+		{ctxTypeQuestions, ctxWikiStatusActive, "active|investigating|blocked|deferred|resolved"},
 		{ctxTypeProposal, ctxWikiStatusDraft, "draft|review|accepted|rejected|superseded"},
 		{ctxTypePrompt, ctxWikiStatusDraft, "draft|active|archived"},
 		{ctxTypeResearch, ctxWikiStatusDraft, "draft|active|archived"},

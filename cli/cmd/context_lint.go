@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -32,9 +34,51 @@ const ctxFrontmatterLinks = "links"
 // ctxFrontmatterResults is the output-artifact reference field.
 const ctxFrontmatterResults = "results"
 
+// ctxFrontmatterEvidence is the open-questions key holding a list of references
+// backing (or deferring) a question.
+const ctxFrontmatterEvidence = "evidence"
+
+// ctxFrontmatterDeferredReason is the free-text reason required (advisory) when a
+// question is `status: deferred`.
+const ctxFrontmatterDeferredReason = "deferred_reason"
+
+// ctxFrontmatterEvidenceClass is the optional scalar classification of an
+// analysis/decision's dominant evidence type.
+const ctxFrontmatterEvidenceClass = "evidence_class"
+
+// ctxEvidenceClassValues is the closed vocabulary for `evidence_class`,
+// confirmed by the R2 research step (plan 20261006-200432): the six evidence
+// types. It deliberately mixes in no confidence/maturity axis, which is a
+// separate future field.
+var ctxEvidenceClassValues = []string{"fact", "observation", "inference", "hypothesis", "assumption", "decision"}
+
+// ctxEvidenceClassValid reports whether v is in the closed vocabulary.
+func ctxEvidenceClassValid(v string) bool {
+	for _, c := range ctxEvidenceClassValues {
+		if c == v {
+			return true
+		}
+	}
+	return false
+}
+
+// lintEvidenceClass validates the optional `evidence_class` scalar on analyses
+// and decisions against the closed vocabulary. Absent is silent (the key is
+// optional); out-of-vocabulary is WARNING; other kinds are ignored.
+func lintEvidenceClass(path, content, kind string) []ctxLintIssue {
+	if kind != ctxTypeAnalysis && kind != ctxTypeDecision {
+		return nil
+	}
+	v := strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterEvidenceClass))
+	if v == "" || ctxEvidenceClassValid(v) {
+		return nil
+	}
+	return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("`evidence_class` %q is outside the vocabulary (%s)", v, strings.Join(ctxEvidenceClassValues, " | "))}}
+}
+
 // ctxReferenceFields are the frontmatter list fields that carry document
 // references validated against the context tree.
-var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", ctxFrontmatterResults, ctxTypeSupersedes, ctxFrontmatterContradicts}
+var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", ctxFrontmatterResults, ctxTypeSupersedes, ctxFrontmatterContradicts, ctxFrontmatterEvidence}
 
 func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
@@ -62,6 +106,67 @@ func lintFrontmatterReferences(path, content string, prio func(string) string) [
 		}
 	}
 	return issues
+}
+
+// ctxCitationRegexp matches a hash-anchored body citation in the corpus
+// convention `refs/<path>@<hex>{6,}` with optional `:n` / `:n-m` line ranges.
+// The optional `sha256:` prefix (the planned doc2md form) is captured so it can
+// be tolerated without resolution: it carries no file path to hash. Group 1 is
+// the `refs/...` path, group 2 the optional marker, group 3 the cited hex
+// prefix.
+var ctxCitationRegexp = regexp.MustCompile(`(refs/[A-Za-z0-9_./-]+)@(sha256:)?([0-9a-f]{6,})(?::[0-9]+(?:-[0-9]+)?)?`)
+
+// ctxInlineCodeRegexp matches a single-backtick Markdown code span so a citation
+// written as an example (`refs/x.md@fbf61784`) is not read as a claim.
+var ctxInlineCodeRegexp = regexp.MustCompile("`[^`\n]*`")
+
+// lintBodyCitations verifies the corpus's hash-anchored body citations: the
+// target resolves under context/refs/ and the cited SHA-256 prefix still matches
+// the file's current digest. Advisory (WARNING): it proves file presence and
+// freshness only, never that the cited lines still support the claim.
+func lintBodyCitations(path, content string) []ctxLintIssue {
+	return lintCitationText(path, string(frontmatterBody([]byte(content))))
+}
+
+// lintCitationText is the body-only form of lintBodyCitations, shared with the
+// wiki lint so `sdt context wiki lint` verifies per-page citations too.
+func lintCitationText(path, body string) []ctxLintIssue {
+	body = stripInlineCode(stripFencedCode(body))
+	var issues []ctxLintIssue
+	for _, m := range ctxCitationRegexp.FindAllStringSubmatch(body, -1) {
+		ref, marker, cited := m[1], m[2], m[3]
+		// The planned doc2md `@sha256:<12hex>` form is parsed but not resolved:
+		// there is no path to hash yet, so it is tolerated, never flagged.
+		if marker != "" {
+			continue
+		}
+		actual, ok := ctxRefSHA8(filepath.Join(sdtWorkDir, ref))
+		if !ok {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: "citation target not found: " + ref})
+			continue
+		}
+		if !strings.HasPrefix(actual, cited) {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("stale citation %s@%s (actual %s)", ref, cited, actual)})
+		}
+	}
+	return issues
+}
+
+// stripInlineCode blanks single-backtick code spans; a citation inside a code
+// span is an example, not a claim.
+func stripInlineCode(body string) string {
+	return ctxInlineCodeRegexp.ReplaceAllString(body, "")
+}
+
+// ctxRefSHA8 reads a referenced file and returns the first 8 hex of its SHA-256
+// digest, or ok=false when the file is absent or unreadable.
+func ctxRefSHA8(path string) (string, bool) {
+	data, err := os.ReadFile(path) //#nosec G304,G703 -- path built from a context/refs citation, never user input
+	if err != nil {
+		return "", false
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:8], true
 }
 
 // lintRFCAndPromptContract enforces the proposal and prompt instruction
@@ -111,6 +216,11 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"broken contradicts reference", "fix the `contradicts` frontmatter reference so it resolves to an existing context document"},
 	{"analysis declares no relation", "add `links`, `supersedes` or `contradicts`, or state the reason with `links: none`; a new analysis should always declare how it relates to prior work"},
 	{"broken results reference", "fix the `results` frontmatter reference so it resolves to an existing context document"},
+	{"broken evidence reference", "fix the `evidence` frontmatter reference so it resolves to an existing context document (analysis, decision, research or task)"},
+	{"questions file is `status: deferred`", "add `deferred_reason: <why it is parked + its revival condition>` so the deferral is retrievable"},
+	{"`evidence_class` ", "set `evidence_class` to one of fact | observation | inference | hypothesis | assumption | decision, or omit the key (optional)"},
+	{"stale citation", "recompute the target's sha256 and update the citation prefix (first 8 hex), or re-verify the claim against the current source"},
+	{"citation target not found", "fix the `refs/<path>` target so it resolves under context/refs/, or restore the cited file"},
 	{"missing `sources`", "add a `sources` frontmatter reference to the document this one derives from or extends (bidirectional traceability)"},
 	{"frontmatter missing `kind`", "add `kind: <type>`; use `sdt context new --type <type>` to scaffold a compliant document"},
 	{"frontmatter missing mandatory `", "add the missing mandatory frontmatter key; use `sdt context new` to scaffold a compliant document"},
@@ -352,6 +462,8 @@ func lintDoc(path string) []ctxLintIssue {
 	issues = append(issues, lintObjectiveField(path, content, kind, prio)...)
 	issues = append(issues, lintPlanObjectiveConsistency(path, content, kind, prio)...)
 	issues = append(issues, lintTaskObjectiveLegacy(path, content, kind)...)
+	issues = append(issues, lintQuestionsDeferredReason(path, content, kind)...)
+	issues = append(issues, lintEvidenceClass(path, content, kind)...)
 	// Immutable identifier: presence (severity flips after the backfill) and
 	// canonical UUIDv7 form. Duplicate detection is corpus-wide (below).
 	issues = append(issues, lintUIDField(path, content, kind, prio)...)
@@ -395,6 +507,10 @@ func lintDoc(path string) []ctxLintIssue {
 		}
 	}
 	issues = append(issues, lintFrontmatterReferences(path, content, prio)...)
+	// Body-level hash-anchored citations (`refs/<file>@<sha>:<lines>`): the
+	// target must resolve under context/refs/ and its SHA-256 prefix must be
+	// fresh. Advisory WARNING (file presence + hash freshness, not claim truth).
+	issues = append(issues, lintBodyCitations(path, content)...)
 	if ctxDerivedKinds[kind] && len(parseFrontmatterList(content, ctxFrontmatterSources)) == 0 {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "document derives from/extend another; missing `sources` frontmatter"})
 	}
@@ -771,6 +887,19 @@ func lintTaskObjectiveLegacy(path, content, kind string) []ctxLintIssue {
 		return nil
 	}
 	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "task file carries legacy `objective`; rename it to `phase` (the plan objective is inherited, not declared)"}}
+}
+
+// lintQuestionsDeferredReason asks a deferred open question to record why: a
+// `status: deferred` without a `deferred_reason` hides the revival condition.
+// Advisory SUGGESTION, questions kind only.
+func lintQuestionsDeferredReason(path, content, kind string) []ctxLintIssue {
+	if kind != ctxTypeQuestions || parseFrontmatterField(content, ctxMapStatus) != questionStatusDeferred {
+		return nil
+	}
+	if strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterDeferredReason)) != "" {
+		return nil
+	}
+	return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestion, Message: "questions file is `status: deferred` without a `deferred_reason` (record why it is parked and its revival condition)"}}
 }
 
 // ctxHeadingRegexp matches a markdown ATX heading, capturing its level and text.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -24,6 +25,65 @@ type ctxStoreVerdict struct {
 	Critical    int    `json:"critical" yaml:"critical"`
 	Warnings    int    `json:"warnings" yaml:"warnings"`
 	Suggestions int    `json:"suggestions" yaml:"suggestions"`
+}
+
+// ctxHealth is the knowledge-health roll-up: presentation-only counts, each
+// derived from an existing computation (the reconciler, the questions statuses
+// and the lint verdict), never a new subsystem. It is the item #6 of the
+// 2026-10-02 triage (plan 20261006-200432, Phase 6).
+type ctxHealth struct {
+	UnresolvedQuestions   int `json:"unresolved_questions" yaml:"unresolved_questions"`
+	StaleInProgress       int `json:"stale_in_progress" yaml:"stale_in_progress"`
+	OrphanTasks           int `json:"orphan_tasks" yaml:"orphan_tasks"`
+	PlanTaskDrift         int `json:"plan_task_drift" yaml:"plan_task_drift"`
+	StaleCitations        int `json:"stale_citations" yaml:"stale_citations"`
+	MissingCitationTarget int `json:"missing_citation_targets" yaml:"missing_citation_targets"`
+	LintCritical          int `json:"lint_critical" yaml:"lint_critical"`
+	LintWarnings          int `json:"lint_warnings" yaml:"lint_warnings"`
+	LintSuggestions       int `json:"lint_suggestions" yaml:"lint_suggestions"`
+}
+
+// ctxHealthReport derives the health counts from their existing sources:
+// unresolved questions (questions statuses), stale in-progress + orphans +
+// plan/task drift (reconcileCorpus), stale/missing citations (lintBodyCitations
+// over the corpus) and the lint verdict (storeCompletenessVerdict). Read-only.
+func ctxHealthReport(staleDays int, now time.Time) ctxHealth {
+	rep := reconcileCorpus(staleDays, now)
+	h := ctxHealth{
+		StaleInProgress: len(rep.StaleTasks()),
+		OrphanTasks:     len(rep.Orphans()),
+		PlanTaskDrift:   len(rep.Drift()),
+	}
+	if files, err := dirFiles(sdtQuestionsDir); err == nil {
+		h.UnresolvedQuestions = ctxQuestionsUnresolved(files)
+	}
+	h.StaleCitations, h.MissingCitationTarget = ctxCitationIssueCounts()
+	v := storeCompletenessVerdict()
+	h.LintCritical, h.LintWarnings, h.LintSuggestions = v.Critical, v.Warnings, v.Suggestions
+	return h
+}
+
+// ctxCitationIssueCounts counts the stale and missing-target citation findings
+// over the corpus-wide lint set (the same set `sdt context lint` scans), so the
+// health block reports the citation check without re-declaring it.
+func ctxCitationIssueCounts() (stale, missing int) {
+	for _, dir := range ctxIndexDirs {
+		files, err := dirFiles(dir)
+		if err != nil {
+			continue
+		}
+		for _, f := range files {
+			for _, it := range lintDoc(f) {
+				switch {
+				case strings.HasPrefix(it.Message, "stale citation"):
+					stale++
+				case strings.HasPrefix(it.Message, "citation target not found"):
+					missing++
+				}
+			}
+		}
+	}
+	return stale, missing
 }
 
 // storeCompletenessVerdict runs the document lint and reduces the findings to a
@@ -68,13 +128,14 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		rows := ctxStatusRows()
 		verdict := storeCompletenessVerdict()
+		health := ctxHealthReport(ctxStaleInProgressDays, contextNow())
 		switch getFormat(cmd) {
 		case fmtJSON:
-			out, err := json.MarshalIndent(map[string]any{ctxFrontmatterResults: rows, "store": verdict}, "", "  ")
+			out, err := json.MarshalIndent(map[string]any{ctxFrontmatterResults: rows, "store": verdict, "health": health}, "", "  ")
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		case fmtYAML:
-			out, err := yaml.Marshal(map[string]any{ctxFrontmatterResults: rows, "store": verdict})
+			out, err := yaml.Marshal(map[string]any{ctxFrontmatterResults: rows, "store": verdict, "health": health})
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		default:
@@ -83,6 +144,8 @@ Examples:
 			}
 			outputString(cmd, fmt.Sprintf("\nstore: %s (critical %d, warning %d, suggestion %d)\n",
 				verdict.Verdict, verdict.Critical, verdict.Warnings, verdict.Suggestions))
+			outputString(cmd, fmt.Sprintf("health: unresolved %d · stale %d · orphans %d · drift %d · stale citations %d · missing targets %d\n",
+				health.UnresolvedQuestions, health.StaleInProgress, health.OrphanTasks, health.PlanTaskDrift, health.StaleCitations, health.MissingCitationTarget))
 		}
 	},
 }
@@ -151,18 +214,30 @@ func ctxStatusRows() []ctxStatusEntry {
 		if err != nil {
 			continue
 		}
+		count := len(files)
 		next := d.next
-		if len(files) == 0 {
+		switch {
+		case t.kind == ctxTypeQuestions:
+			// The row reports open questions, not the register size: any status
+			// other than `resolved` still needs an answer.
+			count = ctxQuestionsUnresolved(files)
+			if count == 0 {
+				next = d.ifClean
+			}
+		case len(files) == 0:
 			next = d.ifClean
 		}
 		// The active-candidate hint is the `sdt context resolve` helper surfaced
 		// read-only: for a workflow subject type (analysis, plan) it names how
 		// many active candidates exist, so `>plan`/`>execute` know whether the
-		// ladder can auto-resolve or must ask.
-		if hint := ctxStatusActiveHint(t); hint != "" {
-			next = hint
+		// ladder can auto-resolve or must ask. The questions row derives its own
+		// open count, so the generic active hint is skipped for it.
+		if t.kind != ctxTypeQuestions {
+			if hint := ctxStatusActiveHint(t); hint != "" {
+				next = hint
+			}
 		}
-		rows = append(rows, ctxStatusEntry{Type: ctxKindLabel(t), Count: len(files), Next: next, IfClean: d.ifClean})
+		rows = append(rows, ctxStatusEntry{Type: ctxKindLabel(t), Count: count, Next: next, IfClean: d.ifClean})
 	}
 	if row, ok := ctxStatusDeadEndRow(); ok {
 		rows = append(rows, row)
@@ -171,6 +246,19 @@ func ctxStatusRows() []ctxStatusEntry {
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// ctxQuestionsUnresolved counts open-questions files still awaiting an answer:
+// any status other than `resolved` is unresolved.
+func ctxQuestionsUnresolved(files []string) int {
+	n := 0
+	for _, f := range files {
+		_, _, _, status := ctxDocMeta(f)
+		if !strings.EqualFold(strings.TrimSpace(status), questionStatusResolved) {
+			n++
+		}
+	}
+	return n
 }
 
 // ctxStatusDeadEndRow counts dead-end notes and summarizes which objectives they

@@ -22,7 +22,7 @@ var ctxDeclaredKeys = map[string]bool{
 	// Relations.
 	ctxFrontmatterLinks: true, "sources": true, "supersedes": true, ctxFrontmatterContradicts: true,
 	ctxKeyAnalysisID: true, ctxKeyPlanID: true, ctxKeyPlansIDs: true, ctxKeyTasksIDs: true,
-	"derived_from": true, "results": true,
+	"derived_from": true, "results": true, ctxFrontmatterEvidence: true,
 	// Provenance and annotations.
 	ctxFrontmatterAgent: true, "model": true, "session": true, "role": true, "note_type": true,
 	"via": true, "project": true, "group": true, "id": true, "tier": true,
@@ -30,7 +30,8 @@ var ctxDeclaredKeys = map[string]bool{
 	"_generated": true, "position": true, "order": true,
 	// Document-type-specific fields used by existing templates/docs.
 	"component": true, "procedure": true, "subject": true, "image": true,
-	"tasks": true, "summary_sources_note": true,
+	"tasks": true, "summary_sources_note": true, ctxFrontmatterDeferredReason: true,
+	ctxFrontmatterEvidenceClass: true,
 	// Kept-document provenance (refs/, out of the work-file lint path but
 	// declared here so the set is complete for any caller).
 	"url": true, "saved_at": true, "sha256": true, "converter": true, "converted_at": true,

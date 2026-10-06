@@ -124,6 +124,15 @@ const (
 	taskFileStatusArchived   = "archived"
 	taskFileStatusLegacy     = "active"
 
+	// Open-questions file status values (questions.md contract). `active` is
+	// the legacy value; the three intermediate states mature the register, and
+	// `resolved` is terminal. A question is "unresolved" for any status except
+	// resolved.
+	questionStatusResolved      = "resolved"
+	questionStatusInvestigating = "investigating"
+	questionStatusBlocked       = "blocked"
+	questionStatusDeferred      = "deferred"
+
 	// Canonical string literal for boolean-flag defaults.
 	flagValueFalse = "false"
 )

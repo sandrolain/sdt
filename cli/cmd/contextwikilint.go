@@ -112,6 +112,9 @@ func lintWikiSchema(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 				b.add(p.Path, ctxLintWarning, "claim %s has no refs/ citation", p.Body[cm[0]:cm[1]])
 			}
 		}
+		// Verify the hash of every body citation against context/refs/ (the wiki
+		// pages are outside the corpus-wide lint, so the check runs here too).
+		b.issues = append(b.issues, lintCitationText(p.Path, p.Body)...)
 		for _, t := range p.Tags {
 			if !contextwiki.CleanTag(t) {
 				b.add(p.Path, ctxLintWarning, "malformed tag %q (use lowercase a-z 0-9 - /)", t)

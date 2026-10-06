@@ -375,6 +375,9 @@ describe("entryState", () => {
       // questions
       kind("questions", "open", "active"),
       kind("questions", "answered", "resolved"),
+      kind("questions", "digging", "investigating"),
+      kind("questions", "stuck", "blocked"),
+      kind("questions", "later", "deferred"),
       kind("questions", "odd", "draft"),
       // the kinds whose state is their declared status
       kind("decision", "staged", "proposed"),

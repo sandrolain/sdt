@@ -39,8 +39,10 @@ agent moves sources → refs/ (archived)   sync node status
   file there. The only legal mutation is the archive move (pending→archived)
   performed by this command after approval. Anything else is a git-visible
   violation.
-- Read-only: facts pulled from `refs/` must cite `file@SHA:lines` or the target
-  node id.
+- Read-only: facts pulled from `refs/` must cite `file@<sha8>:lines` — the
+  first 8 hex of `sha256(refs/<file>)` (decision 2026-10-06, plan
+  20261006-200432; `sdt context lint`/`sdt context wiki lint` verify it) — or the
+  target node id.
 
 ## Invocation (scope)
 

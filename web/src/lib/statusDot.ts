@@ -34,6 +34,9 @@ export type StateKey =
   | "no-plan"
   | "completed"
   | "resolved"
+  | "investigating"
+  | "blocked"
+  | "deferred"
   | "accepted"
   | "postponed"
   | "rejected"
@@ -68,6 +71,9 @@ export const STATE_KEYS: readonly StateKey[] = [
   "no-plan",
   "completed",
   "resolved",
+  "investigating",
+  "blocked",
+  "deferred",
   "accepted",
   "postponed",
   "rejected",
@@ -94,6 +100,9 @@ export const stateMeta: Record<StateKey, StateMeta> = {
   "no-plan": { label: "No plan", family: "open" },
   completed: { label: "Completed", family: "concluded" },
   resolved: { label: "Resolved", family: "concluded" },
+  investigating: { label: "Investigating", family: "open" },
+  blocked: { label: "Blocked", family: "open" },
+  deferred: { label: "Deferred", family: "deferred" },
   accepted: { label: "Accepted", family: "concluded" },
   postponed: { label: "Postponed", family: "deferred" },
   rejected: { label: "Rejected", family: "retired" },
@@ -434,9 +443,18 @@ function rawState(
   }
 
   if (entry.kind === "questions") {
-    if (declared === "active")
-      return { key: "active", tone: "danger", label: "Question unresolved" };
-    if (declared === "resolved") return { key: "resolved", tone: "ok", label: "Question resolved" };
+    switch (declared) {
+      case "active":
+        return { key: "active", tone: "danger", label: "Question unresolved" };
+      case "investigating":
+        return { key: "investigating", tone: "warn", label: "Question under investigation" };
+      case "blocked":
+        return { key: "blocked", tone: "danger", label: "Question blocked" };
+      case "deferred":
+        return { key: "deferred", tone: "neutral", label: "Question deferred" };
+      case "resolved":
+        return { key: "resolved", tone: "ok", label: "Question resolved" };
+    }
     return {
       key: "no-state",
       tone: "neutral",
