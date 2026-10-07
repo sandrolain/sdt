@@ -187,6 +187,8 @@ func init() {
 	contextNewCmd.Flags().StringArray("entity", nil, "Entity slug the document mentions (repeatable)")
 	contextNewCmd.Flags().Bool("prior-art", false, "Analysis: search and propose related documents in a Prior art section")
 	contextNewCmd.Flags().Bool("prior-art-links", false, "Analysis: also pre-fill `links` with the top prior-art candidates")
+	contextNewCmd.Flags().Bool("semantic", false, "Prior-art: use the semantic (embeddings) branch; degrades to lexical when unavailable")
+	contextNewCmd.Flags().String("semantic-model", "", "Embedding model for --semantic (default BASE8M)")
 	contextNewCmd.Flags().String("number", "", "Override for the decision number (default: next NNNN from decisions/)")
 	contextNewCmd.Flags().Bool("force", false, "Overwrite existing file")
 	contextNewCmd.Flags().Bool("edit", false, "Open the file in $EDITOR after creation")

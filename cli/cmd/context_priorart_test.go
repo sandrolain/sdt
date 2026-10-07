@@ -79,3 +79,21 @@ func TestContextNewPriorArtPrefill(t *testing.T) {
 	_ = dir
 	ctxSearchIndex = nil
 }
+
+func TestContextNewPriorArtSemanticPrefill(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
+	ctxSearchIndex = nil
+	writeCtxDoc(t, "context/analysis/hybrid.md", "---\nkind: analysis\nsummary: reciprocal rank fusion of lexical and semantic rankings\nobjective: search\n---\n\n## Design\n\nFuse BM25 with static embeddings.\n")
+
+	// --semantic reuses the hybrid path; when the model is unavailable it
+	// degrades to lexical, so candidates are proposed either way.
+	out := string(execute(t, contextNewCmd, nil, "--type", "analysis", "--title", "Rank fusion for retrieval",
+		"--objective", "search", "--prior-art", "--semantic", "--summary", "s"))
+	content := mustReadFile(t, strings.TrimSpace(out))
+	if !strings.Contains(content, "## Prior art") {
+		t.Errorf("expected prior-art candidates with --semantic:\n%s", content)
+	}
+	_ = dir
+	ctxSearchIndex = nil
+}

@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/sandrolain/sdt/internal/search"
 )
 
 // Prior-art prefill for new analyses: when --prior-art is set, `context new`
@@ -44,7 +46,18 @@ func collectPriorArt(cmd *cobra.Command, query, selfPath string, limit int) ([]p
 	if query == "" {
 		return nil, nil
 	}
-	res, err := ix.Search(query, "", "", "", "", "", "", limit)
+	var res search.Results
+	var err error
+	if getBoolFlag(cmd, "semantic", false) {
+		// Reuse the hybrid path; a semantic load failure degrades to lexical.
+		if sem, serr := loadSemanticIndex(cmd, ix); serr == nil {
+			res, err = ix.SearchHybrid(cmd.Context(), search.HybridQuery{Q: query, Max: limit}, search.HybridOptions{Semantic: sem})
+		} else {
+			res, err = ix.Search(query, "", "", "", "", "", "", limit)
+		}
+	} else {
+		res, err = ix.Search(query, "", "", "", "", "", "", limit)
+	}
 	if err != nil {
 		return nil, err
 	}

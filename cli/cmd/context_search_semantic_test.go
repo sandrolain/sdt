@@ -79,6 +79,24 @@ func TestContextSearchSemanticSnapshotReuse(t *testing.T) {
 	}
 }
 
+func TestContextSearchSemanticScopedFilter(t *testing.T) {
+	runInTempDir(t)
+	probeSemanticModel(t)
+	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nsummary: s\nstatus: active\n---\n\n## B\n\nscopedvetokendoc\n")
+	writeCtxDoc(t, "context/notes/n.md", "---\nkind: notes\nsummary: n\n---\n\nscopedvetokendoc\n")
+
+	// --all removes the default status filter so only --type remains in play:
+	// the semantic-only notes hit must be dropped by the metadata scope.
+	ctxSearchIndex = nil
+	out := string(execute(t, contextSearchCmd, nil, "scopedvetokendoc", "--semantic", "--semantic-model", "BASE2M", "--all", "--type", "analysis"))
+	if !strings.Contains(out, "context/analysis/a.md") {
+		t.Fatalf("scoped semantic search must include the in-scope analysis:\n%s", out)
+	}
+	if strings.Contains(out, "context/notes/n.md") {
+		t.Fatalf("scoped semantic search must drop the out-of-scope notes hit:\n%s", out)
+	}
+}
+
 func TestContextSearchSemanticDegradesCleanly(t *testing.T) {
 	dir := runInTempDir(t)
 	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nsummary: s\nstatus: active\n---\n\n## Hybrid\n\nsingletoken\n")

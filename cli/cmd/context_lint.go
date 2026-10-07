@@ -22,6 +22,7 @@ import (
 
 	"github.com/sandrolain/sdt/internal/ctxrel"
 	"github.com/sandrolain/sdt/internal/mdstruct"
+	"github.com/sandrolain/sdt/internal/semantic"
 )
 
 // ctxFrontmatterSources is the provenance field name shared by the reference
@@ -1512,13 +1513,21 @@ Examples:
 					issues = append(issues, lintSecurity(sdtContextIndex)...)
 				}
 			}
+			// Semantic advisory over the persisted snapshot (no model load);
+			// degrades to nothing when no snapshot exists.
+			var semSnap *semantic.Snapshot
+			if root, gerr := os.Getwd(); gerr == nil {
+				semSnap = semantic.LoadSnapshot(root)
+			}
 			// Notes-only dedup-before-write advisory (SUGGESTION, never a failure).
 			if files, err := dirFiles(sdtNotesDir); err == nil {
 				issues = append(issues, lintDuplicateNotes(files)...)
+				issues = append(issues, lintSemanticDuplicates(files, semSnap)...)
 			}
 			// Cross-analysis overlap advisory: same objective, similar title/summary.
 			if files, err := dirFiles(sdtAnalysisDir); err == nil {
 				issues = append(issues, lintOverlappingAnalyses(files)...)
+				issues = append(issues, lintSemanticOverlaps(files, semSnap)...)
 			}
 			// Plan/task disagreement guard (D4): needs both document sets; a
 			// task file lives in its own type directory for its whole life, so
