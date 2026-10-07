@@ -179,6 +179,7 @@ func TestTemplateRenderRoundTrip(t *testing.T) {
 		"instructions/vector-tools.md.tmpl",
 		"instructions/wiki.md.tmpl",
 		"instructions/worklog.md.tmpl",
+		"instructions/writing.md.tmpl",
 	}
 	for _, name := range static {
 		want, err := templatesFS.ReadFile(name)

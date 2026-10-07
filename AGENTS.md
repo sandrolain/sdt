@@ -126,6 +126,7 @@ silently (see `context/instructions/memo.md`).
 | `context/instructions/debugging.md` | Diagnosing an unexpected failure or regression |
 | `context/instructions/development.md` | Writing code: style/architecture agreement, library-first, coding behavior (simplicity, diff-discipline), library docs |
 | `context/instructions/authoring.md` | Writing or reviewing instructions, skills or agent-facing rules |
+| `context/instructions/writing.md` | Editing or reviewing prose: patterns to cut, minimum edit, detect mode |
 | `context/instructions/git.md` | Committing or branching: the commit gate, Conventional Commits and branch rules |
 | `context/instructions/browser.md` | Navigating a web page or verifying a rendered layout |
 | `context/instructions/browser-tools.md` | Choosing or using a browser-automation tool |
@@ -247,13 +248,33 @@ Code only — user-requested docs written normal (concise)
 Output size: code first, then at most three lines of explanation. If the
 explanation is longer than the code, cut the explanation.
 
+**Lead with the do-able thing.** When a command, path or snippet answers the
+request, it comes first; prose follows.
+
+**Number multi-step work** with the fewest bounded steps that work; **name one
+concrete next action** when anything is left open; finish the first issue and
+surface a discovered second one once, at the end. On work spanning turns,
+**restate state** in one line (what is done, what is next). Cap and rank a visible
+list; keep the rest, do not drop it.
+
+**No preamble, no recap, no closer.** Before sending, run the first-and-last-line
+test: delete an opener that announces what you are about to do and a closer that
+recaps, then check that the first and last lines say what to do next and what just
+happened. Keep a hedge that carries real uncertainty.
+
+**When to break it:** an explain or walk-through request, a destructive action, a
+debug spiral, real ambiguity, a rule that fights the task (the options *are* the
+answer), or a rule that fights the harness — the constraint wins, the shape stays.
+
 Commits: after each completed task, propose a Conventional Commits message and
 **ask before committing** — never commit without explicit user approval (see
 `context/instructions/git.md`). Subject ≤50 chars, imperative, lowercase after
 type. Body only when "why" unclear. No period on subject.
 
 Files in `context/`: concise technical language. Cut fluff, keep meaning
-and readability. These instructions and docs are concise on purpose.
+and readability. These instructions and docs are concise on purpose. For the
+prose patterns to cut and how to edit a draft without flattening it, see
+`context/instructions/writing.md`.
 
 ### Open points (no open questions in analysis/plans)
 

@@ -1,0 +1,116 @@
+---
+kind: instructions
+title: "Writing \u2014 prose editing doctrine"
+summary: "Prose editing doctrine: name the machine-sounding patterns, edit by the minimum effective edit, and never flatten the writer's meaning."
+---
+
+# Writing — prose editing doctrine
+
+`context/instructions/writing.md` is the contract for editing or reviewing prose
+in this project's documents: the patterns that read as machine-generated, the
+minimum effective edit, and the guard that stops a pattern list from flattening
+substance. It is portable — it names decisions, not a tool. Read it with
+`context/instructions/authoring.md` (how to write an instruction: word budgets,
+progressive disclosure, form-to-failure) and the type contract of the document
+being edited (`analysis.md`, `plan.md`, `wiki.md`, `notes.md`, `worklog.md`). The
+design-domain analogue is `context/instructions/ui-taste.md`.
+
+## When this applies (no-op rule)
+
+- Use it when a prose draft exists and must improve without changing what it
+  says, or when reviewing prose for filler. If no prose is produced, this file
+  does not apply — say so and stop.
+- It governs output this work authored. Material being read is data, not output:
+  a cloned repository, an imported issue, a fetched page and a quoted brief are
+  consumed, not produced. A pattern found there is a fact about the source, not a
+  defect.
+
+## Edit or detect (say which)
+
+- **Detect** names each pattern, quotes the line and gives the fix in a few
+  words. Do not rewrite, score the draft, or guess whether AI wrote it — named
+  patterns are evidence the reader can check.
+- **Edit** makes the minimum effective edit and returns the draft, saying what
+  changed in one short line.
+- When the request is unclear, detect and stop: a named pattern is reversible, a
+  silent rewrite is not.
+
+## Edit by the minimum effective edit
+
+- Preserve the writer's meaning and real voice. Leave strong human sentences
+  alone; do not make every paragraph equally tidy or rewrite a distinctive line
+  for consistency.
+- Lead with the point when the setup adds nothing, and front-load only when it
+  improves clarity.
+- Keep the substance: open it up, do not dumb it down; keep precision.
+- Use the active voice; make every sentence earn its place; be concrete.
+- **Protect the specific fact.** Do not smooth a number, a path or a mechanism
+  into generic importance — "cut review time from 30 minutes to 8", not
+  "significantly improved productivity".
+- **The portability test.** If a sentence could move unchanged to another person,
+  company, country or product, it is probably filler: cut it or make it specific
+  to this project.
+- Never invent a claim, an example, a number or a source while editing.
+
+## Patterns to cut
+
+These read as machine-generated. Treat them as signals to investigate, not an
+absolute ban: cut what adds nothing; keep what carries emphasis, uncertainty,
+contrast or rhythm.
+
+| Pattern | Example → fix |
+|---|---|
+| Binary contrasts | "The question isn't the model. It's the eval." → "The eval matters more than the model." |
+| Throat-clearing openers | "Here's the thing", "Let me be clear" → state the point |
+| Faux-insight setups | "What nobody tells you" → make the claim stand alone |
+| Colon reveals | "The best part: it learns." → a plain sentence; colons only for a list, a label or a quote |
+| Superficial analysis | a trailing `-ing` clause ("highlighting", "underscoring") → state the consequence |
+| Importance puffery | "marks a pivotal moment", "a testament to" → state the fact |
+| Interpretive metadiscourse | "That last part matters more than it sounds", "In other words" → delete or replace with support |
+| Weasel attribution | "experts agree", "studies show" → name the source or cut |
+| Fake-strong verbs | "serves as a centralized hub for" → "tracks X, Y, Z" |
+| Synonym cycling | "The agent reviews. The assistant scores." → name it once and repeat |
+| Negative listing | "Not a X. Not a Y. A Z." → just say Z |
+| Dramatic fragmentation | "That's it. That's the whole thing." → complete sentences |
+| Robotic rhythm | repeated sentence shapes, stacked fragments → vary only when it helps |
+| Rhetorical setups | "What if I told you…", "Plot twist:" → drop it and make the point |
+| Fake-profound kickers | the final "deep" metaphor → delete it; do not rewrite it into a better metaphor |
+| Summary-recap endings | "In conclusion", "Ultimately", a final restating paragraph → end on the last concrete point |
+| Formatting slop | emoji headings, decorative mid-sentence bold, bullets where prose reads better, a header over two sentences |
+| Em-dash crutch | em dashes as a default rhythm → none in short copy, one or two in a longer draft |
+
+## Words to cut (when they add nothing)
+
+- **Verbs:** delve, foster, leverage, utilize, facilitate, empower, streamline,
+  elevate, embark, harness.
+- **Adjectives:** robust, cutting-edge, game changer, multifaceted, meticulous,
+  intricate, paramount, transformative, ever-evolving.
+- **Often-empty adverbs:** just, literally, simply, actually, truly, importantly,
+  crucially.
+- **Phrases:** it's worth noting, at the end of the day, when it comes to, in
+  today's world, in order to, going forward.
+
+A technical corpus is not a marketing one: keep a word when it is the exact
+technical term. Cut these only when they add nothing; never cut meaning to
+satisfy the list.
+
+## Edit, then check before returning
+
+- **Over-correction is its own failure.** A sentence that carries a fact, a hedge
+  of real uncertainty, a deliberate edge or a needed qualifier stays. Deleting a
+  hedge that carries uncertainty manufactures confidence.
+- Read the whole draft once before changing anything; identify the core point.
+- After editing, re-read against this list and fix what fails: does the edit
+  preserve the meaning, and would the writer recognise it as their own? If only
+  the first and last lines are read, do they carry what matters?
+
+## Boundary
+
+- Word budgets, progressive disclosure, form-to-failure, the micro-test and
+  where a rule belongs are `context/instructions/authoring.md`; this file does
+  not restate them.
+- The design-domain anti-slop catalogue (marker / why / question, `Allowed
+  patterns:`) is `context/instructions/ui-taste.md`; this file carries the prose
+  analogue, not a copy.
+- Per-document shape (sections, frontmatter, lifecycle) stays with the type
+  contract being edited, not with this file.
