@@ -3,8 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -52,13 +54,25 @@ type resumeOrphan struct {
 	Reason string `json:"reason" yaml:"reason"`
 }
 
+// resumeFrontier is one task file that is claimable (unclaimed and pending) or
+// whose claim went stale past the window.
+type resumeFrontier struct {
+	Task      string `json:"task" yaml:"task"`
+	Plan      string `json:"plan,omitempty" yaml:"plan,omitempty"`
+	ClaimedBy string `json:"claimed_by,omitempty" yaml:"claimed_by,omitempty"`
+	ClaimedAt string `json:"claimed_at,omitempty" yaml:"claimed_at,omitempty"`
+	AgeDays   int    `json:"age_days,omitempty" yaml:"age_days,omitempty"`
+}
+
 // resumeView is the whole rendered view, in the shape --format json|yaml emits.
 type resumeView struct {
-	Premise string           `json:"premise" yaml:"premise"`
-	Stale   []resumeStale    `json:"stale" yaml:"stale"`
-	Orphans []resumeOrphan   `json:"orphans" yaml:"orphans"`
-	Plans   []resumePlan     `json:"plans" yaml:"plans"`
-	Drift   []reconcileDrift `json:"drift,omitempty" yaml:"drift,omitempty"`
+	Premise     string           `json:"premise" yaml:"premise"`
+	Stale       []resumeStale    `json:"stale" yaml:"stale"`
+	Orphans     []resumeOrphan   `json:"orphans" yaml:"orphans"`
+	Plans       []resumePlan     `json:"plans" yaml:"plans"`
+	Frontier    []resumeFrontier `json:"frontier,omitempty" yaml:"frontier,omitempty"`
+	StaleClaims []resumeFrontier `json:"stale_claims,omitempty" yaml:"stale_claims,omitempty"`
+	Drift       []reconcileDrift `json:"drift,omitempty" yaml:"drift,omitempty"`
 }
 
 // buildResumeView reconciles the corpus and shapes the report for display. An
@@ -96,7 +110,63 @@ func buildResumeView(planRef string, staleDays int) resumeView {
 		view.Plans = append(view.Plans, rp)
 	}
 	view.Drift = rep.Drift()
+	view.Frontier, view.StaleClaims = resumeFrontierOf(rep, staleDays, contextNow())
 	return view
+}
+
+// resumeFrontierOf computes the claimable task files of every active plan (the
+// frontier) and the claims left past the staleness window (stale claims). A
+// claimable file is pending and unclaimed; a pending file with no claim is work
+// a session may pick up.
+func resumeFrontierOf(rep *reconcileReport, staleDays int, now time.Time) (frontier, staleClaims []resumeFrontier) {
+	if staleDays <= 0 {
+		staleDays = ctxStaleInProgressDays
+	}
+	frontier, staleClaims = []resumeFrontier{}, []resumeFrontier{}
+	for _, plan := range rep.Plans {
+		if plan.Status != ctxWikiStatusActive {
+			continue
+		}
+		for _, t := range rep.TasksOfPlan(plan.Ref) {
+			by, at := taskClaimFields(t.Ref)
+			if by == "" {
+				if t.Status == taskFileStatusPending {
+					frontier = append(frontier, resumeFrontier{Task: t.Ref, Plan: plan.Ref})
+				}
+				continue
+			}
+			if days := claimAgeDays(at, now); days >= staleDays {
+				staleClaims = append(staleClaims, resumeFrontier{Task: t.Ref, Plan: plan.Ref, ClaimedBy: by, ClaimedAt: at, AgeDays: days})
+			}
+		}
+	}
+	return frontier, staleClaims
+}
+
+// taskClaimFields reads a task file's claimed_by/claimed_at frontmatter values.
+func taskClaimFields(path string) (by, at string) {
+	data, err := os.ReadFile(path) //#nosec G304 -- reconciled task path
+	if err != nil {
+		return "", ""
+	}
+	content := string(data)
+	by = strings.Trim(parseFrontmatterField(content, ctxClaimedByKey), `"`)
+	at = strings.Trim(parseFrontmatterField(content, ctxClaimedAtKey), `"`)
+	return by, at
+}
+
+// claimAgeDays returns the whole days since a claim timestamp; 0 when the
+// timestamp is missing, unreadable or in the future.
+func claimAgeDays(at string, now time.Time) int {
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(at))
+	if err != nil {
+		return 0
+	}
+	d := now.Sub(t)
+	if d < 0 {
+		return 0
+	}
+	return int(d / ctxDay)
 }
 
 // outputResumeView renders the view in the requested format. The text renderer
@@ -144,6 +214,18 @@ func writeResumeText(cmd *cobra.Command, view resumeView) {
 	}
 	if len(view.Plans) == 0 {
 		outputString(cmd, "no active plan recorded\n")
+	}
+	if len(view.Frontier) > 0 {
+		outputString(cmd, "\nfrontier (claimable)\n")
+		for _, f := range view.Frontier {
+			outputString(cmd, fmt.Sprintf("  %s  [unclaimed]\n", f.Task))
+		}
+	}
+	if len(view.StaleClaims) > 0 {
+		outputString(cmd, "\nstale claims\n")
+		for _, f := range view.StaleClaims {
+			outputString(cmd, fmt.Sprintf("  %s  [claimed by %s, %d day(s) ago — release it]\n", f.Task, f.ClaimedBy, f.AgeDays))
+		}
 	}
 	if len(view.Stale) > 0 {
 		outputString(cmd, "\nstale task files\n")

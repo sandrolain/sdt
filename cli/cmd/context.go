@@ -263,6 +263,12 @@ func init() {
 	contextTaskBlockCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
 	contextTaskWipCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
 	contextTaskReviewCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
+	contextTaskClaimCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskClaimCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
+	contextTaskClaimCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
+	contextTaskReleaseCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
+	contextTaskReleaseCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
+	contextTaskReleaseCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
 
 	contextTemplateCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxTemplateTypes()))
 
@@ -272,7 +278,7 @@ func init() {
 	addCascadeFlag(contextTaskWipCmd)
 	addCascadeFlag(contextTaskReviewCmd)
 
-	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextDeviationCmd)
+	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextDeviationCmd, contextTaskClaimCmd, contextTaskReleaseCmd)
 	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
 	rootCmd.AddCommand(contextCmd)
 }
