@@ -77,6 +77,20 @@ in this order:
 Stop at the first rung that works. Reuse beats rewrite: grep every caller and
 fix the shared function once, rather than patching the symptom in one place.
 
+## Context economy
+
+- **Compress at the boundary.** When a large artefact — a tool output, a log, a
+  captured page, a long file — would enter context only to be summarised, reduce
+  it before it enters: keep the essential lines, drop the rest.
+- **Keep the original retrievable.** Never destroy the source you compressed:
+  keep it under `refs/` (or a file path) and leave a pointer, so the full content
+  can be fetched again on demand.
+- **Never lose the load-bearing line.** Preserve verbatim the line that carries
+  the decision — an error, a `FATAL`, a value, a signature — even when everything
+  around it is compressed.
+- **No-op when nothing is compressed.** These rules apply only when a boundary
+  compression happens; a small artefact is passed through unchanged.
+
 ## One runnable check
 
 - For non-trivial logic, leave exactly one executable check that proves it
