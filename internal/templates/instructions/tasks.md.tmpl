@@ -237,6 +237,24 @@ task file → the plan under discussion → **ask**. Then:
     or a `completed` plan (do not reopen it silently) → list the candidates and
     **ask**.
 
+## Multi-session handoff
+
+Single-session work needs none of this; apply it only when an effort is larger
+than one session or a second agent may run concurrently.
+
+- **Claim before working.** Before taking a task file, claim it so a concurrent
+  session can see the work is taken (`sdt context task claim --plan <plan>
+  --agent <id>`). Never start a task file that is already claimed or in progress.
+- **The frontier is the claimable work.** `sdt context resume` lists the
+  **frontier** — the task files that are pending, unblocked and unclaimed. Pick
+  from the frontier, never an arbitrary file.
+- **Release when you stop.** If you abandon a claim, release it
+  (`sdt context task release`); a claim left past the stale window shows in the
+  frontier as a **stale claim** to release, not to overwrite.
+- **The map stays a map.** The plan holds the destination and the decisions; the
+  detail lives in the task file, and a claim is durable frontmatter state the CLI
+  writes — never hand-edit it.
+
 ## Stale task files
 
 At the start of any execution pass, run `sdt context resume` (it reads the
