@@ -127,7 +127,14 @@ export function MultiSelect({
             {sections.map((section) => {
               const everySelected = section.options.every((o) => selected.includes(o.id));
               return (
-                <ListBoxSection key={section.id} id={section.id} aria-label={section.label}>
+                <ListBoxSection
+                  key={section.id}
+                  // Collection key namespaced: a section id equal to one of its
+                  // own option ids would duplicate a key and hang the selection
+                  // manager. Callers keep using plain section ids.
+                  id={`section:${section.id}`}
+                  aria-label={section.label}
+                >
                   <Header className="ui-select__section-header">
                     <span>{section.label}</span>
                     <button

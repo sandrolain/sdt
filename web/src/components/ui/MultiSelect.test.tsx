@@ -135,6 +135,26 @@ describe("MultiSelect", () => {
     expect(unselected.querySelector(".ui-select__item-check")).toBeNull();
   });
 
+  it("keeps distinct collection keys when a section id equals an option id", async () => {
+    // Regression: a section id shared with one of its options duplicated a
+    // collection key and sent the selection manager into an infinite loop.
+    const colliding: UiOptionSection[] = [
+      { id: "deferred", label: "Deferred", options: [{ id: "deferred", label: "Deferred" }] },
+      { id: "concluded", label: "Concluded", options: [{ id: "completed", label: "Completed" }] },
+    ];
+    render(
+      <MultiSelect
+        ariaLabel="Visible states"
+        sections={colliding}
+        selected={["deferred", "completed"]}
+        onChange={() => {}}
+      />,
+    );
+    await userEvent.click(trigger());
+    expect(await screen.findByRole("option", { name: "Deferred" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Completed" })).toBeTruthy();
+  });
+
   it("renders a visible label without changing the accessible name", () => {
     render(
       <MultiSelect

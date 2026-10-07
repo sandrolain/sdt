@@ -436,7 +436,7 @@ describe("Tree", () => {
       expect(
         screen.getByRole("button", { name: "Visible states" }).querySelector(".ui-select__value")
           ?.textContent,
-      ).toBe("19 selected"),
+      ).toBe("22 selected"),
     );
   });
 
