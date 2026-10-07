@@ -35,6 +35,14 @@ const ctxFrontmatterLinks = "links"
 // ctxFrontmatterResults is the output-artifact reference field.
 const ctxFrontmatterResults = "results"
 
+// ctxFrontmatterDerivedFrom is the provenance field naming what a derived
+// document was generated from.
+const ctxFrontmatterDerivedFrom = "derived_from"
+
+// ctxFrontmatterCreated is the frontmatter field key for the creation timestamp.
+// It is a field-key constant, distinct from the status value `statusCreated`.
+const ctxFrontmatterCreated = "created"
+
 // ctxFrontmatterEvidence is the open-questions key holding a list of references
 // backing (or deferring) a question.
 const ctxFrontmatterEvidence = "evidence"
@@ -79,7 +87,7 @@ func lintEvidenceClass(path, content, kind string) []ctxLintIssue {
 
 // ctxReferenceFields are the frontmatter list fields that carry document
 // references validated against the context tree.
-var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", ctxFrontmatterResults, ctxTypeSupersedes, ctxFrontmatterContradicts, ctxFrontmatterEvidence}
+var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, ctxFrontmatterDerivedFrom, ctxFrontmatterResults, ctxTypeSupersedes, ctxFrontmatterContradicts, ctxFrontmatterEvidence}
 
 func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
@@ -175,13 +183,13 @@ func ctxRefSHA8(path string) (string, bool) {
 
 func lintRFCAndPromptContract(path, content, kind string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
-	if kind == ctxTypePrompt && len(parseFrontmatterList(content, "derived_from")) == 0 {
+	if kind == ctxTypePrompt && len(parseFrontmatterList(content, ctxFrontmatterDerivedFrom)) == 0 {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "prompt must declare `derived_from` provenance"})
 	}
 	if kind != ctxTypeProposal && kind != ctxTypePrompt {
 		return issues
 	}
-	for _, field := range []string{"title", "status", "created", "updated"} {
+	for _, field := range []string{"title", ctxMapStatus, ctxFrontmatterCreated, statusUpdated} {
 		if parseFrontmatterField(content, field) == "" {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintCritical), Message: "frontmatter missing mandatory `" + field + "`"})
 		}
@@ -400,7 +408,7 @@ func lintCommandFile(path, content string, prio func(string) string) []ctxLintIs
 	if s := parseFrontmatterField(content, "summary"); len([]rune(s)) > ctxCommandSummaryMax {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("command `summary` is %d chars (max %d)", len([]rune(s)), ctxCommandSummaryMax)})
 	}
-	for _, field := range []string{ctxFrontmatterSources, ctxFrontmatterLinks, "derived_from", ctxFrontmatterResults} {
+	for _, field := range []string{ctxFrontmatterSources, ctxFrontmatterLinks, ctxFrontmatterDerivedFrom, ctxFrontmatterResults} {
 		for _, ref := range parseFrontmatterList(content, field) {
 			if !strings.HasPrefix(strings.TrimSpace(ref), "instructions/") {
 				continue

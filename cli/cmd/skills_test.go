@@ -55,7 +55,7 @@ func TestSkillFrontmatterCoherence(t *testing.T) {
 	for _, f := range instructionFiles("", "") {
 		generated[f.name] = true
 	}
-	refRE := regexp.MustCompile("context/instructions/([a-z0-9-]+\\.md)")
+	refRE := regexp.MustCompile(`context/instructions/([a-z0-9-]+\.md)`)
 	names := skillTemplateNames()
 	if len(names) == 0 {
 		t.Fatal("no skill templates embedded")

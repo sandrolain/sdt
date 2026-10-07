@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -58,29 +57,6 @@ func writeSkillFiles(force bool) []FileResult {
 		results = append(results, agentWriteGeneratedFile(path, marker, f.body, force))
 	}
 	return results
-}
-
-// generatedSkillsDirHasGeneratedFiles reports whether dir holds at least one
-// .md file carrying a generated marker — used by tests and by the obsolete scan.
-
-func generatedSkillsDirHasGeneratedFiles(dir string) bool {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != sdtMarkdownExt {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(dir, e.Name())) //#nosec G304 -- generated dir
-		if err != nil {
-			continue
-		}
-		if _, ok := generatedMarkerName(string(data)); ok {
-			return true
-		}
-	}
-	return false
 }
 
 // skillTemplateNames lists the embedded skill template paths ("skills/<dir>/<file>"),

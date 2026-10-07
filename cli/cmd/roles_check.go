@@ -110,7 +110,7 @@ func roleCheckDrift() []roleCheckFinding {
 		if got, want := parseFrontmatterField(content, "slug"), r.Slug; got != want {
 			findings = append(findings, roleCheckFinding{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("frontmatter slug %q does not match register slug %q", got, want), Hint: roleCheckHintDrift})
 		}
-		created := parseFrontmatterField(content, "created")
+		created := parseFrontmatterField(content, ctxFrontmatterCreated)
 		ts, perr := time.Parse(time.RFC3339, created)
 		if perr != nil {
 			findings = append(findings, roleCheckFinding{Path: path, Priority: ctxLintWarning, Message: "unparsable `created` frontmatter (want RFC3339)", Hint: roleCheckHintCreated})

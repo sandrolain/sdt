@@ -267,7 +267,7 @@ func ctxKeyOrder(_ string) []string {
 //nolint:goconst // the neighbour order is inherently a list of field names
 var ctxFrontmatterOrder = []string{
 	ctxFrontmatterKind, ctxFrontmatterUID, ctxFrontmatterNumber, ctxDocTitleKey, "summary", ctxFrontmatterObjective,
-	ctxFrontmatterTopics, "entities", "categories", ctxMapStatus, "created", statusUpdated,
+	ctxFrontmatterTopics, "entities", "categories", ctxMapStatus, ctxFrontmatterCreated, statusUpdated,
 	ctxFrontmatterLinks, "sources",
 }
 
