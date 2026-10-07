@@ -167,6 +167,10 @@ func agentDoctorChecks() []doctorCheck {
 		add("corpus", doctorStatusWarn, err.Error(), "check the context/ tree")
 	}
 
+	// Context baseline: report-only size/token attribution of the instruction
+	// surface (never a gate).
+	checks = append(checks, contextBaselineCheck())
+
 	return checks
 }
 
@@ -192,6 +196,81 @@ func roleDoctorCheck() doctorCheck {
 	default:
 		return doctorCheck{Name: doctorNameRoles, Status: doctorStatusOK, Detail: "profile set, drift and owned paths clean"}
 	}
+}
+
+// contextBaselineSurface is one measured slice of the always-on/on-demand
+// instruction surface: a single file or a directory of markdown files.
+type contextBaselineSurface struct {
+	name  string
+	path  string
+	isDir bool
+}
+
+// measureContextBaseline returns the file count, bytes, lines and estimated
+// tokens for a file or a directory of markdown files. ok is false when the path
+// is missing.
+func measureContextBaseline(path string, isDir bool) (files, bytes, lines, tokens int, ok bool) {
+	measure := func(b []byte) {
+		bytes += len(b)
+		lines += strings.Count(string(b), "\n")
+		tokens += CountTokens(string(b), resolveModelFamily(defaultModel))
+	}
+	if isDir {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return 0, 0, 0, 0, false
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+				continue
+			}
+			b, err := os.ReadFile(filepath.Join(path, e.Name())) //#nosec G304 -- fixed repo-relative path
+			if err != nil {
+				continue
+			}
+			files++
+			measure(b)
+		}
+		return files, bytes, lines, tokens, true
+	}
+	b, err := os.ReadFile(path) //#nosec G304 -- fixed repo-relative path
+	if err != nil {
+		return 0, 0, 0, 0, false
+	}
+	measure(b)
+	return 1, bytes, lines, tokens, true
+}
+
+// contextBaselineCheck reports the size and token cost of the instruction
+// surface (AGENTS.md, the generated instructions, roles and command stubs) as an
+// advisory, report-only check: it never fails the shell and never gates.
+func contextBaselineCheck() doctorCheck {
+	surfaces := []contextBaselineSurface{
+		{"agents.md", agentTargetDefault, false},
+		{"instructions", sdtInstrDir, true},
+		{"roles", sdtRolesDir, true},
+		{"commands", sdtCommandsDir, true},
+	}
+	parts := make([]string, 0, len(surfaces))
+	missing := false
+	for _, s := range surfaces {
+		files, bytes, lines, tokens, ok := measureContextBaseline(s.path, s.isDir)
+		if !ok {
+			missing = true
+			parts = append(parts, s.name+" missing")
+			continue
+		}
+		if s.isDir {
+			parts = append(parts, fmt.Sprintf("%s %d files %d lines %dB ~%d tok", s.name, files, lines, bytes, tokens))
+		} else {
+			parts = append(parts, fmt.Sprintf("%s %d lines %dB ~%d tok", s.name, lines, bytes, tokens))
+		}
+	}
+	detail := strings.Join(parts, " · ")
+	if missing {
+		return doctorCheck{Name: "context-baseline", Status: doctorStatusWarn, Detail: detail, Hint: "run `sdt agent init` to restore the missing surface"}
+	}
+	return doctorCheck{Name: "context-baseline", Status: doctorStatusOK, Detail: detail}
 }
 
 // ── delivery gate ──────────────────────────────────────────────────────────────

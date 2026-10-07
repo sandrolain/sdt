@@ -50,6 +50,33 @@ func TestAgentDoctorMissingAgentsFails(t *testing.T) {
 	}
 }
 
+func TestContextBaselineCheckReportsSurfaces(t *testing.T) {
+	runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--group", "g", "--yes", "--gitignore", "none")
+
+	got := contextBaselineCheck()
+	if got.Status != doctorStatusOK {
+		t.Fatalf("status = %q, want ok after init", got.Status)
+	}
+	for _, want := range []string{"agents.md", "instructions", "roles", "commands", "tok"} {
+		if !strings.Contains(got.Detail, want) {
+			t.Errorf("detail missing %q: %s", want, got.Detail)
+		}
+	}
+}
+
+func TestContextBaselineWarnsOnMissingSurface(t *testing.T) {
+	runInTempDir(t)
+	// No init: AGENTS.md and the instruction dirs are absent.
+	got := contextBaselineCheck()
+	if got.Status != doctorStatusWarn {
+		t.Fatalf("status = %q, want warn when a surface is missing", got.Status)
+	}
+	if !strings.Contains(got.Detail, "missing") {
+		t.Fatalf("detail = %q, want the missing surface named", got.Detail)
+	}
+}
+
 func TestStoreCompletenessVerdict(t *testing.T) {
 	setupContextProject(t)
 	// A clean store needs no CRITICAL/WARNING; supply a minimal index and a
