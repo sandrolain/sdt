@@ -44,6 +44,9 @@ project: <project>
 
 ## Provenance
 
+- A note is **synthesized prose over verbatim sources**: `refs/` and captured
+  documents stay immutable; the note is the derived layer that may be
+  consolidated.
 - Keep the chain **source → transformation → derived document → task/worklog**:
   anything the note restates, extracts or answers points back at its origin via
   `sources`. `sources` values are relative paths resolved against
@@ -59,7 +62,9 @@ project: <project>
 ## Dedup before write
 
 - **Search first**: before creating a note, check `context/notes/` and the
-  generated index for an existing note on the same topic.
+  generated index for an existing note on the same topic. Search only when the
+  material could already be filed (question-driven, never reflexive); report an
+  empty result as empty, never invent one.
 - **Reinforce, do not duplicate**: extend the equivalent existing note with a
   dated entry (see `lessons.md`) or link it `[[notes/<slug>]]`; only
   create a new file when separation is genuinely clearer.

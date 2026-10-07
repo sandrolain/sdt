@@ -57,6 +57,15 @@ read that for the full schema.
   `context/instructions/distillation.md` (structure over summary, fold-in
   merge); the page model here is unchanged.
 
+## Refresh discipline
+
+- Update a page by **applying only the change**: leave the wording, casing and
+  bullet form of unchanged parts physically untouched. Do not paraphrase-rewrite
+  a whole page to refresh it — a wholesale rewrite drifts (bullets become
+  numbers, casing and terms shift) and can lose the load-bearing line.
+- Target the changed claim by its stable anchor (`#claim-<n>`) and edit in
+  place; regenerate the page only when the source structure itself changed.
+
 ## Correlation and relation discipline
 
 - **Ordinary navigation** (prose or `[[id|label]]`) is not a graph edge;
@@ -65,9 +74,15 @@ read that for the full schema.
   statement naming the link. Co-occurrence alone never justifies a relation.
 - `supersedes`/`conflicts_with` are graph signals that trigger human
   review; lint checks only their syntax and targets, not the interpretation.
+- The corpus-level **fact-change vocabulary** (supersede / invalidate / coexist)
+  and the journey rule are defined in `architecture/stack.md` (Fact change).
 
 ## Evidence and provenance
 
+- A page is a **projected view, not storage**: it is re-derivable from `refs/`
+  plus git history, so it may be regenerated, while `refs/` (and captured
+  sources) stay verbatim and immutable. Keep the two layers distinct — sources
+  are quoted, pages are synthesized.
 - Claims and typed relations cite their evidence: a claim anchor in the source
   page, an existing statement, or an explicit reference like
   `refs/<file>@<sha>:<lines>` or the task/plan file that settled it.
@@ -117,6 +132,10 @@ vault can read the same folder — the two models are close but not identical:
 
 ## Verification
 
+- A page is **freshness-tracked**: set `verified` only after re-checking its
+  claims against their `sources`; when a source changes, re-run
+  `sdt context wiki lint` (the `refs/<file>@<sha>` citation check flags a stale
+  source) and re-verify — never trust a synthesized page blindly.
 - Run `sdt context wiki lint` after every change and fix issues caused by
   the edit; run `sdt context reindex` when done.
 - Keep the page within the concept budget — a larger page is a split signal
