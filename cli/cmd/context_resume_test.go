@@ -35,7 +35,8 @@ func stubResumeClock(t *testing.T, now time.Time) {
 }
 
 func TestBuildResumeViewRendersEverySurface(t *testing.T) {
-	resumeFixture(t)
+	now := resumeFixture(t)
+	stubResumeClock(t, now)
 	view := buildResumeView("", ctxStaleInProgressDays)
 
 	if view.Premise != ctxResumePremise {
