@@ -278,6 +278,9 @@ func init() {
 
 	contextTemplateCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxTemplateTypes()))
 
+	contextTaskProgressCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan)")
+	contextTaskProgressCmd.Flags().String("stream", "", "Split-file label (kebab-case)")
+
 	contextCloseCmd.Flags().Bool("allow-unfinished", false, "Close despite unfinished children/tasks (requires --reason)")
 	contextCloseCmd.Flags().String("reason", "", "Why the document is closed early (required with --allow-unfinished)")
 	addCascadeFlag(contextCloseCmd)
@@ -288,7 +291,7 @@ func init() {
 	addCascadeFlag(contextTaskWipCmd)
 	addCascadeFlag(contextTaskReviewCmd)
 
-	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextDeviationCmd, contextTaskClaimCmd, contextTaskReleaseCmd)
+	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextTaskProgressCmd, contextDeviationCmd, contextTaskClaimCmd, contextTaskReleaseCmd)
 	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextCloseCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
 	rootCmd.AddCommand(contextCmd)
 }
