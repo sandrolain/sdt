@@ -44,8 +44,8 @@ var imageContentTypes = map[string]string{
 	".ico":  "image/x-icon",
 }
 
-// indexHTML is a minimal placeholder served at / until the Phase 11 go:embed
-// replaces it with the code-split web/ SPA.
+// indexHTML is the fallback shell served at / when the embedded SPA is
+// unavailable; assets.go embeds the web/dist build that replaces it.
 const indexHTML = `<!doctype html>
 <html lang="en">
 <head>
