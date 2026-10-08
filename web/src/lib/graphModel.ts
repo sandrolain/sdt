@@ -73,6 +73,14 @@ export function clusterPalette(nodes: GraphNode[], key: ClusterKey): Map<string,
   return palette;
 }
 
+/** Stable cluster-id → colour assignment (sorted ids), for the board (O3). */
+export function clusterColorMap(ids: string[]): Map<string, string> {
+  const sorted = [...new Set(ids)].sort();
+  const palette = new Map<string, string>();
+  sorted.forEach((id, i) => palette.set(id, CLUSTER_COLORS[i % CLUSTER_COLORS.length]));
+  return palette;
+}
+
 export function fetchWikiGraph(): Promise<GraphData> {
   return fetchJSON<GraphData>("/api/wiki/graph");
 }

@@ -30,6 +30,7 @@ import { canvasLayers } from "../lib/jsoncanvas/document";
 import { clearLayout, loadLayout, saveLayout } from "../lib/layoutStore";
 import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
 import { boardPath, parseBoardSplat, buildLevels, type BoardLevel } from "../lib/boardRoute";
+import { decorateBoardColours } from "../lib/boardColors";
 import { displayTitle } from "../lib/titles";
 import { addBoardPanels, BOARD_CENTER_PANEL_ID } from "../lib/wikiEdgeLayout";
 import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
@@ -192,7 +193,7 @@ export function WikiBoardView() {
     fetchWikiBoard(file || undefined)
       .then((res) => {
         if (!alive) return;
-        const root = normalizeBoard(res);
+        const root = decorateBoardColours(normalizeBoard(res));
         setModel(root);
         const built = buildLevels(root, drillIds);
         setLevels(built);
