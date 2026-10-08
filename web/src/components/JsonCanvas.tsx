@@ -25,6 +25,7 @@ import {
 import "./JsonCanvas.css";
 import { type CanvasDocument, type CanvasEdge, type CanvasNode } from "../lib/jsoncanvas/document";
 import { collapsedContainedIds } from "../lib/jsoncanvas/collapse";
+import { edgeKindStyle } from "../lib/jsoncanvas/edgeKind";
 import { arrow, edgeGeom } from "../lib/jsoncanvas/geometry";
 import { Md } from "../lib/jsoncanvas/markdown";
 import { Minimap } from "../lib/jsoncanvas/minimap";
@@ -443,10 +444,18 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
                 const g = edgeGeom(e, byId);
                 if (!g) return null;
                 const col = resolveColor(e.color, presets) || resolvedTheme.edge;
-                const dash = typeof e["x-dash"] === "string" ? e["x-dash"] : undefined;
+                const kindStyle = edgeKindStyle(e["x-kind"]);
+                const dash =
+                  (typeof e["x-dash"] === "string" ? e["x-dash"] : undefined) ?? kindStyle.dash;
                 return (
                   <g key={e.id} className="jc-edge">
-                    <path d={g.d} className="line" stroke={col} strokeDasharray={dash} />
+                    <path
+                      d={g.d}
+                      className="line"
+                      stroke={col}
+                      strokeDasharray={dash}
+                      strokeWidth={kindStyle.width}
+                    />
                     {(e.toEnd || "arrow") === "arrow" && (
                       <polygon points={arrow(g.q, g.db)} fill={col} />
                     )}
