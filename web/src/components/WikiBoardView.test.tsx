@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { WikiBoardView } from "./WikiBoardView";
 import { renderNestedBody } from "./nestedCanvasBody";
 import type { CanvasNode } from "../lib/jsoncanvas/document";
@@ -102,11 +102,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderView() {
+function renderView(initial = "/wiki/board") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initial]}>
       <OpenDocsProvider>
-        <WikiBoardView />
+        <Routes>
+          <Route path="/wiki/board/*" element={<WikiBoardView />} />
+        </Routes>
       </OpenDocsProvider>
     </MemoryRouter>,
   );
@@ -130,15 +132,14 @@ describe("WikiBoardView", () => {
     expect(await screen.findByRole("button", { name: "From file" })).toBeTruthy();
   });
 
-  it("exposes the 2D/3D mode and a layer switch per x-layer", async () => {
+  it("exposes the 2D/3D mode and hides layer switches in 2D", async () => {
     globalThis.fetch = mockFetch() as unknown as typeof fetch;
     renderView();
     await screen.findByRole("button", { name: "Alpha" });
     expect(screen.getByRole("button", { name: /3D/ })).toBeTruthy();
-    expect(screen.getByRole("switch", { name: "Level 0" })).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: /Wiki graph/ }));
-    await userEvent.click(await screen.findByRole("option", { name: "board" }));
-    expect(await screen.findByRole("switch", { name: "Deep" })).toBeTruthy();
+    // Layers are 3D-only (O1); the full view mounts WebGL in 3D, which jsdom
+    // cannot, so the 3D layer switch is asserted in BoardControls.test.tsx.
+    expect(screen.queryByRole("switch", { name: "Level 0" })).toBeNull();
   });
 
   it("shows an error state when the board API fails", async () => {
@@ -176,7 +177,7 @@ describe("WikiBoardView", () => {
     expect(await screen.findByRole("button", { name: "Root" })).toBeTruthy();
   });
 
-  it("navigates to an external .canvas target through the ?file= flow", async () => {
+  it("navigates to an external .canvas target through the board route", async () => {
     globalThis.fetch = vi.fn((url: string) => {
       if (url === "/api/tree")
         return Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) });

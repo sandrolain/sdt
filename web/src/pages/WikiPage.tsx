@@ -1,7 +1,10 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { Icon } from "../lib/icon";
 
 export function WikiPage() {
+  const { pathname } = useLocation();
+  // The Board tab preserves the current board route (source + drill path).
+  const boardTo = pathname.startsWith("/wiki/board") ? pathname : "/wiki/board";
   return (
     <div className="wiki-shell">
       <nav className="wiki-modes" aria-label="Wiki mode">
@@ -13,7 +16,7 @@ export function WikiPage() {
           Graph
         </NavLink>
         <NavLink
-          to="/wiki/board"
+          to={boardTo}
           className={({ isActive }) => `wiki-mode${isActive ? " is-active" : ""}`}
         >
           <Icon name="dashboard" />

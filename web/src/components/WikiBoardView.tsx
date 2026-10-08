@@ -17,7 +17,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   DockviewReact,
   themeCatppuccinMochaSpaced,
@@ -29,6 +29,7 @@ import { fetchTree, fetchWikiBoard, type TreeEntry } from "../lib/api";
 import { canvasLayers } from "../lib/jsoncanvas/document";
 import { clearLayout, loadLayout, saveLayout } from "../lib/layoutStore";
 import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
+import { boardPath, parseBoardSplat, buildLevels, type BoardLevel } from "../lib/boardRoute";
 import { displayTitle } from "../lib/titles";
 import { addBoardPanels, BOARD_CENTER_PANEL_ID } from "../lib/wikiEdgeLayout";
 import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
@@ -42,13 +43,6 @@ export const WIKI_BOARD_STORAGE_KEY = "wiki-board";
 
 /** Dockview needs real layout measurement; tests use a plain columns fallback. */
 const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
-
-/** One entered nested-canvas level (in-place drill-down, no DOM reparenting). */
-interface BoardLevel {
-  nodeId: string;
-  label: string;
-  model: BoardModel;
-}
 
 interface BoardWorkspaceValue {
   /** The active level's document (root, or the deepest entered nested canvas). */
@@ -148,9 +142,13 @@ const components: Record<string, (props: IDockviewPanelProps) => ReactNode> = {
 
 /** Read-only board from the graph default or a selected `.canvas` file. */
 export function WikiBoardView() {
-  const [params, setParams] = useSearchParams();
+  const { "*": splat } = useParams();
+  const navigate = useNavigate();
   const { open: openDoc } = useOpenDocs();
-  const file = params.get("file") ?? "";
+  const route = useMemo(() => parseBoardSplat(splat), [splat]);
+  const file = route.file;
+  const drillIds = route.ids;
+  const drillKey = drillIds.join("\u0000");
   const [model, setModel] = useState<BoardModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [canvases, setCanvases] = useState<TreeEntry[]>([]);
@@ -179,11 +177,21 @@ export function WikiBoardView() {
     let alive = true;
     fetchWikiBoard(file || undefined)
       .then((res) => {
-        if (alive) {
-          setModel(normalizeBoard(res));
-          // A new source (or reload) resets the drill-down to the root level.
-          setLevels([]);
-          setError(null);
+        if (!alive) return;
+        const root = normalizeBoard(res);
+        setModel(root);
+        const built = buildLevels(root, drillIds);
+        setLevels(built);
+        setError(null);
+        // An unresolvable drill segment trims the URL to the deepest valid prefix.
+        if (built.length < drillIds.length) {
+          navigate(
+            boardPath(
+              file,
+              built.map((l) => l.nodeId),
+            ),
+            { replace: true },
+          );
         }
       })
       .catch((err: unknown) => {
@@ -195,7 +203,8 @@ export function WikiBoardView() {
     return () => {
       alive = false;
     };
-  }, [file, reloadToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, drillKey, reloadToken]);
 
   const setViewHandle = useCallback((handle: JsonCanvasHandle | null) => {
     viewRef.current = handle;
@@ -203,12 +212,9 @@ export function WikiBoardView() {
 
   const onSource = useCallback(
     (path: string) => {
-      const next = new URLSearchParams(params);
-      if (path) next.set("file", path);
-      else next.delete("file");
-      setParams(next, { replace: true });
+      navigate(boardPath(path, []));
     },
-    [params, setParams],
+    [navigate],
   );
 
   const sources = useMemo(
@@ -239,21 +245,22 @@ export function WikiBoardView() {
     [sourceLabel, levels],
   );
 
-  const onCrumb = useCallback((id: string | null) => {
-    setLevels((prev) => {
-      if (id === null || id === "") return [];
-      const index = prev.findIndex((l) => l.nodeId === id);
-      return index >= 0 ? prev.slice(0, index + 1) : prev;
-    });
-  }, []);
+  const onCrumb = useCallback(
+    (id: string | null) => {
+      if (id === null || id === "") {
+        navigate(boardPath(file, []));
+        return;
+      }
+      const index = drillIds.indexOf(id);
+      navigate(boardPath(file, index >= 0 ? drillIds.slice(0, index + 1) : drillIds));
+    },
+    [navigate, file, drillIds],
+  );
 
   const open = useCallback(
     (node: BoardNode) => {
       if (node.type === "nested-canvas" && node.canvas) {
-        setLevels((prev) => [
-          ...prev,
-          { nodeId: node.id, label: String(node.title ?? "Nested canvas"), model: node.canvas! },
-        ]);
+        navigate(boardPath(file, [...drillIds, node.id]));
         return;
       }
       // An external `.canvas` target reuses the `?file=` board flow.
@@ -273,18 +280,18 @@ export function WikiBoardView() {
       }
       if (node.type === "text" && node.id) openDoc(`context/wiki/${node.id}.md`);
     },
-    [openDoc, onSource],
+    [openDoc, onSource, navigate, file, drillIds],
   );
 
   // Escape pops one drill-down level (the view keeps Escape for its selection).
   useEffect(() => {
-    if (levels.length === 0) return;
+    if (drillIds.length === 0) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLevels((prev) => prev.slice(0, -1));
+      if (e.key === "Escape") navigate(boardPath(file, drillIds.slice(0, -1)));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [levels.length]);
+  }, [navigate, file, drillIds]);
 
   const zoomIn = useCallback(() => viewRef.current?.zoomIn(), []);
   const zoomOut = useCallback(() => viewRef.current?.zoomOut(), []);

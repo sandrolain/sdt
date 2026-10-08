@@ -56,7 +56,7 @@ export function App() {
             <Route path="/wiki" element={<WikiPage />}>
               <Route index element={<Navigate to="/wiki/graph" replace />} />
               <Route path="graph" element={<WikiGraphView />} />
-              <Route path="board" element={<WikiBoardView />} />
+              <Route path="board/*" element={<WikiBoardView />} />
               <Route path="*" element={<WikiPageDetail />} />
             </Route>
             <Route path="*" element={<p className="content__empty">not found</p>} />
