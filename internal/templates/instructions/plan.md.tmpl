@@ -169,10 +169,13 @@ session: <session id>        # optional
   each with a single deliverable and ≤ ~5 items: schema → backend → CLI → tests.
 - **Dependency graph** — only needed when there are more than ~3 tasks or
   non-obvious ordering. Use a simple ASCII diagram.
-- **Completion criteria** — checkboxes for global exit conditions (all phases
-  completed — including the final Validation phase — full test suite green, etc.).
-  Tick any plan checklist item through the CLI (`sdt context check <plan> <id>
-  --done`), never by hand-editing the marker.
+- **Completion criteria** — checkboxes for the global exit conditions (all
+  phases completed — including the final Validation phase — full test suite
+  green, etc.). **Reference-only model**: the plan's `## Phases` and this
+  section state *intent*; the executed checklist lives in the task file, and a
+  plan derives `completed` from its task files, not from these checkboxes. Tick
+  a plan checklist item through the CLI (`sdt context check <plan> <id> --done`)
+  only to record intent — never to gate completion.
 - **Review log** — only if the plan is revised after approval. Not for execution
   progress (that lives in task files). Format: `- <YYYY-MM-DD>: <what changed and why>`.
 

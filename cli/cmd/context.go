@@ -276,6 +276,10 @@ func init() {
 
 	contextTemplateCmd.Flags().String("type", "", "Type: "+ctxTypeHelpText(ctxTemplateTypes()))
 
+	contextCloseCmd.Flags().Bool("allow-unfinished", false, "Close despite unfinished children/tasks (requires --reason)")
+	contextCloseCmd.Flags().String("reason", "", "Why the document is closed early (required with --allow-unfinished)")
+	addCascadeFlag(contextCloseCmd)
+
 	addCascadeFlag(contextTaskAddCmd)
 	addCascadeFlag(contextTaskDoneCmd)
 	addCascadeFlag(contextTaskBlockCmd)
@@ -283,6 +287,6 @@ func init() {
 	addCascadeFlag(contextTaskReviewCmd)
 
 	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextDeviationCmd, contextTaskClaimCmd, contextTaskReleaseCmd)
-	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
+	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextCloseCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
 	rootCmd.AddCommand(contextCmd)
 }

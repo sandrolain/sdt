@@ -126,7 +126,11 @@ func TestCascadePartialStaysActive(t *testing.T) {
 	}
 }
 
-func TestCascadePlanOwnChecklistBlocks(t *testing.T) {
+// TestCascadePlanOwnChecklistIsReferenceOnly guards F13: the plan's own `##
+// Phases` checklist is intent, not a second executed checklist, so a plan with
+// an open own checklist still completes from its completed task files.
+
+func TestCascadePlanOwnChecklistIsReferenceOnly(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
 	analysis := writeCascadeAnalysis(t, dir, "20260101-000000-a", ctxWikiStatusActive)
@@ -136,8 +140,8 @@ func TestCascadePlanOwnChecklistBlocks(t *testing.T) {
 	if _, err := cascadeUp(normalizeContextRef(task), true); err != nil {
 		t.Fatal(err)
 	}
-	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, plan)), ctxMapStatus); got != ctxWikiStatusActive {
-		t.Fatalf("plan with open own checklist must stay active, got %q", got)
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, plan)), ctxMapStatus); got != taskFileStatusCompleted {
+		t.Fatalf("plan must complete from its task file despite an open own checklist, got %q", got)
 	}
 }
 

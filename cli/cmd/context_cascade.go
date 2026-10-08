@@ -204,21 +204,10 @@ func (s *cascadeStore) derivePlanStatus(n *cascadeNode) string {
 			return ctxWikiStatusActive
 		}
 	}
-	if !allChecklistDone(n.items) {
-		return ctxWikiStatusActive
-	}
+	// Reference-only model (F13): the plan's `## Phases` / `## Completion
+	// criteria` checkboxes are intent, not a second executed checklist, so they
+	// never gate completion — the task files own it.
 	return taskFileStatusCompleted
-}
-
-// allChecklistDone reports whether every item is done (vacuously true for a
-// document without a checklist).
-func allChecklistDone(items []checklistItem) bool {
-	for _, it := range items {
-		if it.Status != taskStatusDone {
-			return false
-		}
-	}
-	return true
 }
 
 // deriveAnalysisStatus returns an analysis' derived status, or "" when it has
