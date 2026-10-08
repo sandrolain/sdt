@@ -142,8 +142,6 @@ Examples:
   sdt context check questions/20260927-091146-... --block c3 --reason "needs data"`,
 	Args: cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
-		status, err := contextCheckStatus(cmd)
-		exitWithError(cmd, err)
 		doc, err := resolveContextDocPath(args[0])
 		exitWithError(cmd, err)
 		//#nosec G304 -- user work file
@@ -152,28 +150,40 @@ Examples:
 		content := string(data)
 		if len(parseChecklistItems(content)) == 0 {
 			exitWithError(cmd, fmt.Errorf("%s has no checklist items", doc.Path))
+			return
 		}
-		reason := ""
-		if status == taskStatusBlock {
-			reason = getStringFlag(cmd, "reason", false)
-		}
+		reason := getStringFlag(cmd, "reason", false)
 		updated := ""
 		batchCount := 0
-		if len(args) == 2 {
-			updated, err = updateChecklistItem(content, args[1], status, reason)
-			if err != nil {
-				exitWithError(cmd, err)
+		if getBoolFlag(cmd, "waive", false) {
+			if len(args) != 2 {
+				exitWithError(cmd, errors.New("--waive needs a single <id>"))
 				return
 			}
-		} else {
-			updated, batchCount, err = applyChecklistSelection(content,
-				getStringFlag(cmd, "phase", false), getStringFlag(cmd, "grep", false),
-				getBoolFlag(cmd, "all", false), status, reason)
-			if err != nil {
-				exitWithError(cmd, err)
+			if strings.TrimSpace(reason) == "" {
+				exitWithError(cmd, errors.New("--waive requires --reason"))
 				return
+			}
+			updated, err = updateChecklistWaiver(content, args[1], reason)
+		} else {
+			status, serr := contextCheckStatus(cmd)
+			exitWithError(cmd, serr)
+			if serr != nil {
+				return
+			}
+			if len(args) == 2 {
+				updated, err = updateChecklistItem(content, args[1], status, reason)
+			} else {
+				updated, batchCount, err = applyChecklistSelection(content,
+					getStringFlag(cmd, "phase", false), getStringFlag(cmd, "grep", false),
+					getBoolFlag(cmd, "all", false), status, reason)
 			}
 		}
+		if err != nil {
+			exitWithError(cmd, err)
+			return
+		}
+		updated = stampProvenance(updated, cmd)
 		if doc.Type.hasUpdated {
 			if patched, changed := setFrontmatterFields(updated, []frontmatterPatch{{key: statusUpdated, value: contextNow().UTC().Format(time.RFC3339)}}); changed {
 				updated = patched
@@ -198,14 +208,43 @@ Examples:
 	},
 }
 
+// stampProvenance records agent/model/session in the frontmatter when the
+// matching flags carry a value, so a state mutation says who performed it
+// (F20). It is a no-op when none are given.
+
+func stampProvenance(content string, cmd *cobra.Command) string {
+	patches := make([]frontmatterPatch, 0, 3)
+	for _, key := range []string{ctxFieldAgent, ctxFieldModel, ctxFieldSession} {
+		if v := strings.TrimSpace(getStringFlag(cmd, key, false)); v != "" {
+			patches = append(patches, frontmatterPatch{key: key, value: v})
+		}
+	}
+	if len(patches) == 0 {
+		return content
+	}
+	out, _ := setFrontmatterFields(content, patches)
+	return out
+}
+
+// addProvenanceFlags registers the optional --agent/--model/--session flags a
+// state-mutating command accepts to record who performed the mutation (F20).
+
+func addProvenanceFlags(c *cobra.Command) {
+	c.Flags().String(ctxFieldAgent, "", "Provenance: agent/tool that performed the mutation")
+	c.Flags().String(ctxFieldModel, "", "Provenance: model id that performed the mutation")
+	c.Flags().String(ctxFieldSession, "", "Provenance: session id for traceability")
+}
+
 func init() {
 	contextCheckCmd.Flags().Bool(taskStatusDone, false, "Mark the item done")
 	contextCheckCmd.Flags().Bool(taskStatusWip, false, "Mark the item in progress")
 	contextCheckCmd.Flags().Bool(taskStatusBlock, false, "Mark the item blocked")
 	contextCheckCmd.Flags().Bool(ctxCheckPendingFlag, false, "Reset the item to todo")
-	contextCheckCmd.Flags().String("reason", "", "Reason for --"+taskStatusBlock)
+	contextCheckCmd.Flags().Bool("waive", false, "Record a structured waiver (keeps the item unfinished; requires --reason)")
+	contextCheckCmd.Flags().String("reason", "", "Reason for --"+taskStatusBlock+" or --waive")
 	contextCheckCmd.Flags().Bool("all", false, "Select every checklist item (batch)")
 	contextCheckCmd.Flags().String("phase", "", "Select the items in the `## Phase <n>` section (batch)")
 	contextCheckCmd.Flags().String("grep", "", "Select the items whose text contains this substring (batch)")
+	addProvenanceFlags(contextCheckCmd)
 	addCascadeFlag(contextCheckCmd)
 }

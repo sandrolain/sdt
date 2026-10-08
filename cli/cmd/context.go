@@ -265,7 +265,9 @@ func init() {
 	for _, c := range []*cobra.Command{contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd} {
 		c.Flags().Bool("all", false, "Select every item of the phase, or the whole file without --phase (batch)")
 		c.Flags().String("grep", "", "Select the items whose text contains this substring (batch)")
+		addProvenanceFlags(c)
 	}
+	addProvenanceFlags(contextStatusSetCmd)
 	contextTaskReviewCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
 	contextTaskClaimCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskClaimCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")

@@ -244,3 +244,45 @@ func TestContextNewPlanStampsChecklistAnchors(t *testing.T) {
 		t.Errorf("plan checklist anchors not stamped:\n%s", body)
 	}
 }
+
+// TestContextCheckWaive guards F16: a waiver records a structured annotation and
+// keeps the item unfinished, never a false pass.
+
+func TestContextCheckWaive(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := checkDocFixture(t, dir)
+	execute(t, contextCheckCmd, nil, rel, "c1", "--waive", "--reason", "no browser")
+	body := mustReadFile(t, dir+"/"+rel)
+	if !strings.Contains(body, "- [~] one (waived: no browser) <!-- c1 -->") {
+		t.Errorf("waiver not recorded:\n%s", body)
+	}
+	if strings.Contains(body, "- [x] one") {
+		t.Errorf("waiver must not mark the item done:\n%s", body)
+	}
+}
+
+func TestContextCheckWaiveRequiresReason(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := checkDocFixture(t, dir)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextCheckCmd, nil, rel, "c1", "--waive"))
+	})
+}
+
+// TestContextCheckRecordsProvenance guards F20: --agent/--model/--session are
+// written to the frontmatter on a state mutation.
+
+func TestContextCheckRecordsProvenance(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := checkDocFixture(t, dir)
+	execute(t, contextCheckCmd, nil, rel, "c1", "--done", "--agent", "opencode", "--model", "deepseek", "--session", "s1")
+	body := mustReadFile(t, dir+"/"+rel)
+	for _, want := range []string{"agent: opencode", "model: deepseek", "session: s1"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("provenance %q missing:\n%s", want, body)
+		}
+	}
+}

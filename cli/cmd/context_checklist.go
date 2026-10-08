@@ -242,6 +242,33 @@ func updateChecklistItem(content, idArg, status, reason string) (string, error) 
 	return strings.Join(lines, "\n"), nil
 }
 
+// updateChecklistWaiver marks an item as waived: it keeps the item unfinished
+// (marker `~`) and records a structured `(waived: <reason>)` annotation, so a
+// verification that could not run is never a false pass (F16). An id matching
+// more than one item is refused as ambiguous.
+
+func updateChecklistWaiver(content, idArg, reason string) (string, error) {
+	stamped, _ := stampChecklistIDs(content)
+	lines := strings.Split(stamped, "\n")
+	e, err := resolveChecklistEntry(lines, idArg)
+	if err != nil {
+		return "", err
+	}
+	body, _ := splitChecklistAnchor(checklistLineText(lines[e.First]))
+	waived := fmt.Sprintf("- [~] %s (waived: %s)", body, strings.TrimSpace(reason))
+	if e.ID != "" {
+		waived += " <!-- " + e.ID + " -->"
+	}
+	lines[e.First] = waived
+	for i := e.First + 1; i <= e.Last; i++ {
+		if b, sid := splitChecklistAnchor(checklistLineText(lines[i])); sid != "" {
+			indent := lines[i][:len(lines[i])-len(strings.TrimLeft(lines[i], " \t"))]
+			lines[i] = strings.TrimRight(indent+b, " \t")
+		}
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
 // repairChecklistIDs normalizes the checklist ids of one document: it moves an
 // item's anchor onto its checklist line (dropping a stray anchor from a
 // continuation line), then renumbers later duplicates of an id to the next free

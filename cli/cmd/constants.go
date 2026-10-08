@@ -124,6 +124,12 @@ const (
 	taskFileStatusArchived   = "archived"
 	taskFileStatusLegacy     = "active"
 
+	// Frontmatter provenance keys recorded by a state-mutating command when the
+	// matching --agent/--model/--session flag is given (F20).
+	ctxFieldAgent   = "agent"
+	ctxFieldModel   = "model"
+	ctxFieldSession = "session"
+
 	// Open-questions file status values (questions.md contract). `active` is
 	// the legacy value; the three intermediate states mature the register, and
 	// `resolved` is terminal. A question is "unresolved" for any status except

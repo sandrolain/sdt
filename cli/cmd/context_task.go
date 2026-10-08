@@ -717,6 +717,7 @@ func taskSetStatusCmd(status string) *cobra.Command {
 				exitWithError(cmd, err)
 				return
 			}
+			updated = stampProvenance(updated, cmd)
 			updated = setTaskFileStatus(updated, taskFileNextStatus(status, updated))
 			path := taskFileForRef(phase, stream, plan)
 			//#nosec G306 -- user work file

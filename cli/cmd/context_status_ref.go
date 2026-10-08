@@ -408,6 +408,9 @@ Examples:
 				content, changed = stamped, true
 			}
 		}
+		if stamped := stampProvenance(content, cmd); stamped != content {
+			content, changed = stamped, true
+		}
 		if !changed {
 			if !frontmatterIsWellFormed(string(data)) {
 				exitWithError(cmd, fmt.Errorf("no status field written to %s (missing frontmatter)", doc.Path))
