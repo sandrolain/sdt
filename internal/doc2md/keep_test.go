@@ -86,11 +86,37 @@ func TestRenderProvenance(t *testing.T) {
 			t.Errorf("missing %q in:\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, "summary:") || strings.Contains(text, "links:") {
-		t.Errorf("unset summary/links should be omitted:\n%s", text)
+	// The summary is derived from the first paragraph when the caller set none.
+	if !strings.Contains(text, "summary: body") {
+		t.Errorf("derived summary missing:\n%s", text)
+	}
+	if strings.Contains(text, "links:") {
+		t.Errorf("unset links should be omitted:\n%s", text)
 	}
 	if !strings.HasSuffix(text, "# My Title\n\nbody\n") {
 		t.Errorf("body not preserved:\n%s", text)
+	}
+}
+
+func TestRenderDerivesSummaryFromFirstParagraph(t *testing.T) {
+	src := tempSource(t, "x.txt", "x")
+	out, err := Render(Document{
+		Source:    src,
+		Converter: "anydoc",
+		Markdown:  "```\ncode\n```\n\n# H\n\nA first sentence.\n\nmore",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "summary: A first sentence.") {
+		t.Errorf("summary not derived past the fence/heading:\n%s", out)
+	}
+	out2, err := Render(Document{Source: src, Converter: "anydoc", Summary: "given", Markdown: "# H\n\nbody"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out2), "summary: given") {
+		t.Errorf("explicit summary not preserved:\n%s", out2)
 	}
 }
 

@@ -83,13 +83,17 @@ func renderWith(info SourceInfo, doc Document) ([]byte, error) {
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
+	summary := doc.Summary
+	if summary == "" {
+		summary = firstParagraph(doc.Markdown)
+	}
 	prov := provenance{
 		Source:      doc.Source,
 		Title:       firstHeading(doc.Markdown),
 		SHA256:      info.SHA256,
 		Converter:   doc.Converter,
 		ConvertedAt: now.UTC().Format(time.RFC3339),
-		Summary:     doc.Summary,
+		Summary:     summary,
 		Links:       doc.Links,
 	}
 	data, err := yaml.Marshal(prov)
@@ -145,6 +149,25 @@ func firstHeading(markdown string) string {
 		if strings.HasPrefix(line, "# ") {
 			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
 		}
+	}
+	return ""
+}
+
+// firstParagraph returns the first non-heading, non-blank, non-fence line of the
+// markdown, trimmed — a cheap self-describing summary for a kept conversion. It
+// is only used when the caller supplied no summary.
+func firstParagraph(markdown string) string {
+	fence := false
+	for _, line := range strings.Split(markdown, "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			fence = !fence
+			continue
+		}
+		if fence || t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		return t
 	}
 	return ""
 }
