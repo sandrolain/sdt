@@ -41,6 +41,7 @@ import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { ReferencedBy } from "./ReferencedBy";
+import { SemanticNeighbours } from "./SemanticNeighbours";
 
 interface DocMetaPanelProps {
   doc?: DocResponse | CanvasResponse | MermaidResponse | null;
@@ -196,6 +197,10 @@ export function DocMetaPanel({ doc }: DocMetaPanelProps) {
             <Icon name="link" />
             <span>Links</span>
           </Tab>
+          <Tab id="related" className="meta-tabs__tab">
+            <Icon name="hub" />
+            <span>Related</span>
+          </Tab>
         </TabList>
 
         <TabPanel id="info" className="meta-tabs__panel">
@@ -298,6 +303,16 @@ export function DocMetaPanel({ doc }: DocMetaPanelProps) {
                 <h3 className="meta-panel__title meta-panel__title--spaced">Referenced by</h3>
                 <ReferencedBy path={markdownDoc.path} />
               </>
+            )}
+          </div>
+        </TabPanel>
+
+        <TabPanel id="related" className="meta-tabs__panel">
+          <div className="meta-panel">
+            {markdownDoc ? (
+              <SemanticNeighbours path={markdownDoc.path} />
+            ) : (
+              <p className="content__empty">No semantic neighbours.</p>
             )}
           </div>
         </TabPanel>

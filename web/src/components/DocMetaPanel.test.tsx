@@ -72,28 +72,28 @@ describe("DocMetaPanel", () => {
     const cmd = screen.getAllByText("C")[0];
     expect(cmd.getAttribute("href")).toBe("/docs/context/commands/c.md");
     expect(cmd.getAttribute("title")).toBeNull();
-    // the panel is three tabs, Info selected by default
+    // the panel is four tabs, Info selected by default
     const tabLabels = () =>
       Array.from(document.querySelectorAll(".meta-tabs__tab")).map(
         (el) => el.querySelector("span:not(.ms-icon)")?.textContent,
       );
-    expect(tabLabels()).toEqual(["Info", "Sections", "Links"]);
+    expect(tabLabels()).toEqual(["Info", "Sections", "Links", "Related"]);
     expect(document.querySelector(".meta-tabs__tab[data-selected]")?.textContent).toContain("Info");
   });
 
-  it("keeps the three tabs stable and shows the TOC under Sections", async () => {
+  it("keeps the four tabs stable and shows the TOC under Sections", async () => {
     mockFetch();
     renderPanel(DOC);
     const labels = () =>
       Array.from(document.querySelectorAll(".meta-tabs__tab")).map(
         (el) => el.querySelector("span:not(.ms-icon)")?.textContent,
       );
-    expect(labels()).toEqual(["Info", "Sections", "Links"]);
+    expect(labels()).toEqual(["Info", "Sections", "Links", "Related"]);
     // a hidden panel's text is inert; the TOC becomes reachable under Sections
     expect(screen.queryByRole("button", { name: "Second" })).toBeNull();
     await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
     expect(screen.getByRole("button", { name: "Second" })).toBeTruthy();
-    expect(labels()).toEqual(["Info", "Sections", "Links"]);
+    expect(labels()).toEqual(["Info", "Sections", "Links", "Related"]);
   });
 
   it("requests the selected section (jump handled by the document panel)", async () => {

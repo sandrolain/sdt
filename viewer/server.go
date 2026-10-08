@@ -188,6 +188,7 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc("/api/search", s.handleSearch)
 	mux.HandleFunc("/api/backlinks", s.handleBacklinks)
 	mux.HandleFunc("/api/vocab", s.handleVocab)
+	mux.HandleFunc("/api/semantic/graph", s.handleSemanticGraph)
 	mux.HandleFunc("/api/wiki/graph", s.handleWikiGraph)
 	mux.HandleFunc("/api/wiki/rel", s.handleWikiRel)
 	mux.HandleFunc("/api/wiki/board", s.handleWikiBoard)

@@ -7,6 +7,9 @@ import { OpenDocsContext, type OpenDocsApi } from "../lib/openDocsContext";
 /** Route prefix for the documents section. */
 const DOCS_PREFIX = "/docs/";
 
+/** Reserved docs sub-route that is a view, not a document path. */
+const DOCS_MAP_PATH = "/docs/map";
+
 /**
  * App-level open-documents stack: survives wiki ↔ documents navigation so the
  * wiki graph/board can open a document as a documents tab, and persists across
@@ -20,6 +23,8 @@ export function OpenDocsProvider({ children }: { children: ReactNode }) {
   // route → state: an unknown docs path replaces the stack, a known one activates
   useEffect(() => {
     if (!location.pathname.startsWith(DOCS_PREFIX)) return;
+    // /docs/map is the semantic-map view, not a document path.
+    if (location.pathname === DOCS_MAP_PATH) return;
     const path = location.pathname.slice(DOCS_PREFIX.length);
     if (path) dispatch({ type: "route", path });
   }, [location.pathname]);

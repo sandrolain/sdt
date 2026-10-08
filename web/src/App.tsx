@@ -8,6 +8,7 @@ import { WikiPage } from "./pages/WikiPage";
 import { WikiGraphView } from "./components/WikiGraphView";
 import { WikiBoardView } from "./components/WikiBoardView";
 import { WikiPageDetail } from "./components/WikiPageDetail";
+import { SemanticMapView } from "./components/SemanticMapView";
 import { OpenDocsProvider } from "./components/OpenDocsProvider";
 import { applyLiveChange, connectLiveUpdates } from "./lib/liveUpdates";
 import { applyReadingPrefs, currentReadingPrefs } from "./lib/readingPrefs";
@@ -50,6 +51,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/docs" replace />} />
             <Route path="/docs" element={<DocumentsPage />} />
+            <Route path="/docs/map" element={<SemanticMapView />} />
             <Route path="/docs/*" element={<DocumentsPage />} />
             <Route path="/wiki" element={<WikiPage />}>
               <Route index element={<Navigate to="/wiki/graph" replace />} />

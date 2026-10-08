@@ -823,6 +823,7 @@
     font-size: 0.8125rem;
     color: var(--fg);
     cursor: pointer;
+    margin-top: 0.2rem;
   }
   .ui-select__item[data-focused] {
     background: var(--bg-hover);
@@ -1691,6 +1692,14 @@
   .meta-link--muted {
     color: var(--fg-faint);
     font-style: italic;
+  }
+  /* Semantic-neighbour similarity score in the Related tab. */
+  .meta-link__score {
+    margin-left: auto;
+    padding-left: 0.5rem;
+    color: var(--fg-faint);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
   }
 
   .doc-markdown {
@@ -2853,6 +2862,71 @@
   }
   .graph-edge-tooltip__label {
     color: var(--fg-faint);
+  }
+
+  /* Standalone semantic map view (/docs/map): a docs-side graph, separate from
+     the wiki graph. */
+  .semantic-map {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+  .semantic-map__bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-mantle);
+  }
+  .semantic-map__title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .semantic-map__scope {
+    color: var(--fg-faint);
+    font-size: 0.75rem;
+  }
+  .semantic-map__actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-left: auto;
+  }
+  .semantic-map__button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-base);
+    color: var(--fg);
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  .semantic-map__button:hover {
+    background: var(--bg-hover);
+  }
+  .semantic-map__button.is-active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .semantic-map__button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .semantic-map__canvas {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+  }
+  .semantic-map__empty {
+    flex: 1;
+    display: grid;
+    place-items: center;
   }
 
   .graph-controls {
