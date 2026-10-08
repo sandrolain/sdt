@@ -41,11 +41,16 @@ Examples:
 		now := contextNow().UTC().Format(time.RFC3339)
 		content, changed := setFrontmatterFields(string(data), []frontmatterPatch{{key: statusUpdated, value: now}})
 		if !changed {
-			exitWithError(cmd, fmt.Errorf("no `updated` field written to %s (missing frontmatter)", doc.Path))
-		}
-		//#nosec G306 -- user work file
-		if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
-			exitWithError(cmd, err)
+			// A same-second/equal-value call is an idempotent no-op, not an
+			// error; only a document without usable frontmatter is (F3).
+			if !frontmatterIsWellFormed(string(data)) {
+				exitWithError(cmd, fmt.Errorf("no `updated` field written to %s (missing frontmatter)", doc.Path))
+			}
+		} else {
+			//#nosec G306 -- user work file
+			if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+				exitWithError(cmd, err)
+			}
 		}
 		switch getFormat(cmd) {
 		case fmtJSON:

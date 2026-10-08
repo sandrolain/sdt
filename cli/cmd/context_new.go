@@ -515,6 +515,11 @@ Examples:
 		if body != "" {
 			content += "\n" + strings.TrimRight(body, "\n") + "\n"
 		}
+		// Stamp checklist anchors on a new plan so `sdt context check` can
+		// address its items by id from the start (F4).
+		if typ == ctxTypePlan {
+			content, _ = stampChecklistIDs(content)
+		}
 
 		dir, _ := filepath.Split(path)
 		if err := os.MkdirAll(dir, 0o750); err != nil { //#nosec G301 -- user work dir

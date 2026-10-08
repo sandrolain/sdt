@@ -224,6 +224,32 @@ func TestStatusSet(t *testing.T) {
 	}
 }
 
+// TestStatusSetSameValueIsNoOp guards F3: setting a status equal to the stored
+// one (with `updated` already at the current second) must succeed, not raise
+// "missing frontmatter".
+
+func TestStatusSetSameValueIsNoOp(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 9, 20, 10, 0, 0, 0, time.UTC))
+	writeTestFile(t, "context/analysis/20260920-130000-noop.md", `---
+kind: analysis
+uid: 01a0e43d-a000-7000-a000-00000000000d
+summary: "noop"
+status: active
+created: "2026-09-20T10:00:00Z"
+updated: 2026-09-20T10:00:00Z
+---
+
+## Body
+
+x
+`)
+	out := string(execute(t, contextStatusSetCmd, nil, "context/analysis/20260920-130000-noop.md", "--status", "active"))
+	if strings.TrimSpace(out) != "ok" {
+		t.Errorf("same-value set output = %q", out)
+	}
+}
+
 func TestStatusSetAddsMissingFields(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 9, 20, 17, 0, 0, 0, time.UTC))

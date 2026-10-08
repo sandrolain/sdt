@@ -688,13 +688,8 @@ func taskSetStatusCmd(status string) *cobra.Command {
 	return &cobra.Command{
 		Use:   use,
 		Short: short,
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.RangeArgs(0, 1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if _, ok := parseChecklistID(args[0]); !ok {
-				if _, err := strconv.Atoi(strings.TrimSpace(args[0])); err != nil {
-					exitWithError(cmd, fmt.Errorf("invalid task id %q", args[0]))
-				}
-			}
 			reason := ""
 			if status == taskStatusBlock {
 				reason = getStringFlag(cmd, "reason", false)
@@ -704,7 +699,20 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			stream := taskStreamFlag(cmd)
 			content, err := readTaskFile(phase, stream, plan)
 			exitWithError(cmd, err)
-			updated, err := updateChecklistItem(content, args[0], status, reason)
+			updated := ""
+			if len(args) == 1 {
+				if _, ok := parseChecklistID(args[0]); !ok {
+					if _, err := strconv.Atoi(strings.TrimSpace(args[0])); err != nil {
+						exitWithError(cmd, fmt.Errorf("invalid task id %q", args[0]))
+					}
+				}
+				updated, err = updateChecklistItem(content, args[0], status, reason)
+			} else {
+				// Batch: --all / --grep (within --phase when given) selects the
+				// items, so a whole phase no longer needs one call per item (F5).
+				updated, _, err = applyChecklistSelection(content, phase,
+					getStringFlag(cmd, "grep", false), getBoolFlag(cmd, "all", false), status, reason)
+			}
 			if err != nil {
 				exitWithError(cmd, err)
 				return

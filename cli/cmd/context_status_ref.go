@@ -334,6 +334,25 @@ func setFrontmatterFields(content string, patches []frontmatterPatch) (string, b
 	return strings.Join(lines, "\n"), true
 }
 
+// frontmatterIsWellFormed reports whether content carries a closed frontmatter
+// block. It lets a caller tell an idempotent no-op (every patched value already
+// equals the stored one, `changed == false`) from a document with no usable
+// frontmatter, so a same-value `touch`/`status set` succeeds instead of raising
+// a false "missing frontmatter" error (F3).
+
+func frontmatterIsWellFormed(content string) bool {
+	lines := strings.Split(content, "\n")
+	if len(lines) < 3 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
+		return false
+	}
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == ctxFrontmatterDelim {
+			return true
+		}
+	}
+	return false
+}
+
 // ctxStatusSetPatches builds the frontmatter patches for a status transition:
 // the new status always; the refreshed `updated` timestamp when the kind's
 // contract requires it (decisions never get an updated refresh).
@@ -390,11 +409,14 @@ Examples:
 			}
 		}
 		if !changed {
-			exitWithError(cmd, fmt.Errorf("no status field written to %s (missing frontmatter)", doc.Path))
-		}
-		//#nosec G306 -- user work file
-		if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
-			exitWithError(cmd, err)
+			if !frontmatterIsWellFormed(string(data)) {
+				exitWithError(cmd, fmt.Errorf("no status field written to %s (missing frontmatter)", doc.Path))
+			}
+		} else {
+			//#nosec G306 -- user work file
+			if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+				exitWithError(cmd, err)
+			}
 		}
 
 		updated := ""
