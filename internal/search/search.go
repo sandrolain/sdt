@@ -161,6 +161,9 @@ const canvasKind = "canvas"
 // (context/<...>). Build time and doc count are logged. A missing root is a
 // fatal error; a missing corpus yields an empty index (non-fatal). Unreadable
 // docs are skipped with a warning.
+// Deprecated: test-only. Production indexes through LoadOrRebuild/NewFromEntries
+// over the shared mdindex manifest; New's corpus walk is kept only for the
+// search tests. Physical deletion is deferred (analysis 20261007-074001, B5).
 func New(root string) (*Index, error) {
 	if _, err := os.Stat(root); err != nil {
 		return nil, fmt.Errorf("search root: %w", err)
