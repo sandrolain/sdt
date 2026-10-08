@@ -48,6 +48,23 @@ State the mode before extracting — it decides the budget and the output:
 - Do not dump the book, and do not mirror its chapters as prose summaries: the
   reference is a structure to navigate, not a shortened copy.
 
+## Section contract
+
+Each distilled section is the fold-in unit and follows one output shape:
+
+- **Frontmatter** — `section` (its id/path), `title`, and its dependencies
+  (`depends_on`/`required_by`, or free text) so the reading order is explicit.
+- **A source-citation blockquote** right after the heading, pointing at the
+  source locator (`refs/<file>@<sha>:<lines>` or the chapter/section/page), so
+  every section is traceable without re-reading the source.
+- **A per-content-type extraction checklist** — by section, deliberately walk
+  definitions, claims, algorithms, equations and remarks; never let one content
+  type (usually prose) crowd out the others. Equations keep their numbering
+  (`\tag{}`); LaTeX fidelity is a known conversion loss point — re-check it.
+- **The lossless-vs-curated stance, stated once**: the reference is lossless
+  where content is load-bearing (definitions, numbered results) and curated
+  where it is not (narrative); never present a curated section as complete.
+
 ## Budget the depth
 
 - The budget is a **shape**, not a set of constants: a reference section and a
@@ -86,6 +103,24 @@ regeneration:
   never a host skills directory.
 - Research collects evidence and an analysis interprets it; distillation
   restructures a source into a reference — do not confuse the three.
+
+## Quality gates
+
+Before saying a distillation is done, run these **countable** checks; they reuse
+the verify-step vocabulary (**passed** / **expected** / **inferred**) and
+`sdt context lint`, never a new mechanism:
+
+- **Completeness audit** — count sections (and theorems/algorithms/figures)
+  against the source, not from memory; a missing required section **refuses**
+  completion — never ship a partial as whole.
+- **Cross-ref integrity** — every `depends_on` has its reciprocal `required_by`
+  (and vice versa); a dangling reference is fixed or explicitly listed.
+- **Stale-index rule** — generate the core index **last**, scanning the files on
+  disk, never from memory; then run `sdt context reindex` and `sdt context lint`.
+- **Never drop errors silently** — on a failure, save the partial output and list
+  exactly what was dropped and why; a silent omission is a defect.
+- **Pre-approval checklist** — record each gate as passed/expected/inferred; an
+  `inferred` (not run) gate is named, never implied to have passed.
 
 ## Boundary
 
