@@ -282,6 +282,7 @@ func (s *server) handleFile(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	}
 	w.WriteHeader(http.StatusOK)
+	//#nosec G705 -- validated allowlisted image bytes, served with nosniff
 	if _, err := w.Write(data); err != nil {
 		slog.Error("sdtviewer: write image", "err", err)
 	}
@@ -326,7 +327,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		if _, werr := w.Write([]byte(`{"error":"internal error"}`)); werr != nil {
+			slog.Error("sdtviewer: json error write", "err", werr)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
