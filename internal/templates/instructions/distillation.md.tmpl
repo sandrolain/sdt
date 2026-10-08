@@ -65,6 +65,15 @@ Each distilled section is the fold-in unit and follows one output shape:
   where content is load-bearing (definitions, numbered results) and curated
   where it is not (narrative); never present a curated section as complete.
 
+## Worker contract
+
+When the extraction is split across sub-agents, a worker is **read-only**: it
+must not write corpus files, reserve addresses or edit ledgers. It returns a
+typed **draft packet** — `proposals[]` (each a candidate section with its source
+citation and evidence kind) plus a `partial` block (`status` / `reason` /
+`completed` / `remaining`) when it could not finish. The orchestrator owns the
+write, the merge and the closeout.
+
 ## Budget the depth
 
 - The budget is a **shape**, not a set of constants: a reference section and a
@@ -77,6 +86,15 @@ Each distilled section is the fold-in unit and follows one output shape:
 - State the estimated output before generating, so the cost is a decision, not a
   surprise.
 - For a very large source, probe it (grep, slice) rather than re-read it whole.
+
+## Parallel extraction
+
+For a source with eight or more chapters, extract in **dependency-tier batches**
+(independent chapters first, then those that depend on them), not one giant
+pass: write each batch's intermediate output under `context/tmp/`, give every
+batch the same output contract (the section contract above), then verify and
+fold-in in the main session. The tiering follows the source's dependency
+structure, never a fixed chunk count.
 
 ## Fold-in merge
 

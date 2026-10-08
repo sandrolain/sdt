@@ -201,6 +201,16 @@ Follow this cycle for any non-trivial task:
    without explicit approval.
 5. **Final reports** — append `context/worklog/` and `notes/` entries.
 
+**Sub-agents (dispatch discipline).** When a phase is split across sub-agents,
+each takes **one atomic, bounded task** and never recursively spawns further
+agents; the orchestrator owns the plan, the merge and the closeout. A sub-agent
+returns a result, never a plan of its own.
+
+**System-directive text.** Machine-injected or gate text carries a parseable tag
+(`[SYSTEM: <source>]`) so the agent recognises its own injected text and never
+mistakes it for a user instruction — this closes the injection loop where a
+gate/closeout message is re-read as a directive.
+
 **No silent downgrades.** When in doubt between two paths, take the heavier one,
 and never weaken an agreed plan mid-task without saying so. An approval covers
 the stage actually presented: replying to a plan approves that plan, not a later

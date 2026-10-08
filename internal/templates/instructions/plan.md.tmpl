@@ -169,6 +169,9 @@ session: <session id>        # optional
   each with a single deliverable and ≤ ~5 items: schema → backend → CLI → tests.
 - **Dependency graph** — only needed when there are more than ~3 tasks or
   non-obvious ordering. Use a simple ASCII diagram.
+- **Wave dependencies are explicit.** A plan/wave's `depends_on` names the plans
+  it needs; an **absent** `depends_on` means **INDETERMINATE** (unknown), never
+  "independent" — state `depends_on: []` when there is genuinely no dependency.
 - **Completion criteria** — checkboxes for the global exit conditions (all
   phases completed — including the final Validation phase — full test suite
   green, etc.). **Reference-only model**: the plan's `## Phases` and this
