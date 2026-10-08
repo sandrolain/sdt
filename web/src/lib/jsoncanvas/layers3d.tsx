@@ -13,6 +13,7 @@ import { edgeGeom } from "./geometry";
 import { nodeLayer, type CanvasDocument, type CanvasNode } from "./document";
 import { nodeLabelText, resolveColor, type CanvasTheme } from "./theme";
 import { collapsedContainedIds } from "./collapse";
+import { nodeDepth, planeLayer } from "./depth";
 
 function tex(
   n: CanvasNode,
@@ -93,7 +94,7 @@ export function Layers3D({ doc, theme, presets, gap, hidden, onPick, collapsed }
     const el = host.current;
     if (!el || !nodes.length) return;
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
-    const off = (n: CanvasNode) => hidden.includes(nodeLayer(n));
+    const off = (n: CanvasNode) => hidden.includes(planeLayer(n, gap));
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(2, devicePixelRatio));
     el.appendChild(renderer.domElement);
@@ -153,7 +154,7 @@ export function Layers3D({ doc, theme, presets, gap, hidden, onPick, collapsed }
         m.position.set(
           n.x + n.width / 2,
           -(n.y + n.height / 2),
-          nodeLayer(n) * gap + (grp ? -3 : 0),
+          nodeDepth(n, gap) + (grp ? -3 : 0),
         );
         m.userData.id = n.id;
         scene.add(m);
@@ -165,8 +166,8 @@ export function Layers3D({ doc, theme, presets, gap, hidden, onPick, collapsed }
       if (!A || !B || off(A) || off(B) || collapsedIds.has(A.id) || collapsedIds.has(B.id)) return;
       const g = edgeGeom(e, byId);
       if (!g) return;
-      const zA = nodeLayer(A) * gap;
-      const zB = nodeLayer(B) * gap;
+      const zA = nodeDepth(A, gap);
+      const zB = nodeDepth(B, gap);
       const v = (p: { x: number; y: number }, z: number) => new THREE.Vector3(p.x, -p.y, z);
       const curve = new THREE.CubicBezierCurve3(v(g.p, zA), v(g.c1, zA), v(g.c2, zB), v(g.q, zB));
       const col = new THREE.Color(resolveColor(e.color, presets) || theme.edge);
