@@ -94,8 +94,8 @@ export function SemanticMapView() {
       </header>
       {empty ? (
         <p className="content__empty semantic-map__empty">
-          No semantic map yet. Run <code>sdt context search --semantic</code> once to build the
-          vector snapshot.
+          {data.warning ? `${data.warning}. ` : "No semantic map yet. "}
+          Run <code>sdt context snapshot build</code> to build the vector snapshot.
         </p>
       ) : (
         <div className="semantic-map__canvas">

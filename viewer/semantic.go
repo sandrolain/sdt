@@ -16,8 +16,13 @@ import (
 // false by default: /api/search always stays lexical unless it is switched on
 // and the running model can be loaded.
 type semanticOptions struct {
-	// Enabled switches the branch on (flag --semantic or config search.semantic).
+	// Enabled switches the search branch on (flag --semantic or config
+	// search.semantic).
 	Enabled bool
+	// BuildOnDemand lets the viewer build the vector snapshot when the semantic
+	// map asks for it and none exists yet (config search.semantic_build, default
+	// true). It is independent of Enabled: the map is its own consumer.
+	BuildOnDemand bool
 	// Model is the embedding model id; the empty value means the default
 	// (BASE8M). Fine-tune via --semantic-model or config search.model.
 	Model semantic.Model
@@ -51,6 +56,10 @@ type viewerConfig struct {
 type viewerSearchConfig struct {
 	// Semantic enables the optional /api/search?semantic=1 branch.
 	Semantic bool `yaml:"semantic"`
+	// SemanticBuild is the on-demand snapshot build switch for the semantic map;
+	// nil (absent) means enabled (default true). A pointer distinguishes
+	// "not set" from an explicit false.
+	SemanticBuild *bool `yaml:"semantic_build"`
 	// Model overrides the embedding model id (default BASE8M). Empty disables
 	// this override.
 	Model string `yaml:"model"`
@@ -73,7 +82,10 @@ func loadViewerConfig(root string) viewerConfig {
 // semanticOptionsFromConfig derives the branch options from the project config.
 func semanticOptionsFromConfig(root string) semanticOptions {
 	cfg := loadViewerConfig(root)
-	opts := semanticOptions{Enabled: cfg.Search.Semantic}
+	opts := semanticOptions{Enabled: cfg.Search.Semantic, BuildOnDemand: true}
+	if cfg.Search.SemanticBuild != nil {
+		opts.BuildOnDemand = *cfg.Search.SemanticBuild
+	}
 	if cfg.Search.Model != "" {
 		opts.Model = semantic.Model(cfg.Search.Model)
 	}
@@ -109,28 +121,59 @@ func (s *server) rebuildSemantic(ix *search.Index, refresh *mdindex.Refresh) {
 	if model == "" {
 		model = semantic.ModelBase8M
 	}
-	sem, err := semantic.New(context.Background(), model)
+	hashes := make(map[string]string)
+	for _, e := range refresh.Manifest.EntriesSorted() {
+		hashes[e.ID] = e.Hash
+	}
+	// Same single build path as the CLI and the on-demand map build.
+	sem, _, err := semantic.BuildSnapshot(context.Background(), s.root, model, ix.SemanticSections(), hashes, mdindex.ManifestVersion)
 	if err != nil {
 		slog.Warn("sdtviewer: semantic index unavailable, serving lexical-only", "err", err, "model", model)
 		s.setSemanticIndex(nil)
 		return
 	}
-	base := semantic.LoadSnapshot(s.root)
-	manifestV := mdindex.ManifestVersion
-	if !base.Matches(model, semantic.RecipeVersion, manifestV) {
-		base = &semantic.Snapshot{}
+	s.setSemanticIndex(sem)
+}
+
+// ensureSemanticSnapshot builds the vector snapshot on demand when the semantic
+// map needs it and none exists yet. It is a no-op when on-demand building is
+// disabled, when a snapshot already exists, or when the search index is
+// unavailable. Concurrent callers are serialized (single-flight) so the model is
+// loaded and the corpus embedded at most once. It returns a non-empty warning
+// string when a build was attempted and failed, so the map can show the reason
+// instead of a bare empty state.
+func (s *server) ensureSemanticSnapshot(ctx context.Context) string {
+	if !s.semOpts.BuildOnDemand {
+		return ""
+	}
+	if !semantic.LoadSnapshot(s.root).Empty() {
+		return ""
+	}
+	s.semBuildMu.Lock()
+	defer s.semBuildMu.Unlock()
+	// Re-check under the lock: a queued caller may have built it already.
+	if !semantic.LoadSnapshot(s.root).Empty() {
+		return ""
+	}
+	ix := s.index()
+	if ix == nil {
+		return ""
+	}
+	refresh, err := mdindex.EnsureFresh(s.root)
+	if err != nil {
+		return "semantic build unavailable"
+	}
+	model := s.semOpts.Model
+	if model == "" {
+		model = semantic.ModelBase8M
 	}
 	hashes := make(map[string]string)
 	for _, e := range refresh.Manifest.EntriesSorted() {
 		hashes[e.ID] = e.Hash
 	}
-	out, _, _, err := sem.AddIncremental(context.Background(), ix.SemanticSections(), hashes, manifestV, base)
-	if err != nil {
-		slog.Warn("sdtviewer: semantic fill failed, serving lexical-only", "err", err)
-		s.setSemanticIndex(nil)
-		return
+	if _, _, err := semantic.BuildSnapshot(ctx, s.root, model, ix.SemanticSections(), hashes, mdindex.ManifestVersion); err != nil {
+		slog.Warn("sdtviewer: on-demand semantic build failed", "err", err, "model", model)
+		return "semantic build failed"
 	}
-	// Best-effort persistence: a snapshot write failure only costs the next start.
-	_ = semantic.SaveSnapshot(s.root, out) //nolint:errcheck // cache write, degrade on failure
-	s.setSemanticIndex(sem)
+	return ""
 }

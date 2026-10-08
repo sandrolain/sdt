@@ -18,29 +18,19 @@ import (
 	"github.com/sandrolain/sdt/internal/semantic"
 )
 
-// loadSemanticIndex builds the semantic index over the search index sections,
-// reusing the persisted vector snapshot (vectors.gob.gz under .sdt/cache) so an
-// unchanged corpus skips re-embedding. The model is loaded from the local
-// cache; --semantic-model overrides the default. A load failure is returned so
-// the caller can degrade explicitly; a snapshot read/write failure never is
-// (the snapshot is a derived cache, the search stays correct either way).
-func loadSemanticIndex(cmd *cobra.Command, ix *search.Index) (*semantic.Index, error) {
+// ctxBuildSemanticSnapshot loads the model and (re)builds the vector snapshot
+// over the shared search index sections, through the single build path in
+// internal/semantic. The model is loaded from the local cache; --semantic-model
+// overrides the default. A load/encode failure is returned so the caller can
+// degrade explicitly; the snapshot itself is a derived cache.
+func ctxBuildSemanticSnapshot(cmd *cobra.Command, ix *search.Index) (*semantic.Index, semantic.BuildResult, error) {
 	model := semantic.Model(getStringFlag(cmd, "semantic-model", false))
 	if model == "" {
 		model = semantic.ModelBase8M
 	}
-	sem, err := semantic.New(cmd.Context(), model)
-	if err != nil {
-		return nil, err
-	}
 	root, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("determine project root: %w", err)
-	}
-	manifestV := mdindex.ManifestVersion
-	base := semantic.LoadSnapshot(root)
-	if !base.Matches(model, semantic.RecipeVersion, manifestV) {
-		base = &semantic.Snapshot{} // header mismatch: full re-embed
+		return nil, semantic.BuildResult{}, fmt.Errorf("determine project root: %w", err)
 	}
 	hashes := make(map[string]string)
 	if ctxSearchRefresh != nil {
@@ -48,14 +38,13 @@ func loadSemanticIndex(cmd *cobra.Command, ix *search.Index) (*semantic.Index, e
 			hashes[e.ID] = e.Hash
 		}
 	}
-	out, _, _, err := sem.AddIncremental(cmd.Context(), ix.SemanticSections(), hashes, manifestV, base)
-	if err != nil {
-		return nil, err
-	}
-	// Best-effort persistence: a snapshot write failure must not fail the
-	// search (next run falls back to a full or incremental rebuild).
-	_ = semantic.SaveSnapshot(root, out) //nolint:errcheck // cache write, degrade on failure
-	return sem, nil
+	return semantic.BuildSnapshot(cmd.Context(), root, model, ix.SemanticSections(), hashes, mdindex.ManifestVersion)
+}
+
+// loadSemanticIndex builds the semantic index for the hybrid search path.
+func loadSemanticIndex(cmd *cobra.Command, ix *search.Index) (*semantic.Index, error) {
+	sem, _, err := ctxBuildSemanticSnapshot(cmd, ix)
+	return sem, err
 }
 
 // ctxBuildSearchIndex builds the shared search index lazily per invocation.

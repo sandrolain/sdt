@@ -14,7 +14,7 @@ import (
 
 // ctxRelatedHint is shown when no semantic snapshot exists yet (the offline
 // neighbour surface never loads the model).
-const ctxRelatedHint = "no semantic snapshot yet; run `sdt context search --semantic` once to build it"
+const ctxRelatedHint = "no semantic snapshot yet; run `sdt context snapshot build` to build it"
 
 type ctxRelatedHit struct {
 	Path    string  `json:"path" yaml:"path"`

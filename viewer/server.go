@@ -64,18 +64,19 @@ const indexHTML = `<!doctype html>
 // server is the read-only httper of the corpus under root. corpus is the
 // served subtree (root/context); everything else under root is out of scope.
 type server struct {
-	root      string
-	corpus    string
-	wiki      *contextwiki.Builder
-	srch      *search.Index
-	srchMu    sync.RWMutex
-	backlinks *backlinkIndex
-	semOpts   semanticOptions
-	sem       *semantic.Index
-	semMu     sync.RWMutex
-	spa       http.Handler
-	broker    *broker
-	watcher   *fsnotify.Watcher
+	root       string
+	corpus     string
+	wiki       *contextwiki.Builder
+	srch       *search.Index
+	srchMu     sync.RWMutex
+	backlinks  *backlinkIndex
+	semOpts    semanticOptions
+	sem        *semantic.Index
+	semMu      sync.RWMutex
+	semBuildMu sync.Mutex
+	spa        http.Handler
+	broker     *broker
+	watcher    *fsnotify.Watcher
 }
 
 // treeEntry is one corpus file in the /api/tree listing.

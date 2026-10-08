@@ -26,6 +26,8 @@ export interface SemanticEdge {
 export interface SemanticGraph {
   nodes: SemanticNode[];
   edges: SemanticEdge[];
+  /** Set when an on-demand build was attempted and failed. */
+  warning?: string;
 }
 
 // Categorical identity, not a theme role (phase 9): a semantic proximity edge is

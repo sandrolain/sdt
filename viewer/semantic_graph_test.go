@@ -114,14 +114,15 @@ func TestSemanticGraphScopedNodesAndEdges(t *testing.T) {
 	}
 }
 
-// TestSemanticGraphAbsentIndexEmpty covers the degradation contract: no snapshot
-// yields an empty, error-free payload.
+// TestSemanticGraphAbsentIndexEmpty covers the degradation contract with
+// on-demand building off: no snapshot yields an empty, error-free payload and no
+// snapshot is created.
 func TestSemanticGraphAbsentIndexEmpty(t *testing.T) {
 	root := t.TempDir()
 	writeSemanticFixture(t, root, "context/notes/a.md", "notes", "A")
 	writeSemanticFixture(t, root, "context/analysis/b.md", "analysis", "B")
 
-	s, err := newServer(root)
+	s, err := newServerWith(root, semanticOptions{BuildOnDemand: false}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,6 +131,104 @@ func TestSemanticGraphAbsentIndexEmpty(t *testing.T) {
 		t.Errorf("absent index must yield an empty graph, got %+v", g)
 	}
 	if _, err := os.Stat(semantic.SnapshotPath(root)); !os.IsNotExist(err) {
-		t.Error("graph endpoint must not create a snapshot")
+		t.Error("opt-out graph endpoint must not create a snapshot")
+	}
+}
+
+// TestSemanticGraphBuildsOnDemand covers the bootstrap contract: with an absent
+// snapshot and building enabled, the endpoint builds it and then serves nodes.
+func TestSemanticGraphBuildsOnDemand(t *testing.T) {
+	probeViewerSemantic(t)
+	root := t.TempDir()
+	writeSemanticFixture(t, root, "context/notes/a.md", "notes", "A")
+	writeSemanticFixture(t, root, "context/analysis/b.md", "analysis", "B")
+	writeFixture(t, root, ".sdt.yaml", "search:\n  model: BASE2M\n  semantic_build: true\n")
+
+	s, err := newServer(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := graphGET(t, s.mux())
+	if len(g.Nodes) != 2 {
+		t.Fatalf("on-demand build must serve 2 nodes, got %+v (warning=%q)", g, g.Warning)
+	}
+	if _, err := os.Stat(semantic.SnapshotPath(root)); err != nil {
+		t.Fatalf("on-demand build must persist the snapshot: %v", err)
+	}
+}
+
+// TestSemanticGraphBuildFailureWarns covers the failure degradation: an
+// unbuildable model yields an empty graph with a warning, never an error, and no
+// snapshot is written.
+func TestSemanticGraphBuildFailureWarns(t *testing.T) {
+	root := t.TempDir()
+	writeSemanticFixture(t, root, "context/notes/a.md", "notes", "A")
+	writeFixture(t, root, ".sdt.yaml", "search:\n  model: NOPE\n  semantic_build: true\n")
+
+	s, err := newServer(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := graphGET(t, s.mux())
+	if len(g.Nodes) != 0 {
+		t.Errorf("failed build must stay empty, got %+v", g)
+	}
+	if g.Warning == "" {
+		t.Error("failed build must carry a warning")
+	}
+	if _, err := os.Stat(semantic.SnapshotPath(root)); !os.IsNotExist(err) {
+		t.Error("failed build must not write a snapshot")
+	}
+}
+
+// TestSemanticGraphConcurrentBuild is a smoke test for the single-flight guard:
+// concurrent requests all succeed and the snapshot ends consistent.
+func TestSemanticGraphConcurrentBuild(t *testing.T) {
+	probeViewerSemantic(t)
+	root := t.TempDir()
+	writeSemanticFixture(t, root, "context/notes/a.md", "notes", "A")
+	writeSemanticFixture(t, root, "context/analysis/b.md", "analysis", "B")
+	writeFixture(t, root, ".sdt.yaml", "search:\n  model: BASE2M\n  semantic_build: true\n")
+
+	s, err := newServer(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := s.mux()
+	const n = 4
+	results := make(chan int, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/semantic/graph", nil))
+			var g semGraph
+			_ = json.Unmarshal(rec.Body.Bytes(), &g)
+			results <- len(g.Nodes)
+		}()
+	}
+	for i := 0; i < n; i++ {
+		if got := <-results; got != 2 {
+			t.Errorf("concurrent request nodes = %d, want 2", got)
+		}
+	}
+}
+
+// TestSemanticGraphBuildOptOut covers search.semantic_build=false: the endpoint
+// stays read-only and creates no snapshot.
+func TestSemanticGraphBuildOptOut(t *testing.T) {
+	root := t.TempDir()
+	writeSemanticFixture(t, root, "context/notes/a.md", "notes", "A")
+	writeFixture(t, root, ".sdt.yaml", "search:\n  semantic_build: false\n")
+
+	s, err := newServer(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := graphGET(t, s.mux())
+	if len(g.Nodes) != 0 {
+		t.Errorf("opt-out must stay empty, got %+v", g)
+	}
+	if _, err := os.Stat(semantic.SnapshotPath(root)); !os.IsNotExist(err) {
+		t.Error("opt-out must not create a snapshot")
 	}
 }

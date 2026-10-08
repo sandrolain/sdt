@@ -41,21 +41,27 @@ type semEdge struct {
 }
 
 // semGraph is the payload of /api/semantic/graph: the scoped nodes and their
-// de-duplicated top-k neighbour edges, deterministically ordered.
+// de-duplicated top-k neighbour edges, deterministically ordered. Warning is set
+// when an on-demand build was attempted and failed, so the map can explain the
+// empty state.
 type semGraph struct {
-	Nodes []semNode `json:"nodes"`
-	Edges []semEdge `json:"edges"`
+	Nodes   []semNode `json:"nodes"`
+	Edges   []semEdge `json:"edges"`
+	Warning string    `json:"warning,omitempty"`
 }
 
 // handleSemanticGraph serves the scoped semantic-neighbour graph shared by the
-// viewer's overlay and semantic tab. It reads the persisted vector snapshot
-// (no encoder) and degrades to an empty graph when none exists.
-func (s *server) handleSemanticGraph(w http.ResponseWriter, _ *http.Request) {
+// viewer's map view and semantic tab. When no snapshot exists and on-demand
+// building is enabled it builds one first (single-flight), then reads it. It
+// degrades to an empty graph with a warning when the build cannot run.
+func (s *server) handleSemanticGraph(w http.ResponseWriter, r *http.Request) {
+	warning := s.ensureSemanticSnapshot(r.Context())
 	graph, err := s.buildSemanticGraph()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
 		return
 	}
+	graph.Warning = warning
 	writeJSON(w, http.StatusOK, graph)
 }
 
