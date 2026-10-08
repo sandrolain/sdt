@@ -24,6 +24,7 @@ import {
 } from "react";
 import "./JsonCanvas.css";
 import { type CanvasDocument, type CanvasEdge, type CanvasNode } from "../lib/jsoncanvas/document";
+import { collapsedContainedIds } from "../lib/jsoncanvas/collapse";
 import { arrow, edgeGeom } from "../lib/jsoncanvas/geometry";
 import { Md } from "../lib/jsoncanvas/markdown";
 import { Minimap } from "../lib/jsoncanvas/minimap";
@@ -75,6 +76,8 @@ export interface JsonCanvasProps {
   onOpenNode?: (node: CanvasNode) => void;
   /** A 3D-scene pick (reference parity: focus the node in 2D). */
   onPick?: (node: CanvasNode) => void;
+  /** Ids of collapsed `group` nodes (O6): their contained nodes are hidden. */
+  collapsedGroups?: string[];
   onSelectNode?: (id: string | null) => void;
   onViewChange?: (zoom: number) => void;
 }
@@ -127,6 +130,7 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
     ariaLabel,
     onOpenNode,
     onPick,
+    collapsedGroups,
     onSelectNode,
     onViewChange,
   },
@@ -282,6 +286,8 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
     [onOpenNode],
   );
 
+  const collapsed = useMemo(() => new Set(collapsedGroups ?? []), [collapsedGroups]);
+  const hiddenIds = useMemo(() => collapsedContainedIds(nodes, collapsed), [nodes, collapsed]);
   const groups = useMemo(
     () =>
       nodes
@@ -289,7 +295,10 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
         .sort((a, b) => b.width * b.height - a.width * a.height),
     [nodes],
   );
-  const others = useMemo(() => nodes.filter((n) => n.type !== "group"), [nodes]);
+  const others = useMemo(
+    () => nodes.filter((n) => n.type !== "group" && !hiddenIds.has(n.id)),
+    [nodes, hiddenIds],
+  );
 
   const renderBody = (n: CanvasNode): ReactNode => {
     const custom = renderNode?.(n, { placeholderScale });
@@ -350,7 +359,9 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
         tabIndex={0}
         aria-label={String(n.title ?? n.label ?? n.text ?? n.file ?? n.url ?? n.id)}
         aria-pressed={isSel}
-        className={`jc-node jc-${n.type}${isSel ? " sel" : ""}${col ? " col" : ""}`}
+        className={`jc-node jc-${n.type}${isSel ? " sel" : ""}${col ? " col" : ""}${
+          n.type === "group" && collapsed.has(n.id) ? " jc-group--collapsed" : ""
+        }`}
         style={cssVars}
         onDoubleClick={(e) => {
           e.stopPropagation();
@@ -412,6 +423,7 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
             presets={presets}
             gap={layerGap}
             hidden={hiddenLayers}
+            collapsed={collapsedGroups}
             onPick={(id) => {
               const n = byId[id];
               if (n) onPick?.(n);

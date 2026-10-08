@@ -60,6 +60,23 @@ describe("JsonCanvas (read-only)", () => {
     expect(onOpenNode).not.toHaveBeenCalled();
   });
 
+  it("hides the nodes contained in a collapsed group (O6)", () => {
+    const doc: CanvasDocument = {
+      nodes: [
+        { id: "g", type: "group", x: 0, y: 0, width: 400, height: 400, label: "Box" },
+        { id: "a", type: "text", x: 20, y: 20, width: 100, height: 50, text: "Inside" },
+        { id: "b", type: "text", x: 500, y: 0, width: 100, height: 50, text: "Outside" },
+      ],
+      edges: [],
+    };
+    render(<JsonCanvas data={doc} collapsedGroups={["g"]} />);
+    expect(screen.queryByRole("button", { name: "Inside" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Outside" })).toBeTruthy();
+    cleanup();
+    render(<JsonCanvas data={doc} />);
+    expect(screen.getByRole("button", { name: "Inside" })).toBeTruthy();
+  });
+
   it("keeps an unsafe link inert and a safe link navigable", () => {
     const doc: CanvasDocument = {
       nodes: [

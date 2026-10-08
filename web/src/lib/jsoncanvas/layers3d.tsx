@@ -12,6 +12,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { edgeGeom } from "./geometry";
 import { nodeLayer, type CanvasDocument, type CanvasNode } from "./document";
 import { nodeLabelText, resolveColor, type CanvasTheme } from "./theme";
+import { collapsedContainedIds } from "./collapse";
 
 function tex(
   n: CanvasNode,
@@ -74,14 +75,19 @@ interface Layers3DProps {
   gap: number;
   hidden: number[];
   onPick?: (id: string) => void;
+  collapsed?: string[];
 }
 
 /** Read-only layered 3D scene. One plane per `x-layer`. */
-export function Layers3D({ doc, theme, presets, gap, hidden, onPick }: Layers3DProps) {
+export function Layers3D({ doc, theme, presets, gap, hidden, onPick, collapsed }: Layers3DProps) {
   const host = useRef<HTMLDivElement>(null);
   const nodes = useMemo(() => doc.nodes ?? [], [doc]);
   const edges = useMemo(() => doc.edges ?? [], [doc]);
   const layers = useMemo(() => [...new Set(nodes.map(nodeLayer))].sort((a, b) => a - b), [nodes]);
+  const collapsedIds = useMemo(
+    () => collapsedContainedIds(nodes, new Set(collapsed ?? [])),
+    [nodes, collapsed],
+  );
 
   useEffect(() => {
     const el = host.current;
@@ -132,7 +138,7 @@ export function Layers3D({ doc, theme, presets, gap, hidden, onPick }: Layers3DP
         scene.add(ln);
       });
     const meshes = nodes
-      .filter((n) => !off(n))
+      .filter((n) => !off(n) && !collapsedIds.has(n.id))
       .map((n) => {
         const grp = n.type === "group";
         const m = new THREE.Mesh(
@@ -156,7 +162,7 @@ export function Layers3D({ doc, theme, presets, gap, hidden, onPick }: Layers3DP
     edges.forEach((e) => {
       const A = byId[e.fromNode];
       const B = byId[e.toNode];
-      if (!A || !B || off(A) || off(B)) return;
+      if (!A || !B || off(A) || off(B) || collapsedIds.has(A.id) || collapsedIds.has(B.id)) return;
       const g = edgeGeom(e, byId);
       if (!g) return;
       const zA = nodeLayer(A) * gap;
@@ -232,7 +238,7 @@ export function Layers3D({ doc, theme, presets, gap, hidden, onPick }: Layers3DP
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [doc, hidden, theme, presets, gap, nodes, layers, onPick, edges]);
+  }, [doc, hidden, theme, presets, gap, nodes, layers, onPick, edges, collapsedIds]);
 
   return <div className="jc-3d" ref={host} />;
 }

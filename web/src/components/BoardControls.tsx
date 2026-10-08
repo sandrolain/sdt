@@ -21,6 +21,13 @@ export interface BoardCrumb {
   label: string;
 }
 
+/** One group node and its (view-local) collapse state (O6). */
+export interface BoardGroup {
+  id: string;
+  label: string;
+  collapsed: boolean;
+}
+
 export interface BoardControlsProps {
   sources: { path: string; label: string }[];
   source: string;
@@ -38,6 +45,8 @@ export interface BoardControlsProps {
   onToggleLayer: (id: number) => void;
   showMinimap: boolean;
   onShowMinimap: (value: boolean) => void;
+  groups: BoardGroup[];
+  onToggleGroup: (id: string) => void;
 }
 
 export function BoardControls({
@@ -57,6 +66,8 @@ export function BoardControls({
   onToggleLayer,
   showMinimap,
   onShowMinimap,
+  groups,
+  onToggleGroup,
 }: BoardControlsProps) {
   return (
     <div className="graph-controls board-controls">
@@ -158,6 +169,17 @@ export function BoardControls({
               onChange={() => onToggleLayer(l.id)}
             >
               {l.name}
+            </Switch>
+          ))}
+        </section>
+      )}
+
+      {groups.length > 0 && (
+        <section className="graph-tools__section">
+          <h3 className="graph-tools__title">Groups</h3>
+          {groups.map((g) => (
+            <Switch key={g.id} isSelected={!g.collapsed} onChange={() => onToggleGroup(g.id)}>
+              {g.label}
             </Switch>
           ))}
         </section>

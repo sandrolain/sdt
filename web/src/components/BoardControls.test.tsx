@@ -30,6 +30,8 @@ function renderControls(overrides: Record<string, unknown> = {}) {
     onToggleLayer: vi.fn(),
     showMinimap: true,
     onShowMinimap: vi.fn(),
+    groups: [] as { id: string; label: string; collapsed: boolean }[],
+    onToggleGroup: vi.fn(),
     ...overrides,
   };
   render(<BoardControls {...props} />);
@@ -73,5 +75,11 @@ describe("BoardControls", () => {
     const props = renderControls();
     await userEvent.click(screen.getByRole("button", { name: "Wiki graph" }));
     expect(props.onCrumb).toHaveBeenCalledWith("");
+  });
+
+  it("toggles a group collapse (O6)", async () => {
+    const props = renderControls({ groups: [{ id: "g", label: "Box", collapsed: false }] });
+    await userEvent.click(screen.getByRole("switch", { name: "Box" }));
+    expect(props.onToggleGroup).toHaveBeenCalledWith("g");
   });
 });

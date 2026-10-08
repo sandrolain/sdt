@@ -31,11 +31,12 @@ import { clearLayout, loadLayout, saveLayout } from "../lib/layoutStore";
 import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
 import { boardPath, parseBoardSplat, buildLevels, type BoardLevel } from "../lib/boardRoute";
 import { decorateBoardColours } from "../lib/boardColors";
+import { boardGroups } from "../lib/jsoncanvas/collapse";
 import { displayTitle } from "../lib/titles";
 import { addBoardPanels, BOARD_CENTER_PANEL_ID } from "../lib/wikiEdgeLayout";
 import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
 import { PLACEHOLDER_SCALE, renderNestedBody } from "./nestedCanvasBody";
-import { BoardControls, type BoardLayer, type BoardCrumb } from "./BoardControls";
+import { BoardControls, type BoardLayer, type BoardCrumb, type BoardGroup } from "./BoardControls";
 import { SkeletonLines } from "./Skeleton";
 import { useReloadToken } from "../lib/useReloadToken";
 import { useOpenDocs } from "../lib/openDocsContext";
@@ -55,6 +56,9 @@ interface BoardWorkspaceValue {
   setMode: (mode: "2d" | "3d") => void;
   hiddenLayers: number[];
   toggleLayer: (id: number) => void;
+  collapsedGroups: string[];
+  groups: BoardGroup[];
+  onToggleGroup: (id: string) => void;
   showMinimap: boolean;
   setShowMinimap: (value: boolean) => void;
   zoom: number;
@@ -83,6 +87,7 @@ function BoardPanel() {
     mode,
     setMode,
     hiddenLayers,
+    collapsedGroups,
     showMinimap,
     zoom,
     setZoom,
@@ -104,6 +109,7 @@ function BoardPanel() {
         data={doc}
         mode={mode}
         hiddenLayers={hiddenLayers}
+        collapsedGroups={collapsedGroups}
         showMinimap={showMinimap}
         fitKey={doc}
         placeholderScale={PLACEHOLDER_SCALE}
@@ -144,6 +150,8 @@ function BoardControlsPanel() {
         onToggleLayer={b.toggleLayer}
         showMinimap={b.showMinimap}
         onShowMinimap={b.setShowMinimap}
+        groups={b.groups}
+        onToggleGroup={b.onToggleGroup}
       />
     </div>
   );
@@ -170,6 +178,7 @@ export function WikiBoardView() {
   const [mode, setMode] = useState<"2d" | "3d">("2d");
   const [levels, setLevels] = useState<BoardLevel[]>([]);
   const [hiddenLayers, setHiddenLayers] = useState<number[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const [showMinimap, setShowMinimap] = useState(true);
   const [zoom, setZoom] = useState(1);
   const viewRef = useRef<JsonCanvasHandle | null>(null);
@@ -198,6 +207,13 @@ export function WikiBoardView() {
         const built = buildLevels(root, drillIds);
         setLevels(built);
         setError(null);
+        // The view-local collapse state defaults to the authored `x-collapsed`.
+        const active = built.length > 0 ? built[built.length - 1].model : root;
+        setCollapsedGroups(
+          boardGroups(active.nodes)
+            .filter((g) => g.collapsed)
+            .map((g) => g.id),
+        );
         // An unresolvable drill segment trims the URL to the deepest valid prefix.
         if (built.length < drillIds.length) {
           navigate(
@@ -249,6 +265,22 @@ export function WikiBoardView() {
 
   const toggleLayer = useCallback((id: number) => {
     setHiddenLayers((h) => (h.includes(id) ? h.filter((x) => x !== id) : [...h, id]));
+  }, []);
+
+  const groupControls = useMemo<BoardGroup[]>(
+    () =>
+      activeDocument
+        ? boardGroups(activeDocument.nodes).map((g) => ({
+            ...g,
+            collapsed: collapsedGroups.includes(g.id),
+          }))
+        : [],
+    [activeDocument, collapsedGroups],
+  );
+  const onToggleGroup = useCallback((id: string) => {
+    setCollapsedGroups((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }, []);
 
   const sourceLabel = file ? displayTitle({ path: file }) : "Wiki graph";
@@ -347,6 +379,9 @@ export function WikiBoardView() {
     setMode,
     hiddenLayers,
     toggleLayer,
+    collapsedGroups,
+    groups: groupControls,
+    onToggleGroup,
     showMinimap,
     setShowMinimap,
     zoom,
