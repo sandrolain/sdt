@@ -148,18 +148,20 @@ export function BoardControls({
         </div>
       </section>
 
-      <section className="graph-tools__section">
-        <h3 className="graph-tools__title">Layers</h3>
-        {layers.map((l) => (
-          <Switch
-            key={l.id}
-            isSelected={!hiddenLayers.includes(l.id)}
-            onChange={() => onToggleLayer(l.id)}
-          >
-            {l.name}
-          </Switch>
-        ))}
-      </section>
+      {mode === "3d" && (
+        <section className="graph-tools__section">
+          <h3 className="graph-tools__title">Layers</h3>
+          {layers.map((l) => (
+            <Switch
+              key={l.id}
+              isSelected={!hiddenLayers.includes(l.id)}
+              onChange={() => onToggleLayer(l.id)}
+            >
+              {l.name}
+            </Switch>
+          ))}
+        </section>
+      )}
     </div>
   );
 }

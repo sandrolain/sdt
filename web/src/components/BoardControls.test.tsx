@@ -54,11 +54,19 @@ describe("BoardControls", () => {
   });
 
   it("toggles the minimap and a layer", async () => {
-    const props = renderControls();
+    const props = renderControls({ mode: "3d" });
     await userEvent.click(screen.getByRole("switch", { name: "Minimap" }));
     await userEvent.click(screen.getByRole("switch", { name: "Deep" }));
     expect(props.onShowMinimap).toHaveBeenCalledWith(false);
     expect(props.onToggleLayer).toHaveBeenCalledWith(1);
+  });
+
+  it("hides the Layers section in 2D and shows it in 3D", () => {
+    renderControls({ mode: "2d" });
+    expect(screen.queryByRole("switch", { name: "Deep" })).toBeNull();
+    cleanup();
+    renderControls({ mode: "3d" });
+    expect(screen.getByRole("switch", { name: "Deep" })).toBeTruthy();
   });
 
   it("pops a drill-down level from the breadcrumb", async () => {
