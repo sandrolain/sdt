@@ -3,16 +3,16 @@ module github.com/sandrolain/sdt
 go 1.27.1
 
 require (
-	codeberg.org/readeck/go-readability/v2 v2.1.2
+	codeberg.org/readeck/go-readability/v2 v2.1.3
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/blevesearch/bleve/v2 v2.6.1
-	github.com/firecrawl/firecrawl/apps/go-sdk v1.3.0
+	github.com/firecrawl/firecrawl/apps/go-sdk v1.16.4
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gocolly/colly v1.2.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/go-version v1.9.0
-	github.com/lmittmann/tint v1.2.0
+	github.com/lmittmann/tint v1.2.1
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/pelletier/go-toml/v2 v2.4.3
@@ -23,14 +23,14 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
-	github.com/tidwall/gjson v1.19.0
+	github.com/tidwall/gjson v1.20.0
 	github.com/tidwall/sjson v1.2.5
 	github.com/trengrj/go-potion v0.1.2
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	github.com/yuin/goldmark/v2 v2.1.5
+	github.com/yuin/goldmark/v2 v2.1.6
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/crypto v0.56.0
-	golang.org/x/text v0.41.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/text v0.42.0
 )
 
 require (
@@ -92,7 +92,7 @@ require (
 	github.com/yuin/goldmark v1.8.6 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
