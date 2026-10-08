@@ -76,13 +76,15 @@ type boardResponse struct {
 
 // canvasNode / canvasEdge follow the JSON Canvas v0.2 shape.
 type canvasNode struct {
-	ID     string `json:"id"`
-	Type   string `json:"type"`
-	X      int    `json:"x"`
-	Y      int    `json:"y"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Text   string `json:"text"`
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	X        int    `json:"x"`
+	Y        int    `json:"y"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Text     string `json:"text,omitempty"`
+	Label    string `json:"label,omitempty"`
+	XCluster string `json:"x-cluster,omitempty"`
 }
 
 type canvasEdge struct {
@@ -92,15 +94,19 @@ type canvasEdge struct {
 	ToNode   string `json:"toNode"`
 	ToSide   string `json:"toSide"`
 	Label    string `json:"label,omitempty"`
+	XKind    string `json:"x-kind,omitempty"`
 }
 
-// board layout constants for the graph-derived canvas.
+// board layout constants for the graph-derived canvas (cluster blocks).
 const (
-	boardCols   = 4
-	boardColGap = 320
-	boardRowGap = 180
-	boardWidth  = 260
-	boardHeight = 120
+	boardNodeW     = 260
+	boardNodeH     = 120
+	boardNodeGapX  = 60
+	boardNodeGapY  = 60
+	boardBlockPad  = 40
+	boardBlockGap  = 80
+	boardBlockCols = 3
+	boardTitleH    = 40
 )
 
 // loadWiki loads the shared wiki Builder from <root>/context/wiki into the
@@ -297,18 +303,61 @@ func (s *server) handleWikiBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nodes, edges := s.wikiGraph()
-	cn := make([]canvasNode, 0, len(nodes))
-	for i, n := range nodes {
-		cn = append(cn, canvasNode{
-			ID:     n.ID,
-			Type:   "text",
-			X:      (i % boardCols) * boardColGap,
-			Y:      (i / boardCols) * boardRowGap,
-			Width:  boardWidth,
-			Height: boardHeight,
-			Text:   n.Title,
-		})
+	writeJSON(w, http.StatusOK, boardFromGraph(nodes, edges))
+}
+
+// boardFromGraph emits the wiki graph as JSON Canvas with graph parity (O3):
+// one synthetic `group` node per cluster (the page `type`, sorted) enclosing
+// exactly its pages, `x-cluster` on each page node, and the edge `kind` as
+// `x-kind`. The layout is deterministic (sorted cluster ids, then page ids) so
+// cluster blocks never overlap and the result is unit-testable. Unclustered
+// pages (empty type) form a trailing block with no group node.
+func boardFromGraph(nodes []graphNode, edges []graphEdge) boardResponse {
+	byCluster := map[string][]graphNode{}
+	var clusterIDs []string
+	for _, n := range nodes {
+		c := strings.TrimSpace(n.Type)
+		if _, seen := byCluster[c]; !seen {
+			clusterIDs = append(clusterIDs, c)
+		}
+		byCluster[c] = append(byCluster[c], n)
 	}
+	sort.Strings(clusterIDs)
+
+	cn := make([]canvasNode, 0, len(nodes)+len(clusterIDs))
+	y := 0
+	for _, c := range clusterIDs {
+		pages := byCluster[c]
+		sort.Slice(pages, func(i, j int) bool { return pages[i].ID < pages[j].ID })
+		cols := boardBlockCols
+		if len(pages) < cols {
+			cols = len(pages)
+		}
+		if cols < 1 {
+			cols = 1
+		}
+		rows := (len(pages) + cols - 1) / cols
+		blockW := boardBlockPad*2 + cols*boardNodeW + (cols-1)*boardNodeGapX
+		blockH := boardTitleH + boardBlockPad + rows*boardNodeH + (rows-1)*boardNodeGapY + boardBlockPad
+		if c != "" {
+			cn = append(cn, canvasNode{
+				ID: "cluster:" + c, Type: "group", Label: c,
+				X: 0, Y: y, Width: blockW, Height: blockH,
+			})
+		}
+		for i, p := range pages {
+			col, row := i%cols, i/cols
+			cn = append(cn, canvasNode{
+				ID: p.ID, Type: "text", Text: p.Title, XCluster: c,
+				X:      boardBlockPad + col*(boardNodeW+boardNodeGapX),
+				Y:      y + boardTitleH + boardBlockPad + row*(boardNodeH+boardNodeGapY),
+				Width:  boardNodeW,
+				Height: boardNodeH,
+			})
+		}
+		y += blockH + boardBlockGap
+	}
+
 	ce := make([]canvasEdge, 0, len(edges))
 	for i, e := range edges {
 		ce = append(ce, canvasEdge{
@@ -318,9 +367,10 @@ func (s *server) handleWikiBoard(w http.ResponseWriter, r *http.Request) {
 			ToNode:   e.Target,
 			ToSide:   "left",
 			Label:    e.Verb,
+			XKind:    e.Kind,
 		})
 	}
-	writeJSON(w, http.StatusOK, boardResponse{Nodes: cn, Edges: ce})
+	return boardResponse{Nodes: cn, Edges: ce}
 }
 
 // serveCanvasFile serves raw JSON Canvas content for a validated corpus path.

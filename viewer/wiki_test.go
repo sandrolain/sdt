@@ -282,17 +282,87 @@ func TestWikiBoardDefault(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Nodes) != 5 {
-		t.Errorf("board nodes = %d", len(out.Nodes))
+	// Graph parity (O3): 5 page nodes + one group node per cluster (type).
+	if len(out.Nodes) != 7 {
+		t.Errorf("board nodes = %d, want 5 pages + 2 groups", len(out.Nodes))
 	}
-	if out.Nodes[0].Type != "text" || out.Nodes[0].X != 0 || out.Nodes[0].Y != 0 || out.Nodes[0].Text == "" {
-		t.Errorf("board node[0] = %+v", out.Nodes[0])
+	groups := map[string]bool{}
+	pages := 0
+	for _, n := range out.Nodes {
+		switch n.Type {
+		case "group":
+			groups[n.Label] = true
+			if !strings.HasPrefix(n.ID, "cluster:") || n.Width == 0 || n.Height == 0 {
+				t.Errorf("group node = %+v", n)
+			}
+		case "text":
+			pages++
+			if n.Text == "" || n.XCluster == "" {
+				t.Errorf("page node missing text/x-cluster: %+v", n)
+			}
+		}
+	}
+	if pages != 5 {
+		t.Errorf("page nodes = %d, want 5", pages)
+	}
+	if !groups["module"] || !groups["entity"] {
+		t.Errorf("cluster groups = %v, want module + entity", groups)
 	}
 	if len(out.Edges) != 3 {
 		t.Errorf("board edges = %d", len(out.Edges))
 	}
-	if out.Edges[0].FromNode == "" || out.Edges[0].ToNode == "" {
+	if out.Edges[0].FromNode == "" || out.Edges[0].ToNode == "" || out.Edges[0].XKind == "" {
 		t.Errorf("board edge[0] = %+v", out.Edges[0])
+	}
+}
+
+func TestBoardFromGraphDeterministic(t *testing.T) {
+	nodes := []graphNode{
+		{ID: "p2", Title: "P2", Type: "beta"},
+		{ID: "p1", Title: "P1", Type: "beta"},
+		{ID: "q1", Title: "Q1", Type: "alpha"},
+		{ID: "u1", Title: "U1", Type: ""},
+	}
+	edges := []graphEdge{{Source: "p1", Target: "q1", Verb: "depends_on", Kind: "relation"}}
+	got := boardFromGraph(nodes, edges)
+
+	var groupIDs []string
+	group := func(label string) canvasNode {
+		for _, n := range got.Nodes {
+			if n.Type == "group" && n.Label == label {
+				return n
+			}
+		}
+		return canvasNode{}
+	}
+	byID := map[string]canvasNode{}
+	for _, n := range got.Nodes {
+		byID[n.ID] = n
+		if n.Type == "group" {
+			groupIDs = append(groupIDs, n.Label)
+		}
+	}
+	// Groups sorted by cluster id; the unclustered page gets no group node.
+	if len(groupIDs) != 2 || groupIDs[0] != "alpha" || groupIDs[1] != "beta" {
+		t.Fatalf("group ids = %v, want [alpha beta]", groupIDs)
+	}
+	// Pages sorted within a cluster (p1 before p2: same row, lower X).
+	if byID["p1"].Y > byID["p2"].Y || (byID["p1"].Y == byID["p2"].Y && byID["p1"].X >= byID["p2"].X) {
+		t.Errorf("pages not sorted by id: p1=%+v p2=%+v", byID["p1"], byID["p2"])
+	}
+	// A page lies inside its cluster group rectangle.
+	g := group(byID["q1"].XCluster)
+	p := byID["q1"]
+	if p.X < g.X || p.Y < g.Y || p.X+p.Width > g.X+g.Width || p.Y+p.Height > g.Y+g.Height {
+		t.Errorf("page q1 %+v not inside group %+v", p, g)
+	}
+	// Blocks do not overlap.
+	if gA, gB := group("alpha"), group("beta"); gA.Y+gA.Height > gB.Y {
+		t.Errorf("blocks overlap: alpha ends %d, beta starts %d", gA.Y+gA.Height, gB.Y)
+	}
+	// The edge carries its kind.
+	if got.Edges[0].XKind != "relation" {
+		t.Errorf("edge kind = %q", got.Edges[0].XKind)
 	}
 }
 
