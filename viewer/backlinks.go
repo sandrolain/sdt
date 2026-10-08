@@ -1,17 +1,14 @@
 package main
 
 import (
-	"io/fs"
 	"net/http"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
-	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/ctxrel"
+	"github.com/sandrolain/sdt/internal/mdindex"
 )
 
 // Backlinks: the inbound half of the corpus reference graph.
@@ -65,92 +62,20 @@ func (b *backlinkIndex) Referrers(ref string) []backlinkDoc {
 	return b.byTarget[normalizeBacklinkRef(ref)]
 }
 
-// buildBacklinkIndex walks the corpus frontmatter once and records every
-// outbound reference as an inbound edge on its target. A document that cannot
-// be read is skipped: the corpus is not repaired here.
+// buildBacklinkIndex builds the inbound reference index from the shared
+// manifest (O1), reusing the same entries as /api/tree instead of re-walking
+// and re-parsing the corpus. It scans the corpus's parent root so the manifest
+// covers root/context.
 func buildBacklinkIndex(corpusDir string) (*backlinkIndex, error) {
-	index := &backlinkIndex{byTarget: map[string][]backlinkDoc{}}
+	refresh, err := mdindex.EnsureFresh(filepath.Dir(corpusDir))
+	if err != nil {
+		return nil, err
+	}
 	edges, err := ctxrel.Load(corpusDir)
 	if err != nil {
 		return nil, err
 	}
-	walkErr := filepath.WalkDir(corpusDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			if os.IsNotExist(err) {
-				return nil
-			}
-			return err
-		}
-		if d.IsDir() {
-			if path == corpusDir {
-				return nil
-			}
-			if corpus.ExcludedDirName(d.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		rel, rerr := backlinkRef(corpusDir, path)
-		if rerr != nil || rel == "" {
-			return rerr
-		}
-		if filepath.Ext(rel) != markdownExt || corpus.ExcludedPath(rel) {
-			return nil
-		}
-		index.addDocument(rel, path, edges)
-		return nil
-	})
-	if walkErr != nil {
-		return nil, walkErr
-	}
-	index.sortAll()
-	return index, nil
-}
-
-// addDocument records the references one document makes.
-func (b *backlinkIndex) addDocument(rel, path string, edges *ctxrel.Edges) {
-	data, err := os.ReadFile(path) //#nosec G304 -- corpus walk target
-	if err != nil {
-		return
-	}
-	fm, _ := contextwiki.SplitFrontmatter(string(data))
-	kind := contextwiki.FrontmatterField(fm, "kind")
-	referrer := backlinkDoc{
-		Path:     rel,
-		Title:    contextwiki.FrontmatterField(fm, "title"),
-		Kind:     kind,
-		Summary:  contextwiki.FrontmatterField(fm, "summary"),
-		Modified: contextwiki.FrontmatterField(fm, "updated"),
-	}
-	if referrer.Modified == "" {
-		if info, statErr := os.Stat(path); statErr == nil {
-			referrer.Modified = info.ModTime().UTC().Format(time.RFC3339)
-		}
-	}
-	seen := map[string]bool{}
-	record := func(ref, via string) {
-		target := normalizeBacklinkRef(ref)
-		if target == "" || target == rel || seen[target] {
-			return
-		}
-		seen[target] = true
-		doc := referrer
-		doc.Via = via
-		b.byTarget[target] = append(b.byTarget[target], doc)
-	}
-	for _, ref := range contextwiki.FrontmatterList(fm, "sources") {
-		record(ref, viaSources)
-	}
-	for _, ref := range contextwiki.FrontmatterList(fm, "links") {
-		record(ref, viaLinks)
-	}
-	// The lifecycle parent is the typed relation, never a `sources` entry.
-	switch kind {
-	case "plan", "tasks":
-		if parent := edges.ParentOf(rel); parent != "" {
-			record(parent, viaRelations)
-		}
-	}
+	return buildBacklinkIndexFromManifest(refresh.Manifest, edges), nil
 }
 
 // sortAll orders every referrer list newest first, path as the tiebreak.
@@ -164,16 +89,6 @@ func (b *backlinkIndex) sortAll() {
 		})
 		b.byTarget[target] = refs
 	}
-}
-
-// backlinkRef converts a walked file path into the corpus-relative reference
-// the index is keyed by (`context/analysis/x.md`).
-func backlinkRef(corpusRoot, path string) (string, error) {
-	rel, err := filepath.Rel(corpusRoot, path)
-	if err != nil {
-		return "", err
-	}
-	return corpusDir + "/" + filepath.ToSlash(rel), nil
 }
 
 // normalizeBacklinkRef maps a reference as written in frontmatter to the index

@@ -830,8 +830,13 @@ func TestTreeUnreadable(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/tree", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusInternalServerError {
+	// O1: the tree is served from the startup manifest, so an unreadable file is
+	// skipped at scan time and the request is 200 without it.
+	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "broken.md") {
+		t.Errorf("unreadable file must be skipped: %s", rec.Body.String())
 	}
 }
 

@@ -19,6 +19,7 @@ func (s *server) loadSearch() error {
 	if err != nil {
 		return err
 	}
+	s.rebuildDerived(refresh.Manifest)
 	ix, err := search.LoadOrRebuild(s.root, refresh.Manifest.EntriesSorted(), refresh.Changed, refresh.Removed)
 	if err != nil {
 		return err
@@ -40,6 +41,7 @@ func (s *server) rebuildSearch(paths []string) {
 		slog.Warn("sdtviewer: search rebuild scan failed", "err", err)
 		return
 	}
+	s.rebuildDerived(refresh.Manifest)
 	ix, err := search.LoadOrRebuild(s.root, refresh.Manifest.EntriesSorted(), refresh.Changed, refresh.Removed)
 	if err != nil {
 		slog.Warn("sdtviewer: search rebuild failed", "err", err)

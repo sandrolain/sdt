@@ -70,10 +70,7 @@ func (s *server) handleSemanticGraph(w http.ResponseWriter, r *http.Request) {
 // section vectors; internal/semantic). An absent or empty snapshot yields an
 // empty graph, never an error.
 func (s *server) buildSemanticGraph() (semGraph, error) {
-	entries, err := s.walkTree()
-	if err != nil {
-		return semGraph{}, err
-	}
+	entries := s.treeEntries()
 	meta := make(map[string]treeEntry, len(entries))
 	for _, e := range entries {
 		if eligibleSemanticKinds[e.Kind] {

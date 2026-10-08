@@ -3,15 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/sandrolain/sdt/internal/contextwiki"
@@ -70,6 +67,8 @@ type server struct {
 	srch       *search.Index
 	srchMu     sync.RWMutex
 	backlinks  *backlinkIndex
+	tree       []treeEntry
+	treeMu     sync.RWMutex
 	semOpts    semanticOptions
 	sem        *semantic.Index
 	semMu      sync.RWMutex
@@ -171,12 +170,6 @@ func newServerWith(root string, opts semanticOptions, overrides *semanticOverrid
 	if err := s.loadSearch(); err != nil {
 		slog.Warn("sdtviewer: search unavailable", "err", err)
 	}
-	index, err := buildBacklinkIndex(s.corpus)
-	if err != nil {
-		slog.Warn("sdtviewer: backlinks unavailable", "err", err)
-	} else {
-		s.backlinks = index
-	}
 	return s, nil
 }
 
@@ -221,108 +214,11 @@ func (s *server) handleIndex(w http.ResponseWriter, r *http.Request) {
 // refs/, returning .md (frontmatter title/summary/created) and .canvas files
 // tagged with canvas. A missing corpus yields an empty listing.
 func (s *server) handleTree(w http.ResponseWriter, _ *http.Request) {
-	entries, err := s.walkTree()
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
-		return
+	entries := s.treeEntries()
+	if entries == nil {
+		entries = []treeEntry{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
-}
-
-// walkTree walks the corpus, skipping the corpus-excluded directories (tmp/,
-// scripts/, refs/, commands/, instructions/, sdtdocs/) and the excluded
-// context/README.md (corpus noise), collecting .md entries, .canvas entries and
-// .mmd mermaid documents.
-// Paths are project-root-relative (context/...), matching doc/search/wiki
-// endpoints.
-func (s *server) walkTree() ([]treeEntry, error) {
-	info, err := os.Stat(s.corpus)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []treeEntry{}, nil
-		}
-		return nil, err
-	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("%s is not a directory", s.corpus)
-	}
-	var entries []treeEntry
-	err = filepath.WalkDir(s.corpus, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if path == s.corpus {
-				return nil
-			}
-			if corpus.ExcludedDirName(d.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		rel, rerr := filepath.Rel(s.corpus, path)
-		if rerr != nil {
-			return rerr
-		}
-		rel = filepath.ToSlash(filepath.Join(corpusDir, rel))
-		if corpus.ExcludedPath(rel) {
-			return nil
-		}
-		entry, ok, eerr := s.treeEntryFor(path, rel, d)
-		if eerr != nil {
-			return eerr
-		}
-		if ok {
-			entries = append(entries, entry)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
-	edges, eerr := ctxrel.Load(s.corpus)
-	if eerr != nil {
-		return nil, eerr
-	}
-	applyResolvedEdges(entries, edges)
-	return entries, nil
-}
-
-// treeEntryFor builds the entry for one corpus file: markdown through the
-// frontmatter reader, canvas and mermaid synthesized from the extension (they
-// carry no frontmatter and therefore no lifecycle edge). ok is false for a file
-// the tree does not list.
-func (s *server) treeEntryFor(path, rel string, d fs.DirEntry) (treeEntry, bool, error) {
-	var entry treeEntry
-	switch filepath.Ext(rel) {
-	case markdownExt:
-		e, err := s.mdEntry(path, rel)
-		if err != nil {
-			return treeEntry{}, false, err
-		}
-		return e, true, nil
-	case canvasExt:
-		entry = treeEntry{
-			Path:   rel,
-			Kind:   "canvas",
-			Title:  strings.TrimSuffix(d.Name(), canvasExt),
-			Canvas: true,
-		}
-	case mermaidExt:
-		entry = treeEntry{
-			Path:    rel,
-			Kind:    "mermaid",
-			Title:   strings.TrimSuffix(d.Name(), mermaidExt),
-			Mermaid: true,
-		}
-	default:
-		return treeEntry{}, false, nil
-	}
-	if info, err := d.Info(); err == nil {
-		entry.Modified = info.ModTime().UTC().Format(time.RFC3339)
-	}
-	return entry, true, nil
 }
 
 // applyResolvedEdges stamps the typed lifecycle edges onto the entries: a plan
@@ -340,49 +236,6 @@ func applyResolvedEdges(entries []treeEntry, edges *ctxrel.Edges) {
 			entries[i].Plan = edges.ParentOf(ref)
 		}
 	}
-}
-
-// mdEntry reads frontmatter fields (kind/title/summary/created) and the
-// modified timestamp (frontmatter `updated`, else the file mtime) for one .md
-// file. `created` falls back to the legacy `created_at` key so pre-rename
-// documents still surface a creation date.
-func (s *server) mdEntry(path, rel string) (treeEntry, error) {
-	data, err := os.ReadFile(path) //#nosec G304 -- corpus walk target
-	if err != nil {
-		return treeEntry{}, err
-	}
-	fm, _ := contextwiki.SplitFrontmatter(string(data))
-	// `sources` is the human-readable derivation list; `links` is correlation
-	// and is never merged into it. The lifecycle edges the status dots read are
-	// the resolved Analysis/Plans/Plan fields, stamped from the typed relations
-	// by applyResolvedEdges after the walk.
-	created := contextwiki.FrontmatterField(fm, "created")
-	if created == "" {
-		created = contextwiki.FrontmatterField(fm, "created_at")
-	}
-	e := treeEntry{
-		Path:       rel,
-		Kind:       contextwiki.FrontmatterField(fm, "kind"),
-		Title:      contextwiki.FrontmatterField(fm, "title"),
-		Summary:    contextwiki.FrontmatterField(fm, "summary"),
-		Objective:  contextwiki.FrontmatterField(fm, "objective"),
-		Status:     contextwiki.FrontmatterField(fm, "status"),
-		Categories: contextwiki.FrontmatterList(fm, "categories"),
-		Sources:    contextwiki.FrontmatterList(fm, "sources"),
-		Created:    created,
-		Modified:   contextwiki.FrontmatterField(fm, "updated"),
-		Image:      contextwiki.FrontmatterField(fm, "image"),
-	}
-	if e.Modified == "" {
-		if info, statErr := os.Stat(path); statErr == nil {
-			e.Modified = info.ModTime().UTC().Format(time.RFC3339)
-		}
-	}
-	if contextwiki.IsMapDoc(rel) {
-		e.IsMap = true
-		e.MapID = contextwiki.DocID(rel)
-	}
-	return e, nil
 }
 
 // handleDoc serves a validated corpus file: frontmatter+markdown for .md, raw
