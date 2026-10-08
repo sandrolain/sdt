@@ -90,6 +90,14 @@ read that for the full schema.
 - Claims and typed relations cite their evidence: a claim anchor in the source
   page, an existing statement, or an explicit reference like
   `refs/<file>@<sha>:<lines>` or the task/plan file that settled it.
+- A citation states its **evidence kind** (decision 0017, extended): `observed`
+  (a primary artifact you actually read — give its digest/locator,
+  `refs/<file>@<sha>` or the task/plan), `derived` (computed or inferred from
+  other evidence), or `inferred` (a judgement not directly evidenced). State the
+  weakest honest kind; never imply a stronger kind than the evidence supports.
+  Where it matters, name the source **authority** (a shipped artifact vs a
+  secondary note). This is the same family as the verify-step vocabulary
+  (passed/expected/inferred).
 - When evidence conflicts, keep both sides visible with their source, scope and
   date until reviewed — never silently drop the older authority
   (`supersedes`/`conflicts_with`).
