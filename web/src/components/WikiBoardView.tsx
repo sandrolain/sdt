@@ -80,6 +80,7 @@ function BoardPanel() {
   const {
     document: doc,
     mode,
+    setMode,
     hiddenLayers,
     showMinimap,
     zoom,
@@ -87,10 +88,18 @@ function BoardPanel() {
     setViewHandle,
     open,
   } = useBoardWorkspace();
+  const localRef = useRef<JsonCanvasHandle | null>(null);
+  const attachRef = useCallback(
+    (handle: JsonCanvasHandle | null) => {
+      localRef.current = handle;
+      setViewHandle(handle);
+    },
+    [setViewHandle],
+  );
   return (
     <div className="board-panel">
       <JsonCanvas
-        ref={setViewHandle}
+        ref={attachRef}
         data={doc}
         mode={mode}
         hiddenLayers={hiddenLayers}
@@ -99,6 +108,11 @@ function BoardPanel() {
         placeholderScale={PLACEHOLDER_SCALE}
         onViewChange={setZoom}
         onOpenNode={open}
+        onPick={(node) => {
+          // Reference parity (O4): a 3D pick focuses the node in 2D.
+          localRef.current?.focusNode(node.id);
+          setMode("2d");
+        }}
         renderNode={(node) => renderNestedBody(node, zoom)}
       />
       <span className="visually-hidden" aria-live="polite">

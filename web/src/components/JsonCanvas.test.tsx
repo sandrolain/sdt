@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRef } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
 import type { CanvasDocument } from "../lib/jsoncanvas/document";
+
+// The 3D scene needs WebGL (unavailable in jsdom); stub it to exercise the pick.
+vi.mock("../lib/jsoncanvas/layers3d", () => ({
+  default: ({ onPick }: { onPick: (id: string) => void }) => (
+    <button onClick={() => onPick("a")}>pick-a</button>
+  ),
+}));
 
 const DOC: CanvasDocument = {
   nodes: [
@@ -40,6 +48,16 @@ describe("JsonCanvas (read-only)", () => {
       ref.current?.fit();
       ref.current?.focusNode("a");
     }).not.toThrow();
+  });
+
+  it("routes a 3D pick to onPick, not onOpenNode (O4)", async () => {
+    const onPick = vi.fn();
+    const onOpenNode = vi.fn();
+    render(<JsonCanvas data={DOC} mode="3d" onPick={onPick} onOpenNode={onOpenNode} />);
+    await userEvent.click(await screen.findByRole("button", { name: "pick-a" }));
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick.mock.calls[0][0].id).toBe("a");
+    expect(onOpenNode).not.toHaveBeenCalled();
   });
 
   it("keeps an unsafe link inert and a safe link navigable", () => {

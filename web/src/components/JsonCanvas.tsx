@@ -73,6 +73,8 @@ export interface JsonCanvasProps {
   /** Accessible name of the canvas root. */
   ariaLabel?: string;
   onOpenNode?: (node: CanvasNode) => void;
+  /** A 3D-scene pick (reference parity: focus the node in 2D). */
+  onPick?: (node: CanvasNode) => void;
   onSelectNode?: (id: string | null) => void;
   onViewChange?: (zoom: number) => void;
 }
@@ -124,6 +126,7 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
     placeholderScale = 0.9,
     ariaLabel,
     onOpenNode,
+    onPick,
     onSelectNode,
     onViewChange,
   },
@@ -411,7 +414,7 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
             hidden={hiddenLayers}
             onPick={(id) => {
               const n = byId[id];
-              if (n) onOpenNode?.(n);
+              if (n) onPick?.(n);
             }}
           />
         </Suspense>
