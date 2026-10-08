@@ -20,25 +20,35 @@ import (
 // `agent roles` surfaces and the `role:` frontmatter vocabulary.
 
 type roleDescriptor struct {
-	Slug        string   `json:"slug" yaml:"slug"`
-	Title       string   `json:"title" yaml:"title"`
-	Coordinator bool     `json:"coordinator" yaml:"coordinator"`
-	Owned       []string `json:"owned,omitempty" yaml:"owned,omitempty"`
+	Slug        string `json:"slug" yaml:"slug"`
+	Title       string `json:"title" yaml:"title"`
+	Coordinator bool   `json:"coordinator" yaml:"coordinator"`
+	// CostTier is a model-agnostic hint (cheap | expensive) for which class of
+	// model a role needs: judgment-heavy roles are expensive, mechanical ones
+	// cheap. It is doctrine, not a pinned model.
+	CostTier string   `json:"cost_tier" yaml:"cost_tier"`
+	Owned    []string `json:"owned,omitempty" yaml:"owned,omitempty"`
 }
+
+// Model-agnostic cost tiers (see the shared role doctrine).
+const (
+	roleCostCheap     = "cheap"
+	roleCostExpensive = "expensive"
+)
 
 // roleRegister is the closed set of role slugs. Order matters: pm (the
 // coordinator) first, then the execution/review roles in canonical order. The
 // set is curated; adding a slug is a deliberate change (see roles check).
 
 var roleRegister = []roleDescriptor{
-	{Slug: roleSlugPM, Title: "Project manager", Coordinator: true, Owned: []string{"context/plan", "context/tasks"}},
-	{Slug: roleSlugBackend, Title: "Backend engineer"},
-	{Slug: roleSlugFrontend, Title: "Frontend engineer"},
-	{Slug: roleSlugArchitect, Title: "Solution architect", Owned: []string{"context/architecture", "context/decisions", "context/analysis"}},
-	{Slug: roleSlugReviewer, Title: "Reviewer", Owned: []string{"context/proposals", "context/questions"}},
-	{Slug: roleSlugQA, Title: "Quality assurance"},
-	{Slug: roleSlugDevops, Title: "DevOps engineer"},
-	{Slug: cmdDocs, Title: "Documentation engineer", Owned: []string{"context/wiki", "context/instructions", "context/research"}},
+	{Slug: roleSlugPM, Title: "Project manager", Coordinator: true, CostTier: roleCostExpensive, Owned: []string{"context/plan", "context/tasks"}},
+	{Slug: roleSlugBackend, Title: "Backend engineer", CostTier: roleCostExpensive},
+	{Slug: roleSlugFrontend, Title: "Frontend engineer", CostTier: roleCostExpensive},
+	{Slug: roleSlugArchitect, Title: "Solution architect", CostTier: roleCostExpensive, Owned: []string{"context/architecture", "context/decisions", "context/analysis"}},
+	{Slug: roleSlugReviewer, Title: "Reviewer", CostTier: roleCostExpensive, Owned: []string{"context/proposals", "context/questions"}},
+	{Slug: roleSlugQA, Title: "Quality assurance", CostTier: roleCostCheap},
+	{Slug: roleSlugDevops, Title: "DevOps engineer", CostTier: roleCostCheap},
+	{Slug: cmdDocs, Title: "Documentation engineer", CostTier: roleCostCheap, Owned: []string{"context/wiki", "context/instructions", "context/research"}},
 }
 
 func roleLookup(slug string) (roleDescriptor, bool) {

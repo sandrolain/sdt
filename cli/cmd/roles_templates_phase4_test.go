@@ -30,17 +30,22 @@ touches the register, the templates and ` + "`roles check`" + `. ` + "`pm`" + ` 
 coordinator: it owns planning/sequencing and handoffs over the seven
 execution/review roles.
 
-| slug | title | coordinator | owned (default context/ spaces) |
-|---|---|---|---|
-| ` + "`pm`" + ` | Project manager | yes | ` + "`context/plan`, `context/tasks`" + ` |
-| ` + "`backend`" + ` | Backend engineer | no | — |
-| ` + "`frontend`" + ` | Frontend engineer | no | — |
-| ` + "`architect`" + ` | Solution architect | no | ` + "`context/architecture`, `context/decisions`, `context/analysis`" + ` |
-| ` + "`reviewer`" + ` | Reviewer | no | ` + "`context/proposals`, `context/questions`" + ` |
-| ` + "`qa`" + ` | Quality assurance | no | — |
-| ` + "`devops`" + ` | DevOps engineer | no | — |
-| ` + "`docs`" + ` | Documentation engineer | no | ` + "`context/wiki`, `context/instructions`, `context/research`" + ` |
+| slug | title | coordinator | cost | owned (default context/ spaces) |
+|---|---|---|---|---|
+| ` + "`pm`" + ` | Project manager | yes | ` + "`expensive`" + ` | ` + "`context/plan`, `context/tasks`" + ` |
+| ` + "`backend`" + ` | Backend engineer | no | ` + "`expensive`" + ` | — |
+| ` + "`frontend`" + ` | Frontend engineer | no | ` + "`expensive`" + ` | — |
+| ` + "`architect`" + ` | Solution architect | no | ` + "`expensive`" + ` | ` + "`context/architecture`, `context/decisions`, `context/analysis`" + ` |
+| ` + "`reviewer`" + ` | Reviewer | no | ` + "`expensive`" + ` | ` + "`context/proposals`, `context/questions`" + ` |
+| ` + "`qa`" + ` | Quality assurance | no | ` + "`cheap`" + ` | — |
+| ` + "`devops`" + ` | DevOps engineer | no | ` + "`cheap`" + ` | — |
+| ` + "`docs`" + ` | Documentation engineer | no | ` + "`cheap`" + ` | ` + "`context/wiki`, `context/instructions`, `context/research`" + ` |
 
+
+The **cost** column is a model-agnostic hint: ` + "`expensive`" + ` marks a
+judgment-heavy role (a capable model is warranted), ` + "`cheap`" + ` a mechanical one
+(gate checks, config, writing). It never pins a model — pick the model at run
+time, using the tier only to decide how much capability the role needs.
 
 Every role owns a default set of ` + "`context/`" + ` document spaces (column
 "owned"); repo code paths are added by the project layer, never invented here.
@@ -147,6 +152,9 @@ Provide the independent second pass: verify phases and deliverables against thei
 
 - does not implement the work it reviews
 - does not rubber-stamp; every verdict needs evidence (command output, file:line)
+- **does not re-litigate the chosen direction**: review the completeness and
+  evidence of the deliverable, not the decision already taken in the analysis —
+  a direction concern is a new analysis or open question, never a review verdict
 - does not enforce rules that need a runtime SDT cannot provide (advisory-only).
 
 ### 3. Role-relevant project context
@@ -191,6 +199,7 @@ overwrites them. The core does not inline user choices.
 
 - approving without running the commands (claims marked passed must be run)
 - reviewing one's own work
+- re-litigating the chosen direction instead of reviewing completeness and evidence
 - flagging without a remediation hint.
 `
 	if core != want {

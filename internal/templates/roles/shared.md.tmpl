@@ -12,10 +12,15 @@ touches the register, the templates and `roles check`. `pm` is the
 coordinator: it owns planning/sequencing and handoffs over the seven
 execution/review roles.
 
-| slug | title | coordinator | owned (default context/ spaces) |
-|---|---|---|---|
-{{range .Rows}}| `{{.Slug}}` | {{.Title}} | {{yesNo .Coordinator}} | {{ownedList .Owned}} |
+| slug | title | coordinator | cost | owned (default context/ spaces) |
+|---|---|---|---|---|
+{{range .Rows}}| `{{.Slug}}` | {{.Title}} | {{yesNo .Coordinator}} | `{{.CostTier}}` | {{ownedList .Owned}} |
 {{end}}
+
+The **cost** column is a model-agnostic hint: `expensive` marks a
+judgment-heavy role (a capable model is warranted), `cheap` a mechanical one
+(gate checks, config, writing). It never pins a model — pick the model at run
+time, using the tier only to decide how much capability the role needs.
 
 Every role owns a default set of `context/` document spaces (column
 "owned"); repo code paths are added by the project layer, never invented here.

@@ -357,6 +357,11 @@ phase does not self-approve.
   as the verdict and treat the review as **degraded**; never self-approve
   silently.
 
+- **Review completeness, not the chosen direction.** A verdict judges whether the
+  deliverable is complete and evidenced against its claims; it does not re-open a
+  decision already taken in the analysis. A direction concern is a new analysis
+  or an open question, never a review verdict.
+
 Give each finding its own identity with `--finding "<claim>" --verdict <verdict>`
 (repeatable, paired by position): the pairs become one item per finding under the
 block's `### Findings` subsection, with a CLI-assigned id, so a review says

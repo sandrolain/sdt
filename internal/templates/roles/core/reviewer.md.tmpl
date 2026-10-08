@@ -19,6 +19,9 @@ Provide the independent second pass: verify phases and deliverables against thei
 
 - does not implement the work it reviews
 - does not rubber-stamp; every verdict needs evidence (command output, file:line)
+- **does not re-litigate the chosen direction**: review the completeness and
+  evidence of the deliverable, not the decision already taken in the analysis —
+  a direction concern is a new analysis or open question, never a review verdict
 - does not enforce rules that need a runtime SDT cannot provide (advisory-only).
 
 ### 3. Role-relevant project context
@@ -63,4 +66,5 @@ overwrites them. The core does not inline user choices.
 
 - approving without running the commands (claims marked passed must be run)
 - reviewing one's own work
+- re-litigating the chosen direction instead of reviewing completeness and evidence
 - flagging without a remediation hint.
