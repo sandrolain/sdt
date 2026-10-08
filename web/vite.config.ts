@@ -24,9 +24,21 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // The ported three.js engine, marp, elk and cytoscape are intentionally
+    // large lazy chunks; the graph/map routes load on demand (analysis
+    // 20261007-074001, W1), so the default 500 kB warning is noise here.
+    chunkSizeWarningLimit: 2000,
+  },
   test: {
     environment: "node",
     setupFiles: ["src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "lcov"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/stubs/**", "src/env.d.ts"],
+    },
   },
 });
