@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -30,8 +31,9 @@ var contextTodoCmd = &cobra.Command{
 
   sdt context todo add "<text>" [--id <slug>] [--source <ref>]
   sdt context todo list
-  sdt context todo done <id>
-  sdt context todo remove <id>
+  sdt context todo done <id> | --all
+  sdt context todo remove <id>...
+  sdt context todo prune --source <ref>
 
 Adding only annotates: it never starts an analysis, a plan or any operation.
 Every mutation regenerates the human-readable projection context/todo.md.`,
@@ -73,11 +75,30 @@ var contextTodoListCmd = &cobra.Command{
 }
 
 var contextTodoDoneCmd = &cobra.Command{
-	Use:   useDoneID,
+	Use:   "done <id> | --all",
 	Short: "Mark an idea done (kept in the list)",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		reg := loadTodoRegister(cmd)
+		if getBoolFlag(cmd, "all", false) {
+			if len(args) != 0 {
+				exitWithError(cmd, errors.New("pass either an <id> or --all, not both"))
+				return
+			}
+			n := 0
+			for _, it := range append([]todo.Item(nil), reg.Items...) {
+				if !it.Done && reg.MarkDone(it.ID) {
+					n++
+				}
+			}
+			saveTodoRegister(cmd, reg)
+			outputTodoResult(cmd, "done", fmt.Sprintf("%d item(s)", n))
+			return
+		}
+		if len(args) != 1 {
+			exitWithError(cmd, errors.New("pass an <id> or --all"))
+			return
+		}
 		id := sanitizeSlug(args[0])
 		if !reg.MarkDone(id) {
 			exitWithError(cmd, fmt.Errorf("no item with id %q", id))
@@ -89,18 +110,43 @@ var contextTodoDoneCmd = &cobra.Command{
 }
 
 var contextTodoRemoveCmd = &cobra.Command{
-	Use:   "remove <id>",
-	Short: "Remove an idea from the inbox",
-	Args:  cobra.ExactArgs(1),
+	Use:   "remove <id>...",
+	Short: "Remove one or more ideas from the inbox",
+	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		reg := loadTodoRegister(cmd)
-		id := sanitizeSlug(args[0])
-		if !reg.Remove(id) {
-			exitWithError(cmd, fmt.Errorf("no item with id %q", id))
-			return
+		for _, a := range args {
+			id := sanitizeSlug(a)
+			if !reg.Remove(id) {
+				exitWithError(cmd, fmt.Errorf("no item with id %q", id))
+				return
+			}
 		}
 		saveTodoRegister(cmd, reg)
-		outputTodoResult(cmd, "removed", id)
+		outputTodoResult(cmd, "removed", fmt.Sprintf("%d item(s)", len(args)))
+	},
+}
+
+var contextTodoPruneCmd = &cobra.Command{
+	Use:   "prune --source <ref>",
+	Short: "Remove every idea that came from a source",
+	Args:  cobra.NoArgs,
+	Run: func(cmd *cobra.Command, _ []string) {
+		source := strings.TrimSpace(getStringFlag(cmd, "source", true))
+		reg := loadTodoRegister(cmd)
+		var ids []string
+		for _, it := range reg.Items {
+			if it.Source == source {
+				ids = append(ids, it.ID)
+			}
+		}
+		for _, id := range ids {
+			reg.Remove(id)
+		}
+		if len(ids) > 0 {
+			saveTodoRegister(cmd, reg)
+		}
+		outputTodoResult(cmd, "pruned", fmt.Sprintf("%d item(s)", len(ids)))
 	},
 }
 
@@ -159,5 +205,8 @@ func init() {
 	contextTodoAddCmd.Flags().String("id", "", "Explicit item id (kebab-case slug; default: derived from the text)")
 	contextTodoAddCmd.Flags().String("source", "", "Optional document reference the idea came from")
 
-	contextTodoCmd.AddCommand(contextTodoAddCmd, contextTodoListCmd, contextTodoDoneCmd, contextTodoRemoveCmd)
+	contextTodoDoneCmd.Flags().Bool("all", false, "Mark every item done")
+	contextTodoPruneCmd.Flags().String("source", "", "Remove every idea with this source")
+
+	contextTodoCmd.AddCommand(contextTodoAddCmd, contextTodoListCmd, contextTodoDoneCmd, contextTodoRemoveCmd, contextTodoPruneCmd)
 }

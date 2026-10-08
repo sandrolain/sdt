@@ -58,6 +58,36 @@ func TestContextTodoIDDerivationAndSuffix(t *testing.T) {
 	}
 }
 
+func TestContextTodoBulkDoneRemovePrune(t *testing.T) {
+	runInTempDir(t)
+	execute(t, contextTodoAddCmd, nil, "a", "--source", "s1")
+	execute(t, contextTodoAddCmd, nil, "b", "--source", "s1")
+	execute(t, contextTodoAddCmd, nil, "c", "--source", "s2")
+
+	execute(t, contextTodoDoneCmd, nil, "--all")
+	reg, _ := todo.Load(".")
+	for _, it := range reg.Items {
+		if !it.Done {
+			t.Fatalf("--all must mark every item done, got %+v", reg.Items)
+		}
+	}
+
+	execute(t, contextTodoPruneCmd, nil, "--source", "s1")
+	reg, _ = todo.Load(".")
+	if _, ok := reg.Find("a"); ok {
+		t.Fatal("prune must remove s1 items")
+	}
+	if _, ok := reg.Find("c"); !ok {
+		t.Fatal("prune must keep other sources")
+	}
+
+	execute(t, contextTodoRemoveCmd, nil, "c")
+	reg, _ = todo.Load(".")
+	if len(reg.Items) != 0 {
+		t.Fatalf("remove must drop c, got %+v", reg.Items)
+	}
+}
+
 func TestContextTodoRejectsUnknownID(t *testing.T) {
 	runInTempDir(t)
 	shouldExitWithCode(t, 1, func() string { return string(execute(t, contextTodoRemoveCmd, nil, "nope")) })
