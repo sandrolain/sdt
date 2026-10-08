@@ -175,7 +175,8 @@ var ctxPlanPrefix = regexp.MustCompile(`^\d{8}-\d{6}-`)
 // custom slug used verbatim.
 
 func taskSlugFromPlan(plan string) string {
-	s := strings.TrimSuffix(strings.TrimSpace(plan), sdtMarkdownExt)
+	s := filepath.Base(strings.TrimSpace(plan))
+	s = strings.TrimSuffix(s, sdtMarkdownExt)
 	if loc := ctxPlanPrefix.FindStringIndex(s); loc != nil {
 		s = s[loc[1]:]
 	}
@@ -298,12 +299,19 @@ func planFlagForHint(plan string) string {
 
 func taskTarget(cmd *cobra.Command) (phase, plan string, err error) {
 	phase = sanitizeSlug(getStringFlag(cmd, "phase", false))
-	plan = getStringFlag(cmd, "plan", false)
+	plan = strings.TrimSpace(getStringFlag(cmd, "plan", false))
 	if plan == "" {
 		plan = latestActivePlan()
 		if plan == "" {
 			return "", "", errors.New("no active plan found; pass --plan <slug> to create a standalone checklist")
 		}
+		return phase, plan, nil
+	}
+	// Accept a path to the plan file: resolve to the basename so the task file
+	// name and the `plan/` link are never built from a path (F2).
+	plan = filepath.Base(plan)
+	if strings.HasSuffix(plan, sdtMarkdownExt) && !planHasFile(plan) {
+		return "", "", fmt.Errorf("plan not found: %s (pass an existing context/plan file, or a standalone slug without .md)", plan)
 	}
 	return phase, plan, nil
 }
@@ -319,7 +327,7 @@ func taskStreamFlag(cmd *cobra.Command) string {
 // frontmatter links/sources are skipped for them.
 
 func planHasFile(ref string) bool {
-	info, err := os.Stat(filepath.Join(sdtPlanDir, ref)) //#nosec G304 -- fixed repo path
+	info, err := os.Stat(filepath.Join(sdtPlanDir, filepath.Base(ref))) //#nosec G304 -- fixed repo path
 	return err == nil && !info.IsDir()
 }
 

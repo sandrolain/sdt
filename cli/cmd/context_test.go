@@ -934,6 +934,8 @@ func TestTaskSlugFromPlan(t *testing.T) {
 		"20260912-000000-pipeline.md":             "pipeline",
 		"custom":                                  "custom",
 		"custom.md":                               "custom",
+		"context/plan/20260911-062956-plan-sample-pipeline.md": "plan-sample-pipeline",
+		"plan/20260912-000000-pipeline.md":                     "pipeline",
 	} {
 		if got := taskSlugFromPlan(in); got != want {
 			t.Errorf("taskSlugFromPlan(%q) = %q, want %q", in, got, want)
