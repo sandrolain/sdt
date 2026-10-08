@@ -123,6 +123,9 @@ func (s *server) loadWiki() error {
 		return werr
 	}
 	s.wiki = bld
+	// The edge list is derived once from the loaded builder and reused per
+	// request by graph/rel/board (O2); the wiki is not reloaded on live-reload.
+	s.wikiEdgeList = s.computeWikiEdges()
 	return nil
 }
 
@@ -167,12 +170,18 @@ func nodeID(p *contextwiki.Page) string {
 	return p.FileID
 }
 
-// wikiEdges builds the deduplicated, sorted edge list from relation
+// wikiEdges returns the edge list cached at wiki load (O2): graph/rel/board
+// all read it, so the list is never recomputed per request.
+func (s *server) wikiEdges() []graphEdge {
+	return s.wikiEdgeList
+}
+
+// computeWikiEdges builds the deduplicated, sorted edge list from relation
 // frontmatter and typed body links. Edges keep the source verb; labels come
 // from the wikilink label ("[[id|label]]") or the resolved target title. Only
 // links with a verb (contextwiki typed links) become "link" edges; plain
 // [[wiki]] mentions carry no relation.
-func (s *server) wikiEdges() []graphEdge {
+func (s *server) computeWikiEdges() []graphEdge {
 	var edges []graphEdge
 	seen := map[string]bool{}
 	add := func(e graphEdge) {
