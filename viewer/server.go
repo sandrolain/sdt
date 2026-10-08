@@ -244,19 +244,8 @@ func applyResolvedEdges(entries []treeEntry, edges *ctxrel.Edges) {
 // Missing/outside-corpus/unsupported = 404.
 func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
-	full, ok := s.safePath(rel)
+	full, data, ok := s.readCorpusFile(w, rel)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
-		return
-	}
-	info, err := os.Stat(full)
-	if err != nil || info.IsDir() {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
-		return
-	}
-	data, err := os.ReadFile(full) //#nosec G304 -- path validated against corpus
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
 		return
 	}
 	switch filepath.Ext(full) {
@@ -268,7 +257,7 @@ func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	case mermaidExt:
 		writeJSON(w, http.StatusOK, mermaidResponse{Path: rel, Source: string(data)})
 	default:
-		writeJSON(w, http.StatusNotFound, errResponse{Error: "unsupported file type"})
+		writeErr(w, http.StatusNotFound, "unsupported file type")
 	}
 }
 
@@ -277,24 +266,13 @@ func (s *server) handleDoc(w http.ResponseWriter, r *http.Request) {
 // paths outside the corpus are opaque 404s.
 func (s *server) handleFile(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
-	full, ok := s.safePath(rel)
+	full, data, ok := s.readCorpusFile(w, rel)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
-		return
-	}
-	info, err := os.Stat(full)
-	if err != nil || info.IsDir() {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
 		return
 	}
 	contentType, ok := imageContentTypes[strings.ToLower(filepath.Ext(full))]
 	if !ok {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: errNotFound})
-		return
-	}
-	data, err := os.ReadFile(full) //#nosec G304 -- path validated against corpus
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
+		writeErr(w, http.StatusNotFound, errNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
@@ -342,9 +320,49 @@ func (s *server) safePath(rel string) (string, bool) {
 // writeJSON writes v as JSON with the given status; a marshal error is
 // non-recoverable and dumped to the client as an opaque 500.
 func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
+	buf, err := json.Marshal(v)
+	if err != nil {
 		slog.Error("sdtviewer: json encode", "err", err)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"internal error"}`))
+		return
 	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(status)
+	if _, err := w.Write(buf); err != nil {
+		slog.Error("sdtviewer: json write", "err", err)
+	}
+}
+
+// writeErr writes a JSON error with the baseline security headers. It is the
+// only error writer: handlers never send a raw err.Error() to a client.
+func writeErr(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, errResponse{Error: msg})
+}
+
+// readCorpusFile resolves a corpus-relative path and reads it, writing the
+// 404/500 response itself. ok is false when a response was already written, so
+// callers return immediately. A read failure is logged with the real error and
+// answered as an opaque "internal error".
+func (s *server) readCorpusFile(w http.ResponseWriter, rel string) (full string, data []byte, ok bool) {
+	full, ok = s.safePath(rel)
+	if !ok {
+		writeErr(w, http.StatusNotFound, errNotFound)
+		return "", nil, false
+	}
+	info, err := os.Stat(full)
+	if err != nil || info.IsDir() {
+		writeErr(w, http.StatusNotFound, errNotFound)
+		return "", nil, false
+	}
+	data, err = os.ReadFile(full) //#nosec G304 -- path validated against corpus
+	if err != nil {
+		slog.Error("sdtviewer: read corpus file", "path", rel, "err", err)
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return "", nil, false
+	}
+	return full, data, true
 }

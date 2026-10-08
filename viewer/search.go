@@ -113,7 +113,8 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		res, err = s.index().SearchQuery(hq)
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
+		slog.Error("sdtviewer: search", "err", err)
+		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	if res.Results == nil {

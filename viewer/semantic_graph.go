@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 	"sort"
 
@@ -58,7 +59,8 @@ func (s *server) handleSemanticGraph(w http.ResponseWriter, r *http.Request) {
 	warning := s.ensureSemanticSnapshot(r.Context())
 	graph, err := s.buildSemanticGraph()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
+		slog.Error("sdtviewer: semantic graph", "err", err)
+		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	graph.Warning = warning

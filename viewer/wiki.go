@@ -385,19 +385,12 @@ func boardFromGraph(nodes []graphNode, edges []graphEdge) boardResponse {
 // serveCanvasFile serves raw JSON Canvas content for a validated corpus path.
 // Missing, traversal or non-<canvasExt> paths return 404.
 func (s *server) serveCanvasFile(w http.ResponseWriter, rel string) {
-	full, ok := s.safePath(rel)
-	if !ok || filepath.Ext(full) != canvasExt {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: "not found"})
+	if filepath.Ext(rel) != canvasExt {
+		writeErr(w, http.StatusNotFound, errNotFound)
 		return
 	}
-	info, err := os.Stat(full)
-	if err != nil || info.IsDir() {
-		writeJSON(w, http.StatusNotFound, errResponse{Error: "not found"})
-		return
-	}
-	data, err := os.ReadFile(full) //#nosec G304 -- path validated in safePath
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errResponse{Error: err.Error()})
+	_, data, ok := s.readCorpusFile(w, rel)
+	if !ok {
 		return
 	}
 	writeJSON(w, http.StatusOK, canvasResponse{Path: rel, Canvas: data})
