@@ -533,7 +533,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 // ensureWorkDirs creates the context/ working directory layout.
 
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtDeprecatedDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtDeprecatedDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir, sdtBriefingDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}
@@ -570,6 +570,7 @@ func ensureWorkDirs(force bool) []FileResult {
 		{ctxCategoriesFilePath, categoriesRegisterTemplate},
 		{ctxMemoFilePath, memoRegisterTemplate},
 		{ctxTodoFilePath, todoRegisterTemplate},
+		{sdtBriefingDir + "/onboarding.md", briefingScaffoldTemplate},
 	}
 	for _, f := range files {
 		res := FileResult{Path: f.path}
@@ -613,6 +614,33 @@ Create and manage work files with ` + "`sdt context`" + `:
   plan task checklist (one file per plan, phases as sections)
 `
 }
+
+// briefingScaffoldTemplate is the starter briefing `agent init` writes so a
+// project has an onboarding surface to fill. It carries the contract and empty
+// sections, never facts.
+const briefingScaffoldTemplate = `---
+kind: briefing
+subject: onboarding
+status: draft
+summary: "MANDATORY-fill: orient a newcomer on this project"
+---
+
+> Derive, don't trust: pair every volatile fact below with the command that
+> derives it, so a reader re-derives it instead of trusting a copy. End with a
+> dated, second-verified delta.
+
+## Artifacts
+
+## Map
+
+## Roles
+
+## Rules
+
+## Derived facts
+
+## Delta
+`
 
 // sdtWorkReadmeContent renders the generated context/README.md: the static
 // layout/conventions prose from workspace/readme.md.tmpl (shell of the file)

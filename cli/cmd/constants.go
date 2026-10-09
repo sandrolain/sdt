@@ -47,6 +47,7 @@ const (
 	sdtRolesDir        = "context/roles"
 	sdtScriptsIndex    = "context/scripts/index.md"
 	sdtWikiDir         = "context/wiki"
+	sdtBriefingDir     = "context/briefing"
 	sdtIngestionDir    = "context/ingestion"
 	sdtRefsDir         = "context/refs"
 	sdtConvertedDir    = "context/refs/converted"

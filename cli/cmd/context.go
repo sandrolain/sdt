@@ -29,6 +29,7 @@ const (
 	ctxTypeResearch     = "research"
 	ctxTypeCommands     = "commands"
 	ctxTypeWiki         = "wiki"
+	ctxTypeBriefing     = "briefing"
 	// ctxTypeSupersedes is the forward-only relation field: a document names
 	// the older document it replaces (the reverse is computed, never written).
 	ctxTypeSupersedes = "supersedes"

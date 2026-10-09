@@ -15,10 +15,10 @@ import (
 // hand-written type lists in commands (stale-drift guard).
 
 const (
-	wantNewTypes      = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|wiki"
-	wantPathTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki"
-	wantListTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands"
-	wantTemplateTypes = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki"
+	wantNewTypes      = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|wiki|briefing"
+	wantPathTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|briefing"
+	wantListTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands|briefing"
+	wantTemplateTypes = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki|briefing"
 )
 
 func TestContextTypeRegistry(t *testing.T) {
@@ -27,6 +27,7 @@ func TestContextTypeRegistry(t *testing.T) {
 		ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions,
 		ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeArchitecture,
 		ctxTypeDecision, ctxTypeTasks, ctxTypeTmp, ctxTypeCommands, ctxTypeWiki,
+		ctxTypeBriefing,
 	}
 	for _, k := range kinds {
 		if _, ok := ctxTypeLookup(k); !ok {

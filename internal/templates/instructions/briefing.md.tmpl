@@ -1,0 +1,56 @@
+---
+kind: instructions
+title: "Briefing \u2014 orienting a newcomer on a subject"
+summary: "A per-subject onboarding document: cited artifacts and derivable facts."
+---
+
+# Briefing — orienting a newcomer on a subject
+
+`context/instructions/briefing.md` is the contract for a **briefing**: a document
+that orients a newcomer — a new agent session or a new person — on a **subject**
+(a mission, a subsystem, a workflow). Read it with
+`context/instructions/ingestion.md` (how sources are converted and cited) and
+`context/instructions/wiki.md` (the citation and evidence conventions).
+
+## When this applies (no-op rule)
+
+- Use it to brief someone on a subject that already exists. If the subject is a
+  single decision or a single component, a `decisions/` or `architecture/` page is
+  the right home — do not write a briefing. Say which case applies.
+
+## The rule: derive, don't trust
+
+A briefing **composes cited artifacts**; it never generates summary prose it
+cannot cite. Every **volatile** fact — a version, a path, a count, a state — is
+paired with the **command that derives it**, so the reader re-derives it instead
+of trusting a copy that will go stale. A fact with no deriving command is flagged;
+a stated value that could drift is a defect.
+
+## Frontmatter
+
+| Field | Required | Notes |
+|---|---|---|
+| `kind` | yes | `briefing` |
+| `subject` | yes | what it briefs on (a slug or a path) |
+| `status` | yes | `draft` · `active` · `archived` |
+| `summary` | yes | one or two lines |
+| `sources` | yes | the artifacts it composes (cited) |
+| `verified` | no | date + by whom the delta was second-verified |
+
+## Section contract
+
+- `## Artifacts` — the concrete pieces, each cited (file, command, decision).
+- `## Map` — how they fit together and the order they are read.
+- `## Roles` — who owns what; where the reader stands.
+- `## Rules` — the binding constraints and gates.
+- `## Derived facts` — each volatile fact paired with the command that derives it.
+- `## Delta` — a dated record of what changed since the last briefing,
+  second-verified.
+
+## Boundary
+
+- Facts and their citations follow `context/instructions/wiki.md` and
+  `context/instructions/ingestion.md`; conversion follows `ingestion.md`.
+- A briefing orients; it does not decide (a `decision`), specify (a `plan`) or
+  document a component (an `architecture` page).
+- Keep the six sections in the order above; add none.

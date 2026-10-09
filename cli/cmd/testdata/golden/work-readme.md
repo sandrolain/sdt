@@ -67,13 +67,13 @@ shell are loaded — an exported value wins — and a missing file is a no-op. U
 
 Create and manage work files with `sdt context`:
 
-- `sdt context new --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|wiki --slug <slug> [--input ...]` — create a
+- `sdt context new --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|wiki|briefing --slug <slug> [--input ...]` — create a
   file with the correct name and frontmatter
 - `sdt context reindex` / `sdt context lint` — regenerate `index.md` / validate
   frontmatter and links
-- `sdt context template --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki` — print the per-type instruction file
-- `sdt context path --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki [--slug]` — print a
+- `sdt context template --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki|briefing` — print the per-type instruction file
+- `sdt context path --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|briefing [--slug]` — print a
   path without creating anything
-- `sdt context list --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands` — list existing files
+- `sdt context list --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands|briefing` — list existing files
 - `sdt context task add "<step>" [--phase <n>] [--stream <label>]` / `done|block|wip <id>` — manage a
   plan task checklist (one file per plan, phases as sections)

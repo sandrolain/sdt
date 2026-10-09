@@ -199,6 +199,9 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	if typ == ctxTypeArchitecture && component != "" {
 		b.WriteString("component: " + yamlScalar(component) + "\n")
 	}
+	if typ == ctxTypeBriefing && component != "" {
+		b.WriteString("subject: " + yamlScalar(component) + "\n")
+	}
 	b.WriteString("created: " + created + "\n")
 	if ctxHasUpdatedFor(typ) {
 		b.WriteString("updated: " + created + "\n")
@@ -297,6 +300,8 @@ func contextDefaultBody(typ string) string {
 		return "## Subject\n\n## Method\n\n## Findings\n\n## Evidence\n\n## Limits and open points\n\n## Feeds\n"
 	case ctxTypeWiki:
 		return "## Summary\n\n## Claims\n\n## Notes\n"
+	case ctxTypeBriefing:
+		return "> Derive, don't trust: pair every volatile fact below with the command that derives it, so a reader re-derives it instead of trusting a copy. End with a dated, second-verified delta.\n\n## Artifacts\n\n## Map\n\n## Roles\n\n## Rules\n\n## Derived facts\n\n## Delta\n"
 	default:
 		return ""
 	}
@@ -461,7 +466,7 @@ Examples:
 			path, err = contextPath(typ, slug, "", "", "")
 			exitWithError(cmd, err)
 			component := ""
-			if typ == ctxTypeArchitecture {
+			if typ == ctxTypeArchitecture || typ == ctxTypeBriefing {
 				component = slug
 			}
 			content = contextFrontmatter(typ, title, summary, note, project, component, created, objective, slug, agent, role, noteType, statusOverride, topics, entities, categories)

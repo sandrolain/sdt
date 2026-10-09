@@ -67,6 +67,7 @@ var contextTypeList = []ctxDocType{
 	{kind: ctxTypeTmp, dir: sdtTmpDir, tier: "", scheme: ctxSchemeTmpBySlug, pathSupported: true, statusRow: false},
 	{kind: ctxTypeCommands, dir: sdtCommandsDir, tier: ctxTierOperational, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusActive, statuses: []string{taskFileStatusLegacy}, listSupported: true, statusRow: true},
 	{kind: ctxTypeWiki, dir: sdtWikiDir, tier: "", scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, taskFileStatusLegacy, statusArchived}, hasUpdated: true, templateFile: "wiki.md", newSupported: true, pathSupported: true, templateAllowed: true, statusRow: false},
+	{kind: ctxTypeBriefing, dir: sdtBriefingDir, tier: ctxTierImportant, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, hasUpdated: true, templateFile: "briefing.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 }
 
 func ctxTypeLookup(kind string) (ctxDocType, bool) {

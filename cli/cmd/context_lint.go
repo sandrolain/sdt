@@ -129,6 +129,9 @@ var ctxCitationRegexp = regexp.MustCompile(`(refs/[A-Za-z0-9_./-]+)@(sha256:)?([
 // written as an example (`refs/x.md@fbf61784`) is not read as a claim.
 var ctxInlineCodeRegexp = regexp.MustCompile("`[^`\n]*`")
 
+// ctxDateRegexp matches an ISO date, used by the briefing `## Delta` check.
+var ctxDateRegexp = regexp.MustCompile(`\d{4}-\d{2}-\d{2}`)
+
 // lintBodyCitations verifies the corpus's hash-anchored body citations: the
 // target resolves under context/refs/ and the cited SHA-256 prefix still matches
 // the file's current digest. Advisory (WARNING): it proves file presence and
@@ -428,6 +431,34 @@ func lintCommandFile(path, content string, prio func(string) string) []ctxLintIs
 // and positional lint. Legacy documents without frontmatter keep the advisory
 // behavior so old history does not fail the whole check.
 
+// lintBriefing enforces the briefing contract: a required `subject`, a deriving
+// command for every `## Derived facts` entry, and a dated `## Delta`.
+func lintBriefing(path, content, kind string) []ctxLintIssue {
+	if kind != ctxTypeBriefing {
+		return nil
+	}
+	var issues []ctxLintIssue
+	if parseFrontmatterField(content, "subject") == "" {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: "briefing missing `subject`"})
+	}
+	if sec, ok := ctxSection(content, "Derived facts"); ok {
+		for _, line := range strings.Split(sec, "\n") {
+			t := strings.TrimSpace(line)
+			if !strings.HasPrefix(t, "- ") && !strings.HasPrefix(t, "* ") {
+				continue
+			}
+			if !strings.Contains(t, "`") {
+				issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "derived fact without a deriving command (pair the fact with the command that derives it)"})
+				break
+			}
+		}
+	}
+	if sec, ok := ctxSection(content, "Delta"); ok && !ctxDateRegexp.MatchString(sec) {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "briefing `## Delta` has no date"})
+	}
+	return issues
+}
+
 func lintDoc(path string) []ctxLintIssue {
 	var issues []ctxLintIssue
 	data, err := os.ReadFile(path) //#nosec G304 -- fixed repo path
@@ -473,6 +504,7 @@ func lintDoc(path string) []ctxLintIssue {
 	issues = append(issues, lintTaskObjectiveLegacy(path, content, kind)...)
 	issues = append(issues, lintQuestionsDeferredReason(path, content, kind)...)
 	issues = append(issues, lintEvidenceClass(path, content, kind)...)
+	issues = append(issues, lintBriefing(path, content, kind)...)
 	// Immutable identifier: presence (severity flips after the backfill) and
 	// canonical UUIDv7 form. Duplicate detection is corpus-wide (below).
 	issues = append(issues, lintUIDField(path, content, kind, prio)...)
