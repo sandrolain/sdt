@@ -131,9 +131,32 @@ inside-corpus locator.
 When a source becomes a claim, cite its **evidence kind** — `observed` /
 `derived` / `inferred`, and the source authority where it matters (`wiki.md`,
 extending decision 0017): record what kind of evidence the source actually
-gives, never a stronger one. The epistemic stage ladder and the source
-independence/freshness axis are deliberately **not** part of this contract yet;
-they need their own scoping.
+gives, never a stronger one.
+
+**Graded confidence** (distinct from `verified`, which is only about
+re-checking) is tied to **source independence**:
+
+- `high` — corroborated by ≥2 independent sources, or one primary source with
+  clear evidence, and no known contradiction.
+- `medium` — one authoritative source without direct evidence, or a mechanism
+  the source does not itself state (an **unstated mechanism caps confidence at
+  medium**).
+- `low` — a single second-hand source, or unargued opinion.
+
+A merge with an **independent** source **raises** confidence; a **contradiction
+lowers** it. A deepsearch synthesis with no verifiable originals is
+**second-hand**: cap it and never let it raise another concept's confidence.
+
+**Validity over time** marks a claim intrinsically time-sensitive: `stable` (not
+tied to changing tech), `evolving` (depends on changing tech — add
+`valid_until: <date>`), `dated` (the source declares it superseded). This is
+separate from `created`/`updated` and the stale-source check: those catch a
+changed *source*, this marks a claim that ages on its own.
+
+**Empirical claims inherit their sample's scope:** record what was measured, on
+what sample, under which conditions; a benchmark number is a *vehicle* unless it
+is part of the claim. Opinion enters as a **conditional recommendation** ("prefer
+X when Y"), never as a fact.
 
 ## Wiki page schema
 
@@ -152,6 +175,10 @@ they need their own scoping.
 | `sources` | yes | `refs/` files this page cites |
 | `verified` | no | `false` for unverified/imported claims |
 | `supersedes` | no | node id replaced by this page |
+| `transformation` | when abstracting | the generalisation note: the level chosen and the substitution performed (prose, not lint-enforced) |
+| `confidence` | no | `high` · `medium` · `low` — graded confidence, distinct from `verified` |
+| `validity` | no | `stable` · `evolving` · `dated` — intrinsic time-sensitivity |
+| `valid_until` | no | date, used with `validity: evolving` |
 
 **Subdirectories** (optional, one level by default): `wiki/<context>/<slug>.md`
 groups pages by context label — the subdir name is a kebab-case context
@@ -172,7 +199,9 @@ Page anatomy — every `wiki/` node keeps the **fixed body structure**:
   its source inline `(refs/<file>@<sha>:<lines>)`, each carries an anchor
   `{#claim-<n>}` so other pages can supersede/refine a single claim without
   editing it.
-- `## Notes` — rationale, trade-offs, open points; opinion kept separate from
+- `## Notes` — rationale, trade-offs, open points, and the **contraindication**:
+  where the concept does **not** apply (if the source does not say, write
+  "not stated in the source" — never invent one); opinion kept separate from
   facts. Notes content varies by `type`.
 
 **Dual readability:** the human path is `Summary` + claims-as-bullets + terse
@@ -203,9 +232,11 @@ outside the set fails lint):
 | `conflicts_with` | stated contradiction (triggers verification) |
 | `part_of` | component of target |
 | `contains` | target is part of this node (mirror of `part_of`) |
+| `specializes` | this node is a special case of target |
+| `generalizes` | target is a special case of this node (mirror of `specializes`) |
 
-Only `part_of`/`contains` is bi-directional; other edges keep one canonical
-direction (reverse forms derived, never written).
+`part_of`/`contains` and `specializes`/`generalizes` are bi-directional pairs;
+other edges keep one canonical direction (reverse forms derived, never written).
 
 **Concept budget** (invariant 6, kept schema-versioned): a page targets **one
 concept**. `wiki lint` raises a WARNING on pages exceeding ~120 lines or ~20
@@ -221,11 +252,21 @@ or incomparable material — split it into child/sibling nodes wired via
 - **A source too large to read whole** follows
   `context/instructions/distillation.md` (book-scale distillation and its
   fold-in merge) before its facts reach a page.
+- **Keep the mechanism, and do not invent.** A rule without its *why* is neither
+  reusable nor verifiable: state why it works, not only that it does. Add no
+  knowledge of your own — if the source does not cover something, say so. When a
+  level, a confidence or a merge is uncertain, choose the more prudent option and
+  record the doubt in `transformation` or the receipt.
 
 **The six "not-a-copy" invariants:**
 
 1. **Re-express, never quote.** Own wording; quote only when a downstream
-   consumer depends on the exact value, naming the dependent.
+   consumer depends on the exact value, naming the dependent. Delete editorial
+   residue from the body — provenance words ("the author", "as argued", "in this
+   chapter", "as seen above", "see figure 3"), inclusive "we", tone/rhetorical
+   formulas ("it is essential to remember that"), the language or library name
+   used as implicit subject or as if it were the rule, and the author's
+   storytelling or metaphors. A residual phrase is a copy, not knowledge.
 2. **Cite, don't paste.** Every claim cites its source; a page must be
    re-derivable from `refs/` + git history. Un-expressible nuggets stay in
    `refs/` and are cited, not pasted.
@@ -238,6 +279,30 @@ or incomparable material — split it into child/sibling nodes wired via
 6. **One concept, one page.** Exhaustive for its concept, never spanning many
    distinct concepts — split instead (see concept budget).
 
+**Atomicity tests** (before accepting a candidate): the title holds a
+conjunction ("X and Y") → probably two concepts (unless intrinsically
+inseparable); two different questions are needed → split; a competent reader who
+did not read the source still understands it → otherwise it is incomplete or
+depends on a concept to extract separately; the candidate is "the summary of the
+chapter" → it is a container, extract the concepts inside it.
+
+**Generality level & the counter-case** (decided per claim):
+
+- State each claim at a **generality level** — `general` (holds across
+  languages/frameworks), `class` (holds for a family), `specific` (holds for one
+  concrete case) — and apply the **substitution test**: change the language or
+  framework mentally; if the claim stays true it is general, otherwise lower the
+  level.
+- A `general` or `class` claim must name a case where it does **not** apply (its
+  counter-case). If, after rephrasing, you can no longer say in which case it
+  does not apply, the claim was over-generalised — split it (a specific case plus
+  its general form, wired with `specializes`/`generalizes`) or drop the
+  generalisation. The counter-case is load-bearing: a real boundary, never
+  trivia.
+- Record the **transformation note** (the `note_generalizzazione` equivalent) in
+  frontmatter — `transformation: <level; the substitution performed>` — never in
+  the body.
+
 **Transformation algorithm** (per source):
 
 1. Read source in full; split into atomic facts.
@@ -249,6 +314,15 @@ or incomparable material — split it into child/sibling nodes wired via
 5. Set `relations` + `tags`; verify every claim has a citation and `sources`
    lists the refs file.
 6. When all scoped files are handled: present plan → user approves → archive.
+
+## Ingestion receipt
+
+After an approved run, record a **receipt** (a `notes/` or `worklog/` entry) —
+not only prose: five counters (**extracted**, **verified**, **needs-review**,
+**merged**, **discarded-with-reason**) plus the open doubts. Add one row per
+concept: outcome, failing checklist items, dedup decision, open doubts. The
+receipt is the countable record of the run; the prose `worklog/` entry points to
+it.
 
 ## Verification
 

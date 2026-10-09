@@ -60,6 +60,8 @@ var Verbs = map[string]bool{
 	"conflicts_with": true,
 	"part_of":        true,
 	"contains":       true,
+	"specializes":    true,
+	"generalizes":    true,
 }
 
 // Types are the closed wiki page `type` values.

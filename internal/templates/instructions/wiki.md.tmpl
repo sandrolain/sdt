@@ -114,6 +114,20 @@ read that for the full schema.
 - **Reuse the same-slug/same-concept page**: a new or updated page first checks
   for an existing node (same `id` or concept) and extends it instead of
   forking a sibling with a near-identical payload.
+- **Decide the outcome explicitly** before writing:
+
+  | Case | Outcome |
+  |---|---|
+  | identical | **merge** into the existing page |
+  | specialisation | keep both; the specific `specializes` the general (reverse `generalizes`) |
+  | partial overlap | split, or keep both and link (`refers_to`) |
+  | alternative | keep both; record the choice in `## Notes` |
+  | contradiction | keep both with `conflicts_with`, both sides visible |
+  | none | create a new page |
+
+- **Merge rules:** never lose sources; **keep the existing `id`**; accumulate
+  aliases; re-evaluate the merged page's confidence; and **if merging would
+  change the existing concept's meaning, do not merge**.
 - Similarities and contradictions stay visible on the page — never collapse
   background knowledge or conflicting evidence into a merged statement, and
   never merge on similarity or co-occurrence alone.
@@ -152,6 +166,10 @@ vault can read the same folder — the two models are close but not identical:
   claims against their `sources`; when a source changes, re-run
   `sdt context wiki lint` (the `refs/<file>@<sha>` citation check flags a stale
   source) and re-verify — never trust a synthesized page blindly.
+- A verification pass that finds failures is corrected and re-run **at most
+  twice**; if it still fails, leave the page `status: draft` and record the
+  failing items and open doubts in `## Notes` — never promote an unverified page
+  to `active`.
 - Run `sdt context wiki lint` after every change and fix issues caused by
   the edit; run `sdt context reindex` when done.
 - Before publishing, run the prose self-check (`context/instructions/writing.md`):
