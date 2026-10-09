@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"codeberg.org/readeck/go-readability/v2"
-	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/v2"
 	"github.com/sandrolain/sdt/cli/utils/converter"
 )
 
@@ -110,7 +110,8 @@ func NewCrawler(startURL string, opts Options) (*Crawler, error) {
 
 	allowedDomains := opts.AllowedDomains
 	if len(allowedDomains) == 0 && !opts.FollowExternalLinks {
-		allowedDomains = []string{parsedURL.Host}
+		// colly v2 matches AllowedDomains against the URL hostname (no port).
+		allowedDomains = []string{parsedURL.Hostname()}
 	}
 
 	c := colly.NewCollector(

@@ -9,7 +9,7 @@ require (
 	github.com/firecrawl/firecrawl/apps/go-sdk v1.16.4
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
-	github.com/gocolly/colly v1.2.0
+	github.com/gocolly/colly/v2 v2.3.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/go-version v1.9.0
 	github.com/lmittmann/tint v1.2.1
@@ -40,7 +40,7 @@ require (
 	github.com/antchfx/htmlquery v1.3.6 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.8 // indirect
-	github.com/bits-and-blooms/bitset v1.24.2 // indirect
+	github.com/bits-and-blooms/bitset v1.24.4 // indirect
 	github.com/blevesearch/bleve_index_api v1.4.1 // indirect
 	github.com/blevesearch/geo v0.2.6 // indirect
 	github.com/blevesearch/go-faiss v1.1.5 // indirect
@@ -75,6 +75,7 @@ require (
 	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/nlnwa/whatwg-url v0.6.2 // indirect
 	github.com/nlpodyssey/safetensors v0.0.0-20250209183917-bfb01cc25f7c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
