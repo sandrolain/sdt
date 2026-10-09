@@ -41,19 +41,25 @@ describe("addSidePanels", () => {
     const { api, addedPanels, addedEdges } = fakeApi();
     addSidePanels(api);
     expect(addedEdges).toEqual(["left", "right"]);
-    expect(addedPanels).toEqual(["tree", "meta"]);
+    expect(addedPanels).toEqual([
+      "tree",
+      "meta-info",
+      "meta-sections",
+      "meta-links",
+      "meta-related",
+    ]);
   });
 
   it("re-adds a missing panel into an existing edge group", () => {
     const { api, addedPanels, addedEdges } = fakeApi({ panels: ["tree"], edges: ["left"] });
     addSidePanels(api);
     expect(addedEdges).toEqual(["right"]);
-    expect(addedPanels).toEqual(["meta"]);
+    expect(addedPanels).toEqual(["meta-info", "meta-sections", "meta-links", "meta-related"]);
   });
 
   it("never touches a complete workspace", () => {
     const { api, addedPanels, addedEdges } = fakeApi({
-      panels: ["tree", "meta"],
+      panels: ["tree", "meta-info", "meta-sections", "meta-links", "meta-related"],
       edges: ["left", "right"],
     });
     addSidePanels(api);
@@ -62,10 +68,16 @@ describe("addSidePanels", () => {
   });
 
   it("uses the renamed titles and a collapsed strip size", () => {
-    expect(SIDE_PANELS.map((p) => p.title)).toEqual(["Documents", "Info"]);
+    expect(SIDE_PANELS.map((p) => p.title)).toEqual([
+      "Documents",
+      "Info",
+      "Sections",
+      "Links",
+      "Related",
+    ]);
     expect(COLLAPSED_SIZE).toBeGreaterThan(0);
     expect(SIDE_PANELS.find((p) => p.id === "tree")?.initialSize).toBe(210);
-    expect(SIDE_PANELS.find((p) => p.id === "meta")?.initialSize).toBe(260);
+    expect(SIDE_PANELS.find((p) => p.id === "meta-info")?.initialSize).toBe(260);
   });
 
   it("places each panel in its own edge group", () => {
@@ -80,7 +92,7 @@ describe("addSidePanels", () => {
       expect.objectContaining({ id: "tree", position: { referenceGroup: "edge-tree" } }),
     );
     expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "meta", position: { referenceGroup: "edge-meta" } }),
+      expect.objectContaining({ id: "meta-info", position: { referenceGroup: "edge-meta" } }),
     );
   });
 });

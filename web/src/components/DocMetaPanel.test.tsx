@@ -3,13 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { DocMetaPanel } from "./DocMetaPanel";
-import { MetaTabs } from "./MetaTabs";
+import { DocMetaPanel, type MetaTabKind } from "./DocMetaPanel";
 import { resetActiveSection, setActiveSection } from "../lib/activeSection";
 import { resetCorpusIndexCache } from "../lib/corpusIndex";
 import { clearFrontmatterCache } from "../lib/frontmatterYaml";
 import { getSectionRequest, resetSectionRequest } from "../lib/sectionRequests";
-import { resetMetaTab } from "../lib/metaTab";
 import { resetWikiIndexCache } from "../lib/wikiIndexLoader";
 
 const DOC = {
@@ -38,11 +36,10 @@ function mockFetch() {
   }) as unknown as typeof fetch;
 }
 
-function renderPanel(doc: unknown) {
+function renderPanel(doc: unknown, tab: MetaTabKind = "info") {
   return render(
     <MemoryRouter>
-      <MetaTabs />
-      <DocMetaPanel doc={doc as never} />
+      <DocMetaPanel doc={doc as never} tab={tab} />
     </MemoryRouter>,
   );
 }
@@ -55,7 +52,6 @@ afterEach(() => {
   cleanup();
   resetActiveSection();
   resetSectionRequest();
-  resetMetaTab();
   clearFrontmatterCache();
   vi.restoreAllMocks();
 });
@@ -80,34 +76,18 @@ describe("DocMetaPanel", () => {
       .find((el) => el.getAttribute("href") === "/docs/context/commands/c.md");
     expect(cmd).toBeTruthy();
     expect(cmd?.getAttribute("title")).toBeNull();
-    // the panel is four tabs, Info selected by default
-    const tabLabels = () =>
-      Array.from(document.querySelectorAll(".meta-tabs__tab")).map(
-        (el) => el.querySelector("span:not(.ms-icon)")?.textContent,
-      );
-    expect(tabLabels()).toEqual(["Info", "Sections", "Links", "Related"]);
-    expect(document.querySelector(".meta-tabs__tab.is-selected")?.textContent).toContain("Info");
   });
 
-  it("keeps the four tabs stable and shows the TOC under Sections", async () => {
+  it("renders the TOC under the Sections panel", async () => {
     mockFetch();
-    renderPanel(DOC);
-    const labels = () =>
-      Array.from(document.querySelectorAll(".meta-tabs__tab")).map(
-        (el) => el.querySelector("span:not(.ms-icon)")?.textContent,
-      );
-    expect(labels()).toEqual(["Info", "Sections", "Links", "Related"]);
-    // a hidden panel's text is inert; the TOC becomes reachable under Sections
-    expect(screen.queryByRole("button", { name: "Second" })).toBeNull();
-    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
+    renderPanel(DOC, "sections");
+    // the TOC is reachable in the Sections panel
     expect(screen.getByRole("button", { name: "Second" })).toBeTruthy();
-    expect(labels()).toEqual(["Info", "Sections", "Links", "Related"]);
   });
 
   it("requests the selected section (jump handled by the document panel)", async () => {
     mockFetch();
-    renderPanel(DOC);
-    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
+    renderPanel(DOC, "sections");
     await userEvent.click(screen.getByRole("button", { name: "Second" }));
     expect(getSectionRequest()).toMatchObject({ path: DOC.path, text: "Second" });
   });
@@ -205,8 +185,7 @@ describe("DocMetaPanel", () => {
 
   it("highlights the heading currently in view", async () => {
     mockFetch();
-    renderPanel(DOC);
-    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
+    renderPanel(DOC, "sections");
     expect(screen.getByRole("button", { name: "Second" }).getAttribute("aria-current")).toBeNull();
     act(() => setActiveSection(DOC.path, "Second"));
     const active = screen.getByRole("button", { name: "Second" });
@@ -221,8 +200,7 @@ describe("DocMetaPanel", () => {
       frontmatter: "---\nkind: notes\ntitle: X\n---\n",
       markdown: "# Top\n\n## Option A: fold into `development.md`\n\ntext\n",
     };
-    renderPanel(doc);
-    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
+    renderPanel(doc, "sections");
     // the TOC shows the normalised text, matching the rendered heading
     const label = "Option A: fold into development.md";
     const button = screen.getByRole("button", { name: label });
@@ -238,8 +216,7 @@ describe("DocMetaPanel", () => {
       frontmatter: "---\nkind: notes\ntitle: X\n---\n",
       markdown: "# Top\n\n## Option A: fold into `development.md`\n\ntext\n",
     };
-    renderPanel(doc);
-    await userEvent.click(screen.getByRole("tab", { name: "Sections" }));
+    renderPanel(doc, "sections");
     await userEvent.click(
       screen.getByRole("button", { name: "Option A: fold into development.md" }),
     );
@@ -544,8 +521,7 @@ describe("DocMetaPanel", () => {
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
     }) as unknown as typeof fetch;
-    renderPanel(DOC);
-    await userEvent.click(screen.getByRole("tab", { name: "Links" }));
+    renderPanel(DOC, "links");
     const link = await screen.findByRole("link", { name: /Plan X/ });
     expect(link.getAttribute("href")).toBe("/docs/context/plan/plan-x.md");
     expect(
@@ -563,8 +539,7 @@ describe("DocMetaPanel", () => {
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
     }) as unknown as typeof fetch;
-    renderPanel(DOC);
-    await userEvent.click(screen.getByRole("tab", { name: "Links" }));
+    renderPanel(DOC, "links");
     expect(await screen.findByText(/No document references/)).toBeTruthy();
   });
 });

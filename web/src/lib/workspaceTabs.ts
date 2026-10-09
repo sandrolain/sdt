@@ -2,7 +2,14 @@
 export type TabMenuItem = "close" | "closeOthers" | "closeAll";
 
 /** Panels that must never be closable (the workspace has no way to recreate them). */
-const NON_CLOSABLE = new Set(["tree", "meta", "doc-courtesy"]);
+const NON_CLOSABLE = new Set([
+  "tree",
+  "meta-info",
+  "meta-sections",
+  "meta-links",
+  "meta-related",
+  "doc-courtesy",
+]);
 
 /** True when the panel tab should show a close button. */
 export function isTabClosable(panelId: string): boolean {

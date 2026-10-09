@@ -18,6 +18,8 @@ export interface SidePanelSpec {
   initialSize: number;
   minimumSize: number;
   maximumSize: number;
+  /** Locked panels cannot be dragged/reordered or used as a drop target. */
+  locked?: boolean;
 }
 
 /**
@@ -45,14 +47,48 @@ export const SIDE_PANELS: SidePanelSpec[] = [
     maximumSize: 460,
   },
   {
-    id: "meta",
+    id: "meta-info",
     groupId: "edge-meta",
     position: "right",
-    component: "meta",
+    component: "meta-info",
     title: "Info",
     initialSize: 260,
     minimumSize: 180,
     maximumSize: 560,
+    locked: true,
+  },
+  {
+    id: "meta-sections",
+    groupId: "edge-meta",
+    position: "right",
+    component: "meta-sections",
+    title: "Sections",
+    initialSize: 260,
+    minimumSize: 180,
+    maximumSize: 560,
+    locked: true,
+  },
+  {
+    id: "meta-links",
+    groupId: "edge-meta",
+    position: "right",
+    component: "meta-links",
+    title: "Links",
+    initialSize: 260,
+    minimumSize: 180,
+    maximumSize: 560,
+    locked: true,
+  },
+  {
+    id: "meta-related",
+    groupId: "edge-meta",
+    position: "right",
+    component: "meta-related",
+    title: "Related",
+    initialSize: 260,
+    minimumSize: 180,
+    maximumSize: 560,
+    locked: true,
   },
 ];
 
@@ -75,6 +111,7 @@ export interface SidePanelApi {
     component: string;
     title: string;
     position: { referenceGroup: string };
+    locked?: boolean;
   }): unknown;
 }
 
@@ -119,7 +156,15 @@ export function ensureCenterGroup(
  * the edge group is recreated when an older layout had none.
  */
 export function addSidePanels(api: SidePanelApi): void {
+  // A fresh workspace: the Info panel is the default active tab in the right
+  // group. Adding panels activates the last one, so re-activate Info — but only
+  // when it is new, so a restored layout keeps the user's active tab.
+  const fresh = api.getPanel("meta-info") === undefined;
   addPanels(api, SIDE_PANELS);
+  if (fresh) {
+    const info = api.getPanel("meta-info") as { api?: { setActive?: () => void } } | undefined;
+    info?.api?.setActive?.();
+  }
 }
 
 /**
@@ -144,6 +189,7 @@ export function addPanels(api: SidePanelApi, specs: SidePanelSpec[]): void {
       component: spec.component,
       title: spec.title,
       position: { referenceGroup: spec.groupId },
+      locked: spec.locked,
     });
   }
 }

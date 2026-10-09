@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { useMetaTab } from "../lib/metaTab";
 import { useActiveSection } from "../lib/activeSection";
 import { categoryColor, categoryIcon } from "../lib/categories";
 import {
@@ -45,8 +44,13 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { ReferencedBy } from "./ReferencedBy";
 import { SemanticNeighbours } from "./SemanticNeighbours";
 
+/** The four metadata panels, each rendered by its own dockview panel/tab. */
+export type MetaTabKind = "info" | "sections" | "links" | "related";
+
 interface DocMetaPanelProps {
   doc?: DocResponse | CanvasResponse | MermaidResponse | null;
+  /** Which metadata panel this instance renders. */
+  tab?: MetaTabKind;
 }
 
 const DATE_KEYS = new Set(["created", "created_at", "updated"]);
@@ -55,7 +59,7 @@ const LINK_KEYS = new Set(["links", "sources", "relations"]);
 const IMAGE_KEYS = new Set(["image"]);
 
 /** Right-column metadata panel: frontmatter rows, heading sections, relations. */
-export function DocMetaPanel({ doc }: DocMetaPanelProps) {
+export function DocMetaPanel({ doc, tab = "info" }: DocMetaPanelProps) {
   const [index, setIndex] = useState<WikiIndex | undefined>(undefined);
   const [corpus, setCorpus] = useState<CorpusIndex | undefined>(undefined);
   const [parsed, setParsed] = useState<{ key: string; result: FrontmatterParse } | null>(null);
@@ -174,8 +178,6 @@ export function DocMetaPanel({ doc }: DocMetaPanelProps) {
     if (!value) return undefined;
     return { value, valueInfo: valueLabel(docKind, value) };
   }, [docKind, fields]);
-
-  const tab = useMetaTab();
 
   if (!doc) return null;
 

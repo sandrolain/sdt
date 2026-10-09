@@ -32,8 +32,7 @@ import { Icon } from "../lib/icon";
 import { useDoc } from "../lib/useDoc";
 import { Tree } from "./Tree";
 import { DocDetail } from "./DocDetail";
-import { DocMetaPanel } from "./DocMetaPanel";
-import { MetaTabs } from "./MetaTabs";
+import { DocMetaPanel, type MetaTabKind } from "./DocMetaPanel";
 import { WorkspaceTab } from "./WorkspaceTab";
 import { DocTabHeader } from "./DocTabHeader";
 import { TooltipButton } from "./ui/Tooltip";
@@ -54,9 +53,24 @@ const components: Record<string, (props: IDockviewPanelProps) => ReactNode> = {
     </div>
   ),
   doc: (props: IDockviewPanelProps) => <DocTab path={String(props.params?.["path"] ?? "")} />,
-  meta: () => (
+  "meta-info": () => (
     <div className="dock-content">
-      <MetaTab />
+      <MetaTab tab="info" />
+    </div>
+  ),
+  "meta-sections": () => (
+    <div className="dock-content">
+      <MetaTab tab="sections" />
+    </div>
+  ),
+  "meta-links": () => (
+    <div className="dock-content">
+      <MetaTab tab="links" />
+    </div>
+  ),
+  "meta-related": () => (
+    <div className="dock-content">
+      <MetaTab tab="related" />
     </div>
   ),
   courtesy: () => (
@@ -75,18 +89,17 @@ function DocTab({ path }: { path: string }) {
   );
 }
 
-function MetaTab() {
+function MetaTab({ tab }: { tab: MetaTabKind }) {
   const { state } = useOpenDocs();
   const path = state.active;
   const { doc } = useDoc(path ?? "");
   if (!path) return <p className="content__empty">No document selected.</p>;
-  return <DocMetaPanel doc={doc} />;
+  return <DocMetaPanel doc={doc} tab={tab} />;
 }
 
-/** Header actions: the meta panel's tab selector, or close-all on document tabs. */
+/** Header actions: close-all on document tabs. */
 function DocHeaderActions({ group }: IDockviewHeaderActionsProps) {
   const { closeAll } = useOpenDocs();
-  if (group.panels.some((p) => p.id === "meta")) return <MetaTabs />;
   const hasDocs = group.panels.some((p) => p.id.startsWith(DOC_PREFIX));
   if (!hasDocs) return null;
   return (
@@ -278,7 +291,7 @@ function FallbackWorkspace() {
         )}
       </section>
       <section className="dock-content" aria-label="Metadata">
-        <MetaTab />
+        <MetaTab tab="info" />
       </section>
     </div>
   );

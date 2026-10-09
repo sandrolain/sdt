@@ -32,7 +32,10 @@ afterEach(cleanup);
 describe("isTabClosable", () => {
   it("keeps side and placeholder panels non-closable", () => {
     expect(isTabClosable("tree")).toBe(false);
-    expect(isTabClosable("meta")).toBe(false);
+    expect(isTabClosable("meta-info")).toBe(false);
+    expect(isTabClosable("meta-sections")).toBe(false);
+    expect(isTabClosable("meta-links")).toBe(false);
+    expect(isTabClosable("meta-related")).toBe(false);
     expect(isTabClosable("doc-courtesy")).toBe(false);
     expect(isTabClosable("doc:context/a.md")).toBe(true);
   });
