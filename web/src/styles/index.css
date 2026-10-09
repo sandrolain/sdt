@@ -3276,7 +3276,7 @@
 
   .wiki-shell {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: 1fr;
     min-height: 0;
   }
   .wiki-shell > .content {
