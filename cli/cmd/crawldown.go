@@ -98,6 +98,7 @@ var crawlOnlyFlags = []string{
 	"allowed-path-regex",
 	"follow-external",
 	"ignore-robots-txt",
+	"sitemap",
 }
 
 // validateCrawldownFlags rejects flags that do not apply to the resolved mode.
@@ -134,11 +135,19 @@ type capturedPage struct {
 // --format json|yaml. Path is set when the page was written to a file or
 // directory; Markdown is set when the body went to stdout.
 type captureReceipt struct {
-	URL      string `json:"url" yaml:"url"`
-	Title    string `json:"title" yaml:"title"`
-	SavedAt  string `json:"saved_at" yaml:"saved_at"`
-	Path     string `json:"path,omitempty" yaml:"path,omitempty"`
-	Markdown string `json:"markdown,omitempty" yaml:"markdown,omitempty"`
+	URL       string            `json:"url" yaml:"url"`
+	Title     string            `json:"title" yaml:"title"`
+	SavedAt   string            `json:"saved_at" yaml:"saved_at"`
+	Path      string            `json:"path,omitempty" yaml:"path,omitempty"`
+	Markdown  string            `json:"markdown,omitempty" yaml:"markdown,omitempty"`
+	Documents []receiptDocument `json:"documents,omitempty" yaml:"documents,omitempty"`
+}
+
+// receiptDocument is a downloaded non-HTML document recorded in a capture
+// receipt, so a consumer can tell it from the page and find its file.
+type receiptDocument struct {
+	URL  string `json:"url" yaml:"url"`
+	Path string `json:"path,omitempty" yaml:"path,omitempty"`
 }
 
 // fetchSinglePage fetches one URL without following page links and returns the
@@ -271,18 +280,13 @@ while crawling; pass it when capturing many pages from one host.`,
 		delay := getIntFlag(cmd, "delay", false)
 		userAgent := getStringFlag(cmd, "user-agent", false)
 		ignoreRobotsTxt := getBoolFlag(cmd, "ignore-robots-txt", false)
+		sitemap := getBoolFlag(cmd, "sitemap", false)
 		followExternal := getBoolFlag(cmd, "follow-external", false)
 		downloadDocs := getBoolFlag(cmd, "download-docs", false)
 		noFrontmatter := getBoolFlag(cmd, "no-frontmatter", false)
 		noTitle := getBoolFlag(cmd, "no-title", false)
 
-		conv, err := converter.NewConverter(converter.Options{
-			BulletListMarker: "-",
-			CodeBlockStyle:   "fenced",
-			EmDelimiter:      "*",
-			StrongDelimiter:  "**",
-			LinkStyle:        "inlined",
-		})
+		conv, err := converter.NewConverter(converter.Options{})
 		exitWithError(cmd, err)
 
 		mode, err := resolveCrawldownMode(outputDir, outputFile, len(args))
@@ -351,11 +355,17 @@ while crawling; pass it when capturing many pages from one host.`,
 					receipt.Path = path
 
 					for _, doc := range captured.Documents {
-						docPath := filepath.Join(outputDir, converter.GenerateAssetFilename(doc.URL))
+						name := converter.FilenameFromDisposition(doc.Disposition)
+						if name == "" {
+							name = converter.GenerateAssetFilename(doc.URL)
+						}
+						docPath := filepath.Join(outputDir, name)
 						if err := os.WriteFile(docPath, doc.Body, 0o600); err != nil {
 							slog.Warn("write document", "path", docPath, "err", err)
 							failures++
+							continue
 						}
+						receipt.Documents = append(receipt.Documents, receiptDocument{URL: doc.URL, Path: docPath})
 					}
 				}
 
@@ -386,6 +396,7 @@ while crawling; pass it when capturing many pages from one host.`,
 			MaxDepth:            maxDepth,
 			UserAgent:           userAgent,
 			IgnoreRobotsTxt:     ignoreRobotsTxt,
+			Sitemap:             sitemap,
 			FollowExternalLinks: followExternal,
 			DownloadDocuments:   downloadDocs,
 			RequestTimeout:      timeout,
@@ -465,7 +476,10 @@ while crawling; pass it when capturing many pages from one host.`,
 
 			slog.Info("downloading document", "count", currentCount, "url", doc.URL)
 
-			filename := converter.GenerateAssetFilename(doc.URL)
+			filename := converter.FilenameFromDisposition(doc.Disposition)
+			if filename == "" {
+				filename = converter.GenerateAssetFilename(doc.URL)
+			}
 			normalizedURL := strings.TrimSuffix(doc.URL, "/")
 
 			urlToFileMutex.Lock()
@@ -569,6 +583,7 @@ func init() {
 	pf.Int("delay", 0, "Delay in seconds between captured URLs and between crawl requests")
 	pf.String("user-agent", "sdt/1.0", "HTTP user agent for requests")
 	pf.Bool("ignore-robots-txt", false, "Ignore robots.txt restrictions (crawl mode only)")
+	pf.Bool("sitemap", false, "Seed the crawl from the site's sitemaps (crawl mode only)")
 	pf.Bool("follow-external", false, "Follow links to external domains (crawl mode only)")
 	pf.Bool("download-docs", false, "Also download linked documents such as PDF, Word, Office and text files (crawl and capture modes)")
 	pf.Bool("no-frontmatter", false, "Omit the YAML frontmatter block (stdout, file and capture modes)")

@@ -139,3 +139,18 @@ func TestGenerateAssetFilename(t *testing.T) {
 		}
 	}
 }
+
+func TestFilenameFromDisposition(t *testing.T) {
+	cases := []struct{ header, want string }{
+		{"", ""},
+		{`attachment; filename="report.pdf"`, "report.pdf"},
+		{"attachment; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf", "résumé.pdf"},
+		{"attachment", ""},
+		{`attachment; filename="/etc/passwd"`, "passwd"},
+	}
+	for _, c := range cases {
+		if got := converter.FilenameFromDisposition(c.header); got != c.want {
+			t.Errorf("FilenameFromDisposition(%q) = %q, want %q", c.header, got, c.want)
+		}
+	}
+}

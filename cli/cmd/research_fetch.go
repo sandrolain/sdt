@@ -15,13 +15,7 @@ import (
 // success and a retry/error on failure. It returns how many succeeded and how
 // many failed. It never aborts on a single failure. Callers persist the run.
 func fetchTargets(r *research.Run, root string, targets []string, userAgent string, timeout int) (fetched, failed int) {
-	conv, err := converter.NewConverter(converter.Options{
-		BulletListMarker: "-",
-		CodeBlockStyle:   "fenced",
-		EmDelimiter:      "*",
-		StrongDelimiter:  "**",
-		LinkStyle:        "inlined",
-	})
+	conv, err := converter.NewConverter(converter.Options{})
 	if err != nil {
 		return 0, len(targets)
 	}

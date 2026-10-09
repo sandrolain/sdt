@@ -2,6 +2,7 @@ package converter
 
 import (
 	"fmt"
+	"mime"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -13,12 +14,7 @@ import (
 
 // Options defines converter configuration.
 type Options struct {
-	Domain           string
-	BulletListMarker string
-	CodeBlockStyle   string
-	EmDelimiter      string
-	StrongDelimiter  string
-	LinkStyle        string
+	Domain string
 }
 
 // markdownExt is the markdown file extension used when building filenames.
@@ -56,13 +52,68 @@ func (c *Converter) Convert(html string) (string, error) {
 		return "", fmt.Errorf("conversion failed: %w", err)
 	}
 
-	return cleanMarkdown(markdown), nil
+	return cleanup(markdown), nil
 }
 
-func cleanMarkdown(markdown string) string {
+// cleanup runs the deterministic post-conversion passes in order. Each pass is
+// independent and unit-tested; the order matters only where a later pass assumes
+// an earlier one's output.
+func cleanup(markdown string) string {
+	markdown = removeSkipLinks(markdown)
+	markdown = repairMultilineLinks(markdown)
+	markdown = scrubBase64Images(markdown)
+	return collapseBlankLines(markdown)
+}
+
+// skipLinkTextRe matches the text of a "skip to content"-style link.
+var skipLinkTextRe = regexp.MustCompile(`(?i)^\s*(skip to (main )?(content|navigation)|skip navigation|jump to (main )?content)\s*$`)
+
+// removeSkipLinks drops inline links whose text is a skip-to-content phrase,
+// leaving the surrounding text.
+func removeSkipLinks(markdown string) string {
+	re := regexp.MustCompile(`\[([^\]]*)\]\(([^)]*)\)`)
+	return re.ReplaceAllStringFunc(markdown, func(match string) string {
+		parts := re.FindStringSubmatch(match)
+		if len(parts) == 3 && skipLinkTextRe.MatchString(parts[1]) {
+			return ""
+		}
+		return match
+	})
+}
+
+// repairMultilineLinks joins a link destination broken across lines (`](` then
+// the URL on its own line) into one line.
+func repairMultilineLinks(markdown string) string {
+	re := regexp.MustCompile(`\]\(([^)]*)\)`)
+	return re.ReplaceAllStringFunc(markdown, func(match string) string {
+		parts := re.FindStringSubmatch(match)
+		if len(parts) != 2 || !strings.Contains(parts[1], "\n") {
+			return match
+		}
+		return "](" + strings.Join(strings.Fields(parts[1]), " ") + ")"
+	})
+}
+
+// base64ImageRe matches a markdown image whose destination is an inline
+// `data:` URI.
+var base64ImageRe = regexp.MustCompile(`!\[([^\]]*)\]\(\s*data:[^)]*\)`)
+
+// scrubBase64Images replaces a base64 `data:` image with its alt text (or
+// removes it), so a captured page does not carry megabytes of inline pixels.
+func scrubBase64Images(markdown string) string {
+	return base64ImageRe.ReplaceAllStringFunc(markdown, func(match string) string {
+		parts := base64ImageRe.FindStringSubmatch(match)
+		if len(parts) == 2 {
+			return strings.TrimSpace(parts[1])
+		}
+		return ""
+	})
+}
+
+// collapseBlankLines collapses runs of 3+ newlines and trims the result.
+func collapseBlankLines(markdown string) string {
 	re := regexp.MustCompile(`\n{3,}`)
 	markdown = re.ReplaceAllString(markdown, "\n\n")
-
 	return strings.TrimSpace(markdown)
 }
 
@@ -169,6 +220,22 @@ func GenerateFilename(pageURL string) string {
 	}
 
 	return filename
+}
+
+// FilenameFromDisposition resolves the filename from a Content-Disposition
+// header, preferring the RFC 5987 `filename*` form then `filename=`, sanitized;
+// "" when the header carries no usable filename. mime.ParseMediaType decodes the
+// RFC 5987 form into the `filename` parameter.
+func FilenameFromDisposition(header string) string {
+	if header == "" {
+		return ""
+	}
+	if _, params, err := mime.ParseMediaType(header); err == nil {
+		if name := strings.TrimSpace(params["filename"]); name != "" {
+			return sanitizeFilename(filepath.Base(name))
+		}
+	}
+	return ""
 }
 
 // GenerateAssetFilename creates a safe file name for downloaded non-HTML resources.

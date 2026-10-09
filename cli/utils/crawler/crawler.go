@@ -3,8 +3,10 @@ package crawler
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,6 +16,13 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/sandrolain/sdt/cli/utils/converter"
 )
+
+// maxRetries bounds the transient-failure retries per crawl request.
+const maxRetries = 3
+
+// maxDocumentBytes caps a downloaded document body (colly's implicit default is
+// 10 MB); a body over the cap fails the request, which OnError reports.
+const maxDocumentBytes = 100 << 20
 
 // Page represents a crawled web page.
 type Page struct {
@@ -35,11 +44,14 @@ type Options struct {
 	FollowExternalLinks bool
 	SinglePage          bool
 	DownloadDocuments   bool
-	RequestTimeout      int
-	RequestDelay        int
-	ExcludedPaths       []string
-	AllowedPaths        []string
-	AllowedPathRegexes  []string
+	// Sitemap seeds the crawl from the site's robots.txt sitemaps (or
+	// /sitemap.xml), bounded and best-effort; opt-in, crawl mode only.
+	Sitemap            bool
+	RequestTimeout     int
+	RequestDelay       int
+	ExcludedPaths      []string
+	AllowedPaths       []string
+	AllowedPathRegexes []string
 	// Silent suppresses the periodic crawl progress goroutine; individual
 	// visiting/error lines are gated by the shared logger's level instead.
 	Silent bool
@@ -52,6 +64,9 @@ type PageCallback func(page Page)
 type Document struct {
 	URL         string
 	ContentType string
+	// Disposition is the raw Content-Disposition header, used to resolve a
+	// download's filename (RFC 5987).
+	Disposition string
 	Body        []byte
 }
 
@@ -154,6 +169,12 @@ func NewCrawler(startURL string, opts Options) (*Crawler, error) {
 		docCollector.IgnoreRobotsTxt = true
 	}
 
+	// Decode non-UTF8 pages (colly's default is off); cap a document body so a
+	// large PDF fails loudly instead of silently truncating at colly's default.
+	c.DetectCharset = true
+	docCollector.DetectCharset = true
+	docCollector.MaxBodySize = maxDocumentBytes
+
 	cr := &Crawler{
 		collector:         c,
 		documentCollector: docCollector,
@@ -173,6 +194,16 @@ func (c *Crawler) OnPage(callback PageCallback) {
 // Start begins the crawling process and blocks until completion.
 func (c *Crawler) Start() error {
 	c.setupCallbacks()
+
+	// Seed the crawl from the site's sitemaps (bounded, best-effort) before the
+	// base URL, so a docs site is covered beyond the base page's link graph.
+	if c.options.Sitemap && !c.options.SinglePage {
+		for _, u := range discoverSitemapURLs(c.baseURL, c.options.UserAgent, time.Duration(c.options.RequestTimeout)*time.Second) {
+			slog.Debug("sitemap seed", "url", u)
+			//nolint:errcheck
+			_ = c.collector.Visit(u)
+		}
+	}
 
 	done := make(chan struct{})
 	if !c.options.Silent {
@@ -257,12 +288,18 @@ func (c *Crawler) setupCallbacks() {
 		}
 
 		absoluteURL := e.Request.AbsoluteURL(link)
-		if c.isExcludedPath(absoluteURL) || !c.isAllowedPath(absoluteURL) {
+		if c.isExcludedPath(absoluteURL) {
+			slog.Debug("link denied", "url", absoluteURL, "reason", "EXCLUDE_PATTERN")
+			return
+		}
+		if !c.isAllowedPath(absoluteURL) {
+			slog.Debug("link denied", "url", absoluteURL, "reason", "INCLUDE_PATTERN")
 			return
 		}
 
 		if isDocumentLink(link) {
 			if !c.options.DownloadDocuments {
+				slog.Debug("link denied", "url", absoluteURL, "reason", "DOCUMENT_NOT_DOWNLOADING")
 				return
 			}
 
@@ -277,6 +314,7 @@ func (c *Crawler) setupCallbacks() {
 		// Single-page mode captures exactly one page; only follow page links
 		// when actually crawling. Document links above are still honoured.
 		if c.options.SinglePage {
+			slog.Debug("link denied", "url", absoluteURL, "reason", "SINGLE_PAGE")
 			return
 		}
 
@@ -292,6 +330,7 @@ func (c *Crawler) setupCallbacks() {
 			doc := Document{
 				URL:         normalizeURL(r.Request.URL.String()),
 				ContentType: r.Headers.Get("Content-Type"),
+				Disposition: r.Headers.Get("Content-Disposition"),
 				Body:        r.Body,
 			}
 
@@ -320,9 +359,14 @@ func (c *Crawler) setupCallbacks() {
 		})
 
 		c.documentCollector.OnError(func(r *colly.Response, err error) {
-			atomic.AddInt64(&c.errorsTotal, 1)
 			atomic.AddInt64(&c.inFlight, -1)
 
+			if retryTransient(r, err) {
+				slog.Debug("retrying crawl", "url", r.Request.URL.String(), "status", r.StatusCode)
+				return
+			}
+
+			atomic.AddInt64(&c.errorsTotal, 1)
 			slog.Warn("error crawling", "url", r.Request.URL.String(), "err", err)
 		})
 
@@ -335,9 +379,14 @@ func (c *Crawler) setupCallbacks() {
 	}
 
 	c.collector.OnError(func(r *colly.Response, err error) {
-		atomic.AddInt64(&c.errorsTotal, 1)
 		atomic.AddInt64(&c.inFlight, -1)
 
+		if retryTransient(r, err) {
+			slog.Debug("retrying crawl", "url", r.Request.URL.String(), "status", r.StatusCode)
+			return
+		}
+
+		atomic.AddInt64(&c.errorsTotal, 1)
 		slog.Warn("error crawling", "url", r.Request.URL.String(), "err", err)
 	})
 
@@ -441,6 +490,12 @@ func normalizeURL(rawURL string) string {
 		return rawURL
 	}
 
+	// Strip the fragment: `page#a` and `page#b` are the same capture, and a
+	// fragment never reaches the server. A host is case-insensitive.
+	parsedURL.Fragment = ""
+	parsedURL.RawFragment = ""
+	parsedURL.Host = strings.ToLower(parsedURL.Host)
+
 	query := parsedURL.Query()
 	parsedURL.RawQuery = query.Encode()
 
@@ -515,6 +570,35 @@ func (c *Crawler) isAllowedPath(rawURL string) bool {
 	return false
 }
 
+// isTransient reports whether a failed request is worth retrying: a transport
+// error, HTTP 429 or 5xx. A 4xx that is not 429 is not.
+func isTransient(status int, err error) bool {
+	return err != nil || status == http.StatusTooManyRequests || status >= 500
+}
+
+// retryTransient re-queues a request that failed transiently — a transport
+// error, HTTP 429 or 5xx — up to maxRetries, with a short linear backoff. A 4xx
+// that is not 429 is not retried. Returns true when the request was re-queued.
+func retryTransient(r *colly.Response, err error) bool {
+	if !isTransient(r.StatusCode, err) {
+		return false
+	}
+	attempts := 0
+	if v := r.Request.Ctx.Get("retry"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			attempts = n
+		}
+	}
+	if attempts >= maxRetries {
+		return false
+	}
+	r.Request.Ctx.Put("retry", strconv.Itoa(attempts+1))
+	time.Sleep(time.Duration(attempts+1) * 250 * time.Millisecond)
+	//nolint:errcheck
+	_ = r.Request.Retry()
+	return true
+}
+
 // OnDocument registers a callback invoked for each downloaded non-HTML document.
 func (c *Crawler) OnDocument(callback DocumentCallback) {
 	c.documentCallback = callback
@@ -534,6 +618,11 @@ func isDocumentPath(path string) bool {
 }
 
 func isDocumentResponse(r *colly.Response) bool {
+	// An explicit download wins even over an HTML content type.
+	if strings.Contains(strings.ToLower(r.Headers.Get("Content-Disposition")), "attachment") {
+		return true
+	}
+
 	if isHTMLResponse(r) {
 		return false
 	}
