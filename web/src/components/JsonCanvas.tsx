@@ -41,11 +41,14 @@ const Layers3D = lazy(() => import("../lib/jsoncanvas/layers3d"));
 
 const EMPTY: CanvasDocument = { nodes: [], edges: [] };
 
+/** Duration of an animated view transition (mirrors `.jc[data-animating]`). */
+const VIEW_ANIM_MS = 300;
+
 export interface JsonCanvasHandle {
   zoomIn(): void;
   zoomOut(): void;
-  fit(): void;
-  focusNode(id: string): void;
+  fit(opts?: { animate?: boolean }): void;
+  focusNode(id: string, opts?: { animate?: boolean }): void;
 }
 
 export interface JsonCanvasProps {
@@ -57,6 +60,8 @@ export interface JsonCanvasProps {
   showMinimap?: boolean;
   /** Re-fit whenever this value changes (a layout token). */
   fitKey?: unknown;
+  /** Animate the `fitKey` re-fit instead of jumping (the drill enter). */
+  animateFit?: boolean;
   layerGap?: number;
   theme?: "light" | "dark" | "auto";
   presets?: Record<string, string>;
@@ -121,6 +126,7 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
     hiddenLayers = [],
     showMinimap = true,
     fitKey,
+    animateFit = false,
     layerGap = 260,
     theme = "auto",
     presets = PRESET_COLORS,
@@ -153,27 +159,61 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
   const hostRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
   const sizedOnce = useRef(false);
+  const animTimer = useRef<number | null>(null);
+
+  /**
+   * Apply a view change; when animated, the `.jc` root gets a transient
+   * `data-animating` attribute enabling the `.jc-world` transform transition. It
+   * is set directly on the DOM with a forced reflow so the transition is
+   * registered *before* the transform changes — a React state flag would commit
+   * together with the transform and no transition would run. Cleared once it
+   * settles. Respects `prefers-reduced-motion` (instant) and never affects
+   * drag/wheel (those set the view directly, without the flag).
+   */
+  const animate = useCallback((apply: () => void, durationMs: number = VIEW_ANIM_MS) => {
+    const el = hostRef.current;
+    const reduce =
+      typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!el || reduce || durationMs <= 0) {
+      apply();
+      return;
+    }
+    el.setAttribute("data-animating", "true");
+    void el.offsetWidth; // force a style recalc so the transition is registered first
+    apply();
+    if (animTimer.current !== null) window.clearTimeout(animTimer.current);
+    animTimer.current = window.setTimeout(() => {
+      animTimer.current = null;
+      el.removeAttribute("data-animating");
+    }, durationMs);
+  }, []);
 
   // Re-derive concrete theme colours from the semantic tokens on mode change.
   useEffect(() => {
     setResolvedTheme(themeFromTokens(themeRef.current, mode));
   }, [mode]);
 
-  const fit = useCallback(() => {
-    const el = hostRef.current;
-    if (!el || !nodes.length) return;
-    const w = el.clientWidth;
-    const h = el.clientHeight;
-    // A panel that has not laid out yet has no size: keep the current view
-    // rather than fitting to 0 (the ResizeObserver re-fits once it is sized).
-    if (!w || !h) return;
-    const x0 = Math.min(...nodes.map((n) => n.x));
-    const x1 = Math.max(...nodes.map((n) => n.x + n.width));
-    const y0 = Math.min(...nodes.map((n) => n.y - 32));
-    const y1 = Math.max(...nodes.map((n) => n.y + n.height));
-    const k = Math.min(1.5, w / (x1 - x0 + 160), h / (y1 - y0 + 200));
-    setView({ k, x: w / 2 - (k * (x0 + x1)) / 2, y: h / 2 - (k * (y0 + y1)) / 2 - 20 });
-  }, [nodes]);
+  const fit = useCallback(
+    (opts?: { animate?: boolean }) => {
+      const el = hostRef.current;
+      if (!el || !nodes.length) return;
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      // A panel that has not laid out yet has no size: keep the current view
+      // rather than fitting to 0 (the ResizeObserver re-fits once it is sized).
+      if (!w || !h) return;
+      const x0 = Math.min(...nodes.map((n) => n.x));
+      const x1 = Math.max(...nodes.map((n) => n.x + n.width));
+      const y0 = Math.min(...nodes.map((n) => n.y - 32));
+      const y1 = Math.max(...nodes.map((n) => n.y + n.height));
+      const k = Math.min(1.5, w / (x1 - x0 + 160), h / (y1 - y0 + 200));
+      const apply = () =>
+        setView({ k, x: w / 2 - (k * (x0 + x1)) / 2, y: h / 2 - (k * (y0 + y1)) / 2 - 20 });
+      if (opts?.animate) animate(apply);
+      else apply();
+    },
+    [nodes, animate],
+  );
 
   const zoomBy = useCallback((factor: number) => {
     setView((v) => ({ ...v, k: Math.min(4, Math.max(0.1, v.k * factor)) }));
@@ -182,13 +222,16 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
   const zoomIn = useCallback(() => zoomBy(1.25), [zoomBy]);
   const zoomOut = useCallback(() => zoomBy(1 / 1.25), [zoomBy]);
   const focusNode = useCallback(
-    (id: string) => {
+    (id: string, opts?: { animate?: boolean }) => {
       const n = byId[id];
       if (!n) return;
       setSelected([id]);
-      setView({ k: 1, x: size.w / 2 - n.x - n.width / 2, y: size.h / 2 - n.y - n.height / 2 });
+      const apply = () =>
+        setView({ k: 1, x: size.w / 2 - n.x - n.width / 2, y: size.h / 2 - n.y - n.height / 2 });
+      if (opts?.animate) animate(apply);
+      else apply();
     },
-    [byId, size],
+    [byId, size, animate],
   );
 
   useImperativeHandle(ref, () => ({ zoomIn, zoomOut, fit, focusNode }), [
@@ -218,10 +261,10 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
     return () => ro.disconnect();
   }, [fit]);
 
-  // Re-fit on an external layout token change.
+  // Re-fit on an external layout token change (animated when entering a level).
   useEffect(() => {
-    fit();
-  }, [fitKey, fit]);
+    fit({ animate: animateFit });
+  }, [fitKey, fit, animateFit]);
 
   useEffect(() => {
     onViewChange?.(view.k);

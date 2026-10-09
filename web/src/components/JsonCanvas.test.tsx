@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRef } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
 import type { CanvasDocument } from "../lib/jsoncanvas/document";
@@ -48,6 +48,39 @@ describe("JsonCanvas (read-only)", () => {
       ref.current?.fit();
       ref.current?.focusNode("a");
     }).not.toThrow();
+  });
+
+  it("animates a programmatic focus: the animating flag is set then cleared", () => {
+    vi.useFakeTimers();
+    try {
+      const ref = createRef<JsonCanvasHandle>();
+      const { container } = render(<JsonCanvas ref={ref} data={DOC} />);
+      const root = container.querySelector(".jc")!;
+      expect(root.getAttribute("data-animating")).toBeNull();
+      act(() => ref.current?.focusNode("a", { animate: true }));
+      expect(root.getAttribute("data-animating")).toBe("true");
+      act(() => vi.advanceTimersByTime(400));
+      expect(root.getAttribute("data-animating")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("skips the animation under prefers-reduced-motion", () => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener() {},
+      removeEventListener() {},
+    }) as unknown as typeof window.matchMedia;
+    try {
+      const ref = createRef<JsonCanvasHandle>();
+      const { container } = render(<JsonCanvas ref={ref} data={DOC} />);
+      act(() => ref.current?.fit({ animate: true }));
+      expect(container.querySelector(".jc")!.getAttribute("data-animating")).toBeNull();
+    } finally {
+      window.matchMedia = original;
+    }
   });
 
   it("routes a 3D pick to onPick, not onOpenNode (O4)", async () => {

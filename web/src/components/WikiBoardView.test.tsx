@@ -179,6 +179,47 @@ describe("WikiBoardView", () => {
     expect(await screen.findByRole("button", { name: "Root" })).toBeTruthy();
   });
 
+  it("drills into an inline nested canvas without refetching the board", async () => {
+    let boardCalls = 0;
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree")
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) });
+      if (url.startsWith("/api/wiki/board")) {
+        boardCalls += 1;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(NESTED_BOARD) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    const { container } = renderView();
+    const node = await screen.findByRole("button", { name: "Investigation" });
+    expect(boardCalls).toBe(1);
+    await userEvent.dblClick(node);
+    await waitFor(() =>
+      expect(container.querySelector(".board-breadcrumb")?.textContent).toContain("Investigation"),
+    );
+    // The child level came from the loaded model: no second board fetch.
+    expect(boardCalls).toBe(1);
+    expect(screen.queryByText(/Loading board/)).toBeNull();
+  });
+
+  it("enters a nested canvas through the zoom-in affordance", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree")
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) });
+      if (url.startsWith("/api/wiki/board"))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(NESTED_BOARD) });
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    const { container } = renderView();
+    await screen.findByRole("button", { name: "Investigation" });
+    await userEvent.click(await screen.findByRole("button", { name: "Zoom into Investigation" }));
+    // The enter is delayed by the "zoom into" animation step.
+    await waitFor(() =>
+      expect(container.querySelector(".board-breadcrumb")?.textContent).toContain("Investigation"),
+    );
+    expect(screen.queryByRole("button", { name: "Root" })).toBeNull();
+  });
+
   it("navigates to an external .canvas target through the board route", async () => {
     globalThis.fetch = vi.fn((url: string) => {
       if (url === "/api/tree")

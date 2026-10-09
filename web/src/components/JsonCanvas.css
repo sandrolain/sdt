@@ -191,4 +191,9 @@ a.jc-cp {
       box-shadow 0.15s,
       border-color 0.15s;
   }
+  /* Animated view transition (focus/fit on entering a level); the flag is set
+     only for programmatic view changes, never for drag/wheel panning. */
+  .jc[data-animating="true"] .jc-world {
+    transition: transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
 }

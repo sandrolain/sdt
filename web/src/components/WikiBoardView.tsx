@@ -44,6 +44,9 @@ import { useOpenDocs } from "../lib/openDocsContext";
 
 export const WIKI_BOARD_STORAGE_KEY = "wiki-board";
 
+/** Duration of the "zoom into" step before entering a level (matches JsonCanvas). */
+const ENTER_ANIM_MS = 300;
+
 /** Dockview needs real layout measurement; tests use a plain columns fallback. */
 const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
 
@@ -110,11 +113,24 @@ function BoardPanel() {
     },
     [setViewHandle],
   );
+  const enterTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (enterTimer.current !== null) window.clearTimeout(enterTimer.current);
+    },
+    [],
+  );
   const onEnter = useCallback(
     (node: BoardNode) => {
-      // "Zoom into": focus the node, then drill / navigate to it.
-      localRef.current?.focusNode(node.id);
-      open(node);
+      // "Zoom into": animate the view onto the node, then enter it. The swap is
+      // not a refresh (an inline child comes from the loaded model) and the new
+      // level's fit animates too, so the whole drill reads as one smooth motion.
+      localRef.current?.focusNode(node.id, { animate: true });
+      if (enterTimer.current !== null) window.clearTimeout(enterTimer.current);
+      enterTimer.current = window.setTimeout(() => {
+        enterTimer.current = null;
+        open(node);
+      }, ENTER_ANIM_MS);
     },
     [open],
   );
@@ -129,6 +145,7 @@ function BoardPanel() {
         collapsedGroups={collapsedGroups}
         showMinimap={showMinimap}
         fitKey={doc}
+        animateFit
         placeholderScale={PLACEHOLDER_SCALE}
         onViewChange={setZoom}
         onOpenNode={open}
@@ -190,12 +207,10 @@ export function WikiBoardView() {
   const route = useMemo(() => parseBoardSplat(splat), [splat]);
   const file = route.file;
   const drillIds = route.ids;
-  const drillKey = drillIds.join("\u0000");
   const [model, setModel] = useState<BoardModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [canvases, setCanvases] = useState<TreeEntry[]>([]);
   const [mode, setMode] = useState<"2d" | "3d">("2d");
-  const [levels, setLevels] = useState<BoardLevel[]>([]);
   const [hiddenLayers, setHiddenLayers] = useState<number[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const [showMinimap, setShowMinimap] = useState(true);
@@ -236,28 +251,8 @@ export function WikiBoardView() {
     fetchWikiBoard(file || undefined)
       .then((res) => {
         if (!alive) return;
-        const root = decorateBoardColours(normalizeBoard(res));
-        setModel(root);
-        const built = buildLevels(root, drillIds);
-        setLevels(built);
+        setModel(decorateBoardColours(normalizeBoard(res)));
         setError(null);
-        // The view-local collapse state defaults to the authored `x-collapsed`.
-        const active = built.length > 0 ? built[built.length - 1].model : root;
-        setCollapsedGroups(
-          boardGroups(active.nodes)
-            .filter((g) => g.collapsed)
-            .map((g) => g.id),
-        );
-        // An unresolvable drill segment trims the URL to the deepest valid prefix.
-        if (built.length < drillIds.length) {
-          navigate(
-            boardPath(
-              file,
-              built.map((l) => l.nodeId),
-            ),
-            { replace: true },
-          );
-        }
       })
       .catch((err: unknown) => {
         if (alive) {
@@ -268,8 +263,43 @@ export function WikiBoardView() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, drillKey, reloadToken]);
+  }, [file, reloadToken]);
+
+  // The drill levels come from the loaded model: an inline `nested-canvas` child
+  // is embedded in the root document, so entering a level never refetches.
+  const levels = useMemo<BoardLevel[]>(
+    () => (model ? buildLevels(model, drillIds) : []),
+    [model, drillIds],
+  );
+
+  // An unresolvable drill segment trims the URL to the deepest valid prefix.
+  useEffect(() => {
+    if (!model || levels.length >= drillIds.length) return;
+    navigate(
+      boardPath(
+        file,
+        levels.map((l) => l.nodeId),
+      ),
+      { replace: true },
+    );
+  }, [model, levels, drillIds, file, navigate]);
+
+  const activeDocument = levels.length > 0 ? levels[levels.length - 1].model : model;
+
+  // The view-local collapse state defaults to the authored `x-collapsed`; reset it
+  // when the active level changes. This is React's "adjust state on a value
+  // change" pattern (a render-time reset, not an effect, which would cascade).
+  const [collapsedFor, setCollapsedFor] = useState<BoardModel | null>(activeDocument);
+  if (activeDocument !== collapsedFor) {
+    setCollapsedFor(activeDocument);
+    setCollapsedGroups(
+      activeDocument
+        ? boardGroups(activeDocument.nodes)
+            .filter((g) => g.collapsed)
+            .map((g) => g.id)
+        : [],
+    );
+  }
 
   const setViewHandle = useCallback((handle: JsonCanvasHandle | null) => {
     viewRef.current = handle;
@@ -291,7 +321,6 @@ export function WikiBoardView() {
     [canvases],
   );
 
-  const activeDocument = levels.length > 0 ? levels[levels.length - 1].model : model;
   const layers = useMemo<BoardLayer[]>(
     () => (activeDocument ? canvasLayers(activeDocument) : []),
     [activeDocument],
