@@ -45,6 +45,8 @@ export interface BoardControlsProps {
   onToggleLayer: (id: number) => void;
   showMinimap: boolean;
   onShowMinimap: (value: boolean) => void;
+  layoutMode: "authored" | "auto";
+  onLayout: (mode: "authored" | "auto") => void;
   groups: BoardGroup[];
   onToggleGroup: (id: string) => void;
 }
@@ -66,6 +68,8 @@ export function BoardControls({
   onToggleLayer,
   showMinimap,
   onShowMinimap,
+  layoutMode,
+  onLayout,
   groups,
   onToggleGroup,
 }: BoardControlsProps) {
@@ -139,6 +143,24 @@ export function BoardControls({
         <Switch isSelected={showMinimap} onChange={onShowMinimap}>
           Minimap
         </Switch>
+      </section>
+
+      <section className="graph-tools__section">
+        <h3 className="graph-tools__title">Layout</h3>
+        <div className="graph-tools__row" role="group" aria-label="Canvas layout">
+          {(["authored", "auto"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`graph-tools__chip${layoutMode === m ? " is-active" : ""}`}
+              aria-pressed={layoutMode === m}
+              onClick={() => onLayout(m)}
+            >
+              <Icon name={m === "authored" ? "edit" : "auto_awesome"} />
+              {m === "authored" ? "Authored" : "Auto"}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="graph-tools__section">

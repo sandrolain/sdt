@@ -35,6 +35,7 @@ import { boardGroups } from "../lib/jsoncanvas/collapse";
 import { displayTitle } from "../lib/titles";
 import { addBoardPanels, BOARD_CENTER_PANEL_ID } from "../lib/wikiEdgeLayout";
 import { JsonCanvas, type JsonCanvasHandle } from "./JsonCanvas";
+import { layoutCanvas } from "../lib/jsoncanvas/layout";
 import { PLACEHOLDER_SCALE, renderNestedBody } from "./nestedCanvasBody";
 import { BoardControls, type BoardLayer, type BoardCrumb, type BoardGroup } from "./BoardControls";
 import { SkeletonLines } from "./Skeleton";
@@ -61,6 +62,8 @@ interface BoardWorkspaceValue {
   onToggleGroup: (id: string) => void;
   showMinimap: boolean;
   setShowMinimap: (value: boolean) => void;
+  layoutMode: "authored" | "auto";
+  setLayoutMode: (mode: "authored" | "auto") => void;
   zoom: number;
   setZoom: (zoom: number) => void;
   zoomIn: () => void;
@@ -89,12 +92,17 @@ function BoardPanel() {
     hiddenLayers,
     collapsedGroups,
     showMinimap,
+    layoutMode,
     zoom,
     setZoom,
     setViewHandle,
     open,
   } = useBoardWorkspace();
   const localRef = useRef<JsonCanvasHandle | null>(null);
+  const positions = useMemo(
+    () => (layoutMode === "auto" ? layoutCanvas(doc) : undefined),
+    [layoutMode, doc],
+  );
   const attachRef = useCallback(
     (handle: JsonCanvasHandle | null) => {
       localRef.current = handle;
@@ -107,6 +115,7 @@ function BoardPanel() {
       <JsonCanvas
         ref={attachRef}
         data={doc}
+        positions={positions}
         mode={mode}
         hiddenLayers={hiddenLayers}
         collapsedGroups={collapsedGroups}
@@ -150,6 +159,8 @@ function BoardControlsPanel() {
         onToggleLayer={b.toggleLayer}
         showMinimap={b.showMinimap}
         onShowMinimap={b.setShowMinimap}
+        layoutMode={b.layoutMode}
+        onLayout={b.setLayoutMode}
         groups={b.groups}
         onToggleGroup={b.onToggleGroup}
       />
@@ -180,6 +191,21 @@ export function WikiBoardView() {
   const [hiddenLayers, setHiddenLayers] = useState<number[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const [showMinimap, setShowMinimap] = useState(true);
+  const [layoutMode, setLayoutModeState] = useState<"authored" | "auto">(() => {
+    try {
+      return localStorage.getItem("sdt-board-layout") === "auto" ? "auto" : "authored";
+    } catch {
+      return "authored";
+    }
+  });
+  const setLayoutMode = (mode: "authored" | "auto") => {
+    setLayoutModeState(mode);
+    try {
+      localStorage.setItem("sdt-board-layout", mode);
+    } catch {
+      // persistence is non-essential
+    }
+  };
   const [zoom, setZoom] = useState(1);
   const viewRef = useRef<JsonCanvasHandle | null>(null);
   const apiRef = useRef<DockviewApi | null>(null);
@@ -384,6 +410,8 @@ export function WikiBoardView() {
     onToggleGroup,
     showMinimap,
     setShowMinimap,
+    layoutMode,
+    setLayoutMode,
     zoom,
     setZoom,
     zoomIn,

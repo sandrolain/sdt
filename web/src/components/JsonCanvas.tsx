@@ -50,6 +50,8 @@ export interface JsonCanvasHandle {
 
 export interface JsonCanvasProps {
   data: CanvasDocument;
+  /** Optional computed positions (dynamic layout) overriding each node's x/y/size. */
+  positions?: Map<string, { x: number; y: number; width?: number; height?: number }>;
   mode?: "2d" | "3d";
   hiddenLayers?: number[];
   showMinimap?: boolean;
@@ -114,6 +116,7 @@ function useThemeMode(theme: "light" | "dark" | "auto"): "light" | "dark" {
 export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function JsonCanvas(
   {
     data,
+    positions,
     mode: modeProp = "2d",
     hiddenLayers = [],
     showMinimap = true,
@@ -344,11 +347,12 @@ export const JsonCanvas = forwardRef<JsonCanvasHandle, JsonCanvasProps>(function
   const renderNodeEl = (n: CanvasNode) => {
     const col = resolveColor(n.color, presets);
     const isSel = selected.includes(n.id);
+    const pos = positions?.get(n.id);
     const cssVars: CSSProperties = {
-      left: n.x,
-      top: n.y,
-      width: n.width,
-      height: n.height,
+      left: pos?.x ?? n.x,
+      top: pos?.y ?? n.y,
+      width: pos?.width ?? n.width,
+      height: pos?.height ?? n.height,
       zIndex: isSel ? 2 : 1,
     };
     if (col) (cssVars as Record<string, string | number>)["--c"] = col;

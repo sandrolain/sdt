@@ -30,6 +30,8 @@ function renderControls(overrides: Record<string, unknown> = {}) {
     onToggleLayer: vi.fn(),
     showMinimap: true,
     onShowMinimap: vi.fn(),
+    layoutMode: "authored" as const,
+    onLayout: vi.fn(),
     groups: [] as { id: string; label: string; collapsed: boolean }[],
     onToggleGroup: vi.fn(),
     ...overrides,
