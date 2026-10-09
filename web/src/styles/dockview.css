@@ -38,9 +38,24 @@
   display: none;
 }
 
-/* The kind-coloured tab-group chip/underline fights the native tab strip and
-   misaligns while scrolling. The grouping behaviour stays; the coloured
-   decoration is dropped. */
+/* The spaced theme gaps and rounds the centre blocks through
+   `.dv-resize-container > .dv-grid-view`, but the edge groups (side panels) have
+   no resize-container, so they sit flush. Give them the same block gap and the
+   full rounded corners (the group carries an inline width/height:100%, so the
+   rule needs to win over it). */
+.dv-edge-group {
+  margin: var(--dv-spacing-padding, 10px) !important;
+  border-radius: var(--dv-border-radius, 12px) !important;
+}
+
+/* The edge group's vertical tab strip fills the container's corner with a square
+   background, so the container reads as unrounded on the strip side. Inset it
+   and round it like a block. */
+.dv-groupview-edge > .dv-tabs-and-actions-container {
+  margin: var(--dv-spacing-padding, 10px);
+  border-radius: var(--dv-border-radius, 12px);
+}
+
 .dock-layout .dv-tab-group-chip,
 .dock-layout .dv-tab-group-underline,
 .dock-layout .dv-tab-group-chip-continuation {

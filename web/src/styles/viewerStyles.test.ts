@@ -115,11 +115,12 @@ describe("viewer styles", () => {
     expect(bar).toContain("border-top");
   });
 
-  it("styles the metadata panel tabs from the shared tokens", () => {
-    // the four collapsible cards are gone, replaced by one tab strip
+  it("renders the metadata panels without a nested card", () => {
+    // the four collapsible cards are gone; each dockview panel is one section,
+    // so the meta-panel box (border/background) and the tab strip are gone too
     expect(css.indexOf(".meta-card {")).toBe(-1);
-    expect(block(".meta-tabs__tab[data-selected]")).toContain("background: var(--bg-rise)");
-    expect(block(".meta-panel")).toContain("border: 1px solid var(--border)");
+    expect(css.indexOf(".meta-tabs__list {")).toBe(-1);
+    expect(block(".meta-panel")).not.toContain("border:");
   });
 
   it("keeps the state filter and the drift warning on the shared tokens", () => {

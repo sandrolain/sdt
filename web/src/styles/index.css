@@ -1349,7 +1349,6 @@
   }
 
   .panel--meta {
-    border-left: 1px solid var(--border);
     background: var(--bg-mantle);
     overflow: auto;
     overflow-x: hidden;
@@ -1360,53 +1359,7 @@
     /* let the edge group shrink below its content's min-content width */
     min-width: 0;
   }
-  .meta-tabs {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    min-width: 0;
-  }
-  .meta-tabs__list {
-    display: flex;
-    gap: 0.25rem;
-    padding: 0.2rem;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-base);
-  }
-  .meta-tabs__tab {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    padding: 0.35rem 0.4rem;
-    border-radius: 7px;
-    color: var(--fg-dim);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .meta-tabs__tab .ms-icon {
-    font-size: 1rem;
-  }
-  .meta-tabs__tab[data-selected] {
-    background: var(--bg-rise);
-    color: var(--fg);
-  }
-  .meta-tabs__tab[data-focus-visible] {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-  }
-  .meta-tabs__panel {
-    outline: none;
-    min-width: 0;
-  }
   .meta-panel {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-base);
-    padding: 0.6rem;
     min-width: 0;
   }
   .meta-panel__title {
