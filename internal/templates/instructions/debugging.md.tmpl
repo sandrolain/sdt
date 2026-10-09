@@ -43,6 +43,19 @@ typo, a one-line mistake), fix it and move on.
 - **Not reproducible** — deliver a bounded diagnosis (what was ruled in and
   out), never a guess presented as a root cause.
 
+## Retained symptom history (the runbook)
+
+- The diagnosis loop is **what to do now**; a project also keeps a **symptom-first
+  runbook** of **what was already solved**. After a non-trivial diagnosis, add one
+  entry so the next occurrence is a lookup, not a re-diagnosis.
+- Shape: **area → symptom → cause → solutions**, one entry per solved symptom;
+  each entry **links the note or decision that closed it**, so the runbook does
+  not rot into a second, less honest place to look.
+- Keep the runbook with the project's living docs, not in the generated
+  instruction set.
+- When this does not apply: a one-off typo, or a fix already covered by a test,
+  needs no entry; the runbook is for symptoms that will recur.
+
 ## Boundaries
 
 - **A fix is not the trigger's permission.** Report the diagnosis and the

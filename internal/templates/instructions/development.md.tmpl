@@ -113,6 +113,26 @@ Give it two explicit facts so the debt is visible, not silent:
 Record the marker beside the shortcut (a code comment) or in the task/note that
 tracks the work.
 
+## Evidence, not self-report
+
+- A command exiting 0 is **not** evidence of its effect. Confirm the effect
+  through an independent path — read the artefact the command should have changed
+  and compare it — or leave the claim unverified (the `passed`/`expected`/
+  `inferred` vocabulary). This is a rule about *evidence*, not distrust of tools.
+- When a tool's self-report has been shown wrong, name the tool, the reliable read
+  path and the command to use instead, so the next person does not trust it again.
+- When this does not apply: a read-back is only meaningful where the effect is
+  observable; a tool whose effect is invisible needs a different check, not a
+  ritual read-back.
+
+## Comments state the failure they prevent
+
+- A comment on an invariant states **the failure it prevents and the exact
+  symptom**, never a restatement of the code (e.g. "resetting the handle is not
+  enough: a cross-realm binding error needs a full rebuild").
+- When this does not apply: a comment that only restates what the code plainly
+  says adds nothing — do not write it.
+
 ## Surgical changes
 
 - Touch only what the task requires: every changed line traces to the request.
@@ -120,6 +140,19 @@ tracks the work.
   formatting; match the existing style.
 - Mention unrelated dead code instead of deleting it; clean up only your own
   mess.
+
+## Robustness rules
+
+- **Guard slow work by progress, not by wall clock.** Re-arm a deadline on every
+  progress tick; a fixed timeout kills legitimate slow work (a large download on a
+  slow link). Where there is no progress signal, a wall clock is the only option.
+- **Decide a retry by classifying the error, not by its status code.** A transport
+  error may be retried once; a malformed payload is not. Only where a retry
+  exists — do not add one speculatively.
+- **Per-item work carries per-item status and a non-fatal fallback.** One item's
+  failure is marked and the run continues; the batch does not abort. When this
+  does not apply: a batch where one item's success is a precondition for the rest
+  is not per-item work — it must fail fast.
 
 ## Goal-driven execution
 
