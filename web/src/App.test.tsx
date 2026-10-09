@@ -46,7 +46,7 @@ describe("app shell", () => {
     renderApp();
     await screen.findByText("Alpha module");
     expect(screen.getByRole("link", { name: "Documents" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Wiki" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Graph" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Search the corpus" })).toBeTruthy();
   });
 

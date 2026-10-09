@@ -35,21 +35,24 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
         <div className="top-bar__group">
           <NavLink
             to="/docs"
-            className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
+            className={({ isActive }) =>
+              `top-bar__tab${isActive && !pathname.startsWith("/docs/map") ? " is-active" : ""}`
+            }
           >
             <Icon name="description" />
             Documents
           </NavLink>
-        </div>
-        <div className="top-bar__group">
           <NavLink
-            to="/wiki"
+            to="/docs/map"
             end
             className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
           >
-            <Icon name="menu_book" />
-            Wiki
+            <Icon name="scatter_plot" />
+            Map
           </NavLink>
+        </div>
+        <div className="top-bar__group">
+          <span className="top-bar__group-label">Wiki</span>
           <NavLink
             to="/wiki/graph"
             className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}

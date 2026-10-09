@@ -103,6 +103,16 @@
     align-items: center;
     gap: 0.25rem;
   }
+  /* A group label ("Wiki") names the group; it is not a link. */
+  .top-bar__group-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.4rem;
+    color: var(--fg-faint);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
   /* A hairline separates the primary groups (Documents | Wiki Graph/Board). */
   .top-bar__group + .top-bar__group {
     margin-left: 0.75rem;
