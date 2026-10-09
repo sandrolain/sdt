@@ -58,12 +58,17 @@ tasks:
     cmds:
       - bun install
 
-  build-web:
-    desc: Build the web/ SPA (Bun + Vite) into web/dist
+  test-web:
+    desc: Run web tests with Bun
     dir: web
     cmds:
       - bun run lint
       - bun run test
+
+  build-web:
+    desc: Build the web/ SPA (Bun + Vite) into web/dist
+    dir: web
+    cmds:
       - bun run build
 
   viewer-embed:
