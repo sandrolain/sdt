@@ -63,12 +63,13 @@ describe("viewer styles", () => {
     expect(block(".doc-rendered blockquote")).toContain("border-left: 3px solid var(--accent)");
   });
 
-  it("does not paint a duplicate background on .dv-react-part", () => {
-    const start = dockviewCss.indexOf(".dv-groupview,");
+  it("paints only the custom .dock-content, never the dockview surfaces", () => {
+    const start = dockviewCss.indexOf(".dock-content");
     const open = dockviewCss.indexOf("{", start);
     const selector = dockviewCss.slice(start, open);
     expect(selector).toContain(".dock-content");
     expect(selector).not.toContain(".dv-react-part");
+    expect(selector).not.toContain(".dv-groupview");
   });
 
   it("gives the tab actions the full strip height", () => {

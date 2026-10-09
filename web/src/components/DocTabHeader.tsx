@@ -24,7 +24,9 @@ export function DocTabHeader(props: IDockviewPanelHeaderProps) {
         label={`kind: ${kind}`}
         title={kind}
       />
-      <span className="dv-default-tab-content">{displayTitle({ path })}</span>
+      <span className="dv-default-tab-content" title={displayTitle({ path })}>
+        {displayTitle({ path })}
+      </span>
       <TooltipButton
         className="dv-default-tab-action"
         label="Close tab"

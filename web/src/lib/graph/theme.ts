@@ -21,8 +21,8 @@ function cssVar(name: string): string {
  * effects, so a render-time read would lag by one commit).
  */
 export const GRAPH_BACKDROP_CSS =
-  "radial-gradient(1200px 800px at 50% 38%, var(--bg-base, #101a2e) 0%, " +
-  "var(--bg-mantle, #080d18) 58%, var(--bg-crust, #04070d) 100%)";
+  "radial-gradient(1200px 800px at 50% 38%, var(--bg-mantle, #080d18) 0%, " +
+  "var(--bg-crust, #04070d) 62%, var(--bg-crust, #04070d) 100%)";
 
 export interface GraphBackdrop {
   /** full CSS `background` value for the canvas host */
@@ -33,14 +33,14 @@ export interface GraphBackdrop {
 
 export function graphBackdrop(): GraphBackdrop {
   const stops: [string, string, string] = [
-    cssVar("--bg-base") || DEFAULT_BG_STOPS[0],
     cssVar("--bg-mantle") || DEFAULT_BG_STOPS[1],
+    cssVar("--bg-crust") || DEFAULT_BG_STOPS[2],
     cssVar("--bg-crust") || DEFAULT_BG_STOPS[2],
   ];
   return {
     stops,
     css:
       `radial-gradient(1200px 800px at 50% 38%, ${stops[0]} 0%, ` +
-      `${stops[1]} 58%, ${stops[2]} 100%)`,
+      `${stops[1]} 62%, ${stops[2]} 100%)`,
   };
 }

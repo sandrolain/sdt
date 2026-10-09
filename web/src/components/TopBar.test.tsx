@@ -43,9 +43,9 @@ describe("TopBar", () => {
     );
   });
 
-  it("highlights Wiki under the wiki route", () => {
+  it("highlights the Graph entry under the wiki graph route", () => {
     renderTopBar("/wiki/graph");
-    expect(screen.getByRole("link", { name: /Wiki/ }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: /Graph/ }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("link", { name: /Documents/ }).getAttribute("aria-current")).toBeNull();
   });
 

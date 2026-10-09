@@ -12,8 +12,8 @@ afterEach(() => {
 describe("graphBackdrop", () => {
   it("falls back to the default stops when the tokens are absent", () => {
     const b = graphBackdrop();
-    expect(b.stops).toEqual(DEFAULT_BG_STOPS);
-    expect(b.css).toContain(DEFAULT_BG_STOPS[0]);
+    expect(b.stops).toEqual([DEFAULT_BG_STOPS[1], DEFAULT_BG_STOPS[2], DEFAULT_BG_STOPS[2]]);
+    expect(b.css).toContain(DEFAULT_BG_STOPS[1]);
   });
 
   it("resolves the stops from the theme tokens", () => {
@@ -21,14 +21,14 @@ describe("graphBackdrop", () => {
     document.documentElement.style.setProperty("--bg-mantle", "#181825");
     document.documentElement.style.setProperty("--bg-crust", "#11111b");
     const b = graphBackdrop();
-    expect(b.stops).toEqual(["#1e1e2e", "#181825", "#11111b"]);
+    expect(b.stops).toEqual(["#181825", "#11111b", "#11111b"]);
     expect(b.css).toBe(
-      "radial-gradient(1200px 800px at 50% 38%, #1e1e2e 0%, #181825 58%, #11111b 100%)",
+      "radial-gradient(1200px 800px at 50% 38%, #181825 0%, #11111b 62%, #11111b 100%)",
     );
   });
 
   it("exposes a live var-based backdrop for the canvas", () => {
-    expect(GRAPH_BACKDROP_CSS).toContain("var(--bg-base");
+    expect(GRAPH_BACKDROP_CSS).toContain("var(--bg-mantle");
     expect(GRAPH_BACKDROP_CSS).toContain("var(--bg-crust");
   });
 });

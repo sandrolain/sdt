@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
+import { useMetaTab } from "../lib/metaTab";
 import { useActiveSection } from "../lib/activeSection";
 import { categoryColor, categoryIcon } from "../lib/categories";
 import {
@@ -173,150 +173,125 @@ export function DocMetaPanel({ doc }: DocMetaPanelProps) {
     return { value, valueInfo: valueLabel(docKind, value) };
   }, [docKind, fields]);
 
-  const [tab, setTab] = useState<string>("info");
+  const tab = useMetaTab();
 
   if (!doc) return null;
 
   return (
     <aside className="panel panel--meta" aria-label="Document metadata">
-      <Tabs
-        selectedKey={tab}
-        onSelectionChange={(key) => setTab(String(key))}
-        className="meta-tabs"
-      >
-        <TabList className="meta-tabs__list" aria-label="Document panel">
-          <Tab id="info" className="meta-tabs__tab">
-            <Icon name="info" />
-            <span>Info</span>
-          </Tab>
-          <Tab id="sections" className="meta-tabs__tab">
-            <Icon name="toc" />
-            <span>Sections</span>
-          </Tab>
-          <Tab id="links" className="meta-tabs__tab">
-            <Icon name="link" />
-            <span>Links</span>
-          </Tab>
-          <Tab id="related" className="meta-tabs__tab">
-            <Icon name="hub" />
-            <span>Related</span>
-          </Tab>
-        </TabList>
+      {tab === "info" && (
+        <div className="meta-panel">
+          <Breadcrumbs path={doc.path} />
 
-        <TabPanel id="info" className="meta-tabs__panel">
-          <div className="meta-panel">
-            <Breadcrumbs path={doc.path} />
+          {declaredStatus && (
+            <MetaStatusRow
+              label="Status"
+              dotTone={declaredStatus.valueInfo?.tone ?? "neutral"}
+              value={declaredStatus.valueInfo?.label ?? declaredStatus.value}
+              title={declaredStatus.valueInfo?.meaning ?? declaredStatus.value}
+            />
+          )}
+          {progress && (
+            <MetaStatusRow label="Progress" dotTone={progress.tone} value={progress.label} />
+          )}
+          {drift && <MetaDriftWarning drift={drift} />}
+          {docKind && (
+            <div className="meta-status" role="listitem">
+              <MetaKindIcon kind={docKind} />
+              <span className="meta-status__label">Kind</span>
+              <span className="meta-status__value">{kindLabel(docKind)}</span>
+            </div>
+          )}
+          {isCanvas(doc) ? (
+            <CanvasMeta canvas={doc.canvas} />
+          ) : isMermaid(doc) ? (
+            <MermaidMeta source={doc.source} />
+          ) : (
+            <>
+              {yamlError && <MetaParseWarning raw={doc.frontmatter} />}
+              {fields.length === 0 && !yamlError && (
+                <p className="content__empty">No frontmatter.</p>
+              )}
+              {fields.length > 0 && (
+                <dl className="meta-rows" role="list">
+                  {fields
+                    .filter((field) => field.key !== "status" && field.key !== "kind")
+                    .map((field, i) => (
+                      <MetaRow
+                        key={`${field.path.join(".")}-${i}`}
+                        field={field}
+                        basePath={doc.path}
+                        index={index}
+                        corpus={corpus}
+                      />
+                    ))}
+                </dl>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
-            {declaredStatus && (
-              <MetaStatusRow
-                label="Status"
-                dotTone={declaredStatus.valueInfo?.tone ?? "neutral"}
-                value={declaredStatus.valueInfo?.label ?? declaredStatus.value}
-                title={declaredStatus.valueInfo?.meaning ?? declaredStatus.value}
-              />
-            )}
-            {progress && (
-              <MetaStatusRow label="Progress" dotTone={progress.tone} value={progress.label} />
-            )}
-            {drift && <MetaDriftWarning drift={drift} />}
-            {docKind && (
-              <div className="meta-status" role="listitem">
-                <MetaKindIcon kind={docKind} />
-                <span className="meta-status__label">Kind</span>
-                <span className="meta-status__value">{kindLabel(docKind)}</span>
-              </div>
-            )}
-            {isCanvas(doc) ? (
-              <CanvasMeta canvas={doc.canvas} />
-            ) : isMermaid(doc) ? (
-              <MermaidMeta source={doc.source} />
-            ) : (
-              <>
-                {yamlError && <MetaParseWarning raw={doc.frontmatter} />}
-                {fields.length === 0 && !yamlError && (
-                  <p className="content__empty">No frontmatter.</p>
-                )}
-                {fields.length > 0 && (
-                  <dl className="meta-rows" role="list">
-                    {fields
-                      .filter((field) => field.key !== "status" && field.key !== "kind")
-                      .map((field, i) => (
-                        <MetaRow
-                          key={`${field.path.join(".")}-${i}`}
-                          field={field}
-                          basePath={doc.path}
-                          index={index}
-                          corpus={corpus}
-                        />
-                      ))}
-                  </dl>
-                )}
-              </>
-            )}
-          </div>
-        </TabPanel>
-
-        <TabPanel id="sections" className="meta-tabs__panel">
-          <div className="meta-panel">
-            {headings.length > 0 ? (
-              <ul className="meta-toc" role="list">
-                {headings.map((h, i) => {
-                  const isActive = activeHeading === h.text;
-                  return (
-                    <li key={`${h.text}-${i}`} style={{ paddingLeft: `${(h.level - 1) * 0.6}rem` }}>
-                      <button
-                        type="button"
-                        className={`meta-toc__link${isActive ? " is-active" : ""}`}
-                        aria-current={isActive ? "true" : undefined}
-                        onClick={() => {
-                          requestSection(doc.path, h.text);
-                        }}
-                      >
-                        {h.text}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="content__empty">No sections.</p>
-            )}
-          </div>
-        </TabPanel>
-
-        <TabPanel id="links" className="meta-tabs__panel">
-          <div className="meta-panel">
-            <h3 className="meta-panel__title">Links out</h3>
-            {outLinks.length === 0 ? (
-              <p className="content__empty">No linked documents.</p>
-            ) : (
-              <ul className="meta-links" role="list">
-                {dedupe(outLinks).map((link, i) => (
-                  <li key={`${link.label}-${link.href ?? ""}-${i}`}>
-                    <MetaLink link={link} corpus={corpus} />
+      {tab === "sections" && (
+        <div className="meta-panel">
+          {headings.length > 0 ? (
+            <ul className="meta-toc" role="list">
+              {headings.map((h, i) => {
+                const isActive = activeHeading === h.text;
+                return (
+                  <li key={`${h.text}-${i}`} style={{ paddingLeft: `${(h.level - 1) * 0.6}rem` }}>
+                    <button
+                      type="button"
+                      className={`meta-toc__link${isActive ? " is-active" : ""}`}
+                      aria-current={isActive ? "true" : undefined}
+                      onClick={() => {
+                        requestSection(doc.path, h.text);
+                      }}
+                    >
+                      {h.text}
+                    </button>
                   </li>
-                ))}
-              </ul>
-            )}
-            {markdownDoc && (
-              <>
-                <h3 className="meta-panel__title meta-panel__title--spaced">Referenced by</h3>
-                <ReferencedBy path={markdownDoc.path} />
-              </>
-            )}
-          </div>
-        </TabPanel>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="content__empty">No sections.</p>
+          )}
+        </div>
+      )}
 
-        <TabPanel id="related" className="meta-tabs__panel">
-          <div className="meta-panel">
-            {markdownDoc ? (
-              <SemanticNeighbours path={markdownDoc.path} />
-            ) : (
-              <p className="content__empty">No semantic neighbours.</p>
-            )}
-          </div>
-        </TabPanel>
-      </Tabs>
+      {tab === "links" && (
+        <div className="meta-panel">
+          <h3 className="meta-panel__title">Links out</h3>
+          {outLinks.length === 0 ? (
+            <p className="content__empty">No linked documents.</p>
+          ) : (
+            <ul className="meta-links" role="list">
+              {dedupe(outLinks).map((link, i) => (
+                <li key={`${link.label}-${link.href ?? ""}-${i}`}>
+                  <MetaLink link={link} corpus={corpus} />
+                </li>
+              ))}
+            </ul>
+          )}
+          {markdownDoc && (
+            <>
+              <h3 className="meta-panel__title meta-panel__title--spaced">Referenced by</h3>
+              <ReferencedBy path={markdownDoc.path} />
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "related" && (
+        <div className="meta-panel">
+          {markdownDoc ? (
+            <SemanticNeighbours path={markdownDoc.path} />
+          ) : (
+            <p className="content__empty">No semantic neighbours.</p>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

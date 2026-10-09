@@ -33,6 +33,7 @@ import { useDoc } from "../lib/useDoc";
 import { Tree } from "./Tree";
 import { DocDetail } from "./DocDetail";
 import { DocMetaPanel } from "./DocMetaPanel";
+import { MetaTabs } from "./MetaTabs";
 import { WorkspaceTab } from "./WorkspaceTab";
 import { DocTabHeader } from "./DocTabHeader";
 import { TooltipButton } from "./ui/Tooltip";
@@ -82,9 +83,10 @@ function MetaTab() {
   return <DocMetaPanel doc={doc} />;
 }
 
-/** Header actions: close-all on document tabs. */
+/** Header actions: the meta panel's tab selector, or close-all on document tabs. */
 function DocHeaderActions({ group }: IDockviewHeaderActionsProps) {
   const { closeAll } = useOpenDocs();
+  if (group.panels.some((p) => p.id === "meta")) return <MetaTabs />;
   const hasDocs = group.panels.some((p) => p.id.startsWith(DOC_PREFIX));
   if (!hasDocs) return null;
   return (

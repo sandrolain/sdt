@@ -98,6 +98,17 @@
     flex: 1;
     justify-content: center;
   }
+  .top-bar__group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  /* A hairline separates the primary groups (Documents | Wiki Graph/Board). */
+  .top-bar__group + .top-bar__group {
+    margin-left: 0.75rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--border);
+  }
   .top-bar__tab {
     display: inline-flex;
     align-items: center;
@@ -566,6 +577,16 @@
   }
   .dock-doc-tab {
     gap: 0.3rem;
+    max-width: 14rem;
+    min-width: 0;
+  }
+  /* Cap the tab width and ellipsise the title; the full title stays available
+     via the tab's native title attribute. */
+  .dock-doc-tab .dv-default-tab-content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
   .dock-doc-tab__icon {
     font-size: 1rem;

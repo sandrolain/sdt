@@ -365,7 +365,7 @@ function RecentDocs({
               className={({ isActive }) =>
                 `tree-entry tree-entry--recent${isActive ? " is-active" : ""}`
               }
-              title={entry.path}
+              title={entry.summary ? `${entry.summary} · ${entry.path}` : entry.path}
               end
             >
               <span className="tree-entry__glyph">

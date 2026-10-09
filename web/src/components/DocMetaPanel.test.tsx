@@ -4,10 +4,12 @@ import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { DocMetaPanel } from "./DocMetaPanel";
+import { MetaTabs } from "./MetaTabs";
 import { resetActiveSection, setActiveSection } from "../lib/activeSection";
 import { resetCorpusIndexCache } from "../lib/corpusIndex";
 import { clearFrontmatterCache } from "../lib/frontmatterYaml";
 import { getSectionRequest, resetSectionRequest } from "../lib/sectionRequests";
+import { resetMetaTab } from "../lib/metaTab";
 import { resetWikiIndexCache } from "../lib/wikiIndexLoader";
 
 const DOC = {
@@ -39,6 +41,7 @@ function mockFetch() {
 function renderPanel(doc: unknown) {
   return render(
     <MemoryRouter>
+      <MetaTabs />
       <DocMetaPanel doc={doc as never} />
     </MemoryRouter>,
   );
@@ -52,6 +55,7 @@ afterEach(() => {
   cleanup();
   resetActiveSection();
   resetSectionRequest();
+  resetMetaTab();
   clearFrontmatterCache();
   vi.restoreAllMocks();
 });
@@ -78,7 +82,7 @@ describe("DocMetaPanel", () => {
         (el) => el.querySelector("span:not(.ms-icon)")?.textContent,
       );
     expect(tabLabels()).toEqual(["Info", "Sections", "Links", "Related"]);
-    expect(document.querySelector(".meta-tabs__tab[data-selected]")?.textContent).toContain("Info");
+    expect(document.querySelector(".meta-tabs__tab.is-selected")?.textContent).toContain("Info");
   });
 
   it("keeps the four tabs stable and shows the TOC under Sections", async () => {

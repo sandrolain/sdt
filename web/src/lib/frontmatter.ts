@@ -291,6 +291,13 @@ export const STATUS_VALUES: Record<string, ValueLabel> = {
   "wiki.draft": { label: "Draft", meaning: "Being written", tone: "warn" },
   "wiki.active": { label: "Active", meaning: "Live page", tone: "ok" },
   "wiki.archived": { label: "Archived", meaning: "Retired", tone: "neutral" },
+  "briefing.draft": { label: "Draft", meaning: "Being written", tone: "warn" },
+  "briefing.active": {
+    label: "Active",
+    meaning: "Current onboarding for its subject",
+    tone: "ok",
+  },
+  "briefing.archived": { label: "Archived", meaning: "Retired", tone: "neutral" },
   "commands.active": {
     label: "Active",
     meaning: "Thin per-trigger stub, in place",

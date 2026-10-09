@@ -1,35 +1,17 @@
 /* Dockview theming.
    Deliberately UNLAYERED: `dockview.css` is imported unlayered, and layered
    rules lose to unlayered ones regardless of specificity. Keeping these
-   declarations outside `@layer` makes the Catppuccin tokens win. */
+   declarations outside `@layer` makes them win. */
 
 .dock-layout {
   height: 100%;
   min-height: 0;
 }
 
-/* Dockview applies the theme object's class to its own `.dv-shell` element,
-   which is an ancestor of `.dock-layout` (the workspace's dockview element
-   nests inside it). A custom property defined on `.dock-layout` is nearer to
-   the tabs/groups than the shell's theme defaults, so it wins for the whole
-   workspace subtree. Unlayered: the bundled stylesheet is layered, and a
-   layered rule loses to an unlayered one. The spaced theme's
-   `--dv-border-radius` (12px) is deliberately not overridden. */
-.dock-layout {
-  --dv-group-view-background-color: var(--bg-base);
-  --dv-tabs-and-actions-container-background-color: var(--bg-mantle);
-  --dv-activegroup-visiblepanel-tab-background-color: var(--bg-rise);
-  --dv-activegroup-visiblepanel-tab-color: var(--fg);
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-mantle);
-  --dv-activegroup-hiddenpanel-tab-color: var(--fg-dim);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-base);
-  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-dim);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-mantle);
-  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-faint);
-  --dv-separator-border: var(--border);
-  --dv-sash-color: transparent;
-  --dv-active-sash-color: var(--accent);
-}
+/* The native `catppuccin-spaced` theme owns the dockview chrome: its tab
+   colours, spacing, separators and sash. We do NOT override its `--dv-*`
+   variables — the theme is the single source of truth, and only custom
+   components and the app-level colour scheme are ours to set. */
 
 /* The spaced theme hardcodes `color-scheme: dark` on its shell; the app theme
    decides, so light mode keeps native form controls and scrollbars light. */
@@ -40,18 +22,11 @@
   color-scheme: dark;
 }
 
-/* Panel content paints the Catppuccin base so no area falls back to the theme
-   colour. `.dv-react-part` is intentionally left transparent: painting it too
-   produced a duplicated background band against `.dv-tab`. The content rule
-   out-specifies the theme's own `.dv-groupview .dv-content-container` rule. */
-.dock-layout .dv-groupview,
-.dock-layout .dv-groupview .dv-content-container,
+/* Custom panel content wrapper: paints the Catppuccin base for our own
+   `.dock-content` element. Dockview's own group and content surfaces keep the
+   theme's colours. */
 .dock-layout .dock-content {
   background-color: var(--bg-base);
-}
-
-.dock-layout .dv-tabs-and-actions-container {
-  background-color: var(--bg-mantle);
 }
 
 /* Graph surface only (`.wiki-graph-workspace`): the centre panel's tab strip is
@@ -61,8 +36,4 @@
    `.wiki-workspace`) keeps its own chrome. */
 .wiki-graph-workspace .dv-groupview:not(.dv-groupview-edge) > .dv-tabs-and-actions-container {
   display: none;
-}
-
-.dock-layout .dv-tab.dv-active-tab {
-  color: var(--fg);
 }

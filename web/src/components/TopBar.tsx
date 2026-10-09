@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { Icon } from "../lib/icon";
 import { THEME_LABEL } from "../lib/theme";
 import { useTheme } from "../lib/useTheme";
@@ -22,6 +22,9 @@ const THEME_ICON: Record<string, string> = {
 
 export function TopBar({ onOpenSearch }: TopBarProps) {
   const { pref, cycle } = useTheme();
+  const { pathname } = useLocation();
+  // The Board entry preserves the current board route (source + drill path).
+  const boardTo = pathname.startsWith("/wiki/board") ? pathname : "/wiki/board";
   return (
     <header className="top-bar">
       <div className="top-bar__brand">
@@ -29,20 +32,39 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
         <span>sdt viewer</span>
       </div>
       <nav className="top-bar__tabs" aria-label="Primary">
-        <NavLink
-          to="/docs"
-          className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
-        >
-          <Icon name="description" />
-          Documents
-        </NavLink>
-        <NavLink
-          to="/wiki"
-          className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
-        >
-          <Icon name="menu_book" />
-          Wiki
-        </NavLink>
+        <div className="top-bar__group">
+          <NavLink
+            to="/docs"
+            className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
+          >
+            <Icon name="description" />
+            Documents
+          </NavLink>
+        </div>
+        <div className="top-bar__group">
+          <NavLink
+            to="/wiki"
+            end
+            className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
+          >
+            <Icon name="menu_book" />
+            Wiki
+          </NavLink>
+          <NavLink
+            to="/wiki/graph"
+            className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
+          >
+            <Icon name="hub" />
+            Graph
+          </NavLink>
+          <NavLink
+            to={boardTo}
+            className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
+          >
+            <Icon name="dashboard" />
+            Board
+          </NavLink>
+        </div>
       </nav>
       <div className="top-bar__actions">
         <button
