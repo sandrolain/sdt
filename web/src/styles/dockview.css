@@ -44,15 +44,10 @@
    full rounded corners (the group carries an inline width/height:100%, so the
    rule needs to win over it). */
 .dv-edge-group {
-  margin: var(--dv-spacing-padding, 10px) !important;
-  border-radius: var(--dv-border-radius, 12px) !important;
+  gap: var(--dv-spacing-padding, 10px);
 }
 
-/* The edge group's vertical tab strip fills the container's corner with a square
-   background, so the container reads as unrounded on the strip side. Inset it
-   and round it like a block. */
-.dv-groupview-edge > .dv-tabs-and-actions-container {
-  margin: var(--dv-spacing-padding, 10px);
+.dv-groupview-edge .dv-content-container {
   border-radius: var(--dv-border-radius, 12px);
 }
 
