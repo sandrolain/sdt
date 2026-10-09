@@ -40,6 +40,34 @@ State the mode before extracting — it decides the budget and the output:
 - Process **source-native sections** (chapters, sections), carrying provenance
   per segment. Never one-shot the whole book, and never summarise a section you
   did not read.
+- **Partition exhaustively and validate it.** Split TOC-first (bookmarks or
+  headings), not by heuristic guesswork: the partition must cover the source
+  **exactly once** — refuse gaps, overlaps and duplicates — with front/back matter
+  captured explicitly, and state the **numbering semantics** (source order, not
+  printed page numbers). When this does not apply: a source with no usable
+  structure falls back to section-native boundaries, and the refusal is reported,
+  never silently bypassed.
+
+## Extraction ledger and reconciliation
+
+- **Keep a cumulative extraction ledger.** Alongside each segment, record a
+  concise source-level summary and the concepts, claims, definitions and
+  unresolved questions already extracted; carry it forward so later segments see
+  prior context and repeated or evolving ideas surface. When this does not apply:
+  a single-pass source needs no ledger.
+- **Separate local extraction from global reconciliation.** First record
+  candidates against the current segment; only after all relevant segments are
+  covered, reconcile them against the whole source and the existing corpus before
+  proposing creates or updates. This elaborates the dedup rule — it is not a new
+  knowledge layer.
+- **Locate the evidence at extraction time.** Record the source, section and
+  page/line where conversion provides it, and verify before a claim enters a
+  proposal that its citation resolves to the archived source and supports the
+  claim. Do not invent a page number the conversion did not preserve.
+- **The source thesis is conditional.** A source-level thesis and its
+  load-bearing claims can orient an argumentative work, but are not mandatory for
+  every source (a reference manual or dataset may have none); they never replace
+  claim-level evidence.
 
 ## Structure over summary
 
@@ -86,6 +114,11 @@ write, the merge and the closeout.
 - State the estimated output before generating, so the cost is a decision, not a
   surprise.
 - For a very large source, probe it (grep, slice) rather than re-read it whole.
+- **Tier the cost: text first, expensive renders on demand.** Read the text layer
+  first; render pages or figures **per section on demand**, not eagerly for the
+  whole document, because text is far cheaper than an image. State the tier
+  chosen. When this does not apply: a source whose meaning is in the figures needs
+  the render up front.
 
 ## Parallel extraction
 
