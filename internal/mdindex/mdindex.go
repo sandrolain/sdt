@@ -31,9 +31,6 @@ import (
 // ManifestVersion invalidates a cached manifest when the scan model changes.
 const ManifestVersion = 4
 
-// ContextDir is the served knowledge base subdirectory under the project root.
-const ContextDir = "context"
-
 // kindTasks is the frontmatter kind of a task file: the only kind
 // whose plan reference and objective are derived rather than declared.
 const kindTasks = "tasks"
@@ -139,7 +136,7 @@ type ScanResult struct {
 }
 
 // corpusPrefix is the project-root-relative prefix of a corpus document.
-func corpusPrefix(root string) string { return filepath.Join(root, ContextDir) }
+func corpusPrefix(root string) string { return filepath.Join(root, corpuspkg.ContextDir) }
 
 // Scan walks the corpus under root/context, skipping the shared exclusions, and
 // returns the manifest plus the set of documents that changed relative to prev

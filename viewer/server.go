@@ -23,9 +23,6 @@ const (
 	markdownExt = ".md"
 	canvasExt   = ".canvas"
 	mermaidExt  = ".mmd"
-	// corpusDir is the served knowledge base subdirectory under the project
-	// root; everything outside it (refs/, docs/, root-level files) is private.
-	corpusDir = "context"
 	// errNotFound is the opaquely-shared 404 body across doc/wiki endpoints.
 	errNotFound = "not found"
 )
@@ -161,7 +158,7 @@ func newServerWith(root string, opts semanticOptions, overrides *semanticOverrid
 	if overrides != nil {
 		overrides.apply(&opts)
 	}
-	s := &server{root: root, corpus: filepath.Join(root, corpusDir), broker: newBroker(), semOpts: opts}
+	s := &server{root: root, corpus: filepath.Join(root, corpus.ContextDir), broker: newBroker(), semOpts: opts}
 	if h, ok := spaHandler(); ok {
 		s.spa = h
 	}
@@ -300,10 +297,10 @@ func (s *server) safePath(rel string) (string, bool) {
 		return "", false
 	}
 	slash := filepath.ToSlash(clean)
-	if slash != corpusDir && !strings.HasPrefix(slash, corpusDir+"/") {
+	if slash != corpus.ContextDir && !strings.HasPrefix(slash, corpus.ContextDir+"/") {
 		return "", false
 	}
-	inner := strings.TrimPrefix(slash, corpusDir+"/")
+	inner := strings.TrimPrefix(slash, corpus.ContextDir+"/")
 	if inner == "" || inner == "." {
 		return "", false
 	}

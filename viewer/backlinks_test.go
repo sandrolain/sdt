@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sandrolain/sdt/internal/corpus"
 )
 
 // backlinkCorpus builds a corpus exercising every edge source: a `sources`
@@ -104,7 +106,7 @@ func backlinkRequest(t *testing.T, h http.Handler, path string) (int, backlinksR
 }
 
 func TestBacklinksIndexRecordsEveryReferenceKind(t *testing.T) {
-	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpusDir))
+	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpus.ContextDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +157,7 @@ links:
 
 body
 `)
-	index, err := buildBacklinkIndex(filepath.Join(root, corpusDir))
+	index, err := buildBacklinkIndex(filepath.Join(root, corpus.ContextDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +167,7 @@ body
 }
 
 func TestBacklinksIndexSkipsNonCorpusTargets(t *testing.T) {
-	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpusDir))
+	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpus.ContextDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +187,7 @@ func TestBacklinksIndexSkipsNonCorpusTargets(t *testing.T) {
 }
 
 func TestBacklinksIndexOrdersNewestFirst(t *testing.T) {
-	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpusDir))
+	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpus.ContextDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +204,7 @@ func TestBacklinksIndexOrdersNewestFirst(t *testing.T) {
 }
 
 func TestBacklinksIndexToleratesAMissingCorpus(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), corpusDir)
+	dir := filepath.Join(t.TempDir(), corpus.ContextDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

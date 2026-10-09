@@ -16,10 +16,8 @@ import (
 	"sort"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/corpus"
 )
-
-// CorpusDir is the corpus root every reference is relative to.
-const CorpusDir = "context"
 
 // The lifecycle kinds, parent to child, and the directory each lives in.
 const (
@@ -155,5 +153,5 @@ func normalizeRef(path, corpusDir string) string {
 	if err != nil {
 		rel = filepath.Base(path)
 	}
-	return CorpusDir + "/" + filepath.ToSlash(rel)
+	return corpus.ContextDir + "/" + filepath.ToSlash(rel)
 }

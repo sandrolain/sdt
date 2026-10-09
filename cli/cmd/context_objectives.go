@@ -237,7 +237,7 @@ func collectPhaseCoverage(cov *objectiveCoverage, planRef, path, content string,
 }
 
 // ctxRefToPath maps a corpus-relative reference back to the path dirFiles
-// yields. Both carry the `context/` prefix (ctxrel.CorpusDir), so the reference
+// yields. Both carry the `context/` prefix (corpus.ContextDir), so the reference
 // already *is* the project-relative path; the check exists so a reference from
 // outside the corpus is rejected rather than read.
 func ctxRefToPath(ref string) (string, bool) {

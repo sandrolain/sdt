@@ -7,11 +7,8 @@ package search
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
-	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -20,13 +17,10 @@ import (
 	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/sandrolain/sdt/internal/contextwiki"
-	corpuspkg "github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/ctxquery"
 	"github.com/sandrolain/sdt/internal/mdindex"
 	"github.com/sandrolain/sdt/internal/mdstruct"
 	"github.com/sandrolain/sdt/internal/semantic"
-
-	"github.com/sandrolain/sdt/internal/ctxrel"
 )
 
 // Index is an in-memory bleve fulltext index over the corpus markdown.
@@ -107,20 +101,8 @@ type doc struct {
 	Modified    string
 }
 
-var (
-	datePrefixRe = regexp.MustCompile(`^\d{8}-\d{6}-`)
-	nameSepRe    = regexp.MustCompile(`[-_.]+`)
-)
-
-// docName derives the searchable filename stem: base name without its
-// extension, leading `YYYYMMDD-HHMMSS-` date prefix stripped and `-_.`
-// separators normalized to single spaces.
-func docName(path string) string {
-	base := filepath.Base(path)
-	base = strings.TrimSuffix(base, filepath.Ext(base))
-	base = datePrefixRe.ReplaceAllString(base, "")
-	return strings.TrimSpace(nameSepRe.ReplaceAllString(base, " "))
-}
+// canvasKind is the synthesized kind of `.canvas` board resources.
+const canvasKind = "canvas"
 
 // buildIndexMapping returns the bleve mapping for corpus-md docs.
 func buildIndexMapping() (mapping.IndexMapping, error) {
@@ -142,46 +124,6 @@ func buildIndexMapping() (mapping.IndexMapping, error) {
 	im.AddDocumentMapping("corpus-md", dm)
 	im.DefaultMapping = dm
 	return im, nil
-}
-
-// skipDir reports whether the directory is excluded from the corpus scan (the
-// shared corpus exclusion set: tmp/, scripts/, refs/, commands/, instructions/,
-// sdtdocs/).
-func skipDir(name string) bool { return corpuspkg.ExcludedDirName(name) }
-
-// corpusDirName is the served corpus subdirectory under the project root.
-const corpusDirName = "context"
-
-// canvasKind is the synthesized kind of `.canvas` board resources.
-const canvasKind = "canvas"
-
-// New builds an in-memory bleve index over the markdown corpus under
-// <root>/context, skipping the shared corpus exclusions. .canvas files are
-// never searchable. Doc IDs and result paths are project-root-relative
-// (context/<...>). Build time and doc count are logged. A missing root is a
-// fatal error; a missing corpus yields an empty index (non-fatal). Unreadable
-// docs are skipped with a warning.
-// Deprecated: test-only. Production indexes through LoadOrRebuild/NewFromEntries
-// over the shared mdindex manifest; New's corpus walk is kept only for the
-// search tests. Physical deletion is deferred (analysis 20261007-074001, B5).
-func New(root string) (*Index, error) {
-	if _, err := os.Stat(root); err != nil {
-		return nil, fmt.Errorf("search root: %w", err)
-	}
-	ix, err := newMemIndex()
-	if err != nil {
-		return nil, err
-	}
-	start := time.Now()
-	corpusPath := filepath.Join(root, corpusDirName)
-	indexed, err := ix.indexCorpus(corpusPath)
-	if err != nil {
-		ix.closeLog()
-		return nil, err
-	}
-	slog.Info("search index built", "elapsed", time.Since(start).Round(time.Millisecond),
-		"docs", indexed, "corpus", corpusPath)
-	return ix, nil
 }
 
 // NewFromEntries builds an in-memory bleve index from the shared mdindex entry
@@ -362,181 +304,6 @@ func newMemIndex() (*Index, error) {
 	return &Index{idx: idx, registry: map[string]doc{}, sections: map[string]SectionMeta{}}, nil
 }
 
-// indexCorpus walks corpus indexing .md docs (skipping tmp/, scripts/ and
-// refs/) and returns the number of indexed docs. A missing corpus yields an
-// empty index with nil error.
-func (ix *Index) indexCorpus(dir string) (int, error) {
-	info, err := os.Stat(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			slog.Info("search index empty", "corpus", dir)
-			return 0, nil
-		}
-		return 0, fmt.Errorf("search corpus: %w", err)
-	}
-	if !info.IsDir() {
-		return 0, fmt.Errorf("search corpus: %s is not a directory", dir)
-	}
-	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		return ix.addEntry(dir, path, d, err)
-	})
-	if err != nil {
-		return 0, fmt.Errorf("search walk: %w", err)
-	}
-	edges, lerr := ctxrel.Load(dir)
-	if lerr != nil {
-		return 0, fmt.Errorf("search lifecycle edges: %w", lerr)
-	}
-	ix.applyTaskObjectives(edges)
-	return len(ix.registry), nil
-}
-
-// applyTaskObjectives recomputes each task's inherited objective from the plan it
-// derives from (never the task's own legacy `objective`), so legacy corpus-walking
-// indexes match the entry-based path (NewFromEntries/store). The parent is the
-// typed relation, resolved once by ctxrel.
-func (ix *Index) applyTaskObjectives(edges *ctxrel.Edges) {
-	plans := map[string]string{}
-	for id, d := range ix.registry {
-		if d.Kind == "plan" && d.Objective != "" {
-			plans[id] = d.Objective
-		}
-	}
-	for id, d := range ix.registry {
-		if d.Kind != "tasks" {
-			continue
-		}
-		d.Objective = plans[edges.ParentOf(id)]
-		ix.registry[id] = d
-		if ierr := ix.idx.Index(id, d); ierr != nil {
-			slog.Warn("search index failed", "id", id, "err", ierr)
-		}
-	}
-}
-
-// addEntry indexes one .md file from the corpus walk, skipping excluded dirs,
-// non-.md files and unreadable docs.
-func (ix *Index) addEntry(dir, path string, d os.DirEntry, err error) error {
-	if err != nil {
-		return err
-	}
-	if d.IsDir() {
-		if path == dir {
-			return nil
-		}
-		if d.Name() != "." && skipDir(d.Name()) {
-			return filepath.SkipDir
-		}
-		return nil
-	}
-	if filepath.Ext(d.Name()) != ".md" {
-		if _, ok := auxKind(d.Name()); !ok {
-			return nil
-		}
-	}
-	rel, rerr := filepath.Rel(dir, path)
-	if rerr != nil {
-		return nil
-	}
-	docID := filepath.ToSlash(filepath.Join(corpusDirName, rel))
-	if corpuspkg.ExcludedPath(docID) {
-		return nil
-	}
-	cd, perr := parseDoc(docID, path)
-	if perr != nil {
-		slog.Warn("search index skip", "id", docID, "err", perr)
-		return nil
-	}
-	ix.registry[docID] = cd
-	if ierr := ix.idx.Index(docID, cd); ierr != nil {
-		slog.Warn("search index failed", "id", docID, "err", ierr)
-	}
-	return nil
-}
-
-// closeLog releases the mem index; a close failure is logged, not fatal.
-func (ix *Index) closeLog() {
-	if cerr := ix.idx.Close(); cerr != nil {
-		slog.Warn("search index close failed", "err", cerr)
-	}
-}
-
-// parseDoc reads and parses one glyph of the corpus into a doc.
-func parseDoc(docID, path string) (doc, error) {
-	data, err := os.ReadFile(path) //#nosec G304 -- corpus walk target
-	if err != nil {
-		return doc{}, err
-	}
-	content := string(data)
-	d := doc{Path: docID, Name: docName(docID), Body: content}
-	if i := strings.Index(content, fmStart); i == 0 {
-		end := strings.Index(content[len(fmStart):], fmEnd)
-		if end > 0 {
-			fmEndIdx := len(fmStart) + end + len(fmEnd)
-			d.Frontmatter = content[:fmEndIdx]
-			d.Body = content[fmEndIdx:]
-		}
-	}
-	lines := strings.Split(d.Frontmatter, "\n")
-	for i, line := range lines {
-		if i == 0 {
-			continue // opening "---"
-		}
-		trim := strings.TrimSpace(line)
-		if trim == fmDelim {
-			break
-		}
-		switch {
-		case strings.HasPrefix(line, "kind:"):
-			d.Kind = strings.Trim(trimmedValue(line, "kind"), `"`)
-		case strings.HasPrefix(line, "title:"):
-			d.Title = strings.Trim(trimmedValue(line, "title"), `"`)
-		case strings.HasPrefix(line, "summary:"):
-			d.Summary = strings.Trim(trimmedValue(line, "summary"), `"`)
-		case strings.HasPrefix(line, "status:"):
-			d.Status = strings.Trim(trimmedValue(line, "status"), `"`)
-		case strings.HasPrefix(line, "objective:"):
-			d.Objective = strings.Trim(trimmedValue(line, "objective"), `"`)
-		case strings.HasPrefix(line, "created:"):
-			d.RawCreated = strings.Trim(trimmedValue(line, "created"), `"`)
-			d.CreatedDays = parseCreatedDays(d.RawCreated)
-		case strings.HasPrefix(line, "updated:"):
-			d.Modified = strings.Trim(trimmedValue(line, "updated"), `"`)
-		}
-	}
-	// Modified defaults to the file modification time when the frontmatter
-	// carries no updated date, mirroring the tree's date semantics.
-	if d.Modified == "" {
-		if info, serr := os.Stat(path); serr == nil {
-			d.Modified = info.ModTime().UTC().Format(time.RFC3339)
-		}
-	}
-	d.Topics = contextwiki.FrontmatterList(content, "topics")
-	d.Entities = contextwiki.FrontmatterList(content, "entities")
-	d.Categories = contextwiki.FrontmatterList(content, "categories")
-	d.Values = contextwiki.FrontmatterValues(content)
-	// Non-markdown viewable resources (.canvas/.mmd): synthesize kind from the
-	// extension and use the raw file text as the searchable body.
-	if kind, ok := auxKind(docID); ok {
-		d.Kind = kind
-		d.Title = strings.TrimSuffix(filepath.Base(docID), filepath.Ext(docID))
-		d.Body = content
-	}
-	return d, nil
-}
-
-// auxKind maps a non-markdown corpus extension to its synthesized kind.
-func auxKind(path string) (string, bool) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".canvas":
-		return canvasKind, true
-	case contextwiki.MermaidSuffix:
-		return "mermaid", true
-	default:
-		return "", false
-	}
-}
-
 // DocFromEntry builds a search doc from a shared mdindex entry, so the CLI and
 // the viewer index the same derived document model.
 func docFromEntry(e *mdindex.Entry) doc {
@@ -562,17 +329,6 @@ func docFromEntry(e *mdindex.Entry) doc {
 		d.Modified = time.Unix(0, e.ModTimeNS).UTC().Format(time.RFC3339)
 	}
 	return d
-}
-
-const (
-	fmStart = "---\n"
-	fmEnd   = "\n---"
-	fmDelim = "---"
-)
-
-// trimmedValue returns the YAML inline value for key on line "key: value".
-func trimmedValue(line, key string) string {
-	return strings.TrimSpace(strings.TrimPrefix(line, key+":"))
 }
 
 // parseCreatedDays converts a created date to days since 2000-01-01 UTC for

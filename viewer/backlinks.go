@@ -101,14 +101,14 @@ func normalizeBacklinkRef(ref string) string {
 		return ""
 	}
 	p = strings.TrimPrefix(strings.TrimPrefix(p, "./"), "/")
-	if !strings.HasPrefix(p, corpusDir+"/") {
+	if !strings.HasPrefix(p, corpus.ContextDir+"/") {
 		// `sources`/`links` are written corpus-internal (`analysis/x.md`), so a
 		// bare reference is read as one; refs/ is outside the served corpus and
 		// no viewer document has it.
 		if strings.HasPrefix(p, "refs/") {
 			return ""
 		}
-		p = corpusDir + "/" + p
+		p = corpus.ContextDir + "/" + p
 	}
 	if corpus.ExcludedPath(p) {
 		return ""

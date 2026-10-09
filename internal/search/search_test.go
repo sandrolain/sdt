@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/sandrolain/sdt/internal/mdindex"
+
+	corpuspkg "github.com/sandrolain/sdt/internal/corpus"
 )
 
 // corpus creates a temp corpus with known .md docs, excluded dirs and a
@@ -128,12 +130,34 @@ A review of the plan llm wiki pipeline phase 1 rollout.
 	return root
 }
 
-func TestNewAndBulkIndex(t *testing.T) {
-	root := corpus(t)
-	ix, err := New(root)
+// newIndex builds the serving index the way production does: mdindex.Scan over
+// the corpus, then NewFromEntries. A missing corpus yields an empty index.
+func newIndex(t *testing.T, root string) *Index {
+	t.Helper()
+	if _, err := os.Stat(root); err != nil {
+		t.Fatalf("index root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, corpuspkg.ContextDir)); err != nil {
+		ix, err := NewFromEntries(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ix
+	}
+	res, err := mdindex.Scan(root, nil)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	ix, err := NewFromEntries(res.Manifest.EntriesSorted())
 	if err != nil {
 		t.Fatal(err)
 	}
+	return ix
+}
+
+func TestNewAndBulkIndex(t *testing.T) {
+	root := corpus(t)
+	ix := newIndex(t, root)
 	defer ix.Close()
 	// wiki(2) + analysis(2) + notes(1) + tasks(1) + map(1) + canvas(1) + mmd(1) = 9;
 	// tmp/scripts/refs/root-docs skipped
@@ -147,10 +171,7 @@ func TestNewAndBulkIndex(t *testing.T) {
 
 func TestSearchMapResult(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("outlineword", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -167,10 +188,7 @@ func TestSearchMapResult(t *testing.T) {
 
 func TestSearchMermaidResult(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("mermaidword", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -187,10 +205,7 @@ func TestSearchMermaidResult(t *testing.T) {
 
 func TestSearchCanvasResult(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("canvasword", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -207,10 +222,7 @@ func TestSearchCanvasResult(t *testing.T) {
 
 func TestSearchKindFilterAux(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("board", "canvas", "", "", "", "", "", 0)
 	if err != nil {
@@ -230,10 +242,7 @@ func TestSearchKindFilterAux(t *testing.T) {
 
 func TestSearchIgnoresOutsideCorpus(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("outsideonly", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -246,10 +255,7 @@ func TestSearchIgnoresOutsideCorpus(t *testing.T) {
 
 func TestSearchRankedResults(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("tokens", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -295,10 +301,7 @@ func TestSearchRankedResults(t *testing.T) {
 
 func TestSearchFilenameRanksFirst(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("plan sample pipeline phase 1", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -321,10 +324,7 @@ func hasPath(rs []Result, path string) bool {
 
 func TestSearchKindFilter(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, _ := ix.Search("tokens", "wiki", "", "", "", "", "", 0)
 	if res.Total != 2 {
@@ -357,10 +357,7 @@ Categorword body about a fix.
 	if err := os.WriteFile(p, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 
 	// Any-match: both stored categories on the same document hit.
@@ -385,10 +382,7 @@ Categorword body about a fix.
 
 func TestSearchObjectiveFilter(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, _ := ix.Search("neutral", "", "viewer", "", "", "", "", 0)
 	if res.Total != 1 || len(res.Results) != 1 {
@@ -445,10 +439,7 @@ Task body with inheritword step.
 func TestSearchObjectiveInheritedByTasks(t *testing.T) {
 	root := corpus(t)
 	writePlanAndTask(t, root)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 
 	res, _ := ix.Search("inheritword", "", "obj-inherit", "", "", "", "", 0)
@@ -514,10 +505,7 @@ created: 2026-09-12
 
 Task body with mixedword step.
 `)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 
 	for _, tc := range []struct{ query, path string }{
@@ -540,10 +528,7 @@ Task body with mixedword step.
 
 func TestSearchDateFilter(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, _ := ix.Search("tokens", "", "", "", "", "2026-09-10", "2026-09-10", 0)
 	if res.Total != 1 {
@@ -561,10 +546,7 @@ func TestSearchDateFilter(t *testing.T) {
 
 func TestSearchEmptyQuery(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -577,7 +559,7 @@ func TestSearchEmptyQuery(t *testing.T) {
 
 func TestSearchLimitAndMax(t *testing.T) {
 	root := corpus(t)
-	ix, _ := New(root)
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, _ := ix.Search("tokens", "", "", "", "", "", "", 2)
 	if len(res.Results) > 2 {
@@ -591,10 +573,7 @@ func TestSearchLimitAndMax(t *testing.T) {
 
 func TestSearchSubstringFallback(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 
 	// a token query keeps the lexical path and is never flagged partial
@@ -654,16 +633,14 @@ func TestSearchSubstringFallback(t *testing.T) {
 }
 
 func TestSearchMissingRoot(t *testing.T) {
-	if _, err := New(filepath.Join(t.TempDir(), "nope")); err == nil {
+	// The missing-root contract now lives in mdindex.Scan (New's owner).
+	if _, err := mdindex.Scan(filepath.Join(t.TempDir(), "nope"), nil); err == nil {
 		t.Error("expected error for missing root")
 	}
 }
 
 func TestSearchMissingCorpus(t *testing.T) {
-	ix, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, t.TempDir())
 	defer ix.Close()
 	if len(ix.registry) != 0 {
 		t.Errorf("indexed %d docs for corpus-less root, want 0", len(ix.registry))
@@ -679,17 +656,15 @@ func TestSearchCorpusNotDir(t *testing.T) {
 	if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New(root); err == nil {
+	// A `context` path that is a file is not a valid corpus: the scan errors.
+	if _, err := mdindex.Scan(root, nil); err == nil {
 		t.Error("expected error when corpus path is a file")
 	}
 }
 
 func TestSearchResultModified(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	defer ix.Close()
 	res, err := ix.Search("tokens", "", "", "", "", "", "", 0)
 	if err != nil {
@@ -767,55 +742,6 @@ func TestDocFromEntryDates(t *testing.T) {
 	}
 }
 
-func TestParseDocFields(t *testing.T) {
-	dir := t.TempDir()
-	raw := `---
-kind: wiki
-title: "Quoted Title"
-summary: "A summary"
-created: 2026-09-10
-updated: 2026-09-11
----
-
-# Body
-`
-	p := filepath.Join(dir, "x.md")
-	if err := os.WriteFile(p, []byte(raw), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	d, _ := parseDoc("context/wiki/x.md", p)
-	if d.Kind != "wiki" || d.Title != "Quoted Title" || d.Summary != "A summary" {
-		t.Errorf("parsed: %+v", d)
-	}
-	if d.CreatedDays == 0 {
-		t.Error("created days not parsed")
-	}
-	if d.RawCreated != "2026-09-10" || d.Modified != "2026-09-11" {
-		t.Errorf("dates parsed: created=%q modified=%q", d.RawCreated, d.Modified)
-	}
-	if !strings.Contains(d.Body, "# Body") {
-		t.Errorf("body not separated: %q", d.Body)
-	}
-}
-
-func TestParseDocModifiedMtimeFallback(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "x.md")
-	if err := os.WriteFile(p, []byte("---\nkind: wiki\ncreated: 2026-09-10\n---\n\nBody\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	d, err := parseDoc("context/wiki/x.md", p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if d.Modified == "" {
-		t.Error("Modified empty, want file mtime fallback")
-	}
-	if _, err := time.Parse(time.RFC3339, d.Modified); err != nil {
-		t.Errorf("Modified %q not RFC3339: %v", d.Modified, err)
-	}
-}
-
 func TestParseCreatedDays(t *testing.T) {
 	epoch := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	want := func(layout, raw string) int64 {
@@ -860,10 +786,7 @@ func TestSnippet(t *testing.T) {
 
 func TestSearchIndexClose(t *testing.T) {
 	root := corpus(t)
-	ix, err := New(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ix := newIndex(t, root)
 	if err := ix.Close(); err != nil {
 		t.Fatal(err)
 	}
