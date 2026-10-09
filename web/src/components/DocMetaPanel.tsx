@@ -9,12 +9,14 @@ import {
   type CanvasResponse,
   type DocResponse,
   type MermaidResponse,
+  type TreeEntry,
 } from "../lib/api";
 import { linkKind, loadCorpusIndex, type CorpusIndex } from "../lib/corpusIndex";
 import { collectBodyLinks, collectMetaLinks, resolveDocLink, type DocLink } from "../lib/docLinks";
 import {
   booleanValue,
   formatFieldDate,
+  formatFieldDateOnly,
   isRelationVerb,
   parseFrontmatter,
   valueLabel,
@@ -448,15 +450,41 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
       link.href.startsWith("/") &&
       link.href === `${location.pathname}${location.search}`;
     const kind = link.external ? undefined : linkKind(link.href, corpus);
+    // Resolve the target through the corpus index for the row's category, date
+    // and status dot (no extra fetch; the index is already loaded).
+    const entry = link.external
+      ? undefined
+      : corpus?.get(link.href.replace(/^\/docs\//, ""))?.entry;
+    const date = entry ? entryDateLine(entry) : "";
+    const statusInfo = entry?.status ? valueLabel(entry.kind ?? "", entry.status) : null;
     return (
       <a
-        className={`meta-link${current ? " is-current" : ""}`}
+        className={`meta-link meta-link--row${current ? " is-current" : ""}`}
         href={link.href}
         aria-current={current ? "page" : undefined}
         {...external}
       >
-        {kind && <MetaKindIcon kind={kind} />}
-        {link.label}
+        <span className="tree-entry__glyph">{kind && <MetaKindIcon kind={kind} />}</span>
+        {entry?.categories?.[0] && (
+          <Icon
+            name={categoryIcon(entry.categories[0])}
+            className="tree-entry__category"
+            style={{ color: categoryColor(entry.categories[0]) }}
+            title={entry.categories[0]}
+          />
+        )}
+        <span className="tree-entry__text">
+          <span className="tree-entry__title">{link.label}</span>
+          {date && <span className="tree-entry__date">{date}</span>}
+        </span>
+        {statusInfo && (
+          <span
+            className={`tree-entry__dot tree-entry__dot--${statusInfo.tone}`}
+            title={statusInfo.label}
+            aria-label={statusInfo.label}
+            role="img"
+          />
+        )}
       </a>
     );
   }
@@ -468,6 +496,15 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
       {link.label}
     </span>
   );
+}
+
+/** Compact `created · modified` line for a sidebar link row. */
+function entryDateLine(entry: TreeEntry): string {
+  const parts: string[] = [];
+  if (entry.created) parts.push(formatFieldDateOnly(entry.created));
+  if (entry.modified && entry.modified !== entry.created)
+    parts.push(formatFieldDateOnly(entry.modified));
+  return parts.join(" · ");
 }
 
 /** Coloured kind glyph shown before a document link or the kind row. */

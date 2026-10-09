@@ -14,6 +14,7 @@ export interface TreeViewSlices {
   sortKey?: unknown;
   hiddenStates?: unknown;
   groupMode?: unknown;
+  hideEmpty?: unknown;
 }
 
 function read(): Record<string, unknown> {

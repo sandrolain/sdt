@@ -11,7 +11,7 @@ import {
 import { NavLink, useLocation } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
 import { MAP_ICON } from "../lib/documentModes";
-import { formatFieldDate } from "../lib/frontmatter";
+import { formatFieldDate, formatFieldDateOnly } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel } from "../lib/kinds";
@@ -30,6 +30,7 @@ import {
   type StatusDot,
 } from "../lib/statusDot";
 import { useRecentDocuments } from "../lib/readingState";
+import { togglePin, usePinnedDocs } from "../lib/pinnedDocs";
 import { displayTitle, filenameDate, objectiveLabel } from "../lib/titles";
 import { useTreeFilter } from "../lib/treeFilterStore";
 import {
@@ -106,7 +107,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { key: sortKey } = useTreeSort();
-  const { hiddenStates, groupMode } = useTreeFilter();
+  const { hiddenStates, groupMode, hideEmpty } = useTreeFilter();
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
   const reloadToken = useReloadToken();
   const location = useLocation();
@@ -196,10 +197,12 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
         )
       : entries;
   const groups = visibleEntries
-    ? groupByKind(visibleEntries).map((group) => ({
-        kind: group.kind,
-        entries: sortEntries(group.entries, sortKey),
-      }))
+    ? groupByKind(visibleEntries)
+        .map((group) => ({
+          kind: group.kind,
+          entries: sortEntries(group.entries, sortKey),
+        }))
+        .filter((group) => !hideEmpty || group.entries.length > 0)
     : [];
   // the status row's third count: visible documents whose effective state is in
   // the `open` lifecycle family (the same family the toolbar groups by)
@@ -218,6 +221,7 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
           <SkeletonLines count={6} label="Loading tree" />
         ) : (
           <div className="tree-groups" ref={groupsRef}>
+            <PinnedDocs entries={entries} />
             <RecentDocs
               entries={entries}
               open={openGroups.has(RECENT_GROUP_ID)}
@@ -320,6 +324,35 @@ export function Tree({ onResetLayout }: { onResetLayout?: () => void }) {
 
 type PlannedAnalyses = ReturnType<typeof plansByAnalysis>;
 
+/** Pinned documents, shown at the top of the tree; pin order, newest first. */
+function PinnedDocs({ entries }: { entries: TreeEntry[] }) {
+  const pinnedPaths = usePinnedDocs();
+  const byPath = useMemo(() => new Map(entries.map((entry) => [entry.path, entry])), [entries]);
+  const rows = pinnedPaths
+    .map((path) => byPath.get(path))
+    .filter((e): e is TreeEntry => e !== undefined);
+  if (rows.length === 0) return null;
+  return (
+    <details className="tree-folder tree-folder--pinned" open>
+      <summary className="tree-folder__header">
+        <Icon name="expand_more" className="tree-folder__chevron" />
+        <Icon name="push_pin" className="tree-folder__icon" title="Pinned" />
+        <span className="tree-folder__text">
+          <span className="tree-folder__title-row">
+            <span className="tree-folder__label">Pinned</span>
+            <span className="tree-folder__count">{rows.length}</span>
+          </span>
+        </span>
+      </summary>
+      <ul role="list">
+        {rows.map((entry) => (
+          <TreeEntryRow key={entry.path} entry={entry} />
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /**
  * The most recently read documents, in reading order. It reuses the tree row
  * styling but skips the state dot and the plan nesting: the point is the
@@ -359,23 +392,7 @@ function RecentDocs({
       </summary>
       <ul role="list">
         {rows.map((entry) => (
-          <li key={entry.path}>
-            <NavLink
-              to={`/docs/${entry.path}`}
-              className={({ isActive }) =>
-                `tree-entry tree-entry--recent${isActive ? " is-active" : ""}`
-              }
-              title={entry.summary ? `${entry.summary} · ${entry.path}` : entry.path}
-              end
-            >
-              <span className="tree-entry__glyph">
-                <Icon name={kindIcon(entryKind(entry))} title={kindLabel(entryKind(entry))} />
-              </span>
-              <span className="tree-entry__text">
-                <span className="tree-entry__title">{entryTitle(entry)}</span>
-              </span>
-            </NavLink>
-          </li>
+          <TreeEntryRow key={entry.path} entry={entry} />
         ))}
       </ul>
     </details>
@@ -816,6 +833,8 @@ function TreeEntryRow({
   const dot = state.key === "no-state" ? null : { tone: state.tone, label: state.label };
   const kind = entryKind(entry);
   const kindName = kindLabel(kind);
+  const pinnedPaths = usePinnedDocs();
+  const pinned = pinnedPaths.includes(entry.path);
   return (
     <li>
       <NavLink
@@ -855,6 +874,19 @@ function TreeEntryRow({
             role="img"
           />
         )}
+        <button
+          type="button"
+          className={`tree-entry__pin${pinned ? " is-pinned" : ""}`}
+          aria-pressed={pinned}
+          title={pinned ? "Unpin" : "Pin to top"}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            togglePin(entry.path);
+          }}
+        >
+          <Icon name="push_pin" />
+        </button>
         {state.drift && (
           <Icon
             name="warning"
@@ -878,8 +910,11 @@ function entryTitle(e: TreeEntry): string {
   return displayTitle({ title: e.title, path: e.path });
 }
 
-/** Small date line: frontmatter `created`, else the filename date prefix. */
+/** Small date line: frontmatter `created` and `modified`, else the filename date. */
 function entryDate(e: TreeEntry): string {
-  const raw = e.created || filenameDate(e.path);
-  return raw ? formatFieldDate(raw) : "";
+  const created = e.created || filenameDate(e.path);
+  const parts: string[] = [];
+  if (created) parts.push(formatFieldDateOnly(created));
+  if (e.modified && e.modified !== created) parts.push(formatFieldDateOnly(e.modified));
+  return parts.join(" · ");
 }

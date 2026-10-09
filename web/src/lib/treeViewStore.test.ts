@@ -72,6 +72,7 @@ describe("tree view persistence", () => {
       expect(renderHook(() => filter.useTreeFilter()).result.current).toEqual({
         hiddenStates: ["completed"],
         groupMode: "full",
+        hideEmpty: false,
       });
     });
   });
@@ -98,6 +99,7 @@ describe("tree view persistence", () => {
         expect(renderHook(() => filter.useTreeFilter()).result.current).toEqual({
           hiddenStates: [],
           groupMode: "type",
+          hideEmpty: false,
         });
       },
     );

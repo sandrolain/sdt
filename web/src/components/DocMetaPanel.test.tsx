@@ -68,14 +68,18 @@ describe("DocMetaPanel", () => {
     expect(screen.getByText("Notes")).toBeTruthy();
     expect(screen.getByText("alpha")).toBeTruthy();
     expect(screen.getByText("beta")).toBeTruthy();
-    const link = screen.getAllByText("A")[0];
-    expect(link.getAttribute("href")).toBe("/docs/context/analysis/a.md");
+    const link = screen
+      .getAllByRole("link")
+      .find((el) => el.getAttribute("href") === "/docs/context/analysis/a.md");
+    expect(link).toBeTruthy();
     // kind glyph + colour from the corpus path fallback, with the human label
     expect(screen.getAllByLabelText("Analyses").length).toBeGreaterThan(0);
     // sources under context/commands resolve as real corpus links (kind commands)
-    const cmd = screen.getAllByText("C")[0];
-    expect(cmd.getAttribute("href")).toBe("/docs/context/commands/c.md");
-    expect(cmd.getAttribute("title")).toBeNull();
+    const cmd = screen
+      .getAllByRole("link")
+      .find((el) => el.getAttribute("href") === "/docs/context/commands/c.md");
+    expect(cmd).toBeTruthy();
+    expect(cmd?.getAttribute("title")).toBeNull();
     // the panel is four tabs, Info selected by default
     const tabLabels = () =>
       Array.from(document.querySelectorAll(".meta-tabs__tab")).map(
@@ -167,7 +171,10 @@ describe("DocMetaPanel", () => {
       frontmatter: "---\nkind: notes\nderived_from:\n  - analysis/a.md\n---\n",
       markdown: "body",
     });
-    expect(screen.getByText("A").getAttribute("href")).toBe("/docs/context/analysis/a.md");
+    const link = screen
+      .getAllByRole("link")
+      .find((el) => el.getAttribute("href") === "/docs/context/analysis/a.md");
+    expect(link).toBeTruthy();
   });
 
   it("exposes the image path on the thumbnail", () => {
@@ -190,7 +197,7 @@ describe("DocMetaPanel", () => {
       </MemoryRouter>,
     );
     const current = screen
-      .getAllByText("A")
+      .getAllByRole("link")
       .filter((el) => el.getAttribute("aria-current") === "page");
     expect(current.length).toBeGreaterThan(0);
     expect(current[0].className).toContain("is-current");

@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 export const READING_KEY = "sdt-reading";
 
 /** Length of the most-recent list; older documents fall out of it. */
-export const RECENT_CAP = 12;
+export const RECENT_CAP = 10;
 
 /** Upper bound on stored positions, so a long session cannot grow the record. */
 export const POSITION_CAP = 100;

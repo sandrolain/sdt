@@ -1177,6 +1177,30 @@
   .tree-entry__dot--draft {
     background: var(--draft);
   }
+  /* Pin toggle: hidden until the row is hovered/focused, or always shown when
+     the document is pinned. */
+  .tree-entry__pin {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--fg-faint);
+    cursor: pointer;
+    opacity: 0;
+  }
+  .tree-entry__pin .ms-icon {
+    font-size: 0.95rem;
+  }
+  .tree-entry:hover .tree-entry__pin,
+  .tree-entry__pin:focus-visible,
+  .tree-entry__pin.is-pinned {
+    opacity: 1;
+  }
+  .tree-entry__pin.is-pinned {
+    color: var(--accent);
+  }
   .tree-entry__warn {
     flex: none;
     align-self: flex-start;
@@ -1715,6 +1739,13 @@
     color: var(--accent);
     font-weight: 600;
     box-shadow: inset 2px 0 0 var(--accent);
+  }
+  /* A link rendered as a tree-style row (kind, category, date, status dot). */
+  .meta-link--row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    width: 100%;
   }
   .meta-link--muted {
     color: var(--fg-faint);

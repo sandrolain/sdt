@@ -4,6 +4,7 @@ import { STATE_KEYS, STATE_PRESETS, stateMeta, type StateFamily } from "../lib/s
 import {
   setGroupMode,
   setHiddenStates,
+  setHideEmpty,
   useTreeFilter,
   type GroupMode,
 } from "../lib/treeFilterStore";
@@ -62,7 +63,7 @@ const GROUP_MODE_OPTIONS = [
  * actions that were hidden by the vertical edge-group tab bar.
  */
 export function TreeToolbar({ onResetLayout, onCollapseAll }: TreeToolbarProps) {
-  const { hiddenStates, groupMode } = useTreeFilter();
+  const { hiddenStates, groupMode, hideEmpty } = useTreeFilter();
   const navigate = useNavigate();
   const selected = STATE_KEYS.filter((key) => !hiddenStates.includes(key));
   return (
@@ -87,6 +88,14 @@ export function TreeToolbar({ onResetLayout, onCollapseAll }: TreeToolbarProps) 
         value={groupMode}
         onChange={(key) => setGroupMode(key as GroupMode)}
       />
+      <TooltipButton
+        className={`doc-tab-actions__button${hideEmpty ? " is-active" : ""}`}
+        label={hideEmpty ? "Show empty sections" : "Hide empty sections"}
+        tooltip={hideEmpty ? "Show empty sections" : "Hide empty sections"}
+        onPress={() => setHideEmpty(!hideEmpty)}
+      >
+        <Icon name={hideEmpty ? "visibility_off" : "visibility"} />
+      </TooltipButton>
       {onCollapseAll && (
         <TooltipButton
           className="doc-tab-actions__button"

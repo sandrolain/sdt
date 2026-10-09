@@ -16,9 +16,11 @@ export const GROUP_MODES: GroupMode[] = ["flat", "type", "full"];
 export interface TreeFilterState {
   hiddenStates: string[];
   groupMode: GroupMode;
+  /** Hide kind folders with no visible document (a decluttered view). */
+  hideEmpty: boolean;
 }
 
-const DEFAULT: TreeFilterState = { hiddenStates: [], groupMode: "type" };
+const DEFAULT: TreeFilterState = { hiddenStates: [], groupMode: "type", hideEmpty: false };
 
 /** The persisted slices, each dropped when it no longer has the right shape. */
 function storedState(): TreeFilterState {
@@ -30,6 +32,7 @@ function storedState(): TreeFilterState {
       ? hidden.filter((s): s is string => typeof s === "string")
       : DEFAULT.hiddenStates,
     groupMode: GROUP_MODES.includes(mode as GroupMode) ? (mode as GroupMode) : DEFAULT.groupMode,
+    hideEmpty: typeof stored.hideEmpty === "boolean" ? stored.hideEmpty : DEFAULT.hideEmpty,
   };
 }
 
@@ -49,7 +52,7 @@ function state(): TreeFilterState {
 /** Replace the set of hidden states; the caller passes the complement of what
  *  the control shows selected. */
 export function setHiddenStates(states: string[]): void {
-  current = { hiddenStates: states, groupMode: state().groupMode };
+  current = { hiddenStates: states, groupMode: state().groupMode, hideEmpty: state().hideEmpty };
   saveTreeView({ hiddenStates: states });
   emit();
 }
@@ -57,14 +60,21 @@ export function setHiddenStates(states: string[]): void {
 /** Replace the grouping mode. The three modes are mutually exclusive, so one
  *  closed value cannot enter an invalid state. */
 export function setGroupMode(mode: GroupMode): void {
-  current = { hiddenStates: state().hiddenStates, groupMode: mode };
+  current = { hiddenStates: state().hiddenStates, groupMode: mode, hideEmpty: state().hideEmpty };
   saveTreeView({ groupMode: mode });
   emit();
 }
 
+/** Toggle the hide-empty-sections flag. */
+export function setHideEmpty(hideEmpty: boolean): void {
+  current = { ...state(), hideEmpty };
+  saveTreeView({ hideEmpty });
+  emit();
+}
+
 export function resetTreeFilter(): void {
-  current = { ...DEFAULT, hiddenStates: [] };
-  saveTreeView({ hiddenStates: undefined, groupMode: undefined });
+  current = { ...DEFAULT };
+  saveTreeView({ hiddenStates: undefined, groupMode: undefined, hideEmpty: undefined });
   emit();
 }
 
