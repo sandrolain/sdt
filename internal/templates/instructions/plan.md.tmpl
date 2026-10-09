@@ -136,7 +136,11 @@ session: <session id>        # optional
   clear enough that someone reading only this section understands the goal.
 - **Constraints and assumptions** — explicit limitations and assumptions. If an
   assumption is a guess (low confidence) and getting it wrong would be costly,
-  resolve it before marking the plan approved instead of building tasks on it.
+  resolve it before marking the plan approved instead of building tasks on it. A
+  **data-format** assumption a migration or import depends on (a field's meaning,
+  a serialization shape) is verified against a **real sample** before approval —
+  never inferred from a field name; a mismatch found after scheduling is exactly
+  the rework this rule prevents.
 - **Out of scope** — work explicitly excluded, to prevent scope creep. Be
   specific: not just "other things" but named areas.
 - **Design contract** — the style, architecture and dependency choices this
@@ -160,7 +164,10 @@ session: <session id>        # optional
   6. every plan ends with a dedicated final **Validation phase** that verifies
      the delivered changes (run the project's build/test/lint and
      `sdt context reindex`/`lint`) — it is always the last phase, even when a
-     previous phase already ran checks;
+     previous phase already ran checks. It **enumerates its render cells up
+     front** (routes × viewports × states, or the equivalent surface matrix) and
+     checks each; a partial pass names the cells it skipped rather than
+     reporting a general pass;
   7. each phase names the **analysis objectives** it covers; the task file for
      that phase carries a `## Design` study of those objectives (see
      `instructions/tasks.md`).
@@ -174,7 +181,10 @@ session: <session id>        # optional
   "independent" — state `depends_on: []` when there is genuinely no dependency.
 - **Completion criteria** — checkboxes for the global exit conditions (all
   phases completed — including the final Validation phase — full test suite
-  green, etc.). **Reference-only model**: the plan's `## Phases` and this
+  green, etc.). State only what **this** plan delivers: a criterion that implies
+  a sibling wave's scope, or an unverified chunk/graph split, over-claims —
+  verify a claimed split against the real output before writing it as a
+  criterion. **Reference-only model**: the plan's `## Phases` and this
   section state *intent*; the executed checklist lives in the task file, and a
   plan derives `completed` from its task files, not from these checkboxes. Tick
   a plan checklist item through the CLI (`sdt context check <plan> <id> --done`)

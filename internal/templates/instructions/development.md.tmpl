@@ -50,6 +50,10 @@ planning or writing any non-trivial code.
   version marker (fetched version + date).
 - Before using a library, check its latest version (changelog/releases) against
   what you know; APIs change — do not code against a stale API.
+- Before pinning a third-party API in a plan's Design contract, verify the API
+  exists in the **installed** version (read the installed package's types or
+  source), never from memory — a remembered API the installed version lacks is a
+  design built on air.
 - For an unfamiliar library, learn usage from its docs, not by reading its source.
 - Refresh the local docs when the version changes, or when unsure about the API.
 
@@ -100,6 +104,16 @@ fix the shared function once, rather than patching the symptom in one place.
   what the package already uses.
 - If the check would need more code than the logic it guards, simplify the
   logic instead.
+
+## Pin the toolchain
+
+- Pin linters and build tools to a version (a lockfile or an explicit version,
+  never a floating `@latest`): a floating tool changes under you, and an offline
+  run then fails on a tool you did not choose. When this does not apply: a project
+  with no floating toolchain is unaffected.
+- Scope a per-edit validation to the **files touched**; run the full suite in the
+  plan's Validation phase, not on every edit — a full suite can be slow or hang
+  offline, and it gates delivery, not each step.
 
 ## Mark deliberate shortcuts
 

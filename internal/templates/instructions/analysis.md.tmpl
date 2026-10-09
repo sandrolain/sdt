@@ -98,7 +98,10 @@ session: <session id>        # optional
   granted goes here with a confidence level (high/medium/low) and the evidence.
   **Rule**: an assumption with confidence `low` that materially affects the
   conclusion must be surfaced (asked on the fly or registered in
-  `context/questions/`), not folded silently into the decision.
+  `context/questions/`), not folded silently into the decision. A **data-format**
+  assumption (a field's meaning, a serialization shape) is backed by a **real
+  sample**, not a field name — the migration case is stated in
+  `instructions/plan.md`.
 - **Non-goals** — what this analysis deliberately does not cover, to keep it
   bounded.
 - **Constraints** (optional) — fixed non-negotiables (mandated stack, standards,
@@ -223,7 +226,9 @@ session: <session id>        # optional
   searches the corpus on the objective/title/topics and proposes candidates in a
   `## Prior art` section (add `--prior-art-links` to pre-fill `links`).
   Review every candidate, keep or discard it, and never leave the auto-generated
-  note in the final document.
+  note in the final document. Search by the **artifact shape** too — the file,
+  type or command affected — not only title/topic keywords: a same-topic document
+  titled differently is still prior art the keyword search can miss.
 - **Declare how it relates to prior work.** Set `links` (generic
   correlation), `supersedes` (this document replaces an older one) or
   `contradicts` (it rebuts it), or state `links: none` with a reason when

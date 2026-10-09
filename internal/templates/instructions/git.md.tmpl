@@ -68,6 +68,14 @@ refactor!: drop the legacy memory store
   ignored by `.gitignore`.
 - Merging or opening a PR is a user decision: propose it, do not act autonomously.
 
+## Working-tree safety
+
+- Apply the **exact** stash entry by ref (`git stash apply stash@{n}`), never a
+  bare `git stash pop` — a pre-existing unrelated stash can be applied and
+  conflict a file you never touched.
+- Never discard work you did not create: `git checkout -- <file>` and
+  `git reset --hard` are user decisions, not agent ones.
+
 ## Close out
 
 - After a commit, record the outcome (message, hash when available) in the

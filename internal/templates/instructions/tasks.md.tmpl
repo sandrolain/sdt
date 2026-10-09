@@ -342,6 +342,12 @@ Two rules bound what the evidence may conclude:
 - **A schema-valid artefact is not a complete one.** Passing a structural check
   does not establish coverage; pair it with a declared coverage check or record
   coverage as unproven.
+- **A "diff confined to this change" audit is scoped to the files the task
+  owns.** Under a concurrent stream the whole-tree diff is not a valid
+  confinement check — state the owned file set and audit against it.
+- **Scope per-edit validation to the files touched.** The full suite runs in the
+  plan's Validation phase; a per-edit run of everything is slow and can hang
+  offline (see `instructions/development.md`).
 
 Record it as a file-level `## Review` block in the task file (write it with
 `sdt context task review --phase <n>`; a completed file without the block gets
