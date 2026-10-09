@@ -107,6 +107,21 @@ may be actively harmful on an Operate one — see the visitor-success mode in
   proof of quality (see `context/instructions/ui-accessibility.md` for the
   usability heuristic checklist, which is explicitly not a visual-quality score).
 
+**The review report contract** (three parts, no persistent mode to remember):
+
+- **State the scope, and what you did *not* inspect.** A coverage table, one row
+  per area touched, each with the evidence inspected and a result; a row not
+  inspected says `Not reviewed` with the reason. Never imply an uninspected
+  surface was reviewed.
+- **Publish the candidates you rejected.** A few alternatives considered and
+  dropped, each with "rejected because". Do not invent filler.
+- **Cap the findings and end in a verdict.** A bounded number of findings
+  (severity + `file:line` + before/after + why), never padded to reach the cap;
+  consolidate a repeated systemic issue into one row and list every location.
+  End with `Block` (a high-severity finding is open) / `Needs changes` (lower
+  findings open) / `Approve` (nothing actionable) — every unrun check labelled
+  `Not verified`.
+
 ## Boundary
 
 - Concrete values: `context/instructions/ui-tokens.md`.

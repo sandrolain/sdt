@@ -65,6 +65,28 @@ duration or an easing, use it; if it has none, say so rather than inventing one.
   matters, it must be visible without relying on the animation alone — a
   transition that is skipped entirely must still leave a correct result.
 
+## Primitives and property choice
+
+- **Transitions for interactive state, keyframes for one-shot sequences.** A state
+  change (hover, focus, open) retargets mid-flight, so it is a transition; a
+  sequence that runs once (an entrance, a confirmation flourish) is keyframes. A
+  transition that must be interruptible is never a keyframe.
+- **Never `transition: all`.** Name the exact properties (`transition-property:
+  scale, background-color`); `all` animates things you did not intend and hides
+  which change is costly.
+- **An exit is a short, fixed distance — not the full height.** Move a small
+  `translateY` (commonly ~12px) with `ease-out`, at roughly half the entrance
+  duration; sliding the whole element out is the failure this replaces.
+- **Press feedback is a scale, not a layout change.** A press scales the control
+  slightly (commonly `0.96`, never below `0.95`) and offers a static escape hatch
+  where a transform is undesirable; it is a response, not decoration.
+- **Animate icons by opacity/scale/blur, never by toggling visibility.** Swap the
+  glyph's opacity and scale (and optionally blur), so the change reads as motion,
+  not a jump-cut.
+- **Skip the entrance on first render only where the entrance was not the point.**
+  A value that merely settles into its initial position (an icon swap, a first
+  paint) skips its enter animation; a deliberate staged hero does not.
+
 ## Staging
 
 - **One hero per moment.** Give the surface a single focal movement; everything
@@ -72,7 +94,9 @@ duration or an easing, use it; if it has none, say so rather than inventing one.
   mode this replaces.
 - **Many elements means stagger, not a chorus.** When several things change at
   once, move them in an order a reader can follow — reading order, or outward
-  from the focus — never all at the same instant.
+  from the focus — never all at the same instant. A stagger is for an
+  **infrequent** staged entrance (commonly ~100 ms per step), never for a routine
+  interaction; where the interaction is frequent, drop the stagger entirely.
 - **A stagger has a budget.** The whole cascade must finish well under a second;
   anything longer makes the user wait for decoration. When a list outgrows the
   budget, animate fewer items rather than slowing the stagger.

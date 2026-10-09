@@ -38,8 +38,11 @@ interruption. Most failures are violations of one of the four.
 
 - Text meets the project's minimum contrast in **both** themes; large text has a
   lower floor but still one.
-- Interactive targets are large enough to hit; do not shrink a target below the
-  project's minimum to fit a layout.
+- Interactive targets are large enough to hit (commonly 44×44 touch, 40×40 dense
+  desktop — the project's own minimum wins); do not shrink a target below it to
+  fit a layout. When the visible control is smaller, keep its visible size and
+  grow the hit area with a pseudo-element, and **two hit areas must never
+  overlap** — shrink one where they would.
 - Never rely on colour alone to convey a state or a change.
 
 ## Motion and reduced motion

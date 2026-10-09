@@ -82,6 +82,17 @@ deliberate, stated exception is legitimate; an unthinking default is not.
 - Floating card + glow + bokeh; paths with more than about ten nodes where ten
   suffice; arbitrary coordinates with no grid.
 
+## Icons: weight and colour
+
+- **One stroke width per set, matched to the adjacent text.** An icon beside text
+  carries that text's optical weight (commonly 1.5px beside regular, 2px beside
+  semibold); a set with mixed stroke widths reads as assembled from two libraries.
+  Where the surface uses an icon font rather than inline SVG, the weight is the
+  font's, not a per-instance choice.
+- **One `currentColor` asset, recoloured per state.** Draw the icon once with
+  `currentColor` and let the state change the colour — outline is the default,
+  fill marks the active state. Do not ship two assets for two states.
+
 ## Source fidelity
 
 - Never fabricate a reference, brand value or source. Extract exact brand colours,

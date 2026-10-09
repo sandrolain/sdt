@@ -61,6 +61,22 @@ role, variant and state; the value never appears in the name.
 - If no system exists, do not infer one from a few values: stop and ask (see the
   no-op rule).
 
+## Surface relationships
+
+- **Concentric radius.** Nested rounded surfaces share a centre: the outer radius
+  equals the inner radius plus the padding between them (commonly card radius
+  20px, padding 8px → inner 12px); equal radii with no such relationship read as
+  pinched. Escape hatch: once the padding is large enough that the two surfaces
+  read as separate, the rule no longer applies — the threshold is the project's
+  own scale.
+- **Shadow for elevation, border for structure.** A border that exists only to
+  create depth is a shadow; a border that carries structure or state (a divider,
+  an input outline, a focus ring) stays a border. Never a depth-only border.
+- **Image outline is a neutral.** A hairline outline on an image is a neutral
+  black or white, never a tinted palette colour (commonly 1px pure black at ~10%
+  in light, pure white at ~10% in dark), inset so it adds no layout. The project's
+  own neutral wins.
+
 ## Boundary
 
 - Choosing or adopting a design system is a library-first decision

@@ -36,6 +36,18 @@ with `context/instructions/ui.md` (the doctrine),
 - Prefer slots/children and composition over a growing list of boolean props.
 - One component, one concern: a control that also lays out a page is two things.
 
+## Optical alignment and icons
+
+- **Optical over geometric.** When the geometry centres but the eye disagrees,
+  adjust optically — a side-padded icon, a shifted play-triangle. Fix the
+  asymmetry in the asset, not with a margin in the component. Rule of thumb: the
+  icon-side padding is a touch smaller than the text-side padding; the project's
+  own scale sets how much.
+- **An icon beside text carries that text's optical weight.** Match the icon's
+  stroke to the adjacent text weight, and keep one stroke width per icon set.
+  Where the project uses an icon font rather than inline SVG, the weight is the
+  font's, not a per-instance choice.
+
 ## Blocks
 
 A **block** is a reusable composition unit assembled from components — a section,

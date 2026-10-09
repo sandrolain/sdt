@@ -46,6 +46,12 @@ project-agnostic — it names the decisions, not the numbers. Read it with
   line; narrower breaks the rhythm.
 - Size, weight and line-height carry hierarchy; do not push all three at once for
   a single step. Tabular numerals for data (see `ui-components.md`).
+- **Wrapping by block length, not taste.** `text-wrap: balance` on headings and
+  short blocks; `pretty` on short-to-medium body text; neither on long text,
+  where it costs more than it helps. Where the engine has no `text-wrap` support,
+  this is a no-op.
+- **Font smoothing on the root layout only.** Set the antialiasing hint once, on
+  the root element, never per component — a nested re-application is drift.
 
 ## Reading order
 

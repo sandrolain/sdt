@@ -65,6 +65,14 @@ and vitals evidence is captured).
   expensive work runs, and must degrade gracefully when a network or device is
   slow.
 
+## Rendering hints
+
+- **`will-change` is a promise, not a default.** Hint compositing only for
+  `transform`, `opacity` or `filter`, never `all`, and only on a layer that has
+  shown first-frame stutter; a hint left on permanently costs memory and can make
+  things slower. Remove it once the stutter is fixed. Where there is no observed
+  stutter, this rule is a no-op.
+
 ## Boundary
 
 - The doctrine is `context/instructions/ui.md`; tokens and components are
