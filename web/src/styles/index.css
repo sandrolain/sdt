@@ -1362,6 +1362,551 @@
   .meta-panel {
     min-width: 0;
   }
+  /* Gallery view (/docs/gallery): a card grid over the corpus. */
+  .gallery {
+    height: 100%;
+    overflow: auto;
+    padding: 1rem 1.5rem 3rem;
+  }
+  .gallery__bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .gallery__filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    flex: 1;
+  }
+  .gallery__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-base);
+    color: var(--fg-dim);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .gallery__chip.is-active {
+    background: var(--bg-rise);
+    color: var(--fg);
+  }
+  .gallery__count {
+    color: var(--fg-faint);
+    font-size: 0.8rem;
+  }
+  .gallery__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 0.75rem;
+  }
+  .gallery-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    text-align: left;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-mantle);
+    color: inherit;
+    cursor: pointer;
+  }
+  .gallery-card:hover {
+    background: var(--bg-hover);
+  }
+  .gallery-card__thumb {
+    width: 100%;
+    height: 6rem;
+    object-fit: cover;
+    border-radius: 8px;
+  }
+  .gallery-card__head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .gallery-card__title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .gallery-card__dot {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--fg-faint);
+  }
+  .gallery-card__summary {
+    color: var(--fg-dim);
+    font-size: 0.8rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .gallery-card__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--fg-faint);
+  }
+  .gallery-card__category {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .gallery__pager {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 0.5rem 0;
+    background: var(--bg-base);
+  }
+  .gallery__pagesize {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .gallery__pagesize select {
+    background: var(--bg-base);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.2rem 0.4rem;
+  }
+  .gallery__nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .gallery__nav-btn {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-base);
+    color: var(--fg-dim);
+    cursor: pointer;
+  }
+  .gallery__nav-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .gallery__page-label {
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .view-placeholder {
+    padding: 2rem;
+    color: var(--fg-faint);
+  }
+  /* Timeline / Calendar / Heatmap (/docs/timeline). */
+  .timeline,
+  .kanban,
+  .dashboard {
+    height: 100%;
+    overflow: auto;
+    padding: 1rem 1.5rem 3rem;
+  }
+  .timeline {
+    display: grid;
+    grid-template-columns: minmax(18rem, 1fr) minmax(20rem, 1.2fr);
+    gap: 1.5rem;
+    align-content: start;
+  }
+  .timeline__left {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .timeline__right {
+    min-width: 0;
+  }
+  .timeline__bar,
+  .kanban__bar {
+    margin-bottom: 1rem;
+  }
+  .timeline__modes,
+  .kanban__modes {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-base);
+  }
+  .timeline__mode {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.7rem;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    color: var(--fg-dim);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .timeline__mode.is-selected {
+    background: var(--bg-rise);
+    color: var(--fg);
+  }
+  .timeline__date {
+    margin: 0 0 0.4rem;
+    font-size: 0.8rem;
+    color: var(--fg-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .timeline__day {
+    margin-bottom: 1.25rem;
+  }
+  .timeline__docs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .timeline__doc,
+  .dashboard__recent-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.25rem 0.4rem;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .timeline__doc:hover,
+  .dashboard__recent-row:hover {
+    background: var(--bg-hover);
+  }
+  .timeline__doc-title,
+  .dashboard__recent-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .calendar {
+    max-width: 34rem;
+  }
+  .calendar__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  .calendar__label {
+    font-weight: 600;
+  }
+  .calendar__nav {
+    border: 0;
+    background: none;
+    color: var(--fg-dim);
+    cursor: pointer;
+  }
+  .calendar__grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.25rem;
+  }
+  .calendar__dow {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--fg-faint);
+  }
+  .calendar__cell {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    color: var(--fg-dim);
+  }
+  .calendar__cell.has-docs {
+    background: var(--bg-rise);
+    color: var(--fg);
+  }
+  .calendar__count {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.6rem;
+    color: var(--accent);
+  }
+  .heatmap {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 12px);
+    gap: 3px;
+    max-width: 100%;
+  }
+  .heatmap__cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .kanban__bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .kanban__control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .kanban__control select {
+    background: var(--bg-base);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.2rem 0.4rem;
+  }
+  .kanban__more {
+    margin: 0.5rem 0 0;
+    font-size: 0.75rem;
+    color: var(--fg-faint);
+  }
+  .kanban__board {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    overflow-x: auto;
+  }
+  .kanban__column {
+    flex: 0 0 15rem;
+    background: var(--bg-mantle);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.6rem;
+  }
+  .kanban__column-title {
+    display: flex;
+    justify-content: space-between;
+    margin: 0 0 0.5rem;
+    font-size: 0.8rem;
+    text-transform: capitalize;
+  }
+  .kanban__column-count {
+    color: var(--fg-faint);
+  }
+  .kanban__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .kanban-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-base);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .kanban-card:hover {
+    background: var(--bg-hover);
+  }
+  .kanban-card__head {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .kanban-card__title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+  .kanban-card__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    color: var(--fg-faint);
+  }
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 0.75rem;
+    align-content: start;
+  }
+  .dashboard__widget {
+    background: var(--bg-mantle);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.9rem;
+  }
+  .dashboard__widget--wide {
+    grid-column: 1 / -1;
+  }
+  .dashboard__title {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fg-dim);
+  }
+  .dashboard__big {
+    margin: 0 0 0.6rem;
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  .dashboard__stats {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 0.3rem;
+  }
+  .dashboard__stat {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+  }
+  .dashboard__stat-label {
+    flex: 1;
+  }
+  .dashboard__stat-value {
+    color: var(--fg-faint);
+  }
+  .dashboard__cloud {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .dashboard__tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: 600;
+  }
+  .dashboard__tag-count {
+    color: var(--fg-faint);
+    font-weight: 400;
+  }
+  .dashboard__recent {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 0.15rem;
+  }
+  .dashboard__recent-date {
+    color: var(--fg-faint);
+    font-size: 0.72rem;
+  }
+  .dashboard__big-unit {
+    font-size: 1rem;
+    color: var(--fg-faint);
+  }
+  .dashboard__sub {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    color: var(--fg-faint);
+  }
+  .dashboard__bars {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .dashboard__bar-row {
+    display: grid;
+    grid-template-columns: 6rem 1fr 2.5rem;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+  }
+  .dashboard__bar-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--fg-dim);
+  }
+  .dashboard__bar-track {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--bg-base);
+    overflow: hidden;
+  }
+  .dashboard__bar-track--lg {
+    display: block;
+    height: 0.6rem;
+  }
+  .dashboard__bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+  }
+  .dashboard__bar-value {
+    text-align: right;
+    color: var(--fg-faint);
+  }
+  .dashboard__spark {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 4rem;
+  }
+  .dashboard__spark-bar {
+    flex: 1;
+    min-height: 2px;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+    opacity: 0.8;
+  }
+  .dashboard__recent--wide {
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  }
   .meta-panel__title {
     margin: 0 0 0.4rem;
     font-size: 0.6875rem;

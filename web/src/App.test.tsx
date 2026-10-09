@@ -27,7 +27,8 @@ function mockFetch(url: string) {
   return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
 }
 
-function renderApp() {
+function renderApp(hash = "/docs") {
+  window.location.hash = hash;
   return render(
     <HashRouter>
       <App />

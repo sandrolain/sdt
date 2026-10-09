@@ -50,6 +50,22 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
             <Icon name="scatter_plot" />
             Map
           </NavLink>
+          {[
+            { to: "/docs/gallery", icon: "grid_view", label: "Gallery" },
+            { to: "/docs/timeline", icon: "timeline", label: "Timeline" },
+            { to: "/docs/kanban", icon: "view_kanban", label: "Kanban" },
+            { to: "/docs/dashboard", icon: "dashboard", label: "Dashboard" },
+          ].map((v) => (
+            <NavLink
+              key={v.to}
+              to={v.to}
+              end
+              className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
+            >
+              <Icon name={v.icon} />
+              {v.label}
+            </NavLink>
+          ))}
         </div>
         <div className="top-bar__group">
           <span className="top-bar__group-label">Wiki</span>

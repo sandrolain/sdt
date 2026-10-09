@@ -21,6 +21,18 @@ const WikiGraphView = lazy(() =>
 const SemanticMapView = lazy(() =>
   import("./components/SemanticMapView").then((m) => ({ default: m.SemanticMapView })),
 );
+const GalleryView = lazy(() =>
+  import("./components/GalleryView").then((m) => ({ default: m.GalleryView })),
+);
+const TimelineView = lazy(() =>
+  import("./components/TimelineView").then((m) => ({ default: m.TimelineView })),
+);
+const KanbanView = lazy(() =>
+  import("./components/KanbanView").then((m) => ({ default: m.KanbanView })),
+);
+const DashboardView = lazy(() =>
+  import("./components/DashboardView").then((m) => ({ default: m.DashboardView })),
+);
 
 export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -56,7 +68,7 @@ export function App() {
         <div className="app-shell">
           <TopBar onOpenSearch={() => setSearchOpen(true)} />
           <Routes>
-            <Route path="/" element={<Navigate to="/docs" replace />} />
+            <Route path="/" element={<Navigate to="/docs/dashboard" replace />} />
             <Route path="/docs" element={<DocumentsPage />} />
             <Route
               path="/docs/map"
@@ -67,6 +79,38 @@ export function App() {
               }
             />
             <Route path="/docs/*" element={<DocumentsPage />} />
+            <Route
+              path="/docs/gallery"
+              element={
+                <Suspense fallback={<p className="content__empty">Loading gallery…</p>}>
+                  <GalleryView />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/docs/timeline"
+              element={
+                <Suspense fallback={<p className="content__empty">Loading timeline…</p>}>
+                  <TimelineView />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/docs/kanban"
+              element={
+                <Suspense fallback={<p className="content__empty">Loading kanban…</p>}>
+                  <KanbanView />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/docs/dashboard"
+              element={
+                <Suspense fallback={<p className="content__empty">Loading dashboard…</p>}>
+                  <DashboardView />
+                </Suspense>
+              }
+            />
             <Route path="/wiki" element={<WikiPage />}>
               <Route index element={<Navigate to="/wiki/graph" replace />} />
               <Route
