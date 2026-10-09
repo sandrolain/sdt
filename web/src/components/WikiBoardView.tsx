@@ -110,6 +110,14 @@ function BoardPanel() {
     },
     [setViewHandle],
   );
+  const onEnter = useCallback(
+    (node: BoardNode) => {
+      // "Zoom into": focus the node, then drill / navigate to it.
+      localRef.current?.focusNode(node.id);
+      open(node);
+    },
+    [open],
+  );
   return (
     <div className="board-panel">
       <JsonCanvas
@@ -129,7 +137,7 @@ function BoardPanel() {
           localRef.current?.focusNode(node.id);
           setMode("2d");
         }}
-        renderNode={(node) => renderNestedBody(node, zoom)}
+        renderNode={(node) => renderNestedBody(node, zoom, { onEnter })}
       />
       <span className="visually-hidden" aria-live="polite">
         Zoom {Math.round(zoom * 100)}%

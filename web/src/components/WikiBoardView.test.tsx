@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { WikiBoardView } from "./WikiBoardView";
 import { renderNestedBody } from "./nestedCanvasBody";
 import type { CanvasNode } from "../lib/jsoncanvas/document";
+import { resetCanvasCache } from "../lib/jsoncanvas/canvasLoader";
 import { OpenDocsProvider } from "./OpenDocsProvider";
 
 const TREE = {
@@ -99,6 +100,7 @@ function mockFetch() {
 
 afterEach(() => {
   cleanup();
+  resetCanvasCache();
   vi.restoreAllMocks();
 });
 
@@ -223,5 +225,63 @@ describe("renderNestedBody", () => {
     expect(
       renderNestedBody({ id: "t", type: "text", x: 0, y: 0, width: 10, height: 10 }, 1),
     ).toBeUndefined();
+  });
+});
+
+describe("renderNestedBody — external .canvas thumbnails", () => {
+  const fileNode = {
+    id: "f",
+    type: "file",
+    x: 0,
+    y: 0,
+    width: 150,
+    height: 60,
+    file: "context/wiki/other.canvas",
+  } as CanvasNode;
+
+  function mockCanvasFetch(payload: unknown) {
+    return vi.fn((url: string) => {
+      if (url.startsWith("/api/wiki/board?file="))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(payload) });
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+  }
+
+  it("shows a placeholder below the threshold without fetching", () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const { container } = render(<>{renderNestedBody(fileNode, 0.5)}</>);
+    expect(container.querySelector(".nested-canvas--placeholder")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fetches and renders a miniature above the threshold", async () => {
+    globalThis.fetch = mockCanvasFetch(EXTERNAL_BOARD);
+    const { container } = render(<>{renderNestedBody(fileNode, 1)}</>);
+    await waitFor(() => expect(container.querySelector(".nested-canvas--mini")).toBeTruthy());
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("file=context%2Fwiki%2Fother.canvas"),
+    );
+  });
+
+  it("shows a missing-canvas placeholder when the target is empty", async () => {
+    globalThis.fetch = mockCanvasFetch({ nodes: [], edges: [] });
+    const { container } = render(<>{renderNestedBody(fileNode, 1)}</>);
+    await waitFor(() =>
+      expect(container.querySelector(".nested-canvas__hint")?.textContent).toBe("Missing canvas"),
+    );
+  });
+
+  it("offers a zoom affordance that calls onEnter", async () => {
+    globalThis.fetch = mockCanvasFetch(EXTERNAL_BOARD);
+    const onEnter = vi.fn();
+    const { container } = render(<>{renderNestedBody(fileNode, 1, { onEnter })}</>);
+    const zoom = await waitFor(() => {
+      const b = container.querySelector<HTMLButtonElement>(".nested-canvas__zoom");
+      if (!b) throw new Error("zoom affordance not rendered");
+      return b;
+    });
+    await userEvent.click(zoom);
+    expect(onEnter).toHaveBeenCalledWith(fileNode);
   });
 });
