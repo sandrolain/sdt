@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { createStore } from "./store";
 
 /** Global reading preferences (adoption decision Q2): text size and measure. */
 
@@ -42,30 +42,15 @@ export function readReadingPrefs(): ReadingPrefs {
   }
 }
 
-let current: ReadingPrefs | null = null;
-const listeners = new Set<() => void>();
-
-function emit(): void {
-  for (const listener of listeners) listener();
-}
-
-/** Live preferences, seeded from storage on first use. */
-function state(): ReadingPrefs {
-  current ??= readReadingPrefs();
-  return current;
-}
+const store = createStore<ReadingPrefs>({
+  initial: readReadingPrefs,
+  save: applyReadingPrefs,
+  equal: (a, b) => a.fontScale === b.fontScale && a.measureOn === b.measureOn,
+});
 
 /** The preferences in effect, for the boot effect that publishes them. */
 export function currentReadingPrefs(): ReadingPrefs {
-  return state();
-}
-
-function persist(prefs: ReadingPrefs): void {
-  try {
-    localStorage.setItem(READING_PREFS_KEY, JSON.stringify(prefs));
-  } catch {
-    // storage full or disabled: the preference still applies to this session
-  }
+  return store.get();
 }
 
 /**
@@ -78,50 +63,34 @@ export function applyReadingPrefs(prefs: ReadingPrefs): void {
   const root = document.documentElement;
   root.style.setProperty("--reading-scale", String(prefs.fontScale));
   root.style.setProperty("--reading-measure", prefs.measureOn ? `${MEASURE_CH}ch` : "100%");
-  persist(prefs);
+  try {
+    localStorage.setItem(READING_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // storage full or disabled: the preference still applies to this session
+  }
 }
 
 /** Move one step along the text-size scale (clamped at both ends). */
 export function stepFontScale(delta: number): void {
-  const current_ = state().fontScale;
-  const at = FONT_SCALES.indexOf(current_);
+  const at = FONT_SCALES.indexOf(store.get().fontScale);
   const next = FONT_SCALES[Math.min(FONT_SCALES.length - 1, Math.max(0, at + delta))];
   setFontScale(next);
 }
 
 export function setFontScale(fontScale: FontScale): void {
-  if (state().fontScale === fontScale) return;
-  current = { ...state(), fontScale };
-  applyReadingPrefs(current);
-  emit();
+  store.set({ ...store.get(), fontScale });
 }
 
 export function setMeasureOn(measureOn: boolean): void {
-  if (state().measureOn === measureOn) return;
-  current = { ...state(), measureOn };
-  applyReadingPrefs(current);
-  emit();
+  store.set({ ...store.get(), measureOn });
 }
 
 /** Forget the stored preferences and return to the defaults. */
 export function resetReadingPrefs(): void {
-  current = { ...DEFAULT_READING_PREFS };
-  applyReadingPrefs(current);
-  emit();
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function snapshot(): ReadingPrefs {
-  return state();
+  store.reset({ ...DEFAULT_READING_PREFS });
 }
 
 /** The global reading preferences. */
 export function useReadingPrefs(): ReadingPrefs {
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
+  return store.use();
 }

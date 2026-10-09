@@ -1,22 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   DockviewReact,
   themeCatppuccinMochaSpaced,
-  type DockviewApi,
-  type DockviewReadyEvent,
   type IDockviewHeaderActionsProps,
   type IDockviewPanelProps,
   type IDockviewPanel,
 } from "dockview-react";
 import { useOpenDocs } from "../lib/openDocsContext";
 import { openFind } from "../lib/findInDocStore";
-import {
-  clearLayout,
-  loadLayout,
-  resetLayout,
-  saveLayout,
-  WORKSPACE_STORAGE_KEY,
-} from "../lib/layoutStore";
+import { resetLayout, WORKSPACE_STORAGE_KEY } from "../lib/layoutStore";
+import { useDockviewWorkspace } from "../lib/dockviewWorkspace";
 import {
   addSidePanels,
   COURTESY_PANEL_ID,
@@ -41,9 +34,6 @@ import { kindColor, kindFromPath, kindIcon } from "../lib/kinds";
 const DOC_PREFIX = DOC_PANEL_PREFIX;
 const COURTESY_ID = COURTESY_PANEL_ID;
 const docPanelId = (path: string) => `${DOC_PREFIX}${path}`;
-
-/** Dockview needs real layout measurement; tests use a plain columns fallback. */
-const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
 
 /** Stable dockview component registry (module scope: never recreated). */
 const components: Record<string, (props: IDockviewPanelProps) => ReactNode> = {
@@ -119,9 +109,25 @@ function DocHeaderActions({ group }: IDockviewHeaderActionsProps) {
 /** Documents workspace: tree | document tabs | metadata, all dockview panels. */
 export function DocsWorkspace() {
   const { state, activate, close } = useOpenDocs();
-  const apiRef = useRef<DockviewApi | null>(null);
   const centerRef = useRef<CenterGroup | null>(null);
   const [ready, setReady] = useState(false);
+  const {
+    enabled: dockviewEnabled,
+    apiRef,
+    onReady,
+  } = useDockviewWorkspace(WORKSPACE_STORAGE_KEY, {
+    addPanels: addSidePanels,
+    onReady: (api) => {
+      api.onDidActivePanelChange((event) => {
+        const panel = event.panel;
+        if (panel?.id.startsWith(DOC_PREFIX)) activate(panel.id.slice(DOC_PREFIX.length));
+      });
+      api.onDidRemovePanel((panel: IDockviewPanel) => {
+        if (panel.id.startsWith(DOC_PREFIX)) close(panel.id.slice(DOC_PREFIX.length));
+      });
+      setReady(true);
+    },
+  });
 
   // Cmd/Ctrl+F opens the find-in-document bar; native find is kept when no
   // document is open (the /docs landing shell has nothing to scan).
@@ -135,36 +141,6 @@ export function DocsWorkspace() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [state.docs.length]);
-
-  const onReady = useCallback(
-    (event: DockviewReadyEvent) => {
-      const api = event.api;
-      apiRef.current = api;
-
-      const stored = loadLayout(WORKSPACE_STORAGE_KEY);
-      if (stored) {
-        try {
-          api.fromJSON(stored as never);
-        } catch {
-          clearLayout(WORKSPACE_STORAGE_KEY);
-        }
-      }
-      // always ensure the side panels exist: recovers layouts persisted by
-      // older builds where tree/meta were closable
-      addSidePanels(api);
-
-      api.onDidActivePanelChange((event) => {
-        const panel = event.panel;
-        if (panel?.id.startsWith(DOC_PREFIX)) activate(panel.id.slice(DOC_PREFIX.length));
-      });
-      api.onDidRemovePanel((panel: IDockviewPanel) => {
-        if (panel.id.startsWith(DOC_PREFIX)) close(panel.id.slice(DOC_PREFIX.length));
-      });
-      api.onDidLayoutChange(() => saveLayout(WORKSPACE_STORAGE_KEY, api.toJSON()));
-      setReady(true);
-    },
-    [activate, close],
-  );
 
   // state → panels: document tabs (centre group) and follow the active document
   useEffect(() => {
@@ -219,7 +195,7 @@ export function DocsWorkspace() {
       const panel = api.getPanel(docPanelId(state.active));
       if (panel && !panel.api.isActive) panel.api.setActive();
     }
-  }, [ready, state.docs, state.active]);
+  }, [ready, apiRef, state.docs, state.active]);
 
   // The spaced catppuccin theme is applied through the theme object (its gap,
   // collapsed-rail size and dnd options are JS options, not CSS); the class it
@@ -227,7 +203,7 @@ export function DocsWorkspace() {
   // Catppuccin tokens via the unlayered `styles/dockview.css` overrides.
   const className = useMemo(() => "docs-workspace dock-layout", []);
 
-  if (!DOCKVIEW_ENABLED) return <FallbackWorkspace />;
+  if (!dockviewEnabled) return <FallbackWorkspace />;
 
   return (
     <DockviewReact

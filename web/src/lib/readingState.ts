@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { createStore } from "./store";
 
 /** Per-document reading position and recency, persisted across reloads. */
 
@@ -60,23 +60,13 @@ export function loadReadingState(): ReadingState {
   }
 }
 
-let current: ReadingState | null = null;
+const store = createStore<ReadingState>({ initial: loadReadingState });
+
 let lastWrite = 0;
-const listeners = new Set<() => void>();
-
-function emit(): void {
-  for (const listener of listeners) listener();
-}
-
-/** Live state, seeded from storage on first use so a reload restores the reader. */
-function state(): ReadingState {
-  current ??= loadReadingState();
-  return current;
-}
 
 function persist(): void {
   try {
-    localStorage.setItem(READING_KEY, JSON.stringify(state()));
+    localStorage.setItem(READING_KEY, JSON.stringify(store.get()));
   } catch {
     // storage full or disabled: persistence is non-essential
   }
@@ -93,30 +83,29 @@ export function recordReading(
   headingId: string | null,
   now: number = Date.now(),
 ): void {
-  const previous = state().positions[path];
+  const current = store.get();
+  const previous = current.positions[path];
   const next: ReadingPosition = { scrollTop: Math.max(0, Math.round(scrollTop)), headingId };
-  const recent = [path, ...state().recent.filter((p) => p !== path)].slice(0, RECENT_CAP);
+  const recent = [path, ...current.recent.filter((p) => p !== path)].slice(0, RECENT_CAP);
   if (previous && previous.scrollTop === next.scrollTop && previous.headingId === next.headingId) {
     // same place: only the recency order moved, and it costs no write
-    if (state().recent[0] === path) return;
-    current = { positions: state().positions, recent };
+    if (current.recent[0] === path) return;
+    store.set({ positions: current.positions, recent });
     lastWrite = now;
     persist();
-    emit();
     return;
   }
-  const positions = { ...state().positions, [path]: next };
+  const positions = { ...current.positions, [path]: next };
   // evict the oldest position once the record is full, keeping the recent list intact
   for (const oldest of Object.keys(positions)) {
     if (Object.keys(positions).length <= POSITION_CAP) break;
     if (!recent.includes(oldest)) delete positions[oldest];
   }
-  current = { positions, recent };
+  store.set({ positions, recent });
   if (now - lastWrite >= WRITE_THROTTLE_MS) {
     lastWrite = now;
     persist();
   }
-  emit();
 }
 
 /** Write the current state out, bypassing the throttle (on unmount, pagehide). */
@@ -127,18 +116,17 @@ export function flushReading(): void {
 
 /** Where the reader stopped in `path`, or null when it was never read. */
 export function readingPosition(path: string): ReadingPosition | null {
-  return state().positions[path] ?? null;
+  return store.get().positions[path] ?? null;
 }
 
 /** Forget every position and the recent list. */
 export function clearReadingState(): void {
-  current = { positions: {}, recent: [] };
+  store.reset(EMPTY);
   try {
     localStorage.removeItem(READING_KEY);
   } catch {
     // ignore
   }
-  emit();
 }
 
 /**
@@ -181,15 +169,7 @@ export function scrollToHeading(root: HTMLElement, headingId: string | null): bo
   return true;
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
 /** The most recently read documents, newest first. */
 export function useRecentDocuments(): string[] {
-  const recent = (): string[] => state().recent;
-  return useSyncExternalStore(subscribe, recent, recent);
+  return store.use((state) => state.recent);
 }

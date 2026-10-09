@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { createStore } from "./store";
 import { loadTreeView, saveTreeView } from "./treeViewStore";
 
 /** How the tree nests its entries. `flat` renders every document in one list
@@ -36,59 +36,33 @@ function storedState(): TreeFilterState {
   };
 }
 
-let current: TreeFilterState | null = null;
-const listeners = new Set<() => void>();
-
-function emit(): void {
-  for (const listener of listeners) listener();
-}
-
-/** Live state, seeded from storage on first use so a reload restores the filter. */
-function state(): TreeFilterState {
-  current ??= storedState();
-  return current;
-}
+const store = createStore<TreeFilterState>({ initial: storedState });
 
 /** Replace the set of hidden states; the caller passes the complement of what
  *  the control shows selected. */
 export function setHiddenStates(states: string[]): void {
-  current = { hiddenStates: states, groupMode: state().groupMode, hideEmpty: state().hideEmpty };
+  store.set({ ...store.get(), hiddenStates: states });
   saveTreeView({ hiddenStates: states });
-  emit();
 }
 
 /** Replace the grouping mode. The three modes are mutually exclusive, so one
  *  closed value cannot enter an invalid state. */
 export function setGroupMode(mode: GroupMode): void {
-  current = { hiddenStates: state().hiddenStates, groupMode: mode, hideEmpty: state().hideEmpty };
+  store.set({ ...store.get(), groupMode: mode });
   saveTreeView({ groupMode: mode });
-  emit();
 }
 
 /** Toggle the hide-empty-sections flag. */
 export function setHideEmpty(hideEmpty: boolean): void {
-  current = { ...state(), hideEmpty };
+  store.set({ ...store.get(), hideEmpty });
   saveTreeView({ hideEmpty });
-  emit();
 }
 
 export function resetTreeFilter(): void {
-  current = { ...DEFAULT };
+  store.reset({ ...DEFAULT });
   saveTreeView({ hiddenStates: undefined, groupMode: undefined, hideEmpty: undefined });
-  emit();
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function snapshot(): TreeFilterState {
-  return state();
 }
 
 export function useTreeFilter(): TreeFilterState {
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
+  return store.use();
 }

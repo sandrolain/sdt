@@ -22,8 +22,6 @@ import {
   DockviewDefaultTab,
   DockviewReact,
   themeCatppuccinMochaSpaced,
-  type DockviewApi,
-  type DockviewReadyEvent,
   type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
 } from "dockview-react";
@@ -38,7 +36,7 @@ import {
   type GraphToolsAction,
   type GraphToolsState,
 } from "../lib/graphTools";
-import { clearLayout, loadLayout, saveLayout } from "../lib/layoutStore";
+import { useDockviewWorkspace } from "../lib/dockviewWorkspace";
 import { addGraphPanels, GRAPH_CENTER_PANEL_ID } from "../lib/wikiEdgeLayout";
 import { useOpenDocs } from "../lib/openDocsContext";
 import { useReloadToken } from "../lib/useReloadToken";
@@ -49,9 +47,6 @@ import { graphNeighbours } from "../lib/graph/neighbours";
 import { SkeletonLines } from "./Skeleton";
 
 export const WIKI_GRAPH_STORAGE_KEY = "wiki-graph-v2";
-
-/** Dockview needs real layout measurement; tests use a plain columns fallback. */
-const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
 
 interface GraphWorkspaceValue {
   adapted: AdaptedEngineGraph;
@@ -196,7 +191,19 @@ export function WikiGraphView() {
   const setViewHandle = useCallback((handle: GraphViewHandle | null) => {
     viewRef.current = handle;
   }, []);
-  const apiRef = useRef<DockviewApi | null>(null);
+  const { enabled: dockviewEnabled, onReady } = useDockviewWorkspace(WIKI_GRAPH_STORAGE_KEY, {
+    ensureCenter: (api) => {
+      if (!api.getPanel(GRAPH_CENTER_PANEL_ID)) {
+        api.addPanel({
+          id: GRAPH_CENTER_PANEL_ID,
+          component: "graph",
+          title: "Graph",
+          minimumWidth: 320,
+        });
+      }
+    },
+    addPanels: addGraphPanels,
+  });
   const { open: openDoc } = useOpenDocs();
   const reloadToken = useReloadToken();
 
@@ -266,29 +273,6 @@ export function WikiGraphView() {
     if (tools.layout) fit();
   }, [tools.layout, tools.clusterKey, fit]);
 
-  const onReady = useCallback((event: DockviewReadyEvent) => {
-    const api = event.api;
-    apiRef.current = api;
-    const stored = loadLayout(WIKI_GRAPH_STORAGE_KEY);
-    if (stored) {
-      try {
-        api.fromJSON(stored as never);
-      } catch {
-        clearLayout(WIKI_GRAPH_STORAGE_KEY);
-      }
-    }
-    if (!api.getPanel(GRAPH_CENTER_PANEL_ID)) {
-      api.addPanel({
-        id: GRAPH_CENTER_PANEL_ID,
-        component: "graph",
-        title: "Graph",
-        minimumWidth: 320,
-      });
-    }
-    addGraphPanels(api);
-    api.onDidLayoutChange(() => saveLayout(WIKI_GRAPH_STORAGE_KEY, api.toJSON()));
-  }, []);
-
   const value: GraphWorkspaceValue = {
     adapted,
     tools,
@@ -321,7 +305,7 @@ export function WikiGraphView() {
   if (error) return <p className="content__empty">Graph error: {error}</p>;
   if (!data) return <SkeletonLines count={5} label="Loading graph" />;
 
-  if (!DOCKVIEW_ENABLED) {
+  if (!dockviewEnabled) {
     return (
       <GraphWorkspaceContext.Provider value={value}>
         <div

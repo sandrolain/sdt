@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { createStore } from "./store";
 
 /**
  * The heading currently in view for a document. A module-level store (rather
@@ -14,50 +14,34 @@ export interface ActiveSection {
 
 const EMPTY: ActiveSection = { path: "", key: null };
 
-let current: ActiveSection = EMPTY;
-const listeners = new Set<() => void>();
-
-function emit(): void {
-  for (const listener of listeners) listener();
-}
+const store = createStore<ActiveSection>({
+  initial: EMPTY,
+  equal: (a, b) => a.path === b.path && a.key === b.key,
+});
 
 /** Publish the active heading for a document path. */
 export function setActiveSection(path: string, key: string | null): void {
-  if (current.path === path && current.key === key) return;
-  current = { path, key };
-  emit();
+  store.set({ path, key });
 }
 
 /** Clear the active heading, but only for the document that owns it. */
 export function clearActiveSection(path: string): void {
-  if (current.path !== path) return;
-  current = EMPTY;
-  emit();
+  if (store.get().path !== path) return;
+  store.set(EMPTY);
 }
 
 /** Test/reset helper. */
 export function resetActiveSection(): void {
-  current = EMPTY;
-  emit();
+  store.reset(EMPTY);
 }
 
 /** Heading currently published for `path`, or null when none is. */
 export function activeSectionKey(path: string): string | null {
+  const current = store.get();
   return current.path === path ? current.key : null;
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function snapshot(): ActiveSection {
-  return current;
 }
 
 /** Active heading for the current document (empty when none). */
 export function useActiveSection(): ActiveSection {
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
+  return store.use();
 }

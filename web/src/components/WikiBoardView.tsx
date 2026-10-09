@@ -21,13 +21,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   DockviewReact,
   themeCatppuccinMochaSpaced,
-  type DockviewApi,
-  type DockviewReadyEvent,
   type IDockviewPanelProps,
 } from "dockview-react";
 import { fetchTree, fetchWikiBoard, type TreeEntry } from "../lib/api";
 import { canvasLayers } from "../lib/jsoncanvas/document";
-import { clearLayout, loadLayout, saveLayout } from "../lib/layoutStore";
+import { useDockviewWorkspace } from "../lib/dockviewWorkspace";
 import { normalizeBoard, type BoardModel, type BoardNode } from "../lib/canvas";
 import { boardPath, parseBoardSplat, buildLevels, type BoardLevel } from "../lib/boardRoute";
 import { decorateBoardColours } from "../lib/boardColors";
@@ -46,9 +44,6 @@ export const WIKI_BOARD_STORAGE_KEY = "wiki-board";
 
 /** Duration of the "zoom into" step before entering a level (matches JsonCanvas). */
 const ENTER_ANIM_MS = 300;
-
-/** Dockview needs real layout measurement; tests use a plain columns fallback. */
-const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
 
 interface BoardWorkspaceValue {
   /** The active level's document (root, or the deepest entered nested canvas). */
@@ -231,7 +226,19 @@ export function WikiBoardView() {
   };
   const [zoom, setZoom] = useState(1);
   const viewRef = useRef<JsonCanvasHandle | null>(null);
-  const apiRef = useRef<DockviewApi | null>(null);
+  const { enabled: dockviewEnabled, onReady } = useDockviewWorkspace(WIKI_BOARD_STORAGE_KEY, {
+    ensureCenter: (api) => {
+      if (!api.getPanel(BOARD_CENTER_PANEL_ID)) {
+        api.addPanel({
+          id: BOARD_CENTER_PANEL_ID,
+          component: "json-canvas",
+          title: "Board",
+          minimumWidth: 320,
+        });
+      }
+    },
+    addPanels: addBoardPanels,
+  });
   const reloadToken = useReloadToken();
 
   useEffect(() => {
@@ -407,29 +414,6 @@ export function WikiBoardView() {
   const zoomOut = useCallback(() => viewRef.current?.zoomOut(), []);
   const fit = useCallback(() => viewRef.current?.fit(), []);
 
-  const onReady = useCallback((event: DockviewReadyEvent) => {
-    const api = event.api;
-    apiRef.current = api;
-    const stored = loadLayout(WIKI_BOARD_STORAGE_KEY);
-    if (stored) {
-      try {
-        api.fromJSON(stored as never);
-      } catch {
-        clearLayout(WIKI_BOARD_STORAGE_KEY);
-      }
-    }
-    if (!api.getPanel(BOARD_CENTER_PANEL_ID)) {
-      api.addPanel({
-        id: BOARD_CENTER_PANEL_ID,
-        component: "json-canvas",
-        title: "Board",
-        minimumWidth: 320,
-      });
-    }
-    addBoardPanels(api);
-    api.onDidLayoutChange(() => saveLayout(WIKI_BOARD_STORAGE_KEY, api.toJSON()));
-  }, []);
-
   if (error) return <p className="content__empty">Board error: {error}</p>;
   if (!model || !activeDocument) return <SkeletonLines count={5} label="Loading board" />;
 
@@ -461,7 +445,7 @@ export function WikiBoardView() {
     open,
   };
 
-  if (!DOCKVIEW_ENABLED) {
+  if (!dockviewEnabled) {
     return (
       <BoardWorkspaceContext.Provider value={value}>
         <div
