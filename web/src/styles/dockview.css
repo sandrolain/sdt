@@ -37,3 +37,27 @@
 .wiki-graph-workspace .dv-groupview:not(.dv-groupview-edge) > .dv-tabs-and-actions-container {
   display: none;
 }
+
+/* The kind-coloured tab-group chip/underline fights the native tab strip and
+   misaligns while scrolling. The grouping behaviour stays; the coloured
+   decoration is dropped. */
+.dock-layout .dv-tab-group-chip,
+.dock-layout .dv-tab-group-underline,
+.dock-layout .dv-tab-group-chip-continuation {
+  display: none;
+}
+
+/* The right edge group's header is a vertical strip: stack the meta tabs
+   vertically and place them right after the panel title (not at the bottom). */
+.dv-right-actions-container-vertical {
+  order: 1;
+  height: auto;
+}
+.dv-groupview-edge .dv-void-container {
+  order: 2;
+}
+.meta-tabs__list--header {
+  writing-mode: vertical-rl;
+  align-items: stretch;
+}
+
