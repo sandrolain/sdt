@@ -26,7 +26,16 @@ func SectionPath(id string) string {
 func (s *Snapshot) DocumentVectors() map[string][]float32 {
 	sums := make(map[string][]float32)
 	counts := make(map[string]int)
-	for id, v := range s.SectionVectors {
+	// Accumulate in a deterministic (sorted-id) order: float32 addition is not
+	// associative, so ranging the SectionVectors map would vary the mean in the
+	// low bits per run and flip downstream top-k ties (see the U5 finding).
+	ids := make([]string, 0, len(s.SectionVectors))
+	for id := range s.SectionVectors {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		v := s.SectionVectors[id]
 		p := SectionPath(id)
 		sum := sums[p]
 		if sum == nil {
