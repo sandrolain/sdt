@@ -1253,10 +1253,12 @@ describe("Tree", () => {
     renderTree();
     await screen.findByText("A");
     const icons = Array.from(document.querySelectorAll(".tree-entry__category"));
-    // one per row: the first category only, and none for a row without one
-    expect(icons).toHaveLength(1);
+    // one per row: the first category only, and the neutral fallback when none
+    expect(icons).toHaveLength(2);
     expect(icons[0].textContent).toBe("bug_report");
     expect(icons[0].getAttribute("title")).toBe("bug");
+    expect(icons[1].textContent).toBe("sell");
+    expect(icons[1].getAttribute("title")).toBe("Uncategorised");
   });
 
   it("renders a status bar with visible, total and open counts that follow the filter", async () => {

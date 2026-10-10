@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   DockviewReact,
-  themeCatppuccinMochaSpaced,
   type IDockviewHeaderActionsProps,
   type IDockviewPanelProps,
   type IDockviewPanel,
@@ -9,7 +8,7 @@ import {
 import { useOpenDocs } from "../lib/openDocsContext";
 import { openFind } from "../lib/findInDocStore";
 import { resetLayout, WORKSPACE_STORAGE_KEY } from "../lib/layoutStore";
-import { useDockviewWorkspace } from "../lib/dockviewWorkspace";
+import { useDockviewTheme, useDockviewWorkspace } from "../lib/dockviewWorkspace";
 import {
   addSidePanels,
   COURTESY_PANEL_ID,
@@ -109,6 +108,7 @@ function DocHeaderActions({ group }: IDockviewHeaderActionsProps) {
 /** Documents workspace: tree | document tabs | metadata, all dockview panels. */
 export function DocsWorkspace() {
   const { state, activate, close } = useOpenDocs();
+  const dockviewTheme = useDockviewTheme();
   const centerRef = useRef<CenterGroup | null>(null);
   const [ready, setReady] = useState(false);
   const {
@@ -208,7 +208,7 @@ export function DocsWorkspace() {
   return (
     <DockviewReact
       className={className}
-      theme={themeCatppuccinMochaSpaced}
+      theme={dockviewTheme}
       components={components}
       defaultTabComponent={WorkspaceTab}
       tabComponents={{ doc: DocTabHeader }}

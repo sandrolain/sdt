@@ -51,10 +51,10 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
             Map
           </NavLink>
           {[
+            { to: "/docs/dashboard", icon: "dashboard", label: "Dashboard" },
             { to: "/docs/gallery", icon: "grid_view", label: "Gallery" },
             { to: "/docs/timeline", icon: "timeline", label: "Timeline" },
             { to: "/docs/kanban", icon: "view_kanban", label: "Kanban" },
-            { to: "/docs/dashboard", icon: "dashboard", label: "Dashboard" },
           ].map((v) => (
             <NavLink
               key={v.to}

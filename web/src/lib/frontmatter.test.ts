@@ -6,6 +6,7 @@ import {
   fieldLabel,
   formatFieldDate,
   formatFieldDateOnly,
+  formatFieldDateTime,
   isRelationVerb,
   parseFieldDate,
   parseFrontmatter,
@@ -196,5 +197,10 @@ describe("dates", () => {
     expect(formatted).toContain("2026");
     expect(formatted).not.toMatch(/\d{2}:\d{2}/);
     expect(formatFieldDateOnly("not-a-date")).toBe("not-a-date");
+  });
+
+  it("formats the shared YYYY-MM-DD HH:MM date+time", () => {
+    expect(formatFieldDateTime("2026-09-15T14:45:00")).toMatch(/^2026-09-15 \d{2}:\d{2}$/);
+    expect(formatFieldDateTime("not-a-date")).toBe("not-a-date");
   });
 });

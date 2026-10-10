@@ -532,6 +532,10 @@
     overflow: auto;
     overscroll-behavior: contain;
   }
+  .dashboard-workspace .dock-content,
+  .timeline-workspace .dock-content {
+    padding: 1rem;
+  }
   /* panels hosted directly in a dock content area fill it and scroll internally */
   .dock-content > .panel {
     height: 100%;
@@ -1244,6 +1248,12 @@
   .tree-entry.is-active .tree-entry__glyph {
     color: var(--accent);
   }
+  .tree-entry__title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+  }
   .tree-entry__title {
     flex: 1;
     overflow: hidden;
@@ -1259,7 +1269,7 @@
   }
   .tree-entry__category {
     flex: none;
-    font-size: 0.9rem;
+    font-size: 0.7rem;
   }
   .tree-entry__thumb {
     width: 1.35rem;
@@ -1538,6 +1548,58 @@
   }
   .timeline__right {
     min-width: 0;
+  }
+  .timeline__panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    height: 100%;
+  }
+  .timeline__controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .timeline__filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .timeline__filter select {
+    background: var(--bg-base);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  .timeline__pager {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .timeline__pager-btn {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-base);
+    color: var(--fg);
+    cursor: pointer;
+    padding: 0.15rem 0.3rem;
+  }
+  .timeline__pager-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .timeline__pager-label {
+    font-variant-numeric: tabular-nums;
   }
   .timeline__bar,
   .kanban__bar {

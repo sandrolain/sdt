@@ -348,3 +348,16 @@ export function formatFieldDateOnly(value: string, locale?: string): string {
   if (!date) return value;
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(date);
 }
+
+/** Local `YYYY-MM-DD HH:MM` for a frontmatter date value; raw value when
+ * unparseable. The single date+time format used by the tree rows, the right
+ * panel and Recent, so a document's timestamp reads the same everywhere. */
+export function formatFieldDateTime(value: string): string {
+  const date = parseFieldDate(value);
+  if (!date) return value;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    ` ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
+}

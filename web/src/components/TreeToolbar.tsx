@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { MultiSelect, type UiOptionPreset, type UiOptionSection } from "./ui/MultiSelect";
 import { STATE_KEYS, STATE_PRESETS, stateMeta, type StateFamily } from "../lib/statusDot";
 import {
@@ -64,7 +63,6 @@ const GROUP_MODE_OPTIONS = [
  */
 export function TreeToolbar({ onResetLayout, onCollapseAll }: TreeToolbarProps) {
   const { hiddenStates, groupMode, hideEmpty } = useTreeFilter();
-  const navigate = useNavigate();
   const selected = STATE_KEYS.filter((key) => !hiddenStates.includes(key));
   return (
     <div className="tree-toolbar">
@@ -106,14 +104,6 @@ export function TreeToolbar({ onResetLayout, onCollapseAll }: TreeToolbarProps) 
           <Icon name="unfold_less" />
         </TooltipButton>
       )}
-      <TooltipButton
-        className="doc-tab-actions__button"
-        label="Semantic map"
-        tooltip="Semantic map"
-        onPress={() => navigate("/docs/map")}
-      >
-        <Icon name="hub" />
-      </TooltipButton>
       {onResetLayout && (
         <TooltipButton
           className="doc-tab-actions__button"

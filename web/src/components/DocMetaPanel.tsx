@@ -15,7 +15,7 @@ import { collectBodyLinks, collectMetaLinks, resolveDocLink, type DocLink } from
 import {
   booleanValue,
   formatFieldDate,
-  formatFieldDateOnly,
+  formatFieldDateTime,
   isRelationVerb,
   parseFrontmatter,
   valueLabel,
@@ -41,6 +41,7 @@ import { useReloadToken } from "../lib/useReloadToken";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import type { WikiIndex } from "../lib/wikiLinks";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { DocRowBody } from "./DocRow";
 import { ReferencedBy } from "./ReferencedBy";
 import { SemanticNeighbours } from "./SemanticNeighbours";
 
@@ -457,7 +458,6 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
     const entry = link.external
       ? undefined
       : corpus?.get(link.href.replace(/^\/docs\//, ""))?.entry;
-    const date = entry ? entryDateLine(entry) : "";
     const statusInfo = entry?.status ? valueLabel(entry.kind ?? "", entry.status) : null;
     return (
       <a
@@ -466,27 +466,15 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
         aria-current={current ? "page" : undefined}
         {...external}
       >
-        <span className="tree-entry__glyph">{kind && <MetaKindIcon kind={kind} />}</span>
-        {entry?.categories?.[0] && (
-          <Icon
-            name={categoryIcon(entry.categories[0])}
-            className="tree-entry__category"
-            style={{ color: categoryColor(entry.categories[0]) }}
-            title={entry.categories[0]}
-          />
-        )}
-        <span className="tree-entry__text">
-          <span className="tree-entry__title">{link.label}</span>
-          {date && <span className="tree-entry__date">{date}</span>}
-        </span>
-        {statusInfo && (
-          <span
-            className={`tree-entry__dot tree-entry__dot--${statusInfo.tone}`}
-            title={statusInfo.label}
-            aria-label={statusInfo.label}
-            role="img"
-          />
-        )}
+        <DocRowBody
+          kind={kind}
+          image={entry?.image}
+          imagePath={entry?.path}
+          category={entry?.categories?.[0]}
+          title={link.label}
+          date={entry ? entryDateLine(entry) : ""}
+          dot={statusInfo}
+        />
       </a>
     );
   }
@@ -500,12 +488,12 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
   );
 }
 
-/** Compact `created · modified` line for a sidebar link row. */
+/** Compact `created · modified` date+time line for a sidebar link row. */
 function entryDateLine(entry: TreeEntry): string {
   const parts: string[] = [];
-  if (entry.created) parts.push(formatFieldDateOnly(entry.created));
+  if (entry.created) parts.push(formatFieldDateTime(entry.created));
   if (entry.modified && entry.modified !== entry.created)
-    parts.push(formatFieldDateOnly(entry.modified));
+    parts.push(formatFieldDateTime(entry.modified));
   return parts.join(" · ");
 }
 

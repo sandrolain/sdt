@@ -11,11 +11,10 @@ import {
 import { NavLink, useLocation } from "react-router-dom";
 import { fetchTree, type TreeEntry } from "../lib/api";
 import { MAP_ICON } from "../lib/documentModes";
-import { formatFieldDate, formatFieldDateOnly } from "../lib/frontmatter";
+import { formatFieldDateTime } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
-import { imageUrl } from "../lib/images";
 import { entryKind, kindColor, kindIcon, kindLabel } from "../lib/kinds";
-import { categoryColor, categoryIcon } from "../lib/categories";
+import { DocRowBody } from "./DocRow";
 import {
   entryState,
   groupDot,
@@ -503,7 +502,7 @@ function FolderNodeView({
 function GroupHeaderDate({ entries }: { entries: TreeEntry[] }) {
   const date = groupDate(entries);
   if (!date) return null;
-  return <span className="tree-folder__date">{formatFieldDate(date)}</span>;
+  return <span className="tree-folder__date">{formatFieldDateTime(date)}</span>;
 }
 
 /** Status dot shared by plan and objective group headers. */
@@ -847,33 +846,15 @@ function TreeEntryRow({
         title={`${entry.summary || entry.path} · ${kindName}`}
         end
       >
-        <span className="tree-entry__glyph">
-          {entry.image ? (
-            <img className="tree-entry__thumb" src={imageUrl(entry.image, entry.path)} alt="" />
-          ) : (
-            <Icon name={kindIcon(kind)} title={kindName} />
-          )}
-        </span>
-        {entry.categories?.[0] && (
-          <Icon
-            name={categoryIcon(entry.categories[0])}
-            className="tree-entry__category"
-            style={{ color: categoryColor(entry.categories[0]) }}
-            title={entry.categories[0]}
-          />
-        )}
-        <span className="tree-entry__text">
-          <span className="tree-entry__title">{entryTitle(entry)}</span>
-          {entryDate(entry) && <span className="tree-entry__date">{entryDate(entry)}</span>}
-        </span>
-        {dot && (
-          <span
-            className={`tree-entry__dot tree-entry__dot--${dot.tone}`}
-            title={dot.label}
-            aria-label={dot.label}
-            role="img"
-          />
-        )}
+        <DocRowBody
+          kind={kind}
+          image={entry.image}
+          imagePath={entry.path}
+          category={entry.categories?.[0]}
+          title={entryTitle(entry)}
+          date={entryDate(entry)}
+          dot={dot}
+        />
         <button
           type="button"
           className={`tree-entry__pin${pinned ? " is-pinned" : ""}`}
@@ -910,11 +891,11 @@ function entryTitle(e: TreeEntry): string {
   return displayTitle({ title: e.title, path: e.path });
 }
 
-/** Small date line: frontmatter `created` and `modified`, else the filename date. */
+/** Small date+time line: frontmatter `created` and `modified`, else the filename date. */
 function entryDate(e: TreeEntry): string {
   const created = e.created || filenameDate(e.path);
   const parts: string[] = [];
-  if (created) parts.push(formatFieldDateOnly(created));
-  if (e.modified && e.modified !== created) parts.push(formatFieldDateOnly(e.modified));
+  if (created) parts.push(formatFieldDateTime(created));
+  if (e.modified && e.modified !== created) parts.push(formatFieldDateTime(e.modified));
   return parts.join(" · ");
 }

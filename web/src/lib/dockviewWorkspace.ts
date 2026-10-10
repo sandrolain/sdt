@@ -1,9 +1,70 @@
-import { useCallback, useRef, type RefObject } from "react";
+import { useCallback, useContext, useRef, type RefObject } from "react";
 import type { DockviewApi, DockviewReadyEvent } from "dockview-react";
+import { themeCatppuccinMochaSpaced, themeLightSpaced } from "dockview-react";
 import { clearLayout, loadLayout, saveLayout } from "./layoutStore";
+import { ThemeContext } from "./theme-context";
 
 /** Dockview needs real layout measurement; tests use a plain columns fallback. */
 export const DOCKVIEW_ENABLED = import.meta.env.MODE !== "test";
+
+/** The dockview theme object for the app's applied theme: dockview's own light
+ * theme in light mode, the spaced Catppuccin Mocha theme otherwise. The app's
+ * tokens still own the colours through `styles/dockview.css`. */
+export function useDockviewTheme() {
+  const theme = useContext(ThemeContext);
+  return theme?.applied === "light" ? themeLightSpaced : themeCatppuccinMochaSpaced;
+}
+
+/** Minimal dockview API surface for placing panels in a grid. */
+export interface GridPanelApi {
+  getPanel(id: string): unknown;
+  addPanel(options: {
+    id: string;
+    component: string;
+    title: string;
+    minimumWidth?: number;
+    minimumHeight?: number;
+    position?: { referencePanel: string; direction: "left" | "right" | "above" | "below" };
+  }): unknown;
+}
+
+export interface GridPanelSpec {
+  id: string;
+  component: string;
+  title: string;
+  minimumWidth?: number;
+  minimumHeight?: number;
+}
+
+/**
+ * Place panels as a row-major grid of `columns` columns — each panel in its own
+ * group (a real grid, not tabs). The first panel anchors the grid; each
+ * following panel docks to the `right` of the previous one until the row is
+ * full, then the next row docks `below` the first column of the previous row.
+ * Idempotent: an existing panel is left in place.
+ */
+export function addGridPanels(api: GridPanelApi, specs: GridPanelSpec[], columns: number): void {
+  const cols = Math.max(1, columns);
+  specs.forEach((s, i) => {
+    if (api.getPanel(s.id)) return;
+    const base = {
+      id: s.id,
+      component: s.component,
+      title: s.title,
+      minimumWidth: s.minimumWidth,
+      minimumHeight: s.minimumHeight,
+    };
+    if (i === 0) {
+      api.addPanel(base);
+      return;
+    }
+    const position =
+      i % cols === 0
+        ? { referencePanel: specs[i - cols].id, direction: "below" as const }
+        : { referencePanel: specs[i - 1].id, direction: "right" as const };
+    api.addPanel({ ...base, position });
+  });
+}
 
 export interface DockviewWorkspaceHooks {
   /** Ensure the host's fixed center panel exists (idempotent). */
