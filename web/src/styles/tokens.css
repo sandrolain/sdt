@@ -89,6 +89,18 @@
   --shadow-color-soft: rgb(0 0 0 / 25%);
 }
 
+/* Corner-radius scale. A radius that is a semantic role (card, chip, control,
+   pill) uses one of these; a categorical or one-off radius stays raw at its
+   surface with a one-line comment. */
+:root {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+}
+
 /* Print palette: paper is white whichever theme is active, so the semantic
    aliases collapse to black-on-white instead of carrying the Catppuccin
    surfaces (and their contrast) onto the page. The raw values stay in this

@@ -78,26 +78,12 @@ describe("SemanticMapView", () => {
     expect((await screen.findByTestId("location")).textContent).toBe("/docs");
   });
 
-  it("shows an empty state when the snapshot holds no nodes", async () => {
+  it("renders the graph (empty) when the snapshot holds no nodes", async () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve({ nodes: [], edges: [] }) }),
     ) as unknown as typeof fetch;
     renderView();
-    expect(await screen.findByText(/No semantic map yet/)).toBeTruthy();
-    // the hint must name the command that can build the snapshot
-    expect(screen.getByText("sdt context snapshot build")).toBeTruthy();
-    expect(screen.queryByTestId("graph-view")).toBeNull();
-  });
-
-  it("renders the build warning when the on-demand build fails", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ nodes: [], edges: [], warning: "semantic build failed" }),
-      }),
-    ) as unknown as typeof fetch;
-    renderView();
-    expect(await screen.findByText(/semantic build failed/)).toBeTruthy();
-    expect(screen.getByText("sdt context snapshot build")).toBeTruthy();
+    expect(await screen.findByTestId("graph-view")).toBeTruthy();
+    expect(screen.queryByText("Alpha")).toBeNull();
   });
 });

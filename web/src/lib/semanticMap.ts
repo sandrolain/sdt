@@ -7,6 +7,7 @@
  * view and the two datasets are never blended.
  */
 import { fetchJSON } from "./fetchJson";
+import type { AdaptedEngineGraph } from "./graph/adapter";
 import { clusterPalette, DEFAULT_NODE_COLOR, type GraphNode } from "./graphModel";
 import type { GraphLinkInput, GraphNodeInput } from "./graph/types";
 
@@ -41,8 +42,10 @@ export interface AdaptedSemanticGraph {
   palette: Map<string, string>;
 }
 
-/** Map the API payload onto the engine's generic `{nodes, links}` contract. */
-export function adaptSemanticGraph(graph: SemanticGraph): AdaptedSemanticGraph {
+/** Map the API payload onto the engine's generic `{nodes, links}` contract,
+ * conforming to `AdaptedEngineGraph` so the wiki graph workspace can render it
+ * (one semantic edge verb, no edge kinds). */
+export function adaptSemanticGraph(graph: SemanticGraph): AdaptedEngineGraph {
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const edges = Array.isArray(graph?.edges) ? graph.edges : [];
   const palette = clusterPalette(
@@ -72,7 +75,7 @@ export function adaptSemanticGraph(graph: SemanticGraph): AdaptedSemanticGraph {
       color: SEMANTIC_EDGE_COLOR,
       weight: e.score,
     }));
-  return { nodes: mapped, links, palette };
+  return { nodes: mapped, links, palette, allVerbs: ["semantic"], allKinds: [] };
 }
 
 export interface SemanticNeighbour {
