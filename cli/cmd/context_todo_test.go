@@ -93,3 +93,45 @@ func TestContextTodoRejectsUnknownID(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string { return string(execute(t, contextTodoRemoveCmd, nil, "nope")) })
 	shouldExitWithCode(t, 1, func() string { return string(execute(t, contextTodoDoneCmd, nil, "nope")) })
 }
+
+func TestContextTodoTagAndFilterFlags(t *testing.T) {
+	runInTempDir(t)
+
+	execute(t, contextTodoAddCmd, nil, "viewer idea", "--tag", "viewer")
+	execute(t, contextTodoAddCmd, nil, "cli idea", "--tag", "UI Kit")
+	execute(t, contextTodoAddCmd, nil, "untagged idea")
+
+	// A tag is normalized to a kebab-case slug on add.
+	reg, err := todo.Load(".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if i, ok := reg.Find("cli-idea"); !ok || !reg.Items[i].HasTag("ui-kit") {
+		t.Fatalf("a tag must be normalized to a slug, got %+v", reg.Items)
+	}
+
+	undone := execute(t, contextTodoListCmd, nil, "--undone")
+	if !strings.Contains(string(undone), "viewer-idea") || !strings.Contains(string(undone), "untagged-idea") {
+		t.Fatalf("--undone must list the open items, got:\n%s", undone)
+	}
+
+	execute(t, contextTodoDoneCmd, nil, "cli-idea")
+	done := execute(t, contextTodoListCmd, nil, "--done")
+	if !strings.Contains(string(done), "cli-idea") || strings.Contains(string(done), "viewer-idea") {
+		t.Fatalf("--done must list only the done item, got:\n%s", done)
+	}
+
+	tagged := execute(t, contextTodoListCmd, nil, "--tag", "viewer")
+	if !strings.Contains(string(tagged), "viewer-idea") || strings.Contains(string(tagged), "untagged-idea") {
+		t.Fatalf("--tag viewer must list only the viewer item, got:\n%s", tagged)
+	}
+
+	// --undone and --done are mutually exclusive.
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextTodoListCmd, nil, "--undone", "--done"))
+	})
+
+	if proj := mustReadFile(t, ctxTodoProjectionPath); !strings.Contains(proj, "#viewer") {
+		t.Fatalf("projection must carry the tag:\n%s", proj)
+	}
+}

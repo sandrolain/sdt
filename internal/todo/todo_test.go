@@ -57,10 +57,12 @@ func TestValidateRejectsInvalid(t *testing.T) {
 			{ID: "a", Text: "x", Created: "2026-10-04"},
 			{ID: "a", Text: "y", Created: "2026-10-04"},
 		}},
-		"bad id":       {Items: []Item{{ID: "Not A Slug", Text: "x", Created: "2026-10-04"}}},
-		"empty text":   {Items: []Item{{ID: "a", Text: "  ", Created: "2026-10-04"}}},
-		"bad created":  {Items: []Item{{ID: "a", Text: "x", Created: "04/10/2026"}}},
-		"missing date": {Items: []Item{{ID: "a", Text: "x"}}},
+		"bad id":        {Items: []Item{{ID: "Not A Slug", Text: "x", Created: "2026-10-04"}}},
+		"empty text":    {Items: []Item{{ID: "a", Text: "  ", Created: "2026-10-04"}}},
+		"bad created":   {Items: []Item{{ID: "a", Text: "x", Created: "04/10/2026"}}},
+		"missing date":  {Items: []Item{{ID: "a", Text: "x"}}},
+		"bad tag":       {Items: []Item{{ID: "a", Text: "x", Created: "2026-10-04", Tags: []string{"Not A Tag"}}}},
+		"duplicate tag": {Items: []Item{{ID: "a", Text: "x", Created: "2026-10-04", Tags: []string{"viewer", "viewer"}}}},
 	}
 	for name, reg := range cases {
 		if err := reg.Validate(); err == nil {
@@ -99,6 +101,30 @@ func TestMarkdownProjection(t *testing.T) {
 	}
 	if empty := (&Register{}).Markdown(); !strings.Contains(empty, "_empty_") {
 		t.Errorf("empty projection = %q", empty)
+	}
+}
+
+func TestTagsRoundTripHasTagAndMarkdown(t *testing.T) {
+	root := t.TempDir()
+	reg := &Register{Items: []Item{
+		{ID: "a", Text: "idea", Created: "2026-10-04", Tags: []string{"viewer", "cli"}},
+	}}
+	if err := Save(root, reg); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got, err := Load(root)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	it := got.Items[0]
+	if len(it.Tags) != 2 || !it.HasTag("viewer") || it.HasTag("nope") {
+		t.Fatalf("tags round-trip / HasTag mismatch: %+v", it)
+	}
+	if !it.HasTag("Viewer") {
+		t.Error("HasTag must normalize the query to a slug")
+	}
+	if md := reg.Markdown(); !strings.Contains(md, "- [ ] idea #viewer #cli") {
+		t.Errorf("projection must carry tags:\n%s", md)
 	}
 }
 

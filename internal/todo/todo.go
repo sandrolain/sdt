@@ -29,11 +29,12 @@ const DateLayout = "2006-01-02"
 
 // Item is one short idea in the inbox.
 type Item struct {
-	ID      string `yaml:"id"`
-	Text    string `yaml:"text"`
-	Created string `yaml:"created"`
-	Source  string `yaml:"source,omitempty"`
-	Done    bool   `yaml:"done,omitempty"`
+	ID      string   `yaml:"id"`
+	Text    string   `yaml:"text"`
+	Created string   `yaml:"created"`
+	Source  string   `yaml:"source,omitempty"`
+	Tags    []string `yaml:"tags,omitempty"`
+	Done    bool     `yaml:"done,omitempty"`
 }
 
 // Register is the parsed context/todo.yaml.
@@ -107,6 +108,16 @@ func (r *Register) Validate() error {
 		if strings.TrimSpace(it.Text) == "" {
 			return fmt.Errorf("item %q: text is required", it.ID)
 		}
+		seenTags := map[string]struct{}{}
+		for _, tag := range it.Tags {
+			if !ctxvocab.SlugRegexp().MatchString(tag) {
+				return fmt.Errorf("item %q: tag %q must be a kebab-case slug (lowercase letters, digits and '-')", it.ID, tag)
+			}
+			if _, dup := seenTags[tag]; dup {
+				return fmt.Errorf("item %q: tag %q is repeated", it.ID, tag)
+			}
+			seenTags[tag] = struct{}{}
+		}
 		if _, err := time.Parse(DateLayout, it.Created); err != nil {
 			return fmt.Errorf("item %q: created %q is not a %s date", it.ID, it.Created, DateLayout)
 		}
@@ -173,6 +184,18 @@ func (r *Register) MarkDone(id string) bool {
 	return true
 }
 
+// HasTag reports whether the item carries the given tag. The tag is normalized
+// to a slug before comparison, so `--tag Viewer` matches a stored `viewer`.
+func (it Item) HasTag(tag string) bool {
+	tag = ctxvocab.Slug(tag)
+	for _, t := range it.Tags {
+		if t == tag {
+			return true
+		}
+	}
+	return false
+}
+
 // Markdown renders the human-readable projection of the register. It is
 // CLI-generated; context/todo.yaml remains the source of truth.
 func (r *Register) Markdown() string {
@@ -188,7 +211,11 @@ func (r *Register) Markdown() string {
 		if it.Done {
 			mark = "x"
 		}
-		fmt.Fprintf(&b, "- [%s] %s\n", mark, it.Text)
+		fmt.Fprintf(&b, "- [%s] %s", mark, it.Text)
+		for _, t := range it.Tags {
+			fmt.Fprintf(&b, " #%s", t)
+		}
+		b.WriteString("\n")
 	}
 	return b.String()
 }

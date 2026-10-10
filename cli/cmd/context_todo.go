@@ -29,8 +29,8 @@ var contextTodoCmd = &cobra.Command{
 	Short: "Manage the idea inbox (short annotate-only TODOs)",
 	Long: `Manage context/todo.yaml: short, annotate-only ideas for future analyses.
 
-  sdt context todo add "<text>" [--id <slug>] [--source <ref>]
-  sdt context todo list
+  sdt context todo add "<text>" [--id <slug>] [--source <ref>] [--tag <tag>...]
+  sdt context todo list [--undone | --done] [--tag <tag>]
   sdt context todo done <id> | --all
   sdt context todo remove <id>...
   sdt context todo prune --source <ref>
@@ -47,7 +47,13 @@ var contextTodoAddCmd = &cobra.Command{
 		reg := loadTodoRegister(cmd)
 		text := strings.TrimSpace(args[0])
 		id := reg.IDFor(text, getStringFlag(cmd, "id", false))
-		reg.Add(todo.Item{ID: id, Text: text, Created: todo.Today(), Source: getStringFlag(cmd, "source", false)})
+		reg.Add(todo.Item{
+			ID:      id,
+			Text:    text,
+			Created: todo.Today(),
+			Source:  getStringFlag(cmd, "source", false),
+			Tags:    sanitizeSlugList(getStringArrayFlag(cmd, "tag", false)),
+		})
 		saveTodoRegister(cmd, reg)
 		outputTodoResult(cmd, "added", id)
 	},
@@ -59,16 +65,27 @@ var contextTodoListCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
 		reg := loadTodoRegister(cmd)
-		if outputTodoStructured(cmd, reg.Items) {
+		undone := getBoolFlag(cmd, "undone", false)
+		done := getBoolFlag(cmd, "done", false)
+		if undone && done {
+			exitWithError(cmd, errors.New("pass either --undone or --done, not both"))
+			return
+		}
+		items := filterTodoItems(reg.Items, undone, done, getStringFlag(cmd, "tag", false))
+		if outputTodoStructured(cmd, items) {
 			return
 		}
 		var b strings.Builder
-		for _, it := range reg.Items {
+		for _, it := range items {
 			mark := "[ ]"
 			if it.Done {
 				mark = "[x]"
 			}
-			fmt.Fprintf(&b, "%s\t%s\t%s\n", mark, it.ID, it.Text)
+			fmt.Fprintf(&b, "%s\t%s\t%s", mark, it.ID, it.Text)
+			for _, t := range it.Tags {
+				fmt.Fprintf(&b, " #%s", t)
+			}
+			b.WriteString("\n")
 		}
 		outputString(cmd, b.String())
 	},
@@ -161,6 +178,26 @@ func loadTodoRegister(cmd *cobra.Command) *todo.Register {
 	return reg
 }
 
+// filterTodoItems returns the items matching the list filters. undone/done is a
+// done-state selector (mutually exclusive, validated by the caller) and tag is an
+// optional tag match; with no filter every item is returned.
+func filterTodoItems(items []todo.Item, undone, done bool, tag string) []todo.Item {
+	out := make([]todo.Item, 0, len(items))
+	for _, it := range items {
+		if undone && it.Done {
+			continue
+		}
+		if done && !it.Done {
+			continue
+		}
+		if tag != "" && !it.HasTag(tag) {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out
+}
+
 // saveTodoRegister writes the register and regenerates the Markdown projection,
 // so context/todo.md never drifts from context/todo.yaml.
 func saveTodoRegister(cmd *cobra.Command, reg *todo.Register) {
@@ -204,6 +241,11 @@ func outputTodoStructured(cmd *cobra.Command, v any) bool {
 func init() {
 	contextTodoAddCmd.Flags().String("id", "", "Explicit item id (kebab-case slug; default: derived from the text)")
 	contextTodoAddCmd.Flags().String("source", "", "Optional document reference the idea came from")
+	contextTodoAddCmd.Flags().StringArray("tag", nil, "Tag the idea (kebab-case; repeatable)")
+
+	contextTodoListCmd.Flags().Bool("undone", false, "Only items still to do")
+	contextTodoListCmd.Flags().Bool("done", false, "Only items already done")
+	contextTodoListCmd.Flags().String("tag", "", "Only items carrying this tag")
 
 	contextTodoDoneCmd.Flags().Bool("all", false, "Mark every item done")
 	contextTodoPruneCmd.Flags().String("source", "", "Remove every idea with this source")
