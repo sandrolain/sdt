@@ -37,6 +37,12 @@ A task file is owned by its plan: it carries the optional `phases` list (the
 phase sections it covers; omitted on the whole-plan file) and **inherits the
 plan's `objective`** for grouping — it never declares `objective` itself.
 
+**One home for the checklist.** The task file's `## Phase <n>` checklist is the
+**single home** of the executable steps. The plan carries each phase's intent and
+approach (the "how"); it never repeats the checklist. A plan phase and its task
+`## Phase` section must not restate the same list — the plan states *what and
+how*, the task states the *executable steps*.
+
 **Subject resolution (`>tasks`, `>execute`).** Both triggers are **workflow**
 commands. `>tasks`'s subject is a `plan`; `>execute`'s subject is a `plan` and
 one of its task files. They resolve it through the working-context ladder

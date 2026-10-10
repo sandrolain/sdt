@@ -23,8 +23,6 @@ Create a new plan with the CLI (scaffolds the dated path and frontmatter):
 sdt context new --type plan --title "<title>" [--objective <slug>] [--source <analysis-ref>]
 ```
 
-Timestamps (`created`/`updated`) come from `sdt time iso` (RFC3339 UTC).
-Or hand-write the file from the template below.
 
 When `--objective` is omitted and `--source` points to an analysis carrying an
 `objective`, the plan inherits that slug.
@@ -148,10 +146,13 @@ session: <session id>        # optional
   `instructions/development.md`). Each non-trivial choice is stated here so
   execution never invents style, structure or libraries.
 - **Phases** — each phase becomes a `## Phase <n>` section in the plan's task
-  file (split files are opt-in, see `instructions/tasks.md`). Checklists here are
-  at TASK granularity (one line per task); step-level detail lives in the task
-  file. Each phase has: **Goal** (one sentence), **Depends on** (none / Phase X),
-  the **analysis objectives** it covers, and a task list. **Phase rules**
+  file (split files are opt-in, see `instructions/tasks.md`). Each phase has:
+  **Goal** (one sentence), **Depends on** (none / Phase X), the **analysis
+  objectives** it covers, and the **approach** — the implementation and the "how"
+  (the design decisions, files and patterns). The executable checklist is **not**
+  in the plan: the `- [ ]` steps live only in the task file's `## Phase <n>`
+  section, so a phase and its task section never restate the same list.
+  **Phase rules**
   (user-mandated):
   1. one phase = **one deliverable/concern**, stated in its Goal sentence;
   2. **no cap on the number of phases** — a plan may have any count;
