@@ -17,8 +17,9 @@ branch handling. Read it before staging or committing any change.
   ask the user whether to commit**. Never commit without explicit approval.
 - One commit per task, scoped to the task's deliverable: stage only the files that
   task changed; do not fold unrelated changes into the same commit.
-- Run the task's verification (build/test/lint, the verify-step) **before**
-  proposing the commit — a commit captures a verified state.
+- Propose the commit only from a **verified state**: run the task's verification
+  (build/test/lint, the verify-step) **before** proposing it — the full suite runs
+  once per task, in the plan's Validation phase or here, never on every edit.
 - If the user declines, leave the working tree as is and continue; record the
   proposed message in the worklog if useful.
 - `context/` may be gitignored (the repo tracks code only). The gate covers

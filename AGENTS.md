@@ -222,7 +222,11 @@ the stage actually presented: replying to a plan approves that plan, not a later
 or different stage — re-ask when the stage changes (HARD RULE 1).
 
 Before closing a phase run the **verify-step**: completeness, coherence, correctness
-(prioritize CRITICAL / WARNING / SUGGESTION, degrade gracefully). Then reindex: run
+(prioritize CRITICAL / WARNING / SUGGESTION, degrade gracefully). **Suite cadence:
+once, at delivery.** Per edit, validate only what covers the files you touched; the
+project's full build/test/lint suite runs in the plan's final Validation phase (or
+at the commit gate), never on every edit — a per-edit full suite is slow and can
+hang offline (see `context/instructions/development.md`). Then reindex: run
 `sdt context reindex` and `sdt context lint`; run `sdt context resume` to
 read the recorded execution state and spot a stale in-progress file (the view is
 read-only and states that it reports the recorded paper, not live work);
