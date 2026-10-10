@@ -242,6 +242,7 @@
     font-family: ui-monospace, "SF Mono", monospace;
     font-size: 0.6875rem;
     padding: 0.05rem 0.35rem;
+    /* a 5px control radius, off the --radius scale; kept raw so no control changes size */
     border-radius: 5px;
     border: 1px solid var(--border);
     background: var(--bg-base);
@@ -430,6 +431,7 @@
   }
   .skeleton__line {
     height: 0.75rem;
+    /* a loading placeholder, not a surface: 5px reads as content, not a container */
     border-radius: 5px;
     background: linear-gradient(90deg, var(--bg-rise) 25%, var(--bg-hover) 50%, var(--bg-rise) 75%);
     background-size: 200% 100%;
@@ -466,6 +468,7 @@
     width: 100%;
     max-height: 140px;
     object-fit: cover;
+    /* a preview image corner, 7px off the scale */
     border-radius: 7px;
     margin-bottom: 0.4rem;
     border: 1px solid var(--border);
@@ -701,6 +704,7 @@
     display: inline-flex;
     align-items: center;
     padding: 0.1rem;
+    /* a 5px direction arrow on a sort control */
     border-radius: 5px;
     color: var(--fg-dim);
   }
@@ -781,6 +785,7 @@
     justify-content: space-between;
     min-width: 8rem;
     padding: 0.25rem 0.55rem;
+    /* a 7px control radius, off the --radius scale */
     border-radius: 7px;
     border: 1px solid var(--border);
     background: var(--bg-rise);
@@ -904,6 +909,7 @@
     justify-content: space-between;
     gap: 0.35rem;
     padding: 0.25rem 0.55rem;
+    /* a 7px popup-group radius, off the --radius scale */
     border-radius: 7px;
     border: 1px solid var(--border);
     background: var(--bg-rise);
@@ -1004,6 +1010,7 @@
   /* each kind folder reads as its own block, visually separated from the next */
   .tree-folder {
     border: 1px solid var(--border);
+    /* a 9px tree-folder tab: intentionally rounder than the --radius scale so the folder reads as a tab */
     border-radius: 9px;
     background: var(--bg-mantle);
   }
@@ -1026,9 +1033,11 @@
     top: 0;
     z-index: 2;
     background: var(--bg-mantle);
+    /* the open state of the same 9px folder tab; raw to match its header */
     border-radius: 9px 9px 0 0;
   }
   .tree-groups > .tree-folder:not([open]) > .tree-folder__header {
+    /* the collapsed state of the same 9px folder tab; raw to match its header */
     border-radius: 9px;
   }
   .tree-folder[open] > .tree-folder__header {
@@ -1274,7 +1283,8 @@
   .tree-entry__thumb {
     width: 1.35rem;
     height: 1.35rem;
-    border-radius: 4px;
+    /* a row thumbnail, tighter than a card: the smallest scale step */
+    border-radius: var(--radius-xs);
     object-fit: cover;
     flex: none;
   }
@@ -1343,6 +1353,7 @@
     align-items: center;
     flex: none;
     padding: 0.1rem;
+    /* a 5px icon-button radius */
     border-radius: 5px;
     color: var(--fg-faint);
   }
@@ -1620,6 +1631,7 @@
     gap: 0.3rem;
     padding: 0.3rem 0.7rem;
     border: 0;
+    /* a 7px mode-chip radius, off the --radius scale */
     border-radius: 7px;
     background: none;
     color: var(--fg-dim);
@@ -1733,6 +1745,7 @@
   .heatmap__cell {
     width: 12px;
     height: 12px;
+    /* a data cell: 2px is a hairline rounding below the scale, and rounding it to 4px would blur the grid */
     border-radius: 2px;
     background: var(--accent);
   }
@@ -1963,6 +1976,7 @@
     flex: 1;
     min-height: 2px;
     background: var(--accent);
+    /* the spark bar's 2px top, matching the 2px cell rounding */
     border-radius: 2px 2px 0 0;
     opacity: 0.8;
   }
@@ -2020,6 +2034,34 @@
   .meta-status__value {
     min-width: 0;
     color: var(--fg);
+    overflow-wrap: anywhere;
+  }
+  .meta-action {
+    flex: none;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--fg);
+    font-size: 0.8125rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .meta-action:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .meta-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .meta-action:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .meta-action__error {
+    min-width: 0;
+    color: var(--danger);
     overflow-wrap: anywhere;
   }
   .meta-rows {
@@ -2109,6 +2151,7 @@
     width: 100%;
     max-height: 180px;
     object-fit: cover;
+    /* a 7px thumbnail corner */
     border-radius: 7px;
     border: 1px solid var(--border);
   }
@@ -2140,6 +2183,7 @@
     color: var(--fg);
     text-align: left;
     padding: 0.1rem 0.5rem;
+    /* a 5px TOC row radius */
     border-radius: 5px;
     width: 100%;
     appearance: none;
@@ -2219,6 +2263,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.2rem 0.3rem;
+    /* a 5px list-row radius */
     border-radius: 5px;
     color: var(--fg-dim);
     text-decoration: none;
@@ -2280,6 +2325,7 @@
     font-size: 0.875rem;
     padding: 0.05rem 0.3rem;
     margin: -0.05rem -0.3rem;
+    /* a 5px link-row radius, off the --radius scale */
     border-radius: 5px;
     text-decoration: none;
   }
@@ -2417,6 +2463,7 @@
   .doc-progress__bar {
     flex: 1 1 auto;
     height: 3px;
+    /* a 2px progress-bar cap: a hairline rounding below the scale */
     border-radius: 2px;
     background: var(--bg-rise);
     overflow: hidden;
@@ -2500,6 +2547,7 @@
   mark.find-hit {
     background: var(--accent-soft);
     color: inherit;
+    /* a 2px active-marker radius, below the scale */
     border-radius: 2px;
     padding: 0 0.05em;
   }
@@ -2662,7 +2710,8 @@
   }
   .map-node__sticker {
     padding: 0 0.25rem;
-    border-radius: 4px;
+    /* a sticker, tighter than a card: the smallest scale step */
+    border-radius: var(--radius-xs);
     background: var(--bg-rise);
     color: var(--fg-dim);
     font-size: 0.625rem;
@@ -2675,6 +2724,7 @@
     align-items: center;
     padding: 0.1rem 0.2rem;
     border: 1px solid var(--border);
+    /* a 5px map-node toggle radius */
     border-radius: 5px;
     background: var(--bg-base);
     color: var(--fg-dim);
@@ -2689,6 +2739,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.25rem 0.7rem;
+    /* a 7px mode-button radius, off the --radius scale */
     border-radius: 7px;
     color: var(--fg-dim);
     font-size: 0.8125rem;
@@ -2739,6 +2790,7 @@
     min-width: 0;
     overflow: visible;
     padding: 0.9rem 1rem;
+    /* flush with the code pane: no rounding */
     border-radius: 0;
     background: var(--bg-mantle);
     border: none;
@@ -2920,6 +2972,7 @@
     align-items: center;
     margin-left: 0.4rem;
     padding: 0.05rem;
+    /* a 5px anchor-button radius */
     border-radius: 5px;
     color: var(--fg-faint);
     opacity: 0;
@@ -2950,6 +3003,7 @@
     padding: 0.1rem 0.35rem;
     border: 1px solid var(--border);
     border-bottom-width: 2px;
+    /* a 5px kbd chip, off the --radius scale */
     border-radius: 5px;
     background: var(--bg-rise);
     font-family: ui-monospace, "SF Mono", monospace;
@@ -3003,7 +3057,7 @@
     padding: 0.6rem 0.9rem;
     border: 1px solid color-mix(in srgb, var(--callout-color) 45%, transparent);
     border-left: 3px solid var(--callout-color);
-    border-radius: 0 8px 8px 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
     background: color-mix(in srgb, var(--callout-color) 10%, transparent);
   }
   .doc-rendered .md-callout--note {
@@ -3072,7 +3126,8 @@
     color: var(--fg-dim);
     background: var(--bg-rise);
     padding: 0.05rem 0.3rem;
-    border-radius: 4px;
+    /* an inline-math source chip: the smallest scale step */
+    border-radius: var(--radius-xs);
   }
   .doc-rendered .md-mermaid {
     position: relative;
@@ -3207,6 +3262,7 @@
     font-family: ui-monospace, "SF Mono", monospace;
     font-size: 0.85em;
     padding: 0.1rem 0.35rem;
+    /* a 5px inline-code radius, off the --radius scale */
     border-radius: 5px;
     background: color-mix(in srgb, var(--ctp-mauve) 16%, transparent);
     color: var(--ctp-mauve);
@@ -3323,7 +3379,7 @@
   .doc-rendered blockquote {
     padding: 0.15rem 0.9rem;
     border-left: 3px solid var(--accent);
-    border-radius: 0 6px 6px 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     background: color-mix(in srgb, var(--accent) 9%, transparent);
     color: var(--fg-dim);
   }
@@ -3429,6 +3485,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.25rem 0.7rem;
+    /* a 7px wiki-mode chip radius, off the --radius scale */
     border-radius: 7px;
     color: var(--fg-dim);
   }
@@ -3604,6 +3661,7 @@
   .graph-detail__swatch {
     width: 0.7rem;
     height: 0.7rem;
+    /* a 3px colour swatch: a categorical mark, not a control */
     border-radius: 3px;
     flex: none;
   }
@@ -3630,6 +3688,7 @@
     font: inherit;
     font-size: 0.8125rem;
     padding: 0.1rem 0.2rem;
+    /* a 5px graph-detail link radius */
     border-radius: 5px;
     cursor: pointer;
     text-align: left;
@@ -3707,6 +3766,7 @@
     height: 1.75rem;
     padding: 0;
     border: 1px solid var(--border);
+    /* rem-based so it scales with the nested canvas root font, not a fixed token */
     border-radius: 0.5rem;
     background: var(--bg-mantle);
     color: var(--fg-dim);
@@ -3737,6 +3797,7 @@
     font: inherit;
     font-size: 0.75rem;
     padding: 0.1rem 0.25rem;
+    /* a 5px breadcrumb-button radius */
     border-radius: 5px;
     cursor: pointer;
   }
@@ -3852,6 +3913,7 @@
     font: inherit;
     font-size: 0.6875rem;
     padding: 0.05rem 0.25rem;
+    /* a 5px reset-button radius */
     border-radius: 5px;
     cursor: pointer;
   }
@@ -3865,6 +3927,7 @@
   .graph-tools__swatch {
     width: 0.7rem;
     height: 0.7rem;
+    /* a 3px colour swatch: a categorical mark, not a control */
     border-radius: 3px;
     flex: none;
   }
@@ -3873,6 +3936,7 @@
     align-items: center;
     gap: 0.3rem;
     padding: 0.25rem 0.7rem;
+    /* a 7px graph-tools button radius, off the --radius scale */
     border-radius: 7px;
     background: var(--bg-rise);
     color: var(--fg);

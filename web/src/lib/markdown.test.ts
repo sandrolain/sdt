@@ -57,6 +57,16 @@ describe("renderMarkdown", () => {
     expect(html).toContain('href="/docs/context/notes/other.md"');
   });
 
+  it("keeps a bare fragment on the current document instead of resolving a path", () => {
+    const html = renderMarkdown("[up](#findings)", { basePath: "context/notes/n.md" });
+    expect(html).toContain('href="#findings"');
+  });
+
+  it("keeps the fragment of a relative link to another document", () => {
+    const html = renderMarkdown("[other](./o.md#findings)", { basePath: "context/notes/n.md" });
+    expect(html).toContain('href="/docs/context/notes/o.md#findings"');
+  });
+
   it("resolves body images through /api/file and keeps remote srcs", () => {
     const html = renderMarkdown(
       [

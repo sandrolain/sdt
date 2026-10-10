@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { DocMetaPanel, type MetaTabKind } from "./DocMetaPanel";
 import { resetActiveSection, setActiveSection } from "../lib/activeSection";
 import { resetCorpusIndexCache } from "../lib/corpusIndex";
@@ -34,6 +34,44 @@ function mockFetch() {
     }
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
   }) as unknown as typeof fetch;
+}
+
+function LocationProbe() {
+  const loc = useLocation();
+  return <span data-testid="probe">{loc.pathname}</span>;
+}
+
+const ANALYSIS_DOC = {
+  path: "context/analysis/20261010-analy-x.md",
+  frontmatter: ["---", "kind: analysis", "title: X", "status: active", "---"].join("\n"),
+  markdown: "# X\n",
+};
+
+/** Mock the delegation endpoint (decision 0027) for the panel tests. */
+function mockCommand(available: boolean, ok = true, error = "cannot close: unfinished task") {
+  const calls: string[] = [];
+  globalThis.fetch = vi.fn((url: string, init?: RequestInit) => {
+    if (url === "/api/context/command" && !init?.method) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ available, reason: available ? "" : "no sdt CLI" }),
+      });
+    }
+    if (url === "/api/context/command" && init?.method === "POST") {
+      calls.push(String(init.body));
+      return Promise.resolve(
+        ok
+          ? { ok: true, json: () => Promise.resolve({ ok: true }) }
+          : {
+              ok: false,
+              status: 422,
+              json: () => Promise.resolve({ error }),
+            },
+      );
+    }
+    return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+  }) as unknown as typeof fetch;
+  return calls;
 }
 
 function renderPanel(doc: unknown, tab: MetaTabKind = "info") {
@@ -527,6 +565,74 @@ describe("DocMetaPanel", () => {
     expect(
       within(screen.getByLabelText("Document metadata")).getByText("Referenced by"),
     ).toBeTruthy();
+  });
+
+  it("offers the close action for a closable kind and delegates it", async () => {
+    const calls = mockCommand(true);
+    renderPanel(ANALYSIS_DOC);
+    const button = await screen.findByRole("button", { name: "Close document" });
+    await userEvent.click(button);
+    // the panel sends the document and the action; the server runs the CLI
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(calls[0])).toEqual({
+      doc: "context/analysis/20261010-analy-x.md",
+      action: "close",
+    });
+  });
+
+  it("disables the close action with the reason when no CLI resolved", async () => {
+    mockCommand(false);
+    renderPanel(ANALYSIS_DOC);
+    const button = await screen.findByRole("button", { name: "Close document" });
+    expect(button).toHaveProperty("disabled", true);
+    expect(button.getAttribute("title")).toBe("no sdt CLI");
+  });
+
+  it("surfaces the CLI refusal instead of swallowing it", async () => {
+    mockCommand(true, false, "cannot close analysis: unfinished task checklist");
+    renderPanel(ANALYSIS_DOC);
+    await userEvent.click(await screen.findByRole("button", { name: "Close document" }));
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "cannot close analysis: unfinished task checklist",
+    );
+  });
+
+  it("hides the close action for a kind the CLI cannot close", async () => {
+    mockCommand(true);
+    renderPanel(DOC);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Close document" })).toBeNull();
+  });
+
+  it("navigates a link row through the router, not a full page load", async () => {
+    mockFetch();
+    render(
+      <MemoryRouter initialEntries={["/docs/context/notes/x.md"]}>
+        <Routes>
+          <Route
+            path="/docs/*"
+            element={
+              <>
+                <LocationProbe />
+                <DocMetaPanel doc={DOC as never} tab="info" />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const row = await waitFor(() => {
+      const found = screen
+        .getAllByRole("link")
+        .find((el) => el.getAttribute("href") === "/docs/context/analysis/a.md");
+      if (!found) throw new Error("link row not rendered");
+      return found;
+    });
+    await userEvent.click(row);
+    // the router location moved, so the app did not reload: the tab stack, the
+    // reading position and the dockview layout all survive the click
+    expect(screen.getByTestId("probe").textContent).toBe("/docs/context/analysis/a.md");
   });
 
   it("reports a document nothing references", async () => {

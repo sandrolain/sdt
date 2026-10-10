@@ -34,3 +34,65 @@ describe("token layer owns the elevation shadow", () => {
     }
   });
 });
+
+/**
+ * Corner-radius guard (phase 5 of plan 20261010-125656). `tokens.css` owns the
+ * scale; a radius that is a semantic role (card, chip, control, pill) uses a
+ * token. A radius off the scale — a hairline data bar, a categorical swatch, a
+ * one-off tab — stays raw, but only with a one-line comment saying why. This
+ * makes the convention in `tokens.css` a gate rather than prose: a new raw
+ * radius has to justify itself at its own site.
+ */
+
+const SCALE_PX = [4, 6, 8, 10, 12, 999];
+
+const STYLESHEETS = [
+  { name: "index.css", css },
+  {
+    name: "JsonCanvas.css",
+    css: readFileSync(new URL("../components/JsonCanvas.css", import.meta.url), "utf8"),
+  },
+];
+
+describe("token layer owns the corner-radius scale", () => {
+  it("declares the scale", () => {
+    for (const step of [
+      "--radius-xs",
+      "--radius-sm",
+      "--radius-md",
+      "--radius-lg",
+      "--radius-xl",
+    ]) {
+      expect(tokens).toContain(`${step}:`);
+    }
+    expect(tokens).toContain("--radius-pill:");
+  });
+
+  it.each(STYLESHEETS)("$name has no raw radius on the scale", ({ css: sheet }) => {
+    const onScale = [...sheet.matchAll(/border-radius:\s*([^;]+);/g)].filter(
+      ([, value]) =>
+        // a var() is a token under another name (e.g. the map node radius); a raw
+        // literal whose corner sits on the scale belongs to the scale
+        !value.includes("var(") &&
+        value.split(/\s+/).some((corner) => SCALE_PX.includes(Number.parseInt(corner, 10))),
+    );
+    expect(onScale.map(([, value]) => value)).toEqual([]);
+  });
+
+  it.each(STYLESHEETS)(
+    "$name documents every radius left off the scale",
+    ({ name, css: sheet }) => {
+      const lines = sheet.split("\n");
+      const undocumented: string[] = [];
+      lines.forEach((line, i) => {
+        if (!/border-radius:\s*[^;]+;/.test(line)) return;
+        if (line.includes("var(")) return;
+        const previous = lines[i - 1]?.trim() ?? "";
+        if (!(previous.startsWith("/*") && previous.endsWith("*/"))) {
+          undocumented.push(`${name}:${i + 1}: ${line.trim()}`);
+        }
+      });
+      expect(undocumented).toEqual([]);
+    },
+  );
+});

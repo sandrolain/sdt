@@ -71,6 +71,38 @@ export function docHref(path: string): string {
   return `/docs/${path}`;
 }
 
+/** Corpus path and fragment behind a docs/wiki route href. */
+export interface DocsTarget {
+  path: string;
+  /** `#fragment` including the hash, or an empty string */
+  hash: string;
+}
+
+/** Reserved docs sub-route that is the semantic-map view, not a document. */
+const DOCS_MAP_ROUTE = "/docs/map";
+
+/**
+ * Resolve a rendered docs/wiki href to the corpus path it names, or null when
+ * it is not a document route. The fragment is carried along, so a link to a
+ * section of another document survives the navigation instead of landing at
+ * the top of it.
+ */
+export function docsTargetFromHref(href: string): DocsTarget | null {
+  const [pathname, fragment] = href.split("#");
+  const hash = fragment ? `#${fragment}` : "";
+  if (pathname.startsWith("/docs/")) {
+    if (pathname === DOCS_MAP_ROUTE) return null;
+    const path = decodeURIComponent(pathname.slice("/docs/".length));
+    return path ? { path, hash } : null;
+  }
+  if (pathname.startsWith("/wiki/")) {
+    const id = pathname.slice("/wiki/".length);
+    if (!id || id === "graph" || id === "board") return null;
+    return { path: `context/wiki/${decodeURIComponent(id)}.md`, hash };
+  }
+  return null;
+}
+
 /**
  * Resolve a relative `.md` href against the containing document path
  * (`basePath`), collapsing `.`/`..`; absolute hrefs are corpus-relative.

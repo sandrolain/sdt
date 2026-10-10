@@ -205,10 +205,16 @@ function buildMarked(basePath?: string): Marked {
         let target = href;
         if (/^https?:\/\//i.test(href)) {
           attrs.push('target="_blank" rel="noopener noreferrer"');
+        } else if (href.startsWith("#")) {
+          // a bare `#section` names a heading of this document: it stays a pure
+          // fragment, and the click handler resolves it against the route
         } else if (!href.startsWith("/")) {
-          // relative links resolve against the document; app routes (/docs,
-          // /wiki) and fragment links are already absolute
-          target = docHref(resolveDocPath(href, basePath));
+          // a relative link resolves against the document, fragment included;
+          // app routes (/docs, /wiki) are already absolute
+          const at = href.indexOf("#");
+          const pathname = at < 0 ? href : href.slice(0, at);
+          const hash = at < 0 ? "" : href.slice(at);
+          target = docHref(resolveDocPath(pathname, basePath)) + hash;
         }
         if (title) attrs.push(`title="${escapeHtml(title)}"`);
         const attrStr = attrs.length > 0 ? ` ${attrs.join(" ")}` : "";

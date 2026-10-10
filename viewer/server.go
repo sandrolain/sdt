@@ -74,6 +74,11 @@ type server struct {
 	spa          http.Handler
 	broker       *broker
 	watcher      *fsnotify.Watcher
+	// cmd runs the sanctioned document-state mutators; nil means the viewer is
+	// read-only (decision 0027).
+	cmd *delegator
+	// writeReason explains why cmd is nil, for the capability probe.
+	writeReason string
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -185,6 +190,7 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc("/api/wiki/rel", s.handleWikiRel)
 	mux.HandleFunc("/api/wiki/board", s.handleWikiBoard)
 	mux.HandleFunc("/api/events", s.handleEvents)
+	mux.HandleFunc(contextCommandPath, s.handleContextCommand)
 	mux.HandleFunc("/", s.handleIndex)
 	return mux
 }

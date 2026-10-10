@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useActiveSection } from "../lib/activeSection";
 import { categoryColor, categoryIcon } from "../lib/categories";
 import {
@@ -11,6 +11,12 @@ import {
   type TreeEntry,
 } from "../lib/api";
 import { linkKind, loadCorpusIndex, type CorpusIndex } from "../lib/corpusIndex";
+import {
+  CLOSABLE_KINDS,
+  loadCommandCapability,
+  runCommand,
+  type CommandCapability,
+} from "../lib/contextCommand";
 import { collectBodyLinks, collectMetaLinks, resolveDocLink, type DocLink } from "../lib/docLinks";
 import {
   booleanValue,
@@ -162,6 +168,19 @@ export function DocMetaPanel({ doc, tab = "info" }: DocMetaPanelProps) {
     return entryState(treeEntry, plannedAnalyses, taskIndex).drift;
   }, [doc, corpus, taskIndex]);
 
+  // document-state actions are delegated to the sanctioned CLI (decision 0027);
+  // the panel offers them only when the server says one can run
+  const [capability, setCapability] = useState<CommandCapability | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadCommandCapability().then((c) => {
+      if (alive) setCapability(c);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // the document's own kind: frontmatter `kind` first, corpus/folder fallback,
   // so the metadata row shows the same icon and label as the tree.
   const docKind = useMemo<EntryFilterKind>(() => {
@@ -171,6 +190,8 @@ export function DocMetaPanel({ doc, tab = "info" }: DocMetaPanelProps) {
     return kindFromPath(doc.path);
   }, [doc, fields]);
 
+  const declaredKind = fields.find((f) => f.key === "kind")?.values[0] ?? docKind;
+
   // declared lifecycle status from the frontmatter, decorated with the value
   // vocabulary shared with the tree (label + tone), independent of the derived
   // progress dot above.
@@ -179,6 +200,10 @@ export function DocMetaPanel({ doc, tab = "info" }: DocMetaPanelProps) {
     if (!value) return undefined;
     return { value, valueInfo: valueLabel(docKind, value) };
   }, [docKind, fields]);
+
+  // only the kinds `sdt context close` accepts; the panel hides the action for
+  // anything else rather than letting the CLI refuse it
+  const closable = CLOSABLE_KINDS.has(declaredKind) && declaredStatus?.value !== "completed";
 
   if (!doc) return null;
 
@@ -196,6 +221,7 @@ export function DocMetaPanel({ doc, tab = "info" }: DocMetaPanelProps) {
               title={declaredStatus.valueInfo?.meaning ?? declaredStatus.value}
             />
           )}
+          {capability && closable && <CloseDocumentAction doc={doc.path} capability={capability} />}
           {progress && (
             <MetaStatusRow label="Progress" dotTone={progress.tone} value={progress.label} />
           )}
@@ -447,34 +473,41 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
   const location = useLocation();
   if (!link) return null;
   if (link.href) {
-    const external = link.external ? { target: "_blank", rel: "noopener noreferrer" } : {};
+    const external = link.external === true;
     const current =
-      !link.external &&
+      !external &&
       link.href.startsWith("/") &&
       link.href === `${location.pathname}${location.search}`;
-    const kind = link.external ? undefined : linkKind(link.href, corpus);
+    const kind = external ? undefined : linkKind(link.href, corpus);
     // Resolve the target through the corpus index for the row's category, date
     // and status dot (no extra fetch; the index is already loaded).
-    const entry = link.external
-      ? undefined
-      : corpus?.get(link.href.replace(/^\/docs\//, ""))?.entry;
+    const entry = external ? undefined : corpus?.get(link.href.replace(/^\/docs\//, ""))?.entry;
     const statusInfo = entry?.status ? valueLabel(entry.kind ?? "", entry.status) : null;
+    const className = `meta-link meta-link--row${current ? " is-current" : ""}`;
+    const body = (
+      <DocRowBody
+        kind={kind}
+        image={entry?.image}
+        imagePath={entry?.path}
+        category={entry?.categories?.[0]}
+        title={link.label}
+        date={entry ? entryDateLine(entry) : ""}
+        dot={statusInfo}
+      />
+    );
+    // internal targets navigate through the router, so the open-docs stack, the
+    // reading position and the dockview layout survive the click; only an
+    // http(s) target is a plain link
+    if (!external) {
+      return (
+        <Link className={className} to={link.href} aria-current={current ? "page" : undefined}>
+          {body}
+        </Link>
+      );
+    }
     return (
-      <a
-        className={`meta-link meta-link--row${current ? " is-current" : ""}`}
-        href={link.href}
-        aria-current={current ? "page" : undefined}
-        {...external}
-      >
-        <DocRowBody
-          kind={kind}
-          image={entry?.image}
-          imagePath={entry?.path}
-          category={entry?.categories?.[0]}
-          title={link.label}
-          date={entry ? entryDateLine(entry) : ""}
-          dot={statusInfo}
-        />
+      <a className={className} href={link.href} target="_blank" rel="noopener noreferrer">
+        {body}
       </a>
     );
   }
@@ -485,6 +518,55 @@ function MetaLink({ link, corpus }: { link: DocLink | undefined; corpus?: Corpus
     >
       {link.label}
     </span>
+  );
+}
+
+/**
+ * The close action, delegated to `sdt context close` (decision 0027). The panel
+ * never writes the file: the server runs the sanctioned mutator, so the
+ * derived-state refusal, the cascade and the upward-only rule all apply. When no
+ * CLI resolved, the control renders disabled and states the reason rather than
+ * failing on click.
+ */
+function CloseDocumentAction({ doc, capability }: { doc: string; capability: CommandCapability }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const close = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await runCommand({ doc, action: "close" });
+      // the corpus watcher reloads the panel; nothing to refresh by hand
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="meta-status" role="listitem">
+      <span className="meta-status__label">Close</span>
+      <button
+        type="button"
+        className="meta-action"
+        onClick={close}
+        disabled={!capability.available || busy}
+        title={
+          capability.available
+            ? "Run `sdt context close` (refuses while the derived state disagrees)"
+            : capability.reason
+        }
+      >
+        {busy ? "Closing…" : "Close document"}
+      </button>
+      {error && (
+        <span className="meta-action__error" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
   );
 }
 

@@ -22,12 +22,15 @@ export function clearPreviewCache(): void {
 
 /** Corpus path targeted by a previewable in-document link, or null. */
 export function previewPathFromHref(href: string): string | null {
-  if (href.startsWith("/docs/")) {
-    const path = href.slice("/docs/".length);
+  // a `#fragment` names a section, not a document: the card previews the file
+  // the fragment belongs to, so it must not travel into the query
+  const [pathname] = href.split(/[?#]/);
+  if (pathname.startsWith("/docs/")) {
+    const path = pathname.slice("/docs/".length);
     return path ? decodeURIComponent(path) : null;
   }
-  if (href.startsWith("/wiki/")) {
-    const id = href.slice("/wiki/".length);
+  if (pathname.startsWith("/wiki/")) {
+    const id = pathname.slice("/wiki/".length);
     if (!id || id === "graph" || id === "board") return null;
     return `context/wiki/${decodeURIComponent(id)}.md`;
   }

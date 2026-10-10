@@ -3,6 +3,7 @@ import type { TreeEntry } from "./api";
 import {
   buildWikiIndex,
   docHref,
+  docsTargetFromHref,
   parseWikiLink,
   resolveDocPath,
   resolveWikiLink,
@@ -95,6 +96,37 @@ describe("hrefs", () => {
   it("builds hash routes", () => {
     expect(wikiHref("accounts")).toBe("/wiki/accounts");
     expect(docHref("context/notes/n.md")).toBe("/docs/context/notes/n.md");
+  });
+});
+
+describe("docsTargetFromHref", () => {
+  it("resolves a docs route to its corpus path", () => {
+    expect(docsTargetFromHref("/docs/context/wiki/a.md")).toEqual({
+      path: "context/wiki/a.md",
+      hash: "",
+    });
+  });
+
+  it("keeps the fragment so a link lands on the section, not the top", () => {
+    expect(docsTargetFromHref("/docs/context/wiki/a.md#findings")).toEqual({
+      path: "context/wiki/a.md",
+      hash: "#findings",
+    });
+  });
+
+  it("maps a wiki route to its document", () => {
+    expect(docsTargetFromHref("/wiki/backend")).toEqual({
+      path: "context/wiki/backend.md",
+      hash: "",
+    });
+  });
+
+  it("rejects non-document targets", () => {
+    expect(docsTargetFromHref("/docs/map")).toBeNull();
+    expect(docsTargetFromHref("/wiki/graph")).toBeNull();
+    expect(docsTargetFromHref("/wiki/board")).toBeNull();
+    expect(docsTargetFromHref("https://example.com")).toBeNull();
+    expect(docsTargetFromHref("#findings")).toBeNull();
   });
 });
 

@@ -4,6 +4,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { DocumentView } from "./DocumentView";
+import { OpenDocsContext, type OpenDocsApi } from "../lib/openDocsContext";
 import { getSectionRequest, requestSection, resetSectionRequest } from "../lib/sectionRequests";
 import { activeSectionKey, resetActiveSection } from "../lib/activeSection";
 import { clearReadingState, flushReading, recordReading } from "../lib/readingState";
@@ -407,6 +408,88 @@ describe("DocumentView", () => {
       );
       expect(getSectionRequest()).toBeNull();
       document.body.innerHTML = "";
+    });
+  });
+
+  describe("in-page anchors", () => {
+    const LONG = "# Title\n\n## One\n\ntext\n\n## Findings\n\ntext\n";
+
+    /** Render the view with an open-docs API so link clicks can be observed. */
+    function renderAnchored(markdown: string, open = vi.fn()) {
+      const api: OpenDocsApi = {
+        state: { docs: [], active: null, seen: [] },
+        open,
+        activate: vi.fn(),
+        close: vi.fn(),
+        closeAll: vi.fn(),
+      };
+      render(
+        <MemoryRouter initialEntries={["/docs/context/notes/x.md"]}>
+          <OpenDocsContext.Provider value={api}>
+            <Routes>
+              <Route
+                path="/docs/*"
+                element={
+                  <>
+                    <LocationProbe />
+                    <DocumentView path="context/notes/x.md" markdown={markdown} />
+                  </>
+                }
+              />
+            </Routes>
+          </OpenDocsContext.Provider>
+        </MemoryRouter>,
+      );
+      return open;
+    }
+
+    it("routes a bare #section link through the router and reaches the heading", async () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      renderAnchored("[up](#findings)\n\n" + LONG);
+      const link = screen.getByRole("link", { name: "up" });
+      // the href stays a pure fragment: no document path is invented for it
+      expect(link.getAttribute("href")).toBe("#findings");
+      await userEvent.click(link);
+      await waitFor(() => expect(screen.getByTestId("probe").textContent).toContain("#findings"));
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    });
+
+    it("carries the fragment of a link to another document", async () => {
+      const open = renderAnchored("[other](./y.md#findings)\n\n" + LONG);
+      await userEvent.click(screen.getByRole("link", { name: "other" }));
+      expect(open).toHaveBeenCalledWith("context/notes/y.md", "#findings");
+    });
+
+    it("opens a fragmentless link to another document without a hash", async () => {
+      const open = renderAnchored("[other](./y.md)\n\n" + LONG);
+      await userEvent.click(screen.getByRole("link", { name: "other" }));
+      expect(open).toHaveBeenCalledWith("context/notes/y.md", "");
+    });
+
+    it("puts a heading anchor's fragment on the route, so the URL stays shareable", async () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      renderAnchored(LONG);
+      const anchors = screen.getAllByRole("button", { name: "Copy link to section" });
+      await userEvent.click(anchors[1]);
+      await waitFor(() => expect(screen.getByTestId("probe").textContent).toContain("#findings"));
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+      // the router owns the fragment, so the route is the single source of truth
+      expect(window.location.hash).toBe("");
+    });
+
+    it("scrolls again when the same heading anchor is clicked twice", async () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      renderAnchored(LONG);
+      const anchors = screen.getAllByRole("button", { name: "Copy link to section" });
+      await userEvent.click(anchors[1]);
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+      scrollIntoView.mockClear();
+      // a repeat visit to the same fragment is a new navigation, so it scrolls
+      await userEvent.click(anchors[1]);
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
     });
   });
 });

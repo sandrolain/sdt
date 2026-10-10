@@ -351,7 +351,7 @@ func TestOpenBrowser(t *testing.T) {
 
 func TestServeError(t *testing.T) {
 	// no .sdt.yaml anywhere reachable and no --root → clear error
-	if err := serve("127.0.0.1", 1, true, "/does/not/exist", func(string, http.Handler) error { return nil }); err == nil {
+	if err := serve("127.0.0.1", 1, true, "/does/not/exist", "", func(string, http.Handler) error { return nil }); err == nil {
 		t.Error("expected error for bad root")
 	}
 }
@@ -365,7 +365,7 @@ func TestServeStarts(t *testing.T) {
 	origOpen := openBrowser
 	openBrowser = func(url string) error { return nil }
 	defer func() { openBrowser = origOpen }()
-	err := serve("127.0.0.1", 38443, false, dir, func(addr string, h http.Handler) error {
+	err := serve("127.0.0.1", 38443, false, dir, "", func(addr string, h http.Handler) error {
 		gotAddr = addr
 		return nil
 	})

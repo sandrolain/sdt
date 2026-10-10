@@ -30,7 +30,7 @@
 .jc-node {
   position: absolute;
   box-sizing: border-box;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--c) 9%, var(--node));
   border: 1.5px solid color-mix(in srgb, var(--c) 75%, transparent);
   box-shadow:
@@ -62,6 +62,7 @@
   left: 10px;
   top: -32px;
   padding: 2px 12px;
+  /* a graph edge endpoint, deliberately rounder than a node */
   border-radius: 9px;
   background: var(--node);
   border: 1.5px solid var(--c);
@@ -102,6 +103,7 @@
     monospace;
   background: var(--grid);
   padding: 1px 5px;
+  /* inline code inside a node, off the --radius scale */
   border-radius: 5px;
 }
 .jc-wl {
@@ -165,7 +167,7 @@ a.jc-cp {
   top: 16px;
   width: 180px;
   height: 120px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--node) 84%, transparent);
   border: 1px solid var(--border);
   cursor: pointer;

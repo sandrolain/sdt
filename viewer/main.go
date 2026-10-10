@@ -93,6 +93,10 @@ func newServeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			sdtBin, err := cmd.Flags().GetString("sdt-bin")
+			if err != nil {
+				return err
+			}
 			logFormat, err := cmd.Flags().GetString("log-format")
 			if err != nil {
 				return err
@@ -115,7 +119,7 @@ func newServeCmd() *cobra.Command {
 					overrides.model = &m
 				}
 			}
-			return serve(host, port, noOpen, root, listen, overrides)
+			return serve(host, port, noOpen, root, sdtBin, listen, overrides)
 		},
 	}
 	cmd.Flags().String("host", "127.0.0.1", "bind host")
@@ -125,13 +129,16 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().String("log-format", "text", "log format: text|json")
 	cmd.Flags().Bool("semantic", false, "enable the semantic search branch (overrides .sdt.yaml search.semantic); /api/search?semantic=1 then serves RRF-fused results")
 	cmd.Flags().String("semantic-model", "", "embedding model for the semantic branch (default BASE8M; see `sdt models fetch` to prefetch)")
+	cmd.Flags().String("sdt-bin", "", "explicit path to the sdt CLI used for document-state actions (default: PATH, then a sibling of this binary); editing is disabled when none resolves")
 	return cmd
 }
 
 // serve resolves the root, builds the handler, optionally opens the browser and
-// blocks serving. listen is injectable for tests; overrides carries explicit
-// --semantic/--semantic-model flag values that win over the project config.
-func serve(host string, port int, noOpen bool, rootFlag string, listen func(addr string, h http.Handler) error, overrides ...semanticOverrides) error {
+// blocks serving. listen is injectable for tests; sdtBin is the explicit
+// --sdt-bin path used to resolve the sanctioned document-state mutator
+// (decision 0027); overrides carries explicit --semantic/--semantic-model flag
+// values that win over the project config.
+func serve(host string, port int, noOpen bool, rootFlag, sdtBin string, listen func(addr string, h http.Handler) error, overrides ...semanticOverrides) error {
 	root, err := resolveRoot(rootFlag, "")
 	if err != nil {
 		return err
@@ -144,6 +151,9 @@ func serve(host string, port int, noOpen bool, rootFlag string, listen func(addr
 	if err != nil {
 		return err
 	}
+	// document editing is a delegation to the sanctioned CLI, enabled only on a
+	// loopback bind host and only when a CLI resolves (decision 0027).
+	s.enableWrites(host, sdtBin)
 	if werr := s.startWatching(); werr != nil {
 		slog.Warn("sdtviewer: live updates disabled", "err", werr)
 	} else {

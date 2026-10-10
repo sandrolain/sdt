@@ -18,6 +18,16 @@ describe("previewPathFromHref", () => {
     expect(previewPathFromHref("/wiki/graph")).toBeNull();
     expect(previewPathFromHref("/wiki/board")).toBeNull();
   });
+
+  it("drops the fragment, so a section link previews its document", () => {
+    // the fragment must not reach the query: it would 404
+    expect(previewPathFromHref("/docs/context/wiki/a.md#findings")).toBe("context/wiki/a.md");
+    expect(previewPathFromHref("/wiki/backend#api")).toBe("context/wiki/backend.md");
+  });
+
+  it("has no preview for an in-page anchor", () => {
+    expect(previewPathFromHref("#findings")).toBeNull();
+  });
 });
 
 describe("previewMeta", () => {

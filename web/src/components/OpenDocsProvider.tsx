@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fetchTree } from "../lib/api";
 import { initialOpenDocs, loadOpenDocs, openDocsReducer, saveOpenDocs } from "../lib/openDocs";
@@ -19,6 +19,15 @@ export function OpenDocsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(openDocsReducer, undefined, initOpenDocs);
   const navigate = useNavigate();
   const location = useLocation();
+  // react-router commits a navigation in a transition, so the route change lands
+  // after the urgent open-docs state change (and after the dockview activation
+  // listener has already fired). This ref is an optimistic mirror of where we
+  // have asked to go, so that listener can tell an activation echo from a real
+  // navigation; the effect resyncs it to the committed route afterwards.
+  const locationRef = useRef(location);
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
 
   // route → state: an unknown docs path replaces the stack, a known one activates
   useEffect(() => {
@@ -52,9 +61,12 @@ export function OpenDocsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const open = useCallback(
-    (path: string) => {
+    (path: string, hash = "") => {
       dispatch({ type: "open", path });
-      navigate(`${DOCS_PREFIX}${path}`);
+      // mark the destination before navigating: the dockview activation echo
+      // fires first and must see that we are already heading here
+      locationRef.current = { ...locationRef.current, pathname: `${DOCS_PREFIX}${path}`, hash };
+      navigate(`${DOCS_PREFIX}${path}${hash}`);
     },
     [navigate],
   );
@@ -62,6 +74,8 @@ export function OpenDocsProvider({ children }: { children: ReactNode }) {
   const activate = useCallback(
     (path: string) => {
       dispatch({ type: "activate", path });
+      if (locationRef.current.pathname === `${DOCS_PREFIX}${path}`) return;
+      locationRef.current = { ...locationRef.current, pathname: `${DOCS_PREFIX}${path}`, hash: "" };
       navigate(`${DOCS_PREFIX}${path}`);
     },
     [navigate],

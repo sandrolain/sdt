@@ -5,7 +5,7 @@ import type { OpenDocsState } from "./openDocs";
 export interface OpenDocsApi {
   state: OpenDocsState;
   /** append (or activate) a document and navigate to it */
-  open: (path: string) => void;
+  open: (path: string, hash?: string) => void;
   /** focus an already-open document and navigate to it */
   activate: (path: string) => void;
   /** close a document tab, moving focus to a neighbour */

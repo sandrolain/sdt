@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchDoc, type CanvasResponse, type DocResponse, type MermaidResponse } from "./api";
+import { useReloadToken } from "./useReloadToken";
 
 export interface DocState {
   doc: DocResponse | CanvasResponse | MermaidResponse | null;
@@ -16,6 +17,10 @@ interface Fetched {
 /** Fetch a corpus document by path; state is keyed by path to avoid stale docs. */
 export function useDoc(path: string): DocState {
   const [fetched, setFetched] = useState<Fetched | null>(null);
+  // a corpus change (a CLI write, an editor save) refetches the body too, so a
+  // document-state action taken in the viewer shows its result without a manual
+  // reload; the path-keyed state keeps the old doc until the new one lands.
+  const reloadToken = useReloadToken();
 
   useEffect(() => {
     if (path === "") return;
@@ -32,7 +37,7 @@ export function useDoc(path: string): DocState {
     return () => {
       alive = false;
     };
-  }, [path]);
+  }, [path, reloadToken]);
 
   const current = path !== "" && fetched?.path === path ? fetched : null;
   return {

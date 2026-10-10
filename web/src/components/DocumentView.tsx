@@ -37,7 +37,7 @@ import { resetFindQuery, useFindInDoc } from "../lib/findInDocStore";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
 import { useActiveHeading } from "../lib/useActiveHeading";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
-import type { WikiIndex } from "../lib/wikiLinks";
+import { docsTargetFromHref, type WikiIndex } from "../lib/wikiLinks";
 import { DocProgress } from "./DocProgress";
 import { FindInDoc } from "./FindInDoc";
 import { HoverPreview } from "./HoverPreview";
@@ -59,27 +59,16 @@ function downloadDiagramSvg(button: Element): void {
 }
 
 /** Copy a deep link to a heading, flash the anchor and reveal the section. */
-function copyAnchor(button: Element): void {
+function copyAnchor(button: Element, route: (hash: string) => void): void {
   const id = button.getAttribute("data-anchor") ?? "";
   if (!id) return;
   const url = `${window.location.origin}${window.location.pathname}#${id}`;
   if (navigator.clipboard) void navigator.clipboard.writeText(url);
-  window.history.replaceState(null, "", `#${id}`);
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // the router owns the fragment: the deep-link effect below turns it into the
+  // section scroll, so the URL, the active section and the copy agree
+  route(`#${id}`);
   button.classList.add("is-copied");
   window.setTimeout(() => button.classList.remove("is-copied"), 1200);
-}
-
-/** Corpus path behind a rendered docs/wiki link, or null for non-document links. */
-function docsTargetFromHref(href: string): string | null {
-  const [pathname] = href.split(/[?#]/);
-  if (pathname.startsWith("/docs/")) return decodeURIComponent(pathname.slice("/docs/".length));
-  if (pathname.startsWith("/wiki/")) {
-    const id = pathname.slice("/wiki/".length);
-    if (!id || id === "graph" || id === "board") return null;
-    return `context/wiki/${decodeURIComponent(id)}.md`;
-  }
-  return null;
 }
 
 /** Copy the sibling `<code>` text and flash a success glyph on the button. */
@@ -213,17 +202,19 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
   // publish the heading in view so the Sections sidebar can highlight it
   useActiveHeading(renderedRef, path, mode === "render");
 
-  // a deep link (#anchor from a search hit) resolves to a heading and reuses the
-  // Sections path, so a hit lands where it matched rather than at the top. The
-  // fragment belongs to the route, so it only applies to the document it names;
-  // `consumed` records the anchor already turned into a request, which keeps a
-  // later re-render from requesting it again.
+  // a deep link (#anchor from a search hit or an in-page link) resolves to a
+  // heading and reuses the Sections path, so a hit lands where it matched
+  // rather than at the top. The fragment belongs to the route, so it only
+  // applies to the document it names; `consumed` pairs the anchor with the
+  // navigation key that produced it, which keeps a later re-render from
+  // requesting it again while a fresh visit to the same anchor still scrolls.
   const routeAnchor =
     location.pathname === `/docs/${path}`
       ? decodeURIComponent(location.hash.replace(/^#/, "")) || null
       : null;
   const [consumed, setConsumed] = useState<string | null>(null);
-  const pendingAnchor = routeAnchor && routeAnchor !== consumed ? routeAnchor : null;
+  const pendingAnchor =
+    routeAnchor && `${location.key}:${routeAnchor}` !== consumed ? routeAnchor : null;
 
   // reading position: restore where this document was left, record where it is.
   // The scroller is `.doc-rendered`, not the article; `articleEl` is in the deps
@@ -312,7 +303,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     // an anchor no heading answers to: keep the reader at the top, and do not ask
     // again on the next render
     // oxlint-disable-next-line react-hooks/set-state-in-effect
-    setConsumed(pendingAnchor);
+    setConsumed(`${location.key}:${pendingAnchor}`);
     if (text) requestSection(path, text);
   }, [
     pendingAnchor,
@@ -324,13 +315,19 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     navigate,
     location.pathname,
     location.hash,
+    location.key,
   ]);
+
+  /** Put the fragment on the current route, replacing the history entry. */
+  const routeAnchorTo = (hash: string) => {
+    navigate({ pathname: location.pathname, search: location.search, hash }, { replace: true });
+  };
 
   const onRenderedClick = (event: MouseEvent<HTMLDivElement>) => {
     const anchorButton = (event.target as HTMLElement | null)?.closest?.(".md-anchor");
     if (anchorButton) {
       event.preventDefault();
-      copyAnchor(anchorButton);
+      copyAnchor(anchorButton, routeAnchorTo);
       return;
     }
     const downloadButton = (event.target as HTMLElement | null)?.closest?.(".md-mermaid__download");
@@ -356,11 +353,18 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     }
     const anchor = (event.target as HTMLElement | null)?.closest?.("a");
     const href = anchor?.getAttribute("href") ?? "";
-    if (!anchor || !docsApi) return;
+    if (!anchor) return;
+    // a bare `#section` names a heading of this document: route the fragment so
+    // the deep-link effect resolves it instead of letting the browser jump
+    if (href.startsWith("#") && href.length > 1) {
+      event.preventDefault();
+      routeAnchorTo(href);
+      return;
+    }
     const target = docsTargetFromHref(href);
-    if (!target) return;
+    if (!target || !docsApi) return;
     event.preventDefault();
-    docsApi.open(target);
+    docsApi.open(target.path, target.hash);
   };
 
   return (
