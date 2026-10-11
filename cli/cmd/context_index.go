@@ -38,23 +38,47 @@ func ctxTierForDir(dir string) string {
 	return ctxTierHistory
 }
 
-// ctxIndexDirs lists the knowledge directories scanned by reindex, in a stable
-// order per tier.
+const (
+	ctxIndexRouteCorpus    = "corpus"
+	ctxIndexRouteDedicated = "dedicated"
+	ctxIndexRouteExcluded  = "excluded"
+	ctxIndexRouteUnknown   = "unclassified"
+)
 
-var ctxIndexDirs = []string{
-	sdtArchitectureDir,
-	sdtDecisionsDir,
-	sdtAnalysisDir,
-	sdtProposalsDir,
-	sdtResearchDir,
-	sdtPlanDir,
-	sdtNotesDir,
-	sdtQuestionsDir,
-	sdtPromptsDir,
-	sdtTasksDir,
-	sdtCommandsDir,
-	sdtWorklogDir,
+// ctxIndexRouteForType classifies every registered kind. Wiki owns a dedicated
+// schema/graph linter; tmp is scratch; other kinds enter the corpus walk when
+// their registry entry promises an index tier or a status row. An unclassified
+// result is a test failure, so a new registry kind cannot silently vanish.
+func ctxIndexRouteForType(t ctxDocType) string {
+	switch t.kind {
+	case ctxTypeWiki:
+		return ctxIndexRouteDedicated
+	case ctxTypeTmp:
+		return ctxIndexRouteExcluded
+	default:
+		if t.tier != "" || t.statusRow {
+			return ctxIndexRouteCorpus
+		}
+		return ctxIndexRouteUnknown
+	}
 }
+
+// ctxIndexDirsForTypes derives the corpus-wide index/lint walk from the type
+// registry, in registry order.
+func ctxIndexDirsForTypes(types []ctxDocType) []string {
+	dirs := make([]string, 0, len(types))
+	for _, t := range types {
+		if ctxIndexRouteForType(t) != ctxIndexRouteCorpus {
+			continue
+		}
+		dirs = append(dirs, t.dir)
+	}
+	return dirs
+}
+
+// ctxIndexDirs is the deterministic registry-order projection used by reindex,
+// corpus-wide lint, store completeness and citation scans.
+var ctxIndexDirs = ctxIndexDirsForTypes(contextTypeList)
 
 // dirFiles returns the .md files under dir sorted by name, or nil when the
 // directory does not exist.

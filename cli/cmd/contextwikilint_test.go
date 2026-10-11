@@ -84,6 +84,65 @@ func TestWikiLintCleanJSON(t *testing.T) {
 	}
 }
 
+func TestWikiLintReachableKnowledgeAxes(t *testing.T) {
+	setupContextProject(t)
+	wikiSourceDirs(t)
+	writeCtxDoc(t, "context/wiki/axes.md", `---
+kind: wiki
+id: axes
+title: Axes
+type: concept
+status: active
+summary: Axis fixture
+tags:
+  - backend
+maturity: stable
+verified_at: 2026-10-11T00:00:00Z
+---
+## Summary
+Axis test fixture.
+`)
+
+	out := wikiLintWarning(t)
+	for _, phrase := range []string{
+		"[WARNING] context/wiki/axes.md: `maturity` \"stable\" is outside the vocabulary",
+		"[WARNING] context/wiki/axes.md: `verified_at` without `verified_against`",
+	} {
+		if !strings.Contains(out, phrase) {
+			t.Errorf("sdt context wiki lint did not report %q:\n%s", phrase, out)
+		}
+	}
+
+	// These kinds are not sent through corpus-wide lint: the same fixture is
+	// rejected by the positional corpus-lint gate, while the dedicated loader
+	// above owns the wiki-only axis checks.
+	if contextLintCorpusPath("context/wiki/axes.md") {
+		t.Error("wiki unexpectedly entered corpus-wide lint")
+	}
+}
+
+func TestGeneratedWikiInstructionRoutesKnowledgeAxesToDedicatedLint(t *testing.T) {
+	var wikiInstruction string
+	for _, file := range instructionFiles("p", "g") {
+		if file.name == "wiki.md" {
+			wikiInstruction = file.body
+			break
+		}
+	}
+	if wikiInstruction == "" {
+		t.Fatal("generated wiki.md instruction not found")
+	}
+	flat := strings.Join(strings.Fields(wikiInstruction), " ")
+	for _, phrase := range []string{
+		"`sdt context wiki lint` reports an unknown stage",
+		"`sdt context wiki lint` reports half a stamp",
+	} {
+		if !strings.Contains(flat, phrase) {
+			t.Errorf("wiki instruction missing dedicated-linter promise %q", phrase)
+		}
+	}
+}
+
 // TestWikiLintSchemaErrors exercises every schema CRITICAL on one broken page.
 func TestWikiLintSchemaErrors(t *testing.T) {
 	setupContextProject(t)

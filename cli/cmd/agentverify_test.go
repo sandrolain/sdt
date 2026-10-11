@@ -108,6 +108,20 @@ func TestAgentVerifyBlockMissingReference(t *testing.T) {
 	if err := os.WriteFile("AGENTS.md", []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	issues := agentVerifyChecks()
+	if err := agentVerifyCriticalError(issues); err == nil || !strings.Contains(err.Error(), "CRITICAL issue(s)") {
+		t.Fatalf("expected non-exiting critical result, got %v (issues: %#v)", err, issues)
+	}
+	foundReference := false
+	for _, issue := range issues {
+		if strings.Contains(issue.Message, "does not reference generated file context/instructions/cli.md") {
+			foundReference = true
+			break
+		}
+	}
+	if !foundReference {
+		t.Fatalf("critical issues did not name the generated file reference: %#v", issues)
+	}
 	shouldExitWithCode(t, 1, func() string {
 		out := execute(t, agentVerifyCmd, nil, "--format", "json")
 		if !strings.Contains(string(out), "does not reference generated file") {

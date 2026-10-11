@@ -170,12 +170,13 @@ vault can read the same folder — the two models are close but not identical:
   compressed line of the evidence that earned it); `superseded` carries
   `superseded_by` naming the successor. The full semantics are in
   `architecture/stack.md` (Optional axes orthogonal to `status`); `sdt context
-  lint` reports an unknown stage (WARNING), a `superseded` without a successor
-  (WARNING) and a promotion without a warrant (SUGGESTION).
+  wiki lint` reports an unknown stage (WARNING), a `superseded` without a
+  successor (WARNING) and a promotion without a warrant (SUGGESTION).
 - Re-verification is **stamped, not implied**: `verified_at` (the RFC3339 date of
   the check) with `verified_against` (the locator checked — a clone sha, a URL, a
   doc path). `updated` dates the edit, not the check, so the stamp is the only
-  field that says how fresh the claims are; half a stamp is a lint WARNING.
+  field that says how fresh the claims are; `sdt context wiki lint` reports half
+  a stamp as a WARNING.
 - A page is **freshness-tracked**: set `verified` only after re-checking its
   claims against their `sources`; when a source changes, re-run
   `sdt context wiki lint` (the `refs/<file>@<sha>` citation check flags a stale

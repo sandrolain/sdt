@@ -46,6 +46,14 @@ func lintWikiLint() []ctxLintIssue {
 	b := &wikiIssueBuilder{}
 	bld := lintWikiLoad(b)
 	lintWikiSchema(b, bld.Pages)
+	for _, p := range bld.Pages {
+		// Wiki pages intentionally stay out of lintDoc's corpus route; apply only
+		// the cross-kind axes promised to this dedicated loader using the source
+		// text the shared rules expect.
+		content := p.Frontmatter + "\n" + p.Body
+		b.issues = append(b.issues, lintMaturity(p.Path, content)...)
+		b.issues = append(b.issues, lintVerifiedStamp(p.Path, content)...)
+	}
 	lintWikiLinks(b, bld)
 	lintWikiGraph(b, bld)
 	lintWikiBudget(b, bld.Pages)

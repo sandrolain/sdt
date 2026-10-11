@@ -17,9 +17,29 @@ func TestContextBriefingScaffold(t *testing.T) {
 		"subject: auth-subsystem",
 		"## Artifacts", "## Map", "## Roles", "## Rules", "## Derived facts", "## Delta",
 		"Derive, don't trust",
+		"2026-10-11 — <replace this dated example with the first second-verified change>",
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("scaffold missing %q:\n%s", want, content)
+		}
+	}
+}
+
+func TestAgentInitBriefingScaffoldHasDatedDeltaExample(t *testing.T) {
+	dir := runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p")
+	content := mustReadFile(t, filepath.Join(dir, "context", "briefing", "onboarding.md"))
+	want := "2026-10-11 — <replace this dated example with the first second-verified change>"
+	if !strings.Contains(content, want) {
+		t.Fatalf("agent init briefing scaffold missing dated Delta example %q:\n%s", want, content)
+	}
+	uid := parseFrontmatterField(content, ctxFrontmatterUID)
+	if !validUIDv7(uid) {
+		t.Errorf("agent init briefing scaffold uid = %q, want a canonical UUIDv7", uid)
+	}
+	for _, issue := range lintDoc(filepath.Join(dir, "context", "briefing", "onboarding.md")) {
+		if strings.Contains(issue.Message, "Delta") {
+			t.Errorf("agent init scaffold trips its own Delta lint: %#v", issue)
 		}
 	}
 }

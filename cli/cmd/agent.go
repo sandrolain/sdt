@@ -582,7 +582,7 @@ func ensureWorkDirs(force bool) []FileResult {
 		{ctxCategoriesFilePath, categoriesRegisterTemplate},
 		{ctxMemoFilePath, memoRegisterTemplate},
 		{ctxTodoFilePath, todoRegisterTemplate},
-		{sdtBriefingDir + "/onboarding.md", briefingScaffoldTemplate},
+		{sdtBriefingDir + "/onboarding.md", briefingScaffoldContent()},
 	}
 	for _, f := range files {
 		res := FileResult{Path: f.path}
@@ -652,7 +652,20 @@ summary: "MANDATORY-fill: orient a newcomer on this project"
 ## Derived facts
 
 ## Delta
+
+2026-10-11 — <replace this dated example with the first second-verified change>
 `
+
+// briefingScaffoldContent gives each generated onboarding document its own
+// immutable UID. Without it, making briefing reachable from corpus lint would
+// make every fresh agent init report its own scaffold as incomplete.
+func briefingScaffoldContent() string {
+	return strings.Replace(briefingScaffoldTemplate,
+		"kind: briefing\n",
+		"kind: briefing\nuid: "+newUID()+"\n",
+		1,
+	)
+}
 
 // sdtWorkReadmeContent renders the generated context/README.md: the static
 // layout/conventions prose from workspace/readme.md.tmpl (shell of the file)

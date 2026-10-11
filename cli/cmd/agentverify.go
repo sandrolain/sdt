@@ -97,6 +97,23 @@ func agentVerifyChecks() []ctxLintIssue {
 	return issues
 }
 
+// agentVerifyCriticalError converts critical findings to the command's exit
+// error without terminating the caller. Keeping this boundary pure lets tests
+// assert the exact failure as a named Go test; the cobra Run callback remains
+// responsible for enforcing the non-zero process exit.
+func agentVerifyCriticalError(issues []ctxLintIssue) error {
+	critical := 0
+	for _, it := range issues {
+		if it.Priority == ctxLintCritical {
+			critical++
+		}
+	}
+	if critical == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d CRITICAL issue(s)", critical)
+}
+
 var agentVerifyCmd = &cobra.Command{
 	Use:   cmdVerify,
 	Short: "Verify the AGENTS.md instruction contract",
@@ -142,14 +159,8 @@ Examples:
 				}
 			}
 		}
-		critical := 0
-		for _, it := range issues {
-			if it.Priority == ctxLintCritical {
-				critical++
-			}
-		}
-		if critical > 0 {
-			exitWithError(cmd, fmt.Errorf("%d CRITICAL issue(s)", critical))
+		if err := agentVerifyCriticalError(issues); err != nil {
+			exitWithError(cmd, err)
 		}
 	},
 }

@@ -301,7 +301,7 @@ func contextDefaultBody(typ string) string {
 	case ctxTypeWiki:
 		return "## Summary\n\n## Claims\n\n## Notes\n"
 	case ctxTypeBriefing:
-		return "> Derive, don't trust: pair every volatile fact below with the command that derives it, so a reader re-derives it instead of trusting a copy. End with a dated, second-verified delta.\n\n## Artifacts\n\n## Map\n\n## Roles\n\n## Rules\n\n## Derived facts\n\n## Delta\n"
+		return "> Derive, don't trust: pair every volatile fact below with the command that derives it, so a reader re-derives it instead of trusting a copy. End with a dated, second-verified delta.\n\n## Artifacts\n\n## Map\n\n## Roles\n\n## Rules\n\n## Derived facts\n\n## Delta\n\n2026-10-11 — <replace this dated example with the first second-verified change>\n"
 	default:
 		return ""
 	}
