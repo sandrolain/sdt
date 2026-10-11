@@ -54,6 +54,12 @@ planning or writing any non-trivial code.
   exists in the **installed** version (read the installed package's types or
   source), never from memory — a remembered API the installed version lacks is a
   design built on air.
+- Read the API from the toolchain's own doc command (`go doc`, `--help`) before
+  the first call, not memory — defaults and zero values are where the surprise
+  sits. Read a third-party call's contract from the source before adding
+  machinery around it: does it run once, is it idempotent, is it safe
+  concurrently? When this does not apply: no doc command → read the installed
+  package's source.
 - For an unfamiliar library, learn usage from its docs, not by reading its source.
 - Refresh the local docs when the version changes, or when unsure about the API.
 
@@ -81,6 +87,10 @@ in this order:
 Stop at the first rung that works. Reuse beats rewrite: grep every caller and
 fix the shared function once, rather than patching the symptom in one place.
 
+Decompose against the ceiling, do not raise it: a function that trips the
+project's complexity linter is split, never the limit moved. When this does not
+apply: no complexity linter → keep the function readable.
+
 ## Context economy
 
 - **Compress at the boundary.** When a large artefact — a tool output, a log, a
@@ -102,6 +112,8 @@ fix the shared function once, rather than patching the symptom in one place.
   behaviour.
 - Keep the check self-contained: no framework and no fixture ceremony beyond
   what the package already uses.
+- Keep the check robust to formatting: assert a short stable token or a
+  whitespace-normalised form, never re-wrapped prose.
 - If the check would need more code than the logic it guards, simplify the
   logic instead.
 
@@ -114,6 +126,9 @@ fix the shared function once, rather than patching the symptom in one place.
 - Scope a per-edit validation to the **files touched**; run the full suite in the
   plan's Validation phase, not on every edit — a full suite can be slow or hang
   offline, and it gates delivery, not each step.
+- A type-check that skips the test tree is not the build gate: run the project's
+  build before claiming the code compiles. When this does not apply: no
+  type-checker, or one that covers the whole tree, has no gap to mind.
 
 ## Mark deliberate shortcuts
 
@@ -154,6 +169,8 @@ tracks the work.
   formatting; match the existing style.
 - Mention unrelated dead code instead of deleting it; clean up only your own
   mess.
+- Enumerate before you delete: list every usage — call sites, tests, generated
+  artifacts — before removing a symbol; "unused" is a claim to verify.
 
 ## Robustness rules
 

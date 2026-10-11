@@ -22,22 +22,21 @@ unless the guidance is technology-specific, and write in the third person.
 
 ## Spend the reader's context
 
-Progressive disclosure: keep the always-loaded text short and push detail into
-an on-demand file.
+Progressive disclosure: keep always-loaded text short, push detail into an
+on-demand file.
 
 - Word budget: a frequently-loaded instruction under ~200 words; any other under
   ~500. Check with `wc -w`.
 - Point at a command's `--help` instead of restating every flag.
-- Cross-reference by name with an explicit marker (`**REQUIRED:** read
-  `<file>``) — never force-include a file with `@`; it loads immediately and
-  burns context before it is needed.
+- Cross-reference by name with an explicit marker; never force-include a file
+  with `@` — it loads immediately and burns context.
 - Compress examples, and do not repeat what a referenced file already says.
 
 ## Author from a failure, not from a feeling
 
-Watch an agent fail without the rule first (RED). Write the rule that addresses
-exactly that failure, then confirm the agent complies (GREEN). Wording that was
-never tested against a failure is a guess.
+Watch an agent fail without the rule first (RED); write the rule that addresses
+exactly that failure, then confirm compliance (GREEN). Wording never tested
+against a failure is a guess.
 
 Match the form to the failure (form-to-failure):
 
@@ -49,16 +48,21 @@ Match the form to the failure (form-to-failure):
 | Behaviour depends on a condition | A conditional keyed to an observable predicate |
 
 Prohibitions backfire on shaping problems — prefer a recipe. Add no nuance
-clauses ("... unless it matters" reopens the negotiation), and remember that an
-exemption clause does not scope: restructure instead.
+clauses ("... unless it matters" reopens the negotiation); an exemption clause
+does not scope — restructure instead.
 
 ## Micro-test the wording
 
 Before a full run, test the wording: one fresh context per sample, with the
-guidance inside its realistic surroundings; a **no-guidance control** every time
-(if the control does not fail, there is nothing to fix); 5+ repetitions; read
-every flagged match by hand; and treat variance as a signal — five different
-interpretations mean the wording is not binding.
+guidance in its realistic surroundings; a **no-guidance control** every time (if
+the control does not fail, there is nothing to fix); 5+ repetitions, every
+flagged match read by hand. Variance is a signal — five interpretations mean the
+wording is not binding.
+
+## Carry a rule, do not graft it
+
+A rule, template or commit carried from another project or reference names none
+of its source; generalise it first, then cite the target's own files.
 
 ## Where a rule belongs
 
@@ -66,7 +70,8 @@ interpretations mean the wording is not binding.
 - A judgement call the agent must make → an instruction file (here).
 - A mechanical constraint enforceable by a check → automation (a test or lint),
   not prose.
+- A new type in a closed register lands in every surface that enumerates it —
+  register, vocabulary, generated row, template, fixture — in one change.
 
-Editing prose in a document — which patterns read as machine-generated, the
-minimum effective edit and edit-vs-detect mode — is
-`context/instructions/writing.md`.
+Prose editing — machine-generated patterns, the minimum effective edit,
+edit-vs-detect mode — is `context/instructions/writing.md`.

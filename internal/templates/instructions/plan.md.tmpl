@@ -142,7 +142,9 @@ session: <session id>        # optional
   never inferred from a field name; a mismatch found after scheduling is exactly
   the rework this rule prevents.
 - **Out of scope** — work explicitly excluded, to prevent scope creep. Be
-  specific: not just "other things" but named areas.
+  specific: not just "other things" but named areas. State a schema boundary
+  precisely: "no schema change" is ambiguous — say whether optional fields are in
+  scope, so a consumer derived from the plan cannot read it the other way.
 - **Design contract** — the style, architecture and dependency choices this
   plan commits to, agreed with the user before tasks are created (see
   `instructions/development.md`). Each non-trivial choice is stated here so
@@ -174,6 +176,10 @@ session: <session id>        # optional
   7. each phase names the **analysis objectives** it covers; the task file for
      that phase carries a `## Design` study of those objectives (see
      `instructions/tasks.md`).
+  8. a generated artifact and its **registration** ship in the **same phase** —
+     a template without its index row, or a new surface without the table that
+     points to it, leaves the generated set inconsistent and the project's own
+     verification fails on a change that looked complete.
 - **Good vs bad splitting** — bad: one "Implement feature" phase with 15 mixed
   items (schema + backend + CLI + tests in one file). Good: split into phases,
   each with a single deliverable and ≤ ~5 items: schema → backend → CLI → tests.

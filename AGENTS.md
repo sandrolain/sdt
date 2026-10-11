@@ -417,6 +417,25 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
   categorical identity (graph cluster, edge or boundary colour) as a raw value
   with a one-line comment saying why.
   `web/src/styles/tokenMigration.test.ts` guards the elevation role.
+- **Web frontend conventions** (`web/`, React + Vite + Bun + Vitest/jsdom):
+  - **Derive during render.** Compute a value that depends on props or state in
+    the render body — including resetting state during render, React's
+    documented pattern — not in an effect; an effect that only derives state is
+    a defect.
+  - **Reset the store in `afterEach`.** A shared store or module-level state is
+    reset between tests; a change to a shared component or store shape fans out
+    to its tests, so budget for it.
+  - **Await the exact node.** A DOM test waits on the node it asserts, not a
+    sibling or a fixed sleep.
+  - **Register a transition before the value changes.** A CSS transition enabled
+    by the same render that changes the property never runs: set the enabling
+    attribute and force a reflow before the change.
+  - **One date formatter.** `web/src/lib/frontmatter.ts` owns date formatting;
+    never format a date ad hoc in a component.
+  - **An arrow function has no `arguments`.** Use a rest parameter instead.
+  - **A kind change runs the full web gate.** `web/src/lib/kinds.ts` mirrors
+    `cli/cmd/context_types.go`, so a `kind` change runs `bun run test` and the
+    build, not only the Go tests.
 - **Tests**: every new command must have a `_test.go` file; benchmark tests in a
   separate `_bench_test.go`.
 - **Coverage**: minimum 80% per package.

@@ -8,17 +8,33 @@ import (
 	"testing"
 )
 
-// readGolden loads a committed byte-golden fixture under testdata/golden. The
-// fixtures lock the exact bytes of the generated instruction-surface documents;
-// a template edit breaks the match and requires regenerating the fixture
-// deliberately rather than silently changing output on the next init.
-func readGolden(t *testing.T, name string) string {
+// goldenUpdate reports whether the byte-goldens are rewritten instead of
+// compared. It is the documented regeneration path: with UPDATE_GOLDEN=1 a
+// deliberate template edit refreshes the fixtures in one command, instead of a
+// throwaway test that writes the function output to the fixture path by hand.
+func goldenUpdate() bool { return os.Getenv("UPDATE_GOLDEN") == "1" }
+
+// checkGolden compares got against the committed byte-golden name, or rewrites
+// the fixture when UPDATE_GOLDEN=1 is set. The fixtures lock the exact bytes of
+// the generated instruction-surface documents; a template edit breaks the match
+// and requires regenerating the fixture deliberately rather than silently
+// changing output on the next init.
+func checkGolden(t *testing.T, name, got string) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("testdata", "golden", name))
+	fixture := filepath.Join("testdata", "golden", name)
+	if goldenUpdate() {
+		if err := os.WriteFile(fixture, []byte(got), 0o644); err != nil {
+			t.Fatalf("write golden %s: %v", name, err)
+		}
+		return
+	}
+	data, err := os.ReadFile(fixture)
 	if err != nil {
 		t.Fatalf("read golden %s: %v", name, err)
 	}
-	return string(data)
+	if got != string(data) {
+		t.Errorf("%s drifted from its committed golden bytes; regenerate with UPDATE_GOLDEN=1 go test ./cli/cmd -run TestInstructionTemplateBytesGolden", name)
+	}
 }
 
 // TestInstructionTemplateBytesGolden locks the generated documents that the
@@ -36,9 +52,7 @@ func TestInstructionTemplateBytesGolden(t *testing.T) {
 		{"work-readme.md", sdtWorkReadmeContent()},
 	}
 	for _, tc := range cases {
-		if tc.got != readGolden(t, tc.name) {
-			t.Errorf("%s drifted from its committed golden bytes (regenerate the fixture)", tc.name)
-		}
+		checkGolden(t, tc.name, tc.got)
 	}
 }
 
