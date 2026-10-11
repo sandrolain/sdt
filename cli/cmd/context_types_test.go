@@ -22,43 +22,32 @@ const (
 )
 
 func TestContextTypeRegistry(t *testing.T) {
-	// Every expected kind resolves.
-	kinds := []string{
-		ctxTypePlan, ctxTypeAnalysis, ctxTypeWorklog, ctxTypeNotes, ctxTypeQuestions,
-		ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeArchitecture,
-		ctxTypeDecision, ctxTypeTasks, ctxTypeTmp, ctxTypeCommands, ctxTypeWiki,
-		ctxTypeBriefing,
-	}
-	for _, k := range kinds {
-		if _, ok := ctxTypeLookup(k); !ok {
-			t.Errorf("registry missing kind %q", k)
-		}
-	}
-	if got := len(contextTypeList); got != len(kinds) {
-		t.Errorf("registry has %d entries, want %d (unexpected kind added/removed)", got, len(kinds))
-	}
-
-	// No registry entry exceeds the known kind set.
-	for _, e := range contextTypeList {
-		found := false
-		for _, k := range kinds {
-			if e.kind == k {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("registry has unknown kind %q", e.kind)
-		}
-	}
-
-	// No dir is claimed by two types.
+	// The registry is the single source of the kind set: adding a kind is a
+	// one-line change there, and the four surface sets in
+	// TestContextTypeHelpTexts are the drift lock on what a change may alter.
+	// No hand-written kind slice mirrors the registry here.
 	seen := map[string]string{}
 	for _, e := range contextTypeList {
+		if e.kind == "" {
+			t.Error("registry has an entry with an empty kind")
+		}
+		if e.dir == "" {
+			t.Errorf("registry entry %q has an empty dir", e.kind)
+		}
 		if prev, ok := seen[e.dir]; ok {
 			t.Errorf("dir %q claimed by both %q and %q", e.dir, prev, e.kind)
 		}
 		seen[e.dir] = e.kind
+	}
+
+	// Every entry resolves through the lookups the CLI drives off the registry.
+	for _, e := range contextTypeList {
+		if got, ok := ctxTypeLookup(e.kind); !ok || got.dir != e.dir {
+			t.Errorf("ctxTypeLookup(%q) did not resolve its own registry entry", e.kind)
+		}
+		if got, ok := ctxTypeForDir(e.dir); !ok || got.kind != e.kind {
+			t.Errorf("ctxTypeForDir(%q) did not resolve kind %q", e.dir, e.kind)
+		}
 	}
 
 	if _, ok := ctxTypeLookup("bogus"); ok {
@@ -289,16 +278,28 @@ func TestContextInstrPathRegistry(t *testing.T) {
 
 func TestStatusRowsRegistryLabels(t *testing.T) {
 	rows := ctxStatusRows()
-	labels := map[string]bool{}
+	got := map[string]bool{}
 	for _, r := range rows {
-		labels[r.Type] = true
+		got[r.Type] = true
 	}
-	for _, want := range []string{"architecture", "decisions", "analysis", "plan", "notes", "proposal", "prompt", "research", "questions", "tasks", "commands", "worklog"} {
-		if !labels[want] {
-			t.Errorf("status summary missing row %q", want)
+	// The row set is exactly the registry's statusRow kinds, under each kind's
+	// accepted label: a kind that declares statusRow but has no desc entry is a
+	// documented status the view silently dropped (the briefing instance).
+	want := map[string]bool{}
+	for _, e := range ctxTypesWith(func(e ctxDocType) bool { return e.statusRow }) {
+		want[ctxKindLabel(e)] = true
+	}
+	for label := range want {
+		if !got[label] {
+			t.Errorf("status summary missing row %q (registry declares statusRow)", label)
 		}
 	}
-	if labels["tmp"] || labels["wiki"] {
+	for label := range got {
+		if !want[label] {
+			t.Errorf("status summary has row %q that no registry kind declares", label)
+		}
+	}
+	if got["tmp"] || got["wiki"] {
 		t.Errorf("status summary must not include tmp/wiki rows")
 	}
 }

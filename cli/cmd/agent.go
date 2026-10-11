@@ -40,6 +40,7 @@ var agentCmd = &cobra.Command{
 	Long: `Generate and maintain agent instruction files.
 
   agent init       bootstrap AGENTS.md + context/ instruction files
+  agent refresh    re-render the generated surfaces without a full init
 
 AGENTS.md carries the general agent instructions (5-stage lifecycle, knowledge
 tiers, planning and work logs, communication, patterns) in a tagged
@@ -393,39 +394,50 @@ Examples:
 			gitIgnoreResults = append(gitIgnoreResults, *res)
 		}
 
-		// 4. Instruction files under context/instructions/.
-		instrResults := writeInstructionFiles(cfg.Project, cfg.Group, force)
-
-		// 4b. Command files under context/commands/ (thin agent-invokable
-		//     triggers; contracts stay in context/instructions/).
-		cmdResults := writeCommandFiles(cfg.Project, force)
-
-		// 4c. Agent Skills under .agents/skills/ (thin case→instruction
-		//     routers in the open agentskills.io format).
-		skillResults := writeSkillFiles(force)
-
-		// 5. AGENTS.md: ensure the instructions block (--force refreshable) and,
-		//    unless declined, the write-once project block. Prompts only when
-		//    interactive; --project-block forces insertion non-interactively;
-		//    --yes and non-TTY runs default to no block.
+		// 4. Generated surfaces: the instruction files, the command stubs and
+		//    their index, the agent skills and the AGENTS.md instructions block.
+		//    Written by one shared function, so `sdt agent refresh` cannot drift
+		//    from `sdt agent init`.
+		//
+		//    The write-once project block is inserted only when asked (prompt,
+		//    --project-block, or declined by default when --yes/non-TTY): it is
+		//    user-owned and never refreshed.
 		wantProject := getBoolFlag(cmd, "project-block", false)
 		if !wantProject {
 			wantProject = agentPromptBool(cmd, yes, "Insert the `<!-- sdt:begin:project -->` block into AGENTS.md?", false)
 		}
-		mdResult, mdBody := agentMergeTarget(target, cfg.Project, cfg.Group, force, wantProject)
-		if err := os.WriteFile(target, []byte(mdBody), 0o644); err != nil { //#nosec G306 -- user-chosen output file
+		genResults, err := agentRefreshGenerated(cfg, target, force, wantProject)
+		if err != nil {
 			exitWithError(cmd, err)
 		}
 
 		results := []FileResult{configResult}
 		results = append(results, dirResults...)
 		results = append(results, gitIgnoreResults...)
-		results = append(results, instrResults...)
-		results = append(results, cmdResults...)
-		results = append(results, skillResults...)
-		results = append(results, mdResult)
+		results = append(results, genResults...)
 		outputFileResults(cmd, results)
 	},
+}
+
+// agentRefreshGenerated re-renders every generated surface from the embedded
+// templates: the instruction files under context/instructions/, the command
+// stubs and their index under context/commands/, the agent skills under
+// .agents/skills/ and the AGENTS.md instructions block.
+//
+// It is the single writer of the generated set, called by `sdt agent init` and
+// by `sdt agent refresh`, so the two cannot drift. It deliberately does not
+// touch what it does not own: the write-once project block is only inserted
+// when wantProjectBlock asks for it, and the create-only seed files, .sdt.yaml
+// and .gitignore are the caller's business.
+func agentRefreshGenerated(cfg *ProjectConfig, target string, force, wantProjectBlock bool) ([]FileResult, error) {
+	results := writeInstructionFiles(cfg.Project, cfg.Group, force)
+	results = append(results, writeCommandFiles(cfg.Project, force)...)
+	results = append(results, writeSkillFiles(force)...)
+	mdResult, mdBody := agentMergeTarget(target, cfg.Project, cfg.Group, force, wantProjectBlock)
+	if err := os.WriteFile(target, []byte(mdBody), 0o644); err != nil { //#nosec G306 -- user-chosen output file
+		return results, err
+	}
+	return append(results, mdResult), nil
 }
 
 // agentPrompt asks for a value on the terminal. When yes is set, or stdin is

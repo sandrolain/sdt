@@ -39,6 +39,7 @@ generated command reference, see `context/instructions/reference.md`.
   corpus-scanned directories; wiki pages use `sdt context wiki lint`.
 - `sdt agent roles show|init|check` — list the closed role register; generate the role profiles under `context/roles/`; validate profile set, drift and owned-path overlap
 - `sdt agent doctor` — read-only workspace health; `sdt agent verify` — instruction contract; `sdt agent gate` — Build→Vet→Lint→Test
+- `sdt agent refresh` — re-render the generated instruction files, command stubs, skills and the AGENTS.md instructions block, without a full `agent init`
 - `sdt template --tmpl` — render Go templates from JSON/YAML data
 - `sdt extract --type urls|emails|ips|json-blocks|code-blocks|dates`
 - `sdt env parse|get|set|merge` — .env handling
