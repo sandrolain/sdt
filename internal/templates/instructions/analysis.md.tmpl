@@ -53,6 +53,9 @@ categories: [<category>, ...] # optional: work type from context/categories.yaml
                           # (bug, issue, new-feature, feature-change, refactor, improvement, research)
 evidence_class: <class>   # optional: dominant evidence type — fact | observation |
                           # inference | hypothesis | assumption | decision (type, not confidence)
+maturity: <stage>         # optional: cross-kind trust ladder, orthogonal to `status` —
+                          # wip | provisional | established | canonical | superseded | retired;
+                          # established/canonical want `warrant`, superseded wants `superseded_by`
 status: active            # active | draft | completed | archived — statuses defined in the matrix (architecture/stack.md)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
@@ -238,6 +241,22 @@ session: <session id>        # optional
 - Leave **no open points**: if a decision is missing, ask on the fly or register
   it as an open question in `context/questions/`; keep the user in
   control of the decisions.
+- **`maturity` (optional) says how trusted the analysis is, not where it is.**
+  It is the cross-kind trust ladder — `wip` · `provisional` · `established` ·
+  `canonical` · `superseded` · `retired` — and it is orthogonal to `status`: an
+  analysis can be `status: completed` (concluded) and `maturity: provisional`
+  (thin evidence), or `status: active` and `maturity: established`. The
+  vocabulary, its semantics and the two companion keys are defined in
+  `architecture/stack.md` (Optional axes orthogonal to `status`). Set
+  `maturity: established` or `canonical` only with a `warrant` — one compressed
+  line of the evidence that earned it — and `maturity: superseded` only with
+  `superseded_by` naming the successor.
+- **`verified_at` / `verified_against` (optional) date the last check against
+  the source, not the last edit.** For an analysis that reads the codebase or an
+  upstream clone, set both: the RFC3339 date of the re-check and the locator it
+  was made against (a commit sha, a URL, a doc path). `updated` dates the edit
+  and answers neither question — rewriting a stale finding does not re-verify it.
+  The two keys are one stamp; half of one is a lint WARNING.
 - Track work via the 5-stage development lifecycle — see AGENTS.md.
 - Verify-step before finishing — see AGENTS.md (5-stage development lifecycle).
 

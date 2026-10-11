@@ -105,6 +105,8 @@ context: "<objective / what triggered the plan>"
 objective: <slug>         # optional: kebab-case group key shared with the
                           # analysis; inherited by this plan's task files
 status: active            # active | completed | abandoned — statuses defined in the matrix (architecture/stack.md)
+rigor: <P0-P4>            # optional: how much rigour this wave demands of itself
+                          # (see "Rigour dial" below)
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:
@@ -193,6 +195,30 @@ session: <session id>        # optional
 - **Review log** — only if the plan is revised after approval. Not for execution
   progress (that lives in task files). Format: `- <YYYY-MM-DD>: <what changed and why>`.
 
+## Rigour dial (optional)
+
+`rigor` records how much rigour this wave demands of itself, so a cheap wave is
+cheap **on purpose** and a dangerous one is labelled before it ships. It is
+optional; absent means the plan makes no claim. The dial is about the shape of
+the failure the work risks, not about effort or size:
+
+| Dial | The work earns it when… |
+|------|-------------------------|
+| `P0` | the change is trivially reversible and its blast radius is one file |
+| `P1` | the failure is visible in the ordinary workflow — a test, a lint, a failed command |
+| `P2` | the failure surfaces only under an unusual input, load or ordering |
+| `P3` | **the failure mode is invisible to its own author** — it passes review and still ships wrong |
+| `P4` | the failure is silent, expensive and outside this project's ability to notice it |
+
+P3 is the threshold that changes the Validation phase's obligations: when the
+failure mode is invisible to the author, the validate step cannot be "the tests
+pass" — it names the specific evidence that would have caught it, or records
+that no such evidence exists. A plan that quietly ships P3 work as P1 is the
+miscalibration this dial exists to prevent.
+
+`rigor` is a per-plan claim, distinct from the per-phase validation contract: it
+never lowers the gate, it states what the gate has to answer.
+
 ## Frontmatter properties
 
 | Property | Mandatory | Description |
@@ -202,6 +228,7 @@ session: <session id>        # optional
 | context | yes | Objective / what triggered the plan. |
 | objective | no | Kebab-case group key shared with the analysis; analyses, plans and tasks group by it (task files inherit it). |
 | status | yes | `active` / `completed` / `abandoned`. |
+| rigor | no | `P0` / `P1` / `P2` / `P3` / `P4` — how much rigour this wave demands of itself, from the failure shape (see *Rigour dial*). Absent means no claim. |
 | created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
 | updated | yes | ISO 8601 UTC last-edit date, written only by the CLI; refresh a body-only edit with `sdt context touch`. |
 | links | yes | Relative paths to source docs (analysis) and task files. |

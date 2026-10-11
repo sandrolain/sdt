@@ -100,6 +100,10 @@ session: <session id>        # optional
 - [ ] <claim> — CONFIRMED <!-- c5 -->
 - [ ] <claim> — UNVERIFIED <!-- c6 -->
 
+### Disposition          <!-- what kind of gap the review found -->
+
+<CONTEXT-GAP | JUDGMENT-GAP | NONE>
+
 ### Gate                 <!-- appended by `agent gate --record`; a failed run says so -->
 
 2026-01-01T00:00:00Z (sdt agent gate) — passed
@@ -373,6 +377,24 @@ phase does not self-approve.
   deliverable is complete and evidenced against its claims; it does not re-open a
   decision already taken in the analysis. A direction concern is a new analysis
   or an open question, never a review verdict.
+
+### Disposition — what kind of gap the review found
+
+A **verdict** says whether a claim held; the **disposition** says why a review
+that ran did not settle the thing. It is the closed three-value vocabulary, one
+per review, written under `## Review` as a `### Disposition` subsection:
+
+| Disposition | When |
+|-------------|------|
+| `CONTEXT-GAP` | the material the review needed was not available — the file was not written yet, a dependency had not landed, the diff was not reachable. The next step is to produce the missing context, not to redo the judgement. |
+| `JUDGMENT-GAP` | the material was available and the call made on it was wrong, or a claim was made that the evidence does not carry. The next step is a new judgement, with the evidence named. |
+| `NONE` | the review found no gap of either kind. |
+
+The two are not interchangeable: a CONTEXT-GAP reported as a fix produces work on
+a wrong premise, and a JUDGMENT-GAP reported as "waiting on context" hides a
+defect behind an excuse. When the independent pass is impossible
+(**"no independent check was possible"** above), the review is degraded and the
+disposition is `CONTEXT-GAP` — the missing context is the missing reviewer.
 
 Give each finding its own identity with `--finding "<claim>" --verdict <verdict>`
 (repeatable, paired by position): the pairs become one item per finding under the

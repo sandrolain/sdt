@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -57,8 +58,8 @@ const ctxFrontmatterEvidenceClass = "evidence_class"
 
 // ctxEvidenceClassValues is the closed vocabulary for `evidence_class`,
 // confirmed by the R2 research step (plan 20261006-200432): the six evidence
-// types. It deliberately mixes in no confidence/maturity axis, which is a
-// separate future field.
+// types. It deliberately mixes in no confidence/maturity axis: that axis is the
+// separate, cross-kind `maturity` key below.
 var ctxEvidenceClassValues = []string{"fact", "observation", "inference", "hypothesis", "assumption", "decision"}
 
 // ctxEvidenceClassValid reports whether v is in the closed vocabulary.
@@ -69,6 +70,180 @@ func ctxEvidenceClassValid(v string) bool {
 		}
 	}
 	return false
+}
+
+// ── epistemic maturity axis ────────────────────────────────────────────────────
+//
+// `maturity` is the cross-kind trust axis, orthogonal to the per-kind lifecycle
+// `status`: it answers "how much is this claim trusted", not "where is this
+// document in its lifecycle". The key is optional for every kind — absent is
+// valid and lint stays silent — so the axis is adopted without a backfill.
+
+const (
+	ctxFrontmatterMaturity     = "maturity"
+	ctxFrontmatterSupersededBy = "superseded_by"
+	ctxFrontmatterWarrant      = "warrant"
+	ctxMaturitySuperseded      = "superseded"
+	ctxMaturityEstablished     = "established"
+	ctxMaturityCanonical       = "canonical"
+)
+
+// ctxMaturityValues is the closed cross-kind maturity vocabulary. The ladder is
+// ordered trust, not lifecycle: a canonical document may still be `status:
+// active`, and a retired one may have been `active` until today.
+var ctxMaturityValues = []string{"wip", "provisional", ctxMaturityEstablished, ctxMaturityCanonical, ctxMaturitySuperseded, "retired"}
+
+// ctxMaturityWarranted lists the stages a promotion reaches: reaching one
+// without the compressed evidence that earned it is the failure this axis exists
+// to catch, so it is checked (advisory SUGGESTION — the warrant is prose, not a
+// machine-checkable artifact).
+var ctxMaturityWarranted = []string{ctxMaturityEstablished, ctxMaturityCanonical}
+
+func ctxMaturityValid(v string) bool {
+	for _, m := range ctxMaturityValues {
+		if m == v {
+			return true
+		}
+	}
+	return false
+}
+
+func ctxMaturityWarrantRequired(v string) bool {
+	for _, m := range ctxMaturityWarranted {
+		if m == v {
+			return true
+		}
+	}
+	return false
+}
+
+// lintMaturity validates the optional cross-kind `maturity` axis on any kind:
+// an out-of-vocabulary value is a WARNING (the axis is closed, so a typo is a
+// real defect), `superseded` without a `superseded_by` successor is a WARNING
+// (an unlinked supersession orphans the knowledge), and a promotion to
+// `established`/`canonical` without a `warrant` is a SUGGESTION (promotion is a
+// judgement call; the check only asks that the evidence be written down).
+// Absence of any of the three keys is silent on every kind.
+func lintMaturity(path, content string) []ctxLintIssue {
+	maturity := strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterMaturity))
+	if maturity == "" {
+		return nil
+	}
+	var issues []ctxLintIssue
+	if !ctxMaturityValid(maturity) {
+		issues = append(issues, ctxLintIssue{
+			Path:     path,
+			Priority: ctxLintWarning,
+			Message:  fmt.Sprintf("`%s` %q is outside the vocabulary (%s)", ctxFrontmatterMaturity, maturity, strings.Join(ctxMaturityValues, " | ")),
+		})
+		return issues
+	}
+	if maturity == ctxMaturitySuperseded && strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterSupersededBy)) == "" {
+		issues = append(issues, ctxLintIssue{
+			Path:     path,
+			Priority: ctxLintWarning,
+			Message:  "`" + ctxFrontmatterMaturity + ": " + ctxMaturitySuperseded + "` requires `" + ctxFrontmatterSupersededBy + "` naming the successor",
+		})
+	}
+	if ctxMaturityWarrantRequired(maturity) && strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterWarrant)) == "" {
+		issues = append(issues, ctxLintIssue{
+			Path:     path,
+			Priority: ctxLintSuggestion,
+			Message:  "`" + ctxFrontmatterMaturity + ": " + maturity + "` without `" + ctxFrontmatterWarrant + "` (record the compressed evidence that earned the promotion)",
+		})
+	}
+	return issues
+}
+
+// ── last-verified-against-source stamp ─────────────────────────────────────────
+//
+// `verified_at` (when) + `verified_against` (against which locator) are one
+// stamp on a codebase-adjacent document. `updated` dates the *file edit* and
+// cannot answer either question, so the pair is what says how fresh the claims
+// are. Both keys are optional; the rule only fires on a half-stamp.
+
+const (
+	ctxFrontmatterVerifiedAt    = "verified_at"
+	ctxFrontmatterVerifiedAgnst = "verified_against"
+)
+
+// ── wave rigour dial and reviewer disposition ──────────────────────────────────
+
+// ctxFrontmatterRigor is the optional wave rigour dial on a plan.
+const ctxFrontmatterRigor = "rigor"
+
+// ctxRigorValues is the closed rigour dial (plan.md, *Rigour dial*), ordered by
+// how invisible the failure mode is to the work's own author.
+var ctxRigorValues = []string{"P0", "P1", "P2", "P3", "P4"}
+
+// ctxDispositionValues is the closed reviewer disposition vocabulary (tasks.md,
+// *Disposition*), recorded in the `### Disposition` subsection of a task file's
+// `## Review` block. NONE is the third value on purpose: a review that found no
+// gap of either kind must be able to say so rather than pick one.
+var ctxDispositionValues = []string{"CONTEXT-GAP", "JUDGMENT-GAP", "NONE"}
+
+// lintWaveVocabulary validates the optional wave `rigor` dial: a closed dial, so
+// an out-of-range value is a WARNING. Absence is silent on every kind.
+func lintWaveVocabulary(path, content string) []ctxLintIssue {
+	v := strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterRigor))
+	if v == "" || slices.Contains(ctxRigorValues, v) {
+		return nil
+	}
+	return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("`%s` %q is outside the dial (%s)", ctxFrontmatterRigor, v, strings.Join(ctxRigorValues, " | "))}}
+}
+
+// ctxDispositionHeader is the `### Disposition` subsection of a task file's
+// `## Review` block that records what kind of gap the review found.
+const ctxDispositionHeader = "### Disposition"
+
+// lintReviewDisposition checks that a recorded `### Disposition` subsection names
+// one value from the closed vocabulary. The value is the first non-empty line of
+// the subsection, so the heading stays a heading and the recorded value is a
+// single token a reader (or lint) cannot misread. An absent subsection is
+// silent: the disposition is the reviewer's judgement to record, not a field the
+// CLI forces on every closed task file.
+func lintReviewDisposition(path, content string) []ctxLintIssue {
+	lines := strings.Split(content, "\n")
+	review := indexOfTrimmedLine(lines, ctxReviewBlockHeader, 0, len(lines))
+	if review < 0 {
+		return nil
+	}
+	end := sectionEnd(lines, review, 2)
+	at := indexOfTrimmedLine(lines, ctxDispositionHeader, review+1, end)
+	if at < 0 {
+		return nil
+	}
+	subsectionEnd := sectionEnd(lines, at, 3)
+	value := ""
+	for i := at + 1; i < subsectionEnd; i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "<!--") {
+			continue
+		}
+		value = strings.Fields(line)[0]
+		break
+	}
+	if value == "" || slices.Contains(ctxDispositionValues, value) {
+		return nil
+	}
+	return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("review `%s` %q is outside the vocabulary (%s)", ctxDispositionHeader, value, strings.Join(ctxDispositionValues, " | "))}}
+}
+
+// lintVerifiedStamp reports a `verified_at`/`verified_against` stamp missing half
+// of itself (WARNING). A date with no locator claims a check nobody can repeat; a
+// locator with no date cannot age. Neither key present is silent.
+func lintVerifiedStamp(path, content string) []ctxLintIssue {
+	at := strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterVerifiedAt))
+	against := strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterVerifiedAgnst))
+	switch {
+	case at == "" && against == "":
+		return nil
+	case at == "":
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "`" + ctxFrontmatterVerifiedAgnst + "` without `" + ctxFrontmatterVerifiedAt + "` (the stamp is a pair; set both or neither)"}}
+	case against == "":
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "`" + ctxFrontmatterVerifiedAt + "` without `" + ctxFrontmatterVerifiedAgnst + "` (a date with no locator claims a check nobody can repeat)"}}
+	}
+	return nil
 }
 
 // lintEvidenceClass validates the optional `evidence_class` scalar on analyses
@@ -87,7 +262,7 @@ func lintEvidenceClass(path, content, kind string) []ctxLintIssue {
 
 // ctxReferenceFields are the frontmatter list fields that carry document
 // references validated against the context tree.
-var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, ctxFrontmatterDerivedFrom, ctxFrontmatterResults, ctxTypeSupersedes, ctxFrontmatterContradicts, ctxFrontmatterEvidence}
+var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, ctxFrontmatterDerivedFrom, ctxFrontmatterResults, ctxTypeSupersedes, ctxFrontmatterSupersededBy, ctxFrontmatterContradicts, ctxFrontmatterEvidence}
 
 func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
@@ -504,6 +679,10 @@ func lintDoc(path string) []ctxLintIssue {
 	issues = append(issues, lintTaskObjectiveLegacy(path, content, kind)...)
 	issues = append(issues, lintQuestionsDeferredReason(path, content, kind)...)
 	issues = append(issues, lintEvidenceClass(path, content, kind)...)
+	issues = append(issues, lintMaturity(path, content)...)
+	issues = append(issues, lintVerifiedStamp(path, content)...)
+	issues = append(issues, lintWaveVocabulary(path, content)...)
+	issues = append(issues, lintReviewDisposition(path, content)...)
 	issues = append(issues, lintBriefing(path, content, kind)...)
 	// Immutable identifier: presence (severity flips after the backfill) and
 	// canonical UUIDv7 form. Duplicate detection is corpus-wide (below).

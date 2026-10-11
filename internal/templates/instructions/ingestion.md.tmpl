@@ -176,9 +176,14 @@ X when Y"), never as a fact.
 | `verified` | no | `false` for unverified/imported claims |
 | `supersedes` | no | node id replaced by this page |
 | `transformation` | when abstracting | the generalisation note: the level chosen and the substitution performed (prose, not lint-enforced) |
-| `confidence` | no | `high` · `medium` · `low` — graded confidence, distinct from `verified` |
+| `confidence` | no | `high` · `medium` · `low` — graded confidence for a single claim, distinct from `verified` and from the document-level `maturity` |
 | `validity` | no | `stable` · `evolving` · `dated` — intrinsic time-sensitivity |
 | `valid_until` | no | date, used with `validity: evolving` |
+| `maturity` | no | `wip` · `provisional` · `established` · `canonical` · `superseded` · `retired` — cross-kind trust ladder, orthogonal to `status`; `established`/`canonical` want `warrant`, `superseded` wants `superseded_by` |
+| `warrant` | no | one compressed line of the evidence that earned a promotion |
+| `superseded_by` | no | node id that replaced this page, required by `maturity: superseded` |
+| `verified_at` | no | RFC3339 date of the last re-check of the claims against their sources |
+| `verified_against` | no | the locator checked (clone sha, URL, doc path); pairs with `verified_at`, neither alone |
 
 **Subdirectories** (optional, one level by default): `wiki/<context>/<slug>.md`
 groups pages by context label — the subdir name is a kebab-case context

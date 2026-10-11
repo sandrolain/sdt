@@ -19,6 +19,12 @@ var ctxDeclaredKeys = map[string]bool{
 	ctxFrontmatterTopics: true, "entities": true, "categories": true,
 	// Lifecycle.
 	ctxMapStatus: true, "created": true, statusUpdated: true,
+	// Optional axes orthogonal to `status`: the cross-kind trust ladder and its
+	// companions, and the last-verified-against-source stamp.
+	ctxFrontmatterMaturity: true, ctxFrontmatterSupersededBy: true, ctxFrontmatterWarrant: true,
+	ctxFrontmatterVerifiedAt: true, ctxFrontmatterVerifiedAgnst: true,
+	// Wave rigour dial (plans).
+	ctxFrontmatterRigor: true,
 	// Relations.
 	ctxFrontmatterLinks: true, "sources": true, "supersedes": true, ctxFrontmatterContradicts: true,
 	ctxKeyAnalysisID: true, ctxKeyPlanID: true, ctxKeyPlansIDs: true, ctxKeyTasksIDs: true,
