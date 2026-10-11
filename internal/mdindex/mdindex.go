@@ -29,7 +29,7 @@ import (
 )
 
 // ManifestVersion invalidates a cached manifest when the scan model changes.
-const ManifestVersion = 4
+const ManifestVersion = 5
 
 // kindTasks is the frontmatter kind of a task file: the only kind
 // whose plan reference and objective are derived rather than declared.
@@ -246,7 +246,7 @@ func parseEntry(root, id, path string) (*Entry, error) {
 		Kind:       contextwiki.FrontmatterField(content, "kind"),
 		Status:     contextwiki.FrontmatterField(content, "status"),
 		Objective:  contextwiki.FrontmatterField(content, "objective"),
-		Title:      contextwiki.FrontmatterField(content, "title"),
+		Title:      contextwiki.FrontmatterTitle(content),
 		Summary:    contextwiki.FrontmatterField(content, "summary"),
 		Topics:     contextwiki.FrontmatterList(content, "topics"),
 		Entities:   contextwiki.FrontmatterList(content, "entities"),

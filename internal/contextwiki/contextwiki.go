@@ -161,7 +161,7 @@ type Link struct {
 func (p *Page) Active() bool { return p.Status == StatusActive }
 
 // ExplicitTitle reports whether the frontmatter declares an explicit title.
-func (p *Page) ExplicitTitle() bool { return FrontmatterField(p.Frontmatter, "title") != "" }
+func (p *Page) ExplicitTitle() bool { return FrontmatterTitle(p.Frontmatter) != "" }
 
 // SplitFrontmatter returns the full outer "---\n...\n---" block (or "" when
 // absent) and the body after it. A trailing newline after the closing
@@ -186,6 +186,24 @@ func SplitFrontmatter(content string) (fm string, body string) {
 // when absent or malformed. A single wrapping pair of quotes is stripped so
 // callers never see YAML quoting.
 func FrontmatterField(content, key string) string {
+	return trimYAMLQuotes(frontmatterRawField(content, key))
+}
+
+// FrontmatterTitle returns the decoded top-level YAML title, or "" when
+// absent or malformed.
+func FrontmatterTitle(content string) string {
+	raw := frontmatterRawField(content, "title")
+	if raw == "" {
+		return ""
+	}
+	values, shape, err := frontmatter.ParseListValue(raw)
+	if err == nil && shape == frontmatter.ShapeScalar && len(values) == 1 {
+		return values[0]
+	}
+	return trimYAMLQuotes(raw)
+}
+
+func frontmatterRawField(content, key string) string {
 	lines := strings.Split(content, "\n")
 	if len(lines) < 2 || strings.TrimSpace(lines[0]) != frontmatterDelim {
 		return ""
@@ -195,7 +213,7 @@ func FrontmatterField(content, key string) string {
 			return ""
 		}
 		if strings.HasPrefix(line, key+":") {
-			return trimYAMLQuotes(strings.TrimSpace(strings.TrimPrefix(line, key+":")))
+			return strings.TrimSpace(strings.TrimPrefix(line, key+":"))
 		}
 	}
 	return ""
@@ -371,7 +389,7 @@ func ParseContent(content, path, fileID string) *Page {
 		Body:        body,
 		Kind:        FrontmatterField(fm, "kind"),
 		ID:          FrontmatterField(fm, "id"),
-		Title:       FrontmatterField(fm, "title"),
+		Title:       FrontmatterTitle(fm),
 		Type:        FrontmatterField(fm, "type"),
 		Status:      FrontmatterField(fm, "status"),
 		Summary:     FrontmatterField(fm, "summary"),

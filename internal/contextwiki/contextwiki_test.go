@@ -432,3 +432,10 @@ func TestFrontmatterFieldStripsQuotes(t *testing.T) {
 		}
 	}
 }
+
+func TestFrontmatterTitleDecodesYAMLEscapes(t *testing.T) {
+	fm := "---\ntitle: \"UI/UX \\u2014 tokens by intent\"\n---\n"
+	if got, want := FrontmatterTitle(fm), "UI/UX — tokens by intent"; got != want {
+		t.Errorf("FrontmatterTitle() = %q, want %q", got, want)
+	}
+}

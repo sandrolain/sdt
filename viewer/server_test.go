@@ -899,6 +899,36 @@ func TestTreeQuotedFrontmatter(t *testing.T) {
 	t.Error("analysis entry not found")
 }
 
+func TestTreeEscapedUnicodeTitle(t *testing.T) {
+	root := makeCorpus(t)
+	writeFixture(t, root, "context/instructions/ui-tokens.md",
+		"---\nkind: instructions\ntitle: \"UI/UX \\u2014 tokens by intent\"\n---\n\nbody\n")
+	h, err := newHandler(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Entries []treeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range out.Entries {
+		if entry.Path == "context/instructions/ui-tokens.md" {
+			if entry.Title != "UI/UX — tokens by intent" {
+				t.Errorf("title = %q, want decoded Unicode", entry.Title)
+			}
+			return
+		}
+	}
+	t.Fatal("tree entry not found")
+}
+
 func TestTreeCategoriesEntry(t *testing.T) {
 	root := makeCorpus(t)
 	writeFixture(t, root, "context/analysis/categorized-x.md",
