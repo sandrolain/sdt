@@ -1,14 +1,16 @@
 /**
  * DashboardView — the `/docs/dashboard` surface (the app's default page): the
  * corpus overview as draggable dockview panels (persisted), falling back to a
- * static widget grid in tests. Every widget reads `/api/tree`; no extra fetch.
+ * static widget grid in tests. Every widget reads `/api/tree`, except the TODO
+ * panel which reads the register through the read-only `/api/todo`.
  */
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { DockviewReact, type IDockviewPanelProps } from "dockview-react";
-import type { TreeEntry } from "../lib/api";
+import type { TodoItem, TodoResponse, TreeEntry } from "../lib/api";
 import { categoryColor, categoryIcon } from "../lib/categories";
 import { useCorpusEntries } from "../lib/corpusView";
+import { fetchJSON } from "../lib/fetchJson";
 import { formatFieldDateOnly } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { entryKind, kindColor, kindIcon, kindLabel, KIND_ORDER } from "../lib/kinds";
@@ -262,9 +264,63 @@ function RecentWidget() {
   );
 }
 
+/** One-shot read of the TODO register; a failure or an absent register is an
+ *  empty inbox, never a dashboard error (the register is CLI-owned, optional). */
+function useTodos(): { items: TodoItem[]; error: string | null; loading: boolean } {
+  const [state, setState] = useState<{ items: TodoItem[]; error: string | null; loading: boolean }>(
+    {
+      items: [],
+      error: null,
+      loading: true,
+    },
+  );
+  useEffect(() => {
+    let alive = true;
+    fetchJSON<TodoResponse>("/api/todo")
+      .then((res) => {
+        if (alive) setState({ items: res.items ?? [], error: null, loading: false });
+      })
+      .catch((err: unknown) => {
+        if (alive) {
+          setState({
+            items: [],
+            error: err instanceof Error ? err.message : String(err),
+            loading: false,
+          });
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return state;
+}
+
+/** The TODO inbox, undone first (the promotional half of the register). */
+function TodosWidget() {
+  const { items, error, loading } = useTodos();
+  if (loading) return <SkeletonLines count={4} label="Loading todos" />;
+  if (error) return <p className="content__empty">TODO inbox unavailable.</p>;
+  if (items.length === 0) return <p className="content__empty">No ideas in the inbox.</p>;
+  const ordered = items
+    .slice()
+    .sort((a, b) => Number(a.done) - Number(b.done) || b.created.localeCompare(a.created));
+  return (
+    <ul className="dashboard__todos" role="list">
+      {ordered.map((it) => (
+        <li key={it.id} className={`dashboard__todo${it.done ? " is-done" : ""}`}>
+          <Icon name={it.done ? "check_box" : "check_box_outline_blank"} />
+          <span className="dashboard__todo-text">{it.text}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** The dashboard widgets, in order: id, panel title, dockview component, width. */
 const WIDGETS: { id: string; title: string; component: string; wide?: boolean }[] = [
   { id: "documents", title: "Documents", component: "documents", wide: true },
+  { id: "todos", title: "TODO", component: "todos" },
   { id: "status", title: "Status", component: "status" },
   { id: "questions", title: "Open questions", component: "questions" },
   { id: "plans", title: "Active plans", component: "plans" },
@@ -347,6 +403,8 @@ function WidgetBody({ component }: { component: string }) {
   switch (component) {
     case "documents":
       return <DocumentsWidget />;
+    case "todos":
+      return <TodosWidget />;
     case "status":
       return <StatusWidget />;
     case "questions":

@@ -180,6 +180,7 @@ func newServerWith(root string, opts semanticOptions, overrides *semanticOverrid
 func (s *server) mux() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tree", s.handleTree)
+	mux.HandleFunc("/api/todo", s.handleTodo)
 	mux.HandleFunc("/api/doc", s.handleDoc)
 	mux.HandleFunc("/api/file", s.handleFile)
 	mux.HandleFunc("/api/search", s.handleSearch)

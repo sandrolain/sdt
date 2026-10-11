@@ -7,6 +7,7 @@ import { Tree } from "./Tree";
 import { resetTreeSort, setTreeSortKey } from "../lib/treeSortStore";
 import { resetTreeFilter, setGroupMode, setHiddenStates } from "../lib/treeFilterStore";
 import { clearReadingState, recordReading } from "../lib/readingState";
+import { resetPinnedDocs } from "../lib/pinnedDocs";
 
 const TREE = {
   entries: [
@@ -1390,5 +1391,42 @@ describe("Tree", () => {
       await userEvent.click(recent.querySelector("summary") as HTMLElement);
       await waitFor(() => expect(recent.open).toBe(true));
     });
+  });
+});
+
+describe("Tree pin affordance", () => {
+  afterEach(() => {
+    cleanup();
+    resetTreeSort();
+    resetTreeFilter();
+    clearReadingState();
+    resetPinnedDocs();
+    vi.restoreAllMocks();
+  });
+
+  it("offers the pin inside the row and toggles the pinned state", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(TREE) }),
+    ) as unknown as typeof fetch;
+    renderTree();
+    const link = (await screen.findByText("Alpha")).closest("a.tree-entry") as HTMLAnchorElement;
+    const pin = link.querySelector(".tree-entry__pin") as HTMLButtonElement;
+    expect(pin).toBeTruthy();
+    expect(link.classList.contains("is-pinned")).toBe(false);
+    expect(pin.getAttribute("aria-pressed")).toBe("false");
+    // keyboard-operable: the control takes focus
+    pin.focus();
+    expect(document.activeElement).toBe(pin);
+    await userEvent.click(pin);
+    await waitFor(() =>
+      expect(document.querySelector("a.tree-entry.is-pinned")?.getAttribute("href")).toBe(
+        "/docs/context/wiki/alpha.md",
+      ),
+    );
+    expect(
+      document
+        .querySelector("a.tree-entry.is-pinned .tree-entry__pin")
+        ?.getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 });

@@ -655,11 +655,12 @@
     background: var(--bg-base);
   }
   /* The tree panel is a fixed toolbar plus a scroll region, so the kind
-     headers can stick to the top of the scroll region (not the whole panel). */
+     headers can stick to the top of the scroll region (not the whole panel).
+     No border-right: the dockview sash already separates the panel, and a
+     second line against it is a duplicate separator (analysis 20261011-134954). */
   .panel--tree {
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border);
     /* let the edge group shrink below its content's min-content width */
     min-width: 0;
     overflow: hidden;
@@ -1190,26 +1191,41 @@
   .tree-entry__dot--draft {
     background: var(--draft);
   }
-  /* Pin toggle: hidden until the row is hovered/focused, or always shown when
-     the document is pinned. */
+  /* Pin toggle: it replaces the leading glyph slot on hover/focus and is
+     always shown for a pinned document. It is positioned over that slot, so an
+     idle row reserves no trailing width for it (analysis 20261011-134954). */
   .tree-entry__pin {
-    flex: none;
+    position: absolute;
+    left: 0.75rem;
+    top: 0.25rem;
+    width: 1.35rem;
+    height: 1.35rem;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     padding: 0;
     border: 0;
     background: none;
     color: var(--fg-faint);
     cursor: pointer;
     opacity: 0;
+    pointer-events: none;
   }
   .tree-entry__pin .ms-icon {
     font-size: 0.95rem;
   }
+  /* the pin occupies the glyph slot: hide the leading glyph it replaces */
+  .tree-entry:hover > .tree-entry__glyph,
+  .tree-entry:focus-within > .tree-entry__glyph,
+  .tree-entry.is-pinned > .tree-entry__glyph {
+    visibility: hidden;
+  }
   .tree-entry:hover .tree-entry__pin,
+  .tree-entry:focus-within .tree-entry__pin,
   .tree-entry__pin:focus-visible,
   .tree-entry__pin.is-pinned {
     opacity: 1;
+    pointer-events: auto;
   }
   .tree-entry__pin.is-pinned {
     color: var(--accent);
@@ -1229,6 +1245,7 @@
     padding: 0;
   }
   .tree-entry {
+    position: relative;
     display: flex;
     align-items: flex-start;
     gap: 0.5rem;
@@ -1887,6 +1904,29 @@
   }
   .dashboard__stat-value {
     color: var(--fg-faint);
+  }
+  /* TODO inbox panel: undone items first, done ones struck through */
+  .dashboard__todos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .dashboard__todo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+  }
+  .dashboard__todo.is-done {
+    color: var(--fg-faint);
+    text-decoration: line-through;
+  }
+  .dashboard__todo-text {
+    flex: 1;
+    min-width: 0;
   }
   .dashboard__cloud {
     display: flex;

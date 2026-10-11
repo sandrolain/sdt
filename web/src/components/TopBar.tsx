@@ -34,6 +34,16 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
       <nav className="top-bar__tabs" aria-label="Primary">
         <div className="top-bar__group">
           <NavLink
+            to="/docs/dashboard"
+            end
+            className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
+          >
+            <Icon name="dashboard" />
+            Dashboard
+          </NavLink>
+        </div>
+        <div className="top-bar__group">
+          <NavLink
             to="/docs"
             className={({ isActive }) =>
               `top-bar__tab${isActive && !pathname.startsWith("/docs/map") ? " is-active" : ""}`
@@ -51,7 +61,6 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
             Map
           </NavLink>
           {[
-            { to: "/docs/dashboard", icon: "dashboard", label: "Dashboard" },
             { to: "/docs/gallery", icon: "grid_view", label: "Gallery" },
             { to: "/docs/timeline", icon: "timeline", label: "Timeline" },
             { to: "/docs/kanban", icon: "view_kanban", label: "Kanban" },

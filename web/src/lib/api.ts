@@ -64,6 +64,20 @@ export interface ErrorResponse {
   error: string;
 }
 
+/** One TODO inbox item (`GET /api/todo`, read from context/todo.yaml). */
+export interface TodoItem {
+  id: string;
+  text: string;
+  created: string;
+  source?: string;
+  tags?: string[];
+  done: boolean;
+}
+
+export interface TodoResponse {
+  items: TodoItem[];
+}
+
 export interface WikiGraphNode {
   id: string;
   title: string;

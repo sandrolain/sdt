@@ -43,6 +43,29 @@ describe("TopBar", () => {
     );
   });
 
+  it("orders the tabs with Dashboard first and one hairline-separated group per section", () => {
+    renderTopBar("/docs");
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    const labels = Array.from(nav.querySelectorAll("a.top-bar__tab")).map((a) => {
+      // strip the leading Material Symbols ligature (the icon's text content)
+      const glyph = a.querySelector(".ms-icon")?.textContent ?? "";
+      return (a.textContent ?? "").replace(glyph, "").trim();
+    });
+    expect(labels).toEqual([
+      "Dashboard",
+      "Documents",
+      "Map",
+      "Gallery",
+      "Timeline",
+      "Kanban",
+      "Graph",
+      "Board",
+    ]);
+    // three sibling groups → the existing `.top-bar__group + .top-bar__group`
+    // rule draws the hairline separator; no new CSS is added
+    expect(nav.querySelectorAll(":scope > .top-bar__group").length).toBe(3);
+  });
+
   it("highlights the Graph entry under the wiki graph route", () => {
     renderTopBar("/wiki/graph");
     expect(screen.getByRole("link", { name: /Graph/ }).getAttribute("aria-current")).toBe("page");

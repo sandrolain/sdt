@@ -31,10 +31,20 @@ const MOCK_TREE = {
   ],
 };
 
+const MOCK_TODO = {
+  items: [
+    { id: "t-done", text: "Shipped idea", created: "2026-09-10", done: true },
+    { id: "t-open", text: "Open idea", created: "2026-09-12", done: false },
+  ],
+};
+
 function mockFetch() {
   globalThis.fetch = vi.fn((url: string) => {
     if (url === "/api/tree") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_TREE) });
+    }
+    if (url === "/api/todo") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_TODO) });
     }
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
   }) as unknown as typeof fetch;
@@ -77,5 +87,31 @@ describe("corpus views", () => {
     renderView(<DashboardView />);
     expect(await screen.findByText("2")).toBeTruthy();
     expect(screen.getByText("Recent activity")).toBeTruthy();
+  });
+
+  it("dashboard surfaces the TODO inbox, undone first", async () => {
+    mockFetch();
+    renderView(<DashboardView />);
+    const open = await screen.findByText("Open idea");
+    expect(screen.getByText("Shipped idea")).toBeTruthy();
+    const texts = Array.from(
+      document.querySelectorAll(".dashboard__todos .dashboard__todo-text"),
+    ).map((n) => n.textContent);
+    expect(texts).toEqual(["Open idea", "Shipped idea"]);
+    expect(open.closest(".dashboard__todo")?.classList.contains("is-done")).toBe(false);
+  });
+
+  it("dashboard shows an empty TODO inbox without failing", async () => {
+    globalThis.fetch = vi.fn((url: string) => {
+      if (url === "/api/tree") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_TREE) });
+      }
+      if (url === "/api/todo") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
+    }) as unknown as typeof fetch;
+    renderView(<DashboardView />);
+    expect(await screen.findByText("No ideas in the inbox.")).toBeTruthy();
   });
 });

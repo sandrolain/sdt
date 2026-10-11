@@ -842,7 +842,9 @@ function TreeEntryRow({
             ? `/wiki/board?file=${encodeURIComponent(entry.path)}`
             : `/docs/${entry.path}`
         }
-        className={({ isActive }) => `tree-entry${isActive ? " is-active" : ""}`}
+        className={({ isActive }) =>
+          `tree-entry${isActive ? " is-active" : ""}${pinned ? " is-pinned" : ""}`
+        }
         title={`${entry.summary || entry.path} · ${kindName}`}
         end
       >
