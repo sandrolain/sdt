@@ -21,6 +21,12 @@ describe("frontmatterTitle", () => {
     expect(frontmatterTitle("---\ntitle: 'Single'\n---\n")).toBe("Single");
   });
 
+  it("decodes Unicode escapes in a double-quoted YAML title", () => {
+    expect(frontmatterTitle('---\ntitle: "UI/UX \\u2014 tokens by intent"\n---\n')).toBe(
+      "UI/UX — tokens by intent",
+    );
+  });
+
   it("returns empty when missing", () => {
     expect(frontmatterTitle("---\nkind: wiki\n---\n")).toBe("");
     expect(frontmatterTitle(undefined)).toBe("");

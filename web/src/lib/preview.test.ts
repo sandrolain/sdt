@@ -51,6 +51,12 @@ describe("previewMeta", () => {
     });
   });
 
+  it("decodes Unicode escapes in preview titles", () => {
+    expect(
+      previewMeta("context/notes/x.md", '---\ntitle: "UI/UX \\u2014 tokens"\n---\n').title,
+    ).toBe("UI/UX — tokens");
+  });
+
   it("falls back to the path-derived title", () => {
     expect(previewMeta("context/notes/x.md", undefined).title).toBe("X");
   });

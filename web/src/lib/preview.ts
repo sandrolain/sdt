@@ -1,5 +1,5 @@
 import { parseFrontmatter } from "./frontmatter";
-import { displayTitle } from "./titles";
+import { displayTitle, frontmatterTitle } from "./titles";
 
 /** Metadata card shown on link hover. */
 export interface PreviewMeta {
@@ -42,7 +42,7 @@ export function previewMeta(path: string, frontmatter?: string): PreviewMeta {
   const fields = parseFrontmatter(frontmatter);
   const value = (key: string) => fields.find((f) => f.key === key)?.values[0] ?? "";
   return {
-    title: value("title") || displayTitle({ path }),
+    title: frontmatterTitle(frontmatter) || displayTitle({ path }),
     summary: value("summary"),
     created: value("created"),
     modified: value("updated"),

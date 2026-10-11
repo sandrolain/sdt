@@ -1,9 +1,19 @@
 /** Display-title helpers shared across components. */
 
-/** Frontmatter `title` value, with surrounding quotes stripped, or "" when absent. */
+/** Frontmatter `title` value, or "" when absent. */
 export function frontmatterTitle(frontmatter?: string): string {
   const match = frontmatter?.match(/^title:\s*(.+)$/m)?.[1];
-  return match?.trim().replace(/^["']|["']$/g, "") ?? "";
+  if (!match) return "";
+  const value = match.trim();
+  if (value.startsWith('"') && value.endsWith('"')) {
+    try {
+      const decoded: unknown = JSON.parse(value);
+      if (typeof decoded === "string") return decoded;
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+    }
+  }
+  return value.replace(/^["']|["']$/g, "");
 }
 
 /** Strip a single wrapping pair of "double" or 'single' quotes. */
