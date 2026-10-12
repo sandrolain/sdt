@@ -105,6 +105,30 @@ apply: no complexity linter → keep the function readable.
 - **No-op when nothing is compressed.** These rules apply only when a boundary
   compression happens; a small artefact is passed through unchanged.
 
+## Keep the always-loaded surface stable
+
+The always-loaded block is re-sent on every turn, so its bytes are paid for
+every turn.
+
+- **Stable content first.** Put what rarely changes ahead of what changes often:
+  volatile ids, timestamps, counters, session ids and run-specific names belong
+  at the end of a generated surface or outside it, not in the first block a reader
+  loads. Where the host caches a request prefix, a changed byte there re-sends the
+  whole prefix; where it does not, the rule costs nothing and the ordering still
+  reads better.
+- **Degrade to pointers, and say what you dropped.** When the always-loaded
+  surface outgrows a session, the lower-priority tiers degrade to pointers — a
+  path plus one line — instead of being inlined. Report the omission in the same
+  turn: which tier was degraded and what a reader must open to recover it. A
+  silent drop is worse than a large index, because it reads as complete.
+- **Name the degradation trigger.** Re-curate the tier when output quality falls
+  in a way the work itself explains: repeated re-reads of a file already read,
+  invented details that the corpus would have supplied, instructions ignored that
+  were in context. Treat these as the signal to re-derive the tier, not as the
+  work.
+- When this does not apply: a session that loads a fixed, small surface has
+  nothing to degrade and no trigger to watch for.
+
 ## One runnable check
 
 - For non-trivial logic, leave exactly one executable check that proves it

@@ -216,6 +216,42 @@ record of progress in durable files — this task file, the plan and the worklog
 not only in short-lived todos; narration between steps is at most one short
 line.
 
+**Batched reads.** Read for breadth, not one file at a time:
+
+- **Batch what a single command can return** (one `list`, one `search` over the
+  whole corpus) instead of a call per candidate; several files the same question
+  needs come back in one round.
+- **Broad exploration goes to a sub-agent.** When a phase needs the surrounding
+  code or corpus surveyed, dispatch a bounded exploration to a sub-agent and take
+  back its findings: the bulk never enters this context, and the sub-agent's
+  answer is a pointer plus the load-bearing lines.
+- **Keep the original retrievable.** A batched or summarised result names its
+  files so they can be re-read exactly (`development.md`, *Context economy*).
+- When this does not apply: a phase that reads two known files needs no batch.
+
+**Re-inject the hard rule at a boundary.** A rule that matters in every phase
+loses force when a long execution has pushed it out of the recent window. Restate
+it at each phase boundary — at take-in, and when a phase closes — in one line,
+pointing at the owning contract rather than restating it. When this does not
+apply: a phase short enough to hold it needs no re-injection.
+
+**The replacement note.** When a long task loses its working state — a
+compaction, a context switch, a fresh session — the next reader needs a note with
+fixed parts, not a narration:
+
+| Part | Carries |
+|------|---------|
+| Goal | what this work is for, in one line |
+| Files | the paths already touched and their state |
+| Decisions | each ruling and its reason |
+| Next | the exact next step, not a summary of the plan |
+| Failed attempts | every approach tried that did not work, **and why it failed** |
+
+- The failed-attempts row is the part that pays: an approach recorded without its
+  reason is repeated, because the next reader cannot tell a dead end from a gap.
+- Write it into the task file, the plan or the worklog — a place that survives the
+  session — never into the conversation alone.
+
 **Rulings, not stalls.** Inside an approved plan, settle execution-level details
 the plan already authorizes and record each as
 `Ruling: <what was decided> — <why> — <cost if wrong>` in the task file or

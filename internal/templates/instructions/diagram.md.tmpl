@@ -14,6 +14,7 @@ written in the project's text-diagram dialect, read it together with
 `context/instructions/development.md` (the process contract: agreement,
 library-first, simplicity, surgical changes). It names no rendering tool: a
 diagram is a document, and any tool that reads the chosen dialect can draw it.
+The target is stated per artefact in the project, not here.
 
 ## When this applies (no-op rule)
 
@@ -60,6 +61,18 @@ plausible picture.
 - Start from the automatic route; pin a side or add a detour only for a measured
   defect.
 
+## Budget the density
+
+A diagram that needs more than a glance is two diagrams. Defaults, overridable
+by the project: **≤9 nodes, ≤12 edges, ≤2 accent colours**.
+
+- Over the budget, do not shrink the type or the labels: **split the picture or
+  draw nothing.** A second diagram with a stated scope beats one unreadable one.
+- **Ceiling**: covers a single-page reading view; a poster or a wall map states
+  its own budget and says so.
+- **Upgrade trigger**: the project adopts a renderer that can measure density,
+  and the budget becomes measured rather than counted.
+
 ## Measured, not "pretty"
 
 - A label keeps a clear gap from the line it labels; a segment has a minimum
@@ -86,10 +99,41 @@ plausible picture.
 - Strip focus, glow, overlays and temporary marks from a canonical export.
 - Never invent a node, an edge or a boundary the source does not support.
 
+Per type, the honesty rule is concrete, not a principle restated:
+
+- **Quantitative axes are never truncated.** A value axis that starts above the
+  minimum, or ends below the maximum, misreads as the data's range; taking min
+  and max as the bounds *is* the truncation.
+- **Funnel and pyramid widths are proportional to the count** they stand for.
+  Equal widths for unequal counts overstate the smaller.
+- **A delta, migration or before/after view does not establish order, downtime
+  or causality.** It shows two states; the sequence is a claim needing its own
+  source.
+- **Never invent a component to fill a layout, and never silently drop one** that
+  the source carries. If it cannot be drawn, say which and why.
+
+## Structure has a provenance
+
+Name where the structure comes from before drawing it: a source, a derivation, or
+the code itself.
+
+- A diagram **restates a structure it derived from a named source**. A diagram
+  whose shape was chosen for legibility and then given a story is the failure
+  this rule catches.
+- **The code layer is not drawn by hand.** When the diagram describes code, derive
+  it from the code or say it is schematic; hand-drawn code diagrams drift from
+  the code silently and nothing fails.
+- **A diagram that restates a short list is furniture.** If the source is three
+  numbered steps, the list is the better artefact.
+
 ## Boundary
 
 - Tool choice, install and any code defer to `context/instructions/development.md`
   (library-first, simplicity, surgical changes).
 - Dialect syntax and where a diagram lives defer to
   `context/instructions/diagram-mermaid.md`.
-- This module names no rendering tool and no exporter.
+- This module names no rendering tool and no exporter. The target is a decision
+  the project makes per artefact: whatever renders the chosen dialect where the
+  consumer renders it, a plain-text form where the consumer has no renderer, and
+  an exported file where the diagram must outlive the session. Choosing it is
+  `development.md`'s library-first call, not a rule of this module.

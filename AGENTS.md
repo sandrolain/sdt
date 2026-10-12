@@ -83,7 +83,9 @@ a contract across them.
 
 Read `context/index.md` first (single entry point, generated). Then the
 **essential** tier (always versioned). Per-type instruction files are
-**on-demand**: read only when you take that action.
+**on-demand**: read only when you take that action. When the entry point
+outgrows a session, read the index's essential entries inline and the rest as
+pointers, and name the tier you omitted.
 
 **Always read**
 

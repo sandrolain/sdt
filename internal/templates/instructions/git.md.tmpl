@@ -69,6 +69,19 @@ refactor!: drop the legacy memory store
   ignored by `.gitignore`.
 - Merging or opening a PR is a user decision: propose it, do not act autonomously.
 
+## Worktrees for parallel work
+
+Before a branch that another session or agent will work on **at the same time**,
+give it its own worktree so the two do not share an index and a working tree.
+
+- One worktree per concurrent line of work, on its own branch; the session that
+  owns it works there and commits from there.
+- The rule is a **ceiling**: it covers concurrent edits. **Upgrade trigger**: the
+  project runs sessions that must merge mid-flight, and the merge order becomes a
+  coordination problem the worktree alone cannot solve.
+- When this does not apply: a single session working one branch never needs a
+  worktree; do not create one for a sequential change.
+
 ## Working-tree safety
 
 - Apply the **exact** stash entry by ref (`git stash apply stash@{n}`), never a

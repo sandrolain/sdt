@@ -173,6 +173,14 @@ session: <session id>        # optional
      front** (routes × viewports × states, or the equivalent surface matrix) and
      checks each; a partial pass names the cells it skipped rather than
      reporting a general pass;
+   6a. it includes a **blind reader-test** cell when the deliverable is a
+     document a reader meets cold: hand the finished document to a **fresh
+     context** with no shared working state and ask it to report what it could
+     not find, what was ambiguous, and what it had to assume. The author's own
+     re-read cannot catch this — the author already knows what the document
+     means. When no fresh context is available the cell is **deferred, not
+     skipped**: record that the check did not run and which claim stays
+     unverified;
   7. each phase names the **analysis objectives** it covers; the task file for
      that phase carries a `## Design` study of those objectives (see
      `instructions/tasks.md`).
@@ -180,6 +188,20 @@ session: <session id>        # optional
      a template without its index row, or a new surface without the table that
      points to it, leaves the generated set inconsistent and the project's own
      verification fails on a change that looked complete.
+- **From a requirements document to phases** — when the request arrives as a
+  requirements document rather than an objective, decompose it into epics, then
+  into phases, and state the dependency between them:
+  - one phase delivers one deliverable; a phase that serves two epics is two
+    phases;
+  - name the **inter-phase dependency** where one exists (`Phase 3 needs the
+    Phase 1 schema`); independent phases are declared independent, never left
+    implicit;
+  - **elicit the quality gates explicitly.** A requirements document states
+    *what*, rarely *how it is judged good*; ask for the acceptance criteria before
+    planning, or record in the plan that none were given and which ones you chose.
+    An unstated gate is discovered at delivery, when it is expensive.
+- When this does not apply: a small, direct objective with no requirements
+  document skips the decomposition and goes straight to phases.
 - **Good vs bad splitting** — bad: one "Implement feature" phase with 15 mixed
   items (schema + backend + CLI + tests in one file). Good: split into phases,
   each with a single deliverable and ≤ ~5 items: schema → backend → CLI → tests.

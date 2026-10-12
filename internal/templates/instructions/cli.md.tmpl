@@ -58,6 +58,51 @@ format is independent of the result `--format`:
 - `--quiet` raises the level to `Warn`, hiding info/progress while keeping
   warnings and errors.
 
+## Search before asking
+
+A question the corpus answers is answered **from the corpus**, not re-asked.
+
+- Before asking the user what a document says, search it:
+  `sdt context search "<term>" --where kind=<k>` (see Context queries for the
+  shared filters). Re-asking what `context/index.md` already lists wastes a turn
+  and hands back a stale copy of the answer.
+- When the corpus cannot answer it, say so and ask — with the paths you already
+  read, so the answer is not a duplicate of them.
+- The same rule holds after a compaction or a session resume: the state you need
+  is recorded in the corpus, not in the conversation you lost.
+
+## Output discipline
+
+A verb is an interface to a budget, not a dump.
+
+- **Cap what a verb prints** when the result outgrows a screen: the flag that
+  truncates, the filter that narrows, or `--format json` piped into `sdt q`. A
+  large result becomes a file under `context/tmp/` plus the one line that names
+  it; the full artefact stays retrievable (`development.md`, *Context economy*).
+- **Batch what can be batched.** One command that takes several documents beats
+  several commands; `sdt context list --type <k> --last 7d` beats seven `show`
+  calls. Repeated identical invocations are a missing flag, not a workflow.
+- **Read the tiered index once**, then open only the documents the index points
+  at — do not walk the corpus to rediscover what the index already ranked.
+- When this does not apply: a short result is printed in full; nothing is capped
+  for the sake of a rule.
+
+## Help-text shape
+
+Command help is written in four labelled parts, in this order:
+
+| Part | Says |
+|------|------|
+| `WHEN` | the single condition under which the command is right |
+| `WHEN NOT` | when it does not apply, and what to use instead |
+| `RETURNS` | the result shape and where it goes |
+| `EXAMPLE` | one real invocation |
+
+- Write the `WHEN NOT` line even when it is short: a command without one reads as
+  universal. Affirmative voice — say what to run, not what not to run.
+- Existing command help predates this shape and is not rewritten retroactively; a
+  command touched for another reason adopts it.
+
 ## Context queries
 
 `sdt context list` and `sdt context search` share one filter engine
