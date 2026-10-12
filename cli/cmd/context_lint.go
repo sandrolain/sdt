@@ -1651,6 +1651,54 @@ func lintTaskPhaseCoverage(planFiles, taskFiles []string, edges *ctxrel.Edges) [
 	return issues
 }
 
+// ctxLintSuggestionPriority is the advisory severity, named because the summary
+// and the sort both need it and the issue type carries it as a bare string.
+const ctxLintSuggestionPriority = "SUGGESTION"
+
+// ctxLintDefaultLimit is how many issues the text stream prints before the
+// summary line. A corpus lint run reports hundreds of findings, and a stream the
+// caller must scroll past to reach the totals is a stream nobody reads.
+const ctxLintDefaultLimit = 20
+
+// lintTextReport renders at most limit issues followed by one summary line
+// carrying the complete per-severity totals; a limit of zero prints every issue.
+// The summary is always emitted, even when nothing was withheld: the totals are
+// the part a caller acts on, and a bounded list that hid them would make a quiet
+// corpus and a failing one look alike.
+func lintTextReport(issues []ctxLintIssue, limit int) string {
+	if limit < 0 {
+		limit = 0
+	}
+	shown := issues
+	if limit > 0 && len(shown) > limit {
+		shown = shown[:limit]
+	}
+	var b strings.Builder
+	for _, it := range shown {
+		b.WriteString(it.String())
+		b.WriteString("\n")
+	}
+	b.WriteString(lintSummaryLine(issues, len(shown)))
+	b.WriteString("\n")
+	return b.String()
+}
+
+// lintSummaryLine renders the per-severity totals of the whole issue set, naming
+// the flag that prints the rest when some were withheld.
+func lintSummaryLine(issues []ctxLintIssue, shown int) string {
+	counts := map[string]int{}
+	for _, it := range issues {
+		counts[it.Priority]++
+	}
+	line := fmt.Sprintf("[summary] %d CRITICAL, %d WARNING, %d %s (%d total)",
+		counts[ctxLintCritical], counts[ctxLintWarning],
+		counts[ctxLintSuggestionPriority], ctxLintSuggestionPriority, len(issues))
+	if shown < len(issues) {
+		line += fmt.Sprintf("; showing %d — rerun with --limit 0 for every finding", shown)
+	}
+	return line
+}
+
 var contextLintCmd = &cobra.Command{
 	Use:   gateStepLint,
 	Short: "Validate context frontmatter and links",
@@ -1661,6 +1709,12 @@ Paths are relative to the project root (context/plan/file.md) or context/
 by the default command, or be context/index.md. Wiki pages use
 sdt context wiki lint. Exits non-zero when CRITICAL issues are found.
 
+Text output is bounded by default: the first ` + "`--limit`" + ` issues (20) are printed,
+followed by one summary line carrying the full per-severity totals. The totals,
+the findings themselves and the exit code are the same whatever the limit —
+` + "`--limit 0`" + ` prints all of them. --format json and --format yaml always carry every
+finding, so a piped query is never shortchanged by the text default.
+
 With --security, additionally scan the selected documents (or the whole corpus)
 for prompt-injection phrases, credential/secret literals, invisible/zero-width
 Unicode and exfil patterns (advisory WARNING).
@@ -1669,6 +1723,7 @@ Examples:
   sdt context lint
   sdt context lint context/plan/example.md
   sdt context lint plan/example.md --format json
+  sdt context lint --limit 0
   sdt context lint --security
   sdt context lint --format json`,
 	Args: cobra.ArbitraryArgs,
@@ -1783,7 +1838,7 @@ Examples:
 		}
 		sort.Slice(issues, func(i, j int) bool {
 			if issues[i].Priority != issues[j].Priority {
-				prio := map[string]int{ctxLintCritical: 0, ctxLintWarning: 1, "SUGGESTION": 2}
+				prio := map[string]int{ctxLintCritical: 0, ctxLintWarning: 1, ctxLintSuggestionPriority: 2}
 				return prio[issues[i].Priority] < prio[issues[j].Priority]
 			}
 			return issues[i].Path < issues[j].Path
@@ -1791,6 +1846,9 @@ Examples:
 		decorateLintHints(issues)
 		switch getFormat(cmd) {
 		case fmtJSON:
+			// Machine consumers asked for the data and count on it: the JSON and
+			// YAML arrays are never truncated, so a piped `sdt q` sees every
+			// finding whatever the text default prints.
 			out, err := json.MarshalIndent(issues, "", "  ")
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
@@ -1799,9 +1857,7 @@ Examples:
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		default:
-			for _, it := range issues {
-				outputString(cmd, it.String()+"\n")
-			}
+			outputString(cmd, lintTextReport(issues, getIntFlag(cmd, "limit", false)))
 		}
 		critical := 0
 		for _, it := range issues {

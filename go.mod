@@ -8,6 +8,7 @@ require (
 	github.com/blevesearch/bleve/v2 v2.6.1
 	github.com/firecrawl/firecrawl/apps/go-sdk v1.16.4
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/git-pkgs/gitignore v1.3.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/golang-jwt/jwt/v5 v5.3.1

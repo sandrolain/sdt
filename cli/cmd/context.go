@@ -151,6 +151,15 @@ and the active task list.
   sdt context new --type ...      create a work file with frontmatter
   sdt context list --type ...     list existing work files
   sdt context task ...            manage the active task list`,
+	// A verb that does not exist must say so. Without this, cobra hands the
+	// unknown token to the parent, which prints its help and exits 0 — so a
+	// mistyped `sdt context srch` looks exactly like a successful one.
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) > 0 {
+			return unknownCommandError(invokedName(cmd.Root()), args[0], suggestionsFor(cmd, args[0]))
+		}
+		return cmd.Help()
+	},
 }
 
 func contextRunEditorDefault(path string) error {
@@ -209,6 +218,7 @@ func init() {
 
 	contextLintCmd.Flags().Bool("security", false, "Also scan for prompt-injection, credential and invisible-Unicode patterns (advisory WARNING)")
 	contextLintCmd.Flags().Int("stale-days", ctxStaleInProgressDays, "Days before an `in-progress` task file is reported as stale (advisory SUGGESTION)")
+	contextLintCmd.Flags().Int("limit", ctxLintDefaultLimit, "Maximum issues printed in text output (0: every issue); the totals and the exit code are unaffected")
 
 	contextResumeCmd.Flags().String("plan", "", "Plan reference to report (default: every active plan)")
 	contextResumeCmd.Flags().Int("stale-days", ctxStaleInProgressDays, "Days before an `in-progress` task file is reported as stale")

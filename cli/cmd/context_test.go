@@ -635,9 +635,12 @@ func TestContextNewLintClean(t *testing.T) {
 		execute(t, contextNewCmd, nil, "--type", typ, "--title", "Lint Clean "+typ,
 			"--summary", "bootstrap check")
 	}
-	out := execute(t, contextLintCmd, nil)
-	if strings.Contains(string(out), ctxLintCritical) {
-		t.Errorf("lint CRITICAL on bootstrapped files:\n%s", out)
+	out := execute(t, contextLintCmd, nil, "--limit", "0")
+	for _, it := range lintIssues(t) {
+		if it.Priority == ctxLintCritical {
+			t.Errorf("lint CRITICAL on bootstrapped files:\n%s", out)
+			break
+		}
 	}
 }
 

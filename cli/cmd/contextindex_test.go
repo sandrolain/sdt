@@ -16,6 +16,19 @@ func testUIDv7(seed int) string {
 	return fmt.Sprintf("0191e7a4-0000-7000-8000-%012d", seed)
 }
 
+// lintIssues runs the corpus lint as JSON and returns the findings. The JSON
+// stream carries every finding whatever the text `--limit` is, so an assertion
+// about what the lint found never depends on how the text stream is bounded.
+func lintIssues(t *testing.T) []ctxLintIssue {
+	t.Helper()
+	out := execute(t, contextLintCmd, nil, "--format", "json")
+	var issues []ctxLintIssue
+	if err := json.Unmarshal(out, &issues); err != nil {
+		t.Fatalf("lint --format json is not readable: %v\n%s", err, out)
+	}
+	return issues
+}
+
 func setupContextProject(t *testing.T) string {
 	t.Helper()
 	dir := runInTempDir(t)
@@ -143,8 +156,8 @@ func TestContextReindexProposalAndPrompt(t *testing.T) {
 			t.Errorf("expected %q in index:\n%s", want, idx)
 		}
 	}
-	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
-		t.Fatalf("expected clean proposal/prompt lint, got:\n%s", out)
+	if issues := lintIssues(t); len(issues) != 0 {
+		t.Fatalf("expected clean proposal/prompt lint, got:\n%+v", issues)
 	}
 }
 
@@ -166,8 +179,8 @@ func TestContextReindexResearch(t *testing.T) {
 	if !strings.Contains(string(idx), "[[research/backends.md]]") || !strings.Contains(string(idx), "Compared vector backends") {
 		t.Errorf("expected research entry in index:\n%s", idx)
 	}
-	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
-		t.Fatalf("expected clean research lint, got:\n%s", out)
+	if issues := lintIssues(t); len(issues) != 0 {
+		t.Fatalf("expected clean research lint, got:\n%+v", issues)
 	}
 }
 
@@ -186,8 +199,8 @@ func TestContextLintProposalDecisionArchitectureChain(t *testing.T) {
 	writeCtxDoc(t, "context/proposals/decision.md", "---\nkind: proposal\nuid: "+testUIDv7(2)+"\ntitle: Decision proposal\nsummary: Decision proposal\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - analysis/source.md\n---\n## Decision outcome\nArchitectural decision.\n")
 	writeCtxDoc(t, "context/decisions/0002-decision.md", "---\nkind: decision\nuid: "+testUIDv7(3)+"\nnumber: 0002\ntitle: Decision\nsummary: Accepted decision\nstatus: accepted\ncreated: 2026-01-01T00:00:00Z\nlinks:\n  - proposals/decision.md\nproject: p\nsources:\n  - proposals/decision.md\n---\n## Decision\nUse the proposal.\n")
 	writeCtxDoc(t, "context/architecture/decision.md", "---\nkind: architecture\nuid: "+testUIDv7(4)+"\nsummary: Current decision architecture\ncontext: Decision shape\nstatus: current\ncomponent: decision\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nlinks:\n  - decisions/0002-decision.md\nproject: p\n---\n## Architecture\n")
-	if out := execute(t, contextLintCmd, nil); len(out) != 0 {
-		t.Fatalf("expected clean proposal/decision/architecture chain, got:\n%s", out)
+	if issues := lintIssues(t); len(issues) != 0 {
+		t.Fatalf("expected clean proposal/decision/architecture chain, got:\n%+v", issues)
 	}
 }
 

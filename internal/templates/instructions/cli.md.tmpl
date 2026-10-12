@@ -15,7 +15,19 @@ generated command reference, see `context/instructions/reference.md`.
 - `sdt context new --type <t>` — create a work file ({{.NewTypes}})
 - `sdt context path --type <t> [--slug]` — print a path ({{.PathTypes}})
 - `sdt context list --type <t>` — list existing files ({{.ListTypes}}); filter with `--status`, a date range and `--where` (see Context queries)
-- `sdt context search <query>` — ranked fulltext search over the same corpus; takes the same query filters as `list`
+- `sdt context search <query>` — ranked fulltext search over the same corpus; takes the same query filters as `list`; a pasted `YYYYMMDD-HHMMSS` or `uid` resolves to its document first
+- `sdt context show <path> [--section <id>]` — print a document from disk, or one
+  section of it; `--lines <from>:<to>` slices it (1-based, inclusive)
+- `sdt context edit <doc> [--section <id>]` — replace the body (or one section)
+  from `--input`/`--file`/stdin, printing a unified diff; `--dry-run` previews
+  without writing, and frontmatter changes are refused in favour of `context set`
+- `sdt grep <pattern>` — regex over the working tree, `.gitignore`-aware, bounded
+  output; `--include`/`--exclude` scope it, `--no-ignore` reaches the raw tree
+- `sdt find [glob]` — list matching paths, `.gitignore`-aware and sorted; a
+  pattern without a slash matches a basename at any depth
+- `sdt read -p <file> [--lines <from>:<to>]` — print a file, or a line range of it
+- `sdt context memo due|list|add|done` — the planned-operation register and its due
+  check (`sdt context memo due` at session start)
 - `sdt context status get|set` — read/update a document's status (per-type
   vocabularies in the status matrix: `context/architecture/stack.md`)
 - `sdt context get <doc> [<key>…]` — read a document's frontmatter: the raw

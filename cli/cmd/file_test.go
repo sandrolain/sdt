@@ -107,6 +107,7 @@ func TestFileReadCmd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := &cobra.Command{}
 			_ = cmd.Flags().String("file", "", "File path")
+			_ = cmd.Flags().String("lines", "", "Line range")
 			_ = cmd.Flags().String("output", "raw", "Output format")
 			_ = cmd.Flags().Set("file", tt.filePath)
 

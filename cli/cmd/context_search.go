@@ -187,16 +187,7 @@ Examples:
 		content := string(data)
 
 		if lines := getStringFlag(cmd, "lines", false); lines != "" {
-			parts := strings.SplitN(lines, ":", 2)
-			if len(parts) != 2 {
-				exitWithError(cmd, fmt.Errorf("--lines expects <from>:<to>, got %q", lines))
-			}
-			from, err1 := strconv.Atoi(parts[0])
-			to, err2 := strconv.Atoi(parts[1])
-			if err1 != nil || err2 != nil || from < 1 {
-				exitWithError(cmd, fmt.Errorf("invalid --lines range %q", lines))
-			}
-			outputBytes(cmd, []byte(lineRange(content, from, to)))
+			outputBytes(cmd, sliceLinesOrExit(cmd, content, lines))
 			return
 		}
 		if section := getStringFlag(cmd, "section", false); section != "" {
@@ -219,14 +210,58 @@ func ctxDocBody(content string) string {
 	return body
 }
 
-// lineRange returns lines [from,to] (1-based, inclusive) of content.
-func lineRange(content string, from, to int) string {
+// parseLineRange parses a `from:to` range spec into 1-based inclusive bounds. A
+// malformed spec or a non-positive bound is an error rather than a silent
+// whole-file read.
+func parseLineRange(spec string) (int, int, error) {
+	parts := strings.SplitN(spec, ":", 2)
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("--lines expects <from>:<to>, got %q", spec)
+	}
+	from, err1 := strconv.Atoi(parts[0])
+	to, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil || from < 1 || to < 1 {
+		return 0, 0, fmt.Errorf("invalid --lines range %q", spec)
+	}
+	if from > to {
+		return 0, 0, fmt.Errorf("--lines range %q is inverted: %d > %d", spec, from, to)
+	}
+	return from, to, nil
+}
+
+// sliceLines returns lines [from,to] of content, 1-based and inclusive.
+//
+// A range starting past the last line is an error, never an empty answer: an
+// empty read and a miscounted one are indistinguishable to the caller, and the
+// silent one is always the wrong one. An upper bound past the last line clamps
+// to the end, which is what a reader asking for "through line 999" means.
+func sliceLines(content, spec string) ([]byte, error) {
+	from, to, err := parseLineRange(spec)
+	if err != nil {
+		return nil, err
+	}
 	lines := strings.Split(content, "\n")
+	if n := len(lines); n > 1 && lines[n-1] == "" {
+		// A trailing newline opens an empty last segment. Counting it would make
+		// a range clamped to the end print one blank line more than the whole
+		// file does, so what follows the final newline is not a line.
+		lines = lines[:n-1]
+	}
 	if from > len(lines) {
-		return ""
+		return nil, fmt.Errorf("--lines range %q starts past the last line (%d)", spec, len(lines))
 	}
 	if to > len(lines) {
 		to = len(lines)
 	}
-	return strings.Join(lines[from-1:to], "\n") + "\n"
+	return []byte(strings.Join(lines[from-1:to], "\n") + "\n"), nil
+}
+
+// sliceLinesOrExit prints the requested range, or reports why it cannot. It is
+// the one call shape both readers use, so `sdt read --lines` and
+// `sdt context show --lines` cannot drift apart. The nil result after an error
+// keeps the command from slicing with bounds that were never validated.
+func sliceLinesOrExit(cmd *cobra.Command, content, spec string) []byte {
+	out, err := sliceLines(content, spec)
+	exitWithError(cmd, err)
+	return out
 }

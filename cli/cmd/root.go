@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/sandrolain/sdt/cli/utils"
@@ -137,7 +139,126 @@ func installLogger(cmd *cobra.Command) {
 
 func Execute() {
 	loadFileConfig()
-	exitWithError(nil, rootCmd.Execute())
+	// Cobra prints its own error line and the usage block before returning; the
+	// shared reporter prints it again. Silencing cobra keeps one report per
+	// failure — the enriched unknown-command message below included.
+	rootCmd.SilenceErrors = true
+	rootCmd.SilenceUsage = true
+	exitWithError(nil, commandDiagnostic(rootCmd, rootCmd.Execute()))
+}
+
+// commandDiagnostic turns a raw execution error into the report a caller can act
+// on. An unknown command is the failure an agent makes most often — a mistyped
+// or half-remembered verb — so it names the executable that was actually
+// invoked (a copied or renamed binary does not answer as `sdt`) and the nearest
+// subcommands, instead of leaving the caller to guess which binary answered.
+func commandDiagnostic(root *cobra.Command, err error) error {
+	if err == nil {
+		return nil
+	}
+	const unknownPrefix = "unknown command"
+	if !strings.HasPrefix(err.Error(), unknownPrefix) {
+		return err
+	}
+	name := invokedName(root)
+	// Cobra reports `unknown command "<typed tokens>" for "<command path>"`,
+	// where the typed tokens may span a subcommand path ("context lint --limit").
+	// Walk the path: every token that resolves descends into its command, and the
+	// first one that does not is what the caller got wrong — so the suggestion
+	// list comes from the command whose subcommand was missing, not from the
+	// root, where a subcommand near-miss is invisible.
+	_, rest, _ := strings.Cut(err.Error(), unknownPrefix+" \"")
+	quoted, afterArg, ok := strings.Cut(rest, "\"")
+	if !ok {
+		return err
+	}
+	target, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(afterArg), "for \""), "\"")
+	cur := commandAt(root, target)
+	for _, tok := range strings.Fields(quoted) {
+		sub := findSubcommand(cur, tok)
+		if sub == nil {
+			return missingTokenReport(name, cur, tok)
+		}
+		cur = sub
+	}
+	return err
+}
+
+// missingTokenReport renders the diagnostic for a token no subcommand claims. A
+// token that looks like a flag is a flag problem, not a command one: cobra folds
+// both into "unknown command", and repeating that wording for `--limit` would
+// send the caller looking for a verb that was never missing.
+func missingTokenReport(exe string, parent *cobra.Command, tok string) error {
+	if strings.HasPrefix(tok, "-") {
+		return fmt.Errorf("unexpected flag %q for %s; run '%s --help' for its flags", tok, parent.CommandPath(), exe)
+	}
+	return unknownCommandError(exe, tok, suggestionsFor(parent, tok))
+}
+
+// findSubcommand returns the subcommand of parent matching name or one of its
+// aliases, or nil.
+func findSubcommand(parent *cobra.Command, name string) *cobra.Command {
+	for _, sub := range parent.Commands() {
+		if sub.Name() == name {
+			return sub
+		}
+		for _, alias := range sub.Aliases {
+			if alias == name {
+				return sub
+			}
+		}
+	}
+	return nil
+}
+
+// commandAt resolves the last token of a command path (`sdt context` → the
+// `context` command). The root is returned when nothing matches.
+func commandAt(root *cobra.Command, path string) *cobra.Command {
+	tokens := strings.Fields(path)
+	if len(tokens) == 0 {
+		return root
+	}
+	if sub := findSubcommand(root, tokens[len(tokens)-1]); sub != nil {
+		return sub
+	}
+	return root
+}
+
+// defaultSuggestionDistance is the near-miss distance this CLI reports. Cobra
+// defaults the field only on the command its ExecuteC ran — the root — so a
+// subcommand's own value stays zero and reports nothing; the same default is
+// applied here so `sdt context srch` suggests `search`.
+const defaultSuggestionDistance = 2
+
+// suggestionsFor returns the near-miss subcommands of cmd for a mistyped arg.
+func suggestionsFor(cmd *cobra.Command, arg string) []string {
+	if cmd.SuggestionsMinimumDistance <= 0 {
+		cmd.SuggestionsMinimumDistance = defaultSuggestionDistance
+	}
+	return cmd.SuggestionsFor(arg)
+}
+
+// unknownCommandError renders the unknown-command report.
+func unknownCommandError(exe, arg string, suggestions []string) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "unknown command %q for %s", arg, exe)
+	if len(suggestions) > 0 {
+		b.WriteString("\ndid you mean: ")
+		b.WriteString(strings.Join(suggestions, ", "))
+	}
+	fmt.Fprintf(&b, "\nrun '%s --help' for the command list", exe)
+	return errors.New(b.String())
+}
+
+// invokedName is the executable the caller actually ran, which is not always the
+// command's own name: a copied or renamed binary answers under its new name.
+func invokedName(root *cobra.Command) string {
+	if len(os.Args) > 0 {
+		if base := filepath.Base(os.Args[0]); base != "" && base != "." && base != string(filepath.Separator) {
+			return base
+		}
+	}
+	return root.Name()
 }
 
 func getInputStringOrFlag(cmd *cobra.Command, args []string, flag string, required bool) string {

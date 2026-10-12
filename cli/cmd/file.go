@@ -30,8 +30,24 @@ func fileExists(path string) (bool, error) {
 
 var fileReadCmd = &cobra.Command{
 	Use:   "read",
-	Short: "Read File",
-	Long:  `Read File`,
+	Short: "Read a file or a line range of it",
+	Long: `Print a file, optionally only a line range.
+
+WHEN — you need the content of a file, or a slice of it, and have no host
+reader.
+
+WHEN NOT — you need a document from the corpus by what it is: ` + "`sdt context show <path>`" + `
+prints a ` + "`context/`" + ` work file, and ` + "`--section`" + ` selects one of its sections without
+counting lines.
+
+RETURNS — the file content, or lines ` + "`--lines <from>:<to>`" + ` of it, 1-based and inclusive. A
+range that starts past the last line, or that is inverted, is an error rather
+than an empty answer; an upper bound past the last line clamps to the end.
+
+EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
+`,
+	Example: `  sdt read -p go.mod
+  sdt read -p cli/cmd/context_search.go --lines 168:214`,
 	Run: func(cmd *cobra.Command, args []string) {
 		file := getStringFlag(cmd, "file", true)
 
@@ -44,6 +60,10 @@ var fileReadCmd = &cobra.Command{
 		// #nosec G304 -- implementation of generic utility to read file from CLI flag
 		content, err := os.ReadFile(file)
 		exitWithError(cmd, err)
+		if lines := getStringFlag(cmd, "lines", false); lines != "" {
+			outputBytes(cmd, sliceLinesOrExit(cmd, string(content), lines))
+			return
+		}
 		outputBytes(cmd, content)
 	},
 }
@@ -112,6 +132,7 @@ var fileWriteCmd = &cobra.Command{
 func init() {
 	pf := fileReadCmd.PersistentFlags()
 	pf.StringP("file", "p", "", "File path")
+	pf.String("lines", "", "Print only this line range (from:to, 1-based)")
 
 	pf = fileWriteCmd.PersistentFlags()
 	pf.StringP("file", "p", "", "File path")

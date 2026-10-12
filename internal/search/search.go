@@ -382,6 +382,11 @@ func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
 	scored := bleve.NewDisjunctionQuery(namePhrase, nameMatch, titleMatch, bodyMatch)
 
 	filter := q.effectiveFilter()
+	// A handle-shaped query — the date-time prefix or the uid a document is
+	// addressed by — resolves against the entry set first; the lexical hits
+	// still follow below it, so a shape that matches nothing degrades to the
+	// lexical ranking rather than to an empty answer.
+	handles := ix.resolveHandle(text, filter)
 	req := bleve.NewSearchRequest(query.NewBooleanQuery([]query.Query{scored}, nil, nil))
 	if filter == nil {
 		req.Size = q.Max
@@ -425,9 +430,17 @@ func (ix *Index) SearchQuery(q HybridQuery) (Results, error) {
 		// No lexical hit survived the filter: fall back to a substring scan so a
 		// query that is only a fragment of a token still resolves, flagged so the
 		// palette never presents it as an exact match.
-		return ix.substringFallback(q, text, filter), nil
+		lex := ix.substringFallback(q, text, filter)
+		if len(handles) == 0 {
+			return lex, nil
+		}
+		return ix.prependHandles(handles, lex, q), nil
 	}
-	return Results{Results: out, Total: int64(total)}, nil
+	lex := Results{Results: out, Total: int64(total)}
+	if len(handles) == 0 {
+		return lex, nil
+	}
+	return ix.prependHandles(handles, lex, q), nil
 }
 
 // substringFallback answers a query the lexical index matched nothing for with
@@ -700,6 +713,16 @@ func (ix *Index) SearchHybrid(ctx context.Context, q HybridQuery, opts HybridOpt
 			}
 		}
 		fused = kept
+	}
+	// A resolved handle outranks every ranking signal: re-assert it after the
+	// fusion, which is rank-based and would otherwise let a semantic-only hit
+	// overtake the document the query named.
+	if handles := ix.ResolveHandles(q.Q, q.effectiveFilter()); len(handles) > 0 {
+		return ix.prependHandles(handles, Results{
+			Results: fused,
+			Total:   lexical.Total,
+			Partial: lexical.Partial,
+		}, q), nil
 	}
 	if len(fused) > q.Max && q.Max > 0 {
 		fused = fused[:q.Max]
