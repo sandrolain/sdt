@@ -1,0 +1,82 @@
+---
+kind: instructions
+title: "Learning — teaching and reviewing over the local wiki"
+summary: "Learning a topic, reviewing it, being quizzed on it, practising it, or grounding it in research first."
+---
+
+`context/instructions/learning.md` is the contract for the learning lane: the
+agent teaches from the **local wiki** and the learner's own evidence, never from
+general recall, and what the learner produces stays separate from wiki knowledge.
+Read it with `context/instructions/wiki.md`; add `instructions/ingestion.md` when a
+source is involved and `instructions/research.md` only when the user asks to
+ground a gap. It names the deterministic helpers, never a tutor runtime. Their
+usage comes from `--help` (`sdt learn inspect|status|resume|quiz|review|record`),
+never from memory.
+
+## When this applies (no-op rule)
+
+- Apply it when the user wants to **learn**, **review**, be **quizzed** or
+  **practise** something, or asks for an **explanation** of a corpus concept.
+- Do **not** apply it to ingesting a source, or to answering a question about the
+  code or configuration. With no page for the topic, say so and stop — a lesson is
+  not a substitute for a page, and one written from recall is not knowledge here.
+  Offer the research lane only if the user asks to ground the gap
+  (`>research-learn`); never take it for them.
+
+## Classify the intent
+
+| Intent | The learner asks for | You give back |
+|---|---|---|
+| learn | the outcome they want | an explanation they can re-derive |
+| explain | a question | an answer grounded in named pages |
+| quiz | the concepts to cover | questions whose stored answer carries no hint |
+| practise | a task with a checkable result | the task, not the solution |
+| review | what is due or weak | the queue, worst first |
+| research | a gap the corpus cannot close | sources, through `research.md` |
+
+Two intents that fit equally: **ask**. Never promote a request to `learn` when
+`practise` or `explain` was meant.
+
+## Resolve the scope
+
+1. Take the learner's topic literally; never widen it to the neighbourhood.
+2. Resolve it against `context/index.md`, then `context/wiki/`, then
+   `context/refs/` and `context/ingestion/` — **in that order**. A page is the
+   authority; a raw source is evidence for it.
+3. Walk `depends_on` and `part_of` (`relations` in the page frontmatter) **before**
+   teaching: an unlearned prerequisite is taught first or named as the gap, never
+   assumed. `sdt learn inspect` resolves candidates and prerequisites;
+   `sdt learn review` ranks the due ones.
+4. State the resolved scope and its pages before the first explanation.
+
+## Teach
+
+Per concept: **explain** in terms the learner already owns → **show one worked
+example** → **ask the learner to retrieve or apply it** → **check the answer
+against the page** → **ask for the transfer** (the same idea in a case they have
+not seen). Never skip the retrieval step with a leading question: it is the only
+step that shows understanding.
+
+## No-solution mode
+
+Verification is read-only: do not reveal the answer first, do not call a partial
+answer correct, and do not write a page. A check becomes learner state only on an
+explicit `sdt learn record` the user asked for — ask once, at the close — never as
+a side effect.
+
+## Cite
+
+Every explanation names the page it came from (`wiki/<id>`); a claim the pages do
+not carry is marked **not in the corpus**, never filled in from recall. What the
+learner asserts is an **observation**: it is recorded in the learner state and
+never promoted to a wiki claim except by an explicit, approved `>wiki` write
+(`context/commands/wiki.md`).
+
+## Close the session
+
+State what was covered, what stayed weak and what is due next, then append the
+session entry on request or stop (`sdt learn record --session`). Learner state
+lives in `context/learning/learner.yaml` and is **not** wiki knowledge: profile,
+goals, concept records and a session log, none of it authoritative for the
+corpus. The first explicit `record` creates the file; every other verb only reads
+it, and an absent state is an empty state, never a failure.

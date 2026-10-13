@@ -288,7 +288,7 @@ func resumePlanMatches(ref, planRef string) bool {
 }
 
 var contextResumeCmd = &cobra.Command{
-	Use:   "resume",
+	Use:   verbResume,
 	Short: "Show the recorded execution state to resume from (read-only)",
 	Long: `Show what the context/ documents say about the work in flight: the open
 plan(s), each task file's phases with item counts, the blocked items with the

@@ -56,6 +56,9 @@ const (
 	agentSectionNameInstructions = "instructions"
 	agentSectionNameProject      = "project"
 
+	// verbResume is the shared Use: token of the resume verbs.
+	verbResume = "resume"
+
 	// File result statuses.
 	statusCreated  = "created"
 	statusSkipped  = "skipped"

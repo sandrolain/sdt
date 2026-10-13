@@ -8,7 +8,7 @@ import (
 )
 
 var researchResumeCmd = &cobra.Command{
-	Use:   "resume",
+	Use:   verbResume,
 	Short: "Continue an interrupted run without repeating finished work",
 	Long: `Resume a run from its checkpoint: fetch the sources still 'discovered'
 (never fetched, or a failed fetch to retry), then verify the sources that have a

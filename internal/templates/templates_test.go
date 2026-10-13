@@ -150,6 +150,7 @@ func TestTemplateRenderRoundTrip(t *testing.T) {
 		"instructions/distillation.md.tmpl",
 		"instructions/git.md.tmpl",
 		"instructions/ingestion.md.tmpl",
+		"instructions/learning.md.tmpl",
 		"instructions/lessons.md.tmpl",
 		"instructions/mindmap.md.tmpl",
 		"instructions/mindmap-markmap.md.tmpl",
