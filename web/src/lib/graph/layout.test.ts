@@ -4,6 +4,7 @@ import {
   computeLinkParams,
   groupCenters,
   hierarchyPositions,
+  projectionPositions,
   radialRings,
   type LayoutLinkLike,
   type LayoutNodeLike,
@@ -14,6 +15,21 @@ const node = (id: string, index: number, group: string, deg = 1): LayoutNodeLike
   index,
   group,
   deg,
+});
+
+describe("projectionPositions", () => {
+  it("places each node at its projected coordinate, flat (z = 0)", () => {
+    const nodes = [node("a", 0, "x"), node("b", 1, "y"), node("c", 2, "x")];
+    const coords = new Map<string, [number, number]>([
+      ["a", [10, -5]],
+      ["c", [0, 20]],
+    ]);
+    expect(Array.from(projectionPositions(nodes, coords))).toEqual([10, -5, 0, 0, 0, 0, 0, 20, 0]);
+  });
+
+  it("places a node absent from the coordinates at the origin", () => {
+    expect(Array.from(projectionPositions([node("a", 0, "x")], new Map()))).toEqual([0, 0, 0]);
+  });
 });
 
 describe("computeLinkParams", () => {

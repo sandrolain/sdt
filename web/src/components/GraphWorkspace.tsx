@@ -27,6 +27,13 @@ import {
 } from "dockview-react";
 import type { AdaptedEngineGraph } from "../lib/graph/adapter";
 import type { ClusterKey } from "../lib/graphModel";
+import type { GraphLayout } from "../lib/graph/types";
+import {
+  adaptSemanticGraph,
+  semanticModeProjects,
+  type SemanticGraph,
+  type SemanticMode,
+} from "../lib/semantic";
 import { findShortestPath, type ShortestPath } from "../lib/graph/path";
 import { edgeHoverInfo } from "../lib/graph/tooltip";
 import type { GraphLinkInput } from "../lib/graph/types";
@@ -48,6 +55,11 @@ interface GraphWorkspaceValue {
   adapted: AdaptedEngineGraph;
   tools: GraphToolsState;
   dispatchTools: Dispatch<GraphToolsAction>;
+  /** The layout the view renders: `projection` when the semantic mode projects. */
+  viewLayout: GraphLayout;
+  /** The docs-map semantic mode, or null on a surface without the control. */
+  semanticMode: SemanticMode | null;
+  setSemanticMode: (mode: SemanticMode) => void;
   selectedId: string | null;
   select: (id: string | null) => void;
   path: ShortestPath | null;
@@ -76,7 +88,8 @@ function useGraphWorkspace(): GraphWorkspaceValue {
 }
 
 function GraphPanel() {
-  const { setViewHandle, adapted, tools, selectedId, select, path, open } = useGraphWorkspace();
+  const { setViewHandle, adapted, tools, viewLayout, selectedId, select, path, open } =
+    useGraphWorkspace();
   const [hoverEdge, setHoverEdge] = useState<GraphLinkInput | null>(null);
   const labels = useMemo(
     () => new Map(adapted.nodes.map((n) => [n.id, String(n.label ?? n.id)])),
@@ -91,7 +104,7 @@ function GraphPanel() {
         nodes={adapted.nodes}
         links={adapted.links}
         mode={tools.mode}
-        layout={tools.layout}
+        layout={viewLayout}
         selectedId={selectedId}
         onSelect={select}
         highlightPath={path}
@@ -119,6 +132,8 @@ function GraphPanel() {
 
 function GraphControlsPanel() {
   const g = useGraphWorkspace();
+  const semantic =
+    g.semanticMode != null ? { mode: g.semanticMode, onChange: g.setSemanticMode } : undefined;
   return (
     <div className="dock-content graph-controls-panel">
       <GraphControls
@@ -131,6 +146,7 @@ function GraphControlsPanel() {
         pathFrom={g.pathFrom}
         pathTo={g.pathTo}
         pathActive={g.path !== null}
+        semantic={semantic}
         onTools={g.dispatchTools}
         onPathFrom={g.setPathFrom}
         onPathTo={g.setPathTo}
@@ -183,6 +199,9 @@ export interface GraphWorkspaceProps {
   recluster?: (key: ClusterKey) => AdaptedEngineGraph;
   /** Persisted dockview layout key (one per data source). */
   storageKey: string;
+  /** The docs semantic-map payload. When present it enables the Semantic-mode
+   * control and its mode-aware adaptation supersedes `adapted`. */
+  semanticGraph?: SemanticGraph;
   /** Open a node's document (wiki page or corpus path). */
   open: (id: string) => void;
   loading: boolean;
@@ -195,6 +214,7 @@ export function GraphWorkspace({
   adapted,
   recluster,
   storageKey,
+  semanticGraph,
   open: openProp,
   loading,
   error,
@@ -202,9 +222,14 @@ export function GraphWorkspace({
 }: GraphWorkspaceProps) {
   const [tools, dispatchTools] = useReducer(graphToolsReducer, initialGraphTools);
   const graph = useMemo(
-    () => recluster?.(tools.clusterKey) ?? adapted,
-    [recluster, tools.clusterKey, adapted],
+    () =>
+      semanticGraph
+        ? adaptSemanticGraph(semanticGraph, tools.semanticMode)
+        : (recluster?.(tools.clusterKey) ?? adapted),
+    [semanticGraph, tools.semanticMode, recluster, tools.clusterKey, adapted],
   );
+  const viewLayout: GraphLayout =
+    semanticGraph && semanticModeProjects(tools.semanticMode) ? "projection" : tools.layout;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [path, setPath] = useState<ShortestPath | null>(null);
   const [pathFrom, setPathFrom] = useState("");
@@ -262,13 +287,16 @@ export function GraphWorkspace({
   }, [pathFrom, pathTo, graph]);
 
   useEffect(() => {
-    if (tools.layout) fit();
-  }, [tools.layout, tools.clusterKey, fit]);
+    if (viewLayout) fit();
+  }, [viewLayout, tools.clusterKey, fit]);
 
   const value: GraphWorkspaceValue = {
     adapted: graph,
     tools,
     dispatchTools,
+    viewLayout,
+    semanticMode: semanticGraph ? tools.semanticMode : null,
+    setSemanticMode: (mode) => dispatchTools({ type: "semanticMode", value: mode }),
     selectedId,
     select: setSelectedId,
     path,

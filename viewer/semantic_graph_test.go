@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/sandrolain/sdt/internal/semantic"
@@ -130,8 +131,55 @@ func TestSemanticGraphAbsentIndexEmpty(t *testing.T) {
 	if len(g.Nodes) != 0 || len(g.Edges) != 0 {
 		t.Errorf("absent index must yield an empty graph, got %+v", g)
 	}
+	if g.Projection != nil || g.Clusters != nil {
+		t.Errorf("absent index must omit projection/clusters, got %+v", g)
+	}
 	if _, err := os.Stat(semantic.SnapshotPath(root)); !os.IsNotExist(err) {
 		t.Error("opt-out graph endpoint must not create a snapshot")
+	}
+}
+
+// TestSemanticGraphCarriesProjectionAndClusters covers the mode-selector data:
+// the payload carries a 2D projection and a cluster assignment for every scoped
+// node, computed from the snapshot vectors.
+func TestSemanticGraphCarriesProjectionAndClusters(t *testing.T) {
+	root := t.TempDir()
+	writeSemanticFixture(t, root, "context/notes/a.md", "notes", "A")
+	writeSemanticFixture(t, root, "context/analysis/b.md", "analysis", "B")
+	writeSemanticFixture(t, root, "context/architecture/c.md", "architecture", "C")
+	saveGraphSnapshot(t, root, map[string][]float32{
+		"context/notes/a.md#body":        {1, 0},
+		"context/analysis/b.md#body":     {0, 1},
+		"context/architecture/c.md#body": {0.9, 0.1},
+	})
+
+	s, err := newServerWith(root, semanticOptions{BuildOnDemand: false}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := graphGET(t, s.mux())
+
+	if len(g.Projection) != 3 {
+		t.Fatalf("projection missing or incomplete: %+v", g.Projection)
+	}
+	if len(g.Clusters) != 3 {
+		t.Fatalf("clusters missing or incomplete: %+v", g.Clusters)
+	}
+	for _, n := range g.Nodes {
+		if _, ok := g.Projection[n.Path]; !ok {
+			t.Errorf("no projection for %s", n.Path)
+		}
+		if _, ok := g.Clusters[n.Path]; !ok {
+			t.Errorf("no cluster for %s", n.Path)
+		}
+	}
+	// Same snapshot, second request: the layout and partition must be identical.
+	again := graphGET(t, s.mux())
+	if !reflect.DeepEqual(g.Projection, again.Projection) {
+		t.Errorf("projection not reproducible: %v vs %v", g.Projection, again.Projection)
+	}
+	if !reflect.DeepEqual(g.Clusters, again.Clusters) {
+		t.Errorf("clusters not reproducible: %v vs %v", g.Clusters, again.Clusters)
 	}
 }
 

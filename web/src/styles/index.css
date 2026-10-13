@@ -316,6 +316,9 @@
     background: var(--bg-rise);
     color: var(--fg);
   }
+  .search-filters__toggle {
+    accent-color: var(--accent);
+  }
   .search-palette__list {
     overscroll-behavior: contain;
     flex: 1 1 auto;
@@ -3897,6 +3900,9 @@
   .graph-tools__row {
     display: flex;
     gap: 0.35rem;
+  }
+  .graph-tools__row--wrap {
+    flex-wrap: wrap;
   }
   .graph-tools__chip {
     display: inline-flex;

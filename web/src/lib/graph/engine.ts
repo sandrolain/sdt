@@ -41,6 +41,7 @@ import {
   DEFAULT_PHYSICS,
   groupCenters,
   hierarchyPositions,
+  projectionPositions,
   radialRings,
   type LayoutLinkLike,
   type LayoutNodeLike,
@@ -103,7 +104,14 @@ const DEFAULT_STYLE: EngineStyle = {
   autoRotate: false,
 };
 
-const ALL_LAYOUTS: GraphLayout[] = ["force", "groups", "radial", "hierarchy", "circular"];
+const ALL_LAYOUTS: GraphLayout[] = [
+  "force",
+  "groups",
+  "radial",
+  "hierarchy",
+  "circular",
+  "projection",
+];
 
 const endId = (x: string | GraphNodeInput | undefined): string | undefined =>
   x !== null && typeof x === "object" ? x.id : (x as string | undefined);
@@ -884,7 +892,9 @@ export class GraphEngine {
   /** Position a deterministic layout and freeze the simulation. */
   private _applyStaticLayout(): void {
     if (!this.nodes) return;
-    if (this.layout !== "hierarchy" && this.layout !== "circular") {
+    const isStatic =
+      this.layout === "hierarchy" || this.layout === "circular" || this.layout === "projection";
+    if (!isStatic) {
       this.reheat(0.9);
       return;
     }
@@ -900,14 +910,31 @@ export class GraphEngine {
       type: l.type,
       weight: l.raw.weight,
     }));
-    const pos =
-      this.layout === "hierarchy"
-        ? hierarchyPositions(nodeLikes, linkLikes)
-        : circularPositions(nodeLikes);
+    let pos: Float32Array;
+    if (this.layout === "hierarchy") {
+      pos = hierarchyPositions(nodeLikes, linkLikes);
+    } else if (this.layout === "circular") {
+      pos = circularPositions(nodeLikes);
+    } else {
+      pos = projectionPositions(nodeLikes, this.projectionCoords());
+    }
     this.pos.set(pos);
     this.vel.fill(0);
     this.alpha = 0;
     this._syncEdges();
+  }
+
+  /** The 2D projected coordinates carried on the node inputs (`x`/`y`), keyed by
+   * node id. Used by the `projection` layout, whose positions are the projection
+   * itself. */
+  private projectionCoords(): Map<string, [number, number]> {
+    const coords = new Map<string, [number, number]>();
+    for (const nd of this.nodes ?? []) {
+      const x = nd.raw.x;
+      const y = nd.raw.y;
+      coords.set(nd.id, [typeof x === "number" ? x : 0, typeof y === "number" ? y : 0]);
+    }
+    return coords;
   }
 
   /* ------------------------ highlight / state ------------------------ */
@@ -1024,6 +1051,9 @@ export class GraphEngine {
   private _tick(): void {
     const n = this.n;
     if (!n) return;
+    // The projection IS the layout: hold every node at its projected position so
+    // the map never drifts from its meaning under the physics.
+    if (this.layout === "projection") return;
     const P = this.pos;
     const V = this.vel;
     const a = this.alpha;

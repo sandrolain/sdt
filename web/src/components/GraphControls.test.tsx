@@ -34,6 +34,20 @@ function renderControls(overrides: Record<string, unknown> = {}) {
 }
 
 describe("GraphControls", () => {
+  it("hides the semantic mode control when no docs-map payload is present", () => {
+    renderControls();
+    expect(screen.queryByRole("group", { name: "Semantic mode" })).toBeNull();
+  });
+
+  it("dispatches the semantic mode switch when the control is present", async () => {
+    const onChange = vi.fn();
+    renderControls({ semantic: { mode: "edges", onChange } });
+    // Edges is the default and is the pressed option
+    expect(screen.getByRole("button", { name: "Edges" }).getAttribute("aria-pressed")).toBe("true");
+    await userEvent.click(screen.getByRole("button", { name: "Projection" }));
+    expect(onChange).toHaveBeenCalledWith("projection");
+  });
+
   it("dispatches the mode switch", async () => {
     const props = renderControls();
     await userEvent.click(screen.getByRole("button", { name: /3D/ }));

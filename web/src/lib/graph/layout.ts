@@ -204,3 +204,23 @@ export function circularPositions(nodes: LayoutNodeLike[]): Float32Array {
   }
   return pos;
 }
+
+/**
+ * Positions straight from a 2D projection (semantic-map Projection mode): the
+ * coordinates ARE the layout, so z stays 0 and no force acts on the nodes — the
+ * map never drifts from its meaning. A node absent from `coords` sits at the
+ * origin.
+ */
+export function projectionPositions(
+  nodes: LayoutNodeLike[],
+  coords: Map<string, [number, number]>,
+): Float32Array {
+  const pos = new Float32Array(nodes.length * 3);
+  for (const n of nodes) {
+    const c = coords.get(n.id);
+    if (!c) continue;
+    pos[n.index * 3] = c[0];
+    pos[n.index * 3 + 1] = c[1];
+  }
+  return pos;
+}

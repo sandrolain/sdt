@@ -24,6 +24,8 @@ export interface SearchFilters {
   from: string;
   /** inclusive created-date upper bound (YYYY-MM-DD); "" = none */
   to: string;
+  /** hybrid (semantic) ranking toggle; false = lexical (the default) */
+  semantic: boolean;
 }
 
 export const EMPTY_FILTERS: SearchFilters = {
@@ -34,6 +36,7 @@ export const EMPTY_FILTERS: SearchFilters = {
   category: "",
   from: "",
   to: "",
+  semantic: false,
 };
 
 export type PaletteStatus = "idle" | "loading" | "ready" | "error";
@@ -71,6 +74,7 @@ export type PaletteAction =
   | { type: "category"; value: string }
   | { type: "from"; value: string }
   | { type: "to"; value: string }
+  | { type: "semantic"; value: boolean }
   | { type: "resetFilters" }
   | { type: "more" }
   | { type: "load" }
@@ -98,6 +102,8 @@ export function paletteReducer(state: PaletteState, action: PaletteAction): Pale
       return withFilter(state, { from: action.value });
     case "to":
       return withFilter(state, { to: action.value });
+    case "semantic":
+      return withFilter(state, { semantic: action.value });
     case "resetFilters":
       return { ...state, filters: { ...EMPTY_FILTERS } };
     case "more":

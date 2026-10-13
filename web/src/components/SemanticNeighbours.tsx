@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "../lib/icon";
 import { kindColor, kindFromPath, kindIcon } from "../lib/kinds";
-import { fetchSemanticGraph, semanticNeighboursFor, type SemanticGraph } from "../lib/semanticMap";
+import { fetchSemanticGraph, semanticNeighboursFor, type SemanticGraph } from "../lib/semantic";
 import { useReloadToken } from "../lib/useReloadToken";
 
 export function SemanticNeighbours({ path }: { path: string }) {

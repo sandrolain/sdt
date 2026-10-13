@@ -86,4 +86,27 @@ describe("SemanticMapView", () => {
     expect(await screen.findByTestId("graph-view")).toBeTruthy();
     expect(screen.queryByText("Alpha")).toBeNull();
   });
+
+  it("offers the Semantic mode control and switches through every mode", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...GRAPH,
+            projection: { "context/notes/a.md": [1, 0], "context/analysis/b.md": [0, 1] },
+            clusters: { "context/notes/a.md": 0, "context/analysis/b.md": 1 },
+          }),
+      }),
+    ) as unknown as typeof fetch;
+    renderView();
+    await screen.findByTestId("graph-view");
+    expect(screen.getByRole("group", { name: "Semantic mode" })).toBeTruthy();
+    // Edges is the default; cycling every mode must not error and each becomes pressed
+    expect(screen.getByRole("button", { name: "Edges" }).getAttribute("aria-pressed")).toBe("true");
+    for (const label of ["Projection", "Clusters", "Combined", "Edges"]) {
+      await userEvent.click(screen.getByRole("button", { name: label }));
+      expect(screen.getByRole("button", { name: label }).getAttribute("aria-pressed")).toBe("true");
+    }
+  });
 });

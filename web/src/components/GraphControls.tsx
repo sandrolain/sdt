@@ -11,6 +11,7 @@ import { useState, type Dispatch, type ReactNode } from "react";
 import { CLUSTER_KEYS, type ClusterKey } from "../lib/graphModel";
 import { LAYOUT_OPTIONS } from "../lib/graph/layout";
 import type { GraphLayout } from "../lib/graph/types";
+import { SEMANTIC_MODE_OPTIONS, type SemanticMode } from "../lib/semantic";
 import type { GraphToolsAction, GraphToolsState } from "../lib/graphTools";
 import { Icon } from "../lib/icon";
 import { Select } from "./ui/Select";
@@ -27,6 +28,8 @@ export interface GraphControlsProps {
   pathFrom: string;
   pathTo: string;
   pathActive: boolean;
+  /** Present only on the docs semantic map: the mode control's state/handler. */
+  semantic?: { mode: SemanticMode; onChange: (mode: SemanticMode) => void };
   onTools: Dispatch<GraphToolsAction>;
   onPathFrom: (id: string) => void;
   onPathTo: (id: string) => void;
@@ -81,6 +84,7 @@ export function GraphControls({
   pathFrom,
   pathTo,
   pathActive,
+  semantic,
   onTools,
   onPathFrom,
   onPathTo,
@@ -119,6 +123,25 @@ export function GraphControls({
             }
           />
         </label>
+        {semantic && (
+          <div
+            className="graph-tools__row graph-tools__row--wrap"
+            role="group"
+            aria-label="Semantic mode"
+          >
+            {SEMANTIC_MODE_OPTIONS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className={`graph-tools__chip${semantic.mode === m.id ? " is-active" : ""}`}
+                aria-pressed={semantic.mode === m.id}
+                onClick={() => semantic.onChange(m.id)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
         <label className="graph-tools__field">
           <span className="graph-tools__label">Cluster</span>
           <Select

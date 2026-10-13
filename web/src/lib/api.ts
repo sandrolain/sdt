@@ -183,6 +183,8 @@ export interface SearchQuery {
   /** inclusive frontmatter created-date bounds (YYYY-MM-DD); omitted when empty */
   from?: string;
   to?: string;
+  /** hybrid (semantic) ranking; the param is omitted when false/undefined */
+  semantic?: boolean;
   limit?: number;
 }
 
@@ -216,6 +218,7 @@ export function buildSearchUrl(query: SearchQuery): string {
   if (query.category) params.set("category", query.category);
   if (query.from) params.set("from", query.from);
   if (query.to) params.set("to", query.to);
+  if (query.semantic) params.set("semantic", "1");
   if (query.limit != null) params.set("limit", String(query.limit));
   return `/api/search?${params.toString()}`;
 }

@@ -38,6 +38,7 @@ describe("paletteReducer", () => {
     state = paletteReducer(state, { type: "category", value: "bug" });
     state = paletteReducer(state, { type: "from", value: "2026-01-01" });
     state = paletteReducer(state, { type: "to", value: "2026-12-31" });
+    state = paletteReducer(state, { type: "semantic", value: true });
     expect(state.filters).toEqual({
       kind: "wiki",
       objective: "viewer",
@@ -46,6 +47,7 @@ describe("paletteReducer", () => {
       category: "bug",
       from: "2026-01-01",
       to: "2026-12-31",
+      semantic: true,
     });
     state = paletteReducer(state, { type: "resetFilters" });
     expect(state.filters).toEqual(EMPTY_FILTERS);
@@ -103,6 +105,7 @@ describe("paletteReducer", () => {
           category: "",
           from: "",
           to: "",
+          semantic: false,
         },
       },
       { type: "cleared" },
@@ -126,6 +129,7 @@ describe("paletteReducer", () => {
           category: "bug",
           from: "a",
           to: "b",
+          semantic: false,
         },
       },
       { type: "resetFilters" },
@@ -197,6 +201,19 @@ describe("buildSearchUrl", () => {
     const url = buildSearchUrl({ q: "tokens", category: "bug", limit: 5 });
     const params = new URLSearchParams(url.split("?")[1]);
     expect(params.get("category")).toBe("bug");
+  });
+
+  it("adds semantic=1 only when the toggle is on", () => {
+    const on = new URLSearchParams(
+      buildSearchUrl({ q: "tokens", semantic: true, limit: 5 }).split("?")[1],
+    );
+    expect(on.get("semantic")).toBe("1");
+    const off = new URLSearchParams(
+      buildSearchUrl({ q: "tokens", semantic: false, limit: 5 }).split("?")[1],
+    );
+    expect(off.get("semantic")).toBeNull();
+    const absent = new URLSearchParams(buildSearchUrl({ q: "tokens", limit: 5 }).split("?")[1]);
+    expect(absent.get("semantic")).toBeNull();
   });
 });
 

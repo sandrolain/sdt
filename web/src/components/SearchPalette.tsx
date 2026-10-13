@@ -9,6 +9,7 @@ import {
   CommandList,
 } from "cmdk";
 import { fetchSearch, fetchVocab, type VocabResponse } from "../lib/api";
+import { fetchSemanticStatus, type SemanticStatus } from "../lib/semantic";
 import { MAP_ICON } from "../lib/documentModes";
 import { formatFieldDateOnly } from "../lib/frontmatter";
 import { kindLabel } from "../lib/kinds";
@@ -56,9 +57,10 @@ function statusOptions(): { id: string; label: string }[] {
 export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
   const [state, dispatch] = useReducer(paletteReducer, initialPaletteState);
   const [vocab, setVocab] = useState<VocabResponse | null>(null);
+  const [semStatus, setSemStatus] = useState<SemanticStatus | null>(null);
   const debouncedQuery = useDebouncedValue(state.query, 200);
   const navigate = useNavigate();
-  const { kind, objective, status, topic, category, from, to } = state.filters;
+  const { kind, objective, status, topic, category, from, to, semantic } = state.filters;
 
   useEffect(() => {
     if (!open) {
@@ -83,6 +85,22 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
     };
   }, [vocab]);
 
+  // the semantic branch changes only on restart: probe once per session
+  useEffect(() => {
+    if (semStatus) return;
+    let alive = true;
+    fetchSemanticStatus()
+      .then((res) => {
+        if (alive) setSemStatus(res);
+      })
+      .catch(() => {
+        // no probe ⇒ no toggle; lexical stays the default
+      });
+    return () => {
+      alive = false;
+    };
+  }, [semStatus]);
+
   useEffect(() => {
     let alive = true;
     dispatch({ type: "load" });
@@ -95,6 +113,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
       category,
       from,
       to,
+      semantic,
       limit: state.limit,
     })
       .then((res) => {
@@ -113,7 +132,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
     return () => {
       alive = false;
     };
-  }, [debouncedQuery, kind, objective, status, topic, category, from, to, state.limit]);
+  }, [debouncedQuery, kind, objective, status, topic, category, from, to, semantic, state.limit]);
 
   const select = (path: string, section?: string) => {
     onOpenChange(false);
@@ -217,6 +236,24 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
             onChange={(e) => dispatch({ type: "to", value: e.target.value })}
           />
         </label>
+        {semStatus?.enabled && (
+          <label className="search-filters__field">
+            <input
+              type="checkbox"
+              className="search-filters__toggle"
+              checked={semantic}
+              disabled={!state.query.trim()}
+              onChange={(e) => dispatch({ type: "semantic", value: e.target.checked })}
+              aria-label="Semantic search"
+              title={
+                state.query.trim()
+                  ? "Rank by embedding similarity (hybrid) instead of lexical terms"
+                  : "Enter a query to rank by semantic similarity"
+              }
+            />
+            <span className="search-filters__label">Semantic</span>
+          </label>
+        )}
       </div>
       <CommandList className="search-palette__list">
         <PaletteEmpty status={state.status} error={state.error} />

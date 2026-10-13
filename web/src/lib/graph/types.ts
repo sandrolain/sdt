@@ -29,8 +29,10 @@ export interface GraphLinkInput {
 
 export type GraphMode = "2d" | "3d";
 
-/** Engine layouts: the reference's three plus SDT's two. */
-export type GraphLayout = "force" | "groups" | "radial" | "hierarchy" | "circular";
+/** Engine layouts: the reference's three plus SDT's two. `projection` is a
+ *  static layout driven by the semantic map's 2D PCA coordinates (carried on the
+ *  node inputs as `x`/`y`); it is not offered in the Layout selector. */
+export type GraphLayout = "force" | "groups" | "radial" | "hierarchy" | "circular" | "projection";
 
 /** Label visibility policy (mirrors the reference's `labels` prop). */
 export type LabelMode = "auto" | "always" | "hover" | "none";

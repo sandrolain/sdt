@@ -4,7 +4,7 @@ import {
   semanticNeighboursFor,
   SEMANTIC_EDGE_COLOR,
   type SemanticGraph,
-} from "./semanticMap";
+} from "./graph";
 
 const GRAPH: SemanticGraph = {
   nodes: [
@@ -65,5 +65,66 @@ describe("semanticNeighboursFor", () => {
 
   it("returns nothing for a document outside the scoped map", () => {
     expect(semanticNeighboursFor(GRAPH, "context/plans/p.md")).toEqual([]);
+  });
+});
+
+// The same graph with the mode-selector overlay (projection + clusters).
+const OVERLAY: SemanticGraph = {
+  ...GRAPH,
+  projection: {
+    "context/notes/a.md": [1, 0],
+    "context/analysis/b.md": [0, 1],
+    "context/tasks/t.md": [0.5, 0.5],
+  },
+  clusters: {
+    "context/notes/a.md": 0,
+    "context/analysis/b.md": 1,
+    "context/tasks/t.md": 0,
+  },
+};
+
+describe("adaptSemanticGraph modes", () => {
+  const node = (g: ReturnType<typeof adaptSemanticGraph>, id: string) =>
+    g.nodes.find((n) => n.id === id)!;
+
+  it("defaults to the edge map: kind groups, edges kept, no coordinates", () => {
+    const g = adaptSemanticGraph(OVERLAY);
+    expect(g.links).toHaveLength(2);
+    expect(node(g, "context/notes/a.md").group).toBe("notes");
+    expect(node(g, "context/notes/a.md").x).toBeUndefined();
+  });
+
+  it("Projection positions nodes by the projection and drops the edges", () => {
+    const g = adaptSemanticGraph(OVERLAY, "projection");
+    expect(g.links).toHaveLength(0);
+    for (const n of g.nodes) {
+      expect(typeof n.x).toBe("number");
+      expect(typeof n.y).toBe("number");
+    }
+    // relative geometry preserved: a sits right of b on the first component
+    expect(node(g, "context/notes/a.md").x as number).toBeGreaterThan(
+      node(g, "context/analysis/b.md").x as number,
+    );
+  });
+
+  it("Clusters groups and colours by cluster, keeping the edges", () => {
+    const g = adaptSemanticGraph(OVERLAY, "clusters");
+    expect(g.links).toHaveLength(2);
+    const a = node(g, "context/notes/a.md");
+    const t = node(g, "context/tasks/t.md");
+    const b = node(g, "context/analysis/b.md");
+    expect(a.group).toBe("cluster 0");
+    expect(t.group).toBe("cluster 0");
+    expect(a.color).toBe(t.color);
+    expect(b.group).toBe("cluster 1");
+    expect(b.color).not.toBe(a.color);
+  });
+
+  it("Combined positions by projection and colours by cluster", () => {
+    const g = adaptSemanticGraph(OVERLAY, "combined");
+    expect(g.links).toHaveLength(2);
+    const a = node(g, "context/notes/a.md");
+    expect(typeof a.x).toBe("number");
+    expect(a.group).toBe("cluster 0");
   });
 });

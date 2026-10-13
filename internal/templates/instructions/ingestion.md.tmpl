@@ -67,7 +67,8 @@ are always skipped.
    same-slug + same-concept node (append/update in place, never duplicate),
    or create a new one.
 5. Write or update distilled `wiki/` pages per the schema, the six invariants
-   and the concept budget.
+   and the concept budget — but only where the source adds durable synthesis
+   (the **compilation-value gate** below).
 6. Wire `relations` + `tags`; every claim carries its source citation.
 7. Present the **write + archive plan** to the user: pages touched (created/
    updated), relations added/removed, and files to archive. **Wait for
@@ -81,6 +82,12 @@ against existing nodes instead of re-reading archived sources as new input.
 same-slug file with the same concept is **updated in place** (append claims /
 `refines #claim-n`), never overwritten silently; creating a new node requires
 the slug to be free.
+**Compilation-value gate**: create or expand a canonical page only when the
+source adds durable synthesis, navigation, a decision or a reusable connection
+beyond the captured source. A concise, searchable source may need only its
+`refs/` record or **a no-op** — never paraphrase merely to produce a page. Not
+writing is a first-class, correct outcome: record the no-op and its reason in
+the run's receipt counters.
 
 ## Reading & conversion (heterogeneous sources)
 

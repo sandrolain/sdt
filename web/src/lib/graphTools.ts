@@ -1,11 +1,14 @@
 import type { ClusterKey } from "./graphModel";
 import type { GraphLayout, GraphMode } from "./graph/types";
+import type { SemanticMode } from "./semantic";
 
 export type GraphToolMode = GraphMode;
 
 export interface GraphToolsState {
   mode: GraphMode;
   layout: GraphLayout;
+  /** docs-map visualization mode (Edges default); distinct from `layout` */
+  semanticMode: SemanticMode;
   clusterKey: ClusterKey;
   /** cluster groups to dim; the engine keeps the model complete (B4/B5) */
   hiddenGroups: string[];
@@ -25,6 +28,7 @@ export interface GraphToolsState {
 export const initialGraphTools: GraphToolsState = {
   mode: "2d",
   layout: "force",
+  semanticMode: "edges",
   clusterKey: "type",
   hiddenGroups: [],
   hiddenRelations: [],
@@ -38,6 +42,7 @@ export const initialGraphTools: GraphToolsState = {
 export type GraphToolsAction =
   | { type: "mode"; value: GraphMode }
   | { type: "layout"; value: GraphLayout }
+  | { type: "semanticMode"; value: SemanticMode }
   | { type: "clusterKey"; value: ClusterKey }
   | { type: "toggleGroup"; value: string }
   | { type: "toggleRelation"; value: string }
@@ -58,6 +63,8 @@ export function graphToolsReducer(
       return { ...state, mode: action.value };
     case "layout":
       return { ...state, layout: action.value };
+    case "semanticMode":
+      return { ...state, semanticMode: action.value };
     case "clusterKey":
       return { ...state, clusterKey: action.value };
     case "toggleGroup":

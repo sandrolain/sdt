@@ -357,3 +357,117 @@ func roleCoreRegion(content, slug string) (string, bool) {
 	}
 	return rest[:ei], true
 }
+
+// backtickRe captures the content of one `backticked` span.
+var backtickRe = regexp.MustCompile("`([^`]+)`")
+
+// TestIngestionVocabularyMatchesRegistry pins the ingestion module's `type`
+// field row and its relation-verb table to the Go registries that
+// `sdt context wiki lint` enforces, so a value added to one surface and not the
+// other fails here instead of shipping a page the schema rejects. The donor
+// this rule came from shipped exactly this drift — four declarations whose
+// union held twelve values and whose intersection held two — undetected.
+func TestIngestionVocabularyMatchesRegistry(t *testing.T) {
+	rendered, err := Render("instructions/ingestion.md.tmpl", nil, nil)
+	if err != nil {
+		t.Fatalf("render ingestion.md.tmpl: %v", err)
+	}
+
+	if got := rowTokens(t, rendered, "type", 2); !sameTokenSet(got, contextwiki.Types) {
+		t.Errorf("ingestion `type` row = %v, contextwiki.Types = %v", got, contextwiki.Types)
+	}
+	if got := verbTableTokens(t, rendered); !sameTokenSet(got, contextwiki.Verbs) {
+		t.Errorf("ingestion relation verbs = %v, contextwiki.Verbs = %v", got, contextwiki.Verbs)
+	}
+}
+
+// rowTokens returns the backticked tokens of the cell at index col of the first
+// table row whose first cell equals firstCell (backticks stripped).
+func rowTokens(t *testing.T, content, firstCell string, col int) []string {
+	t.Helper()
+	for _, line := range strings.Split(content, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
+			continue
+		}
+		cells := splitTableRow(line)
+		if len(cells) > col && strings.Trim(cells[0], "`") == firstCell {
+			return backtickTokens(cells[col])
+		}
+	}
+	t.Fatalf("table row %q not found", firstCell)
+	return nil
+}
+
+// verbTableTokens returns the first-column value of every data row of the table
+// headed by `| verb | ... |`.
+func verbTableTokens(t *testing.T, content string) []string {
+	t.Helper()
+	inTable := false
+	var out []string
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "|") {
+			if inTable {
+				break
+			}
+			continue
+		}
+		cells := splitTableRow(line)
+		if len(cells) == 0 {
+			continue
+		}
+		if !inTable {
+			if cells[0] == "verb" {
+				inTable = true
+			}
+			continue
+		}
+		if strings.Trim(cells[0], "-") == "" { // separator row
+			continue
+		}
+		out = append(out, strings.Trim(cells[0], "`"))
+	}
+	if len(out) == 0 {
+		t.Fatal("relation verb table not found")
+	}
+	return out
+}
+
+// splitTableRow splits a markdown table line into trimmed cells, dropping the
+// empty cells produced by the outer pipes.
+func splitTableRow(line string) []string {
+	parts := strings.Split(strings.TrimSpace(line), "|")
+	if len(parts) >= 2 {
+		parts = parts[1 : len(parts)-1]
+	}
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return parts
+}
+
+// backtickTokens returns the content of every `backticked` span in s, in order.
+func backtickTokens(s string) []string {
+	var out []string
+	for _, m := range backtickRe.FindAllStringSubmatch(s, -1) {
+		out = append(out, m[1])
+	}
+	return out
+}
+
+// sameTokenSet reports whether got and want hold the same distinct values.
+func sameTokenSet(got []string, want map[string]bool) bool {
+	seen := map[string]bool{}
+	for _, g := range got {
+		seen[g] = true
+	}
+	if len(seen) != len(want) {
+		return false
+	}
+	for w := range want {
+		if !seen[w] {
+			return false
+		}
+	}
+	return true
+}

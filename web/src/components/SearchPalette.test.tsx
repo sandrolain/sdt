@@ -47,7 +47,11 @@ function renderToggleablePalette() {
   return render(<Harness />);
 }
 
-function mockSearch(payload: unknown, ok = true) {
+function mockSearch(
+  payload: unknown,
+  ok = true,
+  semantic: { enabled: boolean; snapshot: boolean } = { enabled: false, snapshot: false },
+) {
   return vi.fn((url: string) => {
     if (url.startsWith("/api/search")) {
       return Promise.resolve({ ok, json: () => Promise.resolve(payload) });
@@ -62,6 +66,9 @@ function mockSearch(payload: unknown, ok = true) {
             topics: ["ui-ux"],
           }),
       });
+    }
+    if (url.startsWith("/api/semantic/status")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(semantic) });
     }
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
   });
@@ -386,5 +393,58 @@ describe("SearchPalette", () => {
     expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("");
     expect((screen.getByLabelText("Status") as HTMLSelectElement).value).toBe("");
     expect((screen.getByLabelText("Search query") as HTMLInputElement).value).toBe("tokens");
+  });
+
+  it("hides the Semantic toggle when the server branch is off", async () => {
+    const fetchMock = mockSearch({ results: [], total: 0 });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    renderPalette();
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some((c) => String(c[0]).startsWith("/api/semantic/status")),
+      ).toBe(true),
+    );
+    expect(screen.queryByLabelText("Semantic search")).toBeNull();
+  });
+
+  it("shows the Semantic toggle when the branch is on and maps it to semantic=1", async () => {
+    const fetchMock = mockSearch({ results: [], total: 0 }, true, {
+      enabled: true,
+      snapshot: false,
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    renderPalette();
+
+    const toggle = (await screen.findByLabelText("Semantic search")) as HTMLInputElement;
+    // disabled until a query exists: browse mode never uses the semantic branch
+    expect(toggle.disabled).toBe(true);
+
+    await userEvent.type(screen.getByLabelText("Search query"), "tokens");
+    await waitFor(() => expect(toggle.disabled).toBe(false));
+    await userEvent.click(toggle);
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("semantic=1"))).toBe(true);
+    });
+  });
+
+  it("clears the Semantic toggle on close", async () => {
+    globalThis.fetch = mockSearch({ results: [], total: 0 }, true, {
+      enabled: true,
+      snapshot: false,
+    }) as unknown as typeof fetch;
+    renderToggleablePalette();
+
+    const toggle = (await screen.findByLabelText("Semantic search")) as HTMLInputElement;
+    await userEvent.type(screen.getByLabelText("Search query"), "tokens");
+    await waitFor(() => expect(toggle.disabled).toBe(false));
+    await userEvent.click(toggle);
+    await waitFor(() => expect(toggle.checked).toBe(true));
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.click(screen.getByRole("button", { name: "toggle" }));
+
+    expect((screen.getByLabelText("Semantic search") as HTMLInputElement).checked).toBe(false);
   });
 });

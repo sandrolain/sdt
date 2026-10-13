@@ -42,13 +42,17 @@ type semEdge struct {
 }
 
 // semGraph is the payload of /api/semantic/graph: the scoped nodes and their
-// de-duplicated top-k neighbour edges, deterministically ordered. Warning is set
-// when an on-demand build was attempted and failed, so the map can explain the
-// empty state.
+// de-duplicated top-k neighbour edges, deterministically ordered, plus the
+// deterministic 2D projection and cluster assignment the viewer's mode selector
+// renders. Projection and Clusters are omitted (nil) on an empty snapshot.
+// Warning is set when an on-demand build was attempted and failed, so the map can
+// explain the empty state.
 type semGraph struct {
-	Nodes   []semNode `json:"nodes"`
-	Edges   []semEdge `json:"edges"`
-	Warning string    `json:"warning,omitempty"`
+	Nodes      []semNode             `json:"nodes"`
+	Edges      []semEdge             `json:"edges"`
+	Projection map[string][2]float64 `json:"projection,omitempty"`
+	Clusters   map[string]int        `json:"clusters,omitempty"`
+	Warning    string                `json:"warning,omitempty"`
 }
 
 // handleSemanticGraph serves the scoped semantic-neighbour graph shared by the
@@ -124,7 +128,12 @@ func (s *server) buildSemanticGraph() (semGraph, error) {
 		return edges[i].To < edges[j].To
 	})
 
-	return semGraph{Nodes: nodes, Edges: edges}, nil
+	return semGraph{
+		Nodes:      nodes,
+		Edges:      edges,
+		Projection: semantic.Project2D(scoped),
+		Clusters:   semantic.Clusters(scoped),
+	}, nil
 }
 
 // topKNeighbourEdges returns the de-duplicated undirected edge set built from
