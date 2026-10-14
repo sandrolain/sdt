@@ -28,6 +28,11 @@ generated command reference, see `context/instructions/reference.md`.
 - `sdt read -p <file> [--lines <from>:<to>]` — print a file, or a line range of it
 - `sdt context memo due|list|add|done` — the planned-operation register and its due
   check (`sdt context memo due` at session start)
+- `sdt context budget` — measure the always-loaded surface (the `AGENTS.md`
+  instructions block, `context/index.md`, `context/architecture/`,
+  `context/decisions/`) in bytes, lines and words, with the largest entries under
+  `--top`; read-only and informational, never a gate, and any token figure is a
+  labelled estimate derived from bytes
 - `sdt context status get|set` — read/update a document's status (per-type
   vocabularies in the status matrix: `context/architecture/stack.md`)
 - `sdt context get <doc> [<key>…]` — read a document's frontmatter: the raw
