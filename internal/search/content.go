@@ -13,15 +13,15 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/git-pkgs/gitignore"
 )
 
 // contentsearch answers the two file-locating questions an agent asks with a
 // host tool today: which paths match a glob, and which files contain a pattern.
-// Both default to honouring .gitignore — the same set git tracks, nested files
-// included — because an agent working a project needs the tracked view, not the
-// build scratch. `--no-ignore` is the explicit escape for the raw tree.
+// The walk covers the raw working tree and consults no ignore file: `.gitignore`
+// answers "what would git commit", which is not the question a reader is asking,
+// and letting it decide visibility hid the whole context/ corpus behind a
+// version-control choice. Scope is owned here instead, through skipDirs and the
+// per-walk skip set.
 
 // skipDirs are never walked: version-control and tool caches carry no content an
 // agent is looking for, and their size makes an unbounded scan expensive.
@@ -33,6 +33,42 @@ var skipDirs = map[string]struct{}{
 	".venv":        {},
 }
 
+// DefaultSkipPaths is the corpus scope a walk prunes unless the caller widens
+// it, given as slash-separated paths relative to the walk root. The corpus of
+// work is deliberately **not** pruned: it is the tree an agent reads, and it is
+// small (59 MB on a mature corpus). `context/refs/` is pruned because it holds
+// third-party clones — 9,2 GB and 131k files on the same corpus — and a
+// directory that large cannot sit in the path of every search.
+//
+// Pruning by **path** rather than by directory name is deliberate: a source
+// directory that happens to be called `refs` or `tmp` stays searchable, and only
+// the corpus's own clones are skipped.
+var DefaultSkipPaths = []string{"context/refs", "context/tmp"}
+
+// DefaultSkipPathsNoRefs is DefaultSkipPaths with the captured clones reachable.
+// The scratch directory stays pruned either way: it holds scratch by definition,
+// and opting into a third-party clone is not an opt-in to scratch.
+var DefaultSkipPathsNoRefs = []string{"context/tmp"}
+
+// defaultSkipPaths is the internal alias for the nil-means-default contract.
+var defaultSkipPaths = DefaultSkipPaths
+
+// pathSet normalises a prune list into a lookup set, dropping empty entries and
+// the trailing separator so a caller may write either form.
+func pathSet(paths []string) map[string]struct{} {
+	if len(paths) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		p = strings.TrimSuffix(filepath.ToSlash(p), "/")
+		if p != "" && p != "." {
+			set[p] = struct{}{}
+		}
+	}
+	return set
+}
+
 // binarySniffBytes is how much of a file is inspected to classify it. A NUL byte
 // in the first block is the conventional binary signal (git's too).
 const binarySniffBytes = 8000
@@ -42,11 +78,13 @@ type FindOptions struct {
 	// Root is the directory the glob is evaluated against. Empty means the
 	// working directory.
 	Root string
+	// SkipPaths prunes subtrees by their slash-separated path relative to Root,
+	// before the glob is applied. Nil means DefaultSkipPaths; an empty non-nil
+	// slice prunes nothing, which is how a caller widens the walk to everything.
+	SkipPaths []string
 	// Pattern is a glob over slash-separated paths relative to Root. An empty
 	// pattern matches every path.
 	Pattern string
-	// NoIgnore walks the raw tree instead of the tracked view.
-	NoIgnore bool
 	// IncludeDirs keeps directories in the result; the default is files only.
 	IncludeDirs bool
 	// Max caps the result set; zero means the package default.
@@ -118,12 +156,11 @@ func Find(opts FindOptions) ([]FindResult, error) {
 		seen[rel] = struct{}{}
 		return nil
 	}
-	if opts.NoIgnore {
-		err = walkAll(absRoot, visit)
-	} else {
-		err = gitignore.Walk(absRoot, visit)
+	skip := opts.SkipPaths
+	if skip == nil {
+		skip = defaultSkipPaths
 	}
-	if err != nil {
+	if err = walkAll(absRoot, pathSet(skip), visit); err != nil {
 		return nil, err
 	}
 	out := make([]FindResult, 0, len(seen))
@@ -152,8 +189,11 @@ type GrepOptions struct {
 	// either may be empty. Exclude wins over Include.
 	Include string
 	Exclude string
-	// NoIgnore searches the raw tree instead of the tracked view.
-	NoIgnore bool
+	// SkipPaths prunes subtrees by their slash-separated path relative to Root,
+	// before the include and exclude filters are applied. Nil means
+	// DefaultSkipPaths; an empty non-nil slice prunes nothing, which is how a
+	// caller widens the walk to everything.
+	SkipPaths []string
 	// MaxCountPerFile caps the reported matches per file; zero means unlimited.
 	MaxCountPerFile int
 	// Max caps the total reported matches; zero means the package default.
@@ -199,13 +239,11 @@ func Grep(opts GrepOptions) (GrepResults, error) {
 	if err != nil {
 		return GrepResults{}, err
 	}
-	var walkErr error
-	if opts.NoIgnore {
-		walkErr = walkAll(absRoot, s.visit)
-	} else {
-		walkErr = gitignore.Walk(absRoot, s.visit)
+	skip := opts.SkipPaths
+	if skip == nil {
+		skip = defaultSkipPaths
 	}
-	if walkErr != nil && !errors.Is(walkErr, errStopScan) {
+	if walkErr := walkAll(absRoot, pathSet(skip), s.visit); walkErr != nil && !errors.Is(walkErr, errStopScan) {
 		return GrepResults{}, walkErr
 	}
 	sortMatches(s.res.Matches)
@@ -344,17 +382,30 @@ var errStopScan = errors.New("grep: match cap reached")
 // walkAll walks the raw tree in lexical order, skipping the VCS and dependency
 // directories. It is the `--no-ignore` path: every other file is visited,
 // including the ones .gitignore excludes.
-func walkAll(root string, fn func(path string, d fs.DirEntry) error) error {
+func walkAll(root string, prune map[string]struct{}, fn func(path string, d fs.DirEntry) error) error {
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			//nolint:nilerr // an unreadable entry is skipped, not fatal
 			return nil
 		}
-		if d.IsDir() {
-			if _, skip := skipDirs[d.Name()]; skip && path != root {
+		if d.IsDir() && path != root {
+			if _, skip := skipDirs[d.Name()]; skip {
 				return filepath.SkipDir
 			}
-			return nil
+			// A corpus-scope prune is matched on the path relative to the walk
+			// root, so it removes the subtree instead of filtering its results:
+			// `--exclude` cannot do this, it leaves the descent untouched.
+			if len(prune) > 0 {
+				if rel, rerr := rootRel(root, path); rerr == nil {
+					if _, skip := prune[rel]; skip {
+						return filepath.SkipDir
+					}
+				}
+			}
+			// A surviving directory reaches the visitor like any other entry:
+			// `find --dirs` reports them, and the grep visitor rejects them
+			// through scannable.
+			return fn(path, d)
 		}
 		return fn(path, d)
 	})
@@ -419,8 +470,15 @@ func globRegexp(pattern string) (*regexp.Regexp, error) {
 	}
 	basename := !strings.ContainsRune(pattern, '/')
 	var b strings.Builder
+	// Every compiled glob is anchored at the start. A pattern carrying a slash is
+	// documented as matching the whole path, so `context/analysis/*.md` must not
+	// match `cli/cmd/testdata/…/context/analysis/normal.md` — an unanchored
+	// regexp matches any suffix, which let a test fixture answer a corpus glob
+	// and fill the --limit before a single real document was reached.
 	if basename {
 		b.WriteString(`\A(?:.*/)?`)
+	} else {
+		b.WriteString(`\A`)
 	}
 	for i := 0; i < len(pattern); {
 		switch {

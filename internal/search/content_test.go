@@ -9,9 +9,13 @@ import (
 	"testing"
 )
 
-// treeRoot creates a fixture tree: tracked files at several depths, an ignored
-// file and directory, a nested .gitignore scoping a sibling, a binary file and
-// a dependency tree.
+// treeRoot creates a fixture tree: files at several depths, a `.gitignore` in
+// the managed sdt block naming a file, a directory and a dependency tree, a
+// nested `.gitignore` beside a sibling, and a binary file.
+//
+// The ignore files are here to be *ignored*: nothing in this tree is excluded
+// because one of them names it. The dependency tree is still pruned, because
+// that is the tool's own scope.
 func treeRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -25,7 +29,7 @@ func treeRoot(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	write(".gitignore", "*.log\nbuild/\nnode_modules/\n")
+	write(".gitignore", "# sdt:start\n*.log\nbuild/\nnode_modules/\n# sdt:end\n")
 	write("keep.md", "alpha needle\nsecond line\n")
 	write("nested/deep/target.md", "no match here\n")
 	write("notes/ignored.log", "needle in an ignored file\n")
@@ -43,8 +47,47 @@ func TestFindMatchesBasenameAtAnyDepth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"keep.md", "nested/deep/target.md", "sub/visible.md"}
+	want := []string{"keep.md", "nested/deep/target.md", "sub/local-only.md", "sub/visible.md"}
 	assertPaths(t, got, want)
+}
+
+// TestFindAnchorsPathPatternsToTheWholePath pins the anchoring: a pattern
+// carrying a slash matches the path, not a suffix of it. Unanchored, a glob
+// matched any tail, so a corpus glob was answered by a test fixture nested
+// deeper in the tree and the --limit filled up before a real document appeared.
+func TestFindAnchorsPathPatternsToTheWholePath(t *testing.T) {
+	root := treeRoot(t)
+	write := func(rel, content string) {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("deep/nested/notes/deep.md", "far away\n")
+	write("notes/real.md", "a real note\n")
+
+	got, err := Find(FindOptions{Root: root, Pattern: "notes/*.md"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasFindPath(got, "notes/real.md") {
+		t.Errorf("notes/*.md did not match its own directory: %+v", got)
+	}
+	if hasFindPath(got, "deep/nested/notes/deep.md") {
+		t.Errorf("notes/*.md matched a nested path it should not: %+v", got)
+	}
+
+	// ** is the explicit way to say "at any depth", and it still works.
+	got, err = Find(FindOptions{Root: root, Pattern: "**/notes/*.md"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasFindPath(got, "deep/nested/notes/deep.md") {
+		t.Errorf("**/notes/*.md did not span directories: %+v", got)
+	}
 }
 
 func TestFindMatchesWholePathWhenPatternHasSeparator(t *testing.T) {
@@ -63,33 +106,36 @@ func TestFindDoubleStarSpansDirectories(t *testing.T) {
 	assertPaths(t, got, []string{"nested/deep/target.md"})
 }
 
-func TestFindHonoursGitignoreByDefault(t *testing.T) {
+// TestFindIgnoresGitignoreFiles pins the removal: an ignore file names nothing
+// that stays out of the walk. Only skipDirs prunes, and it prunes by directory
+// name.
+func TestFindIgnoresGitignoreFiles(t *testing.T) {
 	got, err := Find(FindOptions{Root: treeRoot(t), Pattern: "*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range got {
-		switch {
-		case strings.HasSuffix(r.Path, ".log"),
-			strings.HasPrefix(r.Path, "build/"),
-			r.Path == "sub/local-only.md",
-			strings.HasPrefix(r.Path, "node_modules/"):
-			t.Errorf("%s is ignored by .gitignore but was returned", r.Path)
+	for _, want := range []string{
+		"keep.md", "notes/ignored.log", "build/artifact.txt", "sub/local-only.md",
+	} {
+		if !hasFindPath(got, want) {
+			t.Errorf("%s is named by an ignore file and must still be found: %+v", want, got)
 		}
 	}
-	if !hasFindPath(got, "keep.md") {
-		t.Errorf("tracked file missing: %+v", got)
+	for _, r := range got {
+		if strings.HasPrefix(r.Path, "node_modules/") {
+			t.Errorf("dependency tree %s was walked; skipDirs must prune it", r.Path)
+		}
 	}
 }
 
-func TestFindNoIgnoreReturnsRawTree(t *testing.T) {
-	got, err := Find(FindOptions{Root: treeRoot(t), Pattern: "*", NoIgnore: true})
+func TestFindReturnsTheRawTree(t *testing.T) {
+	got, err := Find(FindOptions{Root: treeRoot(t), Pattern: "*"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"notes/ignored.log", "build/artifact.txt", "sub/local-only.md"} {
 		if !hasFindPath(got, want) {
-			t.Errorf("--no-ignore missing %s: %+v", want, got)
+			t.Errorf("the raw tree is missing %s: %+v", want, got)
 		}
 	}
 }
@@ -124,40 +170,35 @@ func TestGrepFindsMatchesWithPathAndLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Matches) != 2 {
-		t.Fatalf("want 2 matches (keep.md, sub/visible.md), got %d: %+v", len(res.Matches), res.Matches)
+	// Five files carry the needle; three of them are named by an ignore file and
+	// are searched all the same, in path order.
+	want := []string{
+		"build/artifact.txt", "keep.md", "notes/ignored.log",
+		"sub/local-only.md", "sub/visible.md",
 	}
-	first := res.Matches[0]
-	if first.Path != "keep.md" || first.Line != 1 {
-		t.Errorf("first match = %+v, want keep.md:1", first)
+	if len(res.Matches) != len(want) {
+		t.Fatalf("want %d matches %v, got %d: %+v", len(want), want, len(res.Matches), res.Matches)
 	}
-	if res.FilesMatched != 2 {
-		t.Errorf("filesMatched = %d, want 2", res.FilesMatched)
+	for i, p := range want {
+		if res.Matches[i].Path != p {
+			t.Errorf("match %d = %q, want %q", i, res.Matches[i].Path, p)
+		}
+	}
+	if res.Matches[1].Line != 1 {
+		t.Errorf("keep.md match line = %d, want 1", res.Matches[1].Line)
+	}
+	if res.FilesMatched != len(want) {
+		t.Errorf("filesMatched = %d, want %d", res.FilesMatched, len(want))
 	}
 	if res.Truncated {
 		t.Error("a two-match scan must not report truncation")
 	}
 }
 
-func TestGrepSkipsIgnoredBinaryAndDependencyFiles(t *testing.T) {
+// TestGrepSkipsBinaryAndDependencyFilesOnly pins that the binary sniff and
+// skipDirs still prune, while nothing prunes on account of an ignore file.
+func TestGrepSkipsBinaryAndDependencyFilesOnly(t *testing.T) {
 	res, err := Grep(GrepOptions{Root: treeRoot(t), Pattern: "needle"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, m := range res.Matches {
-		switch {
-		case strings.HasSuffix(m.Path, ".log"),
-			strings.HasPrefix(m.Path, "build/"),
-			m.Path == "sub/local-only.md",
-			strings.HasPrefix(m.Path, "node_modules/"),
-			m.Path == "binary.dat":
-			t.Errorf("%s must not be searched", m.Path)
-		}
-	}
-}
-
-func TestGrepNoIgnoreReachesIgnoredFiles(t *testing.T) {
-	res, err := Grep(GrepOptions{Root: treeRoot(t), Pattern: "needle", NoIgnore: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,9 +206,16 @@ func TestGrepNoIgnoreReachesIgnoredFiles(t *testing.T) {
 	for _, m := range res.Matches {
 		paths[m.Path] = true
 	}
+	for _, m := range res.Matches {
+		switch {
+		case strings.HasPrefix(m.Path, "node_modules/"),
+			m.Path == "binary.dat":
+			t.Errorf("%s must not be searched", m.Path)
+		}
+	}
 	for _, want := range []string{"notes/ignored.log", "build/artifact.txt", "sub/local-only.md"} {
 		if !paths[want] {
-			t.Errorf("--no-ignore missing %s: %+v", want, paths)
+			t.Errorf("%s is named by an ignore file and must still be searched: %+v", want, paths)
 		}
 	}
 }
@@ -177,8 +225,15 @@ func TestGrepIncludeExcludeScoping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Matches) != 1 || res.Matches[0].Path != "sub/visible.md" {
+	// Both sub/ markdown files match now: the nested ignore file no longer hides
+	// local-only.md, so --include has two hits to report.
+	if len(res.Matches) != 2 {
 		t.Fatalf("include glob did not scope the search: %+v", res.Matches)
+	}
+	for _, m := range res.Matches {
+		if !strings.HasPrefix(m.Path, "sub/") {
+			t.Errorf("include glob let %s through", m.Path)
+		}
 	}
 	res, err = Grep(GrepOptions{Root: treeRoot(t), Pattern: "needle", Exclude: "sub/*"})
 	if err != nil {
@@ -203,12 +258,13 @@ func TestGrepRespectsTotalCap(t *testing.T) {
 		t.Error("a capped scan must report truncation")
 	}
 	// Reaching the cap exactly on the last match of the tree is not truncation:
-	// nothing was withheld.
-	res, err = Grep(GrepOptions{Root: treeRoot(t), Pattern: "needle", Max: 2})
+	// nothing was withheld. Five files carry "needle" now that the ignore file
+	// excludes nothing, so the exact cap is five.
+	res, err = Grep(GrepOptions{Root: treeRoot(t), Pattern: "needle", Max: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Matches) != 2 || res.Truncated {
+	if len(res.Matches) != 5 || res.Truncated {
 		t.Errorf("a cap equal to the match count must not report truncation: %+v", res)
 	}
 }
