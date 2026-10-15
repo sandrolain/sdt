@@ -10,6 +10,7 @@ import { fetchJSON } from "../fetchJson";
 import type { AdaptedEngineGraph } from "../graph/adapter";
 import { clusterPalette, DEFAULT_NODE_COLOR, type GraphNode } from "../graphModel";
 import type { GraphLinkInput, GraphNodeInput } from "../graph/types";
+import { semanticEdgeBudget, thinEdges } from "./edges";
 
 export interface SemanticNode {
   path: string;
@@ -31,6 +32,9 @@ export interface SemanticGraph {
   projection?: Record<string, [number, number]>;
   /** Cluster index per path (server-side, deterministic); absent on empty. */
   clusters?: Record<string, number>;
+  /** Cluster name per index, derived server-side from the members it holds; absent
+   * on an older payload, in which case the index is shown as `cluster <n>`. */
+  clusterLabels?: Record<string, string>;
   /** Set when an on-demand build was attempted and failed. */
   warning?: string;
 }
@@ -98,10 +102,11 @@ export interface AdaptedSemanticGraph {
  * conforming to `AdaptedEngineGraph` so the wiki graph workspace can render it.
  *
  * The visualization mode decides three things: the node `group` and colour
- * (kind, or the semantic cluster when `mode` clusters), whether `x`/`y` carry the
- * 2D projection (`projection`/`combined`), and whether the neighbour edges are
- * kept (`edges`/`clusters`/`combined`; dropped in the pure `projection` map, which
- * is points, not links).
+ * (kind, or the semantic cluster when `mode` clusters — named from the payload's
+ * `clusterLabels`, never from the raw index), whether `x`/`y` carry the 2D
+ * projection (`projection`/`combined`), and whether the neighbour edges are kept
+ * (`edges`/`clusters`/`combined`; dropped in the pure `projection` map, which is
+ * points, not links).
  */
 export function adaptSemanticGraph(
   graph: SemanticGraph,
@@ -112,8 +117,12 @@ export function adaptSemanticGraph(
   const byCluster = semanticModeClusters(mode);
   const projected = semanticModeProjects(mode) ? scaledProjection(graph?.projection) : null;
 
-  const groupOf = (n: SemanticNode): string =>
-    byCluster ? `cluster ${graph?.clusters?.[n.path] ?? "?"}` : n.kind || "unknown";
+  const groupOf = (n: SemanticNode): string => {
+    if (!byCluster) return n.kind || "unknown";
+    const index = graph?.clusters?.[n.path];
+    if (index === undefined) return "cluster ?";
+    return graph?.clusterLabels?.[String(index)] ?? `cluster ${index}`;
+  };
 
   const palette = clusterPalette(
     nodes.map(
@@ -141,15 +150,17 @@ export function adaptSemanticGraph(
       ? []
       : (() => {
           const ids = new Set(mapped.map((n) => n.id));
-          return edges
-            .filter((e) => ids.has(e.from) && ids.has(e.to))
-            .map((e) => ({
-              source: e.from,
-              target: e.to,
-              type: "semantic",
-              color: SEMANTIC_EDGE_COLOR,
-              weight: e.score,
-            }));
+          const present = edges.filter((e) => ids.has(e.from) && ids.has(e.to));
+          // A clustered view draws the strongest few: the rest is the density that
+          // hides the grouping, and the edge map keeps all of them.
+          const drawn = byCluster ? thinEdges(present, semanticEdgeBudget(mapped.length)) : present;
+          return drawn.map((e) => ({
+            source: e.from,
+            target: e.to,
+            type: "semantic",
+            color: SEMANTIC_EDGE_COLOR,
+            weight: e.score,
+          }));
         })();
 
   return { nodes: mapped, links, palette, allVerbs: ["semantic"], allKinds: [] };

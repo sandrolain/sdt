@@ -3970,6 +3970,104 @@
     font-size: 0.6875rem;
     color: var(--fg-dim);
   }
+  /* A control that cannot change the current mode is disabled and says why, in a
+     sentence beside it: a disabled control's own tooltip is not reliable, and a
+     silent dead control is the defect this rule exists for. */
+  .ui-select[data-disabled] .ui-select__button,
+  .ui-switch[data-disabled] {
+    opacity: 0.5;
+  }
+  .ui-select[data-disabled] .ui-select__button {
+    cursor: not-allowed;
+  }
+  /* The inline guide: a hotspot in a section header, and the extended guide in a
+     modal over a dimmed map (analysis 20261013-063009, O6). */
+  .graph-tools__guide {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    width: 1.1rem;
+    height: 1.1rem;
+    padding: 0;
+    border: 0;
+    /* a pill on a square box is the circle this hotspot wants, off the scale but on
+       the token */
+    border-radius: var(--radius-pill);
+    background: var(--bg-rise);
+    color: var(--fg-faint);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .graph-tools__guide:hover,
+  .graph-tools__guide[data-focus-visible] {
+    color: var(--fg);
+    background: var(--border);
+  }
+  .guide-modal__opener {
+    display: none;
+  }
+  .guide-modal__overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+  }
+  .guide-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-width: 42rem;
+    max-height: 80vh;
+    overflow: hidden;
+    padding: 1rem 1.15rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-rise);
+    color: var(--fg);
+    box-shadow: 0 12px 32px var(--shadow-color);
+  }
+  .guide-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .guide-modal__title {
+    margin: 0;
+    font-size: 1rem;
+  }
+  .guide-modal__close {
+    display: inline-flex;
+    border: 0;
+    background: none;
+    color: var(--fg-dim);
+    cursor: pointer;
+  }
+  .guide-modal__close:hover {
+    color: var(--fg);
+  }
+  .guide-modal__body {
+    overflow-y: auto;
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+  .guide-modal__loading,
+  .guide-modal__error {
+    margin: 0;
+    color: var(--fg-faint);
+    font-size: 0.875rem;
+  }
+  .graph-tools__legend.is-dimmed {
+    opacity: 0.45;
+  }
+  .graph-tools__note {
+    font-size: 0.6875rem;
+    color: var(--fg-faint);
+  }
   .graph-tools__swatch {
     width: 0.7rem;
     height: 0.7rem;

@@ -120,6 +120,28 @@ describe("adaptSemanticGraph modes", () => {
     expect(b.color).not.toBe(a.color);
   });
 
+  it("names a cluster from the payload's labels, and falls back to the index", () => {
+    const named = adaptSemanticGraph(
+      { ...OVERLAY, clusterLabels: { "0": "Notes · Beta", "1": "Decisions 1" } },
+      "clusters",
+    );
+    expect(node(named, "context/notes/a.md").group).toBe("Notes · Beta");
+    expect(node(named, "context/analysis/b.md").group).toBe("Decisions 1");
+    // The same index keeps one colour whichever name it carries.
+    expect(node(named, "context/notes/a.md").color).toBe(node(named, "context/tasks/t.md").color);
+
+    // No labels at all: the index is the honest fallback, never a blank group.
+    const bare = adaptSemanticGraph(OVERLAY, "clusters");
+    expect(node(bare, "context/notes/a.md").group).toBe("cluster 0");
+
+    // A cluster the payload did not name keeps its index rather than borrowing one.
+    const partial = adaptSemanticGraph(
+      { ...OVERLAY, clusterLabels: { "0": "Notes · Beta" } },
+      "clusters",
+    );
+    expect(node(partial, "context/analysis/b.md").group).toBe("cluster 1");
+  });
+
   it("Combined positions by projection and colours by cluster", () => {
     const g = adaptSemanticGraph(OVERLAY, "combined");
     expect(g.links).toHaveLength(2);

@@ -14,7 +14,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EDGE_FS, EDGE_VS, NODE_FS, NODE_VS } from "./shaders";
-import { EDGE_LABEL_CSS, LABEL_CSS } from "./labels";
+import { EDGE_LABEL_CSS, LABEL_CSS, labelBox } from "./labels";
 import {
   buildColorMaps,
   DEFAULT_BG,
@@ -103,6 +103,16 @@ const DEFAULT_STYLE: EngineStyle = {
   edgeOpacity: 0.8,
   autoRotate: false,
 };
+
+/**
+ * In the projection layouts the node field is dense and homogeneous — the same
+ * discs at similar sizes, with a glow each — so the picture, not the clustering,
+ * carries the signal. Damping the glow and tightening the size spread gives the
+ * clusters their cue back (analysis 20261013-063009, O5). The shader's glow math is
+ * ported verbatim and stays untouched: this scales the uniform it reads.
+ */
+const PROJECTION_GLOW_SCALE = 0.55;
+const PROJECTION_SIZE_SPREAD = 0.45;
 
 const ALL_LAYOUTS: GraphLayout[] = [
   "force",
@@ -386,7 +396,7 @@ export class GraphEngine {
       const value = rest[k];
       if (value !== undefined) this.opts[k] = value as never;
     }
-    this.nodeMat.uniforms.uGlow.value = this.opts.glow;
+    this.nodeMat.uniforms.uGlow.value = this._glowValue();
     this.edgeMat.uniforms.uOpacity.value = this.opts.edgeOpacity;
     if (this.nodes && prevScale !== this.opts.nodeScale) this._applyRadius();
     if (physics) {
@@ -442,6 +452,7 @@ export class GraphEngine {
     if (l === this.layout) return;
     this.layout = l;
     if (!this.nodes) return;
+    this.nodeMat.uniforms.uGlow.value = this._glowValue();
     this._computeLayoutParams();
     this._applyStaticLayout();
     this.goal = { type: "fit", ttl: 4.5, useDir: false, index: -1 };
@@ -834,11 +845,20 @@ export class GraphEngine {
     this.ecolAttr.needsUpdate = true;
   }
 
+  /** The glow the node shader reads, damped in a projection layout. */
+  private _glowValue(): number {
+    return this.opts.glow * (this.layout === "projection" ? PROJECTION_GLOW_SCALE : 1);
+  }
+
   private _applyRadius(): void {
     const s = Number.isFinite(this.opts.nodeScale) ? Math.max(0.1, this.opts.nodeScale) : 1;
+    // A tighter spread in a projection layout: the discs stop competing with the
+    // grouping they are drawn inside.
+    const spread = this.layout === "projection" ? PROJECTION_SIZE_SPREAD : 1;
     const maxDegree = Math.max(1, ...this.nodes!.map((nd) => nd.deg));
+    this.nodeMat.uniforms.uGlow.value = this._glowValue();
     this.nodes!.forEach((nd, i) => {
-      const requested = nd.raw.size ?? 0.8 + 0.28 * Math.sqrt(nd.deg);
+      const requested = nd.raw.size ?? 0.8 + 0.28 * spread * Math.sqrt(nd.deg);
       const centralityScale = this.centrality ? 0.65 + 1.1 * Math.sqrt(nd.deg / maxDegree) : 1;
       const r =
         3.4 * s * centralityScale * (Number.isFinite(requested) ? Math.max(0.1, requested) : 0.8);
@@ -1379,28 +1399,34 @@ export class GraphEngine {
     const shown = new Set<number>();
     const rects: number[][] = [];
     const labelPositions = new Map<number, { centerX: number; top: number; bounds: number[] }>();
+    const labelBoxes = new Map<number, ReturnType<typeof labelBox>>();
     const f = this.focus;
 
     const place = (i: number, force: boolean): boolean => {
       if (!this.vis[i]) return false;
       const text = String(this.nodes![i].raw.label ?? this.nodes![i].id);
-      const wpx = text.length * 6.3 + 10;
+      // The label is bounded to two lines, so the box it reserves is measured from
+      // the same function that renders it (analysis 20261013-063009, D3).
+      const box = labelBox(text);
+      const wpx = box.width;
+      const hpx = box.height;
+      labelBoxes.set(i, box);
       const x = this.sx[i];
       const y = this.sy[i];
       const radius = this.sr[i];
       const candidates: [number, number][] = [
         [x, y + radius + 3],
-        [x, y - radius - 19],
-        [x + radius + wpx / 2 + 5, y - 8],
-        [x - radius - wpx / 2 - 5, y - 8],
-        [x + radius + wpx / 2 + 5, y + radius - 8],
-        [x - radius - wpx / 2 - 5, y + radius - 8],
-        [x + radius + wpx / 2 + 5, y - radius - 8],
-        [x - radius - wpx / 2 - 5, y - radius - 8],
+        [x, y - radius - 3 - hpx],
+        [x + radius + wpx / 2 + 5, y - hpx / 2],
+        [x - radius - wpx / 2 - 5, y - hpx / 2],
+        [x + radius + wpx / 2 + 5, y + radius - hpx / 2],
+        [x - radius - wpx / 2 - 5, y + radius - hpx / 2],
+        [x + radius + wpx / 2 + 5, y - radius - hpx / 2],
+        [x - radius - wpx / 2 - 5, y - radius - hpx / 2],
       ];
       let position: { centerX: number; top: number; bounds: number[] } | null = null;
       for (const [centerX, top] of candidates) {
-        const bnd = [centerX - wpx / 2, top, centerX + wpx / 2, top + 16];
+        const bnd = [centerX - wpx / 2, top, centerX + wpx / 2, top + hpx];
         if (bnd[0] < 0 || bnd[1] < 0 || bnd[2] > this.w || bnd[3] > this.h) continue;
         const overlaps = rects.some(
           (other) =>
@@ -1417,7 +1443,7 @@ export class GraphEngine {
       if (!position) {
         if (!force) return false;
         const [centerX, top] = candidates[0];
-        position = { centerX, top, bounds: [centerX - wpx / 2, top, centerX + wpx / 2, top + 16] };
+        position = { centerX, top, bounds: [centerX - wpx / 2, top, centerX + wpx / 2, top + hpx] };
       }
       rects.push(position.bounds);
       labelPositions.set(i, position);
@@ -1460,7 +1486,11 @@ export class GraphEngine {
       if (!el) {
         el = document.createElement("div");
         el.style.cssText = LABEL_CSS;
-        el.textContent = String(this.nodes![i].raw.label ?? this.nodes![i].id);
+        // The wrapped form is what is rendered, so the box the pass reserved and the
+        // text on screen are the same two lines.
+        el.textContent = (
+          labelBoxes.get(i)?.lines ?? [String(this.nodes![i].raw.label ?? this.nodes![i].id)]
+        ).join("\n");
         this.labelLayer.appendChild(el);
         this.labelEls.set(i, el);
       }

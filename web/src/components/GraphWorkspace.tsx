@@ -70,6 +70,13 @@ interface GraphWorkspaceValue {
   findPath: () => void;
   clearPath: () => void;
   clusters: { id: string; color: string; count: number }[];
+  /** The legend row under the pointer, or null: the map dims the other clusters,
+   * which is how a reader tells one cluster from the others in a dense field. */
+  hoverGroup: string | null;
+  setHoverGroup: (id: string | null) => void;
+  /** The groups the engine dims: the checked-off ones, plus the siblings of a
+   * hovered legend row while the pointer is on it. */
+  dimmedGroups: string[];
   nodeOptions: { id: string; label: string }[];
   setViewHandle: (handle: GraphViewHandle | null) => void;
   open: (id: string) => void;
@@ -88,8 +95,17 @@ function useGraphWorkspace(): GraphWorkspaceValue {
 }
 
 function GraphPanel() {
-  const { setViewHandle, adapted, tools, viewLayout, selectedId, select, path, open } =
-    useGraphWorkspace();
+  const {
+    setViewHandle,
+    adapted,
+    tools,
+    viewLayout,
+    selectedId,
+    select,
+    path,
+    open,
+    dimmedGroups,
+  } = useGraphWorkspace();
   const [hoverEdge, setHoverEdge] = useState<GraphLinkInput | null>(null);
   const labels = useMemo(
     () => new Map(adapted.nodes.map((n) => [n.id, String(n.label ?? n.id)])),
@@ -109,7 +125,7 @@ function GraphPanel() {
         onSelect={select}
         highlightPath={path}
         labels={tools.showLabels ? "auto" : "none"}
-        hiddenGroups={tools.hiddenGroups}
+        hiddenGroups={dimmedGroups}
         hiddenRelations={tools.hiddenRelations}
         hiddenKinds={tools.hiddenKinds}
         centrality={tools.centrality}
@@ -146,6 +162,8 @@ function GraphControlsPanel() {
         pathFrom={g.pathFrom}
         pathTo={g.pathTo}
         pathActive={g.path !== null}
+        hoverGroup={g.hoverGroup}
+        onHoverGroup={g.setHoverGroup}
         semantic={semantic}
         onTools={g.dispatchTools}
         onPathFrom={g.setPathFrom}
@@ -231,6 +249,9 @@ export function GraphWorkspace({
   const viewLayout: GraphLayout =
     semanticGraph && semanticModeProjects(tools.semanticMode) ? "projection" : tools.layout;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Hovering a legend row is a *view* cue, not a filter: nothing is unchecked and
+  // the state is not persisted (analysis 20261013-063009, O5).
+  const [hoverGroup, setHoverGroup] = useState<string | null>(null);
   const [path, setPath] = useState<ShortestPath | null>(null);
   const [pathFrom, setPathFrom] = useState("");
   const [pathTo, setPathTo] = useState("");
@@ -268,6 +289,16 @@ export function GraphWorkspace({
         .map((n) => ({ id: n.id, label: String(n.label ?? n.id) }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [graph],
+  );
+
+  // The checked-off groups stay hidden; the hovered row additionally dims its
+  // siblings for as long as the pointer is on it.
+  const dimmedGroups = useMemo(
+    () =>
+      hoverGroup === null
+        ? tools.hiddenGroups
+        : [...tools.hiddenGroups, ...clusters.filter((c) => c.id !== hoverGroup).map((c) => c.id)],
+    [hoverGroup, tools.hiddenGroups, clusters],
   );
 
   const fit = useCallback(() => viewRef.current?.fitView(), []);
@@ -313,6 +344,9 @@ export function GraphWorkspace({
     findPath,
     clearPath: () => setPath(null),
     clusters,
+    hoverGroup,
+    setHoverGroup,
+    dimmedGroups,
     nodeOptions,
     setViewHandle,
     open: openProp,

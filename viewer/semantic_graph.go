@@ -52,7 +52,11 @@ type semGraph struct {
 	Edges      []semEdge             `json:"edges"`
 	Projection map[string][2]float64 `json:"projection,omitempty"`
 	Clusters   map[string]int        `json:"clusters,omitempty"`
-	Warning    string                `json:"warning,omitempty"`
+	// ClusterLabels names each cluster index from what it holds (dominant kind plus
+	// a representative title), so the legend and the detail chip never show an
+	// opaque index. Derived server-side from the same assignment the grouping uses.
+	ClusterLabels map[int]string `json:"clusterLabels,omitempty"`
+	Warning       string         `json:"warning,omitempty"`
 }
 
 // handleSemanticGraph serves the scoped semantic-neighbour graph shared by the
@@ -128,12 +132,29 @@ func (s *server) buildSemanticGraph() (semGraph, error) {
 		return edges[i].To < edges[j].To
 	})
 
+	clusters := semantic.Clusters(scoped)
 	return semGraph{
-		Nodes:      nodes,
-		Edges:      edges,
-		Projection: semantic.Project2D(scoped),
-		Clusters:   semantic.Clusters(scoped),
+		Nodes:         nodes,
+		Edges:         edges,
+		Projection:    semantic.Project2D(scoped),
+		Clusters:      clusters,
+		ClusterLabels: semantic.ClusterLabels(clusterMembers(clusters, meta)),
 	}, nil
+}
+
+// clusterMembers groups the scoped paths by their cluster index, carrying each
+// member's kind and title — all the labelling rule needs, without the vectors.
+func clusterMembers(clusters map[string]int, meta map[string]treeEntry) map[int][]semantic.ClusterMember {
+	groups := make(map[int][]semantic.ClusterMember, len(clusters))
+	for path, index := range clusters {
+		e := meta[path]
+		groups[index] = append(groups[index], semantic.ClusterMember{
+			Path:  path,
+			Kind:  e.Kind,
+			Title: e.Title,
+		})
+	}
+	return groups
 }
 
 // topKNeighbourEdges returns the de-duplicated undirected edge set built from

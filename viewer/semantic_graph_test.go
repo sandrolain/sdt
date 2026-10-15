@@ -173,6 +173,20 @@ func TestSemanticGraphCarriesProjectionAndClusters(t *testing.T) {
 			t.Errorf("no cluster for %s", n.Path)
 		}
 	}
+	// Every cluster index carries a name, so the legend and the detail chip never
+	// render an opaque index (analysis 20261013-063009, O3).
+	indexes := map[int]bool{}
+	for _, index := range g.Clusters {
+		indexes[index] = true
+	}
+	if len(g.ClusterLabels) != len(indexes) {
+		t.Errorf("clusterLabels = %+v, want one label per index (%d)", g.ClusterLabels, len(indexes))
+	}
+	for index := range indexes {
+		if label := g.ClusterLabels[index]; label == "" {
+			t.Errorf("cluster %d has no label: %+v", index, g.ClusterLabels)
+		}
+	}
 	// Same snapshot, second request: the layout and partition must be identical.
 	again := graphGET(t, s.mux())
 	if !reflect.DeepEqual(g.Projection, again.Projection) {
