@@ -166,6 +166,10 @@ every turn.
   what the package already uses.
 - Keep the check robust to formatting: assert a short stable token or a
   whitespace-normalised form, never re-wrapped prose.
+- **Assert the property, not its rendering.** A check that reads a help text, a
+  usage line or an exported shape can hold for cases the property excludes — a
+  group with flags prints a runnable usage line whether or not it is runnable.
+  State the fact about the structure and derive the surface from it.
 - If the check would need more code than the logic it guards, simplify the
   logic instead.
 
@@ -223,6 +227,9 @@ tracks the work.
   mess.
 - Enumerate before you delete: list every usage — call sites, tests, generated
   artifacts — before removing a symbol; "unused" is a claim to verify.
+- Removing **text** is the same enumeration in words: grep the tests for the
+  literal before the first edit. The tests that pin a generated surface's wording
+  are the ones a trim breaks first, and they surface one batch at a time.
 
 ## Robustness rules
 

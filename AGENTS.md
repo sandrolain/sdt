@@ -405,6 +405,15 @@ Module `github.com/sandrolain/sdt`. Entry `cli/main.go` (sets build-time vars);
 `main.go` at repo root is a legacy duplicate. `web/` is Bun + Vite + React TS;
 DOM tests use **jsdom** (happy-dom breaks DOMPurify).
 
+**Regenerating the generated surfaces** (after any `internal/templates/**` edit, in
+this order): `go build -o bin/sdt ./cli`, then `sdt agent init --force` (instruction
+modules + `AGENTS.md`), `sdt agent roles init --force` (`context/roles/**`) and
+`sdt context docs` (`context/sdtdocs/`). Skipping the roles one leaves
+`TestGeneratedRolesMatchTemplates` failing on a change that looked complete. Two
+goldens are **inline in tests** rather than on disk — `TestRoleSharedTemplateGolden`
+and the head strings in `TestProjectTemplateIdentity` — so `UPDATE_GOLDEN=1` does
+not reach them and the literal is edited by hand.
+
 ### Test
 
 ```bash

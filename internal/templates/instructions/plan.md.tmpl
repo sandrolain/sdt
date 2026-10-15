@@ -146,7 +146,11 @@ session: <session id>        # optional
 - **Design contract** — the style, architecture and dependency choices this
   plan commits to, agreed with the user before tasks are created (see
   `instructions/development.md`). Each non-trivial choice is stated here so
-  execution never invents style, structure or libraries.
+  execution never invents style, structure or libraries. A value with more than
+  one copy — a default, a vocabulary, a convention — is enumerated by the **test
+  that binds it**, not by this contract's prose: name the binding test as the
+  integration point and let it list the copies, because it has already found the
+  ones the plan did not know about.
 - **Phases** — each phase becomes a `## Phase <n>` section in the plan's task
   file (split files are opt-in, see `instructions/tasks.md`). Each phase has:
   **Goal** (one sentence), **Depends on** (none / Phase X), the **analysis
