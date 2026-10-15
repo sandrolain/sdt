@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // The two discovery surfaces an agent reads instead of scraping --help are
@@ -160,4 +162,51 @@ func diffStrings(a, b []string) []string {
 		}
 	}
 	return out
+}
+
+// TestEveryRunnableCommandIsInTheSchema is the property the shared walk must
+// satisfy, asserted as a property rather than as a list of today's commands: a
+// list freezes the size of the CLI and passes on the next omission.
+//
+// A command with a `Run` can be invoked on its own — `sdt b64 <text>` and
+// `sdt doc2md <file>... [flags]` are the primary forms of their commands — so the
+// surface the local-reads rule sends an agent to must describe it. The walk this
+// guards once required an empty sub-command list, which dropped every runnable
+// group: nine at the root and the nested `context status`.
+func TestEveryRunnableCommandIsInTheSchema(t *testing.T) {
+	schema := map[string]bool{}
+	for _, p := range schemaCommandPaths() {
+		schema[p] = true
+	}
+	if len(schema) == 0 {
+		t.Fatal("the schema enumerated nothing — the assertion below would prove nothing")
+	}
+
+	var missing []string
+	var walk func(c *cobra.Command, path string)
+	walk = func(c *cobra.Command, path string) {
+		if c.Hidden {
+			return
+		}
+		if _, builtin := cobraBuiltins[c.Name()]; builtin {
+			return
+		}
+		full := c.Name()
+		if path != "" {
+			full = path + " " + c.Name()
+		}
+		if c.Run != nil && !schema[full] {
+			missing = append(missing, full)
+		}
+		for _, sub := range c.Commands() {
+			walk(sub, full)
+		}
+	}
+	for _, sub := range rootCmd.Commands() {
+		walk(sub, "")
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		t.Errorf("runnable command(s) absent from `sdt schema`: %v — a command with a Run is invocable and must be described", missing)
+	}
 }

@@ -62,11 +62,12 @@ This project is managed with SDT. This file carries two tagged blocks:
     uncaptured page is not *verified*. Boundary: git clones, package managers,
     JSON/API endpoints, authenticated pages and local files are not web pages.
     *Don't:* fetch a web page with a host tool, or cite an uncaptured page as fact.
-11. **Local reads via the shipped verbs** — read, search and list through `sdt`
+11. **Local file work via the shipped verbs** — read, search and list through `sdt`
     before reaching for a host tool: `sdt read` for a file or a line range
     (`--lines <from>:to`, and `--count` for its length), `sdt grep` for the lines
     that match — `-A`/`-B`/`-C` for their surroundings, `-l` for the paths carrying
-    one, `-c` for how many — and `sdt find` for paths. A JSON or API endpoint is
+    one, `-c` for how many — `sdt find` for paths, and `sdt write -p <file>` to
+    write one. A JSON or API endpoint is
     `sdt http` into `sdt q`; rule 10 leaves those to this rule rather than treating
     them as web pages. Learn a verb's options from `sdt schema` or its generated
     docs instead of scraping `--help`: a flag an agent cannot discover is a flag
@@ -75,7 +76,12 @@ This project is managed with SDT. This file carries two tagged blocks:
     outside the working tree stays a host tool's job — and so does anything the
     project has a *purpose-built* verb for, since `sed`/`cat`/`grep`/`find`/`curl`
     are the fallback, never the default. `context/` is read with
-    `sdt context show`/`search`, not with `sdt grep` guesses.
+    `sdt context show`/`search`, not with `sdt grep` guesses. **A write follows the
+    same line**: a corpus document is written through `sdt context
+    edit`/`set`/`check` and never by hand-editing its file; `sdt write` is the verb
+    for bytes SDT itself produced — a conversion output, an export; an interactive
+    edit, a file the host's tool understands better, and a path outside the working
+    tree stay the host tool's job.
     *Don't:* reach for `sed`/`cat`/`head`/`wc`/`grep`/`find`/`curl` because the
     reflex is quicker, or re-read a scrolled `--help` for a flag `sdt schema`
     already reports.

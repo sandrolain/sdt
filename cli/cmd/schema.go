@@ -199,7 +199,7 @@ Examples:
 func collectSchemas(root *cobra.Command, out *[]CommandSchema) {
 	var leaves []leafCommand
 	for _, sub := range root.Commands() {
-		collectLeafCommands(sub, "", &leaves)
+		collectCommandTree(sub, "", &leaves)
 	}
 	for _, l := range leaves {
 		*out = append(*out, buildCommandSchema(l.c))

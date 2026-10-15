@@ -265,7 +265,7 @@ func TestAgentBlockWikiInstruction(t *testing.T) {
 func allDocsLeaves() []docsCommand {
 	var collected []leafCommand
 	for _, sub := range rootCmd.Commands() {
-		collectLeafCommands(sub, "", &collected)
+		collectCommandTree(sub, "", &collected)
 	}
 	return docsLeaves(collected)
 }

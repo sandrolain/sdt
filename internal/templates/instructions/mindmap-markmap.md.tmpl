@@ -134,11 +134,9 @@ A map is an existing corpus document in a particular form, not a new kind:
   and links to its base document rather than aliasing it.
 - Frontmatter and `kind` are inherited from the base document type; the map adds
   no kind-specific schema.
-- **Typed relations** live in the `relations:` frontmatter map over the closed
-  verb vocabulary: `supersedes`, `depends_on`, `refers_to`, `refines`,
-  `implements`, `conflicts_with`, `part_of`, `contains`.
-- `[[target|label]]` wikilinks, optionally with a `#anchor`, are ordinary
-  navigation and are **not** graph edges on their own.
+- **Typed relations** follow the closed vocabulary in
+  `context/instructions/ingestion.md`; `[[target|label]]` wikilinks, optionally
+  with a `#anchor`, are ordinary navigation and are **not** graph edges on their own.
 - **No duplication** — content lives in the map *or* in its base document, never
   in both. A map that copies its base creates a second source of truth that will
   drift: the map carries the shape, the base document keeps the prose.

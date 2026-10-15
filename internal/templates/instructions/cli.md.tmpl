@@ -7,8 +7,11 @@ summary: "CLI usage and examples: the main commands grouped by area with practic
 ## CLI Usage & Examples
 
 Curated command catalog: the main commands grouped by area, with practical
-examples. For I/O conventions, project configuration and the always-current
-generated command reference, see `context/instructions/reference.md`.
+examples. It is a **selection, not the full surface** — `context/sdtdocs/` holds
+the generated per-command reference (every command, its flags and its contract,
+regenerated with `sdt context docs`). For I/O conventions, project configuration
+and the patterns this catalog does not repeat, see
+`context/instructions/reference.md`.
 
 ## Agent tooling
 
@@ -32,6 +35,10 @@ generated command reference, see `context/instructions/reference.md`.
   whole path, and a printed path round-trips as input
 - `sdt read -p <file> [--lines <from>:<to>]` — print a file, or a line range of it
   (1-based, inclusive; an inverted range is an error)
+- `sdt write -p <file> [-o|--overwrite] [-m|--multi] [-b|--binary]` — write a file
+  from `--input`/`--file`/stdin; `--multi` takes a JSON array of contents and
+  `--binary` reads each as Base64, and an existing file is refused without
+  `--overwrite`
 - `sdt context memo due|list|add|done` — the planned-operation register and its due
   check (`sdt context memo due` at session start)
 - `sdt context budget` — measure the always-loaded surface (the `AGENTS.md`
@@ -64,6 +71,9 @@ generated command reference, see `context/instructions/reference.md`.
   and nothing is ever emptied by omission
 - `sdt context task add ["<step>"] [--phase <n>] [--stream <label>]` — task checklists
   (one file per plan by default, phases as `## Phase` sections)
+- `sdt context check <doc> [id] [--done|--wip|--block|--pending]` — set one
+  checklist item (a `--phase`/`--all`/`--grep` batch selector updates several);
+  a corpus document's state moves through this verb, never by hand
 - `sdt context template --type <t>` — print the per-type instruction file
 - `sdt context docs` — generated command documentation
 - `sdt context reindex` / `sdt context lint [path...]` — regenerate `index.md` /

@@ -43,15 +43,18 @@ type leafCommand struct {
 // coincidence maintained in two places.
 var cobraBuiltins = map[string]struct{}{"help": {}, "completion": {}}
 
-// collectLeafCommands is the single walk of the command tree: it yields every
-// runnable leaf command that the schema, the generated docs and any future
-// surface should agree on. A leaf is a command with no subcommands and a Run
-// function; hidden commands and cobra's built-ins are skipped.
+// collectCommandTree is the single walk of the command tree: it yields every
+// runnable command that the schema, the generated docs and any future surface
+// should agree on. Runnable means a `Run` function, **whether or not the command
+// also has sub-commands**: `sdt b64 <text>` and `sdt doc2md <file>... [flags]` are
+// the primary forms of their commands, and a walk that required an empty
+// sub-command list described them nowhere. Hidden commands and cobra's built-ins
+// are skipped.
 //
 // Both surfaces used to walk the tree separately with different filters — the
 // docs skipped the built-ins by name and the schema did not — which is how the
 // two could disagree without anything failing.
-func collectLeafCommands(c *cobra.Command, path string, out *[]leafCommand) {
+func collectCommandTree(c *cobra.Command, path string, out *[]leafCommand) {
 	if c.Hidden {
 		return
 	}
@@ -63,12 +66,11 @@ func collectLeafCommands(c *cobra.Command, path string, out *[]leafCommand) {
 		full = path + " " + c.Name()
 	}
 	subs := c.Commands()
-	if len(subs) == 0 && c.Run != nil {
+	if c.Run != nil {
 		*out = append(*out, leafCommand{path: full, c: c})
-		return
 	}
 	for _, sub := range subs {
-		collectLeafCommands(sub, full, out)
+		collectCommandTree(sub, full, out)
 	}
 }
 
@@ -234,7 +236,7 @@ Examples:
 
 		var collected []leafCommand
 		for _, sub := range cmd.Root().Commands() {
-			collectLeafCommands(sub, "", &collected)
+			collectCommandTree(sub, "", &collected)
 		}
 		leaves := docsLeaves(collected)
 		sort.Slice(leaves, func(i, j int) bool { return leaves[i].path < leaves[j].path })

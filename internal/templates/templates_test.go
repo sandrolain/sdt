@@ -543,3 +543,77 @@ func firstBodyH1(content string) (int, string) {
 	}
 	return 0, ""
 }
+
+// TestAClosedVocabularyIsDeclaredOnce is the ownership gate for a contract that
+// two modules used to state in full: the closed relation vocabulary. A schema has
+// one home and the modules that use it point at that home; a second declaration is
+// what lets two copies drift, and a presence check cannot see it — only counting
+// the declarations can.
+//
+// The owner is asserted by name because ownership is the claim: moving the home is
+// a decision, and a test that merely counted would let the home move silently.
+func TestAClosedVocabularyIsDeclaredOnce(t *testing.T) {
+	const owner = "instructions/ingestion.md.tmpl"
+	vocabulary := []string{
+		"supersedes", "depends_on", "refers_to", "refines",
+		"implements", "conflicts_with", "part_of", "contains",
+	}
+	var declaring []string
+	err := fs.WalkDir(templatesFS, "instructions", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Ext(path) != ".tmpl" {
+			return err
+		}
+		data, rerr := templatesFS.ReadFile(path)
+		if rerr != nil {
+			return rerr
+		}
+		for _, verb := range vocabulary {
+			if !strings.Contains(string(data), verb) {
+				return nil
+			}
+		}
+		declaring = append(declaring, path)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk instructions: %v", err)
+	}
+	if len(declaring) != 1 || declaring[0] != owner {
+		t.Errorf("the closed relation vocabulary is declared in %v, want exactly [%s] — one schema home, every other module a pointer", declaring, owner)
+	}
+}
+
+// TestAH2StatementIsDeclaredOnce is the ownership gate for the document
+// convention every per-type module used to restate: "body starts at H2". The
+// rule's owner is the always-loaded block, and a module keeps the pointer. A
+// restatement is not an absence — a module that says nothing about H2 is fine —
+// so the gate counts the statement of what H2 means, and fails when a second copy
+// appears anywhere in the generated set.
+func TestAH2StatementIsDeclaredOnce(t *testing.T) {
+	const (
+		owner   = "agents/instructions.md.tmpl"
+		mention = "at H2"
+	)
+	var stating []string
+	for _, dir := range []string{"instructions", "agents", "workspace", "roles"} {
+		err := fs.WalkDir(templatesFS, dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || filepath.Ext(path) != ".tmpl" {
+				return err
+			}
+			data, rerr := templatesFS.ReadFile(path)
+			if rerr != nil {
+				return rerr
+			}
+			if strings.Contains(string(data), mention) {
+				stating = append(stating, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", dir, err)
+		}
+	}
+	if len(stating) != 1 || stating[0] != owner {
+		t.Errorf("the H2 rule is stated in %v, want exactly [%s] — the always-loaded block owns it and the modules point at it", stating, owner)
+	}
+}
