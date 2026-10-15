@@ -167,6 +167,14 @@ const (
 	ctxFrontmatterVerifiedAgnst = "verified_against"
 )
 
+// ── wave dependencies ─────────────────────────────────────────────────────────
+
+// ctxFrontmatterDependsOn is the optional wave dependency list on a plan
+// (plan.md, *Wave dependencies are explicit*): the plans this wave needs.
+// Absence is INDETERMINATE rather than "independent", so the instruction asks
+// for an explicit `[]` when there is genuinely no dependency.
+const ctxFrontmatterDependsOn = "depends_on"
+
 // ── wave rigour dial and reviewer disposition ──────────────────────────────────
 
 // ctxFrontmatterRigor is the optional wave rigour dial on a plan.

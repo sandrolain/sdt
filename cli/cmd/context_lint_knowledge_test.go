@@ -193,4 +193,11 @@ func TestKnowledgeKeysAreDeclared(t *testing.T) {
 	assertNoFinding(t, lintKnowledgeDoc(t, fm, "body\n", "undeclared frontmatter key"), "rigor")
 	fm = "kind: analysis\nsummary: s\nmaturity: superseded\nsuperseded_by: analysis/other.md\n"
 	assertNoFinding(t, lintKnowledgeDoc(t, fm, "body\n", "undeclared frontmatter key"), "superseded_by")
+	// A wave's declared dependencies, prescribed by plan.md.
+	fm = "kind: plan\nsummary: s\ndepends_on: ['plan/other.md']\n"
+	assertNoFinding(t, lintKnowledgeDoc(t, fm, "body\n", "undeclared frontmatter key"), "depends_on")
+	// The negative side, so a key set that stopped being consulted would fail
+	// this test rather than pass it.
+	fm = "kind: plan\nsummary: s\nnot_a_declared_key: 1\n"
+	assertFinding(t, lintKnowledgeDoc(t, fm, "body\n", "undeclared frontmatter key"), "an undeclared key is reported", ctxLintSuggestion)
 }

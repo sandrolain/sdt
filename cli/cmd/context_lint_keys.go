@@ -29,6 +29,9 @@ var ctxDeclaredKeys = map[string]bool{
 	ctxFrontmatterLinks: true, "sources": true, "supersedes": true, ctxFrontmatterContradicts: true,
 	ctxKeyAnalysisID: true, ctxKeyPlanID: true, ctxKeyPlansIDs: true, ctxKeyTasksIDs: true,
 	"derived_from": true, "results": true, ctxFrontmatterEvidence: true,
+	// Wave dependency (plans): prescribed by plan.md, so a wave that declares it
+	// must not be told its own frontmatter is undeclared.
+	ctxFrontmatterDependsOn: true,
 	// Provenance and annotations.
 	ctxFrontmatterAgent: true, "model": true, "session": true, "role": true, "note_type": true,
 	"claimed_by": true, "claimed_at": true,
