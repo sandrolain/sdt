@@ -7,6 +7,7 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/blevesearch/bleve/v2 v2.6.1
 	github.com/coder/acp-go-sdk v0.13.5
+	github.com/coder/websocket v1.8.15
 	github.com/firecrawl/firecrawl/apps/go-sdk v1.16.4
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2

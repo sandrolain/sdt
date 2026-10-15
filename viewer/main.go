@@ -154,6 +154,7 @@ func serve(host string, port int, noOpen bool, rootFlag, sdtBin string, listen f
 	// document editing is a delegation to the sanctioned CLI, enabled only on a
 	// loopback bind host and only when a CLI resolves (decision 0027).
 	s.enableWrites(host, sdtBin)
+	s.enableAgent(host)
 	if werr := s.startWatching(); werr != nil {
 		slog.Warn("sdtviewer: live updates disabled", "err", werr)
 	} else {

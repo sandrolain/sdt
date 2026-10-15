@@ -10,7 +10,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/coder/websocket"
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/sandrolain/sdt/internal/acpbridge"
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/ctxrel"
@@ -79,6 +82,13 @@ type server struct {
 	cmd *delegator
 	// writeReason explains why cmd is nil, for the capability probe.
 	writeReason string
+	// agent is the ACP bridge: created inert, usable only once the user activates
+	// it, and its own reason for being unavailable when the bind host is not
+	// loopback. agentMu guards the connections deactivate has to close.
+	agent       *acpbridge.Bridge
+	agentReason string
+	agentMu     sync.Mutex
+	agentConns  map[*websocket.Conn]struct{}
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -163,7 +173,15 @@ func newServerWith(root string, opts semanticOptions, overrides *semanticOverrid
 	if overrides != nil {
 		overrides.apply(&opts)
 	}
-	s := &server{root: root, corpus: filepath.Join(root, corpus.ContextDir), broker: newBroker(), semOpts: opts}
+	s := &server{
+		root:    root,
+		corpus:  filepath.Join(root, corpus.ContextDir),
+		broker:  newBroker(),
+		semOpts: opts,
+		// The bridge is created here, inert: it holds no socket and dials nothing
+		// until the user activates it, so having it registered costs nothing.
+		agent: acpbridge.New(acpbridge.Options{Root: root, Version: version}),
+	}
 	if h, ok := spaHandler(); ok {
 		s.spa = h
 	}
@@ -192,6 +210,10 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc("/api/wiki/rel", s.handleWikiRel)
 	mux.HandleFunc("/api/wiki/board", s.handleWikiBoard)
 	mux.HandleFunc("/api/events", s.handleEvents)
+	mux.HandleFunc(agentStatePath, s.handleAgentState)
+	mux.HandleFunc(agentActivatePath, s.handleAgentActivate)
+	mux.HandleFunc(agentDeactivatePath, s.handleAgentDeactivate)
+	mux.HandleFunc(agentWSPath, s.handleAgentWS)
 	mux.HandleFunc(contextCommandPath, s.handleContextCommand)
 	mux.HandleFunc("/", s.handleIndex)
 	return mux

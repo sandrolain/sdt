@@ -22,7 +22,7 @@ func TestActivateCompletesTheHandshake(t *testing.T) {
 	agent := newFakeAgent(t, agentVersion(acp.ProtocolVersionNumber, "sess-1"))
 	bridge := testBridge(t)
 
-	session, err := bridge.Activate(context.Background(), agent.path)
+	session, err := bridge.Activate(context.Background(), agent.Path())
 	if err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
@@ -35,11 +35,11 @@ func TestActivateCompletesTheHandshake(t *testing.T) {
 	if got := bridge.SessionID(); got != "sess-1" {
 		t.Fatalf("SessionID() = %q, want sess-1", got)
 	}
-	if got, want := agent.methods(), []string{"initialize", "session/new"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+	if got, want := agent.Methods(), []string{"initialize", "session/new"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("the agent was asked %v, want %v", got, want)
 	}
 
-	initialize := agent.paramsFor(t, "initialize")
+	initialize := agent.ParamsFor(t, "initialize")
 	if got := initialize["protocolVersion"]; got != float64(acp.ProtocolVersionNumber) {
 		t.Fatalf("initialize protocolVersion = %v, want %d", got, acp.ProtocolVersionNumber)
 	}
@@ -57,7 +57,7 @@ func TestActivateCompletesTheHandshake(t *testing.T) {
 		t.Fatalf("the bridge advertised terminal support it refuses: %v", capabilities)
 	}
 
-	newsSession := agent.paramsFor(t, "session/new")
+	newsSession := agent.ParamsFor(t, "session/new")
 	if got := newsSession["cwd"]; got != bridge.Root() {
 		t.Fatalf("session/new cwd = %v, want the project root %q", got, bridge.Root())
 	}
@@ -73,7 +73,7 @@ func TestActivateCompletesTheHandshake(t *testing.T) {
 	if err := bridge.Close(); err != nil {
 		t.Fatalf("second Close: %v", err)
 	}
-	if _, err := bridge.Activate(context.Background(), agent.path); err != nil {
+	if _, err := bridge.Activate(context.Background(), agent.Path()); err != nil {
 		t.Fatalf("Activate after Close: %v", err)
 	}
 }
@@ -93,14 +93,14 @@ func TestActivateRefusesAFutureProtocolVersion(t *testing.T) {
 			agent := newFakeAgent(t, agentVersion(tc.version, "sess-1"))
 			bridge := testBridge(t)
 
-			_, err := bridge.Activate(context.Background(), agent.path)
+			_, err := bridge.Activate(context.Background(), agent.Path())
 			if !errors.Is(err, ErrProtocolVersion) {
 				t.Fatalf("Activate = %v, want ErrProtocolVersion", err)
 			}
 			if bridge.Activated() {
 				t.Fatal("a failed handshake left the bridge activated")
 			}
-			if got := agent.methods(); len(got) != 1 || got[0] != "initialize" {
+			if got := agent.Methods(); len(got) != 1 || got[0] != "initialize" {
 				t.Fatalf("the agent was asked %v, want initialize only", got)
 			}
 		})
@@ -138,7 +138,7 @@ func TestActivateHandshakeFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			agent := newFakeAgent(t, tc.handler)
 			bridge := testBridge(t)
-			_, err := bridge.Activate(context.Background(), agent.path)
+			_, err := bridge.Activate(context.Background(), agent.Path())
 			if !errors.Is(err, ErrHandshake) {
 				t.Fatalf("Activate = %v, want ErrHandshake", err)
 			}
@@ -160,7 +160,7 @@ func TestActivateBoundsTheHandshake(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
-	_, err := bridge.Activate(ctx, agent.path)
+	_, err := bridge.Activate(ctx, agent.Path())
 	if !errors.Is(err, ErrHandshake) {
 		t.Fatalf("Activate = %v, want ErrHandshake", err)
 	}
@@ -174,10 +174,10 @@ func TestActivateBoundsTheHandshake(t *testing.T) {
 func TestActivateIsRefusedOnALiveBridge(t *testing.T) {
 	agent := newFakeAgent(t, agentVersion(acp.ProtocolVersionNumber, "sess-1"))
 	bridge := testBridge(t)
-	if _, err := bridge.Activate(context.Background(), agent.path); err != nil {
+	if _, err := bridge.Activate(context.Background(), agent.Path()); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
-	if _, err := bridge.Activate(context.Background(), agent.path); !errors.Is(err, ErrAlreadyActivated) {
+	if _, err := bridge.Activate(context.Background(), agent.Path()); !errors.Is(err, ErrAlreadyActivated) {
 		t.Fatalf("second Activate = %v, want ErrAlreadyActivated", err)
 	}
 }
@@ -187,10 +187,10 @@ func TestActivateIsRefusedOnALiveBridge(t *testing.T) {
 func TestRootIsTheSessionWorkspace(t *testing.T) {
 	agent := newFakeAgent(t, agentVersion(acp.ProtocolVersionNumber, "sess-7"))
 	bridge := New(Options{Root: "/tmp/project-root", Version: "test-version"})
-	if _, err := bridge.Activate(context.Background(), agent.path); err != nil {
+	if _, err := bridge.Activate(context.Background(), agent.Path()); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
-	if got := agent.paramsFor(t, "session/new")["cwd"]; got != "/tmp/project-root" {
+	if got := agent.ParamsFor(t, "session/new")["cwd"]; got != "/tmp/project-root" {
 		t.Fatalf("session/new cwd = %v, want /tmp/project-root", got)
 	}
 }

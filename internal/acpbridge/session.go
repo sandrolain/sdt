@@ -3,6 +3,7 @@ package acpbridge
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/coder/acp-go-sdk"
 )
@@ -16,6 +17,9 @@ type Session struct {
 	state  *ThreadState
 	perms  *PermissionQueue
 	detach func()
+
+	turnsMu sync.Mutex
+	running bool
 }
 
 // ID is the ACP session id the agent assigned.
@@ -27,7 +31,23 @@ func (s *Session) State() *ThreadState { return s.state }
 // Prompt sends the user's text and returns when the turn ends. It blocks for the
 // whole turn, so a caller that also serves the browser's cancel has to call it
 // from its own goroutine — which is what the WebSocket surface does.
+//
+// One turn at a time: a second prompt arrives as ErrTurnRunning rather than as two
+// interleaved streams of updates that the thread could not attribute to either.
 func (s *Session) Prompt(ctx context.Context, text string) error {
+	s.turnsMu.Lock()
+	if s.running {
+		s.turnsMu.Unlock()
+		return ErrTurnRunning
+	}
+	s.running = true
+	s.turnsMu.Unlock()
+	defer func() {
+		s.turnsMu.Lock()
+		s.running = false
+		s.turnsMu.Unlock()
+	}()
+
 	id := s.state.openUserMessage(text)
 	response, err := s.conn.Prompt(ctx, acp.PromptRequest{
 		SessionId: acp.SessionId(s.id),

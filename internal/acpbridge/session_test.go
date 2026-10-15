@@ -6,62 +6,27 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/coder/acp-go-sdk"
 )
 
-// streamingAgent answers a session/prompt by streaming one chunk to the client and
-// then finishing the turn: the shape of a real agent, driven over the wire.
-func streamingAgent(t *testing.T, text string) handler {
-	t.Helper()
-	return func(agent *fakeAgent, method string, _ json.RawMessage) any {
-		switch method {
-		case "initialize":
-			return map[string]any{
-				"protocolVersion":   acp.ProtocolVersionNumber,
-				"agentCapabilities": map[string]any{},
-				"authMethods":       []any{},
-			}
-		case "session/new":
-			return map[string]any{"sessionId": "sess-1"}
-		case "session/prompt":
-			agent.notify(t, "session/update", map[string]any{
-				"sessionId": "sess-1",
-				"update": map[string]any{
-					"sessionUpdate": "agent_message_chunk",
-					"content":       map[string]any{"type": "text", "text": text},
-				},
-			})
-			return map[string]any{"stopReason": "end_turn"}
-		case "session/cancel":
-			return nil
-		}
-		return rpcError{Code: -32601, Message: "method not found: " + method}
-	}
-}
-
-// waitForMethod waits until the agent has been asked a method: the client writes
-// through its own goroutine, so a test waits for the observable rather than
-// assuming the write already landed.
 func waitForMethod(t *testing.T, agent *fakeAgent, method string) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		for _, asked := range agent.methods() {
+		for _, asked := range agent.Methods() {
 			if asked == method {
 				return
 			}
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatalf("the agent was never asked %s (asked: %v)", method, agent.methods())
+	t.Fatalf("the agent was never asked %s (asked: %v)", method, agent.Methods())
 }
 
 func activatedBridge(t *testing.T, h handler) (*Bridge, *fakeAgent) {
 	t.Helper()
 	agent := newFakeAgent(t, h)
 	bridge := New(Options{Root: t.TempDir(), Version: "test"})
-	if _, err := bridge.Activate(context.Background(), agent.path); err != nil {
+	if _, err := bridge.Activate(context.Background(), agent.Path()); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
 	t.Cleanup(func() { _ = bridge.Close() })
@@ -72,7 +37,7 @@ func activatedBridge(t *testing.T, h handler) (*Bridge, *fakeAgent) {
 // into the thread, and the user's own words stay visible even though this agent
 // never echoes them.
 func TestPromptStreamsTheTurnIntoTheThread(t *testing.T) {
-	bridge, agent := activatedBridge(t, streamingAgent(t, "The corpus has 224 analyses."))
+	bridge, agent := activatedBridge(t, streamingAgent("The corpus has 224 analyses."))
 	session, ok := bridge.Session(bridge.SessionID())
 	if !ok {
 		t.Fatalf("the bridge holds no session %q", bridge.SessionID())
@@ -85,7 +50,7 @@ func TestPromptStreamsTheTurnIntoTheThread(t *testing.T) {
 		t.Fatalf("Prompt: %v", err)
 	}
 
-	prompted := agent.paramsFor(t, "session/prompt")
+	prompted := agent.ParamsFor(t, "session/prompt")
 	prompt, ok := prompted["prompt"].([]any)
 	if !ok || len(prompt) != 1 {
 		t.Fatalf("the prompt carried %v", prompted["prompt"])
@@ -125,7 +90,7 @@ func TestPromptStreamsTheTurnIntoTheThread(t *testing.T) {
 
 // Cancel is a notification: it reaches the agent and the turn ends where it is.
 func TestCancelReachesTheAgent(t *testing.T) {
-	bridge, agent := activatedBridge(t, streamingAgent(t, "almost done"))
+	bridge, agent := activatedBridge(t, streamingAgent("almost done"))
 	session, _ := bridge.Session(bridge.SessionID())
 	if err := session.Prompt(context.Background(), "go"); err != nil {
 		t.Fatalf("Prompt: %v", err)
@@ -185,7 +150,7 @@ func TestCancellingASessionReleasesItsWaits(t *testing.T) {
 // Closing one session stops its conversation; the connection stays for the next
 // browser.
 func TestClosingASessionLeavesTheConnectionUp(t *testing.T) {
-	bridge, agent := activatedBridge(t, streamingAgent(t, "hello"))
+	bridge, agent := activatedBridge(t, streamingAgent("hello"))
 	session, _ := bridge.Session(bridge.SessionID())
 	if cancelled := session.Close(); cancelled != 0 {
 		t.Fatalf("closing an idle session cancelled %d waits", cancelled)
@@ -196,7 +161,42 @@ func TestClosingASessionLeavesTheConnectionUp(t *testing.T) {
 	if !bridge.Activated() {
 		t.Fatal("closing a session closed the connection")
 	}
-	if got := len(agent.methods()); got == 0 {
+	if got := len(agent.Methods()); got == 0 {
 		t.Fatal("the agent saw nothing")
+	}
+}
+
+// A second prompt while a turn runs is refused: two turns on one session would
+// interleave updates the thread cannot attribute.
+func TestASecondPromptIsRefusedWhileATurnRuns(t *testing.T) {
+	release := make(chan struct{})
+	handler := func(agent *fakeAgent, method string, params json.RawMessage) any {
+		if method == "session/prompt" {
+			<-release
+			return map[string]any{"stopReason": "end_turn"}
+		}
+		return agentVersion(1, "sess-1")(agent, method, params)
+	}
+	bridge, agent := activatedBridge(t, handler)
+	session, ok := bridge.Session(bridge.SessionID())
+	if !ok {
+		t.Fatal("the bridge holds no session")
+	}
+
+	first := make(chan error, 1)
+	go func() { first <- session.Prompt(context.Background(), "first") }()
+	waitForMethod(t, agent, "session/prompt")
+
+	if err := session.Prompt(context.Background(), "second"); !errors.Is(err, ErrTurnRunning) {
+		t.Fatalf("a second prompt returned %v, want ErrTurnRunning", err)
+	}
+
+	close(release)
+	if err := <-first; err != nil {
+		t.Fatalf("the first turn failed: %v", err)
+	}
+	// And the session takes the next turn once the first is done.
+	if err := session.Prompt(context.Background(), "third"); err != nil {
+		t.Fatalf("the turn after the first: %v", err)
 	}
 }

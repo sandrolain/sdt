@@ -157,30 +157,37 @@ func (s *ThreadState) SessionUpdate(_ context.Context, notification acp.SessionN
 // it where the tool call appears.
 func (s *ThreadState) Permission(_ context.Context, request Permission) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	index := s.thread.assistant()
 	s.thread.Messages[index].Parts = append(s.thread.Messages[index].Parts, Part{
 		Kind:       PartPermission,
 		Permission: &request,
 	})
+	s.mu.Unlock()
+	// A card the browser never hears about is a card nobody answers, so adding one
+	// is a state change like any other.
+	s.notify()
 }
 
 // ResolvePermission records the answer on the card in place: the part keeps its
 // position and its content, so the browser only sees the decision change.
 func (s *ThreadState) ResolvePermission(requestID, decision string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	resolved := false
 	for i := range s.thread.Messages {
 		parts := s.thread.Messages[i].Parts
 		for j := range parts {
 			if parts[j].Kind == PartPermission && parts[j].Permission != nil &&
 				parts[j].Permission.RequestID == requestID {
 				parts[j].Permission.Decision = decision
-				return true
+				resolved = true
 			}
 		}
 	}
-	return false
+	s.mu.Unlock()
+	if resolved {
+		s.notify()
+	}
+	return resolved
 }
 
 // apply folds one variant. Every variant has its own function, so the analysis's

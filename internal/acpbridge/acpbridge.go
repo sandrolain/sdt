@@ -52,6 +52,10 @@ var (
 	// ErrCancelled is returned when a pending request was cancelled rather than
 	// answered — the browser that would have answered it went away.
 	ErrCancelled = errors.New("acpbridge: the request was cancelled")
+	// ErrTurnRunning is returned when a prompt arrives while the session is already
+	// running one: the protocol runs a turn at a time, and two prompts would
+	// interleave updates the thread cannot attribute.
+	ErrTurnRunning = errors.New("acpbridge: a turn is already running")
 )
 
 // ClientName is the implementation name the bridge announces in initialize.

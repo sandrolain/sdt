@@ -81,7 +81,7 @@ func TestBridgeIsInertBeforeActivation(t *testing.T) {
 	if got := bridge.SessionID(); got != "" {
 		t.Fatalf("SessionID() = %q, want empty", got)
 	}
-	if got := agent.connections(); got != 0 {
+	if got := agent.Connections(); got != 0 {
 		t.Fatalf("the agent accepted %d connections before activation", got)
 	}
 }
