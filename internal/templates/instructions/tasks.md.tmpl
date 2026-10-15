@@ -4,8 +4,6 @@ title: "Task Files (one per plan)"
 summary: "Task files: the executable checklist for one plan, one phase section per phase."
 ---
 
-# Task Files (one per plan)
-
 `context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md` holds the task list for a
 **plan**, with one `## Phase <n>` section per phase. One file per plan is the
 default so a sequentially executed plan does not multiply files; split into
@@ -206,10 +204,8 @@ search. A repeated id in one document is a `sdt context lint` WARNING, and
 4. **Complete** — `[x]` every item of the phase, run the **verify-step** below,
    then move to the next phase; set the file `completed` (the `## Review` block
    is written file-level) and update the linked plan.
-5. **Commit gate** — if the task produced tracked changes, propose a
-   Conventional Commits message (see `instructions/git.md`) scoped to this
-   task and **ask the user whether to commit**; commit only on explicit
-   approval.
+5. **Commit gate** — see `instructions/git.md` for the procedure, the message
+   format and the approval gate.
 
 **Durable ledger.** Conversation memory does not survive compaction. Keep the
 record of progress in durable files — this task file, the plan and the worklog —

@@ -130,3 +130,37 @@ func TestAgentVerifyBlockMissingReference(t *testing.T) {
 		return ""
 	})
 }
+
+// TestAgentVerifyFlagsAModuleWithAnH1Title pins the runtime surfacing of the
+// generated-set convention. The gate is the template test, which travels with the
+// templates; this check is the WARNING an already-installed project sees, and it
+// must not fail the command: an installed copy that predates the template has to
+// survive a binary upgrade, and the remedy it names — re-run `sdt agent init
+// --force` — is the same one the obsolete-file check names.
+func TestAgentVerifyFlagsAModuleWithAnH1Title(t *testing.T) {
+	runInTempDir(t)
+	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
+
+	const path = "context/instructions/plan.md"
+	content := mustReadFile(t, path)
+	marker := "<!-- sdt:begin:instructions/plan -->"
+	i := strings.Index(content, marker)
+	if i < 0 {
+		t.Fatalf("module marker missing from %s", path)
+	}
+	tampered := content[:i+len(marker)] + "\n\n# Plan Documents\n" + content[i+len(marker):]
+	writeTestFile(t, path, tampered)
+
+	out := execute(t, agentVerifyCmd, nil, "--format", "json")
+	if !strings.Contains(string(out), "markdown H1") {
+		t.Errorf("an H1 in a generated module must be reported: %s", out)
+	}
+	if !strings.Contains(string(out), "sdt agent init --force") {
+		t.Errorf("the finding must name the remedy: %s", out)
+	}
+	// It is a WARNING: the command exits 0, so an installed project is told and
+	// not broken.
+	if issues := agentVerifyChecks(); agentVerifyCriticalError(issues) != nil {
+		t.Errorf("an H1 module must not be critical: %v", agentVerifyCriticalError(issues))
+	}
+}

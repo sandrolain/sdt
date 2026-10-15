@@ -4,8 +4,6 @@ title: "Research Documents"
 summary: "Research documents: an auditable research run and its findings."
 ---
 
-# Research Documents
-
 `context/research/<YYYYMMDD-HHMMSS>-<slug>.md` records the results of one
 research run (deepsearch, web/document sweep, spike) and its provenance. Read
 this file when running or writing up research that feeds an analysis, proposal
@@ -181,7 +179,7 @@ left untouched.
 - **Wiki population is agent editorial work.** The CLI never writes a
   `context/wiki/` page: after archiving, the agent reads the captures, distils
   concepts and writes the pages per `instructions/ingestion.md` (a real `##
-  Summary`, atomic cited `## Claims`, typed `relations`), presents the write plan
+  Summary`, atomic cited claims, typed `relations`), presents the write plan
   and writes only on approval. The `>populate-wiki` trigger drives this.
 - **Negatives are kept.** A failed fetch keeps its error and retry count and
   stays retryable; rejected sources stay recorded.

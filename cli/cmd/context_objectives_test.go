@@ -220,6 +220,37 @@ func TestObjectiveLifecycleFlagsAnActiveAnalysisWithEveryObjectiveTicked(t *test
 	}
 }
 
+// TestObjectiveLifecycleFlagsADraftAnalysisWithEveryObjectiveTicked pins the
+// extension the `draft` creation default requires. A draft with every objective
+// ticked is delivered work that reads as unwritten — the same claim `active` makes,
+// and now the common one, because an analysis is created `draft`. Without this the
+// new default would hide exactly the state the check exists to surface.
+func TestObjectiveLifecycleFlagsADraftAnalysisWithEveryObjectiveTicked(t *testing.T) {
+	files, _ := objectiveCorpus(t,
+		"## Objectives\n\n- [x] O1 delivered <!-- c1 -->\n",
+		"### Phase 1 — work\n\n**Covers:** O1\n")
+	// objectiveCorpus writes status: active; rewrite it as draft.
+	writeCtxDoc(t, "context/analysis/a.md",
+		"---\nkind: analysis\nuid: uid-a\nsummary: a\nstatus: draft\n---\n\n"+
+			"## Objectives\n\n- [x] O1 delivered <!-- c1 -->\n")
+	edges, err := ctxrel.Load(sdtWorkDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := lifecycleIssues(lintObjectivePhaseCoverage(files, edges))
+	if len(got) != 1 {
+		t.Fatalf("want exactly one lifecycle finding, got %d: %#v", len(got), got)
+	}
+	for _, want := range []string{"still `draft`", "promote it to `active`"} {
+		if !strings.Contains(got[0].Message, want) {
+			t.Errorf("message = %q, want %q", got[0].Message, want)
+		}
+	}
+	if got[0].Priority != ctxLintSuggestion {
+		t.Errorf("priority = %q, want SUGGESTION (it must not gate delivery)", got[0].Priority)
+	}
+}
+
 // TestObjectiveLifecycleFlagsACompletedAnalysisWithUntickedObjectives is the
 // second direction: the document asserts it is done and its checklist disagrees.
 func TestObjectiveLifecycleFlagsACompletedAnalysisWithUntickedObjectives(t *testing.T) {
@@ -295,7 +326,9 @@ func TestObjectiveLifecycleSkipsAnAnalysisWithoutTheSection(t *testing.T) {
 func lifecycleIssues(issues []ctxLintIssue) []ctxLintIssue {
 	var out []ctxLintIssue
 	for _, i := range issues {
-		if strings.Contains(i.Message, "still `active`") || strings.Contains(i.Message, "`completed` with") {
+		// The first direction names whichever state the document is still in
+		// (`active` or `draft`), so the filter keys on the sentence, not the state.
+		if strings.Contains(i.Message, "every objective is ticked but") || strings.Contains(i.Message, "`completed` with") {
 			out = append(out, i)
 		}
 	}

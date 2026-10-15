@@ -4,8 +4,6 @@ title: "Ingestion \u2192 Wiki \u2192 Refs (knowledge pipeline)"
 summary: "Knowledge pipeline: ingest external sources and convert non-markdown into the corpus."
 ---
 
-# Ingestion → Wiki → Refs (knowledge pipeline)
-
 The three-stage knowledge pipeline on top of `context/`: source material lands
 in `context/ingestion/`, an **agent command** distils it into knowledge-graph
 pages under `context/wiki/`, and consumed sources are archived to
@@ -202,7 +200,11 @@ valid special case and stay as-is.
 
 **Body** (the human reading surface):
 
-Page anatomy — every `wiki/` node keeps the **fixed body structure**:
+Page anatomy is **adaptive**: the body takes the form that best fits the
+material (prose, procedure, comparison, timeline). `## Summary` / `## Claims` /
+`## Notes` are the **default**, not a required template. What the tooling reads
+is not the headings but the parts: claim anchors, citations and the typed links,
+plus the 1-2 line frontmatter `summary` the lint requires.
 
 - `## Summary` — a 3-10 line TL;DR restating the knowledge in the KB's own
   words; the primary human reading surface (frontmatter `summary` stays 1-2
@@ -219,8 +221,9 @@ Page anatomy — every `wiki/` node keeps the **fixed body structure**:
 **Dual readability:** the human path is `Summary` + claims-as-bullets + terse
 markdown structure; the agent/machine path is the frontmatter (`relations`/
 `tags`), claim anchors, typed wiki-links, and markdown-ld — the surface that
-lint parses and `export` uses. New pages must ship all three body sections.
-Pages written before this anatomy was frozen may stay as-is until touched.
+lint parses and `export` uses. A page must stay readable on its own, and its
+claim anchors and citations survive whatever body shape it takes. Pages written
+before this default was settled may stay as-is until touched.
 
 **Typed wiki-links** (Obsidian syntax): body `[[verb::title]]`, relations
 `[[id|label]]`. `verb` is always one of the closed vocabulary below; titles
@@ -258,8 +261,9 @@ or incomparable material — split it into child/sibling nodes wired via
 
 ## Distillation rules
 
-**Page anatomy** is the fixed body structure above (frontmatter + `## Summary`
-+ `## Claims` + `## Notes`); the page must be **knowledge, not a copy**.
+**Page anatomy** is the adaptive body above (frontmatter + the default
+`## Summary` / `## Claims` / `## Notes`, or whatever shape the material takes);
+the page must be **knowledge, not a copy**.
 
 - **A source too large to read whole** follows
   `context/instructions/distillation.md` (book-scale distillation and its

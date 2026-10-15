@@ -35,7 +35,7 @@ func TestAgentRefreshRestoresDriftedInstructionFile(t *testing.T) {
 	if strings.Contains(string(data), "# STALE") {
 		t.Error("expected the stale generated body to be replaced by refresh")
 	}
-	if !strings.Contains(string(data), "# Plan Documents") {
+	if !strings.Contains(string(data), `title: "Plan Documents"`) {
 		t.Error("expected the template render present after refresh")
 	}
 }

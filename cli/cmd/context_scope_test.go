@@ -16,7 +16,7 @@ func TestScopeInstructionContract(t *testing.T) {
 		t.Fatal("scope.md not in the generated instruction set")
 	}
 	for _, want := range []string{
-		"# Recursive Design Flow",
+		"title: \"Recursive Design Flow (",
 		">scope",
 		"**Constitution**",
 		"Specify (tech-free)",

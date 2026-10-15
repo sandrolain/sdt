@@ -64,6 +64,24 @@ func agentVerifyChecks() []ctxLintIssue {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: "missing instruction file (run sdt agent init)"})
 		} else if err != nil {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: err.Error()})
+		} else if data, rerr := os.ReadFile(path); rerr == nil { //#nosec G304 -- fixed corpus path
+			// The document convention applies to the generated modules too: their
+			// frontmatter `title` is the title, so a body `#` is that title written
+			// twice. Surfaced as a WARNING, not a CRITICAL: this command fails on
+			// CRITICALs alone, and an installed project whose generated copy predates
+			// the template must not start failing a check merely by upgrading the
+			// binary — the remedy is the same `sdt agent init --force` the obsolete
+			// check names. Only the H1 finding is carried; a fenced-block defect in a
+			// module is a template bug reported by the suite, not a state this
+			// command should fail an installed project for.
+			for _, issue := range lintMarkdownBody(path, frontmatterBody(data), false, false) {
+				if !strings.Contains(issue.Message, "markdown H1") {
+					continue
+				}
+				issue.Priority = ctxLintWarning
+				issue.Message += " (generated module: fix the template, then re-run `sdt agent init --force`)"
+				issues = append(issues, issue)
+			}
 		}
 	}
 
@@ -122,6 +140,7 @@ instruction files:
 
   - AGENTS.md exists and carries the instructions block
   - every generated instruction file exists in context/instructions/
+  - no generated instruction file opens with an H1 title (WARNING)
   - no obsolete instruction files linger
   - the context/ working directories exist (including context/scripts/)
   - the block references every generated instruction file

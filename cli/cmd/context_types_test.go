@@ -129,7 +129,7 @@ func TestContextTypeStatuses(t *testing.T) {
 		status string // pipe-joined vocabulary
 	}{
 		{ctxTypePlan, ctxWikiStatusActive, "active|completed|abandoned"},
-		{ctxTypeAnalysis, ctxWikiStatusActive, "active|draft|completed|postponed|archived"},
+		{ctxTypeAnalysis, ctxWikiStatusDraft, "active|draft|completed|postponed|archived"},
 		{ctxTypeQuestions, ctxWikiStatusActive, "active|investigating|blocked|deferred|resolved"},
 		{ctxTypeProposal, ctxWikiStatusDraft, "draft|review|accepted|rejected|superseded"},
 		{ctxTypePrompt, ctxWikiStatusDraft, "draft|active|archived"},

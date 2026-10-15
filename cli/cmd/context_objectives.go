@@ -304,6 +304,12 @@ func lintObjectivePhaseCoverage(planFiles []string, edges *ctxrel.Edges) []ctxLi
 // of failure: an objective may have been delivered by a sibling wave (the
 // analysis stays completed because the decision was taken) or dropped. The
 // finding asks a reader to reconcile them, it does not assert which is wrong.
+//
+// The first direction reads `draft` as well as `active`, because the two are the
+// same claim at different points of the lifecycle: an analysis is created `draft`
+// and promoted to `active` when it is concluded, so a draft with every objective
+// ticked is delivered work that reads as unwritten — the state this check exists
+// to surface, and the common one now that `draft` is the creation default.
 func lintObjectiveLifecycle(ref, analysisPath string, cov objectiveCoverage) []ctxLintIssue {
 	if len(cov.objectives) == 0 {
 		return nil
@@ -315,9 +321,13 @@ func lintObjectiveLifecycle(ref, analysisPath string, cov objectiveCoverage) []c
 		}
 	}
 	switch {
-	case cov.AnalysisStatus == ctxWikiStatusActive && done == len(cov.objectives):
+	case (cov.AnalysisStatus == ctxWikiStatusActive || cov.AnalysisStatus == ctxWikiStatusDraft) && done == len(cov.objectives):
+		remedy := "close it with `sdt context close`"
+		if cov.AnalysisStatus == ctxWikiStatusDraft {
+			remedy = "promote it to `active`, or close it straight away with `sdt context close`"
+		}
 		return []ctxLintIssue{{Path: analysisPath, Priority: ctxLintSuggestion,
-			Message: fmt.Sprintf("every objective is ticked but %s is still `active`; close it with `sdt context close` so the corpus does not read as work in progress", ref)}}
+			Message: fmt.Sprintf("every objective is ticked but %s is still `%s`; %s so the corpus does not read as work in progress", ref, cov.AnalysisStatus, remedy)}}
 	case cov.AnalysisStatus == taskFileStatusCompleted && done < len(cov.objectives):
 		return []ctxLintIssue{{Path: analysisPath, Priority: ctxLintSuggestion,
 			Message: fmt.Sprintf("%s is `completed` with %d of %d objectives unticked; tick what was delivered or record why not, so the checklist and the status agree",

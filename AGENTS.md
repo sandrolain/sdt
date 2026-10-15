@@ -301,11 +301,6 @@ happened. Keep a hedge that carries real uncertainty.
 debug spiral, real ambiguity, a rule that fights the task (the options *are* the
 answer), or a rule that fights the harness — the constraint wins, the shape stays.
 
-Commits: after each completed task, propose a Conventional Commits message and
-**ask before committing** — never commit without explicit user approval (see
-`context/instructions/git.md`). Subject ≤50 chars, imperative, lowercase after
-type. Body only when "why" unclear. No period on subject.
-
 Files in `context/`: concise technical language. Cut fluff, keep meaning
 and readability. These instructions and docs are concise on purpose. For the
 prose patterns to cut and how to edit a draft without flattening it, see

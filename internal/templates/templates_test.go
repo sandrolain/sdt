@@ -240,10 +240,10 @@ func TestProjectTemplateIdentity(t *testing.T) {
 		group   string
 		want    string
 	}{
-		{"both", "p1", "g1", "# Project\n\n- Project: p1\n- Group: g1\n\nThis project"},
-		{"project-only", "p1", "", "# Project\n\n- Project: p1\n\nThis project"},
-		{"group-only", "", "g1", "# Project\n- Group: g1\n\nThis project"},
-		{"none", "", "", "# Project\n\nThis project"},
+		{"both", "p1", "g1", "- Project: p1\n- Group: g1\n\nThis project"},
+		{"project-only", "p1", "", "- Project: p1\n\nThis project"},
+		{"group-only", "", "g1", "- Group: g1\n\nThis project"},
+		{"none", "", "", "This project"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -471,4 +471,75 @@ func sameTokenSet(got []string, want map[string]bool) bool {
 		}
 	}
 	return true
+}
+
+// TestInstructionModulesStartAtH2 enforces the document convention on the
+// generated instruction set: a body starts at H2, because the frontmatter `title`
+// is the document's title. A module's `# Title` line is that title written a
+// second time.
+//
+// The gate lives here, over the templates that ship with the binary, because the
+// generated copies cannot carry it: `context/instructions/` is not a registered
+// context kind, so the corpus lint refuses a path there ("unknown context type")
+// and the generic no-H1 rule never sees a module. A test over the embedded set is
+// therefore the only place this invariant fails closed.
+func TestInstructionModulesStartAtH2(t *testing.T) {
+	checked := 0
+	err := fs.WalkDir(templatesFS, "instructions", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || filepath.Ext(path) != ".tmpl" {
+			return nil
+		}
+		data, rerr := templatesFS.ReadFile(path)
+		if rerr != nil {
+			return rerr
+		}
+		checked++
+		if line, head := firstBodyH1(string(data)); line > 0 {
+			t.Errorf("%s:%d: module opens with an H1 title %q — the frontmatter `title` is the title and the body starts at H2", path, line, head)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk instructions: %v", err)
+	}
+	if checked == 0 {
+		t.Fatal("no instruction templates were checked — the walk found nothing")
+	}
+}
+
+// firstBodyH1 returns the line number and text of the first level-1 heading in a
+// template's body, ignoring the frontmatter block and anything inside a fenced
+// code block (a shell example legitimately shows `# comment`). Position 0 means
+// no H1.
+func firstBodyH1(content string) (int, string) {
+	inFrontmatter := false
+	inFence := false
+	for i, raw := range strings.Split(content, "\n") {
+		line := strings.TrimRight(raw, "\r")
+		trimmed := strings.TrimSpace(line)
+		if i == 0 && trimmed == "---" {
+			inFrontmatter = true
+			continue
+		}
+		if inFrontmatter {
+			if trimmed == "---" {
+				inFrontmatter = false
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if trimmed == "#" || strings.HasPrefix(trimmed, "# ") || strings.HasPrefix(trimmed, "#\t") {
+			return i + 1, strings.TrimSpace(line)
+		}
+	}
+	return 0, ""
 }

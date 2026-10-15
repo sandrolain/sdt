@@ -331,7 +331,7 @@ func TestContextNewFullFrontmatter(t *testing.T) {
 		forbid []string
 	}{
 		{typ: "plan", want: []string{"kind: plan", "status: active", "created: 2026-08-06T07:00:00Z", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
-		{typ: "analysis", flags: []string{"--title", "Backend Choice", "--objective", "memory"}, want: []string{"kind: analysis", "title: Backend Choice", "objective: memory", "status: active", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
+		{typ: "analysis", flags: []string{"--title", "Backend Choice", "--objective", "memory"}, want: []string{"kind: analysis", "title: Backend Choice", "objective: memory", "status: draft", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
 		{typ: "worklog", want: []string{"kind: worklog", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:", "status:"}},
 		{typ: "notes", want: []string{"kind: notes", "created: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:", "status:", "updated:"}},
 		{typ: "questions", want: []string{"kind: questions", "status: active", "updated: 2026-08-06T07:00:00Z"}, forbid: []string{"created_at:"}},
@@ -400,10 +400,11 @@ func TestContextNewStatusDefaultsWhenOmitted(t *testing.T) {
 	runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
-	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "active-one")
-	content := mustReadFile(t, filepath.Join("context", "analysis", "20260806-070000-active-one.md"))
-	if !strings.Contains(content, "status: active") {
-		t.Errorf("expected default status: active:\n%s", content)
+	// The analysis default is `draft`: an analysis is started, then concluded.
+	execute(t, contextNewCmd, nil, "--type", "analysis", "--slug", "probe")
+	content := mustReadFile(t, filepath.Join("context", "analysis", "20260806-070000-probe.md"))
+	if !strings.Contains(content, "status: draft") {
+		t.Errorf("expected default status: draft:\n%s", content)
 	}
 }
 

@@ -16,7 +16,7 @@ func TestDraftInstructionContract(t *testing.T) {
 		t.Fatal("draft.md not in the generated instruction set")
 	}
 	for _, want := range []string{
-		"# Draft Capture",
+		"title: \"Draft Capture (",
 		">draft",
 		"verbatim",
 		"exactly one",

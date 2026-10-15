@@ -346,6 +346,7 @@ func TestAgentInit(t *testing.T) {
 	if strings.Contains(string(data), "### Knowledge tiers") || strings.Contains(string(data), "```yaml") {
 		t.Error("expected removed redundant Knowledge tiers section and frontmatter sample")
 	}
+	assertCommitConsentStatedOnce(t, string(data))
 	if !strings.Contains(string(data), "### Keep the chain (recap)") {
 		t.Error("expected intent gate recap section at block end")
 	}
@@ -759,7 +760,7 @@ func TestAgentInitForceRefreshesMarkerBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale := string(data)
-	stale = strings.Replace(stale, "# Analysis Documents", "# STALE", 1)
+	stale = strings.Replace(stale, "## Create", "# STALE\n\n## Create", 1)
 	if err := os.WriteFile(p, []byte(stale), 0o644); err != nil { //#nosec G306 -- test fixture
 		t.Fatal(err)
 	}
@@ -771,7 +772,7 @@ func TestAgentInitForceRefreshesMarkerBody(t *testing.T) {
 	if strings.Contains(string(data), "# STALE") {
 		t.Error("expected marker body refreshed with --force")
 	}
-	if !strings.Contains(string(data), "# Analysis Documents") {
+	if !strings.Contains(string(data), `title: "Analysis Documents"`) {
 		t.Error("expected refreshed content present after --force")
 	}
 }
@@ -1272,8 +1273,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"concise, direct",
 		"[thing] [action] [reason]",
 		"Conventional Commits",
-		"≤50 chars",
-		"ask before committing",
+		"whether to commit",
 		"context/instructions/git.md",
 		"**Validation phase**",
 		"`## Design`",
@@ -1299,6 +1299,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	if strings.Contains(string(data), "### Knowledge tiers") || strings.Contains(string(data), "```yaml") {
 		t.Error("expected removed redundant Knowledge tiers section and frontmatter sample")
 	}
+	assertCommitConsentStatedOnce(t, string(data))
 	if !strings.Contains(string(data), "### Keep the chain (recap)") {
 		t.Error("expected intent gate recap section at block end")
 	}
@@ -1454,7 +1455,7 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 // template edits. The source-conversion clause lives in the ingestion contract.
 func TestAgentProposalTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Proposal Documents",
+		`title: "Proposal Documents"`,
 		"context/proposals/<YYYYMMDD-HHMMSS>-<slug>.md",
 		"kind: proposal",
 		"## Proposal → decision workflow",
@@ -1476,7 +1477,7 @@ func TestAgentProposalTemplateCoherence(t *testing.T) {
 // must survive edits.
 func TestAgentIngestionTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Ingestion → Wiki → Refs",
+		`title: "Ingestion \u2192 Wiki \u2192 Refs (knowledge pipeline)"`,
 		"context/ingestion/",
 		"context/refs/",
 		"excluded from lint",
@@ -1495,7 +1496,7 @@ func TestAgentIngestionTemplateCoherence(t *testing.T) {
 // TestAgentDecisionTemplateCoherence guards the decision-record contract.
 func TestAgentDecisionTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Decision Records",
+		`title: "Decision Records"`,
 		"context/decisions/NNNN-<slug>.md",
 		"kind: decision",
 		"append-only",
@@ -1539,7 +1540,7 @@ func TestAgentNoH1TitleRule(t *testing.T) {
 // the note provenance/boundary and the run-manifest contract must survive edits.
 func TestAgentResearchTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Research Documents",
+		`title: "Research Documents"`,
 		"context/research/<YYYYMMDD-HHMMSS>-<slug>.md",
 		"kind: research",
 		"subject:",
@@ -1567,7 +1568,7 @@ func TestAgentResearchTemplateCoherence(t *testing.T) {
 // and the refs/<lib>/ library-docs convention must survive edits.
 func TestAgentDevelopmentTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Development (how to write code)",
+		`title: "Development (how to write code)"`,
 		"Style and architecture are agreed, not invented",
 		"Every ambiguity is decided by the user",
 		"Library-first development",
@@ -1594,7 +1595,7 @@ func TestAgentDevelopmentTemplateCoherence(t *testing.T) {
 // survive edits.
 func TestAgentBrowserTemplatesCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Browser automation",
+		`title: "Browser automation \u2014 navigation and layout verification"`,
 		"SKIPPED — never PASSED",
 		"Wait discipline",
 		"Layout-verification protocol",
@@ -1612,7 +1613,7 @@ func TestAgentBrowserTemplatesCoherence(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"# Browser automation — tool profiles",
+		`title: "Browser automation \u2014 tool profiles"`,
 		"agent-browser",
 		"obscura",
 		"not a layout oracle",
@@ -1675,7 +1676,7 @@ func TestAgentBrowserTemplatesViewerFree(t *testing.T) {
 // contract (vector-svg.md) must survive edits.
 func TestAgentVectorTemplatesCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Vector graphics — authoring doctrine",
+		`title: "Vector graphics \u2014 authoring doctrine"`,
 		"BRIEF → CONCEPT → BUILD",
 		"SKIPPED — never PASSED",
 		"Anti-slop",
@@ -1689,7 +1690,7 @@ func TestAgentVectorTemplatesCoherence(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"# SVG — format contract",
+		`title: "SVG \u2014 format contract"`,
 		"viewBox",
 		"Semantic, not positional, ids",
 		`role="img"`,
@@ -1714,7 +1715,7 @@ func TestAgentVectorTemplatesCoherence(t *testing.T) {
 // no-install-recipe boundary.
 func TestAgentVectorToolsTemplatesCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Vector graphics — render tooling",
+		`title: "Vector graphics \u2014 render tooling"`,
 		"resvg",
 		"rsvg-convert",
 		"Inkscape",
@@ -1769,7 +1770,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 		want []string
 	}{
 		{"ui.md", instrUITemplate, []string{
-			"# UI/UX — authoring doctrine",
+			`title: "UI/UX \u2014 authoring doctrine"`,
 			"When this applies (no-op rule)",
 			"Priority ladder",
 			"Visitor-success mode",
@@ -1787,7 +1788,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"context/instructions/ui-motion.md",
 		}},
 		{"ui-tokens.md", instrUITokensTemplate, []string{
-			"# UI/UX — tokens by intent",
+			`title: "UI/UX \u2014 tokens by intent"`,
 			"stop and ask",
 			"primitive",
 			"semantic",
@@ -1798,7 +1799,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"ui-motion.md",
 		}},
 		{"ui-components.md", instrUIComponentsTemplate, []string{
-			"# UI/UX — components",
+			`title: "UI/UX \u2014 components"`,
 			"enumerate the states",
 			"the ones that apply",
 			"focus-visible",
@@ -1812,7 +1813,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"ui-accessibility.md",
 		}},
 		{"ui-accessibility.md", instrUIA11yTemplate, []string{
-			"# UI/UX — accessibility",
+			`title: "UI/UX \u2014 accessibility"`,
 			"Perceivable, Operable, Understandable, Robust",
 			"prefers-reduced-motion",
 			"hierarchy and feedback",
@@ -1821,7 +1822,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"browser.md",
 		}},
 		{"ui-taste.md", instrUITasteTemplate, []string{
-			"# UI/UX — taste and coherence",
+			`title: "UI/UX \u2014 taste and coherence"`,
 			"Block coherence",
 			"could a stranger tell these were authored separately",
 			"Vary **composition** inside one artifact",
@@ -1837,7 +1838,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"category",
 		}},
 		{"ui-adapters.md", instrUIAdaptersTemplate, []string{
-			"# UI/UX — framework adapters",
+			`title: "UI/UX \u2014 framework adapters"`,
 			"Token resolution",
 			"Component contract",
 			"Styling strategy",
@@ -1848,7 +1849,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"prescribes no framework",
 		}},
 		{"ui-performance.md", instrUIPerformanceTemplate, []string{
-			"# UI/UX — performance",
+			`title: "UI/UX \u2014 performance"`,
 			"Core Web Vitals",
 			"LCP",
 			"INP",
@@ -1859,7 +1860,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"browser.md",
 		}},
 		{"ui-layout.md", instrUILayoutTemplate, []string{
-			"# UI/UX — layout and typography",
+			`title: "UI/UX \u2014 layout and typography"`,
 			"Layout is grouping",
 			"45-75 characters per line",
 			"DOM order is the reading and focus order",
@@ -1869,7 +1870,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 			"ui-components.md",
 		}},
 		{"ui-motion.md", instrUIMotionTemplate, []string{
-			"# UI/UX — motion",
+			`title: "UI/UX \u2014 motion"`,
 			"Decide before you animate",
 			"How often does it play",
 			"Direction decides the curve",
@@ -1936,7 +1937,7 @@ func TestAgentMindmapTemplatesCoherence(t *testing.T) {
 		want []string
 	}{
 		{"mindmap.md", instrMindmapTemplate, []string{
-			"# Mind maps — authoring doctrine",
+			`title: "Mind maps \u2014 authoring doctrine"`,
 			"When this applies (no-op rule)",
 			"OUTLINE → CHECK → RENDER → COMPARE AGAINST THE SOURCE → FIX",
 			"One keyword per node",
@@ -1952,7 +1953,7 @@ func TestAgentMindmapTemplatesCoherence(t *testing.T) {
 			"context/instructions/development.md",
 		}},
 		{"mindmap-markmap.md", instrMindmapMarkmapTemplate, []string{
-			"# Mind maps — the map markdown dialect",
+			`title: "Mind maps \u2014 the map markdown dialect"`,
 			"Nothing is dropped",
 			"Exactly one root",
 			"innermost open heading",
@@ -2020,7 +2021,7 @@ func TestAgentDiagramTemplatesCoherence(t *testing.T) {
 		want []string
 	}{
 		{"diagram.md", instrDiagramTemplate, []string{
-			"# Diagrams — authoring doctrine",
+			`title: "Diagrams \u2014 authoring doctrine"`,
 			"When this applies (no-op rule)",
 			"Choose the type first",
 			"Constraints fixed, layout free",
@@ -2032,7 +2033,7 @@ func TestAgentDiagramTemplatesCoherence(t *testing.T) {
 			"context/instructions/development.md",
 		}},
 		{"diagram-mermaid.md", instrDiagramMermaidTemplate, []string{
-			"# Diagrams — the Mermaid dialect",
+			`title: "Diagrams \u2014 the Mermaid dialect"`,
 			"Nothing is dropped",
 			"flowchart LR",
 			"| steps and decisions over time | `flowchart` |",
@@ -2083,7 +2084,7 @@ func TestAgentDiagramTemplatesViewerFree(t *testing.T) {
 // over-correction guard must survive edits.
 func TestAgentWritingTemplateCoherence(t *testing.T) {
 	want := []string{
-		"# Writing — prose editing doctrine",
+		`title: "Writing \u2014 prose editing doctrine"`,
 		"When this applies (no-op rule)",
 		"Edit or detect (say which)",
 		"minimum effective edit",
@@ -2164,7 +2165,7 @@ func TestAgentDistillationTemplatesCoherence(t *testing.T) {
 		want []string
 	}{
 		{"distillation.md", instrDistillationTemplate, []string{
-			"# Distillation — book-scale references",
+			`title: "Distillation \u2014 book-scale references"`,
 			"When this applies (no-op rule)",
 			"Choose the mode first",
 			"**analyze-only**",
@@ -2229,7 +2230,7 @@ func TestAgentSlidesTemplatesCoherence(t *testing.T) {
 		want []string
 	}{
 		{"slides.md", instrSlidesTemplate, []string{
-			"# Slide decks — authoring doctrine",
+			`title: "Slide decks \u2014 authoring doctrine"`,
 			"When this applies (no-op rule)",
 			"OUTLINE → AGREE → WRITE → RENDER → LOOK → FIX",
 			"One idea per slide",
@@ -2246,7 +2247,7 @@ func TestAgentSlidesTemplatesCoherence(t *testing.T) {
 			"context/instructions/development.md",
 		}},
 		{"slides-marp.md", instrSlidesMarpTemplate, []string{
-			"# Slide decks — the marp markdown dialect",
+			`title: "Slide decks \u2014 the marp markdown dialect"`,
 			"The silent-failure list (read this first)",
 			"empty line may be required before the dash ruler",
 			"A `layout:` key is silently ignored",
@@ -2312,7 +2313,7 @@ func TestAgentSlidesTemplatesViewerFree(t *testing.T) {
 // decision-log pointer must survive edits.
 func TestAgentLessonsTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Lessons, Do-Not-Repeat and Decision Log",
+		`title: "Lessons, Do-Not-Repeat and Decision Log"`,
 		"context/notes/<YYYYMMDD-HHMMSS>-<slug>.md",
 		"context: lessons",
 		"## Key learnings",
@@ -2390,7 +2391,7 @@ func TestAgentWorklogCloseoutTemplateCoherence(t *testing.T) {
 // Design study pointer must survive edits.
 func TestAgentPlanTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Plan Documents",
+		`title: "Plan Documents"`,
 		"**Validation phase**",
 		"always the last phase",
 		"**analysis objectives**",
@@ -2403,12 +2404,26 @@ func TestAgentPlanTemplateCoherence(t *testing.T) {
 	}
 }
 
+// assertCommitConsentStatedOnce pins one statement per surface for the commit
+// rule: the always-loaded block states the ask once, at the closeout step where it
+// applies, and the message-format rules belong to the canonical procedure in
+// `git.md`. It is a helper because the block test is already long.
+func assertCommitConsentStatedOnce(t *testing.T, block string) {
+	t.Helper()
+	if n := strings.Count(block, "whether to commit"); n != 1 {
+		t.Errorf("the always-loaded block states the commit ask %d time(s), want exactly 1", n)
+	}
+	if strings.Contains(block, "≤50 chars") {
+		t.Error("the commit-message format rules belong to git.md, not the always-loaded block")
+	}
+}
+
 // TestAgentGitTemplateCoherence guards the git/commit contract: the commit
 // gate, the Conventional Commits format and the branch policy must survive
 // edits.
 func TestAgentGitTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Git — commits and branches",
+		`title: "Git \u2014 commits and branches"`,
 		"## The commit gate (ask before you commit)",
 		"ask the user whether to commit",
 		"Never commit without explicit approval",
@@ -2430,12 +2445,12 @@ func TestAgentGitTemplateCoherence(t *testing.T) {
 // edits.
 func TestAgentTasksTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Task Files (one per plan)",
+		`title: "Task Files (one per plan)"`,
 		"## Design section (study of the task objectives)",
 		"## Design",
 		"## Execution workflow",
 		"**Commit gate**",
-		"ask the user whether to commit",
+		"see `instructions/git.md` for the procedure",
 		"instructions/git.md",
 		"## Phase 1",
 		"indented continuation lines; the id is written on the checklist line",
@@ -2453,7 +2468,7 @@ func TestAgentTasksTemplateCoherence(t *testing.T) {
 // survive edits.
 func TestAgentAnalysisTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		"# Analysis Documents",
+		`title: "Analysis Documents"`,
 		"**Resolve open points now**",
 		"**The \"how\" belongs to the plan**",
 		"Leave **no open points**",
