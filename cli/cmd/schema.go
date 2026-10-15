@@ -47,24 +47,54 @@ func cobraFlagTypeToJSONType(t string) string {
 	}
 }
 
-// buildFlagSchema builds a JSON Schema describing a command's flags.
+// commandFlagSchema converts one pflag into its JSON Schema entry.
+func commandFlagSchema(f *pflag.Flag) *JSONSchema {
+	s := &JSONSchema{
+		Description: f.Usage,
+		Type:        cobraFlagTypeToJSONType(f.Value.Type()),
+	}
+	if f.DefValue != "" && f.DefValue != "[]" && f.DefValue != flagValueFalse {
+		s.Default = f.DefValue
+	}
+	if f.Value.Type() == typeStringArray || f.Value.Type() == "stringSlice" {
+		s.Items = &JSONSchema{Type: typeString}
+	}
+	return s
+}
+
+// buildFlagSchema builds a JSON Schema describing a command's flags: its own and
+// the globals it inherits.
+//
+// It reads `Flags()` no longer. That method returns only what the command
+// declares on `Flags()`, while flags added with `PersistentFlags()` live in a
+// separate set — so for a command like `crawldown`, which declares its whole
+// option set persistently, the walk found nothing and the schema emitted a bare
+// `{"type": "object"}`, telling an agent the verb takes no options. Measured
+// before the fix: 83 of 173 commands.
+//
+// `LocalFlags()` and `InheritedFlags()` together are the set a caller can
+// actually pass. A name declared in both — a command shadowing a global — is
+// reported once, from the local declaration, because that is the flag the
+// command will parse; `InheritedFlags()` alone would be ambiguous, and iterating
+// both sets into one map would let insertion order decide.
 func buildFlagSchema(c *cobra.Command) *JSONSchema {
 	props := map[string]*JSONSchema{}
-	c.Flags().VisitAll(func(f *pflag.Flag) {
+	local := map[string]struct{}{}
+	c.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		if f.Hidden {
 			return
 		}
-		s := &JSONSchema{
-			Description: f.Usage,
-			Type:        cobraFlagTypeToJSONType(f.Value.Type()),
+		local[f.Name] = struct{}{}
+		props[f.Name] = commandFlagSchema(f)
+	})
+	c.InheritedFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Hidden {
+			return
 		}
-		if f.DefValue != "" && f.DefValue != "[]" && f.DefValue != flagValueFalse {
-			s.Default = f.DefValue
+		if _, shadowed := local[f.Name]; shadowed {
+			return
 		}
-		if f.Value.Type() == typeStringArray || f.Value.Type() == "stringSlice" {
-			s.Items = &JSONSchema{Type: typeString}
-		}
-		props[f.Name] = s
+		props[f.Name] = commandFlagSchema(f)
 	})
 	if len(props) == 0 {
 		return &JSONSchema{Type: "object"}
@@ -163,17 +193,16 @@ Examples:
 	},
 }
 
-func collectSchemas(c *cobra.Command, out *[]CommandSchema) {
-	if c.Hidden {
-		return
+// collectSchemas reports the schema of every leaf command the shared
+// enumeration yields, so the schema and the generated docs describe the same
+// command set by construction rather than by two walks agreeing.
+func collectSchemas(root *cobra.Command, out *[]CommandSchema) {
+	var leaves []leafCommand
+	for _, sub := range root.Commands() {
+		collectLeafCommands(sub, "", &leaves)
 	}
-	subs := c.Commands()
-	if len(subs) == 0 && c.Run != nil {
-		*out = append(*out, buildCommandSchema(c))
-		return
-	}
-	for _, sub := range subs {
-		collectSchemas(sub, out)
+	for _, l := range leaves {
+		*out = append(*out, buildCommandSchema(l.c))
 	}
 }
 

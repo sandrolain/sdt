@@ -22,10 +22,7 @@ func TestDocFileName(t *testing.T) {
 }
 
 func TestCollectLeafCommands(t *testing.T) {
-	var leaves []docsCommand
-	for _, sub := range rootCmd.Commands() {
-		collectLeafCommands(sub, "", &leaves)
-	}
+	leaves := allDocsLeaves()
 	if len(leaves) == 0 {
 		t.Fatal("expected leaf commands")
 	}
@@ -48,10 +45,7 @@ func TestCollectLeafCommands(t *testing.T) {
 }
 
 func TestRenderCommandDoc(t *testing.T) {
-	var leaves []docsCommand
-	for _, sub := range rootCmd.Commands() {
-		collectLeafCommands(sub, "", &leaves)
-	}
+	leaves := allDocsLeaves()
 	var target *docsCommand
 	for i := range leaves {
 		if leaves[i].path == "context task add" {
@@ -82,10 +76,7 @@ func TestRenderCommandDoc(t *testing.T) {
 }
 
 func TestRenderDocsIndex(t *testing.T) {
-	var leaves []docsCommand
-	for _, sub := range rootCmd.Commands() {
-		collectLeafCommands(sub, "", &leaves)
-	}
+	leaves := allDocsLeaves()
 	idx := renderDocsIndex(leaves, "2026-08-06T07:00:00Z")
 	for _, want := range []string{
 		"# sdt — Generated Command Reference",
@@ -107,10 +98,7 @@ func TestContextDocs(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 8, 6, 7, 0, 0, 0, time.UTC))
 
-	var leaves []docsCommand
-	for _, sub := range rootCmd.Commands() {
-		collectLeafCommands(sub, "", &leaves)
-	}
+	leaves := allDocsLeaves()
 
 	out := execute(t, contextDocsCmd, nil)
 	if !strings.Contains(string(out), "README.md") {
@@ -153,10 +141,7 @@ func TestContextDocsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var leaves []docsCommand
-	for _, sub := range rootCmd.Commands() {
-		collectLeafCommands(sub, "", &leaves)
-	}
+	leaves := allDocsLeaves()
 	if len(entries) != len(leaves)+1 {
 		t.Errorf("expected stable file count %d, got %d", len(leaves)+1, len(entries))
 	}
@@ -272,4 +257,15 @@ func TestAgentBlockWikiInstruction(t *testing.T) {
 	if !found {
 		t.Error("expected wiki.md in generated instruction set")
 	}
+}
+
+// allDocsLeaves runs the shared enumeration over the real command tree and maps
+// it onto the docs shape, so a test exercises the same walk the generator does
+// rather than a second one written for the test.
+func allDocsLeaves() []docsCommand {
+	var collected []leafCommand
+	for _, sub := range rootCmd.Commands() {
+		collectLeafCommands(sub, "", &collected)
+	}
+	return docsLeaves(collected)
 }

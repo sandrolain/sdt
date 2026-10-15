@@ -28,13 +28,34 @@ type docsFlag struct {
 	Usage     string
 }
 
-// collectLeafCommands walks the command tree collecting runnable leaf commands.
-func collectLeafCommands(c *cobra.Command, path string, out *[]docsCommand) {
+// leafCommand is one runnable leaf of the command tree, with the use path that
+// addresses it. It is the single enumeration both discovery surfaces consume.
+type leafCommand struct {
+	path string
+	c    *cobra.Command
+}
+
+// cobraBuiltins are cobra's own commands. Neither discovery surface has anything
+// useful to say about them: `help` has no flags of its own to report and no
+// behaviour to document, and a generated page for it would be a page about
+// cobra. They are excluded **here, once**, so that "the generated docs cover
+// every command the schema reports" is a property of one walk rather than a
+// coincidence maintained in two places.
+var cobraBuiltins = map[string]struct{}{"help": {}, "completion": {}}
+
+// collectLeafCommands is the single walk of the command tree: it yields every
+// runnable leaf command that the schema, the generated docs and any future
+// surface should agree on. A leaf is a command with no subcommands and a Run
+// function; hidden commands and cobra's built-ins are skipped.
+//
+// Both surfaces used to walk the tree separately with different filters — the
+// docs skipped the built-ins by name and the schema did not — which is how the
+// two could disagree without anything failing.
+func collectLeafCommands(c *cobra.Command, path string, out *[]leafCommand) {
 	if c.Hidden {
 		return
 	}
-	switch c.Name() {
-	case "help", "completion":
+	if _, builtin := cobraBuiltins[c.Name()]; builtin {
 		return
 	}
 	full := c.Name()
@@ -43,12 +64,21 @@ func collectLeafCommands(c *cobra.Command, path string, out *[]docsCommand) {
 	}
 	subs := c.Commands()
 	if len(subs) == 0 && c.Run != nil {
-		*out = append(*out, docsCommand{path: full, file: docFileName(full), c: c})
+		*out = append(*out, leafCommand{path: full, c: c})
 		return
 	}
 	for _, sub := range subs {
 		collectLeafCommands(sub, full, out)
 	}
+}
+
+// docsLeaves maps the shared enumeration onto the docs shape.
+func docsLeaves(leaves []leafCommand) []docsCommand {
+	out := make([]docsCommand, 0, len(leaves))
+	for _, l := range leaves {
+		out = append(out, docsCommand{path: l.path, file: docFileName(l.path), c: l.c})
+	}
+	return out
 }
 
 // docFileName derives the markdown file name from a command path
@@ -202,10 +232,11 @@ Examples:
 		out := getStringFlag(cmd, "out", false)
 		clean := getBoolFlag(cmd, "clean", false)
 
-		var leaves []docsCommand
+		var collected []leafCommand
 		for _, sub := range cmd.Root().Commands() {
-			collectLeafCommands(sub, "", &leaves)
+			collectLeafCommands(sub, "", &collected)
 		}
+		leaves := docsLeaves(collected)
 		sort.Slice(leaves, func(i, j int) bool { return leaves[i].path < leaves[j].path })
 
 		files := map[string]string{
