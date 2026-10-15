@@ -11,10 +11,21 @@ import type { TreeEntry } from "../lib/api";
 import { useCorpusEntries } from "../lib/corpusView";
 import { formatFieldDateOnly } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
+import {
+  HEATMAP_WINDOW_WEEKS,
+  WEEKDAY_LABELS,
+  heatmapLayout,
+  heatmapOpacity,
+  type HeatmapCell,
+} from "../lib/heatmap";
 import { availableKinds, entryKind, kindColor, kindIcon, kindLabel } from "../lib/kinds";
+import type { StatePresetId } from "../lib/statusDot";
 import { displayTitle } from "../lib/titles";
+import { entryMatchesViewState, statePresetLabel } from "../lib/viewFilter";
 import { useDockviewTheme, useDockviewWorkspace } from "../lib/dockviewWorkspace";
 import { SkeletonLines } from "./Skeleton";
+import { TooltipButton } from "./ui/Tooltip";
+import { ViewFilters } from "./ViewFilters";
 
 /** A stable "today" for the empty-corpus fallback (never called during render). */
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -36,6 +47,10 @@ interface TimelineData {
   entries: TreeEntry[];
   month: string;
   setMonth: (m: string) => void;
+  /** The day picked on the heatmap, or null: it filters the list and moves the
+   * calendar to its month, so the three panels tell one story (O4). */
+  selectedDay: string | null;
+  selectDay: (day: string | null) => void;
 }
 
 const TimelineDataContext = createContext<TimelineData | null>(null);
@@ -102,11 +117,25 @@ export function TimelineView() {
     return (days[0] ?? TODAY).slice(0, 7);
   }, [byDay]);
   const selectedMonth = month || latestMonth;
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const selectDay = (day: string | null) => {
+    setSelectedDay(day);
+    // A picked day moves the calendar to its month: the panels must not disagree
+    // about which month is on screen.
+    if (day) setMonth(day.slice(0, 7));
+  };
 
   if (error) return <p className="content__empty">Timeline error: {error}</p>;
   if (!entries) return <SkeletonLines count={8} label="Loading timeline" />;
 
-  const data: TimelineData = { byDay, entries, month: selectedMonth, setMonth };
+  const data: TimelineData = {
+    byDay,
+    entries,
+    month: selectedMonth,
+    setMonth,
+    selectedDay,
+    selectDay,
+  };
 
   return (
     <TimelineDataContext.Provider value={data}>
@@ -149,29 +178,30 @@ function CalendarPanel() {
 }
 
 function HeatmapPanel() {
-  const { byDay } = useTimelineData();
-  return <Heatmap byDay={byDay} />;
+  const { byDay, selectedDay, selectDay } = useTimelineData();
+  return <Heatmap byDay={byDay} selectedDay={selectedDay} onSelectDay={selectDay} />;
 }
 
 function ListPanel() {
-  const { byDay, entries, month } = useTimelineData();
+  const { byDay, entries, month, selectedDay, selectDay } = useTimelineData();
   const [kindFilter, setKindFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatePresetId>("all");
   const [page, setPage] = useState(0);
 
   const kinds = useMemo(() => availableKinds(entries), [entries]);
   const days = useMemo(
     () =>
       [...byDay.keys()]
-        .filter((d) => d.startsWith(month))
+        .filter((d) => (selectedDay ? d === selectedDay : d.startsWith(month)))
         .sort((a, b) => b.localeCompare(a))
         .map((day) => ({
           day,
-          docs: (byDay.get(day) ?? []).filter(
-            (e) => kindFilter === "all" || entryKind(e) === kindFilter,
-          ),
+          docs: (byDay.get(day) ?? [])
+            .filter((e) => kindFilter === "all" || entryKind(e) === kindFilter)
+            .filter((e) => entryMatchesViewState(e, statusFilter)),
         }))
         .filter((d) => d.docs.length > 0),
-    [byDay, month, kindFilter],
+    [byDay, month, kindFilter, statusFilter, selectedDay],
   );
   const pages = Math.max(1, Math.ceil(days.length / LIST_PAGE_SIZE));
   const current = Math.min(page, pages - 1);
@@ -197,6 +227,25 @@ function ListPanel() {
             ))}
           </select>
         </label>
+        <ViewFilters
+          preset={statusFilter}
+          onChange={(next) => {
+            setStatusFilter(next);
+            setPage(0);
+          }}
+        />
+        {selectedDay && (
+          <button
+            type="button"
+            className="timeline__day-chip"
+            onClick={() => selectDay(null)}
+            aria-label={`Clear the ${formatFieldDateOnly(selectedDay)} selection`}
+          >
+            <Icon name="event" />
+            {formatFieldDateOnly(selectedDay)}
+            <Icon name="close" />
+          </button>
+        )}
         {pages > 1 && (
           <div className="timeline__pager">
             <button
@@ -223,14 +272,28 @@ function ListPanel() {
           </div>
         )}
       </div>
-      <MonthTimeline days={slice} />
+      <MonthTimeline days={slice} statusFilter={statusFilter} />
     </div>
   );
 }
 
-function MonthTimeline({ days }: { days: { day: string; docs: TreeEntry[] }[] }) {
+function MonthTimeline({
+  days,
+  statusFilter,
+}: {
+  days: { day: string; docs: TreeEntry[] }[];
+  statusFilter: StatePresetId;
+}) {
   if (days.length === 0) {
-    return <p className="content__empty">No documents.</p>;
+    // The unfiltered case keeps its original sentence; a filter that emptied the
+    // list says which one, so the reader does not think the month is empty.
+    return (
+      <p className="content__empty">
+        {statusFilter === "all"
+          ? "No documents."
+          : `No document matches the ${statePresetLabel(statusFilter)} status this month.`}
+      </p>
+    );
   }
   return (
     <div className="timeline__list">
@@ -330,41 +393,100 @@ function Calendar({
   );
 }
 
-function Heatmap({ byDay }: { byDay: Map<string, TreeEntry[]> }) {
-  const days = [...byDay.keys()].sort();
-  const first = days[0] ?? TODAY;
-  const last = days[days.length - 1] ?? first;
-  const max = Math.max(1, ...[...byDay.values()].map((v) => v.length));
-  const cells: { day: string; count: number }[] = [];
-  const cursor = new Date(`${first}T00:00:00Z`);
-  const end = new Date(`${last}T00:00:00Z`);
-  while (cursor <= end) {
-    const day = cursor.toISOString().slice(0, 10);
-    cells.push({ day, count: byDay.get(day)?.length ?? 0 });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+function Heatmap({
+  byDay,
+  selectedDay,
+  onSelectDay,
+}: {
+  byDay: Map<string, TreeEntry[]>;
+  selectedDay: string | null;
+  onSelectDay: (day: string | null) => void;
+}) {
+  const grid = useMemo(() => heatmapLayout(byDay), [byDay]);
+  if (grid.columns.length === 0) {
+    return <p className="content__empty">No dated documents yet.</p>;
   }
   return (
-    <div className="heatmap" role="img" aria-label="Documents per day">
-      {cells.map((c) => (
-        <span
-          key={c.day}
-          className="heatmap__cell"
-          style={{ opacity: c.count ? 0.25 + (0.75 * c.count) / max : 0.06 }}
-          title={`${c.day}: ${c.count}`}
-        />
-      ))}
+    <div className="heatmap">
+      <div className="heatmap__body">
+        <div className="heatmap__weekdays" aria-hidden="true">
+          {WEEKDAY_LABELS.map((label, index) => (
+            <span key={label} className="heatmap__weekday">
+              {index % 2 === 0 ? label : ""}
+            </span>
+          ))}
+        </div>
+        {/* Not a grid role: the cells are buttons with their own names, and a grid
+            whose cells are not gridcells would misdescribe the widget. */}
+        <div className="heatmap__grid" role="group" aria-label="Documents per day">
+          <div className="heatmap__months" aria-hidden="true">
+            {grid.columns.map((column, index) => (
+              <span key={index} className="heatmap__month">
+                {column.monthLabel ?? ""}
+              </span>
+            ))}
+          </div>
+          <div className="heatmap__weeks">
+            {grid.columns.map((column, index) => (
+              <div key={index} className="heatmap__week">
+                {column.cells.map((cell, slot) =>
+                  cell === null ? (
+                    <span key={slot} className="heatmap__cell heatmap__cell--empty" />
+                  ) : (
+                    <TooltipButton
+                      key={slot}
+                      label={`${cell.day}: ${cell.count}`}
+                      tooltip={heatmapCellTooltip(cell)}
+                      className={`heatmap__cell${selectedDay === cell.day ? " is-selected" : ""}`}
+                      style={{ opacity: heatmapOpacity(cell.count, grid.max) }}
+                      onPress={() => onSelectDay(selectedDay === cell.day ? null : cell.day)}
+                    />
+                  ),
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="heatmap__footer">
+        <span className="heatmap__legend" aria-hidden="true">
+          <span>less</span>
+          {[1, 2, 3, 4].map((step) => (
+            <span
+              key={step}
+              className="heatmap__cell heatmap__swatch"
+              style={{ opacity: heatmapOpacity(step, 4) }}
+            />
+          ))}
+          <span>more</span>
+        </span>
+        <span className="heatmap__caption">
+          {grid.capped
+            ? `the most recent ${HEATMAP_WINDOW_WEEKS} weeks`
+            : "every day the corpus covers"}
+        </span>
+      </div>
     </div>
   );
 }
 
+/** A cell's tooltip: the date, the count and the day's first documents. */
+function heatmapCellTooltip(cell: HeatmapCell): string {
+  const date = formatFieldDateOnly(cell.day);
+  if (cell.count === 0) return `${date} · no documents`;
+  const rest = cell.count - cell.titles.length;
+  const more = rest > 0 ? ` (+${rest} more)` : "";
+  return `${date} · ${cell.count} document${cell.count === 1 ? "" : "s"}: ${cell.titles.join(", ")}${more}`;
+}
+
 /** Test-only stand-in: the same panels as a static two-column layout. */
 function TimelineFallback() {
-  const { byDay, month, setMonth } = useTimelineData();
+  const { byDay, month, setMonth, selectedDay, selectDay } = useTimelineData();
   return (
     <div className="timeline" data-testid="timeline">
       <div className="timeline__left">
         <Calendar byDay={byDay} month={month} onMonth={setMonth} />
-        <Heatmap byDay={byDay} />
+        <Heatmap byDay={byDay} selectedDay={selectedDay} onSelectDay={selectDay} />
       </div>
       <div className="timeline__right">
         <ListPanel />

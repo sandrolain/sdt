@@ -36,6 +36,36 @@ describe("TopBar", () => {
     );
   });
 
+  // The reported defect: on a view's route the Documents item stayed marked next to
+  // the current one, because the match was a prefix plus a hand-written exception for
+  // the map. The rule now reads the bar's own route table, so exactly one item is
+  // marked everywhere — including the document-detail path beneath `/docs`, which
+  // Documents still owns.
+  it("marks exactly one item for every route the bar owns", () => {
+    const cases: { path: string; active: string }[] = [
+      { path: "/docs", active: "/docs" },
+      { path: "/docs/context/analysis/foo.md", active: "/docs" },
+      { path: "/docs/dashboard", active: "/docs/dashboard" },
+      { path: "/docs/map", active: "/docs/map" },
+      { path: "/docs/gallery", active: "/docs/gallery" },
+      { path: "/docs/timeline", active: "/docs/timeline" },
+      { path: "/docs/kanban", active: "/docs/kanban" },
+      { path: "/wiki/graph", active: "/wiki/graph" },
+      { path: "/wiki/board", active: "/wiki/board" },
+      // The board keeps the drill path in its link, so it stays the marked item.
+      { path: "/wiki/board/context/notes/a.md", active: "/wiki/board/context/notes/a.md" },
+    ];
+    for (const { path, active } of cases) {
+      cleanup();
+      renderTopBar(path);
+      const marked = screen
+        .getAllByRole("link")
+        .filter((link) => link.className.includes("is-active"))
+        .map((link) => link.getAttribute("href"));
+      expect([path, marked]).toEqual([path, [active]]);
+    }
+  });
+
   it("highlights Documents at the section root", () => {
     renderTopBar("/docs");
     expect(screen.getByRole("link", { name: /Documents/ }).getAttribute("aria-current")).toBe(

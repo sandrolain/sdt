@@ -12,6 +12,29 @@ const IS_MAC =
   typeof navigator !== "undefined" &&
   /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
+/**
+ * The explicit routes the bar owns under `/docs` (the router's own table). Documents
+ * is the view for `/docs` **and** for a document's path beneath it, so it must not
+ * claim a view's route: the rule reads this list instead of carrying a hand-written
+ * exception per route, and a view added to the bar is excluded from Documents by
+ * construction (analysis 20261015-151700, B1).
+ */
+const DOCS_VIEW_ROUTES = [
+  "/docs/map",
+  "/docs/gallery",
+  "/docs/timeline",
+  "/docs/kanban",
+  "/docs/dashboard",
+];
+
+/** True when the Documents item owns the path: `/docs` itself, or a path under it
+ *  that is not one of the declared views (a document detail, for instance). */
+function isDocumentsRoute(pathname: string): boolean {
+  if (pathname === "/docs") return true;
+  if (!pathname.startsWith("/docs/")) return false;
+  return !DOCS_VIEW_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
 /** One icon idiom (V3): the theme state is a Material Symbols ligature like
  *  every other icon in the shell, not a literal glyph. */
 const THEME_ICON: Record<string, string> = {
@@ -46,7 +69,9 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           <NavLink
             to="/docs"
             className={({ isActive }) =>
-              `top-bar__tab${isActive && !pathname.startsWith("/docs/map") ? " is-active" : ""}`
+              // The router says "inside the docs tree"; the rule says "and not one
+              // of the views", which is what keeps exactly one item marked.
+              `top-bar__tab${isActive && isDocumentsRoute(pathname) ? " is-active" : ""}`
             }
           >
             <Icon name="description" />
@@ -80,11 +105,14 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           <span className="top-bar__group-label">Wiki</span>
           <NavLink
             to="/wiki/graph"
+            end
             className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
           >
             <Icon name="hub" />
             Graph
           </NavLink>
+          {/* No `end`: the board owns `board/*` and preserves the drill path in the
+              link, so the prefix match is the intent here, not an oversight. */}
           <NavLink
             to={boardTo}
             className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}

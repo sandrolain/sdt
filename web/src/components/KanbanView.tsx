@@ -12,8 +12,11 @@ import { useCorpusEntries } from "../lib/corpusView";
 import { formatFieldDateOnly } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { entryKind, kindColor, kindIcon, kindLabel, KIND_ORDER } from "../lib/kinds";
+import type { StatePresetId } from "../lib/statusDot";
 import { displayTitle } from "../lib/titles";
+import { entryMatchesViewState, statePresetLabel } from "../lib/viewFilter";
 import { SkeletonLines } from "./Skeleton";
+import { ViewFilters } from "./ViewFilters";
 
 type Group = "status" | "kind";
 type SortKey = "modified_desc" | "modified_asc" | "title_asc" | "kind_asc";
@@ -47,10 +50,11 @@ export function KanbanView() {
   const [group, setGroup] = useState<Group>("status");
   const [limit, setLimit] = useState(10);
   const [sortKey, setSortKey] = useState<SortKey>("modified_desc");
+  const [statusFilter, setStatusFilter] = useState<StatePresetId>("all");
 
   const columns = useMemo(() => {
     const map = new Map<string, TreeEntry[]>();
-    for (const entry of entries ?? []) {
+    for (const entry of (entries ?? []).filter((e) => entryMatchesViewState(e, statusFilter))) {
       const key = group === "status" ? (entry.status ?? "(no status)") : entryKind(entry);
       const list = map.get(key) ?? [];
       list.push(entry);
@@ -61,7 +65,7 @@ export function KanbanView() {
       keys.sort((a, b) => KIND_ORDER.indexOf(a as never) - KIND_ORDER.indexOf(b as never));
     }
     return keys.map((key) => ({ key, rows: sortRows(map.get(key)!, sortKey) }));
-  }, [entries, group, sortKey]);
+  }, [entries, group, sortKey, statusFilter]);
 
   if (error) return <p className="content__empty">Kanban error: {error}</p>;
   if (!entries) return <SkeletonLines count={8} label="Loading kanban" />;
@@ -83,6 +87,7 @@ export function KanbanView() {
             </button>
           ))}
         </div>
+        <ViewFilters preset={statusFilter} onChange={(next) => setStatusFilter(next)} />
         <label className="kanban__control">
           Sort
           <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
@@ -104,6 +109,11 @@ export function KanbanView() {
           </select>
         </label>
       </div>
+      {entries.length > 0 && columns.length === 0 && (
+        <p className="content__empty">
+          No document matches the {statePresetLabel(statusFilter)} status.
+        </p>
+      )}
       <div className="kanban__board">
         {columns.map((col) => {
           const shown = limit === 0 ? col.rows : col.rows.slice(0, limit);

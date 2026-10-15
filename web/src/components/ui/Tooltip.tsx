@@ -6,7 +6,8 @@ interface TooltipButtonProps extends Omit<ButtonProps, "children" | "aria-label"
   label: string;
   /** tooltip text shown on hover/focus */
   tooltip: string;
-  children: ReactNode;
+  /** Optional: a hotspot can be its own shape with no icon inside it. */
+  children?: ReactNode;
 }
 
 /**

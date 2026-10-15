@@ -1756,18 +1756,103 @@
     font-size: 0.6rem;
     color: var(--accent);
   }
+  /* The heatmap is a calendar: weeks as columns, Monday–Sunday as rows, with a
+     weekday gutter and the month labels above (analysis 20261015-151700, O4). */
   .heatmap {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, 12px);
-    gap: 3px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
     max-width: 100%;
+    overflow-x: auto;
+  }
+  .heatmap__body {
+    display: flex;
+    gap: 0.35rem;
+  }
+  .heatmap__weekdays {
+    display: grid;
+    grid-template-rows: repeat(7, 12px);
+    gap: 3px;
+    padding-top: 1rem;
+    font-size: 0.625rem;
+    color: var(--fg-faint);
+    line-height: 12px;
+    text-align: right;
+  }
+  .heatmap__grid {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .heatmap__months {
+    display: flex;
+    gap: 3px;
+    height: 1rem;
+    font-size: 0.625rem;
+    color: var(--fg-dim);
+  }
+  .heatmap__month {
+    width: 12px;
+    white-space: nowrap;
+  }
+  .heatmap__weeks {
+    display: flex;
+    gap: 3px;
+  }
+  .heatmap__week {
+    display: grid;
+    grid-template-rows: repeat(7, 12px);
+    gap: 3px;
   }
   .heatmap__cell {
     width: 12px;
     height: 12px;
+    padding: 0;
+    border: 0;
     /* a data cell: 2px is a hairline rounding below the scale, and rounding it to 4px would blur the grid */
     border-radius: 2px;
     background: var(--accent);
+    cursor: pointer;
+  }
+  .heatmap__cell--empty {
+    background: none;
+    cursor: default;
+  }
+  .heatmap__cell.is-selected {
+    outline: 1px solid var(--fg);
+    outline-offset: 1px;
+  }
+  .heatmap__cell[data-focus-visible] {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .heatmap__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.625rem;
+    color: var(--fg-faint);
+  }
+  .heatmap__legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .heatmap__swatch {
+    cursor: default;
+  }
+  .timeline__day-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--bg-rise);
+    color: var(--fg);
+    font-size: 0.75rem;
+    cursor: pointer;
   }
   .kanban__bar {
     display: flex;

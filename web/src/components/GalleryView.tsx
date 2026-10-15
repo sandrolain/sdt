@@ -1,7 +1,8 @@
 /**
  * GalleryView — the `/docs/gallery` surface: the corpus as a card grid, one card
- * per document (thumbnail, kind, category, dates, status, summary), with a kind
- * filter and a newest-first order. Clicking a card opens the document.
+ * per document (thumbnail, kind, category, dates, status, summary), with a
+ * multi-select kind filter and a newest-first order. Clicking a card opens the
+ * document.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,12 +12,15 @@ import { useCorpusEntries } from "../lib/corpusView";
 import { formatFieldDateOnly } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import { imageUrl } from "../lib/images";
-import { entryKind, kindColor, kindIcon, kindLabel, KIND_ORDER } from "../lib/kinds";
-import { entryState } from "../lib/statusDot";
+import { entryKind, kindColor, kindIcon, kindLabel } from "../lib/kinds";
+import { kindSelectionMatches } from "../lib/kindFilter";
+import { entryState, type StatePresetId } from "../lib/statusDot";
+import { entryMatchesViewState, statePresetLabel } from "../lib/viewFilter";
+import { ViewFilters } from "./ViewFilters";
 import { displayTitle } from "../lib/titles";
+import { KindFilter } from "./KindFilter";
 import { SkeletonLines } from "./Skeleton";
 
-const ALL = "all";
 const PAGE_SIZES = [12, 24, 48, 96];
 const PAGE_SIZE_KEY = "sdt-gallery-page-size";
 
@@ -31,19 +35,22 @@ function loadPageSize(): number {
 
 export function GalleryView() {
   const { entries, error } = useCorpusEntries();
-  const [kindFilter, setKindFilter] = useState<string>(ALL);
+  // An empty set is "all kinds" (lib/kindFilter.ts).
+  const [kindFilter, setKindFilter] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<StatePresetId>("all");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(loadPageSize);
   const navigate = useNavigate();
 
   const rows = useMemo(() => {
     if (!entries) return [];
-    const filtered =
-      kindFilter === ALL ? entries : entries.filter((e) => entryKind(e) === kindFilter);
+    const filtered = entries
+      .filter((e) => kindSelectionMatches(kindFilter, entryKind(e)))
+      .filter((e) => entryMatchesViewState(e, statusFilter));
     return filtered
       .slice()
       .sort((a, b) => (b.modified ?? b.created ?? "").localeCompare(a.modified ?? a.created ?? ""));
-  }, [entries, kindFilter]);
+  }, [entries, kindFilter, statusFilter]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
@@ -65,34 +72,27 @@ export function GalleryView() {
   return (
     <div className="gallery">
       <div className="gallery__bar">
-        <div className="gallery__filter" role="group" aria-label="Filter by kind">
-          <button
-            type="button"
-            className={`gallery__chip${kindFilter === ALL ? " is-active" : ""}`}
-            onClick={() => {
-              setKindFilter(ALL);
-              setPage(0);
-            }}
-          >
-            All
-          </button>
-          {KIND_ORDER.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              className={`gallery__chip${kindFilter === kind ? " is-active" : ""}`}
-              onClick={() => {
-                setKindFilter(kind);
-                setPage(0);
-              }}
-            >
-              <Icon name={kindIcon(kind)} style={{ color: kindColor(kind) }} />
-              {kindLabel(kind)}
-            </button>
-          ))}
-        </div>
+        <KindFilter
+          selection={kindFilter}
+          onChange={(next) => {
+            setKindFilter(next);
+            setPage(0);
+          }}
+        />
+        <ViewFilters
+          preset={statusFilter}
+          onChange={(next) => {
+            setStatusFilter(next);
+            setPage(0);
+          }}
+        />
         <span className="gallery__count">{rows.length}</span>
       </div>
+      {rows.length === 0 && entries.length > 0 && (
+        <p className="content__empty">
+          No document matches the {statePresetLabel(statusFilter)} status.
+        </p>
+      )}
       <div className="gallery__grid">
         {pageRows.map((entry) => (
           <GalleryCard
