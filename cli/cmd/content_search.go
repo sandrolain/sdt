@@ -38,9 +38,12 @@ early. Output is bounded by default: 200 matches overall, unlimited per file
 unless ` + "`--max-count`" + ` is set.
 
 The scope, stated plainly: no ignore file is consulted, so a path listed in
-.gitignore is searched like any other. VCS and dependency directories are pruned,
-as are context/refs and context/tmp unless ` + "`--refs`" + ` is given. Binary files are
-not read.
+.gitignore is searched like any other. The directories pruned are the ones your
+project declares as ` + "`skipDirs`" + ` in .sdt.yaml when it declares any, and the shipped
+defaults (.git, .hg, .svn, node_modules, .venv) when it does not. A declaration
+replaces the tool residues, not the VCS ones: .git, .hg and .svn are pruned
+whatever you declare. context/refs and context/tmp are pruned unless ` + "`--refs`" + ` is
+given. Binary files are not read.
 
 EXAMPLE — ` + "`sdt grep \"replaceAll\" --include \"**/*.ts\" --limit 40`" + `
 
@@ -58,6 +61,8 @@ not reach ` + "`cli/.../context/analysis/*.md`" + `; ` + "`**/`" + ` is how you 
 				Pattern:         args[0],
 				Include:         getStringFlag(cmd, "include", false),
 				Exclude:         getStringFlag(cmd, "exclude", false),
+				ProjectRoot:     sdtProjectRoot(),
+				SkipDirs:        declaredSkipDirs(),
 				SkipPaths:       searchSkipPaths(cmd),
 				MaxCountPerFile: getIntFlag(cmd, "max-count", false),
 				Max:             getIntFlag(cmd, "limit", false),
@@ -109,8 +114,13 @@ to ask for any depth.
 A printed path round-trips: feed it back to reach exactly that file.
 
 The scope, stated plainly: no ignore file is consulted, so a path listed in
-.gitignore is listed like any other. VCS and dependency directories are pruned,
-as are context/refs and context/tmp unless ` + "`--refs`" + ` is given.
+.gitignore is listed like any other. The directories pruned are the ones your
+project declares as ` + "`skipDirs`" + ` in .sdt.yaml when it declares any, and the shipped
+defaults (.git, .hg, .svn, node_modules, .venv) when it does not. A declaration
+replaces the tool residues, not the VCS ones: .git, .hg and .svn are pruned
+whatever you declare. Patterns are relative to the directory holding .sdt.yaml
+and keep that meaning under ` + "`--dir`" + `.
+context/refs and context/tmp are pruned unless ` + "`--refs`" + ` is given.
 
 EXAMPLE — ` + "`sdt find \"**/*_test.go\" --format json`" + `
           ` + "`sdt find \"context/decisions/*.md\" --limit 5`" + `
@@ -123,6 +133,8 @@ EXAMPLE — ` + "`sdt find \"**/*_test.go\" --format json`" + `
 		Run: func(cmd *cobra.Command, args []string) {
 			opts := search.FindOptions{
 				Root:        getStringFlag(cmd, "dir", false),
+				ProjectRoot: sdtProjectRoot(),
+				SkipDirs:    declaredSkipDirs(),
 				SkipPaths:   searchSkipPaths(cmd),
 				IncludeDirs: getBoolFlag(cmd, "dirs", false),
 				Max:         getIntFlag(cmd, "limit", false),
@@ -161,6 +173,28 @@ EXAMPLE — ` + "`sdt find \"**/*_test.go\" --format json`" + `
 // while the scratch directory stays pruned. The distinction matters because
 // --exclude cannot do it at all: that filters the results, leaving the descent
 // to walk 9,2 GB anyway.
+// projectRoot is the directory the declared patterns are relative to, or "" when
+// nothing is declared. findProjectConfigAt walks up like .git and degrades to nil
+// on a missing or malformed file, so this is silent in every failing case.
+func sdtProjectRoot() string {
+	_, root, err := findProjectConfigAt()
+	if err != nil {
+		return ""
+	}
+	return root
+}
+
+// declaredSkipDirs reads the project's `skipDirs` declaration, or nothing. An
+// absent key, a value that is not a list of strings and a parse failure all yield
+// nil, which is what leaves the shipped defaults in charge.
+func declaredSkipDirs() []string {
+	cfg, _, err := findProjectConfigAt()
+	if err != nil || cfg == nil {
+		return nil
+	}
+	return cfg.SkipDirs
+}
+
 func searchSkipPaths(cmd *cobra.Command) []string {
 	if getBoolFlag(cmd, "refs", false) {
 		return search.DefaultSkipPathsNoRefs

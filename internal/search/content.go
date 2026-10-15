@@ -23,14 +23,126 @@ import (
 // version-control choice. Scope is owned here instead, through skipDirs and the
 // per-walk skip set.
 
-// skipDirs are never walked: version-control and tool caches carry no content an
-// agent is looking for, and their size makes an unbounded scan expensive.
-var skipDirs = map[string]struct{}{
-	".git":         {},
-	".hg":          {},
-	".svn":         {},
-	"node_modules": {},
-	".venv":        {},
+// vcsDirs are pruned on every walk, outside the project's declaration. A VCS
+// residue never holds content an agent is looking for and it is large, so a
+// project that declares its scope must not be able to switch this off by
+// omission: measured, declaring `skipDirs: ["dist"]` without the guard took the
+// walked files from 2 to 6, every one of them inside `.git`.
+var vcsDirs = []string{".git", ".hg", ".svn"}
+
+// DefaultSkipDirs is the shipped scope: the VCS residues above plus the tool
+// caches that carry no content an agent is looking for. A project replaces the
+// **tool** part by declaring its own scope in its config; the VCS part is not
+// replaceable.
+var DefaultSkipDirs = append(append([]string{}, vcsDirs...), "node_modules", ".venv")
+
+// nameSet turns a list of directory names into the lookup the descent uses.
+func nameSet(names []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		if n != "" {
+			set[n] = struct{}{}
+		}
+	}
+	return set
+}
+
+// pruneMatcher decides whether a directory is inside the declared scope. It is
+// path-based, not name-based, because a declared pattern is relative to the
+// project root and keeps one meaning under `--dir`: the same file is
+// `web/dist/big.js` from the project root and `dist/big.js` from `--dir web`.
+//
+// A pattern that names a path also covers everything beneath it, so `dist`
+// prunes `dist/a/b` without having to be written `dist/**`.
+type pruneMatcher struct {
+	root     string
+	patterns []*regexp.Regexp
+}
+
+// newPruneMatcher compiles the declared patterns. A pattern that is empty or does
+// not compile is skipped rather than failing the search: a malformed declaration
+// degrades to the rest of the scope, as every other config read here does.
+func newPruneMatcher(root string, patterns []string) *pruneMatcher {
+	m := &pruneMatcher{root: root}
+	for _, p := range patterns {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		re, err := pruneRegexp(p)
+		if err != nil || re == nil {
+			continue
+		}
+		m.patterns = append(m.patterns, re)
+	}
+	return m
+}
+
+// pruneRegexp compiles one declared pattern with the subtree rule: it matches the
+// path itself and everything beneath it. A pattern with no slash is a basename
+// match at any depth, which is what a bare `node_modules` has to mean.
+func pruneRegexp(pattern string) (*regexp.Regexp, error) {
+	base, err := globRegexp(pattern)
+	if err != nil || base == nil {
+		return base, err
+	}
+	// Trim the `\z` globRegexp appends and close the subtree instead, so the
+	// matcher has one contract whatever the pattern looks like: **this path, or
+	// anything beneath it**. `dist` therefore covers `dist` and `dist/a/b`, while
+	// neither `dist` nor `dist/**` ever reaches `distribution`.
+	//
+	// In a walk the `dist` hit prunes the subtree before the nested paths are
+	// ever offered, so the broader form is belt and braces — but it is what
+	// makes `matches` mean the same thing for a bare name as for a path.
+	body := strings.TrimSuffix(base.String(), `\z`)
+	return regexp.Compile(body + `(/.*)?\z`)
+}
+
+// searchScope resolves the name prune and the path prune for one walk. A
+// declaration **replaces** the shipped names rather than extending them: a
+// project that says `skipDirs: ["dist"]` is saying what its scope is, and
+// silently keeping five built-ins it never asked about would make the
+// declaration lie. With nothing declared, the shipped defaults apply and there is
+// no project root to resolve patterns against.
+func searchScope(projectRoot string, declared []string) (map[string]struct{}, *pruneMatcher) {
+	// The VCS residues are pruned whatever the project said: a declaration
+	// replaces the tool residues, never the control that keeps the walk out of
+	// `.git`. Everything else is the project's to declare.
+	names := nameSet(vcsDirs)
+	if len(declared) == 0 {
+		for _, n := range DefaultSkipDirs {
+			names[n] = struct{}{}
+		}
+		return names, nil
+	}
+	for _, n := range declared {
+		if n != "" {
+			names[n] = struct{}{}
+		}
+	}
+	return names, newPruneMatcher(projectRoot, declared)
+}
+
+// matches reports whether a walk-supplied directory is in the declared scope. It
+// is false when the walk sits outside the project, because a project-root-relative
+// pattern cannot be resolved from there.
+func (m *pruneMatcher) matches(absDir string) bool {
+	if m == nil || len(m.patterns) == 0 || m.root == "" {
+		return false
+	}
+	rel, err := filepath.Rel(m.root, absDir)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, "../") {
+		return false
+	}
+	for _, re := range m.patterns {
+		if re.MatchString(rel) {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultSkipPaths is the corpus scope a walk prunes unless the caller widens
@@ -78,6 +190,12 @@ type FindOptions struct {
 	// Root is the directory the glob is evaluated against. Empty means the
 	// working directory.
 	Root string
+	// ProjectRoot is the directory SkipDirs patterns are relative to. Empty means
+	// the shipped defaults, which are directory names and need no root.
+	ProjectRoot string
+	// SkipDirs replaces the shipped name prune when non-empty: globs, relative to
+	// ProjectRoot, pruning whole subtrees at the descent.
+	SkipDirs []string
 	// SkipPaths prunes subtrees by their slash-separated path relative to Root,
 	// before the glob is applied. Nil means DefaultSkipPaths; an empty non-nil
 	// slice prunes nothing, which is how a caller widens the walk to everything.
@@ -160,7 +278,8 @@ func Find(opts FindOptions) ([]FindResult, error) {
 	if skip == nil {
 		skip = defaultSkipPaths
 	}
-	if err = walkAll(absRoot, pathSet(skip), visit); err != nil {
+	names, declared := searchScope(opts.ProjectRoot, opts.SkipDirs)
+	if err = walkAll(absRoot, names, pathSet(skip), declared, visit); err != nil {
 		return nil, err
 	}
 	out := make([]FindResult, 0, len(seen))
@@ -183,6 +302,12 @@ func Find(opts FindOptions) ([]FindResult, error) {
 type GrepOptions struct {
 	// Root is the directory to search. Empty means the working directory.
 	Root string
+	// ProjectRoot is the directory SkipDirs patterns are relative to. Empty means
+	// the shipped defaults, which are directory names and need no root.
+	ProjectRoot string
+	// SkipDirs replaces the shipped name prune when non-empty: globs, relative to
+	// ProjectRoot, pruning whole subtrees at the descent.
+	SkipDirs []string
 	// Pattern is a Go regular expression matched line by line.
 	Pattern string
 	// Include and Exclude are globs over slash-separated paths relative to Root;
@@ -243,7 +368,8 @@ func Grep(opts GrepOptions) (GrepResults, error) {
 	if skip == nil {
 		skip = defaultSkipPaths
 	}
-	if walkErr := walkAll(absRoot, pathSet(skip), s.visit); walkErr != nil && !errors.Is(walkErr, errStopScan) {
+	names, declared := searchScope(opts.ProjectRoot, opts.SkipDirs)
+	if walkErr := walkAll(absRoot, names, pathSet(skip), declared, s.visit); walkErr != nil && !errors.Is(walkErr, errStopScan) {
 		return GrepResults{}, walkErr
 	}
 	sortMatches(s.res.Matches)
@@ -380,16 +506,17 @@ func (s *grepScanner) scanLines(rel string, lines []string) (int, error) {
 var errStopScan = errors.New("grep: match cap reached")
 
 // walkAll walks the raw tree in lexical order, skipping the VCS and dependency
-// directories. It is the `--no-ignore` path: every other file is visited,
-// including the ones .gitignore excludes.
-func walkAll(root string, prune map[string]struct{}, fn func(path string, d fs.DirEntry) error) error {
+// directories plus the caller's corpus prune. It is the only walk: it consults
+// no ignore file, so every path outside those two sets is visited, including the
+// ones .gitignore excludes.
+func walkAll(root string, names, prune map[string]struct{}, declared *pruneMatcher, fn func(path string, d fs.DirEntry) error) error {
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			//nolint:nilerr // an unreadable entry is skipped, not fatal
 			return nil
 		}
 		if d.IsDir() && path != root {
-			if _, skip := skipDirs[d.Name()]; skip {
+			if _, skip := names[d.Name()]; skip {
 				return filepath.SkipDir
 			}
 			// A corpus-scope prune is matched on the path relative to the walk
@@ -401,6 +528,11 @@ func walkAll(root string, prune map[string]struct{}, fn func(path string, d fs.D
 						return filepath.SkipDir
 					}
 				}
+			}
+			// The declared scope is matched on the project-root-relative path, so
+			// one pattern means the same thing under every walk root.
+			if declared.matches(path) {
+				return filepath.SkipDir
 			}
 			// A surviving directory reaches the visitor like any other entry:
 			// `find --dirs` reports them, and the grep visitor rejects them

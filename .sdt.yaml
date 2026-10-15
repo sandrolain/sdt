@@ -1,2 +1,8 @@
 project: sdt_44f24890
 group: sdt_44f24890
+# skipDirs — globs pruned from the working tree, relative to this file.
+# Declaring a list REPLACES the defaults below, it does not extend them.
+# Unset means: .git, .hg, .svn, node_modules, .venv
+# skipDirs:
+#   - dist
+#   - .next

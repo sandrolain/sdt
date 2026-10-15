@@ -389,7 +389,10 @@ Examples:
 			}
 		}
 		configResult := FileResult{Path: sdtConfigFile}
-		if err := os.WriteFile(sdtConfigFile, []byte(buildProjectConfigContent(cfg.Project, cfg.Group)), 0o600); err != nil { //#nosec G306 -- user project config
+		// A declared skipDirs is carried through the rewrite: `agent init --force`
+		// must round-trip the project's own scope rather than erase it. Leaving
+		// the key absent keeps it absent, and the create-only comment documents it.
+		if err := os.WriteFile(sdtConfigFile, []byte(buildProjectConfigContent(cfg.Project, cfg.Group, cfg.SkipDirs)), 0o600); err != nil { //#nosec G306 -- user project config
 			exitWithError(cmd, err)
 		}
 		configResult.Status = statusWritten
@@ -541,6 +544,9 @@ func loadProjectConfig(path string) *ProjectConfig {
 }
 
 // fill copies non-empty fields from existing into cfg, preserving prior values.
+// A declared skipDirs is preserved as a whole list: an absent key stays absent (the
+// product's defaults apply) and a present one survives the rewrite.
+
 func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 	if existing == nil {
 		return
@@ -550,6 +556,9 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 	}
 	if existing.Group != "" {
 		cfg.Group = existing.Group
+	}
+	if len(existing.SkipDirs) > 0 {
+		cfg.SkipDirs = existing.SkipDirs
 	}
 }
 

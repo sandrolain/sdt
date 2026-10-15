@@ -357,3 +357,210 @@ func hasFindPath(got []FindResult, path string) bool {
 	}
 	return false
 }
+
+// scopeTree creates a project-root fixture with a declared scope: two pruned
+// subtrees (one nested, to prove the subtree rule), a same-named directory
+// outside the scope, and a source file that must survive.
+func scopeTree(t *testing.T, declared []string) string {
+	t.Helper()
+	root := t.TempDir()
+	write := func(rel, content string) {
+		t.Helper()
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("src/keep.go", "needle keep\n")
+	write("dist/a.go", "needle dist\n")
+	write("dist/assets/b.go", "needle nested under dist\n")
+	write(".next/c.go", "needle next\n")
+	write("distribution/d.go", "needle distribution is not dist\n")
+	if len(declared) > 0 {
+		body := "project: p\ngroup: g\nskipDirs:\n"
+		for _, d := range declared {
+			body += "  - " + d + "\n"
+		}
+		write(".sdt.yaml", body)
+	}
+	return root
+}
+
+func TestFindPrunesDeclaredScopeAtAnyDepth(t *testing.T) {
+	root := scopeTree(t, []string{"dist", ".next"})
+	got, err := Find(FindOptions{
+		Root: root, ProjectRoot: root, SkipDirs: []string{"dist", ".next"}, Pattern: "*.go",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"distribution/d.go", "src/keep.go"}
+	assertPaths(t, got, want)
+}
+
+func TestFindDeclaredScopeIsProjectRootRelativeUnderDir(t *testing.T) {
+	root := scopeTree(t, []string{"dist"})
+	// The pattern is relative to the project root, so it prunes the same subtree
+	// whether the walk starts at the root or deeper inside it.
+	for _, r := range []string{root, filepath.Join(root, "src")} {
+		got, err := Find(FindOptions{
+			Root: r, ProjectRoot: root, SkipDirs: []string{"dist"}, Pattern: "*.go",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, res := range got {
+			// Exact prefix relative to the walk root, not a substring: the
+			// same-prefix sibling `distribution/` must survive.
+			if res.Path == "dist" || strings.HasPrefix(res.Path, "dist/") {
+				t.Errorf("walk from %s returned the pruned subtree: %+v", r, got)
+			}
+		}
+	}
+}
+
+func TestGrepDeclaredScopePrunesTheDescent(t *testing.T) {
+	root := scopeTree(t, []string{"dist", ".next"})
+	all, err := Grep(GrepOptions{Root: root, Pattern: "needle", Max: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared, err := Grep(GrepOptions{
+		Root: root, ProjectRoot: root, SkipDirs: []string{"dist", ".next"},
+		Pattern: "needle", Max: -1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The point is not that the matches shrink — the glob already excluded them
+	// before. It is that the files are never opened.
+	if all.FilesSearched-declared.FilesSearched != 3 {
+		t.Errorf("pruned files = %d, want 3 (the descent must skip them, not filter them): %d vs %d",
+			all.FilesSearched-declared.FilesSearched, all.FilesSearched, declared.FilesSearched)
+	}
+	for _, m := range declared.Matches {
+		if m.Path == "dist" || strings.HasPrefix(m.Path, "dist/") || strings.HasPrefix(m.Path, ".next") {
+			t.Errorf("a pruned file was searched: %+v", m)
+		}
+	}
+}
+
+func TestFindSubtreePatternCoversWhatIsBeneath(t *testing.T) {
+	root := scopeTree(t, []string{"dist"})
+	// `dist` must prune dist/assets/b.go without being written `dist/**`.
+	got, err := Find(FindOptions{
+		Root: root, ProjectRoot: root, SkipDirs: []string{"dist"}, Pattern: "*.go",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, res := range got {
+		if strings.HasPrefix(res.Path, "dist/") {
+			t.Errorf("a bare directory pattern did not cover what is beneath it: %+v", got)
+		}
+	}
+	// `dist/**` is accepted too, and must not leak to a same-prefix sibling.
+	got, err = Find(FindOptions{
+		Root: root, ProjectRoot: root, SkipDirs: []string{"dist/**"}, Pattern: "*.go",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasFindPath(got, "distribution/d.go") {
+		t.Errorf("dist/** pruned a same-prefix sibling: %+v", got)
+	}
+}
+
+func TestFindWithoutADeclarationKeepsTheShippedDefaults(t *testing.T) {
+	root := scopeTree(t, nil)
+	if err := os.MkdirAll(filepath.Join(root, "node_modules", "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "node_modules", "pkg", "i.go"), []byte("needle dep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Find(FindOptions{Root: root, Pattern: "*.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{".next/c.go", "dist/a.go", "dist/assets/b.go", "distribution/d.go", "src/keep.go"}
+	assertPaths(t, got, want)
+}
+
+func TestDeclaredScopeReplacesRatherThanExtendsTheDefaults(t *testing.T) {
+	root := scopeTree(t, []string{"dist"})
+	if err := os.MkdirAll(filepath.Join(root, "node_modules", "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "node_modules", "pkg", "i.go"), []byte("needle dep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Find(FindOptions{
+		Root: root, ProjectRoot: root, SkipDirs: []string{"dist"}, Pattern: "*.go",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The declaration replaced the five built-ins, so node_modules is searched
+	// again: a project that says what its scope is is not silently given five
+	// more it never asked about.
+	if !hasFindPath(got, "node_modules/pkg/i.go") {
+		t.Errorf("the declaration extended the defaults instead of replacing them: %+v", got)
+	}
+}
+
+func TestPruneMatcherIgnoresPathsOutsideTheProject(t *testing.T) {
+	m := newPruneMatcher("/project", []string{"dist"})
+	if m.matches("/elsewhere/dist") {
+		t.Error("a directory outside the project must not match a project-root pattern")
+	}
+	if m.matches("/project") {
+		t.Error("the project root itself must never be pruned")
+	}
+	if !m.matches("/project/dist") {
+		t.Error("a declared pattern did not match inside the project")
+	}
+	// One contract whatever the pattern: this path, or anything beneath it.
+	if !m.matches("/project/dist/assets") {
+		t.Error("the subtree rule does not cover what is beneath a bare pattern")
+	}
+	if m.matches("/project/distribution") {
+		t.Error("a bare pattern matched a same-prefix sibling")
+	}
+}
+
+func TestDeclaredScopeCannotUnpruneTheVCSResidues(t *testing.T) {
+	root := t.TempDir()
+	write := func(rel, content string) {
+		t.Helper()
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("src/keep.go", "needle keep\n")
+	write("dist/a.go", "needle dist\n")
+	write("node_modules/pkg/i.go", "needle dep\n")
+	write(".git/config", "needle git config\n")
+	write(".git/HEAD", "needle git head\n")
+
+	got, err := Find(FindOptions{
+		Root: root, ProjectRoot: root, SkipDirs: []string{"dist"}, Pattern: "*.go",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"node_modules/pkg/i.go", "src/keep.go"}
+	assertPaths(t, got, want)
+	for _, res := range got {
+		if strings.HasPrefix(res.Path, ".git") {
+			t.Errorf("a declaration un-pruned a VCS residue: %+v", got)
+		}
+	}
+}

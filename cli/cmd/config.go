@@ -50,7 +50,7 @@ Examples:
 			return
 		}
 
-		content := buildProjectConfigContent(project, group)
+		content := buildProjectConfigContent(project, group, nil)
 		if err := os.WriteFile(sdtConfigFile, []byte(content), 0o600); err != nil { //#nosec G306 -- user project config
 			exitWithError(cmd, err)
 		}

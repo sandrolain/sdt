@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 
 	"github.com/sandrolain/sdt/internal/templates"
@@ -2802,12 +2803,63 @@ func TestAgentInitConfigWriteError(t *testing.T) {
 
 // ── config ─────────────────────────────────────────────────────────────────────
 
+// TestFillPreservesADeclaredSkipDirs pins the defect this wave exists to fix:
+// `agent init --force` rewrites .sdt.yaml unconditionally, and fill() copying
+// only project/group erased whatever else the project declared.
+func TestFillPreservesADeclaredSkipDirs(t *testing.T) {
+	cfg := &ProjectConfig{Project: "new", Group: "newgrp"}
+	cfg.fill(&ProjectConfig{Project: "old", Group: "oldgrp", SkipDirs: []string{"dist", ".next"}})
+
+	if cfg.Project != "old" || cfg.Group != "oldgrp" {
+		t.Errorf("fill did not preserve identity: %+v", cfg)
+	}
+	if len(cfg.SkipDirs) != 2 || cfg.SkipDirs[0] != "dist" || cfg.SkipDirs[1] != ".next" {
+		t.Fatalf("fill erased the declared scope: %+v", cfg.SkipDirs)
+	}
+
+	// An absent declaration stays absent, so the shipped defaults stay in charge.
+	fresh := &ProjectConfig{Project: "n", Group: "g"}
+	fresh.fill(&ProjectConfig{Project: "o"})
+	if fresh.SkipDirs != nil {
+		t.Errorf("fill invented a declaration: %+v", fresh.SkipDirs)
+	}
+	// And a declared list must survive the round-trip through the renderer.
+	rendered := buildProjectConfigContent(cfg.Project, cfg.Group, cfg.SkipDirs)
+	var back ProjectConfig
+	if err := yaml.Unmarshal([]byte(rendered), &back); err != nil {
+		t.Fatalf("the rendered config does not parse: %v\n%s", err, rendered)
+	}
+	if len(back.SkipDirs) != 2 || back.SkipDirs[0] != "dist" {
+		t.Errorf("the declaration does not round-trip: %+v\n%s", back.SkipDirs, rendered)
+	}
+}
+
 func TestBuildProjectConfigContent(t *testing.T) {
-	content := buildProjectConfigContent("myapp", "grp")
+	content := buildProjectConfigContent("myapp", "grp", nil)
 	for _, want := range []string{"project: myapp", "group: grp"} {
 		if !strings.Contains(content, want) {
 			t.Errorf("expected %q in config content, got:\n%s", want, content)
 		}
+	}
+	// A created file documents skipDirs as a comment and takes no value: an
+	// absent key stays absent, so the product's defaults stay in charge.
+	if strings.Contains(content, "\nskipDirs:") {
+		t.Errorf("a created config must not carry a skipDirs value:\n%s", content)
+	}
+	for _, want := range []string{"# skipDirs", "#   - dist", "# Unset means: .git, .hg, .svn, node_modules, .venv"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("expected the skipDirs note %q in config content, got:\n%s", want, content)
+		}
+	}
+
+	// A declared list renders as real values, so `agent init --force` round-trips
+	// what the project said.
+	declared := buildProjectConfigContent("myapp", "grp", []string{"dist", ".next"})
+	if !strings.Contains(declared, "skipDirs:\n  - dist\n  - .next") {
+		t.Errorf("a declared list must render as values, got:\n%s", declared)
+	}
+	if strings.Contains(declared, "# skipDirs") {
+		t.Errorf("a declared list must not also carry the comment, got:\n%s", declared)
 	}
 }
 

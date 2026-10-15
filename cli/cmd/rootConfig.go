@@ -15,17 +15,46 @@ import (
 	"github.com/spf13/viper"
 )
 
-// ProjectConfig holds the project identity declared in .sdt.yaml.
+// ProjectConfig holds the project identity and the search scope declared in
+// .sdt.yaml.
 type ProjectConfig struct {
 	Project string `json:"project" yaml:"project"`
 	Group   string `json:"group"   yaml:"group"`
+	// SkipDirs is the project's declared content-verb scope: glob patterns,
+	// relative to the project root, pruned from the working tree. Declaring it
+	// replaces the shipped defaults rather than extending them; leaving it unset
+	// uses them, which is why the defaults ship as comments below and not as a
+	// value here.
+	SkipDirs []string `json:"skipDirs,omitempty" yaml:"skipDirs,omitempty"`
 }
 
-// buildProjectConfigContent renders the YAML body of a .sdt.yaml file.
-func buildProjectConfigContent(project, group string) string {
+// skipDirsComment is the create-only note written under a new .sdt.yaml. It
+// documents the key, its shape and the shipped defaults **without** taking a
+// value: a written default would stop being a default, freezing every
+// bootstrapped project to whatever shipped on the day it was created.
+const skipDirsComment = `# skipDirs — globs pruned from the working tree, relative to this file.
+# Declaring a list REPLACES the defaults below, it does not extend them.
+# Unset means: .git, .hg, .svn, node_modules, .venv
+# skipDirs:
+#   - dist
+#   - .next`
+
+// buildProjectConfigContent renders the YAML body of a .sdt.yaml file. A
+// declared skipDirs is rendered as real values; otherwise the create-only
+// comment documents the mechanism and leaves the key absent, so the product stays
+// free to change its defaults.
+func buildProjectConfigContent(project, group string, skipDirs []string) string {
 	lines := []string{fmt.Sprintf("project: %s", project)}
 	if group != "" {
 		lines = append(lines, fmt.Sprintf("group: %s", group))
+	}
+	if len(skipDirs) > 0 {
+		lines = append(lines, "skipDirs:")
+		for _, d := range skipDirs {
+			lines = append(lines, fmt.Sprintf("  - %s", d))
+		}
+	} else {
+		lines = append(lines, skipDirsComment)
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -33,9 +62,19 @@ func buildProjectConfigContent(project, group string) string {
 // findProjectConfig walks up from the current working directory looking for
 // a .sdt.yaml file. Returns nil, nil when no file is found.
 func findProjectConfig() (*ProjectConfig, error) {
+	cfg, _, err := findProjectConfigAt()
+	return cfg, err
+}
+
+// findProjectConfigAt walks up like findProjectConfig and also reports the
+// directory the file was found in. The directory is what a project-root-relative
+// pattern resolves against, so a caller that needs one cannot use the config
+// alone. Returns nil, "", nil when no file is found; a malformed file degrades to
+// nil rather than failing, as every other config read in this codebase does.
+func findProjectConfigAt() (*ProjectConfig, string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	for {
 		path := filepath.Join(dir, ".sdt.yaml")
@@ -43,7 +82,7 @@ func findProjectConfig() (*ProjectConfig, error) {
 		if err == nil {
 			var cfg ProjectConfig
 			if uerr := yaml.Unmarshal(data, &cfg); uerr == nil {
-				return &cfg, nil
+				return &cfg, dir, nil
 			}
 		}
 		parent := filepath.Dir(dir)
@@ -52,7 +91,7 @@ func findProjectConfig() (*ProjectConfig, error) {
 		}
 		dir = parent
 	}
-	return nil, nil
+	return nil, "", nil
 }
 
 // getProjectAndGroup resolves project and group from (in priority order):
