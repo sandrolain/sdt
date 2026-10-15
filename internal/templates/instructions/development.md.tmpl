@@ -105,6 +105,36 @@ apply: no complexity linter → keep the function readable.
 - **No-op when nothing is compressed.** These rules apply only when a boundary
   compression happens; a small artefact is passed through unchanged.
 
+- **Send an output somewhere, do not print it into the thread.** A tool run
+  whose output nobody will read again does not belong in the main thread: write
+  it to a file and report the path. Two destinations, chosen by lifetime —
+  `context/tmp/` for a throwaway output, `context/refs/<topic>/` for one worth
+  citing later. The claim is an avoidance, not an erasure: an agent cannot delete
+  bytes already in its transcript, so the rule keeps the next one out. This is
+  the other half of the compression rules above — those reduce an artefact
+  *entering* context, this keeps a generated artefact *out* of it.
+- **No-op for a small output.** One line, or a short error, is cheaper inline
+  than as a file plus a pointer; write it to a file only when it would crowd the
+  thread.
+
+## Read the shape before the body
+
+- **Read the structure first, unfold the range you need.** On a file too large to
+  read whole, read its outline — headings, signatures, the first lines of each
+  section — then fetch only the range the question needs with
+  `sdt read --lines <from>:<to>` (1-based, inclusive). The symptom this
+  prevents: re-reading a file that was already read, because the first pass
+  swallowed it whole and the useful part scrolled past.
+- **Two levels, not a repeat.** The always-loaded block already bounds the
+  *corpus*: when the entry point outgrows a session, read the essential entries
+  inline and the rest as pointers. This doctrine is the *per-file* shape of a
+  read. Keep them distinct — restating the index rule here buys nothing.
+- **Honest cost.** A slice of context *around* a match is two round trips: the
+  content search gives the line number, then `sdt read --lines` gives the
+  neighbourhood. `sdt grep` has no `-A`/`-B`, so this cannot be one step today.
+- **No-op for a short file.** If it fits in one read, read it; do not spend two
+  calls on structure.
+
 ## Keep the always-loaded surface stable
 
 The always-loaded block is re-sent on every turn, so its bytes are paid for

@@ -25,6 +25,41 @@ func TestDevelopmentInstructionCarriesStableSurfaceAndDegradation(t *testing.T) 
 	}
 }
 
+func TestDevelopmentInstructionCarriesLiveOutputDestination(t *testing.T) {
+	flat := strings.Join(strings.Fields(generatedInstruction(t, "development.md")), " ")
+
+	for _, want := range []string{
+		"Send an output somewhere, do not print it into the thread",
+		"context/tmp/",                                           // the throwaway destination
+		"context/refs/<topic>/",                                  // the citable destination
+		"an agent cannot delete bytes already in",                // the claim is an avoidance, not an erasure
+		"reduce an artefact *entering* context",                  // how it relates to the compression rules
+		"write it to a file only when it would crowd the thread", // the no-op clause
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("generated development.md missing %q", want)
+		}
+	}
+}
+
+func TestDevelopmentInstructionCarriesOutlineFirstRead(t *testing.T) {
+	flat := strings.Join(strings.Fields(generatedInstruction(t, "development.md")), " ")
+
+	for _, want := range []string{
+		"Read the structure first, unfold the range you need",
+		"sdt read --lines <from>:<to>",
+		"re-reading a file that was already read", // the symptom the rule prevents
+		"Two levels, not a repeat",                // the clause names both levels
+		"the essential entries inline and the rest as pointers",
+		"has no `-A`/`-B`",                // the honest cost
+		"If it fits in one read, read it", // the no-op clause
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("generated development.md missing %q", want)
+		}
+	}
+}
+
 func TestAgentsBlockStatesTheBoundedProjection(t *testing.T) {
 	block := strings.Join(strings.Fields(agentBlockInstructions("p", "g")), " ")
 	for _, want := range []string{
