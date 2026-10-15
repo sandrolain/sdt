@@ -249,6 +249,135 @@
     color: var(--fg-faint);
   }
 
+  /* The agent panel: a left slide-in over any screen, the search palette's overlay
+     idiom anchored to the inline start instead of the centre. */
+  .agent-panel__overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: color-mix(in srgb, var(--bg-crust) 55%, transparent);
+  }
+  .agent-panel {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 51;
+    width: min(26rem, 92vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border-inline-end: 1px solid var(--border);
+    /* the elevation role, owned by tokens.css: only the shadow *colour* is a theme role */
+    box-shadow: 0 0 24px var(--shadow-color);
+  }
+  .agent-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .agent-panel__title {
+    font-size: 0.95rem;
+    margin: 0;
+  }
+  .agent-panel__close {
+    background: none;
+    border: 0;
+    color: var(--fg-dim);
+    font-family: var(--font-icon);
+    cursor: pointer;
+  }
+  .agent-panel__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .agent-panel__note {
+    color: var(--fg-dim);
+    font-size: 0.85rem;
+    margin: 0;
+  }
+  .agent-panel__activation {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .agent-panel__recipe {
+    display: block;
+    padding: 0.5rem;
+    background: var(--bg-rise);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 4px);
+    font-size: 0.75rem;
+    overflow-x: auto;
+  }
+  .agent-panel__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .agent-panel__field input,
+  .agent-panel__composer input {
+    padding: 0.4rem 0.55rem;
+    background: var(--bg-rise);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--fg);
+    font: inherit;
+  }
+  .agent-panel__action {
+    padding: 0.4rem 0.8rem;
+    background: var(--accent);
+    color: var(--bg);
+    border: 0;
+    border-radius: var(--radius-pill);
+    font: inherit;
+    cursor: pointer;
+  }
+  .agent-panel__action:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .agent-panel__thread {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .agent-panel__message {
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--radius-sm, 4px);
+    background: var(--bg-rise);
+    font-size: 0.85rem;
+  }
+  .agent-panel__message--user {
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg-rise));
+  }
+  .agent-panel__part {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+  .agent-panel__plan {
+    margin: 0;
+    padding-inline-start: 1.2rem;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .agent-panel__composer {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.6rem 0.9rem;
+    border-top: 1px solid var(--border);
+  }
+  .agent-panel__composer input {
+    flex: 1;
+  }
   .search-palette__overlay {
     position: fixed;
     inset: 0;

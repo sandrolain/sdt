@@ -131,6 +131,15 @@ export function permissionCommand(requestId: string, allow: boolean): AgentComma
   return { type: ENVELOPE_PERMISSION, requestId, allow };
 }
 
+/** isAgentPanelKey reports whether a key event asks for the agent panel (⌘J / Ctrl+J). */
+export function isAgentPanelKey(event: {
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  key?: string;
+}): boolean {
+  return Boolean((event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === "j");
+}
+
 /** agentSocketURL is the bridge's WebSocket URL on the viewer's own origin. */
 export function agentSocketURL(location: { protocol: string; host: string }): string {
   const scheme = location.protocol === "https:" ? "wss:" : "ws:";

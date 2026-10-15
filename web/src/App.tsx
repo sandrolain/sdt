@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { TopBar } from "./components/TopBar";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { SearchPalette } from "./components/SearchPalette";
+import { AgentPanel } from "./components/AgentPanel";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { WikiPage } from "./pages/WikiPage";
 import { WikiBoardView } from "./components/WikiBoardView";
@@ -10,6 +11,7 @@ import { WikiPageDetail } from "./components/WikiPageDetail";
 import { OpenDocsProvider } from "./components/OpenDocsProvider";
 import { applyLiveChange, connectLiveUpdates } from "./lib/liveUpdates";
 import { applyReadingPrefs, currentReadingPrefs } from "./lib/readingPrefs";
+import { isAgentPanelKey } from "./lib/agent";
 import { requestTreeFocus } from "./lib/treeFocus";
 import { isTreeFocusKey } from "./lib/treeKeyboard";
 
@@ -36,12 +38,20 @@ const DashboardView = lazy(() =>
 
 export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
+  // The agent panel is a panel rather than a route, so its state sits here beside the
+  // search palette's: both overlay whatever screen the reader is on.
+  const [agentOpen, setAgentOpen] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setSearchOpen((open) => !open);
+        return;
+      }
+      if (isAgentPanelKey(e)) {
+        e.preventDefault();
+        setAgentOpen((open) => !open);
         return;
       }
       // ⌘\ / Ctrl+\ pulls focus into the documents tree
@@ -66,7 +76,7 @@ export function App() {
     <ThemeProvider>
       <OpenDocsProvider>
         <div className="app-shell">
-          <TopBar onOpenSearch={() => setSearchOpen(true)} />
+          <TopBar onOpenSearch={() => setSearchOpen(true)} onOpenAgent={() => setAgentOpen(true)} />
           <Routes>
             <Route path="/" element={<Navigate to="/docs/dashboard" replace />} />
             <Route path="/docs" element={<DocumentsPage />} />
@@ -127,6 +137,7 @@ export function App() {
             <Route path="*" element={<p className="content__empty">not found</p>} />
           </Routes>
           <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
+          <AgentPanel open={agentOpen} onOpenChange={setAgentOpen} />
         </div>
       </OpenDocsProvider>
     </ThemeProvider>

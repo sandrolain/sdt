@@ -11,7 +11,7 @@ function renderTopBar(initial: string) {
   render(
     <ThemeProvider>
       <MemoryRouter initialEntries={[initial]}>
-        <TopBar onOpenSearch={vi.fn()} />
+        <TopBar onOpenSearch={vi.fn()} onOpenAgent={vi.fn()} />
       </MemoryRouter>
     </ThemeProvider>,
   );
@@ -24,6 +24,19 @@ afterEach(() => {
 });
 
 describe("TopBar", () => {
+  it("offers the agent panel from the actions row", async () => {
+    const onOpenAgent = vi.fn();
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/docs"]}>
+          <TopBar onOpenSearch={vi.fn()} onOpenAgent={onOpenAgent} />
+        </MemoryRouter>
+      </ThemeProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Chat with an agent" }));
+    expect(onOpenAgent).toHaveBeenCalledTimes(1);
+  });
+
   it("renders the SDT brand mark", () => {
     renderTopBar("/docs");
     expect(screen.getByRole("img", { name: "SDT" }).getAttribute("src")).toBe("/sdt-logo.svg");

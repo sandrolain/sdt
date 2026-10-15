@@ -6,6 +6,7 @@ import { ReadingSettings } from "./ReadingSettings";
 
 interface TopBarProps {
   onOpenSearch: () => void;
+  onOpenAgent: () => void;
 }
 
 const IS_MAC =
@@ -43,7 +44,7 @@ const THEME_ICON: Record<string, string> = {
   system: "contrast",
 };
 
-export function TopBar({ onOpenSearch }: TopBarProps) {
+export function TopBar({ onOpenSearch, onOpenAgent }: TopBarProps) {
   const { pref, cycle } = useTheme();
   const { pathname } = useLocation();
   // The Board entry preserves the current board route (source + drill path).
@@ -131,6 +132,18 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
         >
           <span>Search</span>
           <kbd className="search-trigger__kbd">{IS_MAC ? "⌘K" : "Ctrl K"}</kbd>
+        </button>
+        {/* The agent panel opens over whatever screen is showing, so this entry is the
+            trigger for a panel rather than a link to a route — the same shape as the
+            search trigger beside it, and the same shared look. */}
+        <button
+          type="button"
+          className="search-trigger"
+          onClick={onOpenAgent}
+          aria-label="Chat with an agent"
+        >
+          <span>Chat</span>
+          <kbd className="search-trigger__kbd">{IS_MAC ? "⌘J" : "Ctrl J"}</kbd>
         </button>
         <ReadingSettings />
         <button
