@@ -216,7 +216,7 @@ func TestContextCommandsRm(t *testing.T) {
 	if _, err := os.Stat("context/commands/triage.md"); !os.IsNotExist(err) {
 		t.Errorf("trigger still present: %v", err)
 	}
-	if _, err := os.Stat(sdtDeprecatedDir); !os.IsNotExist(err) {
+	if _, err := os.Stat(sdtTrashDir); !os.IsNotExist(err) {
 		t.Errorf("commands rm must not write a deprecated copy: %v", err)
 	}
 	idx := mustReadFile(t, "context/commands/index.md")

@@ -142,6 +142,20 @@ func ctxResolvePath(base, ref string) (string, bool) {
 	return abs, true
 }
 
+// ctxResolveCorpusRef resolves a reference the way frontmatter stores one —
+// corpus-relative, with or without the `context/` prefix the on-disk path
+// carries — and returns the existing path. Both spellings are accepted because
+// the stored form and the printed form differ: a caller copies
+// `context/analysis/x.md` from a listing while the document holds
+// `analysis/x.md`, and a verb that took only one of them would be wrong half the
+// time.
+func ctxResolveCorpusRef(ref string) (string, bool) {
+	clean := filepath.ToSlash(strings.TrimSpace(ref))
+	clean = strings.TrimPrefix(clean, "./")
+	clean = strings.TrimPrefix(clean, sdtWorkDir+"/")
+	return ctxResolvePath(sdtWorkDir, clean)
+}
+
 func ctxIndexLine(dir, path string) string {
 	rel, err := filepath.Rel(sdtWorkDir, path)
 	if err != nil {

@@ -155,12 +155,13 @@ func (m *pruneMatcher) matches(absDir string) bool {
 // Pruning by **path** rather than by directory name is deliberate: a source
 // directory that happens to be called `refs` or `tmp` stays searchable, and only
 // the corpus's own clones are skipped.
-var DefaultSkipPaths = []string{"context/refs", "context/tmp"}
+var DefaultSkipPaths = []string{"context/refs", "context/tmp", "context/trash"}
 
 // DefaultSkipPathsNoRefs is DefaultSkipPaths with the captured clones reachable.
-// The scratch directory stays pruned either way: it holds scratch by definition,
-// and opting into a third-party clone is not an opt-in to scratch.
-var DefaultSkipPathsNoRefs = []string{"context/tmp"}
+// The scratch and trash directories stay pruned either way: one holds scratch by
+// definition and the other holds what a caller discarded, and opting into a
+// third-party clone is an opt-in to neither.
+var DefaultSkipPathsNoRefs = []string{"context/tmp", "context/trash"}
 
 // defaultSkipPaths is the internal alias for the nil-means-default contract.
 var defaultSkipPaths = DefaultSkipPaths

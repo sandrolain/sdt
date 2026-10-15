@@ -24,16 +24,18 @@ import (
 var ctxDatedPrefix = regexp.MustCompile(`^\d{8}-\d{6}-`)
 
 // ctxMoveExcludedDirs are context/ subtrees that hold dirty clones, imported
-// sources or generated content and must never be rewritten.
+// sources, generated content or discarded files and must never be rewritten.
+// The trash is here for a second reason too: a rename that rewrote references
+// *into* it would create links the first `context clean --trash` breaks silently.
 
 var ctxMoveExcludedDirs = map[string]bool{
-	sdtRefsDir:       true,
-	sdtIngestionDir:  true,
-	sdtInstrDir:      true,
-	sdtScriptsDir:    true,
-	sdtTmpDir:        true,
-	sdtDocsDir:       true,
-	sdtDeprecatedDir: true,
+	sdtRefsDir:      true,
+	sdtIngestionDir: true,
+	sdtInstrDir:     true,
+	sdtScriptsDir:   true,
+	sdtTmpDir:       true,
+	sdtDocsDir:      true,
+	sdtTrashDir:     true,
 }
 
 // ctxCleanSlug sanitizes the target slug. Non-wiki kinds keep a single
@@ -185,12 +187,16 @@ func ctxRewriteContent(content, docDir, oldPath, newPath string) (string, bool) 
 	return strings.Join(lines, "\n"), changed
 }
 
-// ctxAffectedFiles returns the context/**/*.md files (index.md included, dirty
-// clone/import subtrees and the moved document excluded) whose references to
-// oldPath must switch to newPath.
+// ctxScanCorpusRefs walks the corpus markdown a reference scan may touch and
+// returns the files for which match reports true. The walk and its exclusions
+// live here so `context rename` and `context rm` cannot disagree about which
+// files are candidates; what counts as a hit stays with each caller, because a
+// rewriter and a report answer different questions about the same text — the
+// rewriter asks "would I change this", and the report asks "does this name it",
+// and the second is deliberately the broader one.
 
-func ctxAffectedFiles(docPath, oldPath, newPath string) ([]string, error) {
-	var affected []string
+func ctxScanCorpusRefs(skip map[string]bool, match func(path, content string) bool) ([]string, error) {
+	var hits []string
 	err := filepath.WalkDir(sdtWorkDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -201,19 +207,31 @@ func ctxAffectedFiles(docPath, oldPath, newPath string) ([]string, error) {
 			}
 			return nil
 		}
-		if filepath.Ext(path) != sdtMarkdownExt || path == docPath || path == oldPath || path == newPath {
+		if filepath.Ext(path) != sdtMarkdownExt || skip[path] {
 			return nil
 		}
 		data, rerr := os.ReadFile(path) //#nosec G304,G122 -- context work files
 		if rerr != nil {
 			return rerr
 		}
-		if _, ok := ctxRewriteContent(string(data), filepath.Dir(path), oldPath, newPath); ok {
-			affected = append(affected, path)
+		if match(path, string(data)) {
+			hits = append(hits, path)
 		}
 		return nil
 	})
-	return affected, err
+	return hits, err
+}
+
+// ctxAffectedFiles returns the context/**/*.md files (index.md included, dirty
+// clone/import subtrees and the moved document excluded) whose references to
+// oldPath must switch to newPath.
+
+func ctxAffectedFiles(docPath, oldPath, newPath string) ([]string, error) {
+	skip := map[string]bool{docPath: true, oldPath: true, newPath: true}
+	return ctxScanCorpusRefs(skip, func(path, content string) bool {
+		_, ok := ctxRewriteContent(content, filepath.Dir(path), oldPath, newPath)
+		return ok
+	})
 }
 
 func ctxApplyRewrite(path, oldPath, newPath string) error {

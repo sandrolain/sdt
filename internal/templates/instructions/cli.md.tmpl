@@ -54,6 +54,14 @@ generated command reference, see `context/instructions/reference.md`.
 - `sdt q get|set|del <file> <path>` — query/patch a JSON file by gjson path
   (e.g. `sdt q get context/index.json 'documents.#(kind=="analysis")#.path'`)
 - `sdt context rename <ref> --slug <new>` — move a document to a new slug
+- `sdt context deprecate <ref> [--by <ref>]` — retire a document by setting the
+  retired status its own type's vocabulary carries; the file does not move, and
+  `--by` records the successor that replaced it
+- `sdt context rm <ref>` — discard a document by moving it into `context/trash`,
+  leaving its bytes untouched; it reports the documents that still reference it
+  rather than repairing them
+- `sdt context clean --trash|--tmp` — empty a discard area; a target is required
+  and nothing is ever emptied by omission
 - `sdt context task add ["<step>"] [--phase <n>] [--stream <label>]` — task checklists
   (one file per plan by default, phases as `## Phase` sections)
 - `sdt context template --type <t>` — print the per-type instruction file

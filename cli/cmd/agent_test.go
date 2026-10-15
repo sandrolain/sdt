@@ -382,7 +382,7 @@ func TestAgentInitNoProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Error("expected AGENTS.md created without --project")
 	}
-	for _, d := range []string{"context/plan", "context/analysis", "context/worklog", "context/notes", "context/questions", "context/tasks", "context/deprecated", "context/tmp", "context/instructions", "context/architecture", "context/decisions", "context/scripts"} {
+	for _, d := range []string{"context/plan", "context/analysis", "context/worklog", "context/notes", "context/questions", "context/tasks", "context/trash", "context/tmp", "context/instructions", "context/architecture", "context/decisions", "context/scripts"} {
 		if _, err := os.Stat(filepath.Join(dir, d)); err != nil {
 			t.Errorf("expected %s to be created", d)
 		}
@@ -678,15 +678,15 @@ func TestObsoleteInstructionFilesExcludesCurrent(t *testing.T) {
 	}
 }
 
-// assertArchived asserts that context/deprecated/<base>-DEPRECATED-<stamp>.md
+// assertArchived asserts that context/trash/<base>-DEPRECATED-<stamp>.md
 // exists with the loud header and the archived content.
 
 func assertArchived(t *testing.T, dir, base string) {
 	t.Helper()
-	ad := filepath.Join(dir, sdtDeprecatedDir)
+	ad := filepath.Join(dir, sdtTrashDir)
 	entries, err := os.ReadDir(ad)
 	if err != nil {
-		t.Fatalf("expected deprecated dir %s: %v", ad, err)
+		t.Fatalf("expected the trash dir %s: %v", ad, err)
 	}
 	var found string
 	for _, e := range entries {
@@ -695,19 +695,19 @@ func assertArchived(t *testing.T, dir, base string) {
 		}
 	}
 	if found == "" {
-		t.Fatalf("expected deprecated %s under %s", base, ad)
+		t.Fatalf("expected the deprecated %s under %s", base, ad)
 	}
 	data, err := os.ReadFile(found)
 	if err != nil {
-		t.Fatalf("read deprecated %s: %v", found, err)
+		t.Fatalf("read the deprecated %s: %v", found, err)
 	}
 	for _, want := range []string{"# DEPRECATED", "no longer generated", "moved this obsolete file"} {
 		if !strings.Contains(string(data), want) {
-			t.Errorf("expected %q in deprecated header of %s", want, found)
+			t.Errorf("expected %q in the header of %s", want, found)
 		}
 	}
 	if !strings.Contains(string(data), "obsolete") {
-		t.Errorf("expected deprecated content preserved in %s", found)
+		t.Errorf("expected the discarded content preserved in %s", found)
 	}
 }
 
@@ -846,7 +846,7 @@ func TestEnsureGitIgnoreCreate(t *testing.T) {
 		t.Errorf("expected created, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	want := "# sdt:start\n/context/tmp/\n/context/sdtdocs/\n# sdt:end\n"
+	want := "# sdt:start\n/context/tmp/\n/context/trash/\n/context/sdtdocs/\n# sdt:end\n"
 	if string(data) != want {
 		t.Errorf("expected root-anchored managed block %q, got:\n%s", want, data)
 	}
@@ -898,7 +898,7 @@ func TestEnsureGitIgnoreSkip(t *testing.T) {
 	if err := os.Mkdir(".git", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, ".gitignore", "bin/\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreDocsEntry+"\n")
+	writeTestFile(t, ".gitignore", "bin/\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreTrashEntry+"\n"+gitIgnoreDocsEntry+"\n")
 	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
@@ -917,7 +917,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 	if err := os.Mkdir(".git", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, ".gitignore", "/context/tmp\n/context/sdtdocs\n")
+	writeTestFile(t, ".gitignore", "/context/tmp\n/context/trash\n/context/sdtdocs\n")
 	res := ensureGitIgnore(gitIgnoreModeWork)
 	if res == nil {
 		t.Fatal("expected result for git repo")
@@ -926,7 +926,7 @@ func TestEnsureGitIgnoreSkipNoSlash(t *testing.T) {
 		t.Errorf("expected skipped for entries without trailing slash, got %+v", res)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if strings.Contains(string(data), "/context/tmp/") || strings.Contains(string(data), "/context/sdtdocs/") {
+	if strings.Contains(string(data), "/context/tmp/") || strings.Contains(string(data), "/context/trash/") || strings.Contains(string(data), "/context/sdtdocs/") {
 		t.Errorf("expected no duplicate entries in .gitignore:\n%s", data)
 	}
 }
@@ -946,7 +946,7 @@ func TestEnsureGitIgnorePreservesTrailingContent(t *testing.T) {
 	if !strings.HasPrefix(body, "bin/\n") {
 		t.Errorf("expected existing content preserved:\n%s", body)
 	}
-	if !strings.HasSuffix(body, gitIgnoreBlockStart+"\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreDocsEntry+"\n"+gitIgnoreBlockEnd+"\n") {
+	if !strings.HasSuffix(body, gitIgnoreBlockStart+"\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreTrashEntry+"\n"+gitIgnoreDocsEntry+"\n"+gitIgnoreBlockEnd+"\n") {
 		t.Errorf("expected sdt block appended with markers:\n%s", body)
 	}
 }
@@ -966,7 +966,7 @@ func TestEnsureGitIgnoreAddsMissingInsideBlock(t *testing.T) {
 	if strings.Count(body, gitIgnoreDocsEntry) != 1 {
 		t.Errorf("expected docs entry added inside block:\n%s", body)
 	}
-	if !strings.Contains(body, gitIgnoreBlockStart+"\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreDocsEntry+"\n"+gitIgnoreBlockEnd) {
+	if !strings.Contains(body, gitIgnoreBlockStart+"\n"+gitIgnoreTmpEntry+"\n"+gitIgnoreTrashEntry+"\n"+gitIgnoreDocsEntry+"\n"+gitIgnoreBlockEnd) {
 		t.Errorf("expected missing entry inserted inside the sdt block:\n%s", body)
 	}
 	if strings.Count(body, gitIgnoreBlockEnd) != 1 {
@@ -1088,9 +1088,9 @@ func TestGitIgnoreEntriesForMode(t *testing.T) {
 		gitIgnoreModeNone:    nil,
 		gitIgnoreModeTmp:     {"/context/tmp/"},
 		gitIgnoreModeDocs:    {"/context/sdtdocs/"},
-		gitIgnoreModeWork:    {"/context/tmp/", "/context/sdtdocs/"},
+		gitIgnoreModeWork:    {"/context/tmp/", "/context/trash/", "/context/sdtdocs/"},
 		gitIgnoreModeContext: {"/context/"},
-		"":                   {"/context/tmp/", "/context/sdtdocs/"},
+		"":                   {"/context/tmp/", "/context/trash/", "/context/sdtdocs/"},
 	}
 	for mode, want := range cases {
 		got := gitIgnoreEntriesForMode(mode)
@@ -2713,7 +2713,7 @@ func TestEnsureWorkDirsMkdirError(t *testing.T) {
 
 func TestEnsureWorkDirsReadmeError(t *testing.T) {
 	runInTempDir(t)
-	for _, d := range []string{sdtWorkDir, sdtPlanDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtDeprecatedDir, sdtTmpDir, sdtInstrDir} {
+	for _, d := range []string{sdtWorkDir, sdtPlanDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtTrashDir, sdtTmpDir, sdtInstrDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}

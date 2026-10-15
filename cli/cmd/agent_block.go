@@ -228,7 +228,7 @@ func agentWriteGeneratedFile(path, name, templateBody string, force bool) FileRe
 }
 
 // agentArchiveGenerated moves an obsolete generated file to
-// context/deprecated/<base>-DEPRECATED-<stamp>.md with a loud header,
+// context/trash/<base>-DEPRECATED-<stamp>.md with a loud header,
 // preserving history. It reports skipped when the file is already gone or
 // already deprecated, and error when either the write or the removal fails.
 
@@ -239,7 +239,7 @@ func agentArchiveGenerated(dir, name, reason string) FileResult {
 	}
 	base := strings.TrimSuffix(name, filepath.Ext(name))
 	stamp := time.Now().Format("20060102-150405")
-	dst := filepath.Join(sdtDeprecatedDir, base+"-DEPRECATED-"+stamp+sdtMarkdownExt)
+	dst := filepath.Join(sdtTrashDir, base+"-DEPRECATED-"+stamp+sdtMarkdownExt)
 	if _, err := os.Stat(dst); err == nil {
 		return FileResult{Path: path, Status: statusSkipped, Reason: "already deprecated"}
 	}
@@ -247,8 +247,8 @@ func agentArchiveGenerated(dir, name, reason string) FileResult {
 	if err != nil {
 		return FileResult{Path: path, Status: statusError, Reason: err.Error()}
 	}
-	header := fmt.Sprintf("# DEPRECATED — no longer generated\n\n*sdt agent init --force* moved this obsolete file to `%s` on %s: it no longer belongs to the generated set (%s). Keep it while the history matters, then remove it.\n\n---\n\n",
-		sdtDeprecatedDir, time.Now().Format(time.RFC3339), reason)
+	header := fmt.Sprintf("# DEPRECATED — no longer generated\n\n*sdt agent init --force* moved this obsolete file to `%s` on %s: it no longer belongs to the generated set (%s). Run `sdt context clean --trash` when its history stops mattering.\n\n---\n\n",
+		sdtTrashDir, time.Now().Format(time.RFC3339), reason)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil { //#nosec G301
 		return FileResult{Path: path, Status: statusError, Reason: err.Error()}
 	}

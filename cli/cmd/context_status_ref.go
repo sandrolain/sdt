@@ -353,6 +353,42 @@ func frontmatterIsWellFormed(content string) bool {
 	return false
 }
 
+// ctxApplyFrontmatter is the one write path for a frontmatter transition on a
+// resolved document: it reads the file, applies the patches, stamps a missing uid
+// and the provenance, writes, and returns the status it replaced so a caller can
+// report the transition. `context status set` and `context deprecate` both end
+// here, so the `updated` refresh, the uid stamp and the provenance stamp cannot
+// differ between them.
+func ctxApplyFrontmatter(cmd *cobra.Command, doc ctxResolvedDoc, patches []frontmatterPatch) (string, error) {
+	data, err := os.ReadFile(doc.Path) //#nosec G304 -- user work file
+	if err != nil {
+		return "", err
+	}
+	previous := parseFrontmatterField(string(data), ctxMapStatus)
+	content, changed := setFrontmatterFields(string(data), patches)
+	// Lazy identifier stamping: any rewrite of an eligible document also
+	// stamps a missing uid (analysis Q3).
+	if ctxUIDEligibleKind(doc.Type.kind) {
+		if stamped, ok := stampUIDMissing(content); ok {
+			content, changed = stamped, true
+		}
+	}
+	if stamped := stampProvenance(content, cmd); stamped != content {
+		content, changed = stamped, true
+	}
+	if !changed {
+		if !frontmatterIsWellFormed(string(data)) {
+			return "", fmt.Errorf("no status field written to %s (missing frontmatter)", doc.Path)
+		}
+		return previous, nil
+	}
+	//#nosec G306,G703 -- a resolved context/ work file
+	if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+		return "", err
+	}
+	return previous, nil
+}
+
 // ctxStatusSetPatches builds the frontmatter patches for a status transition:
 // the new status always; the refreshed `updated` timestamp when the kind's
 // contract requires it (decisions never get an updated refresh).
@@ -398,28 +434,8 @@ Examples:
 				exitWithError(cmd, fmt.Errorf("cannot set %s completed: %s (finish the work, or pass --force)", ctxKindLabel(doc.Type), reason))
 			}
 		}
-		data, err := os.ReadFile(doc.Path) //#nosec G304 -- user work file
-		exitWithError(cmd, err)
-		content, changed := setFrontmatterFields(string(data), ctxStatusSetPatches(doc.Type, status))
-		// Lazy identifier stamping: any rewrite of an eligible document also
-		// stamps a missing uid (analysis Q3).
-		if ctxUIDEligibleKind(doc.Type.kind) {
-			if stamped, ok := stampUIDMissing(content); ok {
-				content, changed = stamped, true
-			}
-		}
-		if stamped := stampProvenance(content, cmd); stamped != content {
-			content, changed = stamped, true
-		}
-		if !changed {
-			if !frontmatterIsWellFormed(string(data)) {
-				exitWithError(cmd, fmt.Errorf("no status field written to %s (missing frontmatter)", doc.Path))
-			}
-		} else {
-			//#nosec G306 -- user work file
-			if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
-				exitWithError(cmd, err)
-			}
+		if _, err := ctxApplyFrontmatter(cmd, doc, ctxStatusSetPatches(doc.Type, status)); err != nil {
+			exitWithError(cmd, err)
 		}
 
 		updated := ""

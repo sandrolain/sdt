@@ -279,6 +279,7 @@ func init() {
 		addProvenanceFlags(c)
 	}
 	addProvenanceFlags(contextStatusSetCmd)
+	addProvenanceFlags(contextDeprecateCmd)
 	contextTaskReviewCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
 	contextTaskClaimCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskClaimCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
@@ -303,6 +304,6 @@ func init() {
 	addCascadeFlag(contextTaskReviewCmd)
 
 	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextTaskProgressCmd, contextDeviationCmd, contextTaskClaimCmd, contextTaskReleaseCmd)
-	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextCloseCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextBudgetCmd, contextVocabCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
+	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextCloseCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextBudgetCmd, contextVocabCmd, contextDeprecateCmd, contextRmCmd, contextCleanCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
 	rootCmd.AddCommand(contextCmd)
 }

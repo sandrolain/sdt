@@ -198,6 +198,32 @@ func writeIndex(content string) error {
 	return os.WriteFile(sdtContextIndex, []byte(content), 0o644)
 }
 
+// ctxRegenerateIndex rewrites context/index.md and context/index.json from the
+// current corpus and reports what each write did. `context reindex` and every
+// verb that adds or removes a document go through it, so an index entry can
+// never outlive the file it names — which is what a discarded document would
+// otherwise leave behind.
+
+func ctxRegenerateIndex() (ctxIndexJSONSummary, error) {
+	content, err := buildIndex()
+	if err != nil {
+		return ctxIndexJSONSummary{}, err
+	}
+	written, err := writeIndexIfChanged(content)
+	if err != nil {
+		return ctxIndexJSONSummary{}, err
+	}
+	jsonContent, err := buildIndexJSON()
+	if err != nil {
+		return ctxIndexJSONSummary{}, err
+	}
+	jsonWritten, err := writeIndexJSONIfChanged(jsonContent)
+	if err != nil {
+		return ctxIndexJSONSummary{}, err
+	}
+	return ctxIndexJSONSummary{Markdown: written, JSON: ctxIndexWriteState(jsonWritten)}, nil
+}
+
 var contextReindexCmd = &cobra.Command{
 	Use:   "reindex",
 	Short: "Regenerate context/index.md and context/index.json from frontmatter summaries",
@@ -214,17 +240,8 @@ Examples:
   sdt context reindex --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		content, err := buildIndex()
+		summary, err := ctxRegenerateIndex()
 		exitWithError(cmd, err)
-		written, err := writeIndexIfChanged(content)
-		exitWithError(cmd, err)
-
-		jsonContent, err := buildIndexJSON()
-		exitWithError(cmd, err)
-		jsonWritten, err := writeIndexJSONIfChanged(jsonContent)
-		exitWithError(cmd, err)
-
-		summary := ctxIndexJSONSummary{Markdown: written, JSON: ctxIndexWriteState(jsonWritten)}
 		switch getFormat(cmd) {
 		case fmtJSON:
 			out, err := json.MarshalIndent(summary, "", "  ")
@@ -235,7 +252,7 @@ Examples:
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		default:
-			outputString(cmd, sdtContextIndex+" ("+written+"); "+ctxIndexJSONPath+" ("+summary.JSON+")\n")
+			outputString(cmd, sdtContextIndex+" ("+summary.Markdown+"); "+ctxIndexJSONPath+" ("+summary.JSON+")\n")
 		}
 	},
 }

@@ -42,6 +42,7 @@ trivi-results.json
 /context/tmp/
 /context/sdtdocs/
 /context/
+/context/trash/
 # sdt:end
 
 .env

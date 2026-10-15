@@ -87,6 +87,10 @@ func agentPromptGitIgnoreMode(cmd *cobra.Command, yes bool, def string) string {
 
 const gitIgnoreTmpEntry = "/context/tmp/"
 
+// gitIgnoreTrashEntry is ensured alongside tmp: the discard area `context rm`
+// fills is not a corpus document tree and must never be committed by accident.
+const gitIgnoreTrashEntry = "/context/trash/"
+
 // gitIgnoreDocsEntry keeps generated agent docs out of version control. The
 // reference is regenerated per binary version, so it is never committed.
 
@@ -99,7 +103,7 @@ const gitIgnoreContextEntry = "/context/"
 
 // gitIgnoreWorkEntries lists the context/ entries ensured by default (work).
 
-var gitIgnoreWorkEntries = []string{gitIgnoreTmpEntry, gitIgnoreDocsEntry}
+var gitIgnoreWorkEntries = []string{gitIgnoreTmpEntry, gitIgnoreTrashEntry, gitIgnoreDocsEntry}
 
 // gitIgnore block markers bound the sdt-managed .gitignore entries so later
 // runs can update them in place and the block is distinguishable from

@@ -119,7 +119,7 @@ var legacyObsoleteInstructionFiles = []string{
 // obsoleteInstructionFiles returns every instruction file that should leave
 // context/instructions/ on --force: the marker-detected stale files plus the
 // unmarked legacy renames. With --force they are moved under
-// context/deprecated/ instead of removed.
+// context/trash/ instead of removed.
 
 func obsoleteInstructionFiles() []string {
 	current := make([]string, 0, 32)
@@ -133,7 +133,7 @@ func obsoleteInstructionFiles() []string {
 // writeInstructionFiles creates the instruction files under context/instructions/.
 // It is non-destructive: existing files are preserved unless force is set, and
 // --force refreshes only the marker-delimited generated body. Obsolete files
-// are moved to context/deprecated/ instead of deleted.
+// are moved to context/trash/ instead of deleted.
 
 func writeInstructionFiles(project, group string, force bool) []FileResult {
 	scope := filepath.Base(sdtInstrDir)
@@ -287,7 +287,7 @@ func commandFiles(project string, now time.Time) []instructionFile {
 // list is the documented history. Marker-based detection is deliberately NOT
 // applied to commands: `sdt context commands new` creates user triggers that
 // carry the same `commands/<id>` marker scope, so absence from the registry
-// cannot mean obsolete. With --force these files move to context/deprecated/
+// cannot mean obsolete. With --force these files move to context/trash/
 // instead of being removed.
 
 var obsoleteCommandFiles = []string{
@@ -300,7 +300,7 @@ var obsoleteCommandFiles = []string{
 // writeCommandFiles creates the command files under context/commands/. It is
 // non-destructive: existing files are preserved unless force is set, and
 // --force refreshes only the marker-delimited generated body. Obsolete files
-// are moved to context/deprecated/ instead of deleted.
+// are moved to context/trash/ instead of deleted.
 
 func writeCommandFiles(project string, force bool) []FileResult {
 	now := time.Now()
@@ -325,7 +325,7 @@ var agentInitCmd = &cobra.Command{
 
   .sdt.yaml                           project identity (project/group)
   AGENTS.md                           instructions block + optional write-once project template
-  context/plan|worklog|notes|tasks|deprecated|tmp|scripts  working directories
+  context/plan|worklog|notes|tasks|trash|tmp|scripts  working directories
   context/proposals/     proposals awaiting review
   context/prompts/       tracked prompts (run/review)
   context/research/      research notes and findings
@@ -342,7 +342,7 @@ var agentInitCmd = &cobra.Command{
 The command is idempotent and non-destructive: a second run fills in missing
 content and never overwrites or removes existing files. Use --force to refresh
 the generated (marker-delimited) content while preserving edits outside the
-markers, and to move obsolete instruction/command files to context/deprecated/
+markers, and to move obsolete instruction/command files to context/trash/
 instead of deleting them.
 
 The .gitignore entries for the context working directories are decided
@@ -565,7 +565,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 // ensureWorkDirs creates the context/ working directory layout.
 
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtDeprecatedDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir, sdtBriefingDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtTrashDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir, sdtBriefingDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}

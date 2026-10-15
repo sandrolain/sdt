@@ -127,12 +127,12 @@ func TestAgentRefreshArchivesObsoleteInstructionFile(t *testing.T) {
 	if _, err := os.Stat(obsolete); !os.IsNotExist(err) {
 		t.Errorf("expected the obsolete file moved out of %s", sdtInstrDir)
 	}
-	matches, err := filepath.Glob(filepath.Join(sdtDeprecatedDir, "README-DEPRECATED-*.md"))
+	matches, err := filepath.Glob(filepath.Join(sdtTrashDir, "README-DEPRECATED-*.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(matches) == 0 {
-		t.Errorf("expected an archived copy under %s", sdtDeprecatedDir)
+		t.Errorf("expected an archived copy under %s", sdtTrashDir)
 	}
 }
 

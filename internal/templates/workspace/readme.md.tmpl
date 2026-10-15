@@ -33,7 +33,8 @@ instruction files and temporary files for this project.
   - `context/worklog/<YYYYMMDD-HHMMSS>-<slug>.md`
   - `context/notes/<YYYYMMDD-HHMMSS>-<slug>.md`
   - `context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md` — task checklist, phases as sections (`-<stream>.md` on a split)
-  - `context/deprecated/<base>-DEPRECATED-<stamp>.md` — obsolete generated files
+  - `context/trash/<relative path>` — what `sdt context rm` discarded, and the
+    obsolete generated files `sdt agent init --force` moves aside
 - `architecture/` files are living documents without a date; decisions are
   append-only and numbered (`decisions/0001-<slug>.md`).
 - `context/` files use concise technical language. Cut fluff,

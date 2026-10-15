@@ -13,16 +13,18 @@ import (
 const ContextDir = "context"
 
 // excludedDirs are corpus subdirectory names never served, indexed or watched.
-// tmp/ and scripts/ are working noise; refs/ is the large external clone;
-// sdtdocs/ is the generated per-command reference. commands/ is corpus content
-// (command-trigger documents) and so is instructions/ (the per-type contract
-// modules the agent reads) — neither is excluded.
+// tmp/ and scripts/ are working noise; trash/ is what `sdt context rm` discarded;
+// refs/ is the large external clone; sdtdocs/ is the generated per-command
+// reference. commands/ is corpus content (command-trigger documents) and so is
+// instructions/ (the per-type contract modules the agent reads) — neither is
+// excluded.
 //
 // This set (and excludedFiles below) is mirrored in
 // web/src/lib/exclusions.ts; parity_test.go enforces that the two never
 // diverge.
 var excludedDirs = map[string]struct{}{
 	"tmp":     {},
+	"trash":   {},
 	"scripts": {},
 	"refs":    {},
 	"sdtdocs": {},
