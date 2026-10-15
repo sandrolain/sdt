@@ -126,15 +126,17 @@ func checkNoSecondAnalysisInSources(docs map[string]ctxRelDoc, doc ctxRelDoc) []
 	}}
 }
 
-// appendFrontmatterListValue appends value to a YAML block-list frontmatter
-// field, creating the field when absent. It is idempotent: an already-present
-// value leaves the content untouched.
-func appendFrontmatterListValue(content, field, value string) (string, bool) {
-	for _, v := range parseFrontmatterList(content, field) {
-		if strings.TrimSpace(v) == value {
-			return content, false
-		}
-	}
+// rewriteFrontmatterList rewrites a list-valued frontmatter field so it holds
+// exactly values, in order, **keeping the shape the field already carries**: a flow
+// list (`key: ['a','b']`) stays flow, a block list (`key:\n  - a`) stays block, and
+// an absent field is created in the block form.
+//
+// The field's current value lines are consumed whatever shape they are in — a flow
+// value on the key's line, the following `- ` items, or both, because a document can
+// carry a mixture this writer itself once produced — and everything outside them is
+// byte-identical. That is what lets the same pass repair a mixed document, which
+// hand-editing was the only way to do before.
+func rewriteFrontmatterList(content, field string, values []string) (string, bool) {
 	lines := strings.Split(content, "\n")
 	if len(lines) < 3 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
 		return content, false
@@ -153,19 +155,74 @@ func appendFrontmatterListValue(content, field, value string) (string, bool) {
 		return content, false
 	}
 	if fieldIdx < 0 {
+		if len(values) == 0 {
+			return content, false
+		}
 		out := append([]string{}, lines[:end]...)
-		out = append(out, field+":", "  - "+value)
+		out = append(out, field+":")
+		out = append(out, blockList(values)...)
 		out = append(out, lines[end:]...)
 		return strings.Join(out, "\n"), true
 	}
-	insertAt := fieldIdx + 1
-	for insertAt < end && strings.HasPrefix(strings.TrimSpace(lines[insertAt]), "- ") {
-		insertAt++
+	flow := strings.Contains(valueOfLine(lines[fieldIdx]), "[")
+	valueEnd := fieldIdx + 1
+	for valueEnd < end && strings.HasPrefix(strings.TrimSpace(lines[valueEnd]), "- ") {
+		valueEnd++
 	}
-	out := append([]string{}, lines[:insertAt]...)
-	out = append(out, "  - "+value)
-	out = append(out, lines[insertAt:]...)
-	return strings.Join(out, "\n"), true
+	var replacement []string
+	if flow {
+		replacement = []string{field + ": " + flowList(values)}
+	} else {
+		replacement = append([]string{field + ":"}, blockList(values)...)
+	}
+	out := append([]string{}, lines[:fieldIdx]...)
+	out = append(out, replacement...)
+	out = append(out, lines[valueEnd:]...)
+	updated := strings.Join(out, "\n")
+	if updated == content {
+		return content, false
+	}
+	return updated, true
+}
+
+// valueOfLine is the part of a frontmatter line after its first colon.
+func valueOfLine(line string) string {
+	if _, v, ok := strings.Cut(line, ":"); ok {
+		return v
+	}
+	return ""
+}
+
+// blockList renders values as `  - v` items, the shape the corpus's documents use.
+func blockList(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		out = append(out, "  - "+v)
+	}
+	return out
+}
+
+// flowList renders values as the flow form `sdt context set` writes, so a key that
+// arrived flow-shaped keeps the spelling the caller chose.
+func flowList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, v := range values {
+		quoted = append(quoted, "'"+v+"'")
+	}
+	return "[" + strings.Join(quoted, ",") + "]"
+}
+
+// appendFrontmatterListValue appends value to a list frontmatter field, creating
+// the field when absent and keeping the shape it finds. It is idempotent: an
+// already-present value leaves the content untouched.
+func appendFrontmatterListValue(content, field, value string) (string, bool) {
+	current := parseFrontmatterList(content, field)
+	for _, v := range current {
+		if strings.TrimSpace(v) == value {
+			return content, false
+		}
+	}
+	return rewriteFrontmatterList(content, field, append(current, value))
 }
 
 // dedupeSorted drops duplicates from a sorted list, keeping the first of each.
@@ -192,57 +249,14 @@ func ctxDocParentUID(path string) string {
 	return parseFrontmatterField(string(data), ctxParentField(parseFrontmatterField(string(data), "kind")))
 }
 
-// reconcileFrontmatterList rewrites a block-list frontmatter field so it holds
-// exactly values, in order, creating the field when it is absent. It is
-// idempotent, and unlike appendFrontmatterListValue it can also *drop* an entry:
-// a parent's reverse list must name the children that claim it and nothing else,
-// so a dangling uid is repairable by the same command that adds a missing one.
+// reconcileFrontmatterList rewrites a list frontmatter field so it holds exactly
+// values, in order, creating the field when it is absent and keeping the shape the
+// field already carries. It is idempotent, and unlike appendFrontmatterListValue it
+// can also *drop* an entry: a parent's reverse list must name the children that
+// claim it and nothing else, so a dangling uid is repairable by the same command
+// that adds a missing one.
 func reconcileFrontmatterList(content, field string, values []string) (string, bool) {
-	lines := strings.Split(content, "\n")
-	if len(lines) < 3 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
-		return content, false
-	}
-	end, fieldIdx := -1, -1
-	for i := 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == ctxFrontmatterDelim {
-			end = i
-			break
-		}
-		if strings.TrimSpace(strings.SplitN(lines[i], ":", 2)[0]) == field {
-			fieldIdx = i
-		}
-	}
-	if end < 0 {
-		return content, false
-	}
-	block := make([]string, 0, len(values))
-	for _, v := range values {
-		block = append(block, "  - "+v)
-	}
-	if fieldIdx < 0 {
-		if len(block) == 0 {
-			return content, false
-		}
-		out := append([]string{}, lines[:end]...)
-		out = append(out, append([]string{field + ":"}, block...)...)
-		out = append(out, lines[end:]...)
-		return strings.Join(out, "\n"), true
-	}
-	listEnd := fieldIdx + 1
-	for listEnd < end && strings.HasPrefix(strings.TrimSpace(lines[listEnd]), "- ") {
-		listEnd++
-	}
-	if len(block) == 0 && listEnd == fieldIdx+1 {
-		return content, false // absent and nothing to add
-	}
-	out := append([]string{}, lines[:fieldIdx+1]...)
-	out = append(out, block...)
-	out = append(out, lines[listEnd:]...)
-	updated := strings.Join(out, "\n")
-	if updated == content {
-		return content, false
-	}
-	return updated, true
+	return rewriteFrontmatterList(content, field, values)
 }
 
 // linkChildToParent appends childUID to the parent's reverse list field

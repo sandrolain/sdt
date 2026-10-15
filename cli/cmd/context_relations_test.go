@@ -197,3 +197,122 @@ func TestRelationsBackfillPrunesADanglingReverseEntry(t *testing.T) {
 		t.Errorf("the reconcile must be idempotent, got %q", second)
 	}
 }
+
+// TestRewriteFrontmatterListKeepsTheShapeItFinds is the gate for the shape this
+// writer used to mix. It assumed a block list: given a flow value it appended `- `
+// items under the key's own line, and the document stopped parsing. The table
+// crosses the shape the key carries with the operations the two callers perform,
+// and asserts the shape, the exact values, the untouched remainder and that the
+// result still parses.
+func TestRewriteFrontmatterListKeepsTheShapeItFinds(t *testing.T) {
+	const head = "---\nkind: analysis\nsummary: \"s\"\n"
+	const rest = "agent: opencode\n---\nbody\n"
+	flow := "plans_ids: ['uid-a']"
+	block := "plans_ids:\n  - uid-a"
+	mixed := "plans_ids: ['uid-a']\n  - uid-a"
+
+	cases := []struct {
+		name   string
+		key    string // "" means the key is absent
+		call   func(string) (string, bool)
+		expect string
+	}{
+		{"append to a flow key keeps it flow", flow,
+			func(c string) (string, bool) { return appendFrontmatterListValue(c, "plans_ids", "uid-b") },
+			"plans_ids: ['uid-a','uid-b']"},
+		{"append to a block key keeps it block", block,
+			func(c string) (string, bool) { return appendFrontmatterListValue(c, "plans_ids", "uid-b") },
+			"plans_ids:\n  - uid-a\n  - uid-b"},
+		{"append of an existing value is a no-op in either shape (flow)", flow,
+			func(c string) (string, bool) { return appendFrontmatterListValue(c, "plans_ids", "uid-a") },
+			flow},
+		{"append of an existing value is a no-op in either shape (block)", block,
+			func(c string) (string, bool) { return appendFrontmatterListValue(c, "plans_ids", "uid-a") },
+			block},
+		{"an absent key is created in the block form", "",
+			func(c string) (string, bool) { return appendFrontmatterListValue(c, "plans_ids", "uid-b") },
+			"plans_ids:\n  - uid-b"},
+		{"reconcile prunes and stays flow", flow,
+			func(c string) (string, bool) { return reconcileFrontmatterList(c, "plans_ids", []string{"uid-b"}) },
+			"plans_ids: ['uid-b']"},
+		{"reconcile prunes and stays block", block,
+			func(c string) (string, bool) { return reconcileFrontmatterList(c, "plans_ids", []string{"uid-b"}) },
+			"plans_ids:\n  - uid-b"},
+		{"reconcile to nothing empties the flow key", flow,
+			func(c string) (string, bool) { return reconcileFrontmatterList(c, "plans_ids", nil) },
+			"plans_ids: []"},
+		{"a mixed key is repaired to the shape on its line", mixed,
+			func(c string) (string, bool) { return reconcileFrontmatterList(c, "plans_ids", []string{"uid-a"}) },
+			"plans_ids: ['uid-a']"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := head + tc.key + "\n" + rest
+			if tc.key == "" {
+				before = head + rest
+			}
+			after, _ := tc.call(before)
+			if !strings.Contains(after, tc.expect) {
+				t.Errorf("key lines = %q, want %q\nafter:\n%s", after, tc.expect, after)
+			}
+			// The key and its value lines are the only thing that may move: the
+			// head, the body and every other frontmatter line stay as they were.
+			if !strings.HasPrefix(after, head) || !strings.HasSuffix(after, "---\nbody\n") {
+				t.Errorf("the head or the body changed:\n%s", after)
+			}
+			if n := strings.Count(after, "agent: opencode"); n != 1 {
+				t.Errorf("another frontmatter line was lost or duplicated (%d occurrences):\n%s", n, after)
+			}
+			if !frontmatterIsWellFormed(after) {
+				t.Errorf("the result does not parse:\n%s", after)
+			}
+		})
+	}
+}
+
+// TestRelationsBackfillKeepsAFlowKeyParsable runs the trigger that corrupted two
+// documents on this corpus: an analysis whose `plans_ids` is a flow list, and a
+// plan whose `sources` name it and which carries no `analysis_id`. The writer
+// appended block items under the flow value; the assertion is the lint's own
+// verdict plus one value plus idempotence, because "one link reported" was true of
+// the broken run too — the reader handled the shape and the writer did not.
+func TestRelationsBackfillKeepsAFlowKeyParsable(t *testing.T) {
+	setupContextProject(t)
+	writeTestFile(t, ctxUIDBackfillMarker, "{}\n")
+
+	const analysisUID = "01a13e15-e485-762d-a20b-8aaaff76c72e"
+	const planUID = "01a13e87-d5d7-7641-bfca-7c5eee179390"
+	analysisPath := "context/analysis/20260806-070000-src.md"
+	writeTestFile(t, analysisPath,
+		"---\nkind: analysis\nuid: "+analysisUID+"\nsummary: \"s\"\nstatus: active\nplans_ids: ['"+planUID+"']\n---\n\nbody\n")
+	writeTestFile(t, "context/plan/20260806-070000-p.md",
+		"---\nkind: plan\nuid: "+planUID+"\nsummary: \"p\"\nstatus: active\nsources: ['analysis/20260806-070000-src.md']\n---\n\nbody\n")
+
+	if _, err := runRelationsBackfill(false); err != nil {
+		t.Fatalf("backfill: %v", err)
+	}
+
+	after := mustReadFile(t, analysisPath)
+	if !frontmatterIsWellFormed(after) {
+		t.Fatalf("the backfill left an unparseable frontmatter:\n%s", after)
+	}
+	if got := parseFrontmatterList(after, "plans_ids"); len(got) != 1 || strings.TrimSpace(got[0]) != planUID {
+		t.Errorf("plans_ids = %v, want exactly the plan uid", got)
+	}
+	if !strings.Contains(after, "plans_ids: ['"+planUID+"']") {
+		t.Errorf("the flow shape was not kept:\n%s", after)
+	}
+	out := string(execute(t, contextLintCmd, nil, analysisPath))
+	if strings.Contains(out, "[CRITICAL]") || !strings.Contains(out, "0 CRITICAL") {
+		t.Errorf("the lint reports a critical finding:\n%s", out)
+	}
+
+	// A second run must change nothing.
+	second := mustReadFile(t, analysisPath)
+	if _, err := runRelationsBackfill(false); err != nil {
+		t.Fatalf("second backfill: %v", err)
+	}
+	if got := mustReadFile(t, analysisPath); got != second {
+		t.Errorf("a second run changed the document:\nbefore:\n%s\nafter:\n%s", second, got)
+	}
+}
