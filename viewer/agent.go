@@ -2,27 +2,33 @@ package main
 
 // The agent bridge's browser surface: one inert bridge owned by the server, the
 // state a browser may read before it does anything, the activation the user
-// performs, and the WebSocket that carries one ACP session to the browser.
+// performs, a stream of whole-thread states, and the endpoint its commands go to.
 //
 // Three rules hold the trust story together, and each is a check rather than a
 // convention. Nothing is dialled before the user activates: the socket path is
-// typed into the UI, never defaulted to and never remembered. Both the activation
-// POST and the upgrade must carry the viewer's own Origin, so a page the user
-// happens to visit cannot drive the bridge. And decision 0027's posture applies
-// here too — a non-loopback bind disables the surface entirely, because an agent
-// bridge on a remote interface is a remote-control surface, whatever the origin
-// gate says.
+// typed into the UI, never defaulted to and never remembered. The activation POST,
+// the command POST and the stream request must each carry the viewer's own Origin,
+// so a page the user happens to visit cannot drive the bridge. And decision 0027's
+// posture applies here too — a non-loopback bind disables the surface entirely,
+// because an agent bridge on a remote interface is a remote-control surface,
+// whatever the origin gate says.
+//
+// The transport is HTTP + SSE rather than a WebSocket (user decision 2026-10-15):
+// the traffic is asymmetric — a few discrete commands up, a continuous stream down —
+// so a command is a POST of one envelope and the stream is a GET that never ends.
+// Consequence, and why commands carry a session id: the POST is a different request
+// from the stream, so the browser tells the viewer which conversation it is talking
+// to; without one, the most recent stream is assumed, which is the single-user case.
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/coder/websocket"
 
 	"github.com/sandrolain/sdt/internal/acpbridge"
 )
@@ -31,14 +37,16 @@ const (
 	agentStatePath      = "/api/agent/state"
 	agentActivatePath   = "/api/agent/activate"
 	agentDeactivatePath = "/api/agent/deactivate"
-	agentWSPath         = "/api/agent/ws"
+	agentCommandPath    = "/api/agent/command"
+	agentStreamPath     = "/api/agent/stream"
 
-	// agentWriteWait bounds one write to a browser; agentReadLimit bounds one
-	// command from it.
+	// agentWriteWait bounds one write to a browser, agentReadLimit one command from
+	// it, and agentHeartbeat keeps a stream that has nothing to say from looking dead.
 	agentWriteWait = 10 * time.Second
 	agentReadLimit = 1 << 20
+	agentHeartbeat = 25 * time.Second
 
-	// agentBodyLimit bounds the activation body, which carries one path.
+	// agentBodyLimit bounds a command body, which carries one envelope.
 	agentBodyLimit = 4096
 )
 
@@ -48,13 +56,22 @@ const (
 	errAgentOrigin      = "the request must come from the viewer's own origin"
 	errAgentDisabled    = "the agent bridge is disabled on a non-loopback bind host"
 	errAgentNotActive   = "the agent bridge is not activated"
+	errAgentNoStream    = "no browser is streaming the agent, so there is no session to command"
 	errAgentMethod      = "this endpoint takes a POST"
 	errAgentBody        = `the body must be {"socket":"<absolute unix socket path>"}`
+	errAgentCommand     = "the body must be one command envelope"
 	errAgentPath        = "the socket path must be an absolute unix socket path the agent listens on"
 	errAgentUnreachable = "no agent is listening on that socket"
 	errAgentVersion     = "the agent speaks an ACP version this viewer does not"
 	errAgentHandshake   = "the agent did not complete the ACP handshake"
 )
+
+// agentStream is one open SSE response: which conversation it carries and the cancel
+// that ends it. It is a pointer type because a cancel function cannot be a map key.
+type agentStream struct {
+	sessionID string
+	cancel    context.CancelFunc
+}
 
 // agentActivateRequest is the activation body: the socket path the user typed.
 type agentActivateRequest struct {
@@ -102,8 +119,8 @@ func (s *server) handleAgentActivate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, agentStateResponse{Activated: true, Connected: true, Session: session})
 }
 
-// handleAgentDeactivate returns the server to inert and closes the browser
-// connections: a socket left open would show a thread nothing can feed any more.
+// handleAgentDeactivate returns the server to inert and ends the open streams: a
+// stream left open would show a thread nothing can feed any more.
 func (s *server) handleAgentDeactivate(w http.ResponseWriter, r *http.Request) {
 	if s.agentUnavailable(w, r) {
 		return
@@ -111,8 +128,194 @@ func (s *server) handleAgentDeactivate(w http.ResponseWriter, r *http.Request) {
 	if err := s.agent.Close(); err != nil {
 		slog.Warn("sdtviewer: agent close", "err", err)
 	}
-	s.closeAgentConnections()
+	s.stopAgentStreams()
 	writeJSON(w, http.StatusOK, agentStateResponse{})
+}
+
+// handleAgentStream is the Server-Sent Events response: one ACP session for this
+// browser, the current thread as the first frame, and one frame per state change
+// until the client goes away — at which point the session closes and every wait it
+// held is released.
+func (s *server) handleAgentStream(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case s.agentReason != "":
+		writeErr(w, http.StatusForbidden, s.agentReason)
+		return
+	case !agentOrigin(r):
+		writeErr(w, http.StatusForbidden, errAgentOrigin)
+		return
+	case !s.agent.Activated():
+		writeErr(w, http.StatusForbidden, errAgentNotActive)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	session, err := s.agent.NewSession(ctx)
+	if err != nil {
+		slog.Warn("sdtviewer: agent session", "err", err)
+		writeErr(w, http.StatusBadGateway, errAgentHandshake)
+		return
+	}
+	defer session.Close()
+	stream := &agentStream{sessionID: session.ID(), cancel: cancel}
+	s.startAgentStream(stream)
+	defer s.endAgentStream(stream)
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	frames := make(chan []byte, 1)
+	session.State().Listen(func(thread acpbridge.Thread) {
+		if payload, err := acpbridge.EncodeState(session.ID(), thread); err == nil {
+			pushLatest(frames, payload)
+		}
+	})
+	// The state as it stands, so a browser joining a live session paints at once.
+	if payload, err := acpbridge.EncodeState(session.ID(), session.State().Snapshot()); err == nil {
+		pushLatest(frames, payload)
+	}
+	if !writeAgentFrame(w, flusher, <-frames) {
+		return
+	}
+
+	heartbeat := time.NewTicker(agentHeartbeat)
+	defer heartbeat.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case payload := <-frames:
+			if !writeAgentFrame(w, flusher, payload) {
+				return
+			}
+		case <-heartbeat.C:
+			// A comment keeps a quiet stream from looking dead to a proxy, and costs
+			// the browser nothing: SSE ignores a line that is not a field.
+			if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
+
+// handleAgentCommand applies one browser command to the session it names, or to the
+// session the most recent stream opened.
+func (s *server) handleAgentCommand(w http.ResponseWriter, r *http.Request) {
+	if s.agentUnavailable(w, r) {
+		return
+	}
+	if !s.agent.Activated() {
+		writeErr(w, http.StatusForbidden, errAgentNotActive)
+		return
+	}
+	body, err := limitedBody(w, r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errAgentCommand)
+		return
+	}
+	command, err := acpbridge.DecodeCommand(body)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errAgentCommand)
+		return
+	}
+	session, ok := s.commandSession(command.SessionID)
+	if !ok {
+		writeErr(w, http.StatusConflict, errAgentNoStream)
+		return
+	}
+	switch command.Kind {
+	case acpbridge.EnvelopePrompt:
+		// The turn blocks, and the response must not wait for it: the browser learns
+		// what happened from the stream it is reading. It runs under the session's own
+		// life rather than the request's, which ends as soon as this response is
+		// written, and under the session's life rather than nothing at all, so the
+		// agent's work dies with the browser that asked for it.
+		go func(turn context.Context) {
+			if err := session.Prompt(turn, command.Text); err != nil {
+				slog.Warn("sdtviewer: agent turn failed", "err", err)
+			}
+		}(session.Context())
+	case acpbridge.EnvelopeCancel:
+		if err := session.Cancel(r.Context()); err != nil {
+			slog.Warn("sdtviewer: agent cancel failed", "err", err)
+		}
+	case acpbridge.EnvelopePermission:
+		// The card is resolved first, so the browser sees the decision in place, and
+		// the answer is handed to the agent second, which releases its wait.
+		session.State().ResolvePermission(command.RequestID, agentDecision(command.Allow))
+		s.agent.Permissions().Answer(command.RequestID, command.Allow)
+	default:
+		writeErr(w, http.StatusBadRequest, errAgentCommand)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// commandSession resolves the conversation a command belongs to: the one it names,
+// or the one the most recent stream opened. The second is the single-user default,
+// and the first is what makes two browser tabs tell each other apart.
+func (s *server) commandSession(named string) (*acpbridge.Session, bool) {
+	if named != "" {
+		return s.agent.Session(named)
+	}
+	s.agentMu.Lock()
+	current := s.agentCurrent
+	s.agentMu.Unlock()
+	if current == "" {
+		// No stream, no conversation a browser is reading: the session activation
+		// opened is where the handshake was proven, and commanding it would send the
+		// user's words to a thread nobody sees.
+		return nil, false
+	}
+	return s.agent.Session(current)
+}
+
+// startAgentStream records a stream as the current conversation, so a command that
+// names no session reaches the one this browser is reading.
+func (s *server) startAgentStream(stream *agentStream) {
+	s.agentMu.Lock()
+	defer s.agentMu.Unlock()
+	if s.agentStreams == nil {
+		s.agentStreams = map[*agentStream]struct{}{}
+	}
+	s.agentStreams[stream] = struct{}{}
+	s.agentCurrent = stream.sessionID
+}
+
+// endAgentStream forgets a stream that ended on its own, and stops calling its
+// conversation current when it was the one being commanded.
+func (s *server) endAgentStream(stream *agentStream) {
+	s.agentMu.Lock()
+	defer s.agentMu.Unlock()
+	delete(s.agentStreams, stream)
+	if s.agentCurrent == stream.sessionID {
+		s.agentCurrent = ""
+	}
+}
+
+// stopAgentStreams ends every open stream; each one closes its session on the way
+// out, which is what releases the agent's pending waits.
+func (s *server) stopAgentStreams() {
+	s.agentMu.Lock()
+	streams := make([]*agentStream, 0, len(s.agentStreams))
+	for stream := range s.agentStreams {
+		streams = append(streams, stream)
+	}
+	s.agentStreams = map[*agentStream]struct{}{}
+	s.agentCurrent = ""
+	s.agentMu.Unlock()
+	for _, stream := range streams {
+		stream.cancel()
+	}
 }
 
 // agentUnavailable applies the gates every command endpoint shares: a disabled
@@ -147,153 +350,21 @@ func activationMessage(err error) string {
 	}
 }
 
-// handleAgentWS upgrades one browser connection to the ACP session it will own.
-//
-// The upgrade is gated like the POST: same origin, and only after the user has
-// activated. From there the connection carries commands up and whole-thread state
-// down; the state is the whole thread every time, so a browser never reassembles
-// chunks and a slower writer loses nothing but intermediate pictures.
-func (s *server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
-	switch {
-	case s.agentReason != "":
-		writeErr(w, http.StatusForbidden, s.agentReason)
-		return
-	case !agentOrigin(r):
-		writeErr(w, http.StatusForbidden, errAgentOrigin)
-		return
-	case !s.agent.Activated():
-		writeErr(w, http.StatusForbidden, errAgentNotActive)
-		return
-	}
-
-	// The origin check is ours (above), so the library's own is left at its default.
-	conn, err := websocket.Accept(w, r, nil)
-	if err != nil {
-		slog.Warn("sdtviewer: agent upgrade refused", "err", err)
-		return
-	}
-	defer func() {
-		if err := conn.CloseNow(); err != nil {
-			slog.Debug("sdtviewer: agent connection close", "err", err)
-		}
-	}()
-	conn.SetReadLimit(agentReadLimit)
-
-	// The request's own context is not usable after a hijack, so the connection
-	// gets its own, cancelled when this handler returns.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	session, err := s.agent.NewSession(ctx)
-	if err != nil {
-		slog.Warn("sdtviewer: agent session", "err", err)
-		if err := conn.Close(websocket.StatusInternalError, "the agent did not open a session"); err != nil {
-			slog.Debug("sdtviewer: agent connection close", "err", err)
-		}
-		return
-	}
-	defer func() { session.Close() }()
-	s.trackAgentConnection(conn)
-
-	out := make(chan []byte, 1)
-	session.State().Listen(func(thread acpbridge.Thread) {
-		if payload, err := acpbridge.EncodeState(session.ID(), thread); err == nil {
-			pushLatest(out, payload)
-		}
-	})
-	// The state as it stands, so a browser joining a live session paints at once.
-	if payload, err := acpbridge.EncodeState(session.ID(), session.State().Snapshot()); err == nil {
-		pushLatest(out, payload)
-	}
-
-	// One writer: the updates arrive from the agent's own goroutines, and the
-	// WebSocket library is written for one writer at a time.
-	go s.writeAgentStates(ctx, conn, out)
-
-	for {
-		typ, data, err := conn.Read(ctx)
-		if err != nil {
-			return
-		}
-		if typ != websocket.MessageText {
-			continue
-		}
-		command, err := acpbridge.DecodeCommand(data)
-		if err != nil {
-			// A browser that sends something else is refused one message at a time:
-			// the socket carries a closed vocabulary, and a broken one is not fatal.
-			slog.Debug("sdtviewer: agent command refused", "err", err)
-			continue
-		}
-		if err := s.runAgentCommand(ctx, conn, session, command); err != nil {
-			slog.Warn("sdtviewer: agent command failed", "err", err)
-			if closeErr := conn.Close(websocket.StatusInternalError, "the agent failed the turn"); closeErr != nil {
-				slog.Debug("sdtviewer: agent connection close", "err", closeErr)
-			}
-			return
-		}
-	}
-}
-
-// writeAgentStates is the connection's single writer.
-func (s *server) writeAgentStates(ctx context.Context, conn *websocket.Conn, out <-chan []byte) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case payload := <-out:
-			writeCtx, cancel := context.WithTimeout(ctx, agentWriteWait)
-			err := conn.Write(writeCtx, websocket.MessageText, payload)
-			cancel()
-			if err != nil {
-				return
-			}
-		}
-	}
-}
-
-// runAgentCommand applies one browser message. A prompt runs in its own goroutine,
-// because Prompt blocks for the whole turn and the browser must still be able to
-// cancel it.
-func (s *server) runAgentCommand(ctx context.Context, conn *websocket.Conn, session *acpbridge.Session, command acpbridge.Command) error {
-	switch command.Kind {
-	case acpbridge.EnvelopePrompt:
-		go func() {
-			err := session.Prompt(ctx, command.Text)
-			switch {
-			case err == nil:
-				return
-			case errors.Is(err, acpbridge.ErrTurnRunning):
-				// A prompt arriving while a turn runs is a click too many, not a
-				// broken conversation: the thread already shows the turn in flight.
-				slog.Debug("sdtviewer: prompt refused, a turn is running")
-				return
-			default:
-				slog.Warn("sdtviewer: agent turn failed", "err", err)
-				if closeErr := conn.Close(websocket.StatusInternalError, "the agent failed the turn"); closeErr != nil {
-					slog.Debug("sdtviewer: agent connection close", "err", closeErr)
-				}
-			}
-		}()
-		return nil
-	case acpbridge.EnvelopeCancel:
-		return session.Cancel(ctx)
-	case acpbridge.EnvelopePermission:
-		// The card is resolved first, so the browser sees the decision in place, and
-		// the answer is handed to the agent second, which releases its wait.
-		session.State().ResolvePermission(command.RequestID, agentDecision(command.Allow))
-		s.agent.Permissions().Answer(command.RequestID, command.Allow)
-		return nil
-	default:
-		return acpbridge.ErrCommand
-	}
-}
-
 func agentDecision(allow bool) string {
 	if allow {
 		return acpbridge.DecisionAllowed
 	}
 	return acpbridge.DecisionDenied
+}
+
+// writeAgentFrame writes one SSE frame and reports whether the browser is still
+// there; a stream that has gone away ends the response rather than the process.
+func writeAgentFrame(w http.ResponseWriter, flusher http.Flusher, payload []byte) bool {
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", payload); err != nil {
+		return false
+	}
+	flusher.Flush()
+	return true
 }
 
 // pushLatest hands the newest state to the writer, replacing one it has not taken
@@ -313,6 +384,15 @@ func pushLatest(out chan []byte, payload []byte) {
 	case out <- payload:
 	default:
 	}
+}
+
+// limitedBody reads a bounded request body.
+func limitedBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	var envelope json.RawMessage
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, agentBodyLimit)).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	return envelope, nil
 }
 
 // agentOrigin is the agent endpoints' origin rule, and it is deliberately stricter
@@ -349,30 +429,4 @@ func (s *server) enableAgent(host string) {
 	}
 	s.agent = acpbridge.New(acpbridge.Options{Root: s.root, Version: version})
 	slog.Info("sdtviewer: agent bridge available", "root", s.root)
-}
-
-// trackAgentConnection records an open browser connection so deactivate can close
-// it, and closeAgentConnections does that.
-func (s *server) trackAgentConnection(conn *websocket.Conn) {
-	s.agentMu.Lock()
-	defer s.agentMu.Unlock()
-	if s.agentConns == nil {
-		s.agentConns = map[*websocket.Conn]struct{}{}
-	}
-	s.agentConns[conn] = struct{}{}
-}
-
-func (s *server) closeAgentConnections() {
-	s.agentMu.Lock()
-	conns := make([]*websocket.Conn, 0, len(s.agentConns))
-	for conn := range s.agentConns {
-		conns = append(conns, conn)
-	}
-	s.agentConns = map[*websocket.Conn]struct{}{}
-	s.agentMu.Unlock()
-	for _, conn := range conns {
-		if err := conn.CloseNow(); err != nil {
-			slog.Debug("sdtviewer: agent connection close", "err", err)
-		}
-	}
 }

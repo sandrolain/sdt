@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/coder/websocket"
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/sandrolain/sdt/internal/acpbridge"
@@ -84,11 +83,12 @@ type server struct {
 	writeReason string
 	// agent is the ACP bridge: created inert, usable only once the user activates
 	// it, and its own reason for being unavailable when the bind host is not
-	// loopback. agentMu guards the connections deactivate has to close.
-	agent       *acpbridge.Bridge
-	agentReason string
-	agentMu     sync.Mutex
-	agentConns  map[*websocket.Conn]struct{}
+	// loopback. agentMu guards the open streams and which conversation is current.
+	agent        *acpbridge.Bridge
+	agentReason  string
+	agentMu      sync.Mutex
+	agentStreams map[*agentStream]struct{}
+	agentCurrent string
 }
 
 // treeEntry is one corpus file in the /api/tree listing.
@@ -213,7 +213,8 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc(agentStatePath, s.handleAgentState)
 	mux.HandleFunc(agentActivatePath, s.handleAgentActivate)
 	mux.HandleFunc(agentDeactivatePath, s.handleAgentDeactivate)
-	mux.HandleFunc(agentWSPath, s.handleAgentWS)
+	mux.HandleFunc(agentCommandPath, s.handleAgentCommand)
+	mux.HandleFunc(agentStreamPath, s.handleAgentStream)
 	mux.HandleFunc(contextCommandPath, s.handleContextCommand)
 	mux.HandleFunc("/", s.handleIndex)
 	return mux

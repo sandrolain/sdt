@@ -17,6 +17,10 @@ type Session struct {
 	state  *ThreadState
 	perms  *PermissionQueue
 	detach func()
+	// ctx is the life of the conversation: it ends when the browser that opened it
+	// goes away, and every turn of this session runs under it, so an agent's work
+	// dies with the connection that asked for it.
+	ctx context.Context
 
 	turnsMu sync.Mutex
 	running bool
@@ -25,12 +29,17 @@ type Session struct {
 // ID is the ACP session id the agent assigned.
 func (s *Session) ID() string { return s.id }
 
+// Context is the life of this conversation. A caller that starts a turn without a
+// more specific context uses this one, so the turn ends with the browser rather than
+// with the request that asked for it.
+func (s *Session) Context() context.Context { return s.ctx }
+
 // State is the thread this session accumulates.
 func (s *Session) State() *ThreadState { return s.state }
 
 // Prompt sends the user's text and returns when the turn ends. It blocks for the
 // whole turn, so a caller that also serves the browser's cancel has to call it
-// from its own goroutine — which is what the WebSocket surface does.
+// from its own goroutine — which is what the viewer's command endpoint does.
 //
 // One turn at a time: a second prompt arrives as ErrTurnRunning rather than as two
 // interleaved streams of updates that the thread could not attribute to either.

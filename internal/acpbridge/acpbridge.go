@@ -143,9 +143,9 @@ func (b *Bridge) NewSession(ctx context.Context) (*Session, error) {
 	if conn == nil {
 		return nil, ErrNotActivated
 	}
-	ctx, cancel := context.WithTimeout(ctx, handshakeTimeout)
+	openCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
 	defer cancel()
-	id, err := openSession(ctx, conn, b.root)
+	id, err := openSession(openCtx, conn, b.root)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +154,7 @@ func (b *Bridge) NewSession(ctx context.Context) (*Session, error) {
 		conn:  conn,
 		state: NewThreadState(id),
 		perms: b.perms,
+		ctx:   ctx,
 		detach: func() {
 			b.mu.Lock()
 			defer b.mu.Unlock()

@@ -39,11 +39,16 @@ type StateEnvelope struct {
 type PromptEnvelope struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
+	// SessionID names the conversation, because a command travels as its own HTTP
+	// request while the stream is a different one. Empty means "the stream I am
+	// reading", which is the single-browser case.
+	SessionID string `json:"sessionId,omitempty"`
 }
 
 // CancelEnvelope asks the agent to stop the current turn.
 type CancelEnvelope struct {
-	Type string `json:"type"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId,omitempty"`
 }
 
 // PermissionEnvelope is the user's answer to a pending request.
@@ -51,6 +56,7 @@ type PermissionEnvelope struct {
 	Type      string `json:"type"`
 	RequestID string `json:"requestId"`
 	Allow     bool   `json:"allow"`
+	SessionID string `json:"sessionId,omitempty"`
 }
 
 // Command is one message from the browser, decoded from its envelope.
@@ -59,6 +65,7 @@ type Command struct {
 	Text      string
 	RequestID string
 	Allow     bool
+	SessionID string
 }
 
 // EncodeState marshals the state envelope for a thread.
@@ -85,9 +92,13 @@ func DecodeCommand(data []byte) (Command, error) {
 		if prompt.Text == "" {
 			return Command{}, fmt.Errorf("%w: a prompt carries no text", ErrCommand)
 		}
-		return Command{Kind: EnvelopePrompt, Text: prompt.Text}, nil
+		return Command{Kind: EnvelopePrompt, Text: prompt.Text, SessionID: prompt.SessionID}, nil
 	case EnvelopeCancel:
-		return Command{Kind: EnvelopeCancel}, nil
+		var cancel CancelEnvelope
+		if err := json.Unmarshal(data, &cancel); err != nil {
+			return Command{}, fmt.Errorf("%w: cancel: %v", ErrCommand, err)
+		}
+		return Command{Kind: EnvelopeCancel, SessionID: cancel.SessionID}, nil
 	case EnvelopePermission:
 		var permission PermissionEnvelope
 		if err := json.Unmarshal(data, &permission); err != nil {
@@ -96,7 +107,12 @@ func DecodeCommand(data []byte) (Command, error) {
 		if permission.RequestID == "" {
 			return Command{}, fmt.Errorf("%w: an answer names no request", ErrCommand)
 		}
-		return Command{Kind: EnvelopePermission, RequestID: permission.RequestID, Allow: permission.Allow}, nil
+		return Command{
+			Kind:      EnvelopePermission,
+			RequestID: permission.RequestID,
+			Allow:     permission.Allow,
+			SessionID: permission.SessionID,
+		}, nil
 	default:
 		return Command{}, fmt.Errorf("%w: %q", ErrCommand, envelope.Type)
 	}
