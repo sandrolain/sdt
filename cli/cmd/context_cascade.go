@@ -14,10 +14,19 @@ import (
 )
 
 // The cascade derives completion upward: a task file from its own checklist, a
-// plan from its sourcing task files (plus its own checklists), an analysis from
-// its sourcing plans. `completed` is the only terminal status that counts;
-// `archived` never feeds the cascade and a document with no children is never
-// auto-flipped. One reconciler backs both cascade-on-write and `context sync`.
+// plan from its sourcing task files, an analysis from its sourcing plans **and**
+// its own objectives checklist. `completed` is the only terminal status that
+// counts; `archived` never feeds the cascade and a document with no children is
+// never auto-flipped. One reconciler backs both cascade-on-write and
+// `context sync`.
+//
+// The objectives gate on the analysis derivation exists because the plan edge
+// alone is not an analysis' whole delivery criterion. A plan covering three of
+// six declared objectives, completed, used to derive `completed` for the
+// analysis — closing six objectives on the strength of three, which the
+// lifecycle check then reported as drift the cascade itself had created. The
+// derivation now refuses to assert a completion the document's own checklist
+// denies.
 
 // cascadeNode is one derived document (a task file, plan or analysis) with the
 // data the reconciler needs.
@@ -211,7 +220,20 @@ func (s *cascadeStore) derivePlanStatus(n *cascadeNode) string {
 }
 
 // deriveAnalysisStatus returns an analysis' derived status, or "" when it has
-// no child plan (never auto-flipped): completed when every child plan is done.
+// no child plan (never auto-flipped): completed when every child plan is done
+// **and** the analysis' own objectives checklist does not deny it.
+//
+// The two edges answer different questions. The plan edge says the work derived
+// from the analysis is finished; the `## Objectives` checklist says what the
+// analysis owed. Only when both agree may the analysis derive `completed`.
+//
+// The reverse case is deliberately not repaired here. An analysis whose plans
+// are all done but whose objectives were never ticked derives `active` and is
+// left exactly as declared, because the cascade cannot know whether those
+// objectives were delivered by a sibling wave or dropped. The cascade only ever
+// advances; `lintObjectiveLifecycle` names the disagreement, and
+// `lintObjectivePhaseCoverage` names an objective no plan phase claimed, so the
+// state is reported rather than silently resolved either way.
 func (s *cascadeStore) deriveAnalysisStatus(n *cascadeNode) string {
 	children := s.childPlans(n.ref)
 	if len(children) == 0 {
@@ -222,7 +244,27 @@ func (s *cascadeStore) deriveAnalysisStatus(n *cascadeNode) string {
 			return ctxWikiStatusActive
 		}
 	}
+	if analysisUnfinishedObjectives(n.content) > 0 {
+		return ctxWikiStatusActive
+	}
 	return taskFileStatusCompleted
+}
+
+// analysisUnfinishedObjectives counts the unticked items of an analysis'
+// `## Objectives` checklist, and reports 0 when the analysis declares none —
+// the section is optional, so its absence may never block a derivation.
+func analysisUnfinishedObjectives(content string) int {
+	objectives, ok := parseAnalysisObjectives(content)
+	if !ok {
+		return 0
+	}
+	unfinished := 0
+	for _, o := range objectives {
+		if !o.Done {
+			unfinished++
+		}
+	}
+	return unfinished
 }
 
 // statusFlappable reports whether the reconciler may rewrite a node from its
@@ -387,6 +429,14 @@ func lintCascadeDrift() []ctxLintIssue {
 		}
 		if n.status == taskFileStatusCompleted {
 			unfinished := analysisUnfinishedPlans(store, n)
+			if len(unfinished) == 0 {
+				// Every plan is done, so the disagreement is with the
+				// objectives checklist the derivation now gates on.
+				// `lintObjectiveLifecycle` owns that finding and words it
+				// once; reporting it here as well would put two messages on
+				// one file for one disagreement.
+				continue
+			}
 			issues = append(issues, ctxLintIssue{Path: n.path, Priority: ctxLintWarning, Message: fmt.Sprintf("analysis declares completed but %d plan(s) are not done: %s", len(unfinished), strings.Join(unfinished, ", "))})
 		} else {
 			issues = append(issues, ctxLintIssue{Path: n.path, Priority: ctxLintWarning, Message: "analysis is derivably completed (all plans done) — run `sdt context sync`"})

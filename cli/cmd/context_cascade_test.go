@@ -188,3 +188,108 @@ func TestCascadeOnePlanOfTwoBlocks(t *testing.T) {
 		t.Fatalf("analysis with one open plan must not flip, got %+v", changes)
 	}
 }
+
+// writeCascadeAnalysisObjectives writes an analysis that declares an
+// `## Objectives` checklist, the section the derivation gates on.
+func writeCascadeAnalysisObjectives(t *testing.T, dir, name, status, objectives string) string {
+	t.Helper()
+	rel := "context/analysis/" + name + ".md"
+	writeTestFile(t, filepath.Join(dir, rel), `---
+kind: analysis
+uid: `+cascadeUIDFor(rel)+`
+title: a
+status: `+status+`
+updated: `+cascadeFixedTime+`
+---
+
+## Objectives
+
+`+objectives)
+	return rel
+}
+
+// completedAnalysisTree builds the shape the defect appeared in: an analysis
+// declaring two objectives and one completed plan whose task file is done.
+func completedAnalysisTree(t *testing.T, objectives string) (string, string) {
+	t.Helper()
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	analysis := writeCascadeAnalysisObjectives(t, dir, "20260101-000000-a", ctxWikiStatusActive, objectives)
+	plan := writeCascadePlan(t, dir, "20260101-000000-a-plan", taskFileStatusCompleted, analysis, true)
+	writeCascadeTask(t, dir, "20260101-000000-a-plan-phase-1", taskFileStatusCompleted, plan, "x")
+	return dir, analysis
+}
+
+// TestCascadeAnalysisObjectivesBlockCompletion is the defect this gate exists
+// for. The plan edge said "the derived work is done" and the cascade closed the
+// whole analysis on it, so a plan covering one of two objectives completed an
+// analysis that still owed the other — and the lifecycle check then reported
+// the drift the cascade had created.
+func TestCascadeAnalysisObjectivesBlockCompletion(t *testing.T) {
+	dir, analysis := completedAnalysisTree(t, "- [x] O1 shipped by the plan\n- [ ] O2 still owed\n")
+
+	changes, err := cascadeUp(normalizeContextRef(analysis), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 0 {
+		t.Fatalf("an analysis whose checklist denies completion must not flip, got %+v", changes)
+	}
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, analysis)), ctxMapStatus); got != ctxWikiStatusActive {
+		t.Fatalf("analysis status = %q, want it left active", got)
+	}
+}
+
+// TestCascadeAnalysisObjectivesCompleteStillCloses pins the other direction: the
+// gate refuses a completion the checklist denies, it does not refuse every
+// completion. An analysis whose plans are done and whose objectives are all
+// ticked still closes.
+func TestCascadeAnalysisObjectivesCompleteStillCloses(t *testing.T) {
+	dir, analysis := completedAnalysisTree(t, "- [x] O1 shipped\n- [x] O2 shipped\n")
+
+	changes, err := cascadeUp(normalizeContextRef(analysis), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 1 || changes[0].To != taskFileStatusCompleted {
+		t.Fatalf("expected one analysis flip to completed, got %+v", changes)
+	}
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, analysis)), ctxMapStatus); got != taskFileStatusCompleted {
+		t.Fatalf("analysis status = %q", got)
+	}
+}
+
+// TestCascadeAnalysisObjectivesAbsentIsUnchanged guards backward compatibility
+// and the boundary of the gate: only the `## Objectives` checklist is read, so
+// an analysis without the section — and one carrying an unticked checklist
+// somewhere else — derives from its plans alone.
+func TestCascadeAnalysisObjectivesAbsentIsUnchanged(t *testing.T) {
+	dir, analysis := completedAnalysisTree(t, "- [ ] O1 declared but this is not the section\n")
+	// Move the checklist out of `## Objectives`: it is a note, not objectives.
+	path := filepath.Join(dir, analysis)
+	body := strings.Replace(mustReadFile(t, path), "## Objectives", "## Context", 1)
+	writeTestFile(t, path, body)
+
+	changes, err := cascadeUp(normalizeContextRef(analysis), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 1 || changes[0].To != taskFileStatusCompleted {
+		t.Fatalf("an analysis without `## Objectives` derives from its plans, got %+v", changes)
+	}
+}
+
+// TestCascadeAnalysisObjectivesMalformedIsIgnored keeps the gate from becoming a
+// new failure mode: a checklist line whose id is not leading declares no
+// objective, so it cannot block a derivation.
+func TestCascadeAnalysisObjectivesMalformedIsIgnored(t *testing.T) {
+	_, analysis := completedAnalysisTree(t, "- [ ] see O1 for details\n- [ ] no id at all\n")
+
+	changes, err := cascadeUp(normalizeContextRef(analysis), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 1 || changes[0].To != taskFileStatusCompleted {
+		t.Fatalf("a non-declaring checklist must not block, got %+v", changes)
+	}
+}

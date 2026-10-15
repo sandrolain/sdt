@@ -66,6 +66,39 @@ func TestLintCascadeDriftCleanTree(t *testing.T) {
 	}
 }
 
+// TestLintCascadeDriftLeavesTheObjectivesCaseToItsOwnCheck pins the boundary
+// between the two checks once the derivation gates on the objectives checklist:
+// an analysis whose plans are all done but whose objectives are unticked is
+// reported by lintObjectiveLifecycle, and the cascade lint stays quiet so one
+// disagreement does not become two messages on one file.
+func TestLintCascadeDriftLeavesTheObjectivesCaseToItsOwnCheck(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	analysis := writeCascadeAnalysisObjectives(t, dir, "20260101-000000-a", taskFileStatusCompleted, "- [x] O1 shipped\n- [ ] O2 owed\n")
+	plan := writeCascadePlan(t, dir, "20260101-000000-a-plan", taskFileStatusCompleted, analysis, true)
+	writeCascadeTask(t, dir, "20260101-000000-a-plan-phase-1", taskFileStatusCompleted, plan, "x")
+
+	for _, i := range lintCascadeDrift() {
+		t.Errorf("the cascade lint must not report this file once the objectives gate owns it: %s", i.Message)
+	}
+
+	ref := normalizeContextRef(analysis)
+	life := lintObjectiveLifecycle(ref, analysis, objectiveCoverage{
+		AnalysisRef:    ref,
+		AnalysisStatus: taskFileStatusCompleted,
+		objectives: []analysisObjective{
+			{ID: "O1", Done: true},
+			{ID: "O2", Done: false},
+		},
+	})
+	if len(life) != 1 {
+		t.Fatalf("the lifecycle check must own exactly one finding, got %#v", life)
+	}
+	if !strings.Contains(life[0].Message, "1 of 2 objectives unticked") {
+		t.Fatalf("unexpected lifecycle message: %s", life[0].Message)
+	}
+}
+
 func TestDerivedCompletionBlock(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
