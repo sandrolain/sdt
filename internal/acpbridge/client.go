@@ -38,12 +38,18 @@ type Permission struct {
 	ToolKind   string `json:"toolKind,omitempty"`
 	Title      string `json:"title,omitempty"`
 	Input      any    `json:"input,omitempty"`
+	// Decision is the user's answer, recorded on the card in place when it arrives
+	// (DecisionAllowed or DecisionDenied); empty while the request is waiting.
+	Decision string `json:"decision,omitempty"`
 }
 
-// permissionWait is one request waiting for its answer.
+// permissionWait is one request waiting for its answer. `dropped` is closed when
+// the wait is cancelled rather than answered, so the goroutine blocked on it is
+// released at once instead of waiting for a context it may not have.
 type permissionWait struct {
 	request Permission
 	answer  chan bool
+	dropped chan struct{}
 }
 
 // PermissionQueue brokers the permission requests of one connection. One request
@@ -69,7 +75,11 @@ func (q *PermissionQueue) Ask(ctx context.Context, request Permission) (bool, er
 	q.mu.Lock()
 	q.counter++
 	request.RequestID = fmt.Sprintf("perm-%d", q.counter)
-	wait := &permissionWait{request: request, answer: make(chan bool, 1)}
+	wait := &permissionWait{
+		request: request,
+		answer:  make(chan bool, 1),
+		dropped: make(chan struct{}),
+	}
 	q.queue = append(q.queue, wait)
 	current := len(q.queue) == 1
 	q.mu.Unlock()
@@ -80,6 +90,8 @@ func (q *PermissionQueue) Ask(ctx context.Context, request Permission) (bool, er
 	select {
 	case allow := <-wait.answer:
 		return allow, nil
+	case <-wait.dropped:
+		return false, ErrCancelled
 	case <-ctx.Done():
 		q.forget(wait)
 		return false, ctx.Err()
@@ -114,6 +126,38 @@ func (q *PermissionQueue) Answer(requestID string, allow bool) bool {
 		q.publish(context.Background(), next.request)
 	}
 	return true
+}
+
+// CancelSession drops every wait of one session and reports how many it dropped:
+// the browser that would have answered them is gone, and a card nobody can answer
+// must not leave the agent blocked. The agent receives the protocol's own
+// cancellation, because the request's context is the one that ended.
+func (q *PermissionQueue) CancelSession(sessionID string) int {
+	q.mu.Lock()
+	kept := make([]*permissionWait, 0, len(q.queue))
+	var dropped []*permissionWait
+	for _, wait := range q.queue {
+		if wait.request.SessionID == sessionID {
+			dropped = append(dropped, wait)
+			continue
+		}
+		kept = append(kept, wait)
+	}
+	wasCurrent := len(kept) > 0 && len(q.queue) > 0 && q.queue[0] != kept[0]
+	q.queue = kept
+	var next *permissionWait
+	if wasCurrent && len(kept) > 0 {
+		next = kept[0]
+	}
+	q.mu.Unlock()
+
+	for _, wait := range dropped {
+		close(wait.dropped)
+	}
+	if next != nil && q.publish != nil {
+		q.publish(context.Background(), next.request)
+	}
+	return len(dropped)
 }
 
 // forget drops a wait whose context ended, and promotes the next one.

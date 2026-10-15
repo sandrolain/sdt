@@ -112,21 +112,21 @@ func TestActivateRefusesAFutureProtocolVersion(t *testing.T) {
 func TestActivateHandshakeFailures(t *testing.T) {
 	cases := []struct {
 		name    string
-		handler func(string, json.RawMessage) any
+		handler handler
 	}{
-		{"initialize is refused by the agent", func(method string, _ json.RawMessage) any {
+		{"initialize is refused by the agent", func(_ *fakeAgent, method string, _ json.RawMessage) any {
 			if method == "initialize" {
 				return rpcError{Code: -32602, Message: "bad params"}
 			}
 			return map[string]any{"sessionId": "sess-1"}
 		}},
-		{"initialize answers with a malformed result", func(method string, _ json.RawMessage) any {
+		{"initialize answers with a malformed result", func(_ *fakeAgent, method string, _ json.RawMessage) any {
 			if method == "initialize" {
 				return rawReply(`{"jsonrpc":"2.0","id":%ID%,"result":{"protocolVersion":"one"}}`)
 			}
 			return map[string]any{"sessionId": "sess-1"}
 		}},
-		{"session/new is refused by the agent", func(method string, _ json.RawMessage) any {
+		{"session/new is refused by the agent", func(_ *fakeAgent, method string, _ json.RawMessage) any {
 			if method == "session/new" {
 				return rpcError{Code: -32000, Message: "no session for you"}
 			}
@@ -153,7 +153,7 @@ func TestActivateHandshakeFailures(t *testing.T) {
 // request it belonged to would wait forever, so the bridge's own deadline is what
 // turns it into a named failure.
 func TestActivateBoundsTheHandshake(t *testing.T) {
-	agent := newFakeAgent(t, func(string, json.RawMessage) any {
+	agent := newFakeAgent(t, func(_ *fakeAgent, _ string, _ json.RawMessage) any {
 		return rawReply("this is not json")
 	})
 	bridge := testBridge(t)

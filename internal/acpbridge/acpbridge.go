@@ -47,6 +47,11 @@ var (
 	// ErrRefused is the callback policy's refusal, used by a callback this wave
 	// does not serve.
 	ErrRefused = errors.New("acpbridge: refused")
+	// ErrPrompt is returned when the agent fails a turn it was asked to run.
+	ErrPrompt = errors.New("acpbridge: the agent failed the turn")
+	// ErrCancelled is returned when a pending request was cancelled rather than
+	// answered — the browser that would have answered it went away.
+	ErrCancelled = errors.New("acpbridge: the request was cancelled")
 )
 
 // ClientName is the implementation name the bridge announces in initialize.
@@ -61,8 +66,6 @@ type Options struct {
 	// Version names the viewer build in the handshake, so the agent and its user
 	// can tell which client is talking.
 	Version string
-	// Sink receives what the browser must see. Nil discards it.
-	Sink Sink
 	// Log may be nil.
 	Log *slog.Logger
 }
@@ -72,31 +75,110 @@ type Options struct {
 type Bridge struct {
 	root    string
 	version string
-	sink    Sink
 	perms   *PermissionQueue
 	log     *slog.Logger
 
-	mu        sync.Mutex
-	socket    net.Conn
-	conn      *acp.ClientSideConnection
-	sessionID string
+	mu       sync.Mutex
+	socket   net.Conn
+	conn     *acp.ClientSideConnection
+	sessions map[string]*Session
+	initial  string
 }
 
-// New returns an inert bridge. A caller that takes no session updates may leave
-// Sink nil; the permission queue is always live, because a permission request
-// arrives whether or not the surface is ready to show it.
+// New returns an inert bridge with an empty session registry. It is its own sink:
+// one connection can carry several browser sessions, so what the callbacks publish
+// is routed by the session the update names.
 func New(opts Options) *Bridge {
 	log := opts.Log
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	bridge := &Bridge{root: opts.Root, version: opts.Version, sink: opts.Sink, log: log}
-	bridge.perms = NewPermissionQueue(func(ctx context.Context, request Permission) {
-		if opts.Sink != nil {
-			opts.Sink.Permission(ctx, request)
-		}
-	})
+	bridge := &Bridge{
+		root:     opts.Root,
+		version:  opts.Version,
+		log:      log,
+		sessions: map[string]*Session{},
+	}
+	bridge.perms = NewPermissionQueue(bridge.Permission)
 	return bridge
+}
+
+var _ Sink = (*Bridge)(nil)
+
+// SessionUpdate routes one update to the thread of the session it names. An update
+// for a session that closed is dropped: a browser that went away must not leave
+// the connection dead behind it.
+func (b *Bridge) SessionUpdate(ctx context.Context, notification acp.SessionNotification) error {
+	session, ok := b.Session(string(notification.SessionId))
+	if !ok {
+		return nil
+	}
+	return session.state.SessionUpdate(ctx, notification)
+}
+
+// Permission shows the card on the session that asked for it.
+func (b *Bridge) Permission(ctx context.Context, request Permission) {
+	if session, ok := b.Session(request.SessionID); ok {
+		session.state.Permission(ctx, request)
+	}
+}
+
+// Session returns the live session with this ACP id.
+func (b *Bridge) Session(id string) (*Session, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	session, ok := b.sessions[id]
+	return session, ok
+}
+
+// NewSession opens an ACP session on the live connection, with its own thread.
+func (b *Bridge) NewSession(ctx context.Context) (*Session, error) {
+	b.mu.Lock()
+	conn := b.conn
+	b.mu.Unlock()
+	if conn == nil {
+		return nil, ErrNotActivated
+	}
+	ctx, cancel := context.WithTimeout(ctx, handshakeTimeout)
+	defer cancel()
+	id, err := openSession(ctx, conn, b.root)
+	if err != nil {
+		return nil, err
+	}
+	session := &Session{
+		id:    id,
+		conn:  conn,
+		state: NewThreadState(id),
+		perms: b.perms,
+		detach: func() {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			delete(b.sessions, id)
+			if b.initial == id {
+				b.initial = ""
+			}
+		},
+	}
+	b.mu.Lock()
+	b.sessions[id] = session
+	b.mu.Unlock()
+	return session, nil
+}
+
+// CloseSessions closes every session of this connection and reports how many.
+func (b *Bridge) CloseSessions() int {
+	b.mu.Lock()
+	sessions := make([]*Session, 0, len(b.sessions))
+	for _, session := range b.sessions {
+		sessions = append(sessions, session)
+	}
+	b.sessions = map[string]*Session{}
+	b.initial = ""
+	b.mu.Unlock()
+	for _, session := range sessions {
+		session.Close()
+	}
+	return len(sessions)
 }
 
 // Permissions is the queue a browser answers through, in the order the agent
@@ -110,12 +192,13 @@ func (b *Bridge) Activated() bool {
 	return b.conn != nil
 }
 
-// SessionID is the ACP session the handshake opened, and empty while the bridge
-// is inert.
+// SessionID is the session the handshake opened, and empty while the bridge is
+// inert. It is the session a browser is handed when it arrives; a second browser
+// opens its own with NewSession.
 func (b *Bridge) SessionID() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.sessionID
+	return b.initial
 }
 
 // Activate dials the socket at socketPath and completes the handshake: it refuses
@@ -134,9 +217,9 @@ func (b *Bridge) Activate(ctx context.Context, socketPath string) (string, error
 	if err != nil {
 		return "", err
 	}
-	// The connection's callbacks are the policy, not a pass-through: this is the
-	// one place the two are joined.
-	callbacks := &client{root: b.root, sink: b.sink, perms: b.perms}
+	// The connection's callbacks are the policy, not a pass-through, and the bridge
+	// is their sink: this is the one place the two are joined.
+	callbacks := &client{root: b.root, sink: b, perms: b.perms}
 	conn := acp.NewClientSideConnection(callbacks, sock, sock)
 	conn.SetLogger(b.log)
 
@@ -146,7 +229,7 @@ func (b *Bridge) Activate(ctx context.Context, socketPath string) (string, error
 	ctx, cancel := context.WithTimeout(ctx, handshakeTimeout)
 	defer cancel()
 
-	sessionID, err := handshake(ctx, conn, b.root, b.version)
+	err = handshake(ctx, conn, b.version)
 	if err != nil {
 		// A handshake that did not complete leaves no connection behind, so the
 		// bridge stays inert and the next Activate starts clean.
@@ -155,20 +238,37 @@ func (b *Bridge) Activate(ctx context.Context, socketPath string) (string, error
 		}
 		return "", err
 	}
-
 	b.mu.Lock()
-	b.socket, b.conn, b.sessionID = sock, conn, sessionID
+	b.socket, b.conn = sock, conn
 	b.mu.Unlock()
-	b.log.Info("agent bridge activated", "session", sessionID, "socket", socketPath)
-	return sessionID, nil
+
+	// The session the browser is handed when it arrives. A second browser opens its
+	// own; the first is opened here so activation leaves a usable conversation.
+	session, err := b.NewSession(ctx)
+	if err != nil {
+		if closeErr := sock.Close(); closeErr != nil {
+			b.log.Debug("closing the socket after a failed session", "error", closeErr)
+		}
+		b.mu.Lock()
+		b.socket, b.conn = nil, nil
+		b.mu.Unlock()
+		return "", err
+	}
+	b.mu.Lock()
+	b.initial = session.ID()
+	b.mu.Unlock()
+	b.log.Info("agent bridge activated", "session", session.ID(), "socket", socketPath)
+	return session.ID(), nil
 }
 
-// Close ends the connection and returns the bridge to inert. It is safe to call
-// on an inert bridge.
+// Close ends the connection and returns the bridge to inert: every session's
+// pending waits are cancelled, then the socket goes. It is safe to call on an
+// inert bridge.
 func (b *Bridge) Close() error {
+	b.CloseSessions()
 	b.mu.Lock()
 	sock, conn := b.socket, b.conn
-	b.socket, b.conn, b.sessionID = nil, nil, ""
+	b.socket, b.conn = nil, nil
 	b.mu.Unlock()
 
 	if conn == nil {

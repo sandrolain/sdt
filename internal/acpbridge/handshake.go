@@ -12,14 +12,15 @@ import (
 // becomes a named failure instead of a spinner.
 const handshakeTimeout = 20 * time.Second
 
-// handshake initializes the connection, gates on the protocol version and opens
-// one session on the project root.
+// handshake initializes the connection and gates on the protocol version. Opening
+// a session is NewSession's job, so the handshake stays the negotiation and
+// nothing else.
 //
 // The version gate is the one place a future protocol cannot pass: ACP v2 is
 // already drafted upstream, and a bridge that accepted a version it does not
 // speak would mis-render a session instead of refusing it — so a mismatch is
 // ErrProtocolVersion and no session is opened.
-func handshake(ctx context.Context, conn *acp.ClientSideConnection, root, version string) (string, error) {
+func handshake(ctx context.Context, conn *acp.ClientSideConnection, version string) error {
 	res, err := conn.Initialize(ctx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientInfo: &acp.Implementation{
@@ -37,16 +38,19 @@ func handshake(ctx context.Context, conn *acp.ClientSideConnection, root, versio
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("%w: initialize: %v", ErrHandshake, err)
+		return fmt.Errorf("%w: initialize: %v", ErrHandshake, err)
 	}
 	if res.ProtocolVersion != acp.ProtocolVersionNumber {
-		return "", fmt.Errorf("%w: the agent speaks %d, this bridge speaks %d",
+		return fmt.Errorf("%w: the agent speaks %d, this bridge speaks %d",
 			ErrProtocolVersion, res.ProtocolVersion, acp.ProtocolVersionNumber)
 	}
+	return nil
+}
 
-	// The session's workspace is the project root: the same directory the file
-	// callbacks are confined to, so the agent's own relative paths and the
-	// confinement agree about where "here" is.
+// openSession opens one ACP session. Its workspace is the project root — the same
+// directory the file callbacks are confined to, so the agent's own relative paths
+// and the confinement agree about where "here" is.
+func openSession(ctx context.Context, conn *acp.ClientSideConnection, root string) (string, error) {
 	session, err := conn.NewSession(ctx, acp.NewSessionRequest{
 		Cwd:        root,
 		McpServers: []acp.McpServer{},
