@@ -62,6 +62,23 @@ Project: p · Group: g
     uncaptured page is not *verified*. Boundary: git clones, package managers,
     JSON/API endpoints, authenticated pages and local files are not web pages.
     *Don't:* fetch a web page with a host tool, or cite an uncaptured page as fact.
+11. **Local reads via the shipped verbs** — read, search and list through `sdt`
+    before reaching for a host tool: `sdt read` for a file or a line range
+    (`--lines <from>:to`, and `--count` for its length), `sdt grep` for the lines
+    that match — `-A`/`-B`/`-C` for their surroundings, `-l` for the paths carrying
+    one, `-c` for how many — and `sdt find` for paths. A JSON or API endpoint is
+    `sdt http` into `sdt q`; rule 10 leaves those to this rule rather than treating
+    them as web pages. Learn a verb's options from `sdt schema` or its generated
+    docs instead of scraping `--help`: a flag an agent cannot discover is a flag
+    that does not exist to it.
+    Boundary: a running process, a shell pipeline, a binary file or a path
+    outside the working tree stays a host tool's job — and so does anything the
+    project has a *purpose-built* verb for, since `sed`/`cat`/`grep`/`find`/`curl`
+    are the fallback, never the default. `context/` is read with
+    `sdt context show`/`search`, not with `sdt grep` guesses.
+    *Don't:* reach for `sed`/`cat`/`head`/`wc`/`grep`/`find`/`curl` because the
+    reflex is quicker, or re-read a scrolled `--help` for a flag `sdt schema`
+    already reports.
 
 ### Document ownership (who owns which text)
 
