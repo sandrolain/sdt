@@ -166,6 +166,10 @@ every turn.
   what the package already uses.
 - Keep the check robust to formatting: assert a short stable token or a
   whitespace-normalised form, never re-wrapped prose.
+- **Name the finding's bracket form, not its priority word.** Every lint's summary
+  line contains the priority names (`0 CRITICAL, 244 WARNING, …`), so a
+  `Contains(out, "CRITICAL")` assertion passes on a clean run: assert
+  `[CRITICAL]`, or the `0 CRITICAL` prefix, and say which one.
 - **Assert the property, not its rendering.** A check that reads a help text, a
   usage line or an exported shape can hold for cases the property excludes — a
   group with flags prints a runnable usage line whether or not it is runnable.

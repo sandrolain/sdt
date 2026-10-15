@@ -24,7 +24,11 @@ typo, a one-line mistake), fix it and move on.
    theorizing. If you cannot, record the conditions and stop — a bounded "not
    reproduced" is the honest result.
 3. **Minimize.** Reduce the reproduction to the smallest failing case and name
-   the layer or seam that owns the behavior.
+   the layer or seam that owns the behavior. **Reproduce from the artefact, not
+   from the report's description of it**: a report summarises, and the shape it
+   leaves out is often the one that matters — a value the CLI writes in the form
+   the bug needs is a different bug from the same value in another form. Read the
+   failing artefact's own bytes before trusting a summary of them.
 4. **Rank hypotheses.** Rank the plausible causes as falsifiable claims; test
    one variable at a time with a targeted probe, letting each result eliminate
    hypotheses.
