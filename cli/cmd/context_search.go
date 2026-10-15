@@ -235,17 +235,18 @@ func parseLineRange(spec string) (int, int, error) {
 // empty read and a miscounted one are indistinguishable to the caller, and the
 // silent one is always the wrong one. An upper bound past the last line clamps
 // to the end, which is what a reader asking for "through line 999" means.
-func sliceLines(content, spec string) ([]byte, error) {
+// selectLines returns the lines a `--lines <from>:<to>` spec selects, or every
+// line when the spec is empty. It is the one owner of the range rule: `sdt read`
+// slices and counts through it and `sdt context show --lines` slices through it,
+// so a count and a slice cannot disagree about what the range contains.
+func selectLines(content, spec string) ([]string, error) {
+	lines := search.SplitLines(content)
+	if spec == "" {
+		return lines, nil
+	}
 	from, to, err := parseLineRange(spec)
 	if err != nil {
 		return nil, err
-	}
-	lines := strings.Split(content, "\n")
-	if n := len(lines); n > 1 && lines[n-1] == "" {
-		// A trailing newline opens an empty last segment. Counting it would make
-		// a range clamped to the end print one blank line more than the whole
-		// file does, so what follows the final newline is not a line.
-		lines = lines[:n-1]
 	}
 	if from > len(lines) {
 		return nil, fmt.Errorf("--lines range %q starts past the last line (%d)", spec, len(lines))
@@ -253,7 +254,36 @@ func sliceLines(content, spec string) ([]byte, error) {
 	if to > len(lines) {
 		to = len(lines)
 	}
-	return []byte(strings.Join(lines[from-1:to], "\n") + "\n"), nil
+	return lines[from-1 : to], nil
+}
+
+func sliceLines(content, spec string) ([]byte, error) {
+	lines, err := selectLines(content, spec)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(strings.Join(lines, "\n") + "\n"), nil
+}
+
+// outputLineCount reports a line count in the caller's format, so `sdt read
+// --count` and `sdt grep --count` answer alike whichever format is asked for.
+func outputLineCount(cmd *cobra.Command, n int) {
+	type lineCount struct {
+		Count int `json:"count" yaml:"count"`
+	}
+	payload := lineCount{Count: n}
+	switch getFormat(cmd) {
+	case fmtJSON:
+		out, err := json.MarshalIndent(payload, "", "  ")
+		exitWithError(cmd, err)
+		outputBytes(cmd, out)
+	case fmtYAML:
+		out, err := yaml.Marshal(payload)
+		exitWithError(cmd, err)
+		outputBytes(cmd, out)
+	default:
+		outputString(cmd, fmt.Sprintf("%d\n", n))
+	}
 }
 
 // sliceLinesOrExit prints the requested range, or reports why it cannot. It is

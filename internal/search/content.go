@@ -325,11 +325,37 @@ type GrepOptions struct {
 	Max int
 	// CaseInsensitive lowercases the pattern before compiling it.
 	CaseInsensitive bool
+	// Before and After carry that many non-matching lines adjacent to each
+	// reported match. They are context, not matches: they never satisfy the
+	// pattern and never count toward either cap.
+	Before int
+	After  int
+	// FilesWithMatches answers "which files carry a match" instead of "where".
+	// One entry per file is written to GrepResults.Paths and the file is not
+	// read past its first match; MaxCountPerFile is meaningless in this mode
+	// and the caller refuses it rather than letting it be ignored.
+	FilesWithMatches bool
+	// CountOnly reports how many lines match instead of returning them. The
+	// count is a fact rather than a rendering, so no total cap may bound it —
+	// the caller refuses one — while MaxCountPerFile still applies, because it
+	// stops the scan of a file and `grep -m N -c` counts the same way.
+	CountOnly bool
 }
 
-// GrepMatch is one matching line.
+// GrepMatch is one matching line, with the adjacent lines the caller asked to
+// see it in. The context is a field of the match rather than a sibling row, so a
+// caller parses one shape per match and cannot pair a block with the wrong one.
 type GrepMatch struct {
-	Path string `json:"path"`
+	Path   string        `json:"path"`
+	Line   int           `json:"line"`
+	Text   string        `json:"text"`
+	Before []GrepContext `json:"before,omitempty"`
+	After  []GrepContext `json:"after,omitempty"`
+}
+
+// GrepContext is one non-matching line adjacent to a match. It carries its own
+// line number so a reader can address it with `sdt read --lines`.
+type GrepContext struct {
 	Line int    `json:"line"`
 	Text string `json:"text"`
 }
@@ -338,6 +364,15 @@ type GrepMatch struct {
 // answer was bounded rather than complete.
 type GrepResults struct {
 	Matches []GrepMatch `json:"matches"`
+	// Paths is the answer of the FilesWithMatches mode: the distinct files
+	// carrying at least one match, sorted, with Matches left empty. It is a
+	// field of its own rather than rows with empty line and text, so a caller
+	// never has to read around placeholders to find the answer.
+	Paths []string `json:"paths,omitempty"`
+	// Count is the number of matching lines when CountOnly asked for a count,
+	// and absent otherwise. It is a pointer because a count of zero is a real
+	// answer that must not be confusable with "no count was requested".
+	Count *int `json:"count,omitempty"`
 	// FilesMatched counts the files carrying at least one match.
 	FilesMatched int `json:"filesMatched"`
 	// FilesSearched counts the text files actually read.
@@ -373,6 +408,14 @@ func Grep(opts GrepOptions) (GrepResults, error) {
 		return GrepResults{}, walkErr
 	}
 	sortMatches(s.res.Matches)
+	// The walk is lexical, so Paths comes out ordered already; the sort is the
+	// same guarantee sortMatches gives, and keeps the two modes' output
+	// contracts independent of the walk's order.
+	sort.Strings(s.res.Paths)
+	if opts.CountOnly && s.res.Count == nil {
+		// A count of zero is an answer, not an absent field.
+		s.res.Count = new(int)
+	}
 	return s.res, nil
 }
 
@@ -482,6 +525,12 @@ func (s *grepScanner) scannable(path string, d fs.DirEntry) (string, bool) {
 // and the total cap. It returns the number of matches appended, and errStopScan
 // once the total cap is reached.
 func (s *grepScanner) scanLines(rel string, lines []string) (int, error) {
+	if s.opts.FilesWithMatches {
+		return s.scanFilePresence(rel, lines)
+	}
+	if s.opts.CountOnly {
+		return s.countLines(lines)
+	}
 	perFile := 0
 	for i, line := range lines {
 		if s.opts.MaxCountPerFile > 0 && perFile >= s.opts.MaxCountPerFile {
@@ -495,10 +544,90 @@ func (s *grepScanner) scanLines(rel string, lines []string) (int, error) {
 			s.res.Truncated = true
 			return perFile, errStopScan
 		}
-		s.res.Matches = append(s.res.Matches, GrepMatch{Path: rel, Line: i + 1, Text: line})
+		s.res.Matches = append(s.res.Matches, GrepMatch{
+			Path:   rel,
+			Line:   i + 1,
+			Text:   line,
+			Before: contextBefore(lines, i, s.opts.Before),
+			After:  contextAfter(lines, i, s.opts.After),
+		})
 		perFile++
 	}
 	return perFile, nil
+}
+
+// scanFilePresence records the file and stops at its first match: the question
+// is which files carry one, not where or how many. It returns 1 when the file
+// was recorded, so the caller's FilesMatched counter keeps its meaning.
+func (s *grepScanner) scanFilePresence(rel string, lines []string) (int, error) {
+	for _, line := range lines {
+		if !s.re.MatchString(line) {
+			continue
+		}
+		if len(s.res.Paths) >= s.total {
+			s.res.Truncated = true
+			return 0, errStopScan
+		}
+		s.res.Paths = append(s.res.Paths, rel)
+		return 1, nil
+	}
+	return 0, nil
+}
+
+// countLines counts the matching lines of one file without keeping them. A
+// per-file cap stops that file's count, which is what `grep -m N -c` reports,
+// and marks the answer truncated so a clipped count is never read as a total.
+// No total cap applies: a bounded count is a lie rather than a display choice.
+func (s *grepScanner) countLines(lines []string) (int, error) {
+	n := 0
+	for _, line := range lines {
+		if s.opts.MaxCountPerFile > 0 && n >= s.opts.MaxCountPerFile {
+			s.res.Truncated = true
+			break
+		}
+		if s.re.MatchString(line) {
+			n++
+		}
+	}
+	if s.res.Count == nil {
+		s.res.Count = new(int)
+	}
+	*s.res.Count += n
+	return n, nil
+}
+
+// contextBefore collects the up to n lines preceding index i, in file order, so
+// the block reads downward like the file it came from. It returns nil when there
+// is nothing to collect, which keeps the field out of the JSON entirely.
+func contextBefore(lines []string, i, n int) []GrepContext {
+	if n <= 0 {
+		return nil
+	}
+	from := max(0, i-n)
+	if from == i {
+		return nil
+	}
+	out := make([]GrepContext, 0, i-from)
+	for j := from; j < i; j++ {
+		out = append(out, GrepContext{Line: j + 1, Text: lines[j]})
+	}
+	return out
+}
+
+// contextAfter collects the up to n lines following index i, in file order.
+func contextAfter(lines []string, i, n int) []GrepContext {
+	if n <= 0 {
+		return nil
+	}
+	to := min(len(lines), i+1+n)
+	if to <= i+1 {
+		return nil
+	}
+	out := make([]GrepContext, 0, to-i-1)
+	for j := i + 1; j < to; j++ {
+		out = append(out, GrepContext{Line: j + 1, Text: lines[j]})
+	}
+	return out
 }
 
 // errStopScan ends a Grep walk once the total cap is reached; it never escapes
@@ -543,6 +672,21 @@ func walkAll(root string, names, prune map[string]struct{}, declared *pruneMatch
 	})
 }
 
+// SplitLines splits text into its lines. A trailing newline terminates the last
+// line rather than beginning an empty one, so the count does not depend on
+// whether the file ends with a newline and an empty file has no lines at all.
+//
+// This is the one owner of that rule: the search scanner, `sdt read --lines` and
+// `sdt read --count` all reach it, so a slice and a count cannot disagree about
+// what the range contains.
+func SplitLines(text string) []string {
+	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+	if last := len(lines) - 1; last >= 0 && lines[last] == "" {
+		lines = lines[:last]
+	}
+	return lines
+}
+
 // readTextLines reads a file's lines and reports whether it looks binary.
 func readTextLines(path string) ([]string, bool, error) {
 	data, err := os.ReadFile(path) //#nosec G304 -- the path comes from a directory walk of the requested root
@@ -552,7 +696,7 @@ func readTextLines(path string) ([]string, bool, error) {
 	if bytes.IndexByte(data[:min(len(data), binarySniffBytes)], 0) >= 0 {
 		return nil, true, nil
 	}
-	return strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n"), false, nil
+	return SplitLines(string(data)), false, nil
 }
 
 // isDir reports whether path is a directory, false on any error.

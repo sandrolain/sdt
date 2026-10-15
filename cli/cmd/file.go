@@ -44,10 +44,15 @@ RETURNS — the file content, or lines ` + "`--lines <from>:<to>`" + ` of it, 1-
 range that starts past the last line, or that is inverted, is an error rather
 than an empty answer; an upper bound past the last line clamps to the end.
 
+` + "`--count`" + ` reports the number of lines instead of them — the ` + "`wc -l`" + ` fallback. It
+composes with ` + "`--lines`" + `, counting the selection rather than contradicting it, and a
+file with no lines has a count of 0.
+
 EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 `,
 	Example: `  sdt read -p go.mod
-  sdt read -p cli/cmd/context_search.go --lines 168:214`,
+  sdt read -p cli/cmd/context_search.go --lines 168:214
+  sdt read -p go.mod --count`,
 	Run: func(cmd *cobra.Command, args []string) {
 		file := getStringFlag(cmd, "file", true)
 
@@ -60,7 +65,14 @@ EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 		// #nosec G304 -- implementation of generic utility to read file from CLI flag
 		content, err := os.ReadFile(file)
 		exitWithError(cmd, err)
-		if lines := getStringFlag(cmd, "lines", false); lines != "" {
+		lines := getStringFlag(cmd, "lines", false)
+		if getBoolFlag(cmd, "count", false) {
+			selected, err := selectLines(string(content), lines)
+			exitWithError(cmd, err)
+			outputLineCount(cmd, len(selected))
+			return
+		}
+		if lines != "" {
 			outputBytes(cmd, sliceLinesOrExit(cmd, string(content), lines))
 			return
 		}
@@ -133,6 +145,7 @@ func init() {
 	pf := fileReadCmd.PersistentFlags()
 	pf.StringP("file", "p", "", "File path")
 	pf.String("lines", "", "Print only this line range (from:to, 1-based)")
+	pf.Bool("count", false, "Print the number of lines instead of them (with --lines: of the range)")
 
 	pf = fileWriteCmd.PersistentFlags()
 	pf.StringP("file", "p", "", "File path")
