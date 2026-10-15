@@ -402,12 +402,17 @@ func limitedBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 // page. So a missing Origin is refused here as firmly as a foreign one, and a
 // cross-site fetch marker is refused even when the header agrees.
 func agentOrigin(r *http.Request) bool {
-	if site := r.Header.Get("Sec-Fetch-Site"); site == "cross-site" || site == "same-site" {
+	site := r.Header.Get("Sec-Fetch-Site")
+	if site == "cross-site" || site == "same-site" {
 		return false
 	}
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		return false
+		// A browser may omit Origin on a same-origin request, and `Sec-Fetch-Site` is
+		// the one header a page cannot set from script: `same-origin` is proof the
+		// request came from this viewer's own page, and any other site would have sent
+		// `cross-site` or a foreign Origin.
+		return site == "same-origin"
 	}
 	parsed, err := url.Parse(origin)
 	if err != nil || parsed.Host == "" {

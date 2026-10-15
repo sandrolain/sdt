@@ -16,14 +16,15 @@ import { Dialog, DialogTrigger, Modal } from "react-aria-components";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   activateAgent,
-  connectAgent,
+  cancelCommand,
   fetchAgentState,
   permissionCommand,
   promptCommand,
-  cancelCommand,
-  type AgentConnection,
+  sendAgentCommand,
+  streamAgent,
   type AgentState,
   type AgentStateEnvelope,
+  type AgentStream,
 } from "../lib/agent";
 
 /** The proxy the user runs in front of their agent. `opencode acp` is the one
@@ -44,7 +45,8 @@ export function AgentPanel({
   const [socket, setSocket] = useState("");
   const [message, setMessage] = useState("");
   const [envelope, setEnvelope] = useState<AgentStateEnvelope | null>(null);
-  const connection = useRef<AgentConnection | null>(null);
+  const [session, setSession] = useState("");
+  const stream = useRef<AgentStream | null>(null);
 
   // Opening is a change of props, not an event of ours, so the reset happens during
   // render — React's documented pattern — rather than in an effect that would only
@@ -101,22 +103,25 @@ export function AgentPanel({
     };
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- applyState/fail only set state
 
-  // One socket for the page, opened when the bridge is active and closed when it is
+  // One stream for the page, opened when the bridge is active and closed when it is
   // not: a conversation lives as long as the viewer does, not as long as the panel is
   // on screen, so reopening the panel shows the thread as it stands.
   useEffect(() => {
     if (phase !== "active") return;
-    const opened = connectAgent({
-      onState: setEnvelope,
+    const opened = streamAgent({
+      onState: (next) => {
+        setEnvelope(next);
+        setSession(next.sessionId);
+      },
       onClose: (reason) => {
         setMessage(reason);
         setPhase("error");
       },
     });
-    connection.current = opened;
+    stream.current = opened;
     return () => {
       opened.close();
-      connection.current = null;
+      stream.current = null;
     };
   }, [phase]);
 
@@ -130,12 +135,17 @@ export function AgentPanel({
     }
   };
 
+  /** tell posts one command and reports a refusal without ending the conversation. */
+  const tell = (command: Parameters<typeof sendAgentCommand>[0]) => {
+    sendAgentCommand(command).catch((error: Error) => setMessage(error.message));
+  };
+
   const onPrompt = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const text = new FormData(form).get("prompt");
     if (typeof text !== "string" || text.trim() === "") return;
-    connection.current?.send(promptCommand(text));
+    tell(promptCommand(text, session));
     form.reset();
   };
 
@@ -209,7 +219,7 @@ export function AgentPanel({
                   <AgentThreadView
                     envelope={envelope}
                     onAnswer={(requestId, allow) =>
-                      connection.current?.send(permissionCommand(requestId, allow))
+                      tell(permissionCommand(requestId, allow, session))
                     }
                   />
                 )}
@@ -217,6 +227,9 @@ export function AgentPanel({
                   <p className="agent-panel__note">Connected. Waiting for the agent…</p>
                 )}
               </div>
+              {phase === "active" && message !== "" && (
+                <p className="agent-panel__note agent-panel__note--error">{message}</p>
+              )}
               {phase === "active" && (
                 <form className="agent-panel__composer" onSubmit={onPrompt}>
                   <input
@@ -232,7 +245,7 @@ export function AgentPanel({
                   <button
                     type="button"
                     className="agent-panel__action"
-                    onClick={() => connection.current?.send(cancelCommand())}
+                    onClick={() => tell(cancelCommand(session))}
                   >
                     Stop
                   </button>

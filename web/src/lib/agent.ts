@@ -9,8 +9,7 @@
  *
  * The bridge is inert until the user activates it: this module never dials by itself,
  * `fetchAgentState` is the only call a panel may make before activation, and the
- * connection is created only by `connectAgent`, which the panel calls when it is
- * opened.
+ * stream is opened only by `streamAgent`, which the panel calls when it is opened.
  */
 
 /** Envelope kinds, mirrored from the Go constants. */
@@ -37,7 +36,8 @@ export const DECISION_DENIED = "denied";
 export const AGENT_STATE_PATH = "/api/agent/state";
 export const AGENT_ACTIVATE_PATH = "/api/agent/activate";
 export const AGENT_DEACTIVATE_PATH = "/api/agent/deactivate";
-export const AGENT_WS_PATH = "/api/agent/ws";
+export const AGENT_COMMAND_PATH = "/api/agent/command";
+export const AGENT_STREAM_PATH = "/api/agent/stream";
 
 /** AgentState is what the viewer reports before and after activation. */
 export interface AgentState {
@@ -110,25 +110,35 @@ export interface AgentStateEnvelope {
   thread: AgentThread;
 }
 
-/** The three commands a browser sends. */
+/**
+ * The three commands a browser sends. `sessionId` names the conversation, because a
+ * command travels as its own POST while the stream is a different request; omitted
+ * means "the stream I am reading", which is the single-browser case.
+ */
 export type AgentCommand =
-  | { type: typeof ENVELOPE_PROMPT; text: string }
-  | { type: typeof ENVELOPE_CANCEL }
-  | { type: typeof ENVELOPE_PERMISSION; requestId: string; allow: boolean };
+  | { type: typeof ENVELOPE_PROMPT; text: string; sessionId?: string }
+  | { type: typeof ENVELOPE_CANCEL; sessionId?: string }
+  | { type: typeof ENVELOPE_PERMISSION; requestId: string; allow: boolean; sessionId?: string };
 
 /** promptCommand builds the envelope for a user message. */
-export function promptCommand(text: string): AgentCommand {
-  return { type: ENVELOPE_PROMPT, text };
+export function promptCommand(text: string, sessionId?: string): AgentCommand {
+  return sessionId ? { type: ENVELOPE_PROMPT, text, sessionId } : { type: ENVELOPE_PROMPT, text };
 }
 
 /** cancelCommand asks the agent to stop the current turn. */
-export function cancelCommand(): AgentCommand {
-  return { type: ENVELOPE_CANCEL };
+export function cancelCommand(sessionId?: string): AgentCommand {
+  return sessionId ? { type: ENVELOPE_CANCEL, sessionId } : { type: ENVELOPE_CANCEL };
 }
 
 /** permissionCommand is the user's answer to a card. */
-export function permissionCommand(requestId: string, allow: boolean): AgentCommand {
-  return { type: ENVELOPE_PERMISSION, requestId, allow };
+export function permissionCommand(
+  requestId: string,
+  allow: boolean,
+  sessionId?: string,
+): AgentCommand {
+  return sessionId
+    ? { type: ENVELOPE_PERMISSION, requestId, allow, sessionId }
+    : { type: ENVELOPE_PERMISSION, requestId, allow };
 }
 
 /** isAgentPanelKey reports whether a key event asks for the agent panel (⌘J / Ctrl+J). */
@@ -138,12 +148,6 @@ export function isAgentPanelKey(event: {
   key?: string;
 }): boolean {
   return Boolean((event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === "j");
-}
-
-/** agentSocketURL is the bridge's WebSocket URL on the viewer's own origin. */
-export function agentSocketURL(location: { protocol: string; host: string }): string {
-  const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${scheme}//${location.host}${AGENT_WS_PATH}`;
 }
 
 /** fetchAgentState reads the bridge's posture: the one call an inert panel makes. */
@@ -175,46 +179,52 @@ async function agentRequest(path: string, body?: unknown): Promise<AgentState> {
   return (await response.json()) as AgentState;
 }
 
-/** AgentConnection is one open conversation. */
-export interface AgentConnection {
-  send(command: AgentCommand): void;
+/** AgentStream is one open conversation. */
+export interface AgentStream {
   close(): void;
 }
 
 /**
- * connectAgent opens the bridge's WebSocket and hands every whole-thread state to
- * `onState`. There is no reconnect: the panel owns the connection's lifetime, so a
- * closed socket is reported once (`onClose`) and the panel decides what to do. The
- * browser side never reassembles chunks — every message is the whole thread — so a
- * state that arrives while the caller is busy is simply superseded by the next one.
+ * streamAgent opens the bridge's Server-Sent Events stream and hands every
+ * whole-thread state to `onState`. There is no reconnect: `EventSource` retries a
+ * dropped stream by itself, which this bridge does not want, so an error closes it and
+ * reports once (`onClose`) for the panel to decide. The browser side never reassembles
+ * chunks — every frame is the whole thread — so a state arriving while the caller is
+ * busy is superseded by the next one rather than lost.
  */
-export function connectAgent(options: {
+export function streamAgent(options: {
   onState: (envelope: AgentStateEnvelope) => void;
   onClose?: (reason: string) => void;
   url?: string;
-}): AgentConnection {
-  const url = options.url ?? agentSocketURL(window.location);
-  const socket = new WebSocket(url);
-  socket.addEventListener("message", (event: MessageEvent<string>) => {
+}): AgentStream {
+  const source = new EventSource(options.url ?? AGENT_STREAM_PATH);
+  source.addEventListener("message", (event: MessageEvent<string>) => {
     let envelope: AgentStateEnvelope;
     try {
       envelope = JSON.parse(event.data) as AgentStateEnvelope;
     } catch {
-      // A message the wire does not define is dropped rather than fatal: the next
-      // state is the whole thread, so nothing is lost by ignoring this one.
+      // A frame the wire does not define is dropped rather than fatal: the next state
+      // is the whole thread, so nothing is lost by ignoring this one.
       return;
     }
     if (envelope.type === ENVELOPE_STATE) options.onState(envelope);
   });
-  socket.addEventListener("close", (event: CloseEvent) => {
-    options.onClose?.(event.reason || "the connection closed");
+  source.addEventListener("error", () => {
+    source.close();
+    options.onClose?.("the agent stream ended");
   });
-  return {
-    send(command: AgentCommand) {
-      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(command));
-    },
-    close() {
-      socket.close();
-    },
-  };
+  return { close: () => source.close() };
+}
+
+/** sendAgentCommand posts one command; a refusal surfaces the viewer's own sentence. */
+export async function sendAgentCommand(command: AgentCommand): Promise<void> {
+  const response = await fetch(AGENT_COMMAND_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(command),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? `the viewer answered ${response.status}`);
+  }
 }

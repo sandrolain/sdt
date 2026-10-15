@@ -3,20 +3,22 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentPanel } from "./AgentPanel";
-import { AGENT_ACTIVATE_PATH, AGENT_STATE_PATH, type AgentStateEnvelope } from "../lib/agent";
+import {
+  AGENT_ACTIVATE_PATH,
+  AGENT_COMMAND_PATH,
+  AGENT_STATE_PATH,
+  AGENT_STREAM_PATH,
+  type AgentStateEnvelope,
+} from "../lib/agent";
 
-/** FakeSocket is the browser side the panel talks to, driven by the test. */
-class FakeSocket {
-  static instances: FakeSocket[] = [];
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSED = 3;
-  readyState = FakeSocket.CONNECTING;
-  sent: string[] = [];
+/** FakeEventSource is the browser side the panel talks to, driven by the test. */
+class FakeEventSource {
+  static instances: FakeEventSource[] = [];
   listeners = new Map<string, ((event: unknown) => void)[]>();
+  closed = false;
 
   constructor(public url: string) {
-    FakeSocket.instances.push(this);
+    FakeEventSource.instances.push(this);
   }
 
   addEventListener(kind: string, listener: (event: unknown) => void) {
@@ -27,16 +29,8 @@ class FakeSocket {
     for (const listener of this.listeners.get(kind) ?? []) listener(event);
   }
 
-  send(payload: string) {
-    this.sent.push(payload);
-  }
-
   close() {
-    this.readyState = FakeSocket.CLOSED;
-  }
-
-  open() {
-    this.readyState = FakeSocket.OPEN;
+    this.closed = true;
   }
 }
 
@@ -47,9 +41,11 @@ function state(
   return { type: "state", sessionId, thread: { sessionId, messages: [], ...thread } };
 }
 
-/** mockViewer answers the three endpoints as the viewer does. */
+/** mockViewer answers the viewer's endpoints as the real one does. */
 function mockViewer(options: { activated?: boolean; error?: string } = {}) {
-  const fetchMock = vi.fn(async (path: string) => {
+  const calls: { path: string; init?: RequestInit }[] = [];
+  const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+    calls.push({ path, init });
     if (path === AGENT_STATE_PATH) {
       return new Response(
         JSON.stringify({
@@ -67,61 +63,64 @@ function mockViewer(options: { activated?: boolean; error?: string } = {}) {
         status: 200,
       });
     }
+    if (path === AGENT_COMMAND_PATH) {
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
     return new Response(JSON.stringify({}), { status: 200 });
   });
   vi.stubGlobal("fetch", fetchMock);
-  vi.stubGlobal("WebSocket", FakeSocket);
-  return fetchMock;
+  vi.stubGlobal("EventSource", FakeEventSource);
+  return calls;
 }
 
-function renderPanel(open: boolean, onOpenChange = vi.fn()) {
-  return render(<AgentPanel open={open} onOpenChange={onOpenChange} />);
+function commands(calls: { path: string; init?: RequestInit }[]): unknown[] {
+  return calls
+    .filter((call) => call.path === AGENT_COMMAND_PATH)
+    .map((call) => JSON.parse(String(call.init?.body)));
+}
+
+async function open() {
+  render(<AgentPanel open onOpenChange={vi.fn()} />);
+  await screen.findByText(/The bridge is off/);
+  await userEvent.type(screen.getByLabelText("Socket path"), "/tmp/sdt-acp.sock");
+  await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+  await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+  return FakeEventSource.instances[0];
 }
 
 afterEach(() => {
   cleanup();
-  FakeSocket.instances = [];
+  FakeEventSource.instances = [];
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 describe("AgentPanel", () => {
-  it("is inert while it is closed: no state read, no socket", () => {
-    const fetchMock = mockViewer();
-    renderPanel(false);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(FakeSocket.instances).toHaveLength(0);
+  it("is inert while it is closed: no state read, no stream", () => {
+    const calls = mockViewer();
+    render(<AgentPanel open={false} onOpenChange={vi.fn()} />);
+    expect(calls).toHaveLength(0);
+    expect(FakeEventSource.instances).toHaveLength(0);
     expect(screen.queryByText(/Socket path/)).toBeNull();
   });
 
-  it("shows the activation control with the proxy recipe on the first open", async () => {
-    const fetchMock = mockViewer();
-    renderPanel(true);
+  it("shows the activation control with the proxy recipe on the first open, and opens no stream", async () => {
+    const calls = mockViewer();
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
 
     expect(await screen.findByText(/The bridge is off/)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith(
-      AGENT_STATE_PATH,
-      expect.objectContaining({ method: "GET" }),
-    );
+    expect(calls[0].path).toBe(AGENT_STATE_PATH);
+    expect(calls[0].init?.method).toBe("GET");
     expect(screen.getByText(/socat UNIX-LISTEN/)).toBeTruthy();
-    // Nothing is dialled before a submit.
-    expect(FakeSocket.instances).toHaveLength(0);
+    expect(FakeEventSource.instances).toHaveLength(0);
   });
 
-  it("dials only when the socket is submitted, then renders what the bridge sends", async () => {
-    mockViewer();
-    renderPanel(true);
-    await screen.findByText(/The bridge is off/);
+  it("opens the stream only on a submit, then renders what it sends and posts the commands", async () => {
+    const calls = mockViewer();
+    const source = await open();
+    expect(source.url).toBe(AGENT_STREAM_PATH);
 
-    await userEvent.type(screen.getByLabelText("Socket path"), "/tmp/sdt-acp.sock");
-    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
-
-    await waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
-    const socket = FakeSocket.instances[0];
-    expect(socket.url).toContain("/api/agent/ws");
-
-    socket.open();
-    socket.emit("message", {
+    source.emit("message", {
       data: JSON.stringify(
         state({
           messages: [
@@ -138,26 +137,23 @@ describe("AgentPanel", () => {
     expect(await screen.findByText("224 analyses.")).toBeTruthy();
     expect(screen.getByText("how big is the corpus?")).toBeTruthy();
 
-    // The composer sends the command the handler accepts, and Stop sends the cancel.
     await userEvent.type(screen.getByLabelText("Message"), "and the plans?");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(socket.sent.at(-1)).toBe(JSON.stringify({ type: "prompt", text: "and the plans?" }));
+    expect(commands(calls).at(-1)).toEqual({
+      type: "prompt",
+      text: "and the plans?",
+      sessionId: "sess-1",
+    });
 
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
-    expect(socket.sent.at(-1)).toBe(JSON.stringify({ type: "cancel" }));
+    expect(commands(calls).at(-1)).toEqual({ type: "cancel", sessionId: "sess-1" });
   });
 
   it("resolves a permission card in place with the answer the user gives", async () => {
-    mockViewer();
-    renderPanel(true);
-    await screen.findByText(/The bridge is off/);
-    await userEvent.type(screen.getByLabelText("Socket path"), "/tmp/sdt-acp.sock");
-    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
-    await waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
-    const socket = FakeSocket.instances[0];
-    socket.open();
+    const calls = mockViewer();
+    const source = await open();
 
-    socket.emit("message", {
+    source.emit("message", {
       data: JSON.stringify(
         state({
           messages: [
@@ -183,12 +179,15 @@ describe("AgentPanel", () => {
     expect(await screen.findByText(/Write context\/notes\/x.md/)).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Allow" }));
-    expect(socket.sent.at(-1)).toBe(
-      JSON.stringify({ type: "permission", requestId: "perm-1", allow: true }),
-    );
+    expect(commands(calls).at(-1)).toEqual({
+      type: "permission",
+      requestId: "perm-1",
+      allow: true,
+      sessionId: "sess-1",
+    });
 
     // The bridge records the decision on the card, and the buttons give way to it.
-    socket.emit("message", {
+    source.emit("message", {
       data: JSON.stringify(
         state({
           messages: [
@@ -218,16 +217,15 @@ describe("AgentPanel", () => {
 
   it("shows the viewer's own sentence when the bridge refuses", async () => {
     mockViewer({ error: "no agent is listening on that socket" });
-    renderPanel(true);
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
     expect(await screen.findByText("no agent is listening on that socket")).toBeTruthy();
   });
 
-  it("reports a dropped socket once instead of pretending to be connected", async () => {
+  it("reports an ended stream once instead of pretending to be connected", async () => {
     mockViewer({ activated: true });
-    renderPanel(true);
-    await waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
-    FakeSocket.instances[0].open();
-    FakeSocket.instances[0].emit("close", { reason: "the agent went away" });
-    expect(await screen.findByText("the agent went away")).toBeTruthy();
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    FakeEventSource.instances[0].emit("error", {});
+    expect(await screen.findByText("the agent stream ended")).toBeTruthy();
   });
 });

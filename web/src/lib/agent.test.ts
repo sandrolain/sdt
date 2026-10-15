@@ -2,12 +2,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_ACTIVATE_PATH,
+  AGENT_COMMAND_PATH,
   AGENT_DEACTIVATE_PATH,
   AGENT_STATE_PATH,
-  AGENT_WS_PATH,
-  agentSocketURL,
+  AGENT_STREAM_PATH,
+  activateAgent,
   cancelCommand,
-  connectAgent,
   deactivateAgent,
   DECISION_ALLOWED,
   ENVELOPE_CANCEL,
@@ -15,24 +15,21 @@ import {
   ENVELOPE_PROMPT,
   ENVELOPE_STATE,
   fetchAgentState,
-  activateAgent,
   permissionCommand,
   promptCommand,
+  sendAgentCommand,
+  streamAgent,
   type AgentStateEnvelope,
 } from "./agent";
 
-/** FakeSocket is the browser side the module talks to, driven by the test. */
-class FakeSocket {
-  static instances: FakeSocket[] = [];
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSED = 3;
-  readyState = FakeSocket.CONNECTING;
-  sent: string[] = [];
+/** FakeEventSource is the browser side the module talks to, driven by the test. */
+class FakeEventSource {
+  static instances: FakeEventSource[] = [];
   listeners = new Map<string, ((event: unknown) => void)[]>();
+  closed = false;
 
   constructor(public url: string) {
-    FakeSocket.instances.push(this);
+    FakeEventSource.instances.push(this);
   }
 
   addEventListener(kind: string, listener: (event: unknown) => void) {
@@ -43,17 +40,8 @@ class FakeSocket {
     for (const listener of this.listeners.get(kind) ?? []) listener(event);
   }
 
-  send(payload: string) {
-    this.sent.push(payload);
-  }
-
   close() {
-    this.readyState = FakeSocket.CLOSED;
-    this.emit("close", { reason: "closed by the panel" });
-  }
-
-  open() {
-    this.readyState = FakeSocket.OPEN;
+    this.closed = true;
   }
 }
 
@@ -66,15 +54,21 @@ function state(thread = {}): AgentStateEnvelope {
 }
 
 afterEach(() => {
-  FakeSocket.instances = [];
+  FakeEventSource.instances = [];
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 describe("the agent wire", () => {
-  it("builds the three commands with the envelope names the bridge defines", () => {
+  it("builds the three commands, naming a session only when there is one", () => {
     expect(promptCommand("hello")).toEqual({ type: ENVELOPE_PROMPT, text: "hello" });
+    expect(promptCommand("hello", "sess-2")).toEqual({
+      type: ENVELOPE_PROMPT,
+      text: "hello",
+      sessionId: "sess-2",
+    });
     expect(cancelCommand()).toEqual({ type: ENVELOPE_CANCEL });
+    expect(cancelCommand("sess-2")).toEqual({ type: ENVELOPE_CANCEL, sessionId: "sess-2" });
     expect(permissionCommand("perm-1", true)).toEqual({
       type: ENVELOPE_PERMISSION,
       requestId: "perm-1",
@@ -83,22 +77,11 @@ describe("the agent wire", () => {
     expect(DECISION_ALLOWED).toBe("allowed");
   });
 
-  it("derives the socket URL from the page's own origin", () => {
-    expect(agentSocketURL({ protocol: "http:", host: "127.0.0.1:8791" })).toBe(
-      `ws://127.0.0.1:8791${AGENT_WS_PATH}`,
-    );
-    expect(agentSocketURL({ protocol: "https:", host: "example.test" })).toBe(
-      `wss://example.test${AGENT_WS_PATH}`,
-    );
-  });
-
   it("reads the state with a GET and activates with the socket the user typed", async () => {
     const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
       return new Response(
         JSON.stringify({ activated: init?.method === "POST", connected: false }),
-        {
-          status: 200,
-        },
+        { status: 200 },
       );
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -125,65 +108,62 @@ describe("the agent wire", () => {
     });
   });
 
-  it("reports the viewer's own sentence when a call is refused", async () => {
+  it("posts a command and reports the viewer's own sentence when it is refused", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: "the agent bridge is not activated" }), {
+          status: 403,
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sendAgentCommand(cancelCommand("sess-1"))).rejects.toThrow(
+      "the agent bridge is not activated",
+    );
+    expect(fetchMock).toHaveBeenCalledWith(AGENT_COMMAND_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: ENVELOPE_CANCEL, sessionId: "sess-1" }),
+    });
+
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          new Response(JSON.stringify({ error: "no agent is listening on that socket" }), {
-            status: 502,
-          }),
-      ),
+      vi.fn(async () => new Response("{}", { status: 200 })),
     );
-    await expect(activateAgent("/tmp/absent.sock")).rejects.toThrow(
-      "no agent is listening on that socket",
-    );
+    await expect(sendAgentCommand(promptCommand("hi"))).resolves.toBeUndefined();
   });
 });
 
-describe("the agent connection", () => {
+describe("the agent stream", () => {
   it("hands every whole-thread state to the caller and drops what the wire does not define", () => {
-    vi.stubGlobal("WebSocket", FakeSocket);
+    vi.stubGlobal("EventSource", FakeEventSource);
     const states: AgentStateEnvelope[] = [];
-    const connection = connectAgent({
+    const stream = streamAgent({
       onState: (envelope) => states.push(envelope),
-      url: "ws://test",
+      url: AGENT_STREAM_PATH,
     });
-    const socket = FakeSocket.instances[0];
-    expect(socket.url).toBe("ws://test");
+    const source = FakeEventSource.instances[0];
+    expect(source.url).toBe(AGENT_STREAM_PATH);
 
-    socket.emit("message", { data: JSON.stringify(state()) });
-    socket.emit("message", { data: "not a state at all" });
-    socket.emit("message", { data: JSON.stringify({ type: "something-else" }) });
+    source.emit("message", { data: JSON.stringify(state()) });
+    source.emit("message", { data: "not a state at all" });
+    source.emit("message", { data: JSON.stringify({ type: "something-else" }) });
 
     expect(states).toHaveLength(1);
     expect(states[0].sessionId).toBe("sess-1");
-    connection.close();
+    stream.close();
+    expect(source.closed).toBe(true);
   });
 
-  it("sends only on an open socket", () => {
-    vi.stubGlobal("WebSocket", FakeSocket);
-    const connection = connectAgent({ onState: () => undefined, url: "ws://test" });
-    const socket = FakeSocket.instances[0];
-
-    connection.send(promptCommand("too early"));
-    expect(socket.sent).toEqual([]);
-
-    socket.open();
-    connection.send(promptCommand("hello"));
-    expect(socket.sent).toEqual([JSON.stringify({ type: ENVELOPE_PROMPT, text: "hello" })]);
-  });
-
-  it("reports a closed socket once", () => {
-    vi.stubGlobal("WebSocket", FakeSocket);
+  it("closes a failed stream instead of letting EventSource reconnect, and reports once", () => {
+    vi.stubGlobal("EventSource", FakeEventSource);
     const reasons: string[] = [];
-    const connection = connectAgent({
-      onState: () => undefined,
-      onClose: (reason) => reasons.push(reason),
-      url: "ws://test",
-    });
-    FakeSocket.instances[0].emit("close", { reason: "the agent went away" });
-    expect(reasons).toEqual(["the agent went away"]);
-    connection.close();
+    streamAgent({ onState: () => undefined, onClose: (reason) => reasons.push(reason) });
+    const source = FakeEventSource.instances[0];
+
+    source.emit("error", {});
+
+    expect(source.closed).toBe(true);
+    expect(reasons).toEqual(["the agent stream ended"]);
   });
 });

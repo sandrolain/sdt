@@ -588,3 +588,38 @@ func readBody(response *http.Response) (string, error) {
 	}
 	return payload.Error, nil
 }
+
+// A browser may leave Origin off a same-origin request; the one header a page cannot
+// forge is what decides, and a cross-site fetch marker is refused whatever the Origin
+// says.
+func TestAgentOriginRule(t *testing.T) {
+	cases := []struct {
+		name   string
+		origin string
+		site   string
+		want   bool
+	}{
+		{"the viewer's own origin", "http://127.0.0.1:8791", "", true},
+		{"a foreign origin", "http://someone-else.test", "", false},
+		{"no origin, a same-origin fetch", "", "same-origin", true},
+		{"no origin at all", "", "", false},
+		{"no origin, a cross-site fetch", "", "cross-site", false},
+		{"matching origin but a cross-site marker", "http://127.0.0.1:8791", "cross-site", false},
+		{"a URL scheme that is not http", "ftp://127.0.0.1:8791", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/agent/command", nil)
+			request.Host = "127.0.0.1:8791"
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			if tc.site != "" {
+				request.Header.Set("Sec-Fetch-Site", tc.site)
+			}
+			if got := agentOrigin(request); got != tc.want {
+				t.Fatalf("agentOrigin = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
