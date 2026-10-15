@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/sandrolain/sdt/internal/ctxrel"
 	"sort"
 	"strings"
 	"time"
@@ -38,6 +39,7 @@ type ctxHealth struct {
 	PlanTaskDrift         int `json:"plan_task_drift" yaml:"plan_task_drift"`
 	StaleCitations        int `json:"stale_citations" yaml:"stale_citations"`
 	MissingCitationTarget int `json:"missing_citation_targets" yaml:"missing_citation_targets"`
+	ObjectiveStatusDrift  int `json:"objective_status_drift" yaml:"objective_status_drift"`
 	LintCritical          int `json:"lint_critical" yaml:"lint_critical"`
 	LintWarnings          int `json:"lint_warnings" yaml:"lint_warnings"`
 	LintSuggestions       int `json:"lint_suggestions" yaml:"lint_suggestions"`
@@ -58,9 +60,35 @@ func ctxHealthReport(staleDays int, now time.Time) ctxHealth {
 		h.UnresolvedQuestions = ctxQuestionsUnresolved(files)
 	}
 	h.StaleCitations, h.MissingCitationTarget = ctxCitationIssueCounts()
+	h.ObjectiveStatusDrift = ctxObjectiveStatusDriftCount()
 	v := storeCompletenessVerdict()
 	h.LintCritical, h.LintWarnings, h.LintSuggestions = v.Critical, v.Warnings, v.Suggestions
 	return h
+}
+
+// ctxObjectiveStatusDriftCount counts the analyses whose frontmatter status
+// disagrees with their own objective checklist. The check is corpus-wide — it
+// needs the plan files and the typed relations, like the coverage pass it lives
+// in — so it is invoked once here rather than per document: a per-file lintDoc
+// walk cannot see it at all. Read-only, and it degrades to 0 when the corpus or
+// the relation graph is unreadable, exactly as the check itself does.
+func ctxObjectiveStatusDriftCount() int {
+	planFiles, err := dirFiles(sdtPlanDir)
+	if err != nil {
+		return 0
+	}
+	edges, err := ctxrel.Load(sdtWorkDir)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, it := range lintObjectivePhaseCoverage(planFiles, edges) {
+		if strings.HasPrefix(it.Message, "every objective is ticked but ") ||
+			strings.Contains(it.Message, " is `completed` with ") {
+			n++
+		}
+	}
+	return n
 }
 
 // ctxCitationIssueCounts counts the stale and missing-target citation findings
@@ -144,8 +172,9 @@ Examples:
 			}
 			outputString(cmd, fmt.Sprintf("\nstore: %s (critical %d, warning %d, suggestion %d)\n",
 				verdict.Verdict, verdict.Critical, verdict.Warnings, verdict.Suggestions))
-			outputString(cmd, fmt.Sprintf("health: unresolved %d · stale %d · orphans %d · drift %d · stale citations %d · missing targets %d\n",
-				health.UnresolvedQuestions, health.StaleInProgress, health.OrphanTasks, health.PlanTaskDrift, health.StaleCitations, health.MissingCitationTarget))
+			outputString(cmd, fmt.Sprintf("health: unresolved %d · stale %d · orphans %d · drift %d · objective drift %d · stale citations %d · missing targets %d\n",
+				health.UnresolvedQuestions, health.StaleInProgress, health.OrphanTasks, health.PlanTaskDrift,
+				health.ObjectiveStatusDrift, health.StaleCitations, health.MissingCitationTarget))
 		}
 	},
 }

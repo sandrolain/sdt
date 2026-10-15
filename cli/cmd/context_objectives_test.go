@@ -199,3 +199,133 @@ func TestLintObjectivePhaseCoverage(t *testing.T) {
 		}
 	})
 }
+
+// TestObjectiveLifecycleFlagsAnActiveAnalysisWithEveryObjectiveTicked pins the
+// first direction: the window between delivering the work and closing the
+// document. One finding per analysis, not one per objective.
+func TestObjectiveLifecycleFlagsAnActiveAnalysisWithEveryObjectiveTicked(t *testing.T) {
+	files, edges := objectiveCorpus(t,
+		"## Objectives\n\n- [x] O1 delivered <!-- c1 -->\n- [x] O2 delivered <!-- c2 -->\n",
+		"### Phase 1 — work\n\n**Covers:** O1\n")
+	issues := lintObjectivePhaseCoverage(files, edges)
+	got := lifecycleIssues(issues)
+	if len(got) != 1 {
+		t.Fatalf("want exactly one lifecycle finding, got %d: %#v", len(got), got)
+	}
+	if !strings.Contains(got[0].Message, "still `active`") {
+		t.Errorf("message = %q, want it to name the state", got[0].Message)
+	}
+	if got[0].Priority != ctxLintSuggestion {
+		t.Errorf("priority = %q, want SUGGESTION (it must not gate delivery)", got[0].Priority)
+	}
+}
+
+// TestObjectiveLifecycleFlagsACompletedAnalysisWithUntickedObjectives is the
+// second direction: the document asserts it is done and its checklist disagrees.
+func TestObjectiveLifecycleFlagsACompletedAnalysisWithUntickedObjectives(t *testing.T) {
+	files, _ := objectiveCorpus(t,
+		"## Objectives\n\n- [x] O1 delivered <!-- c1 -->\n- [ ] O2 not ticked <!-- c2 -->\n",
+		"### Phase 1 — work\n\n**Covers:** O1\n")
+	// objectiveCorpus writes status: active; rewrite it as completed.
+	writeCtxDoc(t, "context/analysis/a.md",
+		"---\nkind: analysis\nuid: uid-a\nsummary: a\nstatus: completed\n---\n\n"+
+			"## Objectives\n\n- [x] O1 delivered <!-- c1 -->\n- [ ] O2 not ticked <!-- c2 -->\n")
+	edges, err := ctxrel.Load(sdtWorkDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := lifecycleIssues(lintObjectivePhaseCoverage(files, edges))
+	if len(got) != 1 {
+		t.Fatalf("want exactly one lifecycle finding, got %d: %#v", len(got), got)
+	}
+	for _, want := range []string{"`completed` with 1 of 2", "tick what was delivered or record why not"} {
+		if !strings.Contains(got[0].Message, want) {
+			t.Errorf("message = %q, want %q", got[0].Message, want)
+		}
+	}
+}
+
+// TestObjectiveLifecycleStaysSilentInTheHealthyStates pins the degradation: a
+// completed analysis with everything ticked, and an active one with work open,
+// are both correct and must produce nothing.
+func TestObjectiveLifecycleStaysSilentInTheHealthyStates(t *testing.T) {
+	cases := []struct {
+		name       string
+		status     string
+		objectives string
+	}{
+		{"completed and all ticked", "completed", "- [x] O1 done <!-- c1 -->\n"},
+		{"active with work open", "active", "- [ ] O1 open <!-- c1 -->\n"},
+		{"draft with work open", "draft", "- [ ] O1 open <!-- c1 -->\n"},
+		{"postponed with work open", "postponed", "- [ ] O1 open <!-- c1 -->\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			runInTempDir(t)
+			writeCtxDoc(t, "context/analysis/a.md",
+				"---\nkind: analysis\nuid: uid-a\nsummary: a\nstatus: "+tc.status+"\n---\n\n## Objectives\n\n"+tc.objectives)
+			writeCtxDoc(t, "context/plan/p.md",
+				"---\nkind: plan\nuid: uid-p\nanalysis_id: uid-a\nsummary: p\nstatus: active\n---\n\n### Phase 1 — w\n\n**Covers:** O1\n")
+			edges, err := ctxrel.Load(sdtWorkDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			files, err := dirFiles(sdtPlanDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := lifecycleIssues(lintObjectivePhaseCoverage(files, edges)); len(got) != 0 {
+				t.Errorf("status %s must not raise a lifecycle finding: %#v", tc.status, got)
+			}
+		})
+	}
+}
+
+// TestObjectiveLifecycleSkipsAnAnalysisWithoutTheSection: the coverage check is
+// graceful both ways, and an absent `## Objectives` is a valid state.
+func TestObjectiveLifecycleSkipsAnAnalysisWithoutTheSection(t *testing.T) {
+	files, edges := objectiveCorpus(t, "## Problem\n\nno objectives here\n", "### Phase 1 — w\n\n**Covers:** O1\n")
+	if got := lifecycleIssues(lintObjectivePhaseCoverage(files, edges)); len(got) != 0 {
+		t.Errorf("an analysis without `## Objectives` must stay silent: %#v", got)
+	}
+}
+
+// lifecycleIssues filters the findings this wave added, so a test asserting on
+// them is not coupled to the coverage directions the file already raised.
+func lifecycleIssues(issues []ctxLintIssue) []ctxLintIssue {
+	var out []ctxLintIssue
+	for _, i := range issues {
+		if strings.Contains(i.Message, "still `active`") || strings.Contains(i.Message, "`completed` with") {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// TestObjectiveStatusDriftCounterMatchesTheLint pins that the health roll-up and
+// the lint agree: the counter exists so `sdt context status` shows the drift
+// without a full lint run, and a counter that disagrees with its source is worse
+// than no counter.
+func TestObjectiveStatusDriftCounterMatchesTheLint(t *testing.T) {
+	runInTempDir(t)
+	writeCtxDoc(t, "context/analysis/a.md",
+		"---\nkind: analysis\nuid: uid-a\nsummary: a\nstatus: completed\n---\n\n"+
+			"## Objectives\n\n- [x] O1 delivered <!-- c1 -->\n- [ ] O2 not ticked <!-- c2 -->\n")
+	writeCtxDoc(t, "context/plan/p.md",
+		"---\nkind: plan\nuid: uid-p\nanalysis_id: uid-a\nsummary: p\nstatus: active\n---\n\n### Phase 1 — w\n\n**Covers:** O1\n")
+	planFiles, err := dirFiles(sdtPlanDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edges, err := ctxrel.Load(sdtWorkDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lintCount := len(lifecycleIssues(lintObjectivePhaseCoverage(planFiles, edges)))
+	if got := ctxObjectiveStatusDriftCount(); got != lintCount {
+		t.Errorf("counter = %d, lint = %d; they must agree", got, lintCount)
+	}
+	if lintCount != 1 {
+		t.Errorf("fixture produced %d findings, want 1", lintCount)
+	}
+}

@@ -437,6 +437,8 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"stale task file", "receive the file and finish it, or reset its `[~]` items to `[ ]` and refresh `updated` with `sdt context touch`"},
 	{"undeclared objective ", "declare it as `- [ ] <id> <outcome>` in the source analysis `## Objectives`, or correct the phase's `**Covers:**` claim"},
 	{"uncovered objective ", "claim it from a derived plan phase with `**Covers:** <id>`, or drop it from the analysis when it is no longer intended"},
+	{"every objective is ticked but ", "close the document with `sdt context close`; the checklist says the work is delivered and the status still reads as in progress"},
+	{"is `completed` with ", "tick the objectives that were delivered, or record in the body why the rest were not; a completed analysis whose checklist disagrees is the drift this check exists to surface"},
 	{"completed task file has a `## Review` block but no `### Gate` record", "run the delivery gate with `sdt agent gate --record --plan <plan>` so the run's real outcome is readable next session"},
 	{"finding under `### Findings` has no verdict token", "re-record it with `sdt context task review --finding \"<claim>\" --verdict " + ctxReviewVerdictHelp + "`"},
 	{"unknown kind ", "record the deviation with `sdt context task deviation add` using one of fix | add | unblock | stop-and-ask"},

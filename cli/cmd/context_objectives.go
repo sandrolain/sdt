@@ -147,10 +147,11 @@ func coversIDs(body string) []string {
 // objectiveCoverage is the analysis/plan reconciliation: which objectives the
 // analysis declares, and which of them any derived plan phase claims.
 type objectiveCoverage struct {
-	AnalysisRef string
-	objectives  []analysisObjective
-	covered     map[string][]string // objective id -> "<plan ref> phase <n>"
-	undeclared  []undeclaredCover
+	AnalysisRef    string
+	AnalysisStatus string
+	objectives     []analysisObjective
+	covered        map[string][]string // objective id -> "<plan ref> phase <n>"
+	undeclared     []undeclaredCover
 }
 
 type undeclaredCover struct {
@@ -169,7 +170,12 @@ func buildObjectiveCoverage(planFiles []string, edges *ctxrel.Edges) []objective
 	}
 	coverages := make([]objectiveCoverage, 0, len(analyses))
 	for _, a := range analyses {
-		cov := objectiveCoverage{AnalysisRef: a.ref, objectives: a.objectives, covered: map[string][]string{}}
+		cov := objectiveCoverage{
+			AnalysisRef:    a.ref,
+			AnalysisStatus: a.status,
+			objectives:     a.objectives,
+			covered:        map[string][]string{},
+		}
 		declaredIDs := map[string]bool{}
 		for _, o := range a.objectives {
 			declaredIDs[o.ID] = true
@@ -195,6 +201,7 @@ func buildObjectiveCoverage(planFiles []string, edges *ctxrel.Edges) []objective
 // declaringAnalysis is one analysis that declares an `## Objectives` checklist.
 type declaringAnalysis struct {
 	ref        string
+	status     string
 	objectives []analysisObjective
 }
 
@@ -216,7 +223,11 @@ func declaringAnalyses() []declaringAnalysis {
 		if !ok {
 			continue
 		}
-		analyses = append(analyses, declaringAnalysis{ref: normalizeContextRef(path), objectives: objectives})
+		analyses = append(analyses, declaringAnalysis{
+			ref:        normalizeContextRef(path),
+			status:     parseFrontmatterField(content, ctxMapStatus),
+			objectives: objectives,
+		})
 	}
 	return analyses
 }
@@ -277,6 +288,40 @@ func lintObjectivePhaseCoverage(planFiles []string, edges *ctxrel.Edges) []ctxLi
 					Message: fmt.Sprintf("uncovered objective %s is declared in `## Objectives` but no derived plan phase claims it", o.ID)})
 			}
 		}
+		issues = append(issues, lintObjectiveLifecycle(cov.AnalysisRef, analysisPath, cov)...)
 	}
 	return issues
+}
+
+// lintObjectiveLifecycle compares an analysis' `status` with its own objective
+// markers, in both directions. The check reads the markers that are already
+// parsed (`analysisObjective.Done`) rather than re-reading the document, so it
+// costs one comparison per declaring analysis and adds no parsing and no walk.
+//
+// Both directions are SUGGESTION. The first is a transient window — the minutes
+// between delivering the work and closing the document — and the second is a
+// contradiction, but a `completed` analysis with unticked objectives is not proof
+// of failure: an objective may have been delivered by a sibling wave (the
+// analysis stays completed because the decision was taken) or dropped. The
+// finding asks a reader to reconcile them, it does not assert which is wrong.
+func lintObjectiveLifecycle(ref, analysisPath string, cov objectiveCoverage) []ctxLintIssue {
+	if len(cov.objectives) == 0 {
+		return nil
+	}
+	done := 0
+	for _, o := range cov.objectives {
+		if o.Done {
+			done++
+		}
+	}
+	switch {
+	case cov.AnalysisStatus == ctxWikiStatusActive && done == len(cov.objectives):
+		return []ctxLintIssue{{Path: analysisPath, Priority: ctxLintSuggestion,
+			Message: fmt.Sprintf("every objective is ticked but %s is still `active`; close it with `sdt context close` so the corpus does not read as work in progress", ref)}}
+	case cov.AnalysisStatus == taskFileStatusCompleted && done < len(cov.objectives):
+		return []ctxLintIssue{{Path: analysisPath, Priority: ctxLintSuggestion,
+			Message: fmt.Sprintf("%s is `completed` with %d of %d objectives unticked; tick what was delivered or record why not, so the checklist and the status agree",
+				ref, len(cov.objectives)-done, len(cov.objectives))}}
+	}
+	return nil
 }

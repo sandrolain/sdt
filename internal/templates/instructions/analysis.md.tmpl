@@ -135,7 +135,14 @@ session: <session id>        # optional
   The section is **optional and graceful**: an analysis without it is valid, and
   the coverage check skips it in both directions rather than reporting a gap.
   When it is present, the check reports a plan phase covering an undeclared id
-  (WARNING) and a declared id no derived plan phase covers (SUGGESTION).
+  (WARNING), a declared id no derived plan phase covers (SUGGESTION), and a
+  **status that disagrees with the checklist** (SUGGESTION, both ways): every
+  objective ticked while the analysis is still `active` — delivered work that
+  reads as in progress, closed with `sdt context close` — or `active`-to-
+  `completed` with objectives unticked, where the document asserts it is finished
+  and the checklist disagrees. The second is not proof of failure: an objective
+  may have been delivered by a sibling wave or dropped, so the finding asks a
+  reader to tick what was delivered or record why not.
 - **Plans** — the ordered list of wave plans derived from this analysis, one line
   each (number, slug, one-sentence scope, analysis objectives covered) when the
   analysis feeds more than one plan (R2).
