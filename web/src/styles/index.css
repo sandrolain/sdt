@@ -443,6 +443,15 @@
     font-size: 0.78rem;
     font-style: italic;
   }
+  .agent-panel__model {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.9rem 0;
+  }
+  .agent-panel__model .ui-combo {
+    flex: 1;
+  }
   .agent-panel__composer {
     display: flex;
     gap: 0.4rem;

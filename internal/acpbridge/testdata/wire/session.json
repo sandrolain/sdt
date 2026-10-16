@@ -104,6 +104,29 @@
           "status": "completed"
         }
       ]
-    }
+    },
+    "config": [
+      {
+        "category": "model",
+        "currentValue": "openrouter/meta/muse-spark-open",
+        "id": "model",
+        "name": "Model",
+        "options": [
+          {
+            "name": "openrouter/meta/muse-spark-open",
+            "value": "openrouter/meta/muse-spark-open"
+          },
+          {
+            "name": "opencode/deepseek-v4.1-flash-free",
+            "value": "opencode/deepseek-v4.1-flash-free"
+          },
+          {
+            "name": "opencode/big-pickle",
+            "value": "opencode/big-pickle"
+          }
+        ],
+        "type": "select"
+      }
+    ]
   }
 }

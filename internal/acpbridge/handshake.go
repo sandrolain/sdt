@@ -54,30 +54,40 @@ func handshake(ctx context.Context, conn *acp.ClientSideConnection, version stri
 // agent's loadSession capability — the caller has already read that from the handshake —
 // and a refusal is an error the caller degrades from rather than a failure of the
 // bridge: an agent that no longer holds the session is a normal thing to meet.
-func loadSession(ctx context.Context, conn *acp.ClientSideConnection, sessionID, root string) error {
-	if _, err := conn.LoadSession(ctx, acp.LoadSessionRequest{
+//
+// The answer's config options come back with it: an agent that takes a session back
+// answers what it now offers for it, and an agent that says nothing leaves the caller
+// with what the thread already holds.
+func loadSession(ctx context.Context, conn *acp.ClientSideConnection, sessionID, root string) ([]acp.SessionConfigOption, error) {
+	loaded, err := conn.LoadSession(ctx, acp.LoadSessionRequest{
 		SessionId:  acp.SessionId(sessionID),
 		Cwd:        root,
 		McpServers: []acp.McpServer{},
-	}); err != nil {
-		return fmt.Errorf("%w: session/load: %v", ErrHandshake, err)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: session/load: %v", ErrHandshake, err)
 	}
-	return nil
+	return loaded.ConfigOptions, nil
 }
 
 // openSession opens one ACP session. Its workspace is the project root — the same
 // directory the file callbacks are confined to, so the agent's own relative paths
 // and the confinement agree about where "here" is.
-func openSession(ctx context.Context, conn *acp.ClientSideConnection, root string) (string, error) {
+//
+// The answer's config options are returned beside the id because this is the only
+// place they are ever announced: an agent advertises what it offers for a session —
+// the model it will use, its mode — in the answer to session/new, and a real agent
+// sends no update for it afterwards. The caller folds them into the thread.
+func openSession(ctx context.Context, conn *acp.ClientSideConnection, root string) (string, []acp.SessionConfigOption, error) {
 	session, err := conn.NewSession(ctx, acp.NewSessionRequest{
 		Cwd:        root,
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
-		return "", fmt.Errorf("%w: session/new: %v", ErrHandshake, err)
+		return "", nil, fmt.Errorf("%w: session/new: %v", ErrHandshake, err)
 	}
 	if session.SessionId == "" {
-		return "", fmt.Errorf("%w: session/new returned an empty session id", ErrHandshake)
+		return "", nil, fmt.Errorf("%w: session/new returned an empty session id", ErrHandshake)
 	}
-	return string(session.SessionId), nil
+	return string(session.SessionId), session.ConfigOptions, nil
 }

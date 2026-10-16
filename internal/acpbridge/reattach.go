@@ -51,14 +51,20 @@ func (b *Bridge) carryOver(ctx context.Context, conn *acp.ClientSideConnection, 
 	var (
 		initial *Session
 		lost    bool
+		refused string
 	)
 	for i, session := range previous.sessions {
 		wasInitial := session.ID() == previous.initial || (previous.initial == "" && i == 0)
-		fresh, err := b.carryOne(ctx, conn, session)
+		fresh, note, err := b.carryOne(ctx, conn, session)
 		if err != nil {
 			return nil, "", err
 		}
 		lost = lost || fresh
+		// The sentence is about the declaration, not about one conversation of several, so
+		// the first refusal is the whole of what a reader needs to know.
+		if refused == "" {
+			refused = note
+		}
 		if wasInitial {
 			initial = session
 		}
@@ -74,6 +80,15 @@ func (b *Bridge) carryOver(ctx context.Context, conn *acp.ClientSideConnection, 
 	if lost {
 		note = lostContextNote
 	}
+	if refused != "" {
+		// Both sentences are things the reader has not been told: the conversation lost its
+		// context *and* the model in use is not the declared one.
+		if note == "" {
+			note = refused
+		} else {
+			note += "; " + refused
+		}
+	}
 	return initial, note, nil
 }
 
@@ -81,38 +96,57 @@ func (b *Bridge) carryOver(ctx context.Context, conn *acp.ClientSideConnection, 
 // its session back when it advertised that it can, and a fresh session is opened when it
 // cannot or no longer holds it: either way the conversation keeps the thread the reader
 // was looking at, so a restart reads as an interruption rather than as a new
-// conversation. It reports whether the agent's own context had to be let go of.
-func (b *Bridge) carryOne(ctx context.Context, conn *acp.ClientSideConnection, session *Session) (bool, error) {
+// conversation. It reports whether the agent's own context had to be let go of, and the
+// sentence owed about the model, empty when there is nothing to say.
+func (b *Bridge) carryOne(ctx context.Context, conn *acp.ClientSideConnection, session *Session) (bool, string, error) {
 	previous := session.ID()
 	// The conversation goes back into the registry under the id it had *before* the load:
 	// the updates a load replays name that session, and routing them is what lets the
 	// thread decide whether to keep them.
 	b.register(session, previous)
 
+	lost := true
 	if b.SupportsSessionLoad() && previous != "" {
 		loadCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
+		var options []acp.SessionConfigOption
 		err := session.State().WhileLoading(func() error {
-			return loadSession(loadCtx, conn, previous, b.root)
+			var loadErr error
+			options, loadErr = loadSession(loadCtx, conn, previous, b.root)
+			return loadErr
 		})
 		cancel()
 		if err == nil {
 			session.reattachTo(conn, previous)
+			// What the agent offers on the session it just took back; an agent that
+			// answered nothing leaves the thread with the options it already had.
+			session.State().ConfigOptions(options)
 			b.log.Info("the conversation was put back on the session the agent still holds", "session", previous)
-			return false, nil
+			lost = false
+		} else {
+			b.log.Warn("the agent could not take the session back; continuing on a new one",
+				"session", previous, "error", err)
 		}
-		b.log.Warn("the agent could not take the session back; continuing on a new one",
-			"session", previous, "error", err)
+	}
+	if lost {
+		openCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
+		id, options, err := openSession(openCtx, conn, b.root)
+		cancel()
+		if err != nil {
+			return false, "", err
+		}
+		session.reattachTo(conn, id)
+		session.State().ConfigOptions(options)
+		b.rekey(session, previous, id)
 	}
 
-	openCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
-	id, err := openSession(openCtx, conn, b.root)
-	cancel()
-	if err != nil {
-		return false, err
-	}
-	session.reattachTo(conn, id)
-	b.rekey(session, previous, id)
-	return true, nil
+	// The declaration is re-applied last, whichever way the conversation came back, and
+	// after the options the agent's own answer carried: a restart comes up on the agent's
+	// default, and the loaded answer may report a session that has moved on. The set is what
+	// makes the project's declaration true again on the new connection.
+	setCtx, setCancel := context.WithTimeout(ctx, handshakeTimeout)
+	note := b.applyDeclaredModel(setCtx, session)
+	setCancel()
+	return lost, note, nil
 }
 
 // register puts a conversation in the registry under a session id.

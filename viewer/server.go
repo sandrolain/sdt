@@ -86,9 +86,13 @@ type server struct {
 	// loopback. agentMu guards the open streams and which conversation is current.
 	// agentCommand is the argv the project declared in .sdt.yaml, empty when it
 	// declared none: the viewer starts that command and never one a request names.
+	// agentModel is the model the same declaration names, empty when it names none;
+	// it is the bridge's, and is reported here so a panel can say which model a
+	// session starts on.
 	agent        *acpbridge.Bridge
 	agentReason  string
 	agentCommand []string
+	agentModel   string
 	// self is this binary's own path, which a configured command may name: a program is
 	// looked for on PATH and then beside the viewer, exactly as the sdt companion is.
 	self         string

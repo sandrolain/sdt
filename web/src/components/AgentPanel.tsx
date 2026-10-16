@@ -14,11 +14,14 @@
  */
 import { Dialog, Modal } from "react-aria-components";
 import { AgentThread } from "./AgentThread";
+import { ComboBox, type UiComboOption } from "./ui/ComboBox";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   activateAgent,
   cancelCommand,
+  configCommand,
   fetchAgentState,
+  modelOption,
   permissionCommand,
   promptCommand,
   sendAgentCommand,
@@ -199,6 +202,16 @@ export function AgentPanel({
   const command = state?.command ?? [];
   const configured = command.length > 0;
 
+  // Derived during render from the thread, which is the only truth about the model in use: the
+  // control reads the agent's own answer, so an accepted choice moves it when the agent says so
+  // and a refused one does not move it at all. An agent that offers no model option gets no
+  // control — the panel it had before, and not a disabled box a reader would try.
+  const model = modelOption(envelope?.thread.config);
+  const modelChoices: UiComboOption[] = (model?.options ?? []).map((choice) => ({
+    id: choice.value,
+    label: choice.name ?? choice.value,
+  }));
+
   return (
     // The entry lives in the top bar rather than inside the panel, so the modal is
     // controlled directly: `open` is the panel's own state, which is what makes
@@ -304,6 +317,23 @@ export function AgentPanel({
             </div>
             {phase === "active" && message !== "" && (
               <p className="agent-panel__note agent-panel__note--error">{message}</p>
+            )}
+            {phase === "active" && model && (
+              <div className="agent-panel__model">
+                <ComboBox
+                  ariaLabel="Model"
+                  label="Model"
+                  options={modelChoices}
+                  selectedKey={model.currentValue ?? null}
+                  onSelectionChange={(key) => {
+                    // The choice is sent and the control waits for the agent to confirm it:
+                    // nothing moves here until the thread says the agent took it, and a
+                    // refusal leaves the sentence above this control and the model unchanged.
+                    if (typeof key !== "string" || key === model.currentValue) return;
+                    tell(configCommand(model.id, key, session));
+                  }}
+                />
+              </div>
             )}
             {phase === "active" && (
               <form className="agent-panel__composer" onSubmit={onPrompt}>

@@ -34,7 +34,17 @@ const (
 	spawnHelperStubbornMode = "stubborn"
 	spawnHelperLoadMode     = "load"
 	spawnHelperRefuseMode   = "refuseload"
-	spawnHelperLife         = 400 * time.Millisecond
+	// spawnHelperModelMode and spawnHelperModelLoadMode offer a model at session/new and accept
+	// a set; the second also advertises the load capability, so a restart goes through
+	// session/load and the first degrades to a fresh session. They are how the declaration is
+	// observed being applied again on the connection a restart came back on.
+	spawnHelperModelMode     = "model"
+	spawnHelperModelLoadMode = "modelload"
+	// The child's own model and the one the parent declares: the pair that makes a missing
+	// re-application visible, because a fresh session opens on the default.
+	spawnHelperModelDefault  = "agent-default-model"
+	spawnHelperModelDeclared = "project-declared-model"
+	spawnHelperLife          = 400 * time.Millisecond
 	// spawnHelperText is what the child's peer answers a turn with.
 	spawnHelperText = "hello from the spawned agent"
 )
@@ -106,15 +116,36 @@ func TestSpawnHelper(t *testing.T) {
 }
 
 // spawnHandler is what the child answers with: the plain peer, or one that carries the
-// loadSession capability and either takes a session back or refuses it.
+// loadSession capability and either takes a session back or refuses it, or one that offers a
+// model and accepts a set.
 func spawnHandler(mode string) acptest.Handler {
 	switch mode {
 	case spawnHelperLoadMode:
 		return acptest.Loadable(spawnHelperText, false)
 	case spawnHelperRefuseMode:
 		return acptest.Loadable(spawnHelperText, true)
+	case spawnHelperModelMode:
+		return acptest.OffersModels(spawnHelperModelDefault, spawnHelperModelDefault, spawnHelperModelDeclared)
+	case spawnHelperModelLoadMode:
+		return loadableWithModels(spawnHelperText, spawnHelperModelDefault, spawnHelperModelDeclared)
 	}
 	return acptest.Streams(spawnHelperText)
+}
+
+// loadableWithModels is the child that can take a session back *and* offers a model: a restart
+// asks it to load, and the declared model has to be applied again on the connection the
+// conversation came back on. The model's own methods are answered by the peer that offers them,
+// and everything else is the loadable agent's, so the two shapes stay one definition each.
+func loadableWithModels(text, current string, choices ...string) acptest.Handler {
+	loadable := acptest.Loadable(text, false)
+	models := acptest.OffersModels(current, choices...)
+	return func(agent *acptest.Agent, method string, params json.RawMessage) any {
+		switch method {
+		case "session/new", "session/set_config_option":
+			return models(agent, method, params)
+		}
+		return loadable(agent, method, params)
+	}
 }
 
 // recordCalls appends every method the child is asked to a file. It is how a parent sees
@@ -147,12 +178,20 @@ func askedMethods(t *testing.T, scratch string) []string {
 // wasAsked reports whether a method appears in what the child was asked.
 func wasAsked(t *testing.T, scratch, method string) bool {
 	t.Helper()
+	return countAsked(t, scratch, method) > 0
+}
+
+// countAsked counts how many times the child was asked a method, which is how a test sees work
+// repeated across a restart — the declaration applied again on the new connection, say.
+func countAsked(t *testing.T, scratch, method string) int {
+	t.Helper()
+	count := 0
 	for _, asked := range askedMethods(t, scratch) {
 		if asked == method {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
 }
 
 // appendPID records this process in the scratch file, one line per start: the count

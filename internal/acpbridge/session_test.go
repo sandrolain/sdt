@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -287,5 +288,94 @@ func TestOnlyTheExplanatoryStopsAreRecorded(t *testing.T) {
 				t.Errorf("a %s turn recorded %+v", reason, part)
 			}
 		}
+	}
+}
+
+// modelInUse reads the model a thread says is in use. It is the field the panel builds its
+// control from, so a test about what the reader sees reads this rather than the wire.
+func modelInUse(t *testing.T, thread Thread) string {
+	t.Helper()
+	for _, raw := range thread.Config {
+		var option struct {
+			ID           string `json:"id"`
+			CurrentValue string `json:"currentValue"`
+		}
+		if err := json.Unmarshal(raw, &option); err != nil {
+			t.Fatalf("a config option in the thread is not the agent's own payload: %v (%s)", err, raw)
+		}
+		if option.ID == "model" {
+			return option.CurrentValue
+		}
+	}
+	t.Fatalf("the thread carries no model option: %v", thread.Config)
+	return ""
+}
+
+// A set the agent accepts moves the session's own configuration: the answer carries the option
+// with the value now in use, and it lands in the thread the panel reads. The control therefore
+// shows the agent's word rather than the choice that was asked for — an agent is free to answer
+// with something else, and the panel must not have guessed.
+func TestASetTheAgentAcceptsMovesTheSessionsConfig(t *testing.T) {
+	bridge, agent := activatedBridge(t, offeringAgent("openrouter/meta/muse-spark-open",
+		"openrouter/meta/muse-spark-open", "opencode/big-pickle"))
+	session, ok := bridge.Session(bridge.SessionID())
+	if !ok {
+		t.Fatalf("the bridge holds no session %q", bridge.SessionID())
+	}
+	states := make(chan Thread, 4)
+	session.State().Listen(func(thread Thread) { states <- thread })
+
+	if err := session.SetConfig(context.Background(), "model", "opencode/big-pickle"); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+	if got := modelInUse(t, session.State().Snapshot()); got != "opencode/big-pickle" {
+		t.Fatalf("the thread is on %q, want the model the agent answered with", got)
+	}
+	select {
+	case thread := <-states:
+		if got := modelInUse(t, thread); got != "opencode/big-pickle" {
+			t.Fatalf("the announced thread is on %q, want the agent's own answer", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the set changed the thread and nothing was announced to the browser")
+	}
+	asked := agent.ParamsFor(t, "session/set_config_option")
+	if asked["configId"] != "model" || asked["value"] != "opencode/big-pickle" {
+		t.Fatalf("the agent was asked %v, want the session's model set to the chosen value", asked)
+	}
+	if asked["sessionId"] != bridge.SessionID() {
+		t.Fatalf("the set named session %v, want the conversation it was made on (%q)", asked["sessionId"], bridge.SessionID())
+	}
+}
+
+// A declared model the agent will not take is a sentence, not a failed start: the session opens
+// on the model the agent chose, the reader reads the agent's own words, and a turn still works.
+// A refusal is a provider's answer about one model, not a reason to leave the reader with a dead
+// panel.
+func TestADeclaredModelTheAgentRefusesOpensTheSessionAnyway(t *testing.T) {
+	agent := newFakeAgent(t, setRefusingAgent("the provider has no such model"))
+	bridge := New(Options{Root: t.TempDir(), Version: "test", Model: "openrouter/no-such-model"})
+	t.Cleanup(func() { _ = bridge.Close() })
+
+	if _, err := bridge.Activate(context.Background(), agent.Path()); err != nil {
+		t.Fatalf("a refused model must not fail the open: %v", err)
+	}
+	status, note := bridge.Status()
+	if status != StatusActive {
+		t.Fatalf("a refused model must leave the session live: status=%q", status)
+	}
+	if !strings.Contains(note, "the provider has no such model") {
+		t.Fatalf("the reader must read the agent's own sentence, got %q", note)
+	}
+	session, ok := bridge.Session(bridge.SessionID())
+	if !ok {
+		t.Fatalf("the bridge holds no session %q", bridge.SessionID())
+	}
+	// The agent's own list is what the panel shows, and it still says which model is in use.
+	if got := modelInUse(t, session.State().Snapshot()); got != "default/model" {
+		t.Fatalf("the session is on %q, want the model the agent opened with", got)
+	}
+	if err := session.Prompt(context.Background(), "una domanda"); err != nil {
+		t.Fatalf("the conversation must still work on the agent's own model: %v", err)
 	}
 }

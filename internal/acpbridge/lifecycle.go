@@ -244,6 +244,19 @@ func (b *Bridge) setStatus(status Status, reason string) {
 	b.mu.Unlock()
 }
 
+// setNote records a sentence about what just happened without touching the state it belongs
+// to: a sentence is not a state change, and a state a reader needs — stopping, restarting —
+// must not be overwritten by one. A sentence with nothing to say leaves the note as it is,
+// so a session that went well cannot erase what a reader has not been told yet.
+func (b *Bridge) setNote(sentence string) {
+	if sentence == "" {
+		return
+	}
+	b.mu.Lock()
+	b.statusErr = sentence
+	b.mu.Unlock()
+}
+
 // validateCommand is the refusal shared by every path that can start a process, so a
 // command nobody could run is refused before a pipe exists.
 func validateCommand(command []string) error {

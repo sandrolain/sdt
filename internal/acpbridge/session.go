@@ -110,18 +110,24 @@ func (s *Session) Prompt(ctx context.Context, text string) error {
 
 // turnFailure is what the reader is told about a turn that failed: the agent's own sentence,
 // unwrapped from the JSON-RPC envelope it travels in, and the error's own text for anything
-// that is not that shape (a transport that went away, say). Nothing is reworded — a refusal
-// is the agent's to explain, and the viewer cannot know better. A refusal that carries no
-// sentence at all is the one case where the code is all there is to report, because a raw
-// JSON-RPC envelope is not something a reader should have to look at.
-func turnFailure(err error) string {
+// that is not that shape (a transport that went away, say).
+func turnFailure(err error) string { return RefusalSentence(err, "the turn") }
+
+// RefusalSentence is how a refusal is put to a reader: the agent's own words for it, with the
+// JSON-RPC envelope they travel in taken off, and — when the agent gave no words at all — the
+// code, named by what was turned down. Nothing is reworded, because a refusal is the agent's
+// to explain and the viewer cannot know better, and a raw envelope is not something a reader
+// should have to look at. It is exported because both halves read it from here: the bridge's
+// own note and the viewer's answer to a command are one sentence, and neither paraphrases the
+// other.
+func RefusalSentence(err error, refused string) string {
 	var request *acp.RequestError
 	if errors.As(err, &request) {
 		if request.Message != "" {
 			return request.Message
 		}
 		if request.Code != 0 {
-			return fmt.Sprintf("the agent refused the turn (code %d)", request.Code)
+			return fmt.Sprintf("the agent refused %s (code %d)", refused, request.Code)
 		}
 	}
 	return err.Error()
@@ -137,6 +143,28 @@ func reportedStop(reason acp.StopReason) string {
 	default:
 		return ""
 	}
+}
+
+// SetConfig switches one of this conversation's configuration options — the model it runs on,
+// its mode — and folds the agent's own answer into the thread, because what the agent says is
+// in use is the truth the panel shows: a control whose value came from the request would be the
+// browser's guess rather than the agent's word. The protocol's setter takes a value id, which
+// is what a select carries. The caller passes its own context, the way Cancel does: a browser
+// that went away takes its own set with it, and no timeout is invented here.
+func (s *Session) SetConfig(ctx context.Context, configID, value string) error {
+	conn, sessionID := s.connection()
+	answer, err := conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
+		ValueId: &acp.SetSessionConfigOptionValueId{
+			SessionId: acp.SessionId(sessionID),
+			ConfigId:  acp.SessionConfigId(configID),
+			Value:     acp.SessionConfigValueId(value),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("acpbridge: session/set_config_option: %w", err)
+	}
+	s.state.ConfigOptions(answer.ConfigOptions)
+	return nil
 }
 
 // Cancel asks the agent to stop the current turn. The protocol makes it a

@@ -37,6 +37,16 @@ func TestDecodeCommandAcceptsTheBrowserVocabulary(t *testing.T) {
 			`{"type":"permission","requestId":"perm-2","allow":false,"sessionId":"sess-3"}`,
 			Command{Kind: EnvelopePermission, RequestID: "perm-2", Allow: false, SessionID: "sess-3"},
 		},
+		{
+			"a configuration option set",
+			`{"type":"config","configId":"model","value":"opencode/big-pickle"}`,
+			Command{Kind: EnvelopeConfig, ConfigID: "model", Value: "opencode/big-pickle"},
+		},
+		{
+			"a configuration option set on a named session",
+			`{"type":"config","configId":"model","value":"openrouter/meta/muse-spark-open","sessionId":"sess-2"}`,
+			Command{Kind: EnvelopeConfig, ConfigID: "model", Value: "openrouter/meta/muse-spark-open", SessionID: "sess-2"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -60,6 +70,10 @@ func TestDecodeCommandRefusesWhatTheWireDoesNotDefine(t *testing.T) {
 		`{"type":"prompt","text":""}`,
 		`{"type":"permission","allow":true}`,
 		`{"type":"cancel","sessionId":42}`,
+		`{"type":"config","value":"opencode/big-pickle"}`,
+		`{"type":"config","configId":"model"}`,
+		`{"type":"config","configId":"","value":"opencode/big-pickle"}`,
+		`{"type":"config","configId":"model","value":""}`,
 		`not json at all`,
 		``,
 	}

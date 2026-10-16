@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentPanel } from "./AgentPanel";
 import {
@@ -44,8 +46,49 @@ function state(
   return { type: "state", sessionId, thread: { sessionId, messages: [], ...thread } };
 }
 
+/**
+ * fixtureThread is the thread the Go side writes, read from the same file the wire test reads:
+ * the panel is exercised against the shape the bridge actually sends, model option included,
+ * rather than against one this test invented.
+ */
+function fixtureThread(): AgentStateEnvelope {
+  const path = join(
+    process.cwd(),
+    "..",
+    "internal",
+    "acpbridge",
+    "testdata",
+    "wire",
+    "session.json",
+  );
+  return JSON.parse(readFileSync(path, "utf8")) as AgentStateEnvelope;
+}
+
+/** modelConfigOption is the agent's own option, with the model now in use. */
+function modelConfigOption(current: string) {
+  return {
+    id: "model",
+    name: "Model",
+    category: "model",
+    currentValue: current,
+    type: "select",
+    options: [
+      { value: "openrouter/meta/muse-spark-open", name: "openrouter/meta/muse-spark-open" },
+      { value: "opencode/deepseek-v4.1-flash-free", name: "opencode/deepseek-v4.1-flash-free" },
+      { value: "opencode/big-pickle", name: "opencode/big-pickle" },
+    ],
+  };
+}
+
 /** mockViewer answers the viewer's endpoints as the real one does. */
-function mockViewer(options: { activated?: boolean; error?: string; command?: string[] } = {}) {
+function mockViewer(
+  options: {
+    activated?: boolean;
+    error?: string;
+    command?: string[];
+    commandError?: string;
+  } = {},
+) {
   const calls: { path: string; init?: RequestInit }[] = [];
   const command = options.command ?? ["opencode", "acp"];
   const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
@@ -77,6 +120,8 @@ function mockViewer(options: { activated?: boolean; error?: string; command?: st
       );
     }
     if (path === AGENT_COMMAND_PATH) {
+      if (options.commandError)
+        return new Response(JSON.stringify({ error: options.commandError }), { status: 502 });
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
     return new Response(JSON.stringify({}), { status: 200 });
@@ -342,6 +387,85 @@ describe("AgentPanel", () => {
     });
     expect(await screen.findByText("allowed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Allow" })).toBeNull();
+  });
+
+  it("shows the model the session is on and posts the reader's choice from the agent's list", async () => {
+    const calls = mockViewer();
+    const source = await open();
+    source.emit("message", { data: JSON.stringify(fixtureThread()) });
+
+    // The control is built from the wire fixture's own option and shows the value the agent
+    // says is in use — the panel has no copy of the truth to disagree with.
+    const control = (await screen.findByRole("combobox", {
+      name: "Model",
+    })) as HTMLInputElement;
+    expect(control.value).toBe("openrouter/meta/muse-spark-open");
+
+    await userEvent.click(control);
+    await userEvent.keyboard("{ArrowDown}");
+    await userEvent.click(await screen.findByRole("option", { name: "opencode/big-pickle" }));
+    expect(commands(calls).at(-1)).toEqual({
+      type: "config",
+      configId: "model",
+      value: "opencode/big-pickle",
+      sessionId: "sess-1",
+    });
+
+    // Nothing moved: the choice is a request, and the agent's own answer is what changes the
+    // control. A local guess would show a model the session is not on.
+    expect(control.value).toBe("openrouter/meta/muse-spark-open");
+
+    source.emit("message", {
+      data: JSON.stringify(state({ config: [modelConfigOption("opencode/big-pickle")] })),
+    });
+    await waitFor(() => expect(control.value).toBe("opencode/big-pickle"));
+  });
+
+  it("shows the agent's refusal where the control is, and leaves the session on its model", async () => {
+    const calls = mockViewer({ commandError: "the provider has no such model" });
+    const source = await open();
+    source.emit("message", { data: JSON.stringify(fixtureThread()) });
+    const control = (await screen.findByRole("combobox", {
+      name: "Model",
+    })) as HTMLInputElement;
+
+    await userEvent.click(control);
+    await userEvent.keyboard("{ArrowDown}");
+    await userEvent.click(
+      await screen.findByRole("option", { name: "opencode/deepseek-v4.1-flash-free" }),
+    );
+
+    // The sentence the viewer sent back, above the control that caused it, and the model the
+    // agent says is in use is untouched.
+    expect(await screen.findByText("the provider has no such model")).toBeTruthy();
+    expect(control.value).toBe("openrouter/meta/muse-spark-open");
+
+    // A refused choice is not the end of the conversation: the next turn is posted as usual.
+    await userEvent.type(screen.getByLabelText("Message"), "still there?");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(commands(calls).at(-1)).toEqual({
+      type: "prompt",
+      text: "still there?",
+      sessionId: "sess-1",
+    });
+  });
+
+  it("has no model control when the agent offers no model option", async () => {
+    mockViewer();
+    const source = await open();
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [{ id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "ready" }] }],
+        }),
+      ),
+    });
+
+    // Exactly the panel that was there before: no box to try, and the rest is unchanged.
+    expect(await screen.findByText("ready")).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "Model" })).toBeNull();
+    expect(screen.getByLabelText("Message")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send" })).toBeTruthy();
   });
 
   it("re-reads the bridge when a stream ends instead of pretending to be connected", async () => {

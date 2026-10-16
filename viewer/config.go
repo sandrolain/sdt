@@ -47,6 +47,11 @@ type viewerAgentConfig struct {
 	// is nothing to quote and nothing to interpolate; the first element is either a
 	// program name, resolved at spawn time, or an explicit path.
 	Command []string `yaml:"command"`
+	// Model is the model the project runs its agent on, applied by the bridge
+	// whenever it opens a session — a fresh one, or the one a restart carries. It
+	// is the id the agent itself offers, taken verbatim: the viewer never maps a
+	// name, and an absent or blank one leaves the agent on its own default.
+	Model string `yaml:"model"`
 }
 
 // agentCommand returns the declared argv, or nil when the project declares no
@@ -59,6 +64,13 @@ func (c viewerConfig) agentCommand() []string {
 		return nil
 	}
 	return c.Agent.Command
+}
+
+// agentModel returns the declared model, or the empty string when the project
+// declares none. A blank one counts as absent the way a blank argv does: it names
+// nothing, and passing it on would ask the agent for a model no reader wrote.
+func (c viewerConfig) agentModel() string {
+	return strings.TrimSpace(c.Agent.Model)
 }
 
 // loadViewerConfig reads root/.sdt.yaml for viewer-relevant keys. A missing or

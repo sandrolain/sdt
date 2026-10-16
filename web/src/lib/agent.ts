@@ -17,6 +17,7 @@ export const ENVELOPE_STATE = "state";
 export const ENVELOPE_PROMPT = "prompt";
 export const ENVELOPE_CANCEL = "cancel";
 export const ENVELOPE_PERMISSION = "permission";
+export const ENVELOPE_CONFIG = "config";
 
 /** Message roles. */
 export const ROLE_USER = "user";
@@ -46,9 +47,10 @@ export const AGENT_STREAM_PATH = "/api/agent/stream";
 
 /**
  * AgentState is what the viewer reports before and after a start: whether the surface is
- * usable, what the process is doing, which session a browser would join, the command the
- * project declared (so a reader can see what will run without ever typing it), and the
- * sentence for a failure or for an agent that could not be put back on its conversation.
+ * usable, what the process is doing, which session a browser would join, the command and
+ * the model the project declared (so a reader can see what will run, and on which model,
+ * without ever typing either), and the sentence for a failure or for an agent that could
+ * not be put back on its conversation.
  */
 export interface AgentState {
   activated: boolean;
@@ -56,6 +58,7 @@ export interface AgentState {
   status?: string;
   session?: string;
   command?: string[];
+  model?: string;
   error?: string;
 }
 
@@ -113,9 +116,53 @@ export interface AgentThread {
   plan?: AgentPlan;
   commands?: { name: string; description?: string }[];
   mode?: string;
+  /** The options the agent advertised for this session, kept verbatim: the bridge folds the
+   *  agent's own payloads without rewriting them, so a field this module does not know about
+   *  is a field the agent added. `modelOption` reads the one the panel renders. */
   config?: unknown[];
   info?: { title?: string; updatedAt?: string };
   usage?: { used: number; size: number; amount?: number; currency?: string };
+}
+
+/** AgentConfigChoice is one value an option offers, named by the agent. */
+export interface AgentConfigChoice {
+  value: string;
+  name?: string;
+  description?: string;
+}
+
+/**
+ * AgentConfigOption is one configuration option the agent advertised for a session. The
+ * protocol makes it a union — a select, or a boolean — and the panel renders the select; every
+ * field but `id` is the agent's, and absent means the agent did not send it.
+ */
+export interface AgentConfigOption {
+  id: string;
+  name?: string;
+  category?: string;
+  currentValue?: string;
+  type?: string;
+  options?: AgentConfigChoice[];
+}
+
+/** The category an agent names its model with: the option the panel offers a control for. */
+export const CONFIG_CATEGORY_MODEL = "model";
+
+/**
+ * modelOption picks the model a session is on out of what the agent advertised, or undefined
+ * when it offers none — an agent without a model option gets exactly the panel that was there
+ * before, because there is nothing to choose between. It is chosen by the protocol's own
+ * category, not by the id the agent happens to use, and a boolean option is not a list.
+ */
+export function modelOption(config: unknown[] | undefined): AgentConfigOption | undefined {
+  if (!config) return undefined;
+  for (const raw of config) {
+    const option = raw as AgentConfigOption | null;
+    if (option?.category !== CONFIG_CATEGORY_MODEL) continue;
+    if (option.type !== "select" || !option.options?.length) continue;
+    return option;
+  }
+  return undefined;
 }
 
 /** AgentStateEnvelope is one whole-thread state, one JSON message. */
@@ -126,14 +173,15 @@ export interface AgentStateEnvelope {
 }
 
 /**
- * The three commands a browser sends. `sessionId` names the conversation, because a
+ * The four commands a browser sends. `sessionId` names the conversation, because a
  * command travels as its own POST while the stream is a different request; omitted
  * means "the stream I am reading", which is the single-browser case.
  */
 export type AgentCommand =
   | { type: typeof ENVELOPE_PROMPT; text: string; sessionId?: string }
   | { type: typeof ENVELOPE_CANCEL; sessionId?: string }
-  | { type: typeof ENVELOPE_PERMISSION; requestId: string; allow: boolean; sessionId?: string };
+  | { type: typeof ENVELOPE_PERMISSION; requestId: string; allow: boolean; sessionId?: string }
+  | { type: typeof ENVELOPE_CONFIG; configId: string; value: string; sessionId?: string };
 
 /** promptCommand builds the envelope for a user message. */
 export function promptCommand(text: string, sessionId?: string): AgentCommand {
@@ -154,6 +202,17 @@ export function permissionCommand(
   return sessionId
     ? { type: ENVELOPE_PERMISSION, requestId, allow, sessionId }
     : { type: ENVELOPE_PERMISSION, requestId, allow };
+}
+
+/**
+ * configCommand sets one configuration option of a session — the model it runs on. The
+ * id and the value are the agent's own, passed through verbatim: the browser never maps
+ * a model name, so what the agent advertised is what it is asked for.
+ */
+export function configCommand(configId: string, value: string, sessionId?: string): AgentCommand {
+  return sessionId
+    ? { type: ENVELOPE_CONFIG, configId, value, sessionId }
+    : { type: ENVELOPE_CONFIG, configId, value };
 }
 
 /** isAgentPanelKey reports whether a key event asks for the agent panel (⌘J / Ctrl+J). */

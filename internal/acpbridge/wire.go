@@ -21,6 +21,10 @@ const (
 	EnvelopeCancel = "cancel"
 	// EnvelopePermission answers a pending request.
 	EnvelopePermission = "permission"
+	// EnvelopeConfig sets one configuration option of a session — the model it runs
+	// on, its mode. It is general in the protocol's own terms; the panel offers a
+	// control for the model and nothing else.
+	EnvelopeConfig = "config"
 )
 
 // ErrCommand is returned for a browser message the wire does not define. The
@@ -59,12 +63,25 @@ type PermissionEnvelope struct {
 	SessionID string `json:"sessionId,omitempty"`
 }
 
+// ConfigEnvelope sets one configuration option of a session. The option is named by
+// its own id and set to one of the values the agent offered, both verbatim: the
+// viewer never maps a model name, so what the agent advertised is what it is asked
+// for.
+type ConfigEnvelope struct {
+	Type      string `json:"type"`
+	ConfigID  string `json:"configId"`
+	Value     string `json:"value"`
+	SessionID string `json:"sessionId,omitempty"`
+}
+
 // Command is one message from the browser, decoded from its envelope.
 type Command struct {
 	Kind      string
 	Text      string
 	RequestID string
 	Allow     bool
+	ConfigID  string
+	Value     string
 	SessionID string
 }
 
@@ -112,6 +129,23 @@ func DecodeCommand(data []byte) (Command, error) {
 			RequestID: permission.RequestID,
 			Allow:     permission.Allow,
 			SessionID: permission.SessionID,
+		}, nil
+	case EnvelopeConfig:
+		var config ConfigEnvelope
+		if err := json.Unmarshal(data, &config); err != nil {
+			return Command{}, fmt.Errorf("%w: config: %v", ErrCommand, err)
+		}
+		if config.ConfigID == "" {
+			return Command{}, fmt.Errorf("%w: a config command names no option", ErrCommand)
+		}
+		if config.Value == "" {
+			return Command{}, fmt.Errorf("%w: a config command carries no value", ErrCommand)
+		}
+		return Command{
+			Kind:      EnvelopeConfig,
+			ConfigID:  config.ConfigID,
+			Value:     config.Value,
+			SessionID: config.SessionID,
 		}, nil
 	default:
 		return Command{}, fmt.Errorf("%w: %q", ErrCommand, envelope.Type)

@@ -183,11 +183,12 @@ func TestAgentActivationRefusesAForeignOrigin(t *testing.T) {
 }
 
 // A live agent behind the surface, and the state the browser then reads: the process
-// view, the session, and the command the project declared.
+// view, the session, and the command and model the project declared.
 func TestAgentStateReportsTheLiveAgent(t *testing.T) {
 	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
 	s.agentCommand = []string{"opencode", "acp"}
+	s.agentModel = "opencode/big-pickle"
 	activateOnSocket(t, s, agent.Path())
 
 	if got, want := agent.Methods(), []string{"initialize", "session/new"}; len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
@@ -213,6 +214,11 @@ func TestAgentStateReportsTheLiveAgent(t *testing.T) {
 	}
 	if len(state.Command) != 2 || state.Command[0] != "opencode" {
 		t.Fatalf("the state must carry the command the project declared, got %v", state.Command)
+	}
+	// The panel says which model a session starts on before the reader sends anything; the
+	// declaration is the only place that can come from.
+	if state.Model != "opencode/big-pickle" {
+		t.Fatalf("the state must carry the model the project declared, got %q", state.Model)
 	}
 }
 
@@ -418,6 +424,123 @@ func TestAgentCommandDeliversCancel(t *testing.T) {
 	if !containsMethod(agent.Methods(), "session/cancel") {
 		t.Fatalf("the agent was asked %v, want a session/cancel", agent.Methods())
 	}
+}
+
+// modelInUse reads the model a state frame says is in use. It is the field the panel builds its
+// own control from, so a test about what the reader sees reads this rather than the wire.
+func modelInUse(t *testing.T, state acpbridge.StateEnvelope) string {
+	t.Helper()
+	for _, raw := range state.Thread.Config {
+		var option struct {
+			ID           string `json:"id"`
+			CurrentValue string `json:"currentValue"`
+		}
+		if err := json.Unmarshal(raw, &option); err != nil {
+			t.Fatalf("a config option in the frame is not the agent's own payload: %v (%s)", err, raw)
+		}
+		if option.ID == "model" {
+			return option.CurrentValue
+		}
+	}
+	t.Fatalf("the frame carries no model option: %v", state.Thread.Config)
+	return ""
+}
+
+// setRefusingAgent offers a model list at session/new, refuses every set with the agent's own
+// sentence — the shape a provider's refusal has — and still answers a turn, so a test can see
+// that a refused choice left a usable conversation behind.
+func setRefusingAgent(message string) acptest.Handler {
+	models := acptest.OffersModels("default/model", "default/model")
+	streams := acptest.Streams("the answer")
+	return func(agent *acptest.Agent, method string, params json.RawMessage) any {
+		switch method {
+		case "session/set_config_option":
+			return acptest.RPCError{Code: -32602, Message: message}
+		case "session/new":
+			return models(agent, method, params)
+		}
+		return streams(agent, method, params)
+	}
+}
+
+// The reader's choice reaches the session they are reading and the agent's own answer comes
+// back on the stream: the control reads the thread, so what it shows is the agent's word rather
+// than the value that was asked for.
+func TestAgentCommandSetsTheSessionsModel(t *testing.T) {
+	s, ts := newAgentViewer(t)
+	agent := acptest.NewAgent(t, acptest.OffersModels("openrouter/meta/muse-spark-open",
+		"openrouter/meta/muse-spark-open", "opencode/big-pickle"))
+	activateOnSocket(t, s, agent.Path())
+
+	stream := openStream(t, ts, ts.URL)
+	frame := stream.next(t)
+	if got := modelInUse(t, frame); got != "openrouter/meta/muse-spark-open" {
+		t.Fatalf("the first frame is on %q, want the model the agent opened with", got)
+	}
+
+	response := command(t, ts, acpbridge.ConfigEnvelope{
+		Type:      acpbridge.EnvelopeConfig,
+		ConfigID:  "model",
+		Value:     "opencode/big-pickle",
+		SessionID: frame.SessionID,
+	})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("the set answered %d", response.StatusCode)
+	}
+	state := stream.nextUntil(t, "holding the model the agent confirmed", func(state acpbridge.StateEnvelope) bool {
+		return modelInUse(t, state) == "opencode/big-pickle"
+	})
+	if state.SessionID != frame.SessionID {
+		t.Fatalf("the stream jumped from session %q to %q", frame.SessionID, state.SessionID)
+	}
+	if !containsMethod(agent.Methods(), "session/set_config_option") {
+		t.Fatalf("the agent was asked %v, want a session/set_config_option", agent.Methods())
+	}
+}
+
+// A set the agent refuses is a sentence on the answer, not the end of the conversation: the
+// reader reads the agent's own words rather than the JSON-RPC envelope they travel in, nothing
+// about the thread moves, and the next turn still runs.
+func TestAgentCommandReportsARefusedModelAsASentence(t *testing.T) {
+	s, ts := newAgentViewer(t)
+	agent := acptest.NewAgent(t, setRefusingAgent("the provider has no such model"))
+	activateOnSocket(t, s, agent.Path())
+
+	stream := openStream(t, ts, ts.URL)
+	frame := stream.next(t)
+
+	response := command(t, ts, acpbridge.ConfigEnvelope{
+		Type:      acpbridge.EnvelopeConfig,
+		ConfigID:  "model",
+		Value:     "openrouter/no-such-model",
+		SessionID: frame.SessionID,
+	})
+	if response.StatusCode != http.StatusBadGateway {
+		t.Fatalf("a refused set answered %d, want the upstream refusal reported as such", response.StatusCode)
+	}
+	sentence, err := readBody(response)
+	if err != nil {
+		t.Fatalf("body: %v", err)
+	}
+	if !strings.Contains(sentence, "the provider has no such model") {
+		t.Fatalf("the reader must read the agent's own sentence, got %q", sentence)
+	}
+	if strings.Contains(sentence, "jsonrpc") || strings.Contains(sentence, "-32602") {
+		t.Fatalf("the reader must not be handed a JSON-RPC envelope, got %q", sentence)
+	}
+	if got := modelInUse(t, frame); got != "default/model" {
+		t.Fatalf("a refused set moved the thread to %q", got)
+	}
+	if response := command(t, ts, acpbridge.PromptEnvelope{
+		Type:      acpbridge.EnvelopePrompt,
+		Text:      "still there?",
+		SessionID: frame.SessionID,
+	}); response.StatusCode != http.StatusOK {
+		t.Fatalf("the conversation must still take a turn, the prompt answered %d", response.StatusCode)
+	}
+	stream.nextUntil(t, "holding the answer that followed the refused set", func(state acpbridge.StateEnvelope) bool {
+		return len(state.Thread.Messages) == 2
+	})
 }
 
 // One session per browser stream: the stream gets its own, not the one activation

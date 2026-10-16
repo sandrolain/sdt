@@ -1,6 +1,7 @@
 package acpbridge
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/sandrolain/sdt/internal/acpbridge/acptest"
@@ -33,3 +34,26 @@ func refusingAgent(code int, message string) handler { return acptest.Refuses(co
 
 // stoppingAgent answers a turn with one chunk and the reason it stopped on.
 func stoppingAgent(text, reason string) handler { return acptest.Stops(text, reason) }
+
+// offeringAgent answers session/new with a `model` config option, the one place the
+// agent's model list arrives, and accepts a set.
+func offeringAgent(current string, choices ...string) handler {
+	return acptest.OffersModels(current, choices...)
+}
+
+// setRefusingAgent offers a model list at session/new, refuses every set with the agent's own
+// sentence — the shape a provider's refusal has — and still answers a turn, so a test can see
+// that a refused declaration left a usable conversation behind.
+func setRefusingAgent(message string) handler {
+	models := acptest.OffersModels("default/model", "default/model")
+	streams := acptest.Streams("the answer")
+	return func(agent *fakeAgent, method string, params json.RawMessage) any {
+		switch method {
+		case "session/set_config_option":
+			return rpcError{Code: -32602, Message: message}
+		case "session/new":
+			return models(agent, method, params)
+		}
+		return streams(agent, method, params)
+	}
+}

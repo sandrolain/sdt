@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ENVELOPE_CANCEL,
+  ENVELOPE_CONFIG,
   ENVELOPE_PERMISSION,
   ENVELOPE_PROMPT,
   ENVELOPE_STATE,
@@ -23,6 +24,7 @@ import {
   PART_THOUGHT,
   PART_TOOL_CALL,
   cancelCommand,
+  configCommand,
   permissionCommand,
   promptCommand,
   type AgentStateEnvelope,
@@ -134,15 +136,37 @@ describe("the wire the Go side writes", () => {
     expect(permissionCommand("perm-1", true, "sess-1")).toEqual(
       fixture("commands", "permission.json"),
     );
+    expect(configCommand("model", "opencode/big-pickle", "sess-1")).toEqual(
+      fixture("commands", "config.json"),
+    );
 
-    // And every kind the fixture set uses is one of the four the wire defines.
+    // Every kind the fixture set uses is one the wire defines, and the set is exactly the
+    // vocabulary: a fifth kind on the Go side fails here rather than arriving unrecognised.
     const kinds = new Set(
-      ["prompt", "cancel", "permission"].map(
-        (name) => (fixture("commands", `${name}.json`) as { type: string }).type,
+      readdirSync(join(WIRE_DIR, "commands")).map(
+        (name) => (fixture("commands", name) as { type: string }).type,
       ),
     );
     expect([...kinds].sort()).toEqual(
-      [ENVELOPE_CANCEL, ENVELOPE_PERMISSION, ENVELOPE_PROMPT].sort(),
+      [ENVELOPE_CANCEL, ENVELOPE_CONFIG, ENVELOPE_PERMISSION, ENVELOPE_PROMPT].sort(),
     );
+  });
+
+  it("carries the agent's own config options, which is where the model list arrives", () => {
+    const envelope = fixture("session.json") as AgentStateEnvelope;
+    const config = envelope.thread.config as
+      | { id: string; category?: string; currentValue?: string; options?: { value: string }[] }[]
+      | undefined;
+    // The open's own answer is the only place the list arrives: a real agent sends no
+    // config update afterwards, so a bridge that dropped it would show an empty control.
+    expect(config).toHaveLength(1);
+    expect(config?.[0].id).toBe("model");
+    expect(config?.[0].category).toBe("model");
+    expect(config?.[0].currentValue).toBe("openrouter/meta/muse-spark-open");
+    expect(config?.[0].options?.map((option) => option.value)).toEqual([
+      "openrouter/meta/muse-spark-open",
+      "opencode/deepseek-v4.1-flash-free",
+      "opencode/big-pickle",
+    ]);
   });
 });

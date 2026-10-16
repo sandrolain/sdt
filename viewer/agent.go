@@ -97,15 +97,17 @@ func (r agentActivateRequest) namesACommand() bool {
 
 // agentStateResponse is what a browser may read before it activates, and what it needs
 // to say what is happening: whether the surface is usable, what the process is doing,
-// which session a browser would join, the command the project declared — so a reader can
-// see what will run without ever typing it — and the sentence for a failure, or for an
-// agent that could not be put back on the conversation it had.
+// which session a browser would join, the command and the model the project declared —
+// so a reader can see what will run and which model it starts on, without ever typing
+// either — and the sentence for a failure, or for an agent that could not be put back on
+// the conversation it had.
 type agentStateResponse struct {
 	Activated bool     `json:"activated"`
 	Connected bool     `json:"connected"`
 	Status    string   `json:"status,omitempty"`
 	Session   string   `json:"session,omitempty"`
 	Command   []string `json:"command,omitempty"`
+	Model     string   `json:"model,omitempty"`
 	Error     string   `json:"error,omitempty"`
 }
 
@@ -117,6 +119,7 @@ func (s *server) agentState(session string) agentStateResponse {
 		Activated: s.agent.Activated(),
 		Status:    string(status),
 		Command:   s.agentCommand,
+		Model:     s.agentModel,
 	}
 	switch {
 	case s.agentReason != "":
@@ -341,6 +344,16 @@ func (s *server) handleAgentCommand(w http.ResponseWriter, r *http.Request) {
 		// the answer is handed to the agent second, which releases its wait.
 		session.State().ResolvePermission(command.RequestID, agentDecision(command.Allow))
 		s.agent.Permissions().Answer(command.RequestID, command.Allow)
+	case acpbridge.EnvelopeConfig:
+		// A set the agent refuses is the reader's business, not a failed request: the agent's
+		// own sentence travels back, never the JSON-RPC envelope it came in, and the
+		// conversation stays open — the panel keeps showing the model the agent says is in
+		// use. The set runs under the request's own context, the way a cancel does, so a
+		// browser that went away takes its own set with it.
+		if err := session.SetConfig(r.Context(), command.ConfigID, command.Value); err != nil {
+			writeErr(w, http.StatusBadGateway, acpbridge.RefusalSentence(err, fmt.Sprintf("the model %q", command.Value)))
+			return
+		}
 	default:
 		writeErr(w, http.StatusBadRequest, errAgentCommand)
 		return
@@ -519,24 +532,28 @@ func agentOrigin(r *http.Request) bool {
 }
 
 // enableAgent turns the surface on for a loopback bind and records why it is off
-// otherwise, mirroring decision 0027's rule for document editing. The argv the
-// project declared is read here and logged once, so a reader can see what a start
-// will run before asking for one; whether it resolves is the start's business,
-// because that is where a reader asked.
+// otherwise, mirroring decision 0027's rule for document editing. The declaration
+// the project carries is read here and logged once, so a reader can see what a
+// start will run, and on which model, before asking for one; whether the command
+// resolves is the start's business, because that is where a reader asked.
 func (s *server) enableAgent(host string) {
 	if !isLoopbackHost(host) {
 		s.agentReason = errAgentDisabled
 		slog.Info("sdtviewer: agent bridge disabled", "reason", "non-loopback bind host", "host", host)
 		return
 	}
-	s.agent = acpbridge.New(acpbridge.Options{Root: s.root, Version: version})
+	declared := loadViewerConfig(s.root)
+	s.agentCommand, s.agentModel = declared.agentCommand(), declared.agentModel()
+	// The model is the bridge's from birth, not applied afterwards: the declaration
+	// is what every session this bridge opens runs on, including the first.
+	s.agent = acpbridge.New(acpbridge.Options{Root: s.root, Version: version, Model: s.agentModel})
 	if self, err := os.Executable(); err == nil {
 		s.self = self
 	}
-	s.agentCommand = loadViewerConfig(s.root).agentCommand()
 	if len(s.agentCommand) == 0 {
 		slog.Info("sdtviewer: agent bridge available", "root", s.root, "agent", "none configured")
 		return
 	}
-	slog.Info("sdtviewer: agent bridge available", "root", s.root, "agent", strings.Join(s.agentCommand, " "))
+	slog.Info("sdtviewer: agent bridge available", "root", s.root,
+		"agent", strings.Join(s.agentCommand, " "), "model", s.agentModel)
 }

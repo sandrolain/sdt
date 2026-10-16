@@ -78,6 +78,69 @@ func TestActivateCompletesTheHandshake(t *testing.T) {
 	}
 }
 
+// The agent's model list is announced once, in the answer that opens the session, and
+// nowhere else: a bridge that dropped that answer would show a reader a control with
+// nothing in it until an update a real agent never sends. So the fold happens where the
+// answer arrives, and a browser joining the session finds it in the first state it gets.
+func TestTheOpenAnswerFoldsTheAgentConfigIntoTheThread(t *testing.T) {
+	agent := newFakeAgent(t, offeringAgent("openrouter/meta/muse-spark-open",
+		"openrouter/meta/muse-spark-open", "opencode/deepseek-v4.1-flash-free", "opencode/big-pickle"))
+	bridge := testBridge(t)
+	if _, err := bridge.Activate(context.Background(), agent.Path()); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+	t.Cleanup(func() { _ = bridge.Close() })
+
+	session, ok := bridge.Session(bridge.SessionID())
+	if !ok {
+		t.Fatalf("the bridge holds no session %q", bridge.SessionID())
+	}
+	config := session.State().Snapshot().Config
+	if len(config) != 1 {
+		t.Fatalf("the thread carries %d config options, want the one the open answered with: %v", len(config), config)
+	}
+	var option struct {
+		ID           string `json:"id"`
+		Category     string `json:"category"`
+		Type         string `json:"type"`
+		CurrentValue string `json:"currentValue"`
+		Options      []struct {
+			Value string `json:"value"`
+		} `json:"options"`
+	}
+	if err := json.Unmarshal(config[0], &option); err != nil {
+		t.Fatalf("the folded option is not the agent's own payload: %v (%s)", err, config[0])
+	}
+	if option.ID != "model" || option.Category != "model" || option.Type != "select" {
+		t.Fatalf("the folded option lost its identity: %+v", option)
+	}
+	if option.CurrentValue != "openrouter/meta/muse-spark-open" {
+		t.Fatalf("currentValue = %q, want the model the agent opened the session with", option.CurrentValue)
+	}
+	if len(option.Options) != 3 {
+		t.Fatalf("the folded option carries %d choices, want the 3 the agent sent", len(option.Options))
+	}
+}
+
+// An agent that offers nothing leaves an empty config rather than an invented one, and the
+// fold never clears a list a session already holds — the empty answer is the degrade case,
+// not a reason to take a reader's list away.
+func TestAnAgentWithoutConfigOptionsLeavesTheThreadsConfigEmpty(t *testing.T) {
+	agent := newFakeAgent(t, agentVersion(acp.ProtocolVersionNumber, "sess-1"))
+	bridge := testBridge(t)
+	if _, err := bridge.Activate(context.Background(), agent.Path()); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+	t.Cleanup(func() { _ = bridge.Close() })
+	session, ok := bridge.Session(bridge.SessionID())
+	if !ok {
+		t.Fatalf("the bridge holds no session %q", bridge.SessionID())
+	}
+	if config := session.State().Snapshot().Config; len(config) != 0 {
+		t.Fatalf("a session with no config option carries %v, want none", config)
+	}
+}
+
 // A version this bridge does not speak fails closed, and no session is opened:
 // the negotiation is the one place a future protocol cannot pass silently.
 func TestActivateRefusesAFutureProtocolVersion(t *testing.T) {

@@ -171,6 +171,82 @@ func TestARestartWithoutTheCapabilityDegradesToAFreshSession(t *testing.T) {
 	}
 }
 
+// TestARestartAppliesTheDeclaredModelAgain covers the second path that opens a session: the
+// declaration is the project's, so it is applied on the new connection too — a restart that
+// forgot it would put the conversation back on the agent's own model without saying so, which is
+// the silent reset this wave exists to prevent. Both ways back are covered: the agent takes the
+// session back, and it cannot and a fresh session opens.
+func TestARestartAppliesTheDeclaredModelAgain(t *testing.T) {
+	cases := []struct {
+		name  string
+		mode  string
+		loads bool
+	}{
+		{name: "the agent takes the session back", mode: spawnHelperModelLoadMode, loads: true},
+		{name: "the agent cannot and a fresh session opens", mode: spawnHelperModelMode},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			restartWith(t)
+			scratch, root := t.TempDir(), t.TempDir()
+			bridge := New(Options{Root: root, Model: spawnHelperModelDeclared})
+			t.Cleanup(func() { _ = bridge.Close() })
+
+			session, err := bridge.EnsureStarted(context.Background(), spawnCommand(scratch, tc.mode), root)
+			if err != nil {
+				t.Fatalf("EnsureStarted: %v", err)
+			}
+			conversation, live := bridge.Session(session)
+			if !live {
+				t.Fatalf("the session %q must be in the registry", session)
+			}
+			if got := modelInUse(t, conversation.State().Snapshot()); got != spawnHelperModelDeclared {
+				t.Fatalf("the first session must open on the declared model: got %q", got)
+			}
+			before := countAsked(t, scratch, "session/set_config_option")
+			if before == 0 {
+				t.Fatal("the declaration must have been applied on the first connection")
+			}
+
+			if err := syscallKill(bridge.agentPID()); err != nil {
+				t.Fatalf("killing the agent: %v", err)
+			}
+			waitFor(t, "the bridge to be active again (status="+bridge.statusLine()+")", func() bool {
+				status, _ := bridge.Status()
+				return len(startedPIDs(t, scratch)) >= 2 && status == StatusActive
+			})
+
+			if got := wasAsked(t, scratch, "session/load"); got != tc.loads {
+				t.Fatalf("session/load asked: want %v, got %v", tc.loads, got)
+			}
+			// The conversation is the same one, under whatever id it now carries: a fresh
+			// session opens on the agent's default, so a missing re-application shows here.
+			conversation, live = bridge.Session(bridge.SessionID())
+			if !live {
+				t.Fatalf("the restarted bridge holds no session %q", bridge.SessionID())
+			}
+			if got := modelInUse(t, conversation.State().Snapshot()); got != spawnHelperModelDeclared {
+				t.Fatalf("the restarted session is on %q, want the declared model applied again", got)
+			}
+			if after := countAsked(t, scratch, "session/set_config_option"); after <= before {
+				t.Fatalf("the declaration must be applied again on the new connection: %d sets before the restart, %d after", before, after)
+			}
+			// The reader is told about a restart only when something was let go of: the
+			// declaration having gone through must not appear as a complaint.
+			status, note := bridge.Status()
+			if status != StatusActive {
+				t.Fatalf("the restarted bridge is %q, want a live agent", status)
+			}
+			if strings.Contains(note, "model") {
+				t.Fatalf("the declaration went through and the reader is told otherwise: %q", note)
+			}
+			if tc.loads && note != "" {
+				t.Fatalf("a restart that took the conversation back carries no note, got %q", note)
+			}
+		})
+	}
+}
+
 // threadText renders every part of a thread, which is what a reader sees. A test
 // compares it across a restart because a folded replay reconciles with the messages
 // already there rather than adding new ones: the words are what shows it, not a count.

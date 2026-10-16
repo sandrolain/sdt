@@ -44,11 +44,40 @@ func wireVariants(t *testing.T) map[string]acp.SessionUpdate {
 	}
 }
 
+// modelOption is the `model` config option the way an agent announces it in the answer
+// to session/new — the fixture's copy of that answer, and the shape the browser reads to
+// offer a choice. The list arrives there and nowhere else: a real agent sends no update
+// for it, which is why the bridge folds the open's own response.
+func modelOption(current string, choices ...string) acp.SessionConfigOption {
+	options := make(acp.SessionConfigSelectOptionsUngrouped, 0, len(choices))
+	for _, choice := range choices {
+		options = append(options, acp.SessionConfigSelectOption{
+			Value: acp.SessionConfigValueId(choice),
+			Name:  choice,
+		})
+	}
+	return acp.SessionConfigOption{Select: &acp.SessionConfigOptionSelect{
+		Id:           acp.SessionConfigId("model"),
+		Name:         "Model",
+		Category:     acp.Ptr(acp.SessionConfigOptionCategoryModel),
+		CurrentValue: acp.SessionConfigValueId(current),
+		Options:      acp.SessionConfigSelectOptions{Ungrouped: &options},
+		Type:         "select",
+	}}
+}
+
 // wireSession is the scripted session `session.json` carries: the same sequence the
 // fold's own test drives, so the fixture and the unit test cannot say different things.
 func wireSession(t *testing.T) *ThreadState {
 	t.Helper()
 	state := NewThreadState("sess-1")
+	// What the agent answered the open with, folded the way the bridge folds it.
+	state.ConfigOptions([]acp.SessionConfigOption{modelOption(
+		"openrouter/meta/muse-spark-open",
+		"openrouter/meta/muse-spark-open",
+		"opencode/deepseek-v4.1-flash-free",
+		"opencode/big-pickle",
+	)})
 	apply(t, state,
 		userChunk("how big is the corpus?", ""),
 		agentChunk("Let me look", ""),
@@ -160,12 +189,13 @@ func wireFixtureBytes(t *testing.T) (map[string][]byte, error) {
 
 	fixtures["session.json"] = indentedState(t, wireSession(t))
 
-	// The three envelopes the browser sends. The TS test asserts its builders produce
+	// The envelopes the browser sends. The TS test asserts its builders produce
 	// exactly these, which is what makes a rename on either side a failure.
 	commands := map[string]any{
 		"prompt":     PromptEnvelope{Type: EnvelopePrompt, Text: "how big is the corpus?", SessionID: "sess-1"},
 		"cancel":     CancelEnvelope{Type: EnvelopeCancel, SessionID: "sess-1"},
 		"permission": PermissionEnvelope{Type: EnvelopePermission, RequestID: "perm-1", Allow: true, SessionID: "sess-1"},
+		"config":     ConfigEnvelope{Type: EnvelopeConfig, ConfigID: "model", Value: "opencode/big-pickle", SessionID: "sess-1"},
 	}
 	for name, envelope := range commands {
 		payload, err := json.MarshalIndent(envelope, "", "  ")

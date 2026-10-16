@@ -281,6 +281,68 @@ func AgentVersion(version int, sessionID string) Handler {
 	}
 }
 
+// ConfigOption is one configuration option as a wire payload — the shape an agent sends
+// in the answer to session/new and in a config_option update. It is exported as a map
+// rather than a typed value because this package writes the wire, not the client's types.
+func ConfigOption(id, category, current string, choices ...string) map[string]any {
+	options := make([]map[string]any, 0, len(choices))
+	for _, choice := range choices {
+		options = append(options, map[string]any{"value": choice, "name": choice})
+	}
+	return map[string]any{
+		"id":           id,
+		"name":         id,
+		"category":     category,
+		"type":         "select",
+		"currentValue": current,
+		"options":      options,
+	}
+}
+
+// ModelOption is the `model` config option an agent offers, which is how a model list
+// reaches a client: a select whose current value is the model in use.
+func ModelOption(current string, choices ...string) map[string]any {
+	return ConfigOption("model", "model", current, choices...)
+}
+
+// OffersModels answers initialize, session/new and session/set_config_option the way an agent
+// that offers models does: the list rides the answer to session/new and nothing announces it
+// afterwards, which is the shape a real agent has, and a set is accepted by answering the
+// option carrying the value now in use — the confirmation a client folds so the panel shows the
+// agent's own answer rather than the choice it asked for. It is deliberately not folded into
+// AgentVersion, so a test that is about the handshake keeps seeing a handshake and nothing else.
+func OffersModels(current string, choices ...string) Handler {
+	return func(agent *Agent, method string, params json.RawMessage) any {
+		switch method {
+		case newSessionMethod:
+			return map[string]any{
+				sessionIDKey:     agent.NextSessionID(),
+				configOptionsKey: []map[string]any{ModelOption(current, choices...)},
+			}
+		case setConfigMethod:
+			var request struct {
+				Value string `json:"value"`
+			}
+			// A request this package cannot read is answered the way the protocol refuses a
+			// malformed one: the test that sent it gets an error rather than a silent default.
+			if err := json.Unmarshal(params, &request); err != nil {
+				return RPCError{Code: -32602, Message: setConfigMethod + ": " + err.Error()}
+			}
+			return map[string]any{
+				configOptionsKey: []map[string]any{ModelOption(request.Value, choices...)},
+			}
+		}
+		return AgentVersion(acp.ProtocolVersionNumber, "sess-1")(agent, method, params)
+	}
+}
+
+// The model's own two requests: the list arrives with the session's answer, and a choice goes
+// back as a set. Named here because more than one handler answers them.
+const (
+	newSessionMethod = "session/new"
+	setConfigMethod  = "session/set_config_option"
+)
+
 // The protocol's own field names, used by the handlers this package offers so their
 // bodies read like the wire.
 const (
@@ -288,6 +350,7 @@ const (
 	updateKey        = "update"
 	sessionUpdateKey = "sessionUpdate"
 	contentKey       = "content"
+	configOptionsKey = "configOptions"
 )
 
 // LastSessionID is the id handed out most recently.

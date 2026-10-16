@@ -133,13 +133,24 @@ SDT is useful when a project needs to:
 
 `sdtviewer` can carry a live conversation with an ACP agent beside any screen, in a panel
 that overlays whatever the reader is looking at (Chat in the top bar, or ⌘J). The project
-declares which agent it runs, so there is nothing to start by hand:
+declares which agent it runs, and which model it runs it on, so there is nothing to start
+by hand:
 
 ```yaml
 # .sdt.yaml
 agent:
   command: ["opencode", "acp"]   # an argv list, executed directly — no shell
+  model: "opencode/big-pickle"   # optional: absent means the agent's own default
 ```
+
+`model` names one of the models the agent itself offers, and the viewer applies it every
+time it opens a session, so a reload or a restart does not quietly put the conversation
+back on the agent's default. A model the agent refuses is a sentence in the panel rather
+than a failure: the session opens anyway, on the model the agent chose. You can also pick
+another model from the panel itself — it lists what the agent offers for that session, and
+the choice lasts the session; only this file makes it durable. The control shows the model
+the session is on as the agent itself reports it, so what you read there is what the agent
+is running, including when it refused the declared one.
 
 The viewer starts that command when a reader first asks for it in the panel, speaks ACP
 over its stdio, and stops it when the viewer does. Until then no process exists: opening

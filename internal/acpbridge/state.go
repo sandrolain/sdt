@@ -451,8 +451,29 @@ func (s *ThreadState) applyMode(update *acp.SessionCurrentModeUpdate) {
 }
 
 func (s *ThreadState) applyConfig(update *acp.SessionConfigOptionUpdate) {
-	config := make([]json.RawMessage, 0, len(update.ConfigOptions))
-	for _, option := range update.ConfigOptions {
+	s.applyConfigOptions(update.ConfigOptions)
+}
+
+// ConfigOptions folds the config options an agent answered a session open with. It is
+// the open's own answer and not an update — the one place a model list is announced —
+// so it takes the lock and announces the result the way an update does. An empty answer
+// leaves the thread as it is rather than clearing what it already holds.
+func (s *ThreadState) ConfigOptions(options []acp.SessionConfigOption) {
+	if len(options) == 0 {
+		return
+	}
+	s.mu.Lock()
+	s.applyConfigOptions(options)
+	s.mu.Unlock()
+	s.notify()
+}
+
+// applyConfigOptions replaces the thread's configuration with what the agent sent. It is
+// shared by the open's answer and the update variant so the two cannot disagree about the
+// shape the browser renders.
+func (s *ThreadState) applyConfigOptions(options []acp.SessionConfigOption) {
+	config := make([]json.RawMessage, 0, len(options))
+	for _, option := range options {
 		// The option union is unstable and carries a select or a boolean; the
 		// browser shows what the agent sent, so it is kept verbatim.
 		if raw, err := json.Marshal(option); err == nil {

@@ -33,6 +33,7 @@ package acpbridge
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
@@ -87,6 +88,11 @@ type Options struct {
 	// Version names the viewer build in the handshake, so the agent and its user
 	// can tell which client is talking.
 	Version string
+	// Model is the id of the model the project declared for its agent. It is applied
+	// to every session the bridge opens, so a reload or a restart does not silently
+	// put the conversation back on the agent's own default. Empty means no
+	// declaration, which is the agent's own choice of model.
+	Model string
 	// Log may be nil.
 	Log *slog.Logger
 }
@@ -96,8 +102,12 @@ type Options struct {
 type Bridge struct {
 	root    string
 	version string
-	perms   *PermissionQueue
-	log     *slog.Logger
+	// model is the declaration this bridge applies at every session open. It is set
+	// once, when the bridge is built from the project's own file, and never changes:
+	// the picker changes a session, not the project.
+	model string
+	perms *PermissionQueue
+	log   *slog.Logger
 
 	mu sync.Mutex
 	// transport closes what the connection runs on: the socket the user named, or
@@ -139,6 +149,7 @@ func New(opts Options) *Bridge {
 	bridge := &Bridge{
 		root:     opts.Root,
 		version:  opts.Version,
+		model:    opts.Model,
 		log:      log,
 		sessions: map[string]*Session{},
 		status:   StatusIdle,
@@ -186,18 +197,27 @@ func (b *Bridge) NewSession(ctx context.Context) (*Session, error) {
 	if conn == nil {
 		return nil, ErrNotActivated
 	}
-	return b.newSession(ctx, conn)
+	session, note, err := b.newSession(ctx, conn)
+	if err != nil {
+		return nil, err
+	}
+	// A browser that opened this session is the reader the sentence is for, and the note
+	// channel is the one it reads: nothing in the command that opened the session carries
+	// a sentence, and the session is usable either way.
+	b.setNote(note)
+	return session, nil
 }
 
 // newSession opens one session on an already-live connection and registers it. The
 // attach path opens its session here and so does a second browser, so a
-// conversation always begins the same way.
-func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection) (*Session, error) {
+// conversation always begins the same way. The sentence it returns is what a reader is
+// owed about the session that just opened — empty when there is nothing to say.
+func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection) (*Session, string, error) {
 	openCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
 	defer cancel()
-	id, err := openSession(openCtx, conn, b.root)
+	id, options, err := openSession(openCtx, conn, b.root)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	session := &Session{
 		id:    id,
@@ -206,6 +226,10 @@ func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection)
 		perms: b.perms,
 		ctx:   ctx,
 	}
+	// What the agent offers for this session arrives with the answer that opened it, and
+	// nowhere else: folded here, so a browser that joins a session the bridge just opened
+	// finds the model list in the first state it receives.
+	session.state.ConfigOptions(options)
 	// The detach closes over the session rather than over the id it was built with: a
 	// reattach can give the conversation a new id, and the registry must lose the key it
 	// actually holds.
@@ -213,7 +237,33 @@ func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection)
 	b.mu.Lock()
 	b.sessions[id] = session
 	b.mu.Unlock()
-	return session, nil
+	// The declaration goes on the session it is about, and the bring-up's own bound covers
+	// it: an agent that takes the open and then answers nothing to the set is an agent the
+	// caller is not left waiting on.
+	return session, b.applyDeclaredModel(openCtx, session), nil
+}
+
+// modelConfigID is the option an agent names its model with — the protocol's own category
+// for it, and the id a declared model is set through. It is the one config id the bridge
+// knows by name; every other option is the panel's to show and the reader's to set.
+const modelConfigID = "model"
+
+// applyDeclaredModel puts the model the project declared on a session that has just come up,
+// and returns the sentence a reader is owed when the agent would not take it — the empty
+// string when there is nothing to say. A refusal is not a failure of the open: the session
+// runs, on the model the agent chose, and only the reader's expectation needs correcting.
+// The declaration is the user's, so a refusal is not retried: the next session open applies
+// it again.
+func (b *Bridge) applyDeclaredModel(ctx context.Context, session *Session) string {
+	if b.model == "" {
+		return ""
+	}
+	if err := session.SetConfig(ctx, modelConfigID, b.model); err != nil {
+		b.log.Warn("the agent did not take the declared model", "model", b.model, "error", err)
+		return fmt.Sprintf("the agent would not take the declared model %q: %s",
+			b.model, RefusalSentence(err, "the model"))
+	}
+	return ""
 }
 
 // forget removes a conversation from the registry under whatever id it carries now. A
@@ -331,7 +381,7 @@ func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTranspo
 		note    string
 	)
 	if previous == nil {
-		session, err = b.newSession(ctx, conn)
+		session, note, err = b.newSession(ctx, conn)
 	} else {
 		session, note, err = b.carryOver(ctx, conn, previous)
 	}

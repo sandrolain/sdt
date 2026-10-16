@@ -60,6 +60,51 @@ func TestViewerConfigReadsTheAgentCommand(t *testing.T) {
 	}
 }
 
+// TestViewerConfigReadsTheAgentModel covers the other half of the same declaration: the
+// model is read when present, blank counts as absent (it names nothing, and passing it on
+// would ask the agent for something no reader wrote), and a missing one leaves the agent on
+// its own default.
+func TestViewerConfigReadsTheAgentModel(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		want   string
+	}{
+		{
+			name:   "declared",
+			config: "agent:\n  command: [\"opencode\", \"acp\"]\n  model: \"opencode/big-pickle\"\n",
+			want:   "opencode/big-pickle",
+		},
+		{
+			name:   "declared beside the keys the viewer already reads",
+			config: "project: sdt_44f24890\nsearch:\n  semantic: true\nagent:\n  command: [\"opencode\"]\n  model: openrouter/meta/muse-spark-open\n",
+			want:   "openrouter/meta/muse-spark-open",
+		},
+		{
+			name:   "an unknown key beside it is ignored",
+			config: "agent:\n  command: [\"opencode\"]\n  model: \"a/model\"\n  mystery: 1\n",
+			want:   "a/model",
+		},
+		{name: "absent", config: "agent:\n  command: [\"opencode\", \"acp\"]\n"},
+		{name: "the section with no model", config: "agent: {}\n"},
+		{name: "blank", config: "agent:\n  command: [\"opencode\"]\n  model: \"   \"\n"},
+		{name: "empty", config: "agent:\n  command: [\"opencode\"]\n  model: \"\"\n"},
+		{name: "no file at all"},
+		{name: "malformed", config: "agent:\n  model: [\"opencode\"\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			if tc.config != "" {
+				writeFixture(t, root, ".sdt.yaml", tc.config)
+			}
+			if got := loadViewerConfig(root).agentModel(); got != tc.want {
+				t.Fatalf("want %q, got %q", tc.want, got)
+			}
+		})
+	}
+}
+
 // TestResolveCommand covers how a configured argv becomes runnable: a name on
 // PATH, a name beside the running binary, an explicit path, and the refusals.
 // It runs at spawn time, so every refusal here is a sentence the panel shows.
