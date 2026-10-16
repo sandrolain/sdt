@@ -474,6 +474,11 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
   - **One date formatter.** `web/src/lib/frontmatter.ts` owns date formatting;
     never format a date ad hoc in a component.
   - **An arrow function has no `arguments`.** Use a rest parameter instead.
+  - **The web type gate is `bun run build`, not `tsc --noEmit`.** The build runs
+    `tsc -b` through the project references, which is stricter: an ad-hoc
+    `tsc --noEmit -p tsconfig.json` passes where the delivery build fails — it has
+    already rejected a conditional return type and a parameter property that way. Run
+    the build before claiming the web half is green.
   - **A kind change runs the full web gate.** `web/src/lib/kinds.ts` mirrors
     `cli/cmd/context_types.go`, so a `kind` change runs `bun run test` and the
     build, not only the Go tests.
