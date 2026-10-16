@@ -86,7 +86,7 @@ describe("the thread converter", () => {
     };
     const [pending] = threadMessages(thread([message("assistant", [card])]));
     expect(pending.content).toEqual([{ type: "data-permission", data: card.permission }]);
-    expect(pending.status).toBe("requires-action");
+    expect(pending.status).toEqual({ type: "requires-action", reason: "tool-calls" });
 
     const answered = threadMessages(
       thread([
@@ -95,7 +95,7 @@ describe("the thread converter", () => {
         ]),
       ]),
     );
-    expect(answered[0].status).toBe("complete");
+    expect(answered[0].status).toEqual({ type: "complete" });
   });
 
   it("appends the plan as its own message under a stable id, and only when there is one", () => {

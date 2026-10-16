@@ -16,7 +16,6 @@ import {
   AssistantRuntimeProvider,
   MessagePrimitive,
   ThreadPrimitive,
-  fromThreadMessageLike,
   useExternalStoreRuntime,
 } from "@assistant-ui/react";
 import type {
@@ -25,8 +24,8 @@ import type {
   TextMessagePartComponent,
   ReasoningMessagePartComponent,
 } from "@assistant-ui/react";
-import { createContext, useContext } from "react";
-import { threadMessages } from "../lib/agentThread";
+import { createContext, useContext, useMemo } from "react";
+import { threadMessages, type ConvertedMessage } from "../lib/agentThread";
 import type { AgentPermission, AgentPlan, AgentThread as AgentThreadState } from "../lib/agent";
 
 /** The answer to a card travels up through a context: a part cannot take a prop. */
@@ -39,12 +38,16 @@ export function AgentThread({
   thread: AgentThreadState;
   onAnswer: (requestId: string, allow: boolean) => void;
 }) {
-  const runtime = useExternalStoreRuntime<ThreadMessageLike>({
-    messages: threadMessages(thread),
-    // The runtime's own normaliser is the supported way in: it fills the per-message
-    // metadata the store reads and that a bare `ThreadMessageLike` does not carry.
-    convertMessage: (message, index) =>
-      fromThreadMessageLike(message, message.id ?? `msg-${index}`, "complete"),
+  // The converter is where the runtime expects one: `messages` are the bridge's own
+  // shape and the runtime normalises them (metadata included) on the way into its store.
+  const runtime = useExternalStoreRuntime<ConvertedMessage>({
+    messages: useMemo(() => threadMessages(thread), [thread]),
+    // The one cast the library's union forces: the converter states its own part shapes and
+    // the runtime normalises them on the way into its store.
+    convertMessage: (message) => message as unknown as ThreadMessageLike,
+    // The panel owns the composer, so the runtime's own send path is not used; it still
+    // has to exist, because the adapter has no shape without it.
+    onNew: async () => undefined,
     // The bridge's wire has no turn-completion event (the state is the whole thread and
     // nothing else), so the runtime is never told a turn is running; the thread shows
     // what it has rather than a spinner it cannot justify.
@@ -112,7 +115,7 @@ const ToolCallPart: ToolCallMessagePartComponent = ({
   <div className={`agent-panel__tool${isError ? " is-error" : ""}`}>
     <p className="agent-panel__part">
       <span className="agent-panel__tool-name">{toolName}</span>
-      {status === "running" ? " — running" : ""}
+      {status?.type === "running" ? " — running" : ""}
     </p>
     {argsText ? <pre className="agent-panel__tool-args">{argsText}</pre> : null}
     {result === undefined ? null : (

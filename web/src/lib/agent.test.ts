@@ -28,7 +28,10 @@ class FakeEventSource {
   listeners = new Map<string, ((event: unknown) => void)[]>();
   closed = false;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 
@@ -78,7 +81,7 @@ describe("the agent wire", () => {
   });
 
   it("reads the state with a GET and activates with the socket the user typed", async () => {
-    const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (_path: string, init?: RequestInit) => {
       return new Response(
         JSON.stringify({ activated: init?.method === "POST", connected: false }),
         { status: 200 },
