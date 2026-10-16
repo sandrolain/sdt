@@ -6,3 +6,6 @@ group: sdt_44f24890
 # skipDirs:
 #   - dist
 #   - .next
+agent:
+  command: ["opencode", "acp"]
+  model: "opencode/big-pickle"
