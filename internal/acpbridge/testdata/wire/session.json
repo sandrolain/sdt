@@ -55,6 +55,45 @@
             }
           }
         ]
+      },
+      {
+        "id": "user-3",
+        "role": "user",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "how big is the agent bridge?"
+          },
+          {
+            "kind": "error",
+            "text": "This request requires more credits, or fewer max_tokens"
+          }
+        ]
+      },
+      {
+        "id": "user-4",
+        "role": "user",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "and who owns the retry?"
+          },
+          {
+            "kind": "stop",
+            "text": "max_tokens"
+          }
+        ]
+      },
+      {
+        "id": "user-5",
+        "role": "user",
+        "provisional": true,
+        "parts": [
+          {
+            "kind": "text",
+            "text": "and the panel?"
+          }
+        ]
       }
     ],
     "plan": {

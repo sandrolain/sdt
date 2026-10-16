@@ -305,7 +305,7 @@ func (a *Agent) LastSessionID() string {
 func Streams(text string) Handler {
 	return func(agent *Agent, method string, _ json.RawMessage) any {
 		switch method {
-		case "session/prompt":
+		case promptMethod:
 			agent.Notify(agent.t, "session/update", map[string]any{
 				sessionIDKey: agent.LastSessionID(),
 				updateKey: map[string]any{
@@ -320,6 +320,41 @@ func Streams(text string) Handler {
 			return map[string]any{sessionIDKey: agent.NextSessionID()}
 		}
 		return AgentVersion(acp.ProtocolVersionNumber, "sess-1")(agent, method, nil)
+	}
+}
+
+// promptMethod is the one method the two handlers below share with Streams, and the const
+// exists because of that sharing: the turn is the method whose answer differs.
+const promptMethod = "session/prompt"
+
+// Refuses answers initialize and session/new and refuses the turn, which is what an agent
+// does when the provider turns the request down: the turn comes back as a JSON-RPC error
+// rather than as an answer.
+func Refuses(code int, message string) Handler {
+	streams := Streams("")
+	return func(agent *Agent, method string, params json.RawMessage) any {
+		if method == promptMethod {
+			return RPCError{Code: code, Message: message}
+		}
+		return streams(agent, method, params)
+	}
+}
+
+// Stops is Streams with the reason the turn ended on, so a turn that ran out of room or was
+// refused can be told apart from one that simply finished.
+func Stops(text, reason string) Handler {
+	streams := Streams(text)
+	return func(agent *Agent, method string, params json.RawMessage) any {
+		reply := streams(agent, method, params)
+		if method != promptMethod {
+			return reply
+		}
+		result, ok := reply.(map[string]any)
+		if !ok {
+			return reply
+		}
+		result["stopReason"] = reason
+		return result
 	}
 }
 

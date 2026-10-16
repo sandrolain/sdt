@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/coder/acp-go-sdk"
 )
 
 func waitForMethod(t *testing.T, agent *fakeAgent, method string) {
@@ -198,5 +201,91 @@ func TestASecondPromptIsRefusedWhileATurnRuns(t *testing.T) {
 	// And the session takes the next turn once the first is done.
 	if err := session.Prompt(context.Background(), "third"); err != nil {
 		t.Fatalf("the turn after the first: %v", err)
+	}
+}
+
+// A refused turn is not silence: the agent's own words land on the message that was sent,
+// where the reader looks for the answer that did not come — and the caller still gets the
+// error the viewer logs.
+func TestARefusedTurnReachesTheThread(t *testing.T) {
+	bridge, _ := activatedBridge(t, refusingAgent(-32603, "This request requires more credits"))
+	session, ok := bridge.Session(bridge.SessionID())
+	if !ok {
+		t.Fatal("the bridge holds no session")
+	}
+
+	if err := session.Prompt(context.Background(), "how big is the corpus?"); err == nil {
+		t.Fatal("a refused turn returned no error")
+	}
+
+	thread := session.State().Snapshot()
+	if len(thread.Messages) != 1 {
+		t.Fatalf("the thread holds %d messages: %+v", len(thread.Messages), thread.Messages)
+	}
+	message := thread.Messages[0]
+	if message.Role != RoleUser || message.Provisional {
+		t.Fatalf("the message carrying the refusal = %+v", message)
+	}
+	if n := len(message.Parts); n != 2 || message.Parts[n-1].Kind != PartError {
+		t.Fatalf("the parts of the refused message = %+v", message.Parts)
+	}
+	if got := message.Parts[1].Text; got != "This request requires more credits" {
+		t.Errorf("the refusal the reader is told = %q", got)
+	}
+}
+
+// The reader is given the agent's sentence without the JSON-RPC envelope it travels in, and
+// the error's own text when the error is not that shape at all.
+func TestTurnFailureUsesTheAgentsOwnWords(t *testing.T) {
+	refusal := fmt.Errorf("acpbridge: prompt: %w", &acp.RequestError{Code: -32603, Message: "the provider refused it"})
+	if got := turnFailure(refusal); got != "the provider refused it" {
+		t.Errorf("turnFailure of a refusal = %q", got)
+	}
+	plain := fmt.Errorf("acpbridge: prompt: %w", errors.New("the transport went away"))
+	if got := turnFailure(plain); got != "acpbridge: prompt: the transport went away" {
+		t.Errorf("turnFailure of a plain error = %q", got)
+	}
+	// A refusal with no sentence is the one case where the code is the report: the reader is
+	// not handed a raw JSON-RPC envelope.
+	if got := turnFailure(fmt.Errorf("acpbridge: prompt: %w", &acp.RequestError{Code: -32603})); got != "the agent refused the turn (code -32603)" {
+		t.Errorf("a refusal with no sentence reported %q", got)
+	}
+}
+
+// A turn that stopped for a reason says so; a turn that simply ended, or that the reader
+// cancelled themselves, says nothing.
+func TestOnlyTheExplanatoryStopsAreRecorded(t *testing.T) {
+	explanatory := []acp.StopReason{acp.StopReasonMaxTokens, acp.StopReasonRefusal, acp.StopReasonMaxTurnRequests}
+	for _, reason := range explanatory {
+		bridge, _ := activatedBridge(t, stoppingAgent("a partial answer", string(reason)))
+		session, _ := bridge.Session(bridge.SessionID())
+		if err := session.Prompt(context.Background(), "how big is the corpus?"); err != nil {
+			t.Fatalf("Prompt: %v", err)
+		}
+		parts := session.State().Snapshot().Messages[0].Parts
+		if n := len(parts); n < 2 || parts[n-1].Kind != PartStop || parts[n-1].Text != string(reason) {
+			t.Errorf("the recorded ending of a %s turn = %+v", reason, parts)
+		}
+	}
+
+	silent := []acp.StopReason{acp.StopReasonEndTurn, acp.StopReasonCancelled}
+	for _, reason := range silent {
+		bridge, _ := activatedBridge(t, stoppingAgent("the answer", string(reason)))
+		session, _ := bridge.Session(bridge.SessionID())
+		if err := session.Prompt(context.Background(), "how big is the corpus?"); err != nil {
+			t.Fatalf("Prompt: %v", err)
+		}
+		// This agent never echoes the user's own message (see acptest.Streams), so the flag can
+		// only be cleared by the turn ending — and a turn that simply finished must not leave
+		// the reader waiting on an answer that has already arrived.
+		message := session.State().Snapshot().Messages[0]
+		if message.Provisional {
+			t.Errorf("a %s turn left %q waiting", reason, message.ID)
+		}
+		for _, part := range message.Parts {
+			if part.Kind == PartStop || part.Kind == PartError {
+				t.Errorf("a %s turn recorded %+v", reason, part)
+			}
+		}
 	}
 }

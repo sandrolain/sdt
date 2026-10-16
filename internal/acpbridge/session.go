@@ -2,6 +2,7 @@ package acpbridge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -90,11 +91,52 @@ func (s *Session) Prompt(ctx context.Context, text string) error {
 		Prompt:    []acp.ContentBlock{acp.TextBlock(text)},
 	})
 	if err != nil {
+		// The reader is told before the error leaves: the returned error is the viewer's
+		// log and its tests, and the thread is where the reader looks.
+		s.state.failTurn(id, turnFailure(err))
 		return fmt.Errorf("acpbridge: prompt: %w", err)
 	}
 	s.state.foldUsage(response.Usage)
+	if reason := reportedStop(response.StopReason); reason != "" {
+		s.state.endTurn(id, reason)
+	} else {
+		// The turn is over even when its ending explains nothing: the reader is not still
+		// waiting on an answer that has already arrived.
+		s.state.settle(id)
+	}
 	s.state.notify()
 	return nil
+}
+
+// turnFailure is what the reader is told about a turn that failed: the agent's own sentence,
+// unwrapped from the JSON-RPC envelope it travels in, and the error's own text for anything
+// that is not that shape (a transport that went away, say). Nothing is reworded — a refusal
+// is the agent's to explain, and the viewer cannot know better. A refusal that carries no
+// sentence at all is the one case where the code is all there is to report, because a raw
+// JSON-RPC envelope is not something a reader should have to look at.
+func turnFailure(err error) string {
+	var request *acp.RequestError
+	if errors.As(err, &request) {
+		if request.Message != "" {
+			return request.Message
+		}
+		if request.Code != 0 {
+			return fmt.Sprintf("the agent refused the turn (code %d)", request.Code)
+		}
+	}
+	return err.Error()
+}
+
+// reportedStop returns the stop reason worth telling the reader, and the empty string for the
+// endings that need no explanation: a turn that simply ended, and one the reader themselves
+// cancelled, are already understood from the thread.
+func reportedStop(reason acp.StopReason) string {
+	switch reason {
+	case acp.StopReasonMaxTokens, acp.StopReasonMaxTurnRequests, acp.StopReasonRefusal:
+		return string(reason)
+	default:
+		return ""
+	}
 }
 
 // Cancel asks the agent to stop the current turn. The protocol makes it a

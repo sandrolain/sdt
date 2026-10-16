@@ -15,13 +15,16 @@ const (
 	RoleAssistant = "assistant"
 )
 
-// Part kinds. Each names the session/update variant that produced it, so the
-// browser's renderer and the protocol stay checkable against each other.
+// Part kinds. The first four name the session/update variant that produced them, so the
+// browser's renderer and the protocol stay checkable against each other; the last two come
+// from the prompt response instead, which is where a turn's outcome arrives.
 const (
 	PartText       = "text"       // user_message_chunk, agent_message_chunk
 	PartThought    = "thought"    // agent_thought_chunk
 	PartToolCall   = "tool_call"  // tool_call, tool_call_update
 	PartPermission = "permission" // a RequestPermission waiting for the user
+	PartError      = "error"      // the turn failed, in the agent's own words
+	PartStop       = "stop"       // the turn stopped, for a reason worth telling
 )
 
 // The user's answer to a permission card.
@@ -53,7 +56,11 @@ type Message struct {
 	// that never echoes would otherwise leave the user's own words invisible. The
 	// first echo replaces the provisional parts and the flag clears, so the text is
 	// never doubled.
-	Provisional bool   `json:"-"`
+	//
+	// The browser reads the flag as "this message has no answer yet" and shows the turn
+	// as waiting; every outcome — the echo, a failure, a stop reason — clears it, and
+	// that is what takes the wait away.
+	Provisional bool   `json:"provisional,omitempty"`
 	Parts       []Part `json:"parts"`
 }
 
@@ -294,6 +301,57 @@ func (s *ThreadState) openUserMessage(text string) string {
 	s.mu.Unlock()
 	s.notify()
 	return id
+}
+
+// failTurn records that a turn produced no answer, as a part of the message that was sent:
+// the reader's own message is where they look for the answer that did not come. The text is
+// the agent's own sentence, never reworded — a refusal is the agent's to explain.
+func (s *ThreadState) failTurn(id, text string) {
+	s.record(id, PartError, text)
+}
+
+// endTurn records the reason a turn stopped, for the endings the reader would otherwise have
+// to guess at: a turn that ran out of room is not the same as one still working.
+func (s *ThreadState) endTurn(id, reason string) {
+	s.record(id, PartStop, reason)
+}
+
+// settle takes a message out of the waiting state without recording anything on it: the turn
+// is over, and a message whose turn ended is not still waiting even when the ending explains
+// nothing. Most agents echo the user's own message at the start of a turn, which clears the
+// flag by itself — but the protocol does not require that, so a turn that simply finished must
+// not leave the reader watching a wait that nothing will ever clear.
+func (s *ThreadState) settle(id string) {
+	s.mu.Lock()
+	if index, ok := s.messageIndex(id); ok {
+		s.thread.Messages[index].Provisional = false
+	}
+	s.mu.Unlock()
+	s.notify()
+}
+
+// record appends one outcome to the message a turn opened and takes that message out of the
+// waiting state, so a message is never both waiting and answered.
+func (s *ThreadState) record(id, kind, text string) {
+	s.mu.Lock()
+	if index, ok := s.messageIndex(id); ok {
+		message := &s.thread.Messages[index]
+		message.Parts = append(message.Parts, Part{Kind: kind, Text: text})
+		message.Provisional = false
+	}
+	s.mu.Unlock()
+	s.notify()
+}
+
+// messageIndex returns the position of the message with this id, and whether the thread holds
+// one. The caller holds the lock.
+func (s *ThreadState) messageIndex(id string) (int, bool) {
+	for i := range s.thread.Messages {
+		if s.thread.Messages[i].ID == id {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // notify hands a snapshot to the listener, if one is registered.

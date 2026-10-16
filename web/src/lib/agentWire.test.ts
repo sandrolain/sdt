@@ -16,7 +16,9 @@ import {
   ENVELOPE_PERMISSION,
   ENVELOPE_PROMPT,
   ENVELOPE_STATE,
+  PART_ERROR,
   PART_PERMISSION,
+  PART_STOP,
   PART_TEXT,
   PART_THOUGHT,
   PART_TOOL_CALL,
@@ -97,6 +99,31 @@ describe("the wire the Go side writes", () => {
       priority: "medium",
       status: "completed",
     });
+  });
+
+  it("carries a turn's outcome — the refusal, the explanatory stop and the message still waiting", () => {
+    const envelope = fixture("session.json") as AgentStateEnvelope;
+    const messages = envelope.thread.messages;
+    const [refused, stopped, waiting] = messages.slice(-3);
+
+    // The refusal is the agent's own sentence, on the message that was sent, and that
+    // message is no longer waiting: an outcome answers it, badly.
+    expect(refused.parts).toEqual([
+      { kind: PART_TEXT, text: "how big is the agent bridge?" },
+      { kind: PART_ERROR, text: "This request requires more credits, or fewer max_tokens" },
+    ]);
+    expect(refused.provisional).toBeUndefined();
+
+    // An ending that explains the silence, in the protocol's own vocabulary.
+    expect(stopped.parts[stopped.parts.length - 1]).toEqual({
+      kind: PART_STOP,
+      text: "max_tokens",
+    });
+
+    // A turn that has answered nothing yet: the panel's waiting state, and the only
+    // message in the fixture that carries the flag.
+    expect(waiting.provisional).toBe(true);
+    expect(waiting.parts).toEqual([{ kind: PART_TEXT, text: "and the panel?" }]);
   });
 
   it("sends exactly the envelopes the browser's builders produce", () => {

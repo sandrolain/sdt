@@ -69,6 +69,14 @@ func wireSession(t *testing.T) *ThreadState {
 		Input:      map[string]any{"path": "context/notes/x.md"},
 	})
 	state.ResolvePermission("perm-1", DecisionAllowed)
+	// The two endings a reader has to be told about, written the way a turn writes them,
+	// and one turn still in flight: a refusal in the agent's own words, an ending that
+	// explains the silence, and a message with no answer yet.
+	refused := state.openUserMessage("how big is the agent bridge?")
+	state.failTurn(refused, "This request requires more credits, or fewer max_tokens")
+	stopped := state.openUserMessage("and who owns the retry?")
+	state.endTurn(stopped, string(acp.StopReasonMaxTokens))
+	state.openUserMessage("and the panel?")
 	return state
 }
 

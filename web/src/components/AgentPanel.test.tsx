@@ -142,6 +142,64 @@ describe("AgentPanel", () => {
     expect(screen.queryByRole("button", { name: "Start the agent" })).toBeNull();
   });
 
+  it("shows a refused turn as the agent's own sentence, on the message that was sent", async () => {
+    mockViewer({ activated: true });
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    const source = FakeEventSource.instances[0];
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [
+            {
+              id: "user-1",
+              role: "user",
+              parts: [
+                { kind: "text", text: "how big is the corpus?" },
+                { kind: "error", text: "This request requires more credits, or fewer max_tokens" },
+              ],
+            },
+          ],
+        }),
+      ),
+    });
+
+    // Not a silence the reader has to interpret: the agent's words, exactly as it said them.
+    expect(await screen.findByText("how big is the corpus?")).toBeTruthy();
+    expect(
+      screen.getByText("This request requires more credits, or fewer max_tokens"),
+    ).toBeTruthy();
+  });
+
+  it("shows a message with no answer yet as waiting, and the outcome takes the wait away", async () => {
+    mockViewer({ activated: true });
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    const source = FakeEventSource.instances[0];
+    const message = {
+      id: "user-1",
+      role: "user",
+      parts: [{ kind: "text", text: "how big is the corpus?" }],
+    };
+    source.emit("message", {
+      data: JSON.stringify(state({ messages: [{ ...message, provisional: true }] })),
+    });
+    expect(await screen.findByText("waiting for the agent…")).toBeTruthy();
+
+    // The turn stops before it answers: the wait goes, the reason stays.
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [
+            { ...message, parts: [...message.parts, { kind: "stop", text: "max_tokens" }] },
+          ],
+        }),
+      ),
+    });
+    await waitFor(() => expect(screen.queryByText("waiting for the agent…")).toBeNull());
+    expect(screen.getByText("the agent stopped: max_tokens")).toBeTruthy();
+  });
+
   it("shows a restart in flight with the thread still on screen", async () => {
     const calls = mockViewer({ activated: true });
     render(<AgentPanel open onOpenChange={vi.fn()} />);

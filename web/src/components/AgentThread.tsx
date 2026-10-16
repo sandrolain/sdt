@@ -84,7 +84,15 @@ function MessageRow({ role }: { role: "user" | "assistant" }) {
           Text: TextPart,
           Reasoning: ReasoningPart,
           tools: { Fallback: ToolCallPart },
-          data: { by_name: { permission: PermissionPart, plan: PlanPart } },
+          data: {
+            by_name: {
+              permission: PermissionPart,
+              plan: PlanPart,
+              error: ErrorPart,
+              stop: StopPart,
+              waiting: WaitingPart,
+            },
+          },
         }}
       />
     </MessagePrimitive.Root>
@@ -125,6 +133,19 @@ const ToolCallPart: ToolCallMessagePartComponent = ({
     )}
   </div>
 );
+
+/** ErrorPart is a turn that produced no answer: the agent's own sentence, unedited. */
+function ErrorPart({ data }: { data: { text: string } }) {
+  return <p className="agent-panel__error">{data.text}</p>;
+}
+
+/** StopPart is the reason a turn ended, for the endings a reader would have to guess at. */
+function StopPart({ data }: { data: { reason: string } }) {
+  return <p className="agent-panel__stop">the agent stopped: {data.reason}</p>;
+}
+
+/** WaitingPart is a message whose turn has answered nothing yet. */
+const WaitingPart = () => <p className="agent-panel__waiting">waiting for the agent…</p>;
 
 /** PlanPart is the agent's plan: the steps it published, in its own order. */
 function PlanPart({ data }: { data: AgentPlan }) {

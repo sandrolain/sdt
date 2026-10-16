@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { partLike, threadMessages } from "./agentThread";
 import {
+  PART_ERROR,
   PART_PERMISSION,
+  PART_STOP,
   PART_TEXT,
   PART_THOUGHT,
   PART_TOOL_CALL,
@@ -27,6 +29,35 @@ describe("the thread converter", () => {
     expect(converted.content).toEqual([{ type: "text", text: "how big?" }]);
     // Only an assistant message carries a status: the runtime refuses one elsewhere.
     expect("status" in converted).toBe(false);
+  });
+
+  it("maps a turn's outcome, and the wait before it, where the reader is looking", () => {
+    // A refusal: the agent's own sentence, as the data part the panel renders.
+    expect(partLike({ kind: PART_ERROR, text: "the provider refused it" })).toEqual({
+      type: "data-error",
+      data: { text: "the provider refused it" },
+    });
+    expect(partLike({ kind: PART_STOP, text: "max_tokens" })).toEqual({
+      type: "data-stop",
+      data: { reason: "max_tokens" },
+    });
+
+    // The wait is not on the wire: it is what the bridge's flag means to a reader, and it
+    // goes last, after the words the reader sent. Absent means answered.
+    const [waiting, answered] = threadMessages(
+      thread([
+        {
+          ...message("user", [{ kind: PART_TEXT, text: "how big?" }]),
+          provisional: true,
+        },
+        message("user", [{ kind: PART_TEXT, text: "and the panel?" }]),
+      ]),
+    );
+    expect(waiting.content).toEqual([
+      { type: "text", text: "how big?" },
+      { type: "data-waiting", data: {} },
+    ]);
+    expect(answered.content).toEqual([{ type: "text", text: "and the panel?" }]);
   });
 
   it("maps the agent's reasoning to a reasoning part, not into its answer", () => {

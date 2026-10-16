@@ -22,11 +22,16 @@ export const ENVELOPE_PERMISSION = "permission";
 export const ROLE_USER = "user";
 export const ROLE_ASSISTANT = "assistant";
 
-/** Part kinds: each names the session/update variant that produced it. */
+/**
+ * Part kinds: the first four name the session/update variant that produced them, and the
+ * last two come from the prompt response — a turn's outcome.
+ */
 export const PART_TEXT = "text";
 export const PART_THOUGHT = "thought";
 export const PART_TOOL_CALL = "tool_call";
 export const PART_PERMISSION = "permission";
+export const PART_ERROR = "error";
+export const PART_STOP = "stop";
 
 /** The user's answer to a permission card, as the bridge records it. */
 export const DECISION_ALLOWED = "allowed";
@@ -88,6 +93,9 @@ export interface AgentPart {
 export interface AgentMessage {
   id: string;
   role: string;
+  /** The message has no answer yet: the panel shows the turn as waiting. Absent means
+   *  answered, so a browser older than the field reads a message it understands. */
+  provisional?: boolean;
   parts: AgentPart[];
 }
 

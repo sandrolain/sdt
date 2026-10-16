@@ -8,11 +8,14 @@
  * a part kind this build does not know shows its own name rather than disappearing.
  */
 import {
+  PART_ERROR,
   PART_PERMISSION,
+  PART_STOP,
   PART_TEXT,
   PART_THOUGHT,
   PART_TOOL_CALL,
   ROLE_USER,
+  type AgentMessage,
   type AgentPart,
   type AgentPermission,
   type AgentPlan,
@@ -37,6 +40,11 @@ export type PartLike =
   | { type: "reasoning"; text: string }
   | { type: "data-permission"; data: AgentPermission }
   | { type: "data-plan"; data: AgentPlan }
+  // The turn's own outcome, recorded by the bridge on the message that was sent: the
+  // agent's refusal, the reason it stopped, and the wait before either arrives.
+  | { type: "data-error"; data: { text: string } }
+  | { type: "data-stop"; data: { reason: string } }
+  | { type: "data-waiting"; data: Record<string, never> }
   | {
       type: "tool-call";
       toolCallId: string;
@@ -78,7 +86,7 @@ export function threadMessages(thread: AgentThread): ConvertedMessage[] {
   const messages: ConvertedMessage[] = thread.messages.map((message) => ({
     id: message.id,
     role: message.role === ROLE_USER ? "user" : "assistant",
-    content: message.parts.map(partLike),
+    content: messageContent(message),
     // Only an assistant message carries a status, and only a message waiting on the user
     // is unfinished: the card is part of the turn, and the turn is not done.
     ...(message.role === ROLE_USER ? {} : { status: messageStatus(message.parts) }),
@@ -91,6 +99,17 @@ export function threadMessages(thread: AgentThread): ConvertedMessage[] {
     });
   }
   return messages;
+}
+
+/**
+ * messageContent is a message's parts, plus the panel's waiting marker. The bridge marks a
+ * message it has not been answered about — no echo, no failure, no stop — and the wait is
+ * shown where the reader is looking. The flag clears with the outcome, so a message is never
+ * both waiting and answered.
+ */
+function messageContent(message: AgentMessage): PartLike[] {
+  const parts = message.parts.map(partLike);
+  return message.provisional ? [...parts, { type: "data-waiting", data: {} }] : parts;
 }
 
 /** partLike maps one part; a kind this build does not know is shown, not dropped. */
@@ -110,6 +129,11 @@ export function partLike(part: AgentPart): PartLike {
       // A card with no permission at all cannot happen on the wire; the fallback keeps the
       // part renderable rather than dropping it.
       return { type: "data-permission", data: part.permission ?? { requestId: "", sessionId: "" } };
+    case PART_ERROR:
+      // A turn that failed: the agent's own sentence, where the answer would have been.
+      return { type: "data-error", data: { text: part.text ?? "" } };
+    case PART_STOP:
+      return { type: "data-stop", data: { reason: part.text ?? "" } };
     default:
       return { type: "text", text: part.text ?? part.kind };
   }

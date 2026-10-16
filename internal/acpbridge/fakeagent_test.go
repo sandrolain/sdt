@@ -27,3 +27,9 @@ func agentVersion(version int, sessionID string) handler {
 
 // streamingAgent answers a turn by streaming one chunk, the shape a real agent has.
 func streamingAgent(text string) handler { return acptest.Streams(text) }
+
+// refusingAgent refuses the turn the way a provider's refusal arrives: a JSON-RPC error.
+func refusingAgent(code int, message string) handler { return acptest.Refuses(code, message) }
+
+// stoppingAgent answers a turn with one chunk and the reason it stopped on.
+func stoppingAgent(text, reason string) handler { return acptest.Stops(text, reason) }

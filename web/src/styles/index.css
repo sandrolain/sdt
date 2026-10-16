@@ -428,6 +428,21 @@
     font-size: 0.8rem;
     color: var(--fg-dim);
   }
+  .agent-panel__error {
+    margin: 0.3rem 0 0;
+    padding-inline-start: 0.5rem;
+    border-inline-start: 2px solid var(--danger, var(--fg-dim));
+    color: var(--danger);
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+  }
+  .agent-panel__stop,
+  .agent-panel__waiting {
+    margin: 0.3rem 0 0;
+    color: var(--fg-dim);
+    font-size: 0.78rem;
+    font-style: italic;
+  }
   .agent-panel__composer {
     display: flex;
     gap: 0.4rem;
