@@ -4,14 +4,30 @@
 // the browser renders.
 //
 // It is pure Go and imports no HTTP, so the viewer shell (`viewer/agent.go`) and a
-// test drive the same domain. Two boundaries are absolute and live here: **the
-// bridge dials, it never spawns**, and a dial target is an absolute unix socket
-// path the user named at activation time — no host and port, no relative path, no
-// default, no discovery, no remembered path.
+// test drive the same domain. Its boundaries live here rather than in the caller.
 //
-// The bridge is inert until Activate: nothing is dialled, and no socket is even
-// resolved, before it. That is the property the whole trust story rests on, so it
-// is a state of this type rather than a convention in the caller.
+// **The bridge never invents a target.** It reaches an agent in one of two ways: it
+// dials an absolute unix socket path somebody named (Activate), or it starts the
+// argv the project declared for itself (Start and EnsureStarted, which run it
+// directly with no shell). A host and port, a relative path, a default and a
+// remembered path are all refused, and nothing a browser sends can become a command:
+// the viewer refuses a request that carries one, which is what keeps the spawn path
+// out of a page's reach.
+//
+// **The process, once started, is the bridge's.** One agent per bridge, started
+// idempotently, restarted within a bound when it dies while working, stopped when
+// somebody asks for that, and taken down with the group it leads when the bridge
+// closes — so a helper the agent spawned does not outlive the window that started it.
+//
+// **A conversation outlives the process that carried it.** The thread is the viewer's,
+// and a restarted agent is put back on the session it still holds when it advertises
+// that it can (SupportSessionLoad, session/load), with the replay of a history we
+// already hold dropped rather than folded onto it.
+//
+// The bridge is inert until somebody asks for it: nothing is dialled, nothing is
+// started, and no command is even resolved, before that. That is the property the
+// whole trust story rests on, so it is a state of this type rather than a convention
+// in the caller.
 package acpbridge
 
 import (
@@ -328,6 +344,10 @@ func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTranspo
 
 	b.mu.Lock()
 	b.transport, b.initial = closeTransport, session.ID()
+	// A successful attach leaves a live agent, whichever transport carried it: the process
+	// view is set here so the socket path and the spawned path cannot report different
+	// states for the same fact.
+	b.status, b.statusErr = StatusActive, note
 	b.mu.Unlock()
 	return session, note, nil
 }

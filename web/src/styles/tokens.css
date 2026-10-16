@@ -89,6 +89,15 @@
   --shadow-color-soft: rgb(0 0 0 / 25%);
 }
 
+/* Motion. The app's one arrival is the side panel: it slides in while the backdrop fades
+   under it. The duration and the curve live here so that a second surface reuses them
+   instead of inventing its own, and so that the reduced-motion guard has one place to
+   switch off. */
+:root {
+  --motion-panel-duration: 220ms;
+  --motion-panel-easing: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
 /* Corner-radius scale. A radius that is a semantic role (card, chip, control,
    pill) uses one of these; a categorical or one-off radius stays raw at its
    surface with a one-line comment. */

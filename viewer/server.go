@@ -89,6 +89,9 @@ type server struct {
 	agent        *acpbridge.Bridge
 	agentReason  string
 	agentCommand []string
+	// self is this binary's own path, which a configured command may name: a program is
+	// looked for on PATH and then beside the viewer, exactly as the sdt companion is.
+	self         string
 	agentMu      sync.Mutex
 	agentStreams map[*agentStream]struct{}
 	agentCurrent string

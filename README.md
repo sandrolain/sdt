@@ -131,20 +131,33 @@ SDT is useful when a project needs to:
 - **Wiki knowledge pipeline** — ingestion converts sources (docling / markitdown / OCR) into wiki pages with relations, validated by wiki-lint; `refs/` keeps the immutable evidence
 ### Agent chat (optional)
 
-`sdtviewer` can carry a live conversation with an ACP agent beside any screen, in a
-panel that overlays whatever the reader is looking at. The bridge dials a socket **you**
-name — it never starts the agent — so put a stdio-to-socket proxy in front of one and
-hand the path to the panel (Chat in the top bar, or ⌘J):
+`sdtviewer` can carry a live conversation with an ACP agent beside any screen, in a panel
+that overlays whatever the reader is looking at (Chat in the top bar, or ⌘J). The project
+declares which agent it runs, so there is nothing to start by hand:
 
-```bash
-socat UNIX-LISTEN:/tmp/sdt-acp.sock,fork EXEC:"opencode acp"
-sdtviewer serve --port 8443
+```yaml
+# .sdt.yaml
+agent:
+  command: ["opencode", "acp"]   # an argv list, executed directly — no shell
 ```
 
-Until a path is submitted the bridge is off: no socket, no stream, no agent. Once it is
-on, the viewer asks for your approval on every tool the agent wants to run, confines the
-agent's file access to the project root, refuses terminals outright, and accepts requests
-only from its own page on a loopback bind. Details:
+The viewer starts that command when a reader first asks for it in the panel, speaks ACP
+over its stdio, and stops it when the viewer does. Until then no process exists: opening
+the panel is the request. If the agent dies while working, the viewer starts it again
+within a bound (three attempts inside two minutes, with a growing delay), says so in the
+panel, and puts it back on the conversation it was having when the agent advertises that
+it can — the reader's own messages stay on screen either way. Past the bound it stops and
+names the reason instead of looping.
+
+Once it is running, the viewer asks for your approval on every tool the agent wants to
+run, confines the agent's file access to the project root, refuses terminals outright, and
+accepts requests only from its own page on a loopback bind. Nothing a browser sends can
+name a command: it can ask the viewer to start the agent the project declared, and nothing
+else.
+
+If you would rather run the agent yourself, keep it behind a unix socket and put
+`socat UNIX-LISTEN:/tmp/sdt-acp.sock,fork EXEC:"opencode acp"` in front of it: the bridge's
+socket transport is unchanged, it is simply not what the panel does by default. Details:
 `context/architecture/agent-bridge-acp-chat-panel.md`.
 
 - **Zero CGO** — pure-Go build, no C toolchain required

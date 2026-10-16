@@ -39,11 +39,18 @@ export const AGENT_DEACTIVATE_PATH = "/api/agent/deactivate";
 export const AGENT_COMMAND_PATH = "/api/agent/command";
 export const AGENT_STREAM_PATH = "/api/agent/stream";
 
-/** AgentState is what the viewer reports before and after activation. */
+/**
+ * AgentState is what the viewer reports before and after a start: whether the surface is
+ * usable, what the process is doing, which session a browser would join, the command the
+ * project declared (so a reader can see what will run without ever typing it), and the
+ * sentence for a failure or for an agent that could not be put back on its conversation.
+ */
 export interface AgentState {
   activated: boolean;
   connected: boolean;
+  status?: string;
   session?: string;
+  command?: string[];
   error?: string;
 }
 
@@ -155,20 +162,25 @@ export async function fetchAgentState(): Promise<AgentState> {
   return agentRequest(AGENT_STATE_PATH);
 }
 
-/** activateAgent dials the socket the user typed. The path is never remembered. */
-export async function activateAgent(socket: string): Promise<AgentState> {
-  return agentRequest(AGENT_ACTIVATE_PATH, { socket });
+/**
+ * activateAgent asks the viewer to start the agent the project declared in `.sdt.yaml`.
+ * The request carries no body at all: the command is the project's, the viewer refuses a
+ * body that names one, and that refusal is what keeps this side from ever reaching the
+ * spawn path with anything of its own.
+ */
+export async function activateAgent(): Promise<AgentState> {
+  return agentRequest(AGENT_ACTIVATE_PATH, undefined, "POST");
 }
 
-/** deactivateAgent closes the connection and returns the viewer to inert. */
+/** deactivateAgent stops the agent on purpose and returns the viewer to a stopped bridge. */
 export async function deactivateAgent(): Promise<AgentState> {
-  return agentRequest(AGENT_DEACTIVATE_PATH, {});
+  return agentRequest(AGENT_DEACTIVATE_PATH, undefined, "POST");
 }
 
 /** agentRequest posts to an agent endpoint and reports the viewer's message on refusal. */
-async function agentRequest(path: string, body?: unknown): Promise<AgentState> {
+async function agentRequest(path: string, body?: unknown, method = "GET"): Promise<AgentState> {
   const response = await fetch(path, {
-    method: body === undefined ? "GET" : "POST",
+    method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

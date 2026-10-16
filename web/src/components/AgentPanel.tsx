@@ -1,16 +1,16 @@
 /**
- * AgentPanel — the agent bridge as a left slide-in panel over any screen.
+ * AgentPanel — the agent bridge as a slide-in panel over any screen.
  *
- * The panel is the app's own overlay idiom (`Modal` + `Dialog`, the pair
- * `SearchPalette` and `GraphGuide` already use) rather than a route, so a reader can
- * watch the map or read a document and talk to the agent beside it. Dockview's
- * floating groups were considered and rejected: they exist only inside a dockview
- * container, and this panel has to be available wherever the reader is.
+ * The panel is the app's own overlay idiom (`Modal` + `Dialog`, the pair `SearchPalette`
+ * and `GraphGuide` already use) rather than a route, so a reader can watch the map or read
+ * a document and talk to the agent beside it. It is anchored to the inline end, the edge
+ * its trigger sits on, and arrives with the app's one motion.
  *
- * It is **inert until it is first opened**: closed, it renders nothing, asks nothing
- * and holds no socket. Opening it reads the bridge's state — the only endpoint
- * reachable before activation — and only a submit of the socket path dials. The path
- * is never remembered, never pre-filled and never defaulted to.
+ * It asks the reader for nothing. The agent is the one the project declared in `.sdt.yaml`
+ * and the viewer starts it; this component reports what the *process* is doing — starting,
+ * working, starting again after a death, or stopped with a reason and a way to ask for
+ * another start — because the bridge is the only thing that knows, and a panel that
+ * guessed would disagree with it exactly when a restart is in flight.
  */
 import { Dialog, Modal } from "react-aria-components";
 import { AgentThread } from "./AgentThread";
@@ -28,12 +28,29 @@ import {
   type AgentStream,
 } from "../lib/agent";
 
-/** The proxy the user runs in front of their agent. `opencode acp` is the one
- *  verified on this machine; any agent behind a socket works the same way. */
-const PROXY_RECIPE = 'socat UNIX-LISTEN:/tmp/sdt-acp.sock,fork EXEC:"opencode acp"';
+/** What the panel is showing, as one value rather than a set of booleans. */
+type Phase = "loading" | "starting" | "active" | "restarting" | "stopped" | "error";
 
-/** What the panel is doing, as one value rather than three booleans. */
-type Phase = "loading" | "inert" | "activating" | "active" | "error";
+/**
+ * phaseFrom reads the phase from the viewer's account of the process. A failure and a stop
+ * are different things to a reader: a failure carries a sentence and offers a retry, a
+ * stop is simply off.
+ */
+function phaseFrom(state: AgentState): Phase {
+  switch (state.status) {
+    case "starting":
+      return "starting";
+    case "active":
+      return state.connected ? "active" : "starting";
+    case "restarting":
+      return "restarting";
+    case "idle":
+    case "stopped":
+      return state.error && !state.activated ? "error" : "stopped";
+    default:
+      return state.activated ? "active" : "stopped";
+  }
+}
 
 export function AgentPanel({
   open,
@@ -43,7 +60,7 @@ export function AgentPanel({
   onOpenChange: (open: boolean) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("loading");
-  const [socket, setSocket] = useState("");
+  const [state, setState] = useState<AgentState | null>(null);
   const [message, setMessage] = useState("");
   const [envelope, setEnvelope] = useState<AgentStateEnvelope | null>(null);
   const [session, setSession] = useState("");
@@ -61,40 +78,37 @@ export function AgentPanel({
     }
   }
 
+  /** apply takes the viewer's own account of the process as the truth about it. */
+  const apply = (next: AgentState) => {
+    setState(next);
+    setMessage(next.error ?? "");
+    setPhase(phaseFrom(next));
+  };
+
   const fail = (reason: string) => {
     setMessage(reason);
     setPhase("error");
   };
 
-  const applyState = (state: AgentState) => {
-    if (state.error) {
-      fail(state.error);
-      return;
-    }
-    setMessage("");
-    setPhase(state.activated ? "active" : "inert");
-  };
-
-  /** readState re-reads the bridge's posture from the retry button, so it may set the
-   *  loading phase itself: it runs from a click, not from an effect. */
+  /** readState re-reads the bridge's posture; it runs from a click, so it may set loading. */
   const readState = async () => {
     setPhase("loading");
     try {
-      applyState(await fetchAgentState());
+      apply(await fetchAgentState());
     } catch (error) {
       fail((error as Error).message);
     }
   };
 
-  // Opening the panel is what starts the flow: nothing is asked, and nothing is
-  // dialled, before it. A stale answer from a previous open is dropped rather than
-  // applied.
+  // Opening the panel is what starts the flow: nothing is asked of the viewer, and
+  // nothing is started, before it. A stale answer from a previous open is dropped rather
+  // than applied.
   useEffect(() => {
     if (!open) return;
     let live = true;
     fetchAgentState()
-      .then((state) => {
-        if (live) applyState(state);
+      .then((next) => {
+        if (live) apply(next);
       })
       .catch((error: Error) => {
         if (live) fail(error.message);
@@ -102,11 +116,11 @@ export function AgentPanel({
     return () => {
       live = false;
     };
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- applyState/fail only set state
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- apply/fail only set state
 
-  // One stream for the page, opened when the bridge is active and closed when it is
-  // not: a conversation lives as long as the viewer does, not as long as the panel is
-  // on screen, so reopening the panel shows the thread as it stands.
+  // One stream for the page, opened when the agent is live and closed when it is not: a
+  // conversation lives as long as the viewer does, not as long as the panel is on screen,
+  // so reopening the panel shows the thread as it stands.
   useEffect(() => {
     if (phase !== "active") return;
     const opened = streamAgent({
@@ -114,9 +128,11 @@ export function AgentPanel({
         setEnvelope(next);
         setSession(next.sessionId);
       },
-      onClose: (reason) => {
-        setMessage(reason);
-        setPhase("error");
+      onClose: () => {
+        // The stream ends when the agent it was carrying is gone — a restart, a stop — and
+        // the bridge, not this panel, knows which one it was: re-reading its posture is what
+        // turns an interruption into "starting it again…" instead of into a dead panel.
+        void readState();
       },
     });
     stream.current = opened;
@@ -126,11 +142,41 @@ export function AgentPanel({
     };
   }, [phase]);
 
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    setPhase("activating");
+  // A start and a restart are the bridge's to finish, so the panel asks how they went
+  // rather than guessing: while the process is coming up or coming back it re-reads the
+  // posture and stops as soon as the answer is one thing or the other. It is the only
+  // polling here, and it exists because the stream carries the conversation, not the
+  // process.
+  useEffect(() => {
+    if (phase !== "starting" && phase !== "restarting") return;
+    const tick = setInterval(() => {
+      fetchAgentState()
+        .then(apply)
+        .catch((error: Error) => fail(error.message));
+    }, 1500);
+    return () => clearInterval(tick);
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps -- apply/fail only set state
+
+  // The stream carries the conversation, so the panel reconciles its posture slowly while it
+  // is up: a restart can finish inside a liveness tick, and when it does the bridge's own
+  // sentence — that it could not put the agent back on the conversation it had — is the one
+  // thing a reader must not miss.
+  useEffect(() => {
+    if (phase !== "active") return;
+    const tick = setInterval(() => {
+      fetchAgentState()
+        .then(apply)
+        .catch(() => undefined);
+    }, 10000);
+    return () => clearInterval(tick);
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps -- apply only sets state
+
+  /** start asks the viewer to start the agent the project declared. */
+  const start = async () => {
+    setPhase("starting");
+    setMessage("");
     try {
-      applyState(await activateAgent(socket));
+      apply(await activateAgent());
     } catch (error) {
       fail((error as Error).message);
     }
@@ -149,6 +195,9 @@ export function AgentPanel({
     tell(promptCommand(text, session));
     form.reset();
   };
+
+  const command = state?.command ?? [];
+  const configured = command.length > 0;
 
   return (
     // The entry lives in the top bar rather than inside the panel, so the modal is
@@ -171,45 +220,76 @@ export function AgentPanel({
             </header>
             <div className="agent-panel__body">
               {phase === "loading" && <p className="agent-panel__note">Reading the bridge…</p>}
+
               {phase === "error" && (
                 <div className="agent-panel__activation">
-                  <p className="agent-panel__note">{message}</p>
-                  <button
-                    type="button"
-                    className="agent-panel__action"
-                    onClick={() => void readState()}
-                  >
-                    Read the bridge state again
-                  </button>
+                  <p className="agent-panel__note agent-panel__note--error">{message}</p>
+                  {configured ? (
+                    <button
+                      type="button"
+                      className="agent-panel__action"
+                      onClick={() => void start()}
+                    >
+                      Start the agent again
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="agent-panel__action"
+                      onClick={() => void readState()}
+                    >
+                      Read the bridge state again
+                    </button>
+                  )}
                 </div>
               )}
-              {(phase === "inert" || phase === "activating") && (
-                <form className="agent-panel__activation" onSubmit={onSubmit}>
-                  <p className="agent-panel__note">
-                    The bridge is off. Start a proxy in front of your agent and give it the socket:
-                  </p>
-                  <code className="agent-panel__recipe">{PROXY_RECIPE}</code>
-                  <label className="agent-panel__field">
-                    <span>Socket path</span>
-                    <input
-                      type="text"
-                      name="socket"
-                      value={socket}
-                      placeholder="/tmp/sdt-acp.sock"
-                      autoComplete="off"
-                      spellCheck={false}
-                      onChange={(event) => setSocket(event.target.value)}
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    className="agent-panel__action"
-                    disabled={phase === "activating" || socket.trim() === ""}
-                  >
-                    {phase === "activating" ? "Connecting…" : "Connect"}
-                  </button>
-                </form>
+
+              {phase === "stopped" && (
+                <div className="agent-panel__activation">
+                  {configured ? (
+                    <>
+                      <p className="agent-panel__note">
+                        {message === "" ? "The agent is not running." : message}
+                      </p>
+                      <code className="agent-panel__recipe">{command.join(" ")}</code>
+                      <button
+                        type="button"
+                        className="agent-panel__action"
+                        onClick={() => void start()}
+                      >
+                        Start the agent
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="agent-panel__note">
+                        This project declares no agent. Set <code>agent.command</code> in{" "}
+                        <code>.sdt.yaml</code> and reopen this panel.
+                      </p>
+                      <button
+                        type="button"
+                        className="agent-panel__action"
+                        onClick={() => void readState()}
+                      >
+                        Read the bridge state again
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
+
+              {phase === "starting" && (
+                <p className="agent-panel__note">Starting the agent the project declares…</p>
+              )}
+
+              {phase === "restarting" && (
+                <p className="agent-panel__note">
+                  {message === ""
+                    ? "The agent exited; starting it again…"
+                    : `${message} — starting it again…`}
+                </p>
+              )}
+
               {phase === "active" && envelope && (
                 <AgentThread
                   thread={envelope.thread}

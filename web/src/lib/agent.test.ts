@@ -80,7 +80,7 @@ describe("the agent wire", () => {
     expect(DECISION_ALLOWED).toBe("allowed");
   });
 
-  it("reads the state with a GET and activates with the socket the user typed", async () => {
+  it("reads the state with a GET and starts the declared agent with an empty POST", async () => {
     const fetchMock = vi.fn(async (_path: string, init?: RequestInit) => {
       return new Response(
         JSON.stringify({ activated: init?.method === "POST", connected: false }),
@@ -96,18 +96,20 @@ describe("the agent wire", () => {
       body: undefined,
     });
 
-    await activateAgent("/tmp/sdt-acp.sock");
+    // The request carries no body at all: the command is the project's, and a body that
+    // named one would be refused by the viewer rather than ignored.
+    await activateAgent();
     expect(fetchMock).toHaveBeenLastCalledWith(AGENT_ACTIVATE_PATH, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ socket: "/tmp/sdt-acp.sock" }),
+      headers: undefined,
+      body: undefined,
     });
 
     await deactivateAgent();
     expect(fetchMock).toHaveBeenLastCalledWith(AGENT_DEACTIVATE_PATH, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
+      headers: undefined,
+      body: undefined,
     });
   });
 

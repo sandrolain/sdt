@@ -96,3 +96,47 @@ describe("token layer owns the corner-radius scale", () => {
     },
   );
 });
+
+/**
+ * Token vocabulary guard (phase 6 of the agent auto-start wave). A custom property that
+ * does not exist is not an error anywhere: the declaration is invalid at computed-value
+ * time and the property keeps its initial value, which is how the agent panel shipped
+ * transparent — `background: var(--bg)` where the token layer declares `--bg-base`,
+ * `--bg-mantle` and `--bg-crust`, and `--bg` exists only inside the JsonCanvas scope,
+ * injected by `web/src/lib/jsoncanvas/theme.ts` at runtime.
+ *
+ * So this guard is the mechanical part of "the panel is opaque": every custom property the
+ * component stylesheet refers to is either declared in the token layer or named here as
+ * belonging to a scope that injects its own.
+ */
+describe("the component stylesheet only refers to custom properties that exist", () => {
+  // Scopes that set their variables on their own element at runtime, told apart by their
+  // selectors: the JSON Canvas container (`lib/jsoncanvas/theme.ts`) and the dockview theme
+  // (`lib/dockLayout.ts`). The exemption is **per rule** rather than a global list of names,
+  // because a global list is exactly how this guard would have accepted `var(--bg)` in the
+  // agent panel — the defect it exists for: `--bg` is real inside the canvas and nowhere
+  // else.
+  const injectedScopes = [".jc", ".dv-", ".dock-layout", "[cmdk-"];
+
+  it("declares or accounts for every bare var() the component stylesheet uses", () => {
+    // A property declared in this stylesheet is a local variable of the surface that owns
+    // it (the callout colour is the one), which is as real as a token-layer one.
+    const declared = new Set([
+      ...[...tokens.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+      ...[...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+    ]);
+
+    // A leaf block only: a body that contains braces is an enclosing block, and its rules
+    // are matched on their own. A reference *with* a fallback is exempt too — it degrades to
+    // the fallback rather than rendering nothing, which is the defect this is about.
+    const offenders: string[] = [];
+    for (const block of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const context = block[1].replace(/\s+/g, " ").trim();
+      if (injectedScopes.some((scope) => context.includes(scope))) continue;
+      for (const reference of block[2].matchAll(/var\((--[a-z0-9-]+)\)/g)) {
+        if (!declared.has(reference[1])) offenders.push(`${context} → ${reference[1]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});

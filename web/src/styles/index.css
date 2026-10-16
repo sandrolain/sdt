@@ -249,8 +249,10 @@
     color: var(--fg-faint);
   }
 
-  /* The agent panel: a left slide-in over any screen, the search palette's overlay
-     idiom anchored to the inline start instead of the centre. */
+  /* The agent panel: a slide-in over any screen, anchored to the same edge as the top
+     bar's trigger — the inline end — and painted as a raised surface over the app rather
+     than a hole in it. The search palette's overlay idiom, on a side instead of the
+     centre. */
   .agent-panel__overlay {
     position: fixed;
     inset: 0;
@@ -260,15 +262,38 @@
   .agent-panel {
     position: fixed;
     inset-block: 0;
-    inset-inline-start: 0;
+    inset-inline-end: 0;
     z-index: 51;
     width: min(26rem, 92vw);
     display: flex;
     flex-direction: column;
-    background: var(--bg);
-    border-inline-end: 1px solid var(--border);
+    /* the raised-surface role: a surface lifted off --bg-base, as the palette is */
+    background: var(--bg-mantle);
+    border-inline-start: 1px solid var(--border);
     /* the elevation role, owned by tokens.css: only the shadow *colour* is a theme role */
     box-shadow: 0 0 24px var(--shadow-color);
+  }
+  /* The arrival. It hangs off the entering state react-aria computes for the modal — an
+     attribute set on mount, so nothing depends on a transition enabled by the same render
+     that changes the property — and it is declared once, with the motion tokens, so the
+     next surface reuses both. */
+  @media (prefers-reduced-motion: no-preference) {
+    .agent-panel__overlay[data-entering] {
+      animation: agent-panel-backdrop var(--motion-panel-duration) ease-out;
+    }
+    .agent-panel__overlay[data-entering] .agent-panel {
+      animation: agent-panel-arrive var(--motion-panel-duration) var(--motion-panel-easing);
+    }
+  }
+  @keyframes agent-panel-backdrop {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes agent-panel-arrive {
+    from {
+      transform: translateX(100%);
+    }
   }
   .agent-panel__header {
     display: flex;
@@ -286,7 +311,6 @@
     background: none;
     border: 0;
     color: var(--fg-dim);
-    font-family: var(--font-icon);
     cursor: pointer;
   }
   .agent-panel__body {
@@ -335,7 +359,8 @@
   .agent-panel__action {
     padding: 0.4rem 0.8rem;
     background: var(--accent);
-    color: var(--bg);
+    /* the foreground on an accent surface, which is its own role */
+    color: var(--accent-fg);
     border: 0;
     border-radius: var(--radius-pill);
     font: inherit;
@@ -2332,7 +2357,8 @@
     padding: 0.15rem 0.5rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: var(--surface);
+    /* the rise role: a control lifted off the page, as the search trigger is */
+    background: var(--bg-rise);
     color: var(--fg);
     font-size: 0.8125rem;
     font-family: inherit;
@@ -2836,7 +2862,8 @@
   }
 
   mark.find-hit {
-    background: var(--accent-soft);
+    /* a tint of the accent, the way the outline's active item is tinted above */
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
     color: inherit;
     /* a 2px active-marker radius, below the scale */
     border-radius: 2px;
@@ -4262,7 +4289,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    /* the deepest surface, as the palettes' overlays wash with */
+    background: color-mix(in srgb, var(--bg-crust) 72%, transparent);
   }
   .guide-modal {
     display: flex;

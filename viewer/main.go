@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -79,11 +81,13 @@ func newServeCmd() *cobra.Command {
 		Short: "Serve the viewer web app over HTTP",
 		Long: "Serve the viewer web app over HTTP.\n\n" +
 			"Document state can be edited through the sanctioned CLI when the bind host is\n" +
-			"loopback and an sdt binary resolves; the agent chat panel is available under the\n" +
-			"same loopback rule, and it stays inert until a socket path is submitted in the\n" +
-			"panel: nothing is dialled before that.",
-		Example: `  # the agent chat: put a stdio ACP agent behind a unix socket, then open the panel (⌘J)
-  socat UNIX-LISTEN:/tmp/sdt-acp.sock,fork EXEC:"opencode acp"
+			"loopback and an sdt binary resolves, and the agent chat panel is available under\n" +
+			"the same loopback rule. The panel starts the agent this project declares in\n" +
+			".sdt.yaml (agent.command, an argv list executed directly, with no shell):\n" +
+			"nothing is started before a reader asks for it, and nothing a browser sends can\n" +
+			"name a command.",
+		Example: `  # the agent chat: declare the agent in the project, then open the panel (⌘J)
+  printf 'agent:\n  command: ["opencode", "acp"]\n' >> .sdt.yaml
   sdtviewer serve --port 8443
 
   # the viewer alone
@@ -178,8 +182,37 @@ func serve(host string, port int, noOpen bool, rootFlag, sdtBin string, listen f
 			slog.Warn("sdtviewer: browser open skipped", "err", oerr)
 		}
 	}
+	watchForShutdown(s)
 	slog.Info("sdtviewer: serving", "root", root, "addr", "http://"+addr)
 	return listen(addr, s.mux())
+}
+
+// watchForShutdown ends the agent before the viewer goes. The viewer started that process,
+// so stopping it is the viewer's to do: a signal would otherwise end the parent and leave
+// an agent that ignores a closed pipe running with nobody to talk to — the orphan the
+// process group and the bounded kill exist to prevent.
+//
+// The signal is handled rather than swallowed: once the agent is stopped the handler is
+// removed and the signal re-raised, so the process still dies of the signal it was sent
+// and the shell still sees the truth.
+func watchForShutdown(s *server) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		sig := <-signals
+		slog.Info("sdtviewer: shutting down", "signal", sig)
+		if err := s.agent.Close(); err != nil {
+			slog.Warn("sdtviewer: closing the agent", "err", err)
+		}
+		signal.Stop(signals)
+		if s, ok := sig.(syscall.Signal); ok {
+			if self, err := os.FindProcess(os.Getpid()); err == nil {
+				if err := self.Signal(s); err != nil {
+					slog.Debug("re-raising the signal", "err", err)
+				}
+			}
+		}
+	}()
 }
 
 // resolveRoot returns the directory to serve: an explicit --root, or the

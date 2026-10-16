@@ -474,6 +474,19 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
   - **One date formatter.** `web/src/lib/frontmatter.ts` owns date formatting;
     never format a date ad hoc in a component.
   - **An arrow function has no `arguments`.** Use a rest parameter instead.
+  - **A custom property the stylesheet uses must exist, and a test says so.**
+    `web/src/styles/tokenMigration.test.ts` asserts that every bare `var(--…)` in
+    `index.css` is declared in the token layer, declared locally, or injected by a scope
+    that documents its own names (the JSON Canvas container, the dockview theme). A `var()`
+    with a fallback is exempt: it degrades to the fallback rather than rendering nothing,
+    which is the defect the guard exists for — the agent panel once shipped transparent on
+    `var(--bg)`, a name that only exists inside the canvas scope.
+  - **Motion has one home.** `--motion-panel-duration` and `--motion-panel-easing` in
+    `tokens.css` are the app's arrival: a slide-in hangs off the entering state
+    `react-aria-components` computes (`[data-entering]`, set on mount — never a transition
+    enabled by the same render that changes the property) under
+    `@media (prefers-reduced-motion: no-preference)`. A second surface reuses both rather
+    than inventing a curve.
   - **The web type gate is `bun run build`, not `tsc --noEmit`.** The build runs
     `tsc -b` through the project references, which is stricter: an ad-hoc
     `tsc --noEmit -p tsconfig.json` passes where the delivery build fails — it has
@@ -516,11 +529,21 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
 - **A capability that reaches outside the process is gated, not trusted.** A viewer
   surface that touches something beyond the browser — the document-state delegation to
   the CLI (decision 0027) and the agent bridge both do — is available only on a
-  **loopback bind**, only after an **explicit activation by the user**, and it accepts a
-  request only from **its own origin**. A non-loopback bind disables it and says so; the
-  agent endpoints are the stricter case, taking a missing `Origin` only with
+  **loopback bind**, only after an **explicit act of the user**, and it accepts a request
+  only from **its own origin**. A non-loopback bind disables it and says so; the agent
+  endpoints are the stricter case, taking a missing `Origin` only with
   `Sec-Fetch-Site: same-origin`, which no page can forge. The detail lives in
   `context/architecture/agent-bridge-acp-chat-panel.md`.
+  - **What counts as the user's act, and what never can.** For the agent bridge the act is
+    the *config that declares the agent* (`agent.command` in `.sdt.yaml`, the project's own
+    file) or the activation in the panel — both are the user speaking, once. A **request is
+    never that act**: the activation endpoint carries no body, a body naming a command or a
+    socket is refused rather than ignored, and the argv is executed directly with **no
+    shell**, so nothing between a page and the spawn path can invent a command.
+  - **The process the viewer starts is the viewer's to stop.** One agent per bridge,
+    started idempotently, restarted within a bound when it dies while working, and taken
+    down with its **process group** when the viewer goes: an agent that spawns helpers must
+    not leave one behind. A reader's stop is not a death and is not restarted.
 - **Workflow self-assessment (per plan)** — at the end of **every executed
   plan**, in its final Validation phase next to the crystallized closeout, the
   agent reviews **its own** run and records it in `context/notes/`. Nothing is

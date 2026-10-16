@@ -57,12 +57,14 @@ func command(t *testing.T, ts *httptest.Server, envelope any) *http.Response {
 	return post(t, ts, agentCommandPath, string(body), ts.URL)
 }
 
-// activate dials the fake agent through the endpoint the user's panel would use.
-func activate(t *testing.T, ts *httptest.Server, socket string) {
+// activateOnSocket puts the bridge on a live agent without going through the HTTP
+// surface. The viewer's activation now starts the process the project declared, which is
+// what the refusal and start-failure tests below exercise; what these tests need is a live
+// agent behind the surface, and how it got there is the bridge's own business.
+func activateOnSocket(t *testing.T, s *server, socket string) {
 	t.Helper()
-	response := post(t, ts, agentActivatePath, `{"socket":"`+socket+`"}`, ts.URL)
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("activation answered %d", response.StatusCode)
+	if _, err := s.agent.Activate(context.Background(), socket); err != nil {
+		t.Fatalf("activating the bridge on %s: %v", socket, err)
 	}
 }
 
@@ -169,7 +171,7 @@ func TestAgentActivationRefusesAForeignOrigin(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			response := post(t, ts, agentActivatePath, `{"socket":"`+agent.Path()+`"}`, tc.origin)
+			response := post(t, ts, agentActivatePath, "", tc.origin)
 			if response.StatusCode != http.StatusForbidden {
 				t.Fatalf("the activation answered %d, want 403", response.StatusCode)
 			}
@@ -180,11 +182,13 @@ func TestAgentActivationRefusesAForeignOrigin(t *testing.T) {
 	}
 }
 
-// The happy path, and the state the browser then reads.
-func TestAgentActivationDialsTheUsersSocket(t *testing.T) {
+// A live agent behind the surface, and the state the browser then reads: the process
+// view, the session, and the command the project declared.
+func TestAgentStateReportsTheLiveAgent(t *testing.T) {
 	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
-	activate(t, ts, agent.Path())
+	s.agentCommand = []string{"opencode", "acp"}
+	activateOnSocket(t, s, agent.Path())
 
 	if got, want := agent.Methods(), []string{"initialize", "session/new"}; len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("the agent was asked %v", got)
@@ -204,22 +208,110 @@ func TestAgentActivationDialsTheUsersSocket(t *testing.T) {
 	if state.Session != s.agent.SessionID() {
 		t.Fatalf("the state names session %q, the bridge holds %q", state.Session, s.agent.SessionID())
 	}
+	if state.Status != string(acpbridge.StatusActive) {
+		t.Fatalf("a live agent is active, the state says %q", state.Status)
+	}
+	if len(state.Command) != 2 || state.Command[0] != "opencode" {
+		t.Fatalf("the state must carry the command the project declared, got %v", state.Command)
+	}
 }
 
-// The dial policy, not just the happy path: a host and port is refused with a
-// message the user can act on.
-func TestAgentActivationRefusesATcpTarget(t *testing.T) {
+// The refusal that matters most: a request can ask the viewer to start the agent the
+// project declared, and can never name what is executed. Each of these bodies tries, and
+// is refused by name rather than ignored — an ignored field is how a page learns nothing
+// and a reader learns nothing.
+func TestAgentActivationRefusesACommandFromTheRequest(t *testing.T) {
 	_, ts := newAgentViewer(t)
-	response := post(t, ts, agentActivatePath, `{"socket":"127.0.0.1:9000"}`, ts.URL)
-	if response.StatusCode != http.StatusBadGateway {
-		t.Fatalf("a host:port activation answered %d, want 502", response.StatusCode)
+	for _, body := range []string{
+		`{"command":["sh","-c","echo pwned"]}`,
+		`{"argv":["sh"]}`,
+		`{"socket":"/tmp/whatever.sock"}`,
+	} {
+		response := post(t, ts, agentActivatePath, body, ts.URL)
+		if response.StatusCode != http.StatusForbidden {
+			t.Fatalf("an activation naming a command answered %d, want 403", response.StatusCode)
+		}
+		refusal, err := readBody(response)
+		if err != nil {
+			t.Fatalf("body: %v", err)
+		}
+		if !strings.Contains(refusal, ".sdt.yaml") {
+			t.Fatalf("the refusal must say where a command comes from, got %q", refusal)
+		}
 	}
-	body, err := readBody(response)
+}
+
+// A project that declares no agent: the reader is told which key to set instead of being
+// shown a form, and nothing is spawned.
+func TestAgentActivationWithoutAConfiguredAgent(t *testing.T) {
+	_, ts := newAgentViewer(t)
+	response := post(t, ts, agentActivatePath, "", ts.URL)
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("a project with no agent answered %d, want 409", response.StatusCode)
+	}
+	refusal, err := readBody(response)
 	if err != nil {
 		t.Fatalf("body: %v", err)
 	}
-	if !strings.Contains(body, "absolute unix socket path") {
-		t.Fatalf("the refusal reads %q", body)
+	if !strings.Contains(refusal, "agent.command") {
+		t.Fatalf("the refusal must name the key to set, got %q", refusal)
+	}
+}
+
+// The wiring end to end at the surface: the command the project declared is what the
+// start tries to run, and the start's own refusal reaches the reader. The command here
+// cannot resolve, so nothing is spawned and the sentence names it.
+func TestAgentActivationRunsTheDeclaredCommand(t *testing.T) {
+	s, err := newServer(t.TempDir())
+	if err != nil {
+		t.Fatalf("newServer: %v", err)
+	}
+	writeFixture(t, s.root, ".sdt.yaml", "agent:\n  command: [\"ghost-agent-not-on-path\"]\n")
+	s.enableAgent("127.0.0.1")
+	ts := httptest.NewServer(s.mux())
+	t.Cleanup(ts.Close)
+
+	response := post(t, ts, agentActivatePath, "", ts.URL)
+	if response.StatusCode != http.StatusBadGateway {
+		t.Fatalf("an unresolvable command answered %d, want 502", response.StatusCode)
+	}
+	refusal, err := readBody(response)
+	if err != nil {
+		t.Fatalf("body: %v", err)
+	}
+	if !strings.Contains(refusal, "ghost-agent-not-on-path") {
+		t.Fatalf("the refusal must name the command, got %q", refusal)
+	}
+
+	state := getState(t, ts)
+	if len(state.Command) != 1 || state.Command[0] != "ghost-agent-not-on-path" {
+		t.Fatalf("the state must carry the command the project declared, got %v", state.Command)
+	}
+	if state.Activated {
+		t.Fatal("a start that could not resolve must leave the bridge inert")
+	}
+}
+
+// The stop a reader asks for leaves the bridge inert and able to start again, rather than
+// closed for good: deactivate is a stop, not a shutdown.
+func TestAgentDeactivateStopsTheAgentOnPurpose(t *testing.T) {
+	s, ts := newAgentViewer(t)
+	agent := acptest.NewAgent(t, acptest.Streams("hello"))
+	activateOnSocket(t, s, agent.Path())
+	if !s.agent.Activated() {
+		t.Fatal("the test's own setup must leave a live agent")
+	}
+
+	response := post(t, ts, agentDeactivatePath, "", ts.URL)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("deactivate answered %d", response.StatusCode)
+	}
+	state := getState(t, ts)
+	if state.Activated || state.Connected {
+		t.Fatalf("a stopped bridge is inert, the state says %+v", state)
+	}
+	if state.Status != string(acpbridge.StatusStopped) {
+		t.Fatalf("a stop somebody asked for is a stopped state, the state says %q", state.Status)
 	}
 }
 
@@ -257,7 +349,7 @@ func TestAgentStreamAndCommandRefuseBeforeActivationAndCrossOrigin(t *testing.T)
 		t.Fatalf("the command before activation answered %d", response.StatusCode)
 	}
 
-	activate(t, ts, agent.Path())
+	activateOnSocket(t, s, agent.Path())
 	if !s.agent.Activated() {
 		t.Fatal("the bridge is not activated")
 	}
@@ -270,9 +362,9 @@ func TestAgentStreamAndCommandRefuseBeforeActivationAndCrossOrigin(t *testing.T)
 // A turn over the bridge: the prompt goes up as a POST, the thread comes down the
 // stream whole.
 func TestAgentStreamRelaysAPromptAndTheThread(t *testing.T) {
-	_, ts := newAgentViewer(t)
+	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("the corpus has 224 analyses"))
-	activate(t, ts, agent.Path())
+	activateOnSocket(t, s, agent.Path())
 
 	stream := openStream(t, ts, ts.URL)
 	first := stream.next(t)
@@ -306,9 +398,9 @@ func TestAgentStreamRelaysAPromptAndTheThread(t *testing.T) {
 // A cancel reaches the agent, and a prompt sent before any stream is refused rather
 // than silently dropped.
 func TestAgentCommandDeliversCancel(t *testing.T) {
-	_, ts := newAgentViewer(t)
+	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
-	activate(t, ts, agent.Path())
+	activateOnSocket(t, s, agent.Path())
 
 	stream := openStream(t, ts, ts.URL)
 	frame := stream.next(t)
@@ -333,7 +425,7 @@ func TestAgentCommandDeliversCancel(t *testing.T) {
 func TestAgentStreamOwnsItsOwnSession(t *testing.T) {
 	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
-	activate(t, ts, agent.Path())
+	activateOnSocket(t, s, agent.Path())
 	initial := s.agent.SessionID()
 
 	stream := openStream(t, ts, ts.URL)
@@ -356,7 +448,7 @@ func TestAgentStreamOwnsItsOwnSession(t *testing.T) {
 func TestAgentPermissionAnswerReleasesTheAgent(t *testing.T) {
 	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
-	activate(t, ts, agent.Path())
+	activateOnSocket(t, s, agent.Path())
 
 	stream := openStream(t, ts, ts.URL)
 	sessionID := stream.next(t).SessionID
@@ -408,7 +500,7 @@ func TestAgentPermissionAnswerReleasesTheAgent(t *testing.T) {
 func TestAgentDeactivateReturnsToInert(t *testing.T) {
 	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
-	activate(t, ts, agent.Path())
+	activateOnSocket(t, s, agent.Path())
 
 	stream := openStream(t, ts, ts.URL)
 	stream.next(t)
@@ -441,7 +533,7 @@ func TestAgentDeactivateReturnsToInert(t *testing.T) {
 	}
 
 	// And it can be activated again: the panel's own loop.
-	activate(t, ts, agent.Path())
+	activateOnSocket(t, s, agent.Path())
 	if !s.agent.Activated() {
 		t.Fatal("the bridge did not come back")
 	}
@@ -474,7 +566,7 @@ func TestAgentSurfaceIsDisabledOffLoopback(t *testing.T) {
 	if state.Error == "" {
 		t.Fatalf("a disabled surface reported %+v", state)
 	}
-	if refused := post(t, ts, agentActivatePath, `{"socket":"/tmp/none.sock"}`, ts.URL); refused.StatusCode != http.StatusForbidden {
+	if refused := post(t, ts, agentActivatePath, "", ts.URL); refused.StatusCode != http.StatusForbidden {
 		t.Fatalf("a disabled surface answered an activation with %d", refused.StatusCode)
 	}
 	if stream := openStream(t, ts, ts.URL); stream.response.StatusCode != http.StatusForbidden {
@@ -484,7 +576,7 @@ func TestAgentSurfaceIsDisabledOffLoopback(t *testing.T) {
 
 // Malformed input is refused one request at a time, and a refusal is never fatal.
 func TestAgentEndpointsRefuseMalformedInput(t *testing.T) {
-	_, ts := newAgentViewer(t)
+	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
 
 	if response := post(t, ts, agentActivatePath, "{", ts.URL); response.StatusCode != http.StatusBadRequest {
@@ -504,7 +596,7 @@ func TestAgentEndpointsRefuseMalformedInput(t *testing.T) {
 		t.Fatalf("a GET activation answered %d", response.StatusCode)
 	}
 
-	activate(t, ts, agent.Path())
+	activateOnSocket(t, s, agent.Path())
 	stream := openStream(t, ts, ts.URL)
 	stream.next(t)
 
@@ -532,6 +624,7 @@ func TestAgentHelperBranches(t *testing.T) {
 		err  error
 		want string
 	}{
+		{"no configured command", acpbridge.ErrNoCommand, errAgentNoCommand},
 		{"a refused dial target", acpbridge.ErrDialTarget, errAgentPath},
 		{"an unreachable agent", acpbridge.ErrUnreachable, errAgentUnreachable},
 		{"a future protocol version", acpbridge.ErrProtocolVersion, errAgentVersion},
@@ -622,4 +715,19 @@ func TestAgentOriginRule(t *testing.T) {
 			}
 		})
 	}
+}
+
+// getState reads the state endpoint, which several tests assert on.
+func getState(t *testing.T, ts *httptest.Server) agentStateResponse {
+	t.Helper()
+	response, err := ts.Client().Get(ts.URL + agentStatePath)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	var state agentStateResponse
+	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
+		t.Fatalf("state body: %v", err)
+	}
+	return state
 }
