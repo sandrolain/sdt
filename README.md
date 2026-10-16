@@ -129,6 +129,24 @@ SDT is useful when a project needs to:
 - **Local viewer** — standalone `sdtviewer` serves a read-only React SPA over `context/`: document tree, fulltext search, hybrid lexical+semantic search, wiki graph (2D/3D), per-page mindmaps, JSON Canvas board and related-pages panel
 - **Hybrid search** — ranked section-level search (`sdt context search`) fusing a lexical bleve index with semantic embeddings (`--semantic`, RRF) using local models
 - **Wiki knowledge pipeline** — ingestion converts sources (docling / markitdown / OCR) into wiki pages with relations, validated by wiki-lint; `refs/` keeps the immutable evidence
+### Agent chat (optional)
+
+`sdtviewer` can carry a live conversation with an ACP agent beside any screen, in a
+panel that overlays whatever the reader is looking at. The bridge dials a socket **you**
+name — it never starts the agent — so put a stdio-to-socket proxy in front of one and
+hand the path to the panel (Chat in the top bar, or ⌘J):
+
+```bash
+socat UNIX-LISTEN:/tmp/sdt-acp.sock,fork EXEC:"opencode acp"
+sdtviewer serve --port 8443
+```
+
+Until a path is submitted the bridge is off: no socket, no stream, no agent. Once it is
+on, the viewer asks for your approval on every tool the agent wants to run, confines the
+agent's file access to the project root, refuses terminals outright, and accepts requests
+only from its own page on a loopback bind. Details:
+`context/architecture/agent-bridge-acp-chat-panel.md`.
+
 - **Zero CGO** — pure-Go build, no C toolchain required
 - **Cross-platform** — Linux, macOS, Windows
 

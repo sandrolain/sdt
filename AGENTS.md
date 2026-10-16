@@ -386,6 +386,10 @@ Key dependencies:
 - `github.com/segmentio/ksuid`, `github.com/matoous/go-nanoid/v2`, stdlib `uuid` — ID generation (uid)
 - `github.com/hashicorp/go-version` — version comparison (vman)
 - `github.com/lmittmann/tint` — coloured `log/slog` handler
+- `github.com/coder/acp-go-sdk` — ACP (Agent Client Protocol) client for the viewer's
+  agent bridge (`internal/acpbridge`)
+- `@assistant-ui/react` — the agent chat panel's runtime and primitives (`web/`)
+- `streamdown` — chat-message markdown in the agent panel (`web/`, lazy-loaded chunk)
 - `yaml` — YAML frontmatter parsing in the viewer metadata panel (`web/`, lazy-loaded chunk)
 
 ### Build & Run
@@ -427,6 +431,13 @@ cd web && bun run test          # vitest (jsdom)
 
 `task test` wraps the scoped Go command. Known gap: `cli/utils/converter` and
 `cli/utils/crawler` are below the 80% per-package target (pre-existing).
+
+The agent bridge's wire is pinned from both sides: the Go tests write
+`internal/acpbridge/testdata/wire/*.json` and a TS test reads them, so a renamed field
+fails one half or the other. Regenerate with
+`UPDATE_GOLDEN=1 go test ./internal/acpbridge/`, then run **both** suites — the Go test
+compares the fixtures with what the bridge produces and the TS test compares the
+browser's own builders with them.
 
 ### Lint & Format
 
@@ -497,6 +508,14 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
   (`TestGeneratedSetIsViewerFree`) over the templates, the AGENTS.md instructions
   block and the roles core layer. A mechanical constraint becomes a gate, not
   prose (`context/instructions/authoring.md`).
+- **A capability that reaches outside the process is gated, not trusted.** A viewer
+  surface that touches something beyond the browser — the document-state delegation to
+  the CLI (decision 0027) and the agent bridge both do — is available only on a
+  **loopback bind**, only after an **explicit activation by the user**, and it accepts a
+  request only from **its own origin**. A non-loopback bind disables it and says so; the
+  agent endpoints are the stricter case, taking a missing `Origin` only with
+  `Sec-Fetch-Site: same-origin`, which no page can forge. The detail lives in
+  `context/architecture/agent-bridge-acp-chat-panel.md`.
 - **Workflow self-assessment (per plan)** — at the end of **every executed
   plan**, in its final Validation phase next to the crystallized closeout, the
   agent reviews **its own** run and records it in `context/notes/`. Nothing is

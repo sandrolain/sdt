@@ -65,7 +65,8 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "sdtviewer",
 		Short: "SDT context/ wiki browser viewer",
-		Long:  "Standalone read-only browser for the SDT context knowledge base.",
+		Long: "Standalone browser for the SDT context knowledge base: tree, search,\n" +
+			"graph, board and documents, with an optional agent chat panel.",
 	}
 	root.Version = fmt.Sprintf("%s (commit %s, %s)", version, commit, date)
 	root.AddCommand(newServeCmd())
@@ -76,6 +77,17 @@ func newServeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Serve the viewer web app over HTTP",
+		Long: "Serve the viewer web app over HTTP.\n\n" +
+			"Document state can be edited through the sanctioned CLI when the bind host is\n" +
+			"loopback and an sdt binary resolves; the agent chat panel is available under the\n" +
+			"same loopback rule, and it stays inert until a socket path is submitted in the\n" +
+			"panel: nothing is dialled before that.",
+		Example: `  # the agent chat: put a stdio ACP agent behind a unix socket, then open the panel (⌘J)
+  socat UNIX-LISTEN:/tmp/sdt-acp.sock,fork EXEC:"opencode acp"
+  sdtviewer serve --port 8443
+
+  # the viewer alone
+  sdtviewer serve --port 8443 --no-open`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host, err := cmd.Flags().GetString("host")
 			if err != nil {
