@@ -1,0 +1,6 @@
+{
+  "type": "permission",
+  "requestId": "perm-1",
+  "allow": true,
+  "sessionId": "sess-1"
+}

@@ -1,0 +1,16 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [],
+    "config": [
+      {
+        "currentValue": true,
+        "id": "",
+        "name": "",
+        "type": "boolean"
+      }
+    ]
+  }
+}

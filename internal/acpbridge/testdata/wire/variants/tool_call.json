@@ -1,0 +1,27 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [
+      {
+        "id": "msg-1",
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "tool_call",
+            "toolCall": {
+              "id": "call-1",
+              "title": "Read context/notes/a.md",
+              "kind": "read",
+              "status": "in_progress",
+              "input": {
+                "path": "context/notes/a.md"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [],
+    "usage": {
+      "used": 1200,
+      "size": 8000,
+      "amount": 0.02,
+      "currency": "USD"
+    }
+  }
+}

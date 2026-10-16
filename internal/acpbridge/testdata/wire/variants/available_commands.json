@@ -1,0 +1,14 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [],
+    "commands": [
+      {
+        "name": "/compact",
+        "description": "Compact the session"
+      }
+    ]
+  }
+}

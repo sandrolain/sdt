@@ -1,0 +1,11 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [],
+    "info": {
+      "title": "Reading the corpus"
+    }
+  }
+}

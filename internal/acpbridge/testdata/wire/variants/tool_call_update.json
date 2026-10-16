@@ -1,0 +1,23 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [
+      {
+        "id": "msg-1",
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "tool_call",
+            "toolCall": {
+              "id": "call-1",
+              "status": "completed",
+              "output": "the file's text"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

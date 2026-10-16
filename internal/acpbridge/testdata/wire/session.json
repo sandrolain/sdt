@@ -1,0 +1,70 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [
+      {
+        "id": "msg-1",
+        "role": "user",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "how big is the corpus?"
+          }
+        ]
+      },
+      {
+        "id": "msg-2",
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "Let me look at the notes."
+          },
+          {
+            "kind": "thought",
+            "text": "checking the corpus"
+          },
+          {
+            "kind": "tool_call",
+            "toolCall": {
+              "id": "call-1",
+              "title": "Read context/notes/a.md",
+              "kind": "read",
+              "status": "completed",
+              "output": "224 analyses"
+            }
+          },
+          {
+            "kind": "text",
+            "text": " The corpus has 224 analyses."
+          },
+          {
+            "kind": "permission",
+            "permission": {
+              "requestId": "perm-1",
+              "sessionId": "sess-1",
+              "toolCallId": "call-2",
+              "toolKind": "edit",
+              "title": "Write context/notes/x.md",
+              "input": {
+                "path": "context/notes/x.md"
+              },
+              "decision": "allowed"
+            }
+          }
+        ]
+      }
+    ],
+    "plan": {
+      "entries": [
+        {
+          "content": "read the notes",
+          "priority": "medium",
+          "status": "completed"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [],
+    "plan": {
+      "entries": [
+        {
+          "content": "read the notes",
+          "priority": "medium",
+          "status": "pending"
+        }
+      ]
+    }
+  }
+}

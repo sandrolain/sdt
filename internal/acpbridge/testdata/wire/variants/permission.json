@@ -1,0 +1,28 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [
+      {
+        "id": "msg-1",
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "permission",
+            "permission": {
+              "requestId": "perm-1",
+              "sessionId": "sess-1",
+              "toolCallId": "",
+              "toolKind": "edit",
+              "title": "Write context/notes/x.md",
+              "input": {
+                "path": "context/notes/x.md"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
