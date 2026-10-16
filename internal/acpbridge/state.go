@@ -119,6 +119,10 @@ type ThreadState struct {
 	mu       sync.Mutex
 	thread   Thread
 	listener func(Thread)
+	// loading is true while this thread is being loaded from the agent: a load replays
+	// the conversation, and a replay folded onto a conversation we already hold would
+	// show every message twice.
+	loading bool
 }
 
 // NewThreadState returns the empty thread of one session.
@@ -147,10 +151,37 @@ func (s *ThreadState) Snapshot() Thread {
 // receives is never a half-applied state.
 func (s *ThreadState) SessionUpdate(_ context.Context, notification acp.SessionNotification) error {
 	s.mu.Lock()
+	if s.loading {
+		// A load's replay, and this thread already holds the conversation: it is the
+		// display source and is at least as complete as the replay, so the update is
+		// dropped rather than folded on top of it.
+		s.mu.Unlock()
+		return nil
+	}
 	s.apply(notification.Update)
 	s.mu.Unlock()
 	s.notify()
 	return nil
+}
+
+// WhileLoading runs fn with this thread's incoming updates dropped, unless the thread
+// is still empty. That is the whole rule of a reattach: our thread is the display
+// source, so a replay must not be added to it — and a thread that has nothing in it is
+// the one case where the replay is the only account of the conversation, which is what
+// a viewer that restarted finds.
+func (s *ThreadState) WhileLoading(fn func() error) error {
+	s.mu.Lock()
+	// Dropped when we already hold the conversation, kept when we hold nothing: the
+	// replay is a re-attachment of a history we already have, or the only account of
+	// one we do not.
+	s.loading = len(s.thread.Messages) > 0
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.loading = false
+		s.mu.Unlock()
+	}()
+	return fn()
 }
 
 // Permission adds the card to the turn the agent is streaming, so the user answers

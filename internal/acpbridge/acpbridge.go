@@ -17,9 +17,10 @@ package acpbridge
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
-	"net"
 	"sync"
+	"time"
 
 	"github.com/coder/acp-go-sdk"
 )
@@ -82,11 +83,33 @@ type Bridge struct {
 	perms   *PermissionQueue
 	log     *slog.Logger
 
-	mu       sync.Mutex
-	socket   net.Conn
-	conn     *acp.ClientSideConnection
-	sessions map[string]*Session
-	initial  string
+	mu sync.Mutex
+	// transport closes what the connection runs on: the socket the user named, or
+	// the process the project declared. Keeping it here rather than in the caller
+	// is what makes both transports end the same way.
+	transport func() error
+	conn      *acp.ClientSideConnection
+	// loadSession is what the agent's initialize response said about session/load,
+	// which is what lets a restart reattach instead of starting over.
+	loadSession bool
+	sessions    map[string]*Session
+	initial     string
+
+	// The supervisor's own state. startMu serialises a start — a caller's or a
+	// restart's — so that "already started" cannot be read by two callers at once;
+	// life is the bridge's life, which a process inherits and Close ends; proc,
+	// cancel and intended describe the process that is running, and status is what
+	// the panel shows.
+	startMu     sync.Mutex
+	life        context.Context
+	halt        context.CancelFunc
+	proc        *process
+	cancel      context.CancelFunc
+	intended    bool
+	status      Status
+	statusErr   string
+	restarts    int
+	restartFrom time.Time
 }
 
 // New returns an inert bridge with an empty session registry. It is its own sink:
@@ -102,7 +125,11 @@ func New(opts Options) *Bridge {
 		version:  opts.Version,
 		log:      log,
 		sessions: map[string]*Session{},
+		status:   StatusIdle,
 	}
+	// The life a started process inherits: Close ends it, so nothing the bridge
+	// started can outlive the bridge.
+	bridge.life, bridge.halt = context.WithCancel(context.Background())
 	bridge.perms = NewPermissionQueue(bridge.Permission)
 	return bridge
 }
@@ -143,6 +170,13 @@ func (b *Bridge) NewSession(ctx context.Context) (*Session, error) {
 	if conn == nil {
 		return nil, ErrNotActivated
 	}
+	return b.newSession(ctx, conn)
+}
+
+// newSession opens one session on an already-live connection and registers it. The
+// attach path opens its session here and so does a second browser, so a
+// conversation always begins the same way.
+func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection) (*Session, error) {
 	openCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
 	defer cancel()
 	id, err := openSession(openCtx, conn, b.root)
@@ -155,19 +189,31 @@ func (b *Bridge) NewSession(ctx context.Context) (*Session, error) {
 		state: NewThreadState(id),
 		perms: b.perms,
 		ctx:   ctx,
-		detach: func() {
-			b.mu.Lock()
-			defer b.mu.Unlock()
-			delete(b.sessions, id)
-			if b.initial == id {
-				b.initial = ""
-			}
-		},
 	}
+	// The detach closes over the session rather than over the id it was built with: a
+	// reattach can give the conversation a new id, and the registry must lose the key it
+	// actually holds.
+	session.detach = func() { b.forget(session) }
 	b.mu.Lock()
 	b.sessions[id] = session
 	b.mu.Unlock()
 	return session, nil
+}
+
+// forget removes a conversation from the registry under whatever id it carries now. A
+// reattach that had to open a fresh session gives its conversation a new id, so deleting
+// the id it was built with would leave a closed conversation registered — reachable by a
+// command nobody is there to answer.
+func (b *Bridge) forget(session *Session) {
+	id := session.ID()
+	b.mu.Lock()
+	if b.sessions[id] == session {
+		delete(b.sessions, id)
+	}
+	if b.initial == id {
+		b.initial = ""
+	}
+	b.mu.Unlock()
 }
 
 // CloseSessions closes every session of this connection and reports how many.
@@ -206,82 +252,136 @@ func (b *Bridge) SessionID() string {
 	return b.initial
 }
 
-// Activate dials the socket at socketPath and completes the handshake: it refuses
-// a target the dial policy rejects, fails closed on a protocol version this
-// bridge does not speak, and is the only path by which a connection comes into
-// existence. It returns the ACP session id.
+// Activate dials the socket at socketPath and joins it to the bridge: it refuses a
+// target the dial policy rejects, fails closed on a protocol version this bridge
+// does not speak, and is one of the two paths by which a connection comes into
+// existence — the other is Start, which spawns the process the project declared.
+// It returns the ACP session id.
 func (b *Bridge) Activate(ctx context.Context, socketPath string) (string, error) {
-	b.mu.Lock()
-	if b.conn != nil {
-		b.mu.Unlock()
-		return "", ErrAlreadyActivated
-	}
-	b.mu.Unlock()
-
 	sock, err := dialSocket(ctx, socketPath)
 	if err != nil {
 		return "", err
 	}
-	// The connection's callbacks are the policy, not a pass-through, and the bridge
-	// is their sink: this is the one place the two are joined.
-	callbacks := &client{root: b.root, sink: b, perms: b.perms}
-	conn := acp.NewClientSideConnection(callbacks, sock, sock)
-	conn.SetLogger(b.log)
-
-	// The handshake is bounded: an agent that accepts the socket and then answers
-	// nothing would otherwise hang the activation forever, because the SDK drops a
-	// line it cannot parse and the request it belonged to never completes.
-	ctx, cancel := context.WithTimeout(ctx, handshakeTimeout)
-	defer cancel()
-
-	err = handshake(ctx, conn, b.version)
+	session, _, err := b.attach(ctx, sock, func() error { return sock.Close() }, nil)
 	if err != nil {
-		// A handshake that did not complete leaves no connection behind, so the
-		// bridge stays inert and the next Activate starts clean.
-		if closeErr := sock.Close(); closeErr != nil {
-			b.log.Debug("closing the socket after a failed handshake", "error", closeErr)
-		}
 		return "", err
 	}
-	b.mu.Lock()
-	b.socket, b.conn = sock, conn
-	b.mu.Unlock()
-
-	// The session the browser is handed when it arrives. A second browser opens its
-	// own; the first is opened here so activation leaves a usable conversation.
-	session, err := b.NewSession(ctx)
-	if err != nil {
-		if closeErr := sock.Close(); closeErr != nil {
-			b.log.Debug("closing the socket after a failed session", "error", closeErr)
-		}
-		b.mu.Lock()
-		b.socket, b.conn = nil, nil
-		b.mu.Unlock()
-		return "", err
-	}
-	b.mu.Lock()
-	b.initial = session.ID()
-	b.mu.Unlock()
 	b.log.Info("agent bridge activated", "session", session.ID(), "socket", socketPath)
 	return session.ID(), nil
 }
 
+// attach joins a transport to the bridge: it builds the one connection over the
+// transport's pair, completes the handshake, and opens the session a browser is
+// handed. Both transports end here — the socket a user named and the process a
+// project declared — so the client callbacks, the file confinement, the permission
+// queue, the thread fold and the session registry have a single code path instead
+// of two that can drift apart.
+//
+// A failure closes the transport and leaves the bridge inert, so the next attempt
+// starts clean.
+func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTransport func() error, previous *restartState) (*Session, string, error) {
+	b.mu.Lock()
+	live := b.conn != nil
+	b.mu.Unlock()
+	if live {
+		return nil, "", b.abandon(closeTransport, ErrAlreadyActivated)
+	}
+
+	// The connection's callbacks are the policy, not a pass-through, and the bridge
+	// is their sink: this is the one place the two are joined.
+	callbacks := &client{root: b.root, sink: b, perms: b.perms}
+	conn := acp.NewClientSideConnection(callbacks, rw, rw)
+	conn.SetLogger(b.log)
+
+	// The handshake is bounded: an agent that accepts the transport and then answers
+	// nothing would otherwise hang the start forever, because the SDK drops a line
+	// it cannot parse and the request it belonged to never completes.
+	handshakeCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
+	res, err := handshake(handshakeCtx, conn, b.version)
+	cancel()
+	if err != nil {
+		return nil, "", b.abandon(closeTransport, err)
+	}
+
+	b.mu.Lock()
+	b.conn, b.loadSession = conn, res.AgentCapabilities.LoadSession
+	b.mu.Unlock()
+
+	// The session the browser is handed when it arrives. A first start opens a fresh
+	// one; a restart carries over what the dead process left, which is where a
+	// conversation survives an agent that died.
+	var (
+		session *Session
+		note    string
+	)
+	if previous == nil {
+		session, err = b.newSession(ctx, conn)
+	} else {
+		session, note, err = b.carryOver(ctx, conn, previous)
+	}
+	if err != nil {
+		b.mu.Lock()
+		b.conn, b.loadSession = nil, false
+		b.mu.Unlock()
+		return nil, "", b.abandon(closeTransport, err)
+	}
+
+	b.mu.Lock()
+	b.transport, b.initial = closeTransport, session.ID()
+	b.mu.Unlock()
+	return session, note, nil
+}
+
+// abandon closes a transport whose attach did not complete, keeping the caller's
+// error and logging the close, so a leaked socket or process is visible rather
+// than silent.
+func (b *Bridge) abandon(closeTransport func() error, attachErr error) error {
+	if err := closeTransport(); err != nil {
+		b.log.Debug("closing the transport after a failed attach", "error", err)
+	}
+	return attachErr
+}
+
+// SupportsSessionLoad reports whether the connected agent advertised session/load,
+// which is the one thing a restart needs to put a conversation back on the session
+// it had instead of starting a new one.
+func (b *Bridge) SupportsSessionLoad() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.loadSession
+}
+
 // Close ends the connection and returns the bridge to inert: every session's
-// pending waits are cancelled, then the socket goes. It is safe to call on an
-// inert bridge.
+// pending waits are cancelled, the transport goes (a socket, or a process whose
+// group is signalled and waited for), and the bridge's own life ends, so nothing it
+// started outlives it. It is safe to call on an inert bridge.
 func (b *Bridge) Close() error {
+	err := b.teardown()
+	b.halt()
+	return err
+}
+
+// teardown closes the transport and forgets the process and the connection without
+// ending the bridge's life, which is what lets Stop leave a bridge that can start
+// again while Close leaves one that cannot.
+func (b *Bridge) teardown() error {
 	b.CloseSessions()
 	b.mu.Lock()
-	sock, conn := b.socket, b.conn
-	b.socket, b.conn = nil, nil
+	transport, conn := b.transport, b.conn
+	// The cycle's state — its process, the cancel that ends it and whether its exit was
+	// intended — is deliberately kept: a stop that arrives while a restart is scheduled
+	// reaches the cancel, and the flag is what a death racing a stop is read by. Both are
+	// cleared where a new cycle begins.
+	b.proc = nil
+	b.transport, b.conn, b.loadSession, b.initial = nil, nil, false, ""
 	b.mu.Unlock()
 
 	if conn == nil {
 		return nil
 	}
 	var err error
-	if sock != nil {
-		err = sock.Close()
+	if transport != nil {
+		err = transport()
 	}
 	b.log.Info("agent bridge closed")
 	return err

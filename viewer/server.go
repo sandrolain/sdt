@@ -84,8 +84,11 @@ type server struct {
 	// agent is the ACP bridge: created inert, usable only once the user activates
 	// it, and its own reason for being unavailable when the bind host is not
 	// loopback. agentMu guards the open streams and which conversation is current.
+	// agentCommand is the argv the project declared in .sdt.yaml, empty when it
+	// declared none: the viewer starts that command and never one a request names.
 	agent        *acpbridge.Bridge
 	agentReason  string
+	agentCommand []string
 	agentMu      sync.Mutex
 	agentStreams map[*agentStream]struct{}
 	agentCurrent string

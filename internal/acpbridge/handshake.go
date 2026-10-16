@@ -12,15 +12,18 @@ import (
 // becomes a named failure instead of a spinner.
 const handshakeTimeout = 20 * time.Second
 
-// handshake initializes the connection and gates on the protocol version. Opening
-// a session is NewSession's job, so the handshake stays the negotiation and
-// nothing else.
+// handshake initializes the connection, gates on the protocol version, and returns
+// the response. Opening a session is NewSession's job, so the handshake stays the
+// negotiation and nothing else — but the negotiation's answer is worth returning:
+// the agent's capabilities are read from it, and session/load is the one the bridge
+// acts on, because a restart can reattach a session only when the agent says it can
+// carry one.
 //
 // The version gate is the one place a future protocol cannot pass: ACP v2 is
 // already drafted upstream, and a bridge that accepted a version it does not
 // speak would mis-render a session instead of refusing it — so a mismatch is
 // ErrProtocolVersion and no session is opened.
-func handshake(ctx context.Context, conn *acp.ClientSideConnection, version string) error {
+func handshake(ctx context.Context, conn *acp.ClientSideConnection, version string) (acp.InitializeResponse, error) {
 	res, err := conn.Initialize(ctx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientInfo: &acp.Implementation{
@@ -38,11 +41,26 @@ func handshake(ctx context.Context, conn *acp.ClientSideConnection, version stri
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("%w: initialize: %v", ErrHandshake, err)
+		return acp.InitializeResponse{}, fmt.Errorf("%w: initialize: %v", ErrHandshake, err)
 	}
 	if res.ProtocolVersion != acp.ProtocolVersionNumber {
-		return fmt.Errorf("%w: the agent speaks %d, this bridge speaks %d",
+		return res, fmt.Errorf("%w: the agent speaks %d, this bridge speaks %d",
 			ErrProtocolVersion, res.ProtocolVersion, acp.ProtocolVersionNumber)
+	}
+	return res, nil
+}
+
+// loadSession asks the agent to take a conversation back. The protocol gates it on the
+// agent's loadSession capability — the caller has already read that from the handshake —
+// and a refusal is an error the caller degrades from rather than a failure of the
+// bridge: an agent that no longer holds the session is a normal thing to meet.
+func loadSession(ctx context.Context, conn *acp.ClientSideConnection, sessionID, root string) error {
+	if _, err := conn.LoadSession(ctx, acp.LoadSessionRequest{
+		SessionId:  acp.SessionId(sessionID),
+		Cwd:        root,
+		McpServers: []acp.McpServer{},
+	}); err != nil {
+		return fmt.Errorf("%w: session/load: %v", ErrHandshake, err)
 	}
 	return nil
 }

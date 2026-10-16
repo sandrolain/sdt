@@ -13,6 +13,7 @@ package acptest
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -51,7 +52,7 @@ type Agent struct {
 	params   []json.RawMessage
 	accepted int
 	sessions int
-	conn     net.Conn
+	conn     io.ReadWriteCloser
 
 	done chan struct{}
 }
@@ -78,6 +79,36 @@ func NewAgent(t *testing.T, h Handler) *Agent {
 
 // Path is the socket the client should dial.
 func (a *Agent) Path() string { return a.path }
+
+// NewStream serves the handler over an already-connected pair of streams — the
+// stdin and stdout of a spawned process — with the same framing loop NewAgent runs
+// over a socket. The peer ends when the other side closes the stream; there is no
+// listener, so there is nothing to accept.
+func NewStream(t *testing.T, r io.Reader, w io.Writer, h Handler) *Agent {
+	t.Helper()
+	agent := &Agent{t: t, handler: h, done: make(chan struct{})}
+	go func() {
+		defer close(agent.done)
+		agent.session(streamConn{reader: r, writer: w})
+	}()
+	t.Cleanup(func() { <-agent.done })
+	return agent
+}
+
+// Done is closed when the peer has stopped serving.
+func (a *Agent) Done() <-chan struct{} { return a.done }
+
+// streamConn is a connection-shaped pair of streams: os.Stdin and os.Stdout are
+// two files, and the session loop only ever reads and writes. Closing it is a
+// no-op on purpose — the pipes belong to whoever created the process.
+type streamConn struct {
+	reader io.Reader
+	writer io.Writer
+}
+
+func (c streamConn) Read(p []byte) (int, error)  { return c.reader.Read(p) }
+func (c streamConn) Write(p []byte) (int, error) { return c.writer.Write(p) }
+func (c streamConn) Close() error                { return nil }
 
 // SocketPath returns a unix socket path short enough for the kernel: on macOS
 // t.TempDir() plus a test name can exceed the 104-byte limit, and the bind then
@@ -131,8 +162,11 @@ func (a *Agent) serve() {
 	}
 }
 
-// session reads newline-delimited JSON-RPC 2.0 and answers the requests.
-func (a *Agent) session(conn net.Conn) {
+// session reads newline-delimited JSON-RPC 2.0 and answers the requests. It takes
+// a connection-shaped pair rather than a net.Conn because the same loop serves a
+// listening socket and the pipes of a spawned process; a second copy of the
+// framing is exactly what this package exists to avoid.
+func (a *Agent) session(conn io.ReadWriteCloser) {
 	defer func() {
 		if err := conn.Close(); err != nil {
 			a.t.Logf("agent connection close: %v", err)
@@ -247,9 +281,14 @@ func AgentVersion(version int, sessionID string) Handler {
 	}
 }
 
-// sessionIDKey is the protocol's own field name, used by the handlers this package
-// offers so their bodies read like the wire.
-const sessionIDKey = "sessionId"
+// The protocol's own field names, used by the handlers this package offers so their
+// bodies read like the wire.
+const (
+	sessionIDKey     = "sessionId"
+	updateKey        = "update"
+	sessionUpdateKey = "sessionUpdate"
+	contentKey       = "content"
+)
 
 // LastSessionID is the id handed out most recently.
 func (a *Agent) LastSessionID() string {
@@ -269,9 +308,9 @@ func Streams(text string) Handler {
 		case "session/prompt":
 			agent.Notify(agent.t, "session/update", map[string]any{
 				sessionIDKey: agent.LastSessionID(),
-				"update": map[string]any{
-					"sessionUpdate": "agent_message_chunk",
-					"content":       map[string]any{"type": "text", "text": text},
+				updateKey: map[string]any{
+					sessionUpdateKey: "agent_message_chunk",
+					contentKey:       textBlock(text),
 				},
 			})
 			return map[string]any{"stopReason": "end_turn"}
@@ -322,4 +361,59 @@ func replaceID(line, id string) string {
 		out = append(out, line[i])
 	}
 	return string(out)
+}
+
+// Loadable answers initialize with the loadSession capability, and answers
+// session/load by replaying a two-message conversation for the session being loaded —
+// the user's prompt and the agent's answer. That replay is what makes a duplicated
+// history visible: an agent really does rebuild a conversation by sending its updates
+// again, so a client that folds them onto the thread it already holds shows every
+// message twice.
+//
+// With refuse it advertises the capability and refuses the load instead, which is what
+// an agent that no longer holds the session does.
+func Loadable(text string, refuse bool) Handler {
+	streams := Streams(text)
+	return func(agent *Agent, method string, params json.RawMessage) any {
+		switch method {
+		case "initialize":
+			return map[string]any{
+				"protocolVersion":   acp.ProtocolVersionNumber,
+				"agentCapabilities": map[string]any{"loadSession": true},
+				"authMethods":       []any{},
+			}
+		case "session/load":
+			if refuse {
+				return RPCError{Code: -32602, Message: "no such session"}
+			}
+			var request struct {
+				SessionID string `json:"sessionId"`
+			}
+			if err := json.Unmarshal(params, &request); err != nil {
+				return RPCError{Code: -32602, Message: "session/load: " + err.Error()}
+			}
+			agent.Notify(agent.t, "session/update", map[string]any{
+				sessionIDKey: request.SessionID,
+				updateKey: map[string]any{
+					sessionUpdateKey: "user_message_chunk",
+					contentKey:       textBlock("what I asked before"),
+				},
+			})
+			agent.Notify(agent.t, "session/update", map[string]any{
+				sessionIDKey: request.SessionID,
+				updateKey: map[string]any{
+					sessionUpdateKey: "agent_message_chunk",
+					contentKey:       textBlock("and what you answered"),
+				},
+			})
+			return map[string]any{}
+		}
+		return streams(agent, method, params)
+	}
+}
+
+// textBlock builds a plain-text content block. It is the one content shape this package
+// sends, so the wire's own spelling lives in one place rather than in every handler.
+func textBlock(text string) map[string]any {
+	return map[string]any{"type": "text", "text": text}
 }

@@ -3,10 +3,7 @@ package main
 import (
 	"context"
 	"log/slog"
-	"os"
-	"path/filepath"
 
-	"github.com/goccy/go-yaml"
 	"github.com/sandrolain/sdt/internal/mdindex"
 	"github.com/sandrolain/sdt/internal/search"
 	"github.com/sandrolain/sdt/internal/semantic"
@@ -43,40 +40,6 @@ func (o *semanticOverrides) apply(opts *semanticOptions) {
 	if o.model != nil {
 		opts.Model = *o.model
 	}
-}
-
-// viewerConfig is the subset of .sdt.yaml the viewer consumes; unknown keys are
-// ignored.
-type viewerConfig struct {
-	Project string             `yaml:"project"`
-	Group   string             `yaml:"group"`
-	Search  viewerSearchConfig `yaml:"search"`
-}
-
-type viewerSearchConfig struct {
-	// Semantic enables the optional /api/search?semantic=1 branch.
-	Semantic bool `yaml:"semantic"`
-	// SemanticBuild is the on-demand snapshot build switch for the semantic map;
-	// nil (absent) means enabled (default true). A pointer distinguishes
-	// "not set" from an explicit false.
-	SemanticBuild *bool `yaml:"semantic_build"`
-	// Model overrides the embedding model id (default BASE8M). Empty disables
-	// this override.
-	Model string `yaml:"model"`
-}
-
-// loadViewerConfig reads root/.sdt.yaml for viewer-relevant keys. A missing or
-// malformed file yields the zero value (semantic off) without error.
-func loadViewerConfig(root string) viewerConfig {
-	data, err := os.ReadFile(filepath.Join(root, sdtConfigFile)) //#nosec G304 -- user project config
-	if err != nil {
-		return viewerConfig{}
-	}
-	var cfg viewerConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return viewerConfig{}
-	}
-	return cfg
 }
 
 // semanticOptionsFromConfig derives the branch options from the project config.

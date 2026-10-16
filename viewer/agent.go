@@ -28,6 +28,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/sandrolain/sdt/internal/acpbridge"
@@ -425,7 +426,10 @@ func agentOrigin(r *http.Request) bool {
 }
 
 // enableAgent turns the surface on for a loopback bind and records why it is off
-// otherwise, mirroring decision 0027's rule for document editing.
+// otherwise, mirroring decision 0027's rule for document editing. The argv the
+// project declared is read here and logged once, so a reader can see what a start
+// will run before asking for one; whether it resolves is the start's business,
+// because that is where a reader asked.
 func (s *server) enableAgent(host string) {
 	if !isLoopbackHost(host) {
 		s.agentReason = errAgentDisabled
@@ -433,5 +437,10 @@ func (s *server) enableAgent(host string) {
 		return
 	}
 	s.agent = acpbridge.New(acpbridge.Options{Root: s.root, Version: version})
-	slog.Info("sdtviewer: agent bridge available", "root", s.root)
+	s.agentCommand = loadViewerConfig(s.root).agentCommand()
+	if len(s.agentCommand) == 0 {
+		slog.Info("sdtviewer: agent bridge available", "root", s.root, "agent", "none configured")
+		return
+	}
+	slog.Info("sdtviewer: agent bridge available", "root", s.root, "agent", strings.Join(s.agentCommand, " "))
 }

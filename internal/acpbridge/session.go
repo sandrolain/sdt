@@ -12,6 +12,9 @@ import (
 // the thread it accumulates. One browser connection owns one session; the viewer
 // opens a session when a browser arrives and closes it when the browser leaves.
 type Session struct {
+	// mu guards id and conn, which a reattach replaces: the conversation outlives the
+	// process that was carrying it, and only what it runs on changes.
+	mu     sync.RWMutex
 	id     string
 	conn   *acp.ClientSideConnection
 	state  *ThreadState
@@ -27,7 +30,29 @@ type Session struct {
 }
 
 // ID is the ACP session id the agent assigned.
-func (s *Session) ID() string { return s.id }
+func (s *Session) ID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.id
+}
+
+// connection is the connection this conversation runs on and the id it carries there.
+// A reattach replaces both together, so they are read together.
+func (s *Session) connection() (*acp.ClientSideConnection, string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.conn, s.id
+}
+
+// reattachTo points this conversation at a connection that carries it: the process
+// behind the session changed, the conversation did not. A new id is given when the
+// agent could not take the old one back, which is a fresh session with the thread the
+// reader already has.
+func (s *Session) reattachTo(conn *acp.ClientSideConnection, id string) {
+	s.mu.Lock()
+	s.conn, s.id = conn, id
+	s.mu.Unlock()
+}
 
 // Context is the life of this conversation. A caller that starts a turn without a
 // more specific context uses this one, so the turn ends with the browser rather than
@@ -57,9 +82,10 @@ func (s *Session) Prompt(ctx context.Context, text string) error {
 		s.turnsMu.Unlock()
 	}()
 
+	conn, sessionID := s.connection()
 	id := s.state.openUserMessage(text)
-	response, err := s.conn.Prompt(ctx, acp.PromptRequest{
-		SessionId: acp.SessionId(s.id),
+	response, err := conn.Prompt(ctx, acp.PromptRequest{
+		SessionId: acp.SessionId(sessionID),
 		MessageId: &id,
 		Prompt:    []acp.ContentBlock{acp.TextBlock(text)},
 	})
@@ -75,7 +101,8 @@ func (s *Session) Prompt(ctx context.Context, text string) error {
 // notification, so it returns as soon as it is written and the agent answers by
 // finishing the turn it is in.
 func (s *Session) Cancel(ctx context.Context) error {
-	if err := s.conn.Cancel(ctx, acp.CancelNotification{SessionId: acp.SessionId(s.id)}); err != nil {
+	conn, sessionID := s.connection()
+	if err := conn.Cancel(ctx, acp.CancelNotification{SessionId: acp.SessionId(sessionID)}); err != nil {
 		return fmt.Errorf("acpbridge: cancel: %w", err)
 	}
 	return nil
@@ -87,7 +114,7 @@ func (s *Session) Cancel(ctx context.Context) error {
 // protocol's optional session/close would need a capability this wave does not ask
 // for, and the connection dies with the viewer anyway.
 func (s *Session) Close() int {
-	cancelled := s.perms.CancelSession(s.id)
+	cancelled := s.perms.CancelSession(s.ID())
 	if s.detach != nil {
 		s.detach()
 	}
