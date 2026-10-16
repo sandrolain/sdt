@@ -27,6 +27,10 @@ if (typeof window !== "undefined") {
     if (!Element.prototype.scrollIntoView) {
       Element.prototype.scrollIntoView = () => {};
     }
+    // jsdom has no scrolling at all; assistant-ui's thread viewport scrolls itself.
+    if (!Element.prototype.scrollTo) {
+      Element.prototype.scrollTo = () => {};
+    }
     if (!Element.prototype.hasPointerCapture) {
       Element.prototype.hasPointerCapture = () => false;
     }

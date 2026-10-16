@@ -350,6 +350,15 @@
     flex-direction: column;
     gap: 0.6rem;
   }
+  /* The runtime's thread takes the panel's column; its viewport is the scroller the
+     body already is, so it only needs to stop stretching its rows. */
+  .agent-thread,
+  .agent-thread__viewport {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    align-items: stretch;
+  }
   .agent-panel__message {
     padding: 0.5rem 0.6rem;
     border-radius: var(--radius-sm, 4px);
@@ -362,6 +371,31 @@
   .agent-panel__part {
     margin: 0;
     white-space: pre-wrap;
+  }
+  .agent-panel__reasoning {
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .agent-panel__reasoning summary {
+    cursor: pointer;
+  }
+  .agent-panel__tool {
+    border-inline-start: 2px solid var(--border);
+    padding-inline-start: 0.5rem;
+    font-size: 0.8rem;
+  }
+  .agent-panel__tool.is-error {
+    border-inline-start-color: var(--danger, var(--fg-dim));
+  }
+  .agent-panel__tool-name {
+    font-weight: 600;
+  }
+  .agent-panel__tool-args,
+  .agent-panel__tool-result {
+    margin: 0.2rem 0 0;
+    overflow-x: auto;
+    font-size: 0.72rem;
+    color: var(--fg-dim);
   }
   .agent-panel__plan {
     margin: 0;

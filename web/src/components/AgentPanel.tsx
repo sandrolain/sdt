@@ -12,7 +12,8 @@
  * reachable before activation — and only a submit of the socket path dials. The path
  * is never remembered, never pre-filled and never defaulted to.
  */
-import { Dialog, DialogTrigger, Modal } from "react-aria-components";
+import { Dialog, Modal } from "react-aria-components";
+import { AgentThread } from "./AgentThread";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   activateAgent,
@@ -150,212 +151,104 @@ export function AgentPanel({
   };
 
   return (
-    <DialogTrigger isOpen={open} onOpenChange={onOpenChange}>
-      {/* The trigger is the top bar's entry; the panel never opens itself. */}
-      <button
-        type="button"
-        className="agent-panel__opener"
-        aria-label="Chat with an agent"
-        hidden
-      />
-      <Modal className="agent-panel__overlay">
-        <Dialog className="agent-panel" aria-label="Agent chat">
-          {({ close }) => (
-            <>
-              <header className="agent-panel__header">
-                <h2 className="agent-panel__title">Agent</h2>
-                <button
-                  type="button"
-                  className="agent-panel__close"
-                  onClick={close}
-                  aria-label="Close the agent panel"
-                >
-                  close
-                </button>
-              </header>
-              <div className="agent-panel__body">
-                {phase === "loading" && <p className="agent-panel__note">Reading the bridge…</p>}
-                {phase === "error" && (
-                  <div className="agent-panel__activation">
-                    <p className="agent-panel__note">{message}</p>
-                    <button
-                      type="button"
-                      className="agent-panel__action"
-                      onClick={() => void readState()}
-                    >
-                      Read the bridge state again
-                    </button>
-                  </div>
-                )}
-                {(phase === "inert" || phase === "activating") && (
-                  <form className="agent-panel__activation" onSubmit={onSubmit}>
-                    <p className="agent-panel__note">
-                      The bridge is off. Start a proxy in front of your agent and give it the
-                      socket:
-                    </p>
-                    <code className="agent-panel__recipe">{PROXY_RECIPE}</code>
-                    <label className="agent-panel__field">
-                      <span>Socket path</span>
-                      <input
-                        type="text"
-                        name="socket"
-                        value={socket}
-                        placeholder="/tmp/sdt-acp.sock"
-                        autoComplete="off"
-                        spellCheck={false}
-                        onChange={(event) => setSocket(event.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      className="agent-panel__action"
-                      disabled={phase === "activating" || socket.trim() === ""}
-                    >
-                      {phase === "activating" ? "Connecting…" : "Connect"}
-                    </button>
-                  </form>
-                )}
-                {phase === "active" && envelope && (
-                  <AgentThreadView
-                    envelope={envelope}
-                    onAnswer={(requestId, allow) =>
-                      tell(permissionCommand(requestId, allow, session))
-                    }
-                  />
-                )}
-                {phase === "active" && !envelope && (
-                  <p className="agent-panel__note">Connected. Waiting for the agent…</p>
-                )}
-              </div>
-              {phase === "active" && message !== "" && (
-                <p className="agent-panel__note agent-panel__note--error">{message}</p>
-              )}
-              {phase === "active" && (
-                <form className="agent-panel__composer" onSubmit={onPrompt}>
-                  <input
-                    type="text"
-                    name="prompt"
-                    placeholder="Ask the agent…"
-                    autoComplete="off"
-                    aria-label="Message"
-                  />
-                  <button type="submit" className="agent-panel__action">
-                    Send
-                  </button>
+    // The entry lives in the top bar rather than inside the panel, so the modal is
+    // controlled directly: `open` is the panel's own state, which is what makes
+    // "closed means nothing happens" a property of the panel and not of a trigger.
+    <Modal className="agent-panel__overlay" isOpen={open} onOpenChange={onOpenChange}>
+      <Dialog className="agent-panel" aria-label="Agent chat">
+        {({ close }) => (
+          <>
+            <header className="agent-panel__header">
+              <h2 className="agent-panel__title">Agent</h2>
+              <button
+                type="button"
+                className="agent-panel__close"
+                onClick={close}
+                aria-label="Close the agent panel"
+              >
+                close
+              </button>
+            </header>
+            <div className="agent-panel__body">
+              {phase === "loading" && <p className="agent-panel__note">Reading the bridge…</p>}
+              {phase === "error" && (
+                <div className="agent-panel__activation">
+                  <p className="agent-panel__note">{message}</p>
                   <button
                     type="button"
                     className="agent-panel__action"
-                    onClick={() => tell(cancelCommand(session))}
+                    onClick={() => void readState()}
                   >
-                    Stop
+                    Read the bridge state again
+                  </button>
+                </div>
+              )}
+              {(phase === "inert" || phase === "activating") && (
+                <form className="agent-panel__activation" onSubmit={onSubmit}>
+                  <p className="agent-panel__note">
+                    The bridge is off. Start a proxy in front of your agent and give it the socket:
+                  </p>
+                  <code className="agent-panel__recipe">{PROXY_RECIPE}</code>
+                  <label className="agent-panel__field">
+                    <span>Socket path</span>
+                    <input
+                      type="text"
+                      name="socket"
+                      value={socket}
+                      placeholder="/tmp/sdt-acp.sock"
+                      autoComplete="off"
+                      spellCheck={false}
+                      onChange={(event) => setSocket(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="agent-panel__action"
+                    disabled={phase === "activating" || socket.trim() === ""}
+                  >
+                    {phase === "activating" ? "Connecting…" : "Connect"}
                   </button>
                 </form>
               )}
-            </>
-          )}
-        </Dialog>
-      </Modal>
-    </DialogTrigger>
+              {phase === "active" && envelope && (
+                <AgentThread
+                  thread={envelope.thread}
+                  onAnswer={(requestId, allow) =>
+                    tell(permissionCommand(requestId, allow, session))
+                  }
+                />
+              )}
+              {phase === "active" && !envelope && (
+                <p className="agent-panel__note">Connected. Waiting for the agent…</p>
+              )}
+            </div>
+            {phase === "active" && message !== "" && (
+              <p className="agent-panel__note agent-panel__note--error">{message}</p>
+            )}
+            {phase === "active" && (
+              <form className="agent-panel__composer" onSubmit={onPrompt}>
+                <input
+                  type="text"
+                  name="prompt"
+                  placeholder="Ask the agent…"
+                  autoComplete="off"
+                  aria-label="Message"
+                />
+                <button type="submit" className="agent-panel__action">
+                  Send
+                </button>
+                <button
+                  type="button"
+                  className="agent-panel__action"
+                  onClick={() => tell(cancelCommand(session))}
+                >
+                  Stop
+                </button>
+              </form>
+            )}
+          </>
+        )}
+      </Dialog>
+    </Modal>
   );
-}
-
-/**
- * AgentThreadView is the rendering seam: the assistant-ui runtime takes this over
- * (its messages and parts are the same model), and until it does the panel shows the
- * parts the bridge sent, so the activation flow is verifiable end to end today.
- */
-export function AgentThreadView({
-  envelope,
-  onAnswer,
-}: {
-  envelope: AgentStateEnvelope;
-  onAnswer: (requestId: string, allow: boolean) => void;
-}) {
-  return (
-    <div className="agent-panel__thread">
-      {envelope.thread.messages.map((message) => (
-        <article
-          key={message.id}
-          className={`agent-panel__message agent-panel__message--${message.role}`}
-        >
-          {message.parts.map((part, index) =>
-            part.permission ? (
-              <PermissionCard key={index} permission={part.permission} onAnswer={onAnswer} />
-            ) : (
-              <p key={index} className="agent-panel__part">
-                {partLabel(part)}
-              </p>
-            ),
-          )}
-        </article>
-      ))}
-      {envelope.thread.plan?.entries?.length ? (
-        <ol className="agent-panel__plan">
-          {envelope.thread.plan.entries.map((entry) => (
-            <li key={entry.content}>
-              {entry.content}
-              {entry.status ? ` (${entry.status})` : ""}
-            </li>
-          ))}
-        </ol>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * PermissionCard is the approve/deny card: nothing runs unasked, so the agent blocks
- * here until the user answers, and the answer replaces the buttons with the decision
- * the bridge records — the card resolves where it stands rather than moving.
- */
-export function PermissionCard({
-  permission,
-  onAnswer,
-}: {
-  permission: { requestId: string; title?: string; toolKind?: string; decision?: string };
-  onAnswer: (requestId: string, allow: boolean) => void;
-}) {
-  return (
-    <div className="agent-panel__card">
-      <p className="agent-panel__part">
-        {permission.title ?? "The agent asks for permission"}
-        {permission.toolKind ? ` (${permission.toolKind})` : ""}
-      </p>
-      {permission.decision ? (
-        <p className="agent-panel__part agent-panel__decision">{permission.decision}</p>
-      ) : (
-        <div className="agent-panel__card-actions">
-          <button
-            type="button"
-            className="agent-panel__action"
-            onClick={() => onAnswer(permission.requestId, true)}
-          >
-            Allow
-          </button>
-          <button
-            type="button"
-            className="agent-panel__action"
-            onClick={() => onAnswer(permission.requestId, false)}
-          >
-            Deny
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** partLabel is one rendered line per part, whatever the variant produced. */
-function partLabel(part: {
-  kind: string;
-  text?: string;
-  toolCall?: { title?: string };
-  permission?: { title?: string; decision?: string };
-}): string {
-  if (part.text) return part.text;
-  if (part.toolCall) return `Tool: ${part.toolCall.title ?? "a tool"}`;
-  if (part.permission) {
-    return `Permission: ${part.permission.title ?? "a tool"}${part.permission.decision ? ` — ${part.permission.decision}` : ""}`;
-  }
-  return part.kind;
 }
