@@ -544,6 +544,12 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
     started idempotently, restarted within a bound when it dies while working, and taken
     down with its **process group** when the viewer goes: an agent that spawns helpers must
     not leave one behind. A reader's stop is not a death and is not restarted.
+- **The agent wire log is opt-in and project-declared.** `agent.log` in `.sdt.yaml`
+  (absent = off) names a path resolved inside the project root — `..`, an absolute path
+  outside and a symlink escape are refused; it may carry `{timestamp}`/`{session}`
+  placeholders. The bridge tees the raw ACP wire (`internal/acpbridge/trace.go`), the
+  viewer owns the path and the files (`viewer/agent_trace.go`, mode 0600); a path that
+  cannot be used turns the capture off with one sentence and never breaks the conversation.
 - **Workflow self-assessment (per plan)** — at the end of **every executed
   plan**, in its final Validation phase next to the crystallized closeout, the
   agent reviews **its own** run and records it in `context/notes/`. Nothing is

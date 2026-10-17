@@ -100,7 +100,8 @@ func (r agentActivateRequest) namesACommand() bool {
 // which session a browser would join, the command and the model the project declared —
 // so a reader can see what will run and which model it starts on, without ever typing
 // either — and the sentence for a failure, or for an agent that could not be put back on
-// the conversation it had.
+// the conversation it had, or for a wire log the project declared that could not be
+// written.
 type agentStateResponse struct {
 	Activated bool     `json:"activated"`
 	Connected bool     `json:"connected"`
@@ -126,6 +127,10 @@ func (s *server) agentState(session string) agentStateResponse {
 		state.Error = s.agentReason
 	case note != "":
 		state.Error = note
+	case s.agentLogReason != "":
+		state.Error = s.agentLogReason
+	case s.agentTrace != nil && s.agentTrace.issueSentence() != "":
+		state.Error = s.agentTrace.issueSentence()
 	}
 	if session == "" {
 		session = s.agent.SessionID()
@@ -547,6 +552,21 @@ func (s *server) enableAgent(host string) {
 	// The model is the bridge's from birth, not applied afterwards: the declaration
 	// is what every session this bridge opens runs on, including the first.
 	s.agent = acpbridge.New(acpbridge.Options{Root: s.root, Version: version, Model: s.agentModel})
+	// The wire log is the project's declaration and nothing else: a path that
+	// cannot be used turns the capture off with one sentence and leaves the agent
+	// running, because a reader debugging a conversation must not lose the
+	// conversation to the instrument.
+	if raw := declared.agentLog(); raw != "" {
+		sink, err := newAgentTraceSink(s.root, raw)
+		if err != nil {
+			s.agentLogReason = "the agent wire log is off: " + err.Error()
+			slog.Warn("sdtviewer: agent wire log refused", "path", raw, "err", err)
+		} else {
+			s.agentTrace = sink
+			s.agent.SetTrace(sink)
+			slog.Info("sdtviewer: agent wire log on", "path", raw)
+		}
+	}
 	if self, err := os.Executable(); err == nil {
 		s.self = self
 	}

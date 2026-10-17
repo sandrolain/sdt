@@ -52,6 +52,12 @@ type viewerAgentConfig struct {
 	// is the id the agent itself offers, taken verbatim: the viewer never maps a
 	// name, and an absent or blank one leaves the agent on its own default.
 	Model string `yaml:"model"`
+	// Log is the wire log's declared path, resolved against the project root. Its
+	// presence is what turns the capture on: absent or blank means off, so the key
+	// is additive and nothing has to be removed to stop logging. The path may
+	// carry {timestamp} and {session}, which give each run or each conversation its
+	// own file; without them every run appends to the one file.
+	Log string `yaml:"log"`
 }
 
 // agentCommand returns the declared argv, or nil when the project declares no
@@ -71,6 +77,14 @@ func (c viewerConfig) agentCommand() []string {
 // nothing, and passing it on would ask the agent for a model no reader wrote.
 func (c viewerConfig) agentModel() string {
 	return strings.TrimSpace(c.Agent.Model)
+}
+
+// agentLog returns the declared wire-log path, or the empty string when the
+// project declares none. A blank one counts as absent the way a blank model does:
+// it names no file, and treating whitespace as a path would create a file called
+// by nothing.
+func (c viewerConfig) agentLog() string {
+	return strings.TrimSpace(c.Agent.Log)
 }
 
 // loadViewerConfig reads root/.sdt.yaml for viewer-relevant keys. A missing or

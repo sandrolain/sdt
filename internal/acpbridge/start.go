@@ -84,7 +84,8 @@ func (b *Bridge) startWith(ctx context.Context, command []string, dir string, pr
 	proc := startProcess(cmd, b.log)
 	proc.pumpStderr(stderr)
 
-	session, note, err := b.attach(ctx, streamPair{reader: stdout, writer: stdin}, proc.terminate, previous)
+	session, note, err := b.attach(ctx, streamPair{reader: stdout, writer: stdin}, proc.terminate, previous,
+		traceRun{transport: "stdio", command: command, pid: cmd.Process.Pid})
 	if err != nil {
 		return nil, "", "", err
 	}

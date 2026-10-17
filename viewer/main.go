@@ -206,6 +206,12 @@ func watchForShutdown(s *server) {
 		if err := s.agent.Close(); err != nil {
 			slog.Warn("sdtviewer: closing the agent", "err", err)
 		}
+		// The wire log's single appended file, if the declaration asked for one,
+		// closes after the bridge: the run's close mark is already in it, and the
+		// file itself is the viewer's, not the run's.
+		if err := s.closeAgentTrace(); err != nil {
+			slog.Warn("sdtviewer: closing the agent wire log", "err", err)
+		}
 		signal.Stop(signals)
 		if s, ok := sig.(syscall.Signal); ok {
 			if self, err := os.FindProcess(os.Getpid()); err == nil {

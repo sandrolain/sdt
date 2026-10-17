@@ -108,6 +108,10 @@ type Bridge struct {
 	model string
 	perms *PermissionQueue
 	log   *slog.Logger
+	// trace is the sink the wire log writes into, set by the viewer before the
+	// first start; rt is the capture of the run in flight, if any.
+	trace TraceSink
+	rt    *runTrace
 
 	mu sync.Mutex
 	// transport closes what the connection runs on: the socket the user named, or
@@ -328,7 +332,8 @@ func (b *Bridge) Activate(ctx context.Context, socketPath string) (string, error
 	if err != nil {
 		return "", err
 	}
-	session, _, err := b.attach(ctx, sock, func() error { return sock.Close() }, nil)
+	session, _, err := b.attach(ctx, sock, func() error { return sock.Close() }, nil,
+		traceRun{transport: "socket", socket: socketPath})
 	if err != nil {
 		return "", err
 	}
@@ -344,13 +349,23 @@ func (b *Bridge) Activate(ctx context.Context, socketPath string) (string, error
 // of two that can drift apart.
 //
 // A failure closes the transport and leaves the bridge inert, so the next attempt
-// starts clean.
-func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTransport func() error, previous *restartState) (*Session, string, error) {
+// starts clean. run carries the identity of the wire-log run this attach is: the
+// transport and what the project declared on it, which the capture's header
+// records and whose writer opens once the session id completes it.
+func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTransport func() error, previous *restartState, run traceRun) (*Session, string, error) {
 	b.mu.Lock()
 	live := b.conn != nil
 	b.mu.Unlock()
 	if live {
 		return nil, "", b.abandon(closeTransport, ErrAlreadyActivated)
+	}
+
+	// The capture's seam: the wrapped rw is what the SDK reads and writes, so
+	// every frame of both directions crosses it, for both transports, and the
+	// protocol itself is never touched.
+	rt := b.beginTrace(run)
+	if rt != nil {
+		rw = &tracedConn{inner: rw, rt: rt}
 	}
 
 	// The connection's callbacks are the policy, not a pass-through, and the bridge
@@ -366,6 +381,7 @@ func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTranspo
 	res, err := handshake(handshakeCtx, conn, b.version)
 	cancel()
 	if err != nil {
+		b.traceFail(rt, err)
 		return nil, "", b.abandon(closeTransport, err)
 	}
 
@@ -389,7 +405,15 @@ func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTranspo
 		b.mu.Lock()
 		b.conn, b.loadSession = nil, false
 		b.mu.Unlock()
+		b.traceFail(rt, err)
 		return nil, "", b.abandon(closeTransport, err)
+	}
+
+	// The session id completes the run: the capture's writer opens under it, and
+	// the buffered prefix — the header and whatever crossed during the handshake —
+	// is flushed into the file the id named.
+	if rt != nil {
+		rt.setSession(session.ID())
 	}
 
 	b.mu.Lock()
@@ -410,6 +434,67 @@ func (b *Bridge) abandon(closeTransport func() error, attachErr error) error {
 		b.log.Debug("closing the transport after a failed attach", "error", err)
 	}
 	return attachErr
+}
+
+// SetTrace installs the sink the wire log writes into, or nil to switch it off.
+// It is a setter rather than an Options field for two reasons: the viewer opens
+// the file at the first activation — a path that cannot be written is a
+// sentence where a reader is looking, not a viewer that refuses to start — and
+// a restart reattaches inside the bridge, which then asks the same sink again
+// for the new run's writer.
+func (b *Bridge) SetTrace(sink TraceSink) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.trace = sink
+}
+
+// beginTrace starts the wire-log run for an attach: it builds the run's capture
+// and writes the header line, which the capture holds in its prefix until the
+// session id opens the writer. It returns nil when the project declared no
+// capture, which is the ordinary case.
+func (b *Bridge) beginTrace(run traceRun) *runTrace {
+	b.mu.Lock()
+	sink := b.trace
+	b.mu.Unlock()
+	if sink == nil {
+		return nil
+	}
+	// The run starts now; the header says so, and the same instant names a
+	// {timestamp} file — the session id that completes the run arrives later, so
+	// the timestamp is taken once, here, and both readers share it.
+	run.started = time.Now().UTC()
+	rt := newRunTrace(sink, run)
+	rt.emit(traceEntry{
+		T:         run.started.Format(time.RFC3339Nano),
+		Run:       "header",
+		Version:   b.version,
+		Transport: run.transport,
+		Command:   run.command,
+		Socket:    run.socket,
+		PID:       run.pid,
+	})
+	b.mu.Lock()
+	b.rt = rt
+	b.mu.Unlock()
+	return rt
+}
+
+// traceFail ends a run whose attach did not complete. Whatever crossed before
+// the failure is still the reader's to see, so the capture opens under the
+// nosession name, writes the close marker carrying the cause, and ends.
+func (b *Bridge) traceFail(rt *runTrace, cause error) {
+	if rt == nil {
+		return
+	}
+	rt.fail(cause)
+	b.mu.Lock()
+	if b.rt == rt {
+		b.rt = nil
+	}
+	b.mu.Unlock()
+	if err := rt.failure(); err != nil {
+		b.log.Debug("the wire log stopped", "error", err)
+	}
 }
 
 // SupportsSessionLoad reports whether the connected agent advertised session/load,
@@ -438,12 +523,17 @@ func (b *Bridge) teardown() error {
 	b.CloseSessions()
 	b.mu.Lock()
 	transport, conn := b.transport, b.conn
+	// The wire-log run in flight ends with the connection it captured: the close
+	// marker carries whatever the bridge last had to say — the exit of a dead
+	// process, the refusal that stopped it — and "closed" when it has nothing
+	// beyond the stop itself.
+	rt, traceReason := b.rt, b.statusErr
 	// The cycle's state — its process, the cancel that ends it and whether its exit was
 	// intended — is deliberately kept: a stop that arrives while a restart is scheduled
 	// reaches the cancel, and the flag is what a death racing a stop is read by. Both are
 	// cleared where a new cycle begins.
 	b.proc = nil
-	b.transport, b.conn, b.loadSession, b.initial = nil, nil, false, ""
+	b.transport, b.conn, b.loadSession, b.initial, b.rt = nil, nil, false, "", nil
 	b.mu.Unlock()
 
 	if conn == nil {
@@ -452,6 +542,15 @@ func (b *Bridge) teardown() error {
 	var err error
 	if transport != nil {
 		err = transport()
+	}
+	if rt != nil {
+		if traceReason == "" {
+			traceReason = "closed"
+		}
+		rt.finish(traceReason)
+		if ferr := rt.failure(); ferr != nil {
+			b.log.Debug("the wire log stopped", "error", ferr)
+		}
 	}
 	b.log.Info("agent bridge closed")
 	return err

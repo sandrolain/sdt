@@ -93,6 +93,12 @@ type server struct {
 	agentReason  string
 	agentCommand []string
 	agentModel   string
+	// agentTrace is the viewer's wire-log sink, nil when the project declared no
+	// path or declared one this viewer refused; agentLogReason is the refusal's
+	// sentence. Both are set before the server serves, so they are read without a
+	// lock — the sink's own state is guarded inside it.
+	agentTrace     *agentTraceSink
+	agentLogReason string
 	// self is this binary's own path, which a configured command may name: a program is
 	// looked for on PATH and then beside the viewer, exactly as the sdt companion is.
 	self         string
