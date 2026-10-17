@@ -412,7 +412,9 @@ DOM tests use **jsdom** (happy-dom breaks DOMPurify).
 **Regenerating the generated surfaces** (after any `internal/templates/**` edit, in
 this order): `go build -o bin/sdt ./cli`, then `sdt agent init --force` (instruction
 modules + `AGENTS.md`), `sdt agent roles init --force` (`context/roles/**`) and
-`sdt context docs` (`context/sdtdocs/`). Skipping the roles one leaves
+`sdt context docs` (`context/sdtdocs/`). An edit to **this project block** needs only
+the roles one: `roleProjectFacts` derives every role profile's `Conventions` from it, so
+a line added here drifts all 8 profiles. Skipping the roles one leaves
 `TestGeneratedRolesMatchTemplates` failing on a change that looked complete. Two
 goldens are **inline in tests** rather than on disk — `TestRoleSharedTemplateGolden`
 and the head strings in `TestProjectTemplateIdentity` — so `UPDATE_GOLDEN=1` does
