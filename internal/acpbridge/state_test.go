@@ -72,6 +72,7 @@ func TestFoldScriptedSession(t *testing.T) {
 			ToolCallId: "call-1",
 			Status:     status("completed"),
 			RawOutput:  "the file's text",
+			Content:    []acp.ToolCallContent{acp.ToolContent(acp.TextBlock("the file's text"))},
 		}}},
 		{"the agent plans", acp.SessionUpdate{Plan: &acp.SessionUpdatePlan{
 			Entries: []acp.PlanEntry{
@@ -117,6 +118,9 @@ func TestFoldScriptedSession(t *testing.T) {
 			call := snapshot.Messages[1].Parts[2].ToolCall
 			if call == nil || call.Status != "completed" || call.Output != "the file's text" {
 				t.Fatalf("the finished tool call = %+v", call)
+			}
+			if call.Content != "the file's text" {
+				t.Fatalf("the tool's own output = %q", call.Content)
 			}
 		case "the agent plans":
 			if snapshot.Plan == nil || len(snapshot.Plan.Entries) != 2 {
@@ -282,6 +286,64 @@ func TestAToolCallUpdateForAnUnseenCallOpensThePart(t *testing.T) {
 	parts := state.Snapshot().Messages[0].Parts
 	if len(parts) != 1 || parts[0].ToolCall == nil || parts[0].ToolCall.ID != "call-9" {
 		t.Fatalf("the parts = %+v", parts)
+	}
+}
+
+// The tool's own output is what a reader asked the panel for: the protocol's content blocks
+// carry it, and the raw record keeps the rest.
+func TestTheToolCallCarriesTheToolsOwnOutputAsText(t *testing.T) {
+	state := NewThreadState("sess-1")
+	apply(t, state,
+		acp.SessionUpdate{ToolCall: &acp.SessionUpdateToolCall{
+			ToolCallId: "call-1",
+			Title:      "Run the tests",
+			Kind:       acp.ToolKind("execute"),
+			Status:     acp.ToolCallStatus("in_progress"),
+			RawInput:   map[string]any{"command": "go test ./..."},
+		}},
+		acp.SessionUpdate{ToolCallUpdate: &acp.SessionToolCallUpdate{
+			ToolCallId: "call-1",
+			Status:     status("completed"),
+			Content: []acp.ToolCallContent{
+				acp.ToolContent(acp.TextBlock("the tests passed")),
+				acp.ToolDiffContent("internal/acpbridge/state.go", "new text", "old text"),
+				acp.ToolContent(acp.TextBlock("2 packages")),
+			},
+		}},
+	)
+
+	call := state.Snapshot().Messages[0].Parts[0].ToolCall
+	if call == nil {
+		t.Fatal("the tool call part is missing")
+	}
+	// The text the tool produced, in the order it sent it; the diff is structure and stays
+	// in the raw record.
+	if call.Content != "the tests passed\n2 packages" {
+		t.Fatalf("the tool's own output = %q", call.Content)
+	}
+	if call.Status != "completed" || call.Input == nil {
+		t.Fatalf("the rest of the call = %+v", call)
+	}
+}
+
+// A later update replaces the content rather than appending to it, which is what the
+// protocol says a content collection is: the panel never shows a stale output beside a
+// finished call.
+func TestAToolCallUpdateReplacesTheContent(t *testing.T) {
+	state := NewThreadState("sess-1")
+	apply(t, state,
+		acp.SessionUpdate{ToolCallUpdate: &acp.SessionToolCallUpdate{
+			ToolCallId: "call-1",
+			Content:    []acp.ToolCallContent{acp.ToolContent(acp.TextBlock("first"))},
+		}},
+		acp.SessionUpdate{ToolCallUpdate: &acp.SessionToolCallUpdate{
+			ToolCallId: "call-1",
+			Content:    []acp.ToolCallContent{acp.ToolContent(acp.TextBlock("second"))},
+		}},
+	)
+
+	if got := state.Snapshot().Messages[0].Parts[0].ToolCall.Content; got != "second" {
+		t.Fatalf("the tool's own output = %q, want the last content the tool sent", got)
 	}
 }
 

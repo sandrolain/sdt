@@ -88,6 +88,25 @@ describe("the thread converter", () => {
       result: undefined,
       isError: false,
       status: "running",
+      artifact: { input: { path: "a.md" }, output: undefined, status: undefined },
+    });
+
+    // The tool's own output wins over the raw record: the reader asked for the command's
+    // result, and the protocol's envelope is kept beside it for the disclosure.
+    expect(
+      partLike({
+        kind: PART_TOOL_CALL,
+        toolCall: {
+          id: "call-3",
+          kind: "execute",
+          status: "completed",
+          content: "the tests passed",
+          output: { exitCode: 0 },
+        },
+      }),
+    ).toMatchObject({
+      result: "the tests passed",
+      artifact: { input: undefined, output: { exitCode: 0 }, status: "completed" },
     });
 
     const failed = partLike({

@@ -389,7 +389,6 @@ Key dependencies:
 - `github.com/coder/acp-go-sdk` — ACP (Agent Client Protocol) client for the viewer's
   agent bridge (`internal/acpbridge`)
 - `@assistant-ui/react` — the agent chat panel's runtime and primitives (`web/`)
-- `streamdown` — chat-message markdown in the agent panel (`web/`, lazy-loaded chunk)
 - `yaml` — YAML frontmatter parsing in the viewer metadata panel (`web/`, lazy-loaded chunk)
 
 ### Build & Run

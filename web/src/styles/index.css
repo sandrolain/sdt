@@ -264,7 +264,13 @@
     inset-block: 0;
     inset-inline-end: 0;
     z-index: 51;
-    width: min(26rem, 92vw);
+    /* The reader's width, declared here because a width is not a colour, a spacing or a
+       radius role — tokens own those — and bounded twice: the preference (written by the
+       handle, and the same three numbers as `lib/agentPanelWidth.ts` at the 15px root) is
+       held between a pane's floor and its ceiling, and the whole is capped by the viewport
+       so a width kept from a wide window never fills a narrow one. */
+    --agent-panel-w: 40rem;
+    width: min(clamp(24rem, var(--agent-panel-w), 64rem), 92vw);
     display: flex;
     flex-direction: column;
     /* the raised-surface role: a surface lifted off --bg-base, as the palette is */
@@ -294,6 +300,26 @@
     from {
       transform: translateX(100%);
     }
+  }
+  /* The resize handle: the panel's inline-start edge as a control. The visible line is the
+     border the panel already has; the target is wider, because a hairline is not a target,
+     and it is invisible until it is hovered, dragged or focused — the focus ring is the
+     app's own, from the global `:focus-visible` rule. No width transition: a drag that
+     lagged the pointer would read as broken, and the keyboard steps are small. */
+  .agent-panel__resize {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 10px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .agent-panel__resize:hover,
+  .agent-panel__resize[data-resizing] {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
   }
   .agent-panel__header {
     display: flex;
@@ -404,6 +430,65 @@
   .agent-panel__reasoning summary {
     cursor: pointer;
   }
+  /* The agent's prose arrives as the HTML the corpus renderer produces, so the panel gives it
+     a reading rhythm of its own instead of the browser's defaults or the document page's
+     scope (`.doc-rendered` is a flex page of its own): compact, unindented, bounded by the
+     pane, with code on the sunken surface the panel already uses. */
+  .agent-panel__markdown > :first-child {
+    margin-block-start: 0;
+  }
+  .agent-panel__markdown > :last-child {
+    margin-block-end: 0;
+  }
+  .agent-panel__markdown p,
+  .agent-panel__markdown ul,
+  .agent-panel__markdown ol,
+  .agent-panel__markdown blockquote,
+  .agent-panel__markdown figure,
+  .agent-panel__markdown table {
+    margin-block: 0 0.5rem;
+  }
+  .agent-panel__markdown h1,
+  .agent-panel__markdown h2,
+  .agent-panel__markdown h3,
+  .agent-panel__markdown h4,
+  .agent-panel__markdown h5,
+  .agent-panel__markdown h6 {
+    margin-block: 0.5rem 0.25rem;
+    font-size: 0.92rem;
+  }
+  .agent-panel__markdown ul,
+  .agent-panel__markdown ol {
+    padding-inline-start: 1.2rem;
+  }
+  .agent-panel__markdown code {
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.75rem;
+    background: var(--bg-base);
+    border-radius: var(--radius-xs);
+    padding: 0 0.2rem;
+  }
+  .agent-panel__markdown pre {
+    overflow-x: auto;
+    padding: 0.4rem 0.5rem;
+    background: var(--bg-base);
+    border-radius: var(--radius-sm);
+  }
+  .agent-panel__markdown pre code {
+    background: none;
+    padding: 0;
+  }
+  .agent-panel__markdown a {
+    color: var(--accent);
+  }
+  .agent-panel__markdown table {
+    border-collapse: collapse;
+  }
+  .agent-panel__markdown th,
+  .agent-panel__markdown td {
+    border: 1px solid var(--border);
+    padding: 0.15rem 0.35rem;
+  }
   .agent-panel__tool {
     border-inline-start: 2px solid var(--border);
     padding-inline-start: 0.5rem;
@@ -414,6 +499,30 @@
   }
   .agent-panel__tool-name {
     font-weight: 600;
+  }
+  /* The tool call's head: the command, and the state as a word rather than as a colour. */
+  .agent-panel__tool-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0;
+    font-family: ui-monospace, "SF Mono", monospace;
+  }
+  .agent-panel__tool-status {
+    flex: none;
+    color: var(--fg-dim);
+    font-size: 0.7rem;
+  }
+  .agent-panel__tool.is-error .agent-panel__tool-status {
+    color: var(--danger);
+  }
+  /* The protocol's own record of the call: opt-in detail, the same shape the reasoning
+     block already uses. */
+  .agent-panel__tool-envelope summary {
+    cursor: pointer;
+    color: var(--fg-dim);
+    font-size: 0.72rem;
   }
   .agent-panel__tool-args,
   .agent-panel__tool-result {

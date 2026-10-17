@@ -53,7 +53,21 @@ export type PartLike =
       result?: unknown;
       isError: boolean;
       status: "running" | "complete" | "incomplete";
+      /** The protocol's own record of the call, unedited: what the panel shows behind one
+       *  disclosure instead of in place of the outcome. */
+      artifact?: ToolArtifact;
     };
+
+/** ToolArtifact is a tool call as the protocol reported it: the raw input and output, which
+ *  the panel demotes to opt-in detail rather than showing as the answer, and the protocol's
+ *  own status word for the call. The runtime hands a part with no result the *message's*
+ *  status, which in this panel is always complete, so the panel would otherwise call a call
+ *  in flight finished. */
+export interface ToolArtifact {
+  input?: unknown;
+  output?: unknown;
+  status?: string;
+}
 
 /** MessageStatus is the runtime's own vocabulary for a message: an object union, not a
  *  word — a message waiting on the user is `requires-action`, which is what turns on the
@@ -147,7 +161,10 @@ export function toolCallLike(call?: AgentToolCall): PartLike {
     toolCallId: toolCall.id,
     toolName: toolCall.title ?? toolCall.kind ?? "tool",
     argsText: toolCall.input === undefined ? "" : JSON.stringify(toolCall.input),
-    result: toolCall.output,
+    // The tool's own output — the text the agent sent as content — is what a reader asked
+    // for; the raw output is the fallback when there is no content, and both are in the
+    // artifact, which the panel keeps behind a disclosure.
+    result: toolCall.content ?? toolCall.output,
     isError: toolCall.status === "failed",
     // The protocol's status in the runtime's own words: a part that is neither done
     // nor failed is still running.
@@ -157,5 +174,6 @@ export function toolCallLike(call?: AgentToolCall): PartLike {
         : toolCall.status === "failed"
           ? "incomplete"
           : "running",
+    artifact: { input: toolCall.input, output: toolCall.output, status: toolCall.status },
   };
 }

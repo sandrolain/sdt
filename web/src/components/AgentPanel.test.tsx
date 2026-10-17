@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AgentPanel } from "./AgentPanel";
+import {
+  DEFAULT_PANEL_WIDTH,
+  MAX_PANEL_WIDTH,
+  MIN_PANEL_WIDTH,
+  PANEL_WIDTH_KEY,
+} from "../lib/agentPanelWidth";
 import {
   AGENT_ACTIVATE_PATH,
   AGENT_COMMAND_PATH,
@@ -152,8 +158,16 @@ async function open() {
 afterEach(() => {
   cleanup();
   FakeEventSource.instances = [];
+  localStorage.clear();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+// jsdom takes the pointer events but not pointer capture, which the handle asks for when a
+// drag starts; a real browser always has it.
+beforeAll(() => {
+  Element.prototype.setPointerCapture = vi.fn();
+  Element.prototype.releasePointerCapture = vi.fn();
 });
 
 describe("AgentPanel", () => {
@@ -481,5 +495,144 @@ describe("AgentPanel", () => {
       expect(calls.filter((call) => call.path === AGENT_STATE_PATH).length).toBeGreaterThan(reads),
     );
     expect(FakeEventSource.instances).toHaveLength(1);
+  });
+
+  /**
+   * The panel's width is the one preference it has. It is read from the store on mount and
+   * written back at the end of a gesture — not per pointer move — and the stylesheet bounds
+   * what is painted from the same three numbers the preference is clamped to.
+   */
+  describe("the panel's width", () => {
+    const handle = () => screen.getByRole("separator", { name: "Resize the agent panel" });
+    const panel = () => screen.getByRole("dialog", { name: "Agent chat" });
+    const width = () => Number(handle().getAttribute("aria-valuenow"));
+
+    it("opens at the remembered width, and at the default when nothing is remembered", () => {
+      mockViewer();
+      const first = render(<AgentPanel open onOpenChange={vi.fn()} />);
+      expect(width()).toBe(DEFAULT_PANEL_WIDTH);
+      expect(panel().style.getPropertyValue("--agent-panel-w")).toBe(`${DEFAULT_PANEL_WIDTH}px`);
+      first.unmount();
+
+      localStorage.setItem(PANEL_WIDTH_KEY, "720");
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      expect(width()).toBe(720);
+    });
+
+    it("drags the edge to a new width and remembers where the reader left it", () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+
+      fireEvent.pointerDown(handle(), { pointerId: 1, clientX: 800 });
+      expect(handle().hasAttribute("data-resizing")).toBe(true);
+      fireEvent.pointerMove(handle(), { pointerId: 1, clientX: 640 });
+      expect(width()).toBe(760);
+      // Nothing is written while the pointer is down: the reader is still choosing.
+      expect(localStorage.getItem(PANEL_WIDTH_KEY)).toBeNull();
+
+      fireEvent.pointerUp(handle(), { pointerId: 1, clientX: 640 });
+      expect(handle().hasAttribute("data-resizing")).toBe(false);
+      expect(localStorage.getItem(PANEL_WIDTH_KEY)).toBe("760");
+    });
+
+    it("steps the width from the keyboard and remembers the step", () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+
+      fireEvent.keyDown(handle(), { key: "ArrowLeft" });
+      expect(width()).toBe(DEFAULT_PANEL_WIDTH + 24);
+      fireEvent.keyDown(handle(), { key: "ArrowLeft", shiftKey: true });
+      expect(width()).toBe(DEFAULT_PANEL_WIDTH + 32);
+      expect(localStorage.getItem(PANEL_WIDTH_KEY)).toBe(String(DEFAULT_PANEL_WIDTH + 32));
+
+      fireEvent.keyDown(handle(), { key: "ArrowRight" });
+      expect(width()).toBe(DEFAULT_PANEL_WIDTH + 8);
+
+      fireEvent.keyDown(handle(), { key: "Home" });
+      expect(width()).toBe(DEFAULT_PANEL_WIDTH);
+    });
+
+    it("bounds the width at both ends, however far the pointer travels", () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+
+      fireEvent.pointerDown(handle(), { pointerId: 1, clientX: 800 });
+      fireEvent.pointerMove(handle(), { pointerId: 1, clientX: 5000 });
+      expect(width()).toBe(MIN_PANEL_WIDTH);
+
+      fireEvent.pointerMove(handle(), { pointerId: 1, clientX: -5000 });
+      expect(width()).toBe(MAX_PANEL_WIDTH);
+
+      fireEvent.pointerUp(handle(), { pointerId: 1, clientX: -5000 });
+      expect(localStorage.getItem(PANEL_WIDTH_KEY)).toBe(String(MAX_PANEL_WIDTH));
+    });
+
+    it("leaves an unrelated key to the page", () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+
+      fireEvent.keyDown(handle(), { key: "a" });
+      expect(width()).toBe(DEFAULT_PANEL_WIDTH);
+      expect(localStorage.getItem(PANEL_WIDTH_KEY)).toBeNull();
+    });
+  });
+
+  /**
+   * Dismissing the panel is closing a surface, not ending anything: the agent, the session
+   * and a turn in flight are the bridge's, and the panel only stops being looked at.
+   */
+  describe("dismissal", () => {
+    const backdrop = () => document.querySelector(".agent-panel__overlay") as HTMLElement;
+
+    it("closes on a press on the backdrop, on Escape and on its own button", async () => {
+      mockViewer();
+      const onOpenChange = vi.fn();
+      render(<AgentPanel open onOpenChange={onOpenChange} />);
+      await screen.findByRole("button", { name: "Start the agent" });
+
+      fireEvent.pointerDown(backdrop(), { pointerId: 1, clientX: 5, clientY: 5 });
+      fireEvent.pointerUp(backdrop(), { pointerId: 1, clientX: 5, clientY: 5 });
+      fireEvent.click(backdrop(), { detail: 1 });
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+
+      onOpenChange.mockClear();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+
+      onOpenChange.mockClear();
+      await userEvent.click(screen.getByRole("button", { name: "Close the agent panel" }));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("leaves the agent, the session and the turn alone when it closes", async () => {
+      const calls = mockViewer();
+      const onOpenChange = vi.fn();
+      render(<AgentPanel open onOpenChange={onOpenChange} />);
+      await userEvent.click(await screen.findByRole("button", { name: "Start the agent" }));
+      await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+      const source = FakeEventSource.instances[0];
+      source.emit("message", {
+        data: JSON.stringify(
+          state({
+            messages: [
+              { id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "still working" }] },
+            ],
+          }),
+        ),
+      });
+      expect(await screen.findByText("still working")).toBeTruthy();
+
+      const posted = commands(calls).length;
+      fireEvent.pointerDown(backdrop(), { pointerId: 1, clientX: 5, clientY: 5 });
+      fireEvent.pointerUp(backdrop(), { pointerId: 1, clientX: 5, clientY: 5 });
+      fireEvent.click(backdrop(), { detail: 1 });
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+
+      // The stream is still the bridge's, nothing was posted, and the thread is where the
+      // reader left it: closing the surface stopped nothing.
+      expect(source.closed).toBe(false);
+      expect(commands(calls)).toHaveLength(posted);
+      expect(screen.getByText("still working")).toBeTruthy();
+    });
   });
 });

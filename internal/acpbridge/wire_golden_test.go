@@ -31,7 +31,7 @@ func wireVariants(t *testing.T) map[string]acp.SessionUpdate {
 		"agent_message_chunk": agentChunk("the agent's answer", "msg-agent-1"),
 		"agent_thought_chunk": thoughtChunk("the agent's reasoning"),
 		"tool_call":           {ToolCall: &acp.SessionUpdateToolCall{ToolCallId: "call-1", Title: "Read context/notes/a.md", Kind: acp.ToolKind("read"), Status: acp.ToolCallStatus("in_progress"), RawInput: map[string]any{"path": "context/notes/a.md"}}},
-		"tool_call_update":    {ToolCallUpdate: &acp.SessionToolCallUpdate{ToolCallId: "call-1", Status: status("completed"), RawOutput: "the file's text"}},
+		"tool_call_update":    {ToolCallUpdate: &acp.SessionToolCallUpdate{ToolCallId: "call-1", Status: status("completed"), RawOutput: "the file's text", Content: []acp.ToolCallContent{acp.ToolContent(acp.TextBlock("the file says this"))}}},
 		"plan":                {Plan: &acp.SessionUpdatePlan{Entries: []acp.PlanEntry{{Content: "read the notes", Priority: "medium", Status: "pending"}}}},
 		"plan_update":         {PlanUpdate: &acp.SessionPlanUpdate{Plan: acp.NewPlanUpdateContentItems("plan-1", []acp.PlanEntry{{Content: "read the notes", Priority: "medium", Status: "completed"}})}},
 		"plan_removed":        {PlanRemoved: &acp.SessionUpdatePlanRemoved{Id: "plan-1"}},
@@ -84,7 +84,7 @@ func wireSession(t *testing.T) *ThreadState {
 		agentChunk(" at the notes.", ""),
 		thoughtChunk("checking the corpus"),
 		acp.SessionUpdate{ToolCall: &acp.SessionUpdateToolCall{ToolCallId: "call-1", Title: "Read context/notes/a.md", Kind: acp.ToolKind("read"), Status: acp.ToolCallStatus("in_progress")}},
-		acp.SessionUpdate{ToolCallUpdate: &acp.SessionToolCallUpdate{ToolCallId: "call-1", Status: status("completed"), RawOutput: "224 analyses"}},
+		acp.SessionUpdate{ToolCallUpdate: &acp.SessionToolCallUpdate{ToolCallId: "call-1", Status: status("completed"), RawOutput: "224 analyses", Content: []acp.ToolCallContent{acp.ToolContent(acp.TextBlock("224 analyses"))}}},
 		agentChunk(" The corpus has 224 analyses.", ""),
 		acp.SessionUpdate{Plan: &acp.SessionUpdatePlan{Entries: []acp.PlanEntry{{Content: "read the notes", Priority: "medium", Status: "completed"}}}},
 	)

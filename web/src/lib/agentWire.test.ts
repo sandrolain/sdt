@@ -84,6 +84,7 @@ describe("the wire the Go side writes", () => {
       kind: "read",
       status: "completed",
       output: "224 analyses",
+      content: "224 analyses",
     });
 
     const permission = assistant.parts[4].permission;

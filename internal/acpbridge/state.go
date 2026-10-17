@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/coder/acp-go-sdk"
@@ -80,6 +81,12 @@ type ToolCall struct {
 	Status string `json:"status,omitempty"`
 	Input  any    `json:"input,omitempty"`
 	Output any    `json:"output,omitempty"`
+	// Content is what the tool itself produced, as text, when the protocol sends it as
+	// content blocks rather than in the raw payload: the command's own output, which a
+	// reader wants beside the status instead of only inside the record the panel keeps
+	// behind a disclosure. A diff or a terminal reference is structure, not prose, and
+	// stays in the raw record.
+	Content string `json:"content,omitempty"`
 }
 
 // Plan is the agent's execution plan. The unstable `plan_update` variant may carry
@@ -376,15 +383,19 @@ func (s *ThreadState) applyToolCall(call *acp.SessionUpdateToolCall) {
 	if part := s.findToolCall(string(call.ToolCallId)); part != nil {
 		part.Title, part.Kind, part.Status = call.Title, string(call.Kind), string(call.Status)
 		part.Input, part.Output = call.RawInput, call.RawOutput
+		if content := toolContentText(call.Content); content != "" {
+			part.Content = content
+		}
 		return
 	}
 	s.appendToolCall(&ToolCall{
-		ID:     string(call.ToolCallId),
-		Title:  call.Title,
-		Kind:   string(call.Kind),
-		Status: string(call.Status),
-		Input:  call.RawInput,
-		Output: call.RawOutput,
+		ID:      string(call.ToolCallId),
+		Title:   call.Title,
+		Kind:    string(call.Kind),
+		Status:  string(call.Status),
+		Input:   call.RawInput,
+		Output:  call.RawOutput,
+		Content: toolContentText(call.Content),
 	})
 }
 
@@ -413,6 +424,10 @@ func (s *ThreadState) applyToolCallUpdate(update *acp.SessionToolCallUpdate) {
 	}
 	if update.RawOutput != nil {
 		part.Output = update.RawOutput
+	}
+	if update.Content != nil {
+		// The protocol replaces the collection rather than appending to it.
+		part.Content = toolContentText(update.Content)
 	}
 }
 
@@ -593,6 +608,22 @@ func (s *ThreadState) findToolCall(id string) *ToolCall {
 		}
 	}
 	return nil
+}
+
+// toolContentText is the tool's own output, as the text blocks the protocol sent with it. A
+// block that is a diff or a terminal reference carries structure rather than a sentence, and
+// is left to the raw payload the browser keeps.
+func toolContentText(blocks []acp.ToolCallContent) string {
+	texts := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		if block.Content == nil {
+			continue
+		}
+		if text := contentText(block.Content.Content); text != "" {
+			texts = append(texts, text)
+		}
+	}
+	return strings.Join(texts, "\n")
 }
 
 func contentText(content acp.ContentBlock) string {

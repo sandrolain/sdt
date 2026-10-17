@@ -82,6 +82,10 @@ export interface AgentToolCall {
   status?: string;
   input?: unknown;
   output?: unknown;
+  /** What the tool itself produced, as text, when the agent sent it as content: the
+   *  command's own output, which the panel shows beside the status. The raw `output`
+   *  stays the protocol's record and is kept behind a disclosure. */
+  content?: string;
 }
 
 /** Part is one piece of a message. */

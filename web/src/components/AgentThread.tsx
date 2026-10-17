@@ -3,10 +3,10 @@
  *
  * The runtime is `useExternalStoreRuntime`: the bridge owns the state, and
  * `lib/agentThread.ts` is the hand-written converter that says what each part is. The
- * runtime's own rendering is taken as vendored (the plan's call): this file gives it
- * the thread, overrides the one part it has no opinion about — the permission card,
- * which is a `data-permission` part — and leaves text, reasoning and tool calls to the
- * runtime's defaults.
+ * runtime's rendering is taken as vendored, but the parts themselves are this project's:
+ * prose goes through the viewer's own markdown path, reasoning is a collapsed block, a
+ * tool call is its command and its outcome, and the cards the bridge sends as `data-`
+ * parts (the permission card among them) are rendered here with the panel's own tokens.
  *
  * The composer and the card's answer travel as commands, not as runtime payloads: the
  * panel posts them, so the runtime is a view here and the bridge stays the only
@@ -25,7 +25,8 @@ import type {
   ReasoningMessagePartComponent,
 } from "@assistant-ui/react";
 import { createContext, useContext, useMemo } from "react";
-import { threadMessages, type ConvertedMessage } from "../lib/agentThread";
+import { renderMarkdown } from "../lib/markdown";
+import { threadMessages, type ConvertedMessage, type ToolArtifact } from "../lib/agentThread";
 import type { AgentPermission, AgentPlan, AgentThread as AgentThreadState } from "../lib/agent";
 
 /** The answer to a card travels up through a context: a part cannot take a prop. */
@@ -59,18 +60,21 @@ export function AgentThread({
       <AssistantRuntimeProvider runtime={runtime}>
         <ThreadPrimitive.Root className="agent-thread">
           <ThreadPrimitive.Viewport className="agent-thread__viewport">
-            <ThreadPrimitive.Messages
-              components={{
-                UserMessage: () => <MessageRow role="user" />,
-                AssistantMessage: () => <MessageRow role="assistant" />,
-              }}
-            />
+            <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
           </ThreadPrimitive.Viewport>
         </ThreadPrimitive.Root>
       </AssistantRuntimeProvider>
     </AnswerContext.Provider>
   );
 }
+
+/**
+ * The two message shapes are named once, at module scope: a component *type* created inside
+ * render is a new type to React on every frame, so every message would remount — taking the
+ * open state of anything inside it, and the memoised parse of every prose part, with it.
+ */
+const UserMessage = () => <MessageRow role="user" />;
+const AssistantMessage = () => <MessageRow role="assistant" />;
 
 /** MessageRow renders one message; the runtime fills the parts. */
 function MessageRow({ role }: { role: "user" | "assistant" }) {
@@ -99,40 +103,76 @@ function MessageRow({ role }: { role: "user" | "assistant" }) {
   );
 }
 
-/** TextPart is what the agent (or the user) said. */
-const TextPart: TextMessagePartComponent = ({ text }) => (
-  <p className="agent-panel__part">{text}</p>
-);
+/** TextPart is what the agent (or the user) said: prose, rendered as the markdown it is. */
+const TextPart: TextMessagePartComponent = ({ text }) => <MarkdownPart markdown={text} />;
 
 /** ReasoningPart is the agent's thinking: collapsed, because it is not the answer. */
 const ReasoningPart: ReasoningMessagePartComponent = ({ text }) => (
   <details className="agent-panel__reasoning">
     <summary>Reasoning</summary>
-    <p className="agent-panel__part">{text}</p>
+    <MarkdownPart markdown={text} />
   </details>
 );
 
-/** ToolCallPart is one tool the agent ran: what it was given, and what came back. */
+/**
+ * MarkdownPart renders prose through the viewer's own markdown path — the corpus renderer
+ * that already sanitizes what the agent sends, as it does for a document — and memoises the
+ * parse on the part's own text, so a frame that arrived for another part re-renders this one
+ * without parsing it again.
+ */
+function MarkdownPart({ markdown }: { markdown: string }) {
+  const html = useMemo(() => renderMarkdown(markdown), [markdown]);
+  return <div className="agent-panel__markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/**
+ * ToolCallPart is one tool the agent ran: the command it was, the outcome it produced, and —
+ * behind one disclosure — the protocol's own record of the call. The state is a word as well
+ * as a colour, and the envelope is opt-in detail rather than the answer.
+ */
 const ToolCallPart: ToolCallMessagePartComponent = ({
   toolName,
   argsText,
   result,
   isError,
-  status,
-}) => (
-  <div className={`agent-panel__tool${isError ? " is-error" : ""}`}>
-    <p className="agent-panel__part">
-      <span className="agent-panel__tool-name">{toolName}</span>
-      {status?.type === "running" ? " — running" : ""}
-    </p>
-    {argsText ? <pre className="agent-panel__tool-args">{argsText}</pre> : null}
-    {result === undefined ? null : (
-      <pre className="agent-panel__tool-result">
-        {typeof result === "string" ? result : JSON.stringify(result)}
-      </pre>
-    )}
-  </div>
-);
+  artifact,
+}) => {
+  const raw = artifact as ToolArtifact | undefined;
+  return (
+    <div className={`agent-panel__tool${isError ? " is-error" : ""}`}>
+      <p className="agent-panel__tool-head">
+        <span className="agent-panel__tool-name">{toolName}</span>
+        <span className="agent-panel__tool-status">{statusWord(raw, isError)}</span>
+      </p>
+      {result === undefined ? null : (
+        <pre className="agent-panel__tool-result">{asText(result)}</pre>
+      )}
+      {argsText || raw?.output !== undefined ? (
+        <details className="agent-panel__tool-envelope">
+          <summary>Protocol envelope</summary>
+          {argsText ? <pre className="agent-panel__tool-args">{argsText}</pre> : null}
+          {raw?.output === undefined ? null : (
+            <pre className="agent-panel__tool-args">{asText(raw.output)}</pre>
+          )}
+        </details>
+      ) : null}
+    </div>
+  );
+};
+
+/** asText is a value as the panel shows it: a string as it stands, anything else as JSON. */
+function asText(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** statusWord is the call's state in a word, so it never rests on the colour alone. It is
+ *  read from the agent's own status: the runtime gives a part with no result the message's
+ *  status, which in this panel is always complete, so a call in flight would read finished.
+ *  A word the panel does not know is treated as unfinished rather than as done. */
+function statusWord(raw: ToolArtifact | undefined, isError: boolean | undefined): string {
+  if (isError || raw?.status === "failed") return "Failed";
+  return raw?.status === "completed" ? "Completed" : "Running";
+}
 
 /** ErrorPart is a turn that produced no answer: the agent's own sentence, unedited. */
 function ErrorPart({ data }: { data: { text: string } }) {

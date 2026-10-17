@@ -13,7 +13,8 @@
             "toolCall": {
               "id": "call-1",
               "status": "completed",
-              "output": "the file's text"
+              "output": "the file's text",
+              "content": "the file says this"
             }
           }
         ]

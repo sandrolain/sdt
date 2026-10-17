@@ -33,7 +33,8 @@
               "title": "Read context/notes/a.md",
               "kind": "read",
               "status": "completed",
-              "output": "224 analyses"
+              "output": "224 analyses",
+              "content": "224 analyses"
             }
           },
           {

@@ -11,11 +11,22 @@
  * working, starting again after a death, or stopped with a reason and a way to ask for
  * another start — because the bridge is the only thing that knows, and a panel that
  * guessed would disagree with it exactly when a restart is in flight.
+ *
+ * Its width is the reader's too: the handle on the panel's inline-start edge drags and
+ * steps it, and the value is remembered across sessions.
  */
-import { Dialog, Modal } from "react-aria-components";
+import { Dialog, Modal, ModalOverlay } from "react-aria-components";
 import { AgentThread } from "./AgentThread";
 import { ComboBox, type UiComboOption } from "./ui/ComboBox";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  clampPanelWidth,
+  DEFAULT_PANEL_WIDTH,
+  MAX_PANEL_WIDTH,
+  MIN_PANEL_WIDTH,
+  readPanelWidth,
+  writePanelWidth,
+} from "../lib/agentPanelWidth";
 import {
   activateAgent,
   cancelCommand,
@@ -190,6 +201,19 @@ export function AgentPanel({
     sendAgentCommand(command).catch((error: Error) => setMessage(error.message));
   };
 
+  // The width is read once, on mount, and written at the end of a drag or a keyboard step
+  // rather than on every pointer move: a preference is a decision, and the pointer passing
+  // over the edge is not one.
+  const [width, setWidth] = useState(readPanelWidth);
+
+  const dragPanel = (next: number) => setWidth(clampPanelWidth(next));
+
+  const commitPanel = (next: number) => {
+    const clamped = clampPanelWidth(next);
+    setWidth(clamped);
+    writePanelWidth(clamped);
+  };
+
   const onPrompt = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -216,69 +240,52 @@ export function AgentPanel({
     // The entry lives in the top bar rather than inside the panel, so the modal is
     // controlled directly: `open` is the panel's own state, which is what makes
     // "closed means nothing happens" a property of the panel and not of a trigger.
-    <Modal className="agent-panel__overlay" isOpen={open} onOpenChange={onOpenChange}>
-      <Dialog className="agent-panel" aria-label="Agent chat">
-        {({ close }) => (
-          <>
-            <header className="agent-panel__header">
-              <h2 className="agent-panel__title">Agent</h2>
-              <button
-                type="button"
-                className="agent-panel__close"
-                onClick={close}
-                aria-label="Close the agent panel"
-              >
-                close
-              </button>
-            </header>
-            <div className="agent-panel__body">
-              {phase === "loading" && <p className="agent-panel__note">Reading the bridge…</p>}
+    // A press on the backdrop dismisses it — the same act as Escape — and it is the
+    // *overlay* that carries both the class and the prop: react-aria measures "outside"
+    // against the element that holds the dialog, so a backdrop styled on that element
+    // would be inside it and the press would land on nothing. Dismissing only closes the
+    // surface: the agent, the session and a turn in flight are the bridge's and carry on.
+    <ModalOverlay
+      className="agent-panel__overlay"
+      isOpen={open}
+      onOpenChange={onOpenChange}
+      isDismissable
+    >
+      <Modal>
+        <Dialog
+          className="agent-panel"
+          aria-label="Agent chat"
+          style={{ "--agent-panel-w": `${width}px` } as CSSProperties}
+        >
+          {({ close }) => (
+            <>
+              <PanelResizeHandle width={width} onDrag={dragPanel} onCommit={commitPanel} />
+              <header className="agent-panel__header">
+                <h2 className="agent-panel__title">Agent</h2>
+                <button
+                  type="button"
+                  className="agent-panel__close"
+                  onClick={close}
+                  aria-label="Close the agent panel"
+                >
+                  close
+                </button>
+              </header>
+              <div className="agent-panel__body">
+                {phase === "loading" && <p className="agent-panel__note">Reading the bridge…</p>}
 
-              {phase === "error" && (
-                <div className="agent-panel__activation">
-                  <p className="agent-panel__note agent-panel__note--error">{message}</p>
-                  {configured ? (
-                    <button
-                      type="button"
-                      className="agent-panel__action"
-                      onClick={() => void start()}
-                    >
-                      Start the agent again
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="agent-panel__action"
-                      onClick={() => void readState()}
-                    >
-                      Read the bridge state again
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {phase === "stopped" && (
-                <div className="agent-panel__activation">
-                  {configured ? (
-                    <>
-                      <p className="agent-panel__note">
-                        {message === "" ? "The agent is not running." : message}
-                      </p>
-                      <code className="agent-panel__recipe">{command.join(" ")}</code>
+                {phase === "error" && (
+                  <div className="agent-panel__activation">
+                    <p className="agent-panel__note agent-panel__note--error">{message}</p>
+                    {configured ? (
                       <button
                         type="button"
                         className="agent-panel__action"
                         onClick={() => void start()}
                       >
-                        Start the agent
+                        Start the agent again
                       </button>
-                    </>
-                  ) : (
-                    <>
-                      <p className="agent-panel__note">
-                        This project declares no agent. Set <code>agent.command</code> in{" "}
-                        <code>.sdt.yaml</code> and reopen this panel.
-                      </p>
+                    ) : (
                       <button
                         type="button"
                         className="agent-panel__action"
@@ -286,79 +293,191 @@ export function AgentPanel({
                       >
                         Read the bridge state again
                       </button>
-                    </>
-                  )}
+                    )}
+                  </div>
+                )}
+
+                {phase === "stopped" && (
+                  <div className="agent-panel__activation">
+                    {configured ? (
+                      <>
+                        <p className="agent-panel__note">
+                          {message === "" ? "The agent is not running." : message}
+                        </p>
+                        <code className="agent-panel__recipe">{command.join(" ")}</code>
+                        <button
+                          type="button"
+                          className="agent-panel__action"
+                          onClick={() => void start()}
+                        >
+                          Start the agent
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="agent-panel__note">
+                          This project declares no agent. Set <code>agent.command</code> in{" "}
+                          <code>.sdt.yaml</code> and reopen this panel.
+                        </p>
+                        <button
+                          type="button"
+                          className="agent-panel__action"
+                          onClick={() => void readState()}
+                        >
+                          Read the bridge state again
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {phase === "starting" && (
+                  <p className="agent-panel__note">Starting the agent the project declares…</p>
+                )}
+
+                {phase === "restarting" && (
+                  <p className="agent-panel__note">
+                    {message === ""
+                      ? "The agent exited; starting it again…"
+                      : `${message} — starting it again…`}
+                  </p>
+                )}
+
+                {phase === "active" && envelope && (
+                  <AgentThread
+                    thread={envelope.thread}
+                    onAnswer={(requestId, allow) =>
+                      tell(permissionCommand(requestId, allow, session))
+                    }
+                  />
+                )}
+                {phase === "active" && !envelope && (
+                  <p className="agent-panel__note">Connected. Waiting for the agent…</p>
+                )}
+              </div>
+              {phase === "active" && message !== "" && (
+                <p className="agent-panel__note agent-panel__note--error">{message}</p>
+              )}
+              {phase === "active" && model && (
+                <div className="agent-panel__model">
+                  <ComboBox
+                    ariaLabel="Model"
+                    label="Model"
+                    options={modelChoices}
+                    selectedKey={model.currentValue ?? null}
+                    onSelectionChange={(key) => {
+                      // The choice is sent and the control waits for the agent to confirm it:
+                      // nothing moves here until the thread says the agent took it, and a
+                      // refusal leaves the sentence above this control and the model unchanged.
+                      if (typeof key !== "string" || key === model.currentValue) return;
+                      tell(configCommand(model.id, key, session));
+                    }}
+                  />
                 </div>
               )}
+              {phase === "active" && (
+                <form className="agent-panel__composer" onSubmit={onPrompt}>
+                  <input
+                    type="text"
+                    name="prompt"
+                    placeholder="Ask the agent…"
+                    autoComplete="off"
+                    aria-label="Message"
+                  />
+                  <button type="submit" className="agent-panel__action">
+                    Send
+                  </button>
+                  <button
+                    type="button"
+                    className="agent-panel__action"
+                    onClick={() => tell(cancelCommand(session))}
+                  >
+                    Stop
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
 
-              {phase === "starting" && (
-                <p className="agent-panel__note">Starting the agent the project declares…</p>
-              )}
+/**
+ * PanelResizeHandle is the panel's inline-start edge as a control: a pointer drag and the
+ * keyboard on one focusable separator, which is the ARIA window-splitter pattern.
+ *
+ * It is a plain element rather than react-aria's `Separator`: that primitive is a static
+ * divider whose props carry no `tabIndex`, no `aria-value*` and no keyboard handler, so it
+ * cannot express a splitter — see the task file's Deviations.
+ */
+function PanelResizeHandle({
+  width,
+  onDrag,
+  onCommit,
+}: {
+  width: number;
+  onDrag: (next: number) => void;
+  onCommit: (next: number) => void;
+}) {
+  // The drag's origin, held across pointer moves: a move reports a position, not a delta.
+  const drag = useRef<{ x: number; width: number } | null>(null);
+  const [resizing, setResizing] = useState(false);
 
-              {phase === "restarting" && (
-                <p className="agent-panel__note">
-                  {message === ""
-                    ? "The agent exited; starting it again…"
-                    : `${message} — starting it again…`}
-                </p>
-              )}
+  /** widthAt is the width a pointer's x asks for; the panel is anchored to the inline end,
+   *  so moving the handle left — a smaller x — grows it. */
+  const widthAt = (clientX: number) => {
+    const start = drag.current;
+    return start ? clampPanelWidth(start.width + (start.x - clientX)) : width;
+  };
 
-              {phase === "active" && envelope && (
-                <AgentThread
-                  thread={envelope.thread}
-                  onAnswer={(requestId, allow) =>
-                    tell(permissionCommand(requestId, allow, session))
-                  }
-                />
-              )}
-              {phase === "active" && !envelope && (
-                <p className="agent-panel__note">Connected. Waiting for the agent…</p>
-              )}
-            </div>
-            {phase === "active" && message !== "" && (
-              <p className="agent-panel__note agent-panel__note--error">{message}</p>
-            )}
-            {phase === "active" && model && (
-              <div className="agent-panel__model">
-                <ComboBox
-                  ariaLabel="Model"
-                  label="Model"
-                  options={modelChoices}
-                  selectedKey={model.currentValue ?? null}
-                  onSelectionChange={(key) => {
-                    // The choice is sent and the control waits for the agent to confirm it:
-                    // nothing moves here until the thread says the agent took it, and a
-                    // refusal leaves the sentence above this control and the model unchanged.
-                    if (typeof key !== "string" || key === model.currentValue) return;
-                    tell(configCommand(model.id, key, session));
-                  }}
-                />
-              </div>
-            )}
-            {phase === "active" && (
-              <form className="agent-panel__composer" onSubmit={onPrompt}>
-                <input
-                  type="text"
-                  name="prompt"
-                  placeholder="Ask the agent…"
-                  autoComplete="off"
-                  aria-label="Message"
-                />
-                <button type="submit" className="agent-panel__action">
-                  Send
-                </button>
-                <button
-                  type="button"
-                  className="agent-panel__action"
-                  onClick={() => tell(cancelCommand(session))}
-                >
-                  Stop
-                </button>
-              </form>
-            )}
-          </>
-        )}
-      </Dialog>
-    </Modal>
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the agent panel"
+      aria-valuemin={MIN_PANEL_WIDTH}
+      aria-valuemax={MAX_PANEL_WIDTH}
+      aria-valuenow={width}
+      tabIndex={0}
+      className="agent-panel__resize"
+      data-resizing={resizing ? "" : undefined}
+      onPointerDown={(event) => {
+        drag.current = { x: event.clientX, width };
+        setResizing(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (drag.current) onDrag(widthAt(event.clientX));
+      }}
+      onPointerUp={(event) => {
+        if (!drag.current) return;
+        const next = widthAt(event.clientX);
+        drag.current = null;
+        setResizing(false);
+        onCommit(next);
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+        setResizing(false);
+      }}
+      onKeyDown={(event) => {
+        // The handle's own keys, the other half of the same control: a step, a finer step,
+        // and the way back to what the panel opens at.
+        const step = event.shiftKey ? 8 : 24;
+        const next =
+          event.key === "ArrowLeft"
+            ? width + step
+            : event.key === "ArrowRight"
+              ? width - step
+              : event.key === "Home"
+                ? DEFAULT_PANEL_WIDTH
+                : null;
+        if (next === null) return;
+        event.preventDefault();
+        onCommit(next);
+      }}
+    />
   );
 }
