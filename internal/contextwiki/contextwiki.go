@@ -5,11 +5,13 @@
 package contextwiki
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/sandrolain/sdt/internal/corpus"
@@ -580,6 +582,111 @@ func (b *Builder) Cycles() map[string]bool {
 		}
 	}
 	return res
+}
+
+// Coverage is the countable coverage record a book-scale source's index page
+// declares (wiki.md, *The coverage record*): the source's own chapter-and-section
+// units, classified by whether a page cites them.
+type Coverage struct {
+	Units int
+	OK    int
+	Part  int
+	Gap   int
+	NoOp  int
+}
+
+// CoverageKeys are the five keys a coverage block declares, in the order the
+// record reads them; a block missing one of them is malformed.
+var CoverageKeys = []string{"units", "ok", "part", "gap", "no_op"}
+
+// CoverageBlock reads the `coverage:` block from a page frontmatter (the full
+// block incl. its `---` delimiters, or the bare frontmatter text). present
+// reports whether the key is declared at all — a page without one is not a
+// finding, since whether a source was book-scale is the declared route's job.
+// err is non-nil when the block is there and does not parse as the five
+// non-negative integer keys (inline value, unknown or repeated key, non-integer,
+// negative, missing key). The sum identity and a non-zero Gap are not errors
+// here: they are the caller's findings.
+func CoverageBlock(fm string) (Coverage, bool, error) {
+	block := strings.TrimPrefix(fm, fmStart)
+	lines := strings.Split(block, "\n")
+	for i, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" || strings.HasPrefix(trim, "#") || line[0] == ' ' || line[0] == '\t' {
+			continue
+		}
+		key, val, ok := strings.Cut(line, ":")
+		if !ok || strings.TrimSpace(key) != "coverage" {
+			continue
+		}
+		if strings.TrimSpace(val) != "" {
+			return Coverage{}, true, fmt.Errorf("`coverage` must be a block of keys, got the inline value %q", strings.TrimSpace(val))
+		}
+		return parseCoverageBlock(lines[i+1:])
+	}
+	return Coverage{}, false, nil
+}
+
+// parseCoverageBlock reads the indented `key: value` lines that follow a
+// `coverage:` key, up to the next top-level key or the end of the block, and
+// requires all five keys exactly once.
+func parseCoverageBlock(lines []string) (Coverage, bool, error) {
+	c := Coverage{}
+	seen := map[string]bool{}
+	for _, line := range lines {
+		sub := strings.TrimSpace(line)
+		if sub == "" {
+			continue
+		}
+		if line[0] != ' ' && line[0] != '\t' {
+			break // next top-level key
+		}
+		k, v, ok := strings.Cut(sub, ":")
+		if !ok {
+			return Coverage{}, true, fmt.Errorf("coverage entry %q is not a `key: value` pair", sub)
+		}
+		k = strings.TrimSpace(k)
+		if seen[k] {
+			return Coverage{}, true, fmt.Errorf("coverage key %q is declared twice", k)
+		}
+		n, convErr := strconv.Atoi(trimYAMLQuotes(strings.TrimSpace(v)))
+		if convErr != nil || n < 0 {
+			return Coverage{}, true, fmt.Errorf("coverage %s must be a non-negative integer, got %q", k, strings.TrimSpace(v))
+		}
+		if err := c.set(k, n); err != nil {
+			return Coverage{}, true, err
+		}
+		seen[k] = true
+	}
+	var missing []string
+	for _, k := range CoverageKeys {
+		if !seen[k] {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) > 0 {
+		return Coverage{}, true, fmt.Errorf("coverage block is missing %s", strings.Join(missing, ", "))
+	}
+	return c, true, nil
+}
+
+// set assigns one declared coverage key; an unknown key is malformed.
+func (c *Coverage) set(key string, n int) error {
+	switch key {
+	case "units":
+		c.Units = n
+	case "ok":
+		c.OK = n
+	case "part":
+		c.Part = n
+	case "gap":
+		c.Gap = n
+	case "no_op":
+		c.NoOp = n
+	default:
+		return fmt.Errorf("unknown coverage key %q (want %s)", key, strings.Join(CoverageKeys, ", "))
+	}
+	return nil
 }
 
 func (b *Builder) add(p *Page) {

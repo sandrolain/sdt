@@ -131,6 +131,56 @@ body
 	}
 }
 
+func TestCoverageBlock(t *testing.T) {
+	valid := `---
+kind: wiki
+id: book
+title: Book
+coverage:
+  units: 10
+  ok: 6
+  part: 2
+  gap: 1
+  no_op: 1
+---
+## Summary
+Shape.
+`
+	c, present, err := CoverageBlock(valid)
+	if !present || err != nil {
+		t.Fatalf("valid block: present=%v err=%v", present, err)
+	}
+	want := Coverage{Units: 10, OK: 6, Part: 2, Gap: 1, NoOp: 1}
+	if c != want {
+		t.Errorf("Coverage = %+v, want %+v", c, want)
+	}
+
+	if _, present, err := CoverageBlock("---\nkind: wiki\n---\nbody\n"); present || err != nil {
+		t.Errorf("absent block: present=%v err=%v, want false/nil", present, err)
+	}
+
+	bad := []struct{ name, fm string }{
+		{"inline value", "---\ncoverage: 10\n---\n"},
+		{"unknown key", "---\ncoverage:\n  units: 1\n  ok: 1\n  part: 0\n  gap: 0\n  no_op: 0\n  extra: 0\n---\n"},
+		{"repeated key", "---\ncoverage:\n  units: 1\n  units: 1\n  ok: 1\n  part: 0\n  gap: 0\n  no_op: 0\n---\n"},
+		{"not an integer", "---\ncoverage:\n  units: many\n  ok: 1\n  part: 0\n  gap: 0\n  no_op: 0\n---\n"},
+		{"negative", "---\ncoverage:\n  units: 1\n  ok: 2\n  part: 0\n  gap: 0\n  no_op: -1\n---\n"},
+		{"missing key", "---\ncoverage:\n  units: 1\n  ok: 1\n---\n"},
+	}
+	for _, tc := range bad {
+		if _, present, err := CoverageBlock(tc.fm); !present || err == nil {
+			t.Errorf("%s: present=%v err=%v, want a reported malformed block", tc.name, present, err)
+		}
+	}
+
+	// The sum identity and a non-zero gap are the caller's findings, not parse
+	// errors: the block parses and the caller reports them.
+	_, present, err = CoverageBlock("---\ncoverage:\n  units: 10\n  ok: 6\n  part: 2\n  gap: 1\n  no_op: 0\n---\n")
+	if !present || err != nil {
+		t.Errorf("sum/gap findings must not be parse errors: present=%v err=%v", present, err)
+	}
+}
+
 func TestParseContentTypedBodyLinks(t *testing.T) {
 	p := ParseContent("---\nid: a\n---\nBody with [[depends_on::B]] and [[plain|Label]].", "context/wiki/a.md", "a")
 	if len(p.Links) != 2 {

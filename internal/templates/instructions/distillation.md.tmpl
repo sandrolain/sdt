@@ -18,7 +18,9 @@ converter and no runtime.
 
 - Use it when a source is too large to read whole, or must become a queryable
   reference. If the source is small enough to read in one pass, do **not**
-  distil — read it (`ingestion.md`). Say which case applies.
+  distil — read it (`ingestion.md`). Say which case applies. A declared
+  `single-pass` route (`ingestion.md`, *Distillation rules*) is exactly that
+  case: this module's source map, partition and ledger do not apply to it.
 - The module describes a procedure over `doc2md` output; it never selects a
   converter, a library or a runtime.
 
@@ -142,6 +144,32 @@ regeneration:
   through the shipped CLI verbs — never hand-edit `status`, `updated` or a
   checklist marker.
 
+## Reference → wiki bridge
+
+A distilled reference and the concept graph are two layers of one result, and
+one artifact spans them — the **index page**:
+
+- The reference's **section files** are the *load-on-demand navigable layer*:
+  they keep the source's own order, one file per section, and are loaded when a
+  reader needs them. They carry the source's structure with provenance, and they
+  are not the knowledge layer.
+- The **index page** in `context/wiki/` is the source's own page — one per source.
+  It declares what the source covers (`wiki.md`, *The coverage record*), cites the
+  reference's section files, and links the concept nodes that came out of the
+  source.
+- The graph grows **outward** from the index page: each concept node links back
+  with the relation that is true (`part_of` / `refers_to`), and the index page
+  never turns into a container page holding those concepts itself.
+
+**No restatement, either way.** The index page carries no concept content beyond
+a one-line disposition per unit, and a concept node never restates an index row:
+it links to it. A definition, a mechanism or a worked example lives in exactly one
+layer; the other points at it. This is what keeps the source-oriented layer and the
+concept-oriented one from becoming two copies of the same book. The failure it
+guards against is clipping and storing a source instead of processing it: a
+reference file no index page links, or an index page nobody links from, is that
+failure, visible.
+
 ## Provenance and boundary
 
 - Every artifact cites its source; a distillation without provenance is a
@@ -159,9 +187,25 @@ Before saying a distillation is done, run these **countable** checks; they reuse
 the verify-step vocabulary (**passed** / **expected** / **inferred**) and
 `sdt context lint`, never a new mechanism:
 
-- **Completeness audit** — count sections (and theorems/algorithms/figures)
-  against the source, not from memory; a missing required section **refuses**
-  completion — never ship a partial as whole.
+- **Completeness audit — the countable half of a book-scale run.** Count against
+  the source, never from memory. Enumerate the **units** from the converted
+  artifact's own headings, at two levels: the chapter (its own top level) and the
+  sections inside it; front matter, index, exercises and acknowledgments are
+  units too, not lines to skip. Then classify every unit from the destination's
+  citations:
+  - `OK` — the unit's span is cited by a page;
+  - `PART` — part of its span is cited, part is not;
+  - `GAP` — none of it is.
+
+  Every non-`OK` unit carries a **disposition**: `gap` (content still owed),
+  `no-op` (the compilation-value gate found nothing durable) or `not-conceptual`
+  (navigation, front/back matter, case-study narrative). A unit with no
+  disposition is an unanswered question, not a quiet omission, and **any `gap`
+  refuses completion** — never ship a partial as whole. The counts go into the
+  destination's coverage record (`wiki.md`, *The coverage record*). What the
+  audit cannot see: it measures coverage, not comprehension — a unit can be `OK`
+  and still be badly explained, and that is the page contract's job, not this
+  count's.
 - **Cross-ref integrity** — every `depends_on` has its reciprocal `required_by`
   (and vice versa); a dangling reference is fixed or explicitly listed.
 - **Stale-index rule** — generate the core index **last**, scanning the files on

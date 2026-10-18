@@ -34,6 +34,8 @@ trivi-results.json
 # Other
 /TODO.md
 .openchamber/
+.agents/
+skills-lock.json
 
 # Nodejs
 /node_modules

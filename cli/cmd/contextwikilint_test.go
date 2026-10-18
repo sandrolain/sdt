@@ -695,3 +695,100 @@ func wikiLintWarning(t *testing.T) string {
 	})
 	return out
 }
+
+// coveragePage is a valid wiki page carrying the given coverage block (a
+// `coverage:` key plus its indented lines), or none when block is empty.
+func coveragePage(id, block string) string {
+	return `---
+kind: wiki
+id: ` + id + `
+title: ` + id + `
+type: entity
+status: active
+summary: s
+tags:
+  - x
+relations:
+  refers_to:
+    - [[peer|Peer]]
+` + block + `sources:
+  - refs/spec.md
+---
+## Summary
+Shape of ` + id + `.
+`
+}
+
+const coveragePeer = `---
+kind: wiki
+id: peer
+title: Peer
+type: concept
+status: active
+summary: s
+tags:
+  - x
+relations:
+  refers_to:
+    - [[covered|Covered]]
+sources:
+  - refs/spec.md
+---
+## Summary
+Shape of peer.
+`
+
+// TestWikiLintCoverage pins the countable half of the coverage record: a
+// consistent block is silent, a sum that does not match `units`, a non-zero gap
+// and a malformed block are reported, and an absent block is not a finding.
+func TestWikiLintCoverage(t *testing.T) {
+	t.Run("consistent block is silent", func(t *testing.T) {
+		setupContextProject(t)
+		wikiSourceDirs(t)
+		writeCtxDoc(t, "context/wiki/covered.md", coveragePage("covered", "coverage:\n  units: 10\n  ok: 7\n  part: 2\n  gap: 0\n  no_op: 1\n"))
+		writeCtxDoc(t, "context/wiki/peer.md", coveragePeer)
+		if out := string(execute(t, contextWikiLintCmd, nil)); strings.Contains(out, "coverage") {
+			t.Fatalf("a consistent coverage block must not be a finding:\n%s", out)
+		}
+	})
+
+	t.Run("sum mismatch", func(t *testing.T) {
+		setupContextProject(t)
+		wikiSourceDirs(t)
+		writeCtxDoc(t, "context/wiki/covered.md", coveragePage("covered", "coverage:\n  units: 10\n  ok: 6\n  part: 2\n  gap: 0\n  no_op: 1\n"))
+		writeCtxDoc(t, "context/wiki/peer.md", coveragePeer)
+		if out := wikiLintWarning(t); !strings.Contains(out, "does not add up") {
+			t.Fatalf("expected a sum-mismatch finding:\n%s", out)
+		}
+	})
+
+	t.Run("non-zero gap", func(t *testing.T) {
+		setupContextProject(t)
+		wikiSourceDirs(t)
+		writeCtxDoc(t, "context/wiki/covered.md", coveragePage("covered", "coverage:\n  units: 10\n  ok: 6\n  part: 1\n  gap: 3\n  no_op: 0\n"))
+		writeCtxDoc(t, "context/wiki/peer.md", coveragePeer)
+		if out := wikiLintWarning(t); !strings.Contains(out, "as gap") {
+			t.Fatalf("expected a gap finding:\n%s", out)
+		}
+	})
+
+	t.Run("malformed block", func(t *testing.T) {
+		setupContextProject(t)
+		wikiSourceDirs(t)
+		writeCtxDoc(t, "context/wiki/covered.md", coveragePage("covered", "coverage: 10\n"))
+		writeCtxDoc(t, "context/wiki/peer.md", coveragePeer)
+		if out := wikiLintWarning(t); !strings.Contains(out, "coverage block is malformed") {
+			t.Fatalf("expected a malformed-block finding:\n%s", out)
+		}
+	})
+
+	t.Run("absent block is not a finding", func(t *testing.T) {
+		setupContextProject(t)
+		wikiSourceDirs(t)
+		writeCtxDoc(t, "context/wiki/covered.md", coveragePage("covered", ""))
+		writeCtxDoc(t, "context/wiki/peer.md", coveragePeer)
+		if out := string(execute(t, contextWikiLintCmd, nil)); strings.Contains(out, "coverage") {
+			t.Fatalf("an absent coverage block must not be a finding:\n%s", out)
+		}
+	})
+}

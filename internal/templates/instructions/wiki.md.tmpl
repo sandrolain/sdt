@@ -36,6 +36,59 @@ read that for the full schema.
   are the common **default**, never a forced template.
 - Machine surface = frontmatter + claim anchors + typed wiki-links +
   markdown-ld; human surface = Summary + prose.
+- **A page stands without its source.** It must be usable with `refs/` closed:
+  prose in complete sentences — a bullet-only skeleton is not a page, because a
+  reader who has not read the source cannot reconstruct the reasoning from a list
+  of names. Reproducing the source's examples or numbers is **not** required
+  (invariant 1 forbids quoting, and `refs/` stays the verification path): the test
+  is that the concept can be **applied** from the page, not that the book can be
+  replayed.
+- **No undefined term.** Every term or proper noun the page introduces is defined
+  in-page or links to the node that defines it. A page leaning on a concept it
+  never defines is incomplete, not terse.
+- **Exhaustive for its concept.** The completeness is against the concept the page
+  owns, never against the source's order — that is the coverage record's job
+  (`distillation.md`, *Quality gates*), not the page's.
+
+## The coverage record
+
+A source distilled at book scale keeps its coverage **on its index page** — the
+`wiki/` page that represents the source itself. The record is countable, so a
+check can read it and a run cannot claim a complete book by accident.
+
+- **Units** come from the source's own chapter-and-section headings, classified
+  `OK` / `PART` / `GAP`, with every non-`OK` unit dispositioned `gap` / `no-op` /
+  `not-conceptual` (`distillation.md`, *Quality gates*).
+- **Frontmatter block** — the machine half, on the index page only:
+
+  ```yaml
+  coverage:
+    units: 139
+    ok: 97
+    part: 20
+    gap: 0
+    no_op: 22
+  ```
+
+  `ok + part + gap + no_op == units`; `gap > 0` means the run is **incomplete**
+  and the page stays `draft` until the gap is distilled or dispositioned away.
+- **Body** — the human half: a `## Structure` section, one line per unit with its
+  classification and disposition (`Ch 4 — Decomposition · PART · gap`). A unit
+  list without dispositions is not a record.
+- **Scope.** The block belongs to the source's index page, not to every page. A
+  page written from a single-pass source carries none, and its absence is not a
+  defect: only a declared book-scale run owes the block
+  (`ingestion.md`, *Ingestion receipt*).
+- **What the index page owns.** The source's frame: the coverage block, the
+  `## Structure` unit list, the one-line disposition per unit, the citations to
+  the reference's section files and the links to the concept nodes the source
+  produced. It is the single artifact that spans the reference layer and the
+  concept graph.
+- **What it must not carry.** Concept content. A definition, a mechanism or a
+  worked example belongs to the concept node that owns it; the index row links
+  to that node, and the node never restates an index row. Two copies of one
+  explanation is the defect this rule exists for
+  (`distillation.md`, *Reference → wiki bridge*).
 
 ## Reading and writing
 
@@ -216,5 +269,13 @@ vault can read the same folder — the two models are close but not identical:
 - Before publishing, run the prose self-check (`context/instructions/writing.md`):
   cut machine-sounding patterns, protect the specific fact, and end on the last
   concrete point — synthesise without flattening the source's meaning.
+- **Source independence is a rule with a named proxy, not a lint.** The check that
+  a reader can apply the concept from the page alone is the **learning lane**
+  (`context/instructions/learning.md`): recalling and quizzing the page is what
+  shows whether it carried the concept. It is named, not enforced — no check reads
+  comprehension, and neither `sdt context wiki lint` nor this module pretends to.
+  A page whose prose, terms or reasoning only work next to the source is a defect
+  the reviewer or the learner finds, and the fix is to write the missing prose,
+  not to raise the budget.
 - Keep the page within the concept budget — a larger page is a split signal
   (see `ingestion.md` for the budget).

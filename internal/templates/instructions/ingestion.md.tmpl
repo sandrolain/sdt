@@ -59,20 +59,36 @@ are always skipped.
 
 1. Resolve the invocation scope (above).
 2. List pending (`status: pending`) files in scope.
-3. Read each source: convert non-markdown to markdown (see Reading &
-   conversion), then split into atomic facts (distillation rules below).
-4. Match existing `wiki/` nodes by `title`/`id`/`tags`: **reuse** a
+3. Convert when needed: bring each non-markdown source to markdown (see Reading
+   & conversion). The converted artifact — the kept markdown under
+   `context/refs/converted/`, or the text `sdt doc2md` prints — is what the
+   routing test measures, never the source binary.
+4. **Route, and declare it** — count the artifact's section-level headings and
+   its lines, and declare `route: single-pass` or `route: book-scale` with the
+   test in Distillation rules. The route is a **declared decision, never an
+   inference**: record it with the two counts in the receipt (`## Ingestion
+   receipt`), so it is auditable from the artifact alone. A `book-scale` source
+   goes through `context/instructions/distillation.md` — its tiered batches, the
+   extraction ledger and the fold-in merge — **before** any fact reaches a page.
+5. Read each source and split it into atomic facts (distillation rules below).
+6. Match existing `wiki/` nodes by `title`/`id`/`tags`: **reuse** a
    same-slug + same-concept node (append/update in place, never duplicate),
    or create a new one.
-5. Write or update distilled `wiki/` pages per the schema, the six invariants
+7. Write or update distilled `wiki/` pages per the schema, the six invariants
    and the concept budget — but only where the source adds durable synthesis
    (the **compilation-value gate** below).
-6. Wire `relations` + `tags`; every claim carries its source citation.
-7. Present the **write + archive plan** to the user: pages touched (created/
+8. Wire `relations` + `tags`; every claim carries its source citation.
+9. Present the **write + archive plan** to the user: pages touched (created/
    updated), relations added/removed, and files to archive. **Wait for
    approval**.
-8. On approval: archive processed sources to `context/refs/` with
-   `status: archived`, append a `worklog/` entry, run `sdt context reindex`.
+10. On approval: archive processed sources to `context/refs/` with
+    `status: archived`, append a `worklog/` entry, run `sdt context reindex`.
+
+**Routing record**: a run that skips the route is not auditable, so the receipt
+states `route:` and the two counts for **every** source, `single-pass` included.
+A route may be declared against the measured default when the agent knows the
+source (a dense reference index with few sections, a chapter already read): the
+declaration and its reason are recorded, never left implicit.
 
 **Idempotence**: skip `status: archived` files; a re-run matches new candidates
 against existing nodes instead of re-reading archived sources as new input.
@@ -189,6 +205,7 @@ X when Y"), never as a fact.
 | `superseded_by` | no | node id that replaced this page, required by `maturity: superseded` |
 | `verified_at` | no | RFC3339 date of the last re-check of the claims against their sources |
 | `verified_against` | no | the locator checked (clone sha, URL, doc path); pairs with `verified_at`, neither alone |
+| `coverage` | no | **the source's index page only**, for a book-scale source: the countable coverage record (`units`, `ok`, `part`, `gap`, `no_op`) — see `wiki.md`, *The coverage record* |
 
 **Subdirectories** (optional, one level by default): `wiki/<context>/<slug>.md`
 groups pages by context label — the subdir name is a kebab-case context
@@ -265,9 +282,27 @@ or incomparable material — split it into child/sibling nodes wired via
 `## Summary` / `## Claims` / `## Notes`, or whatever shape the material takes);
 the page must be **knowledge, not a copy**.
 
-- **A source too large to read whole** follows
+- **A declared `book-scale` source** follows
   `context/instructions/distillation.md` (book-scale distillation and its
-  fold-in merge) before its facts reach a page.
+  fold-in merge) before its facts reach a page: enumerate and partition first,
+  then distil — never read-and-hope. The **routing test** (overridable defaults,
+  measured on the converted artifact):
+  - more than **100 section-level headings** — markdown levels 2 and 3, the
+    levels that demarcate sections (level 1 is the document or chapter title, not
+    a section; in an artifact that demarcates its sections at another level, count
+    that level); **or**
+  - more than **2 500 lines**
+  ⇒ `book-scale`; otherwise `single-pass`. Both counts are plain text
+  measurements on the converted artifact — no schema, no field. The test is a
+  cheap, countable proxy
+  for "too large to read whole", the condition the distillation lane exists for.
+  The defaults were calibrated on a two-book sample (≈5 400 and 11 100 lines;
+  159 and 165 section headings) against a sample of 71 captured short documents
+  (largest: 836 lines, 56 headings), so both thresholds sit in the empty band
+  between the two populations: raise them for a corpus of long single articles,
+  lower them for very short books. Recording the two counts is what makes a
+  declaration checkable; `single-pass` is not a licence to skip the rest of this
+  file.
 - **Keep the mechanism, and do not invent.** A rule without its *why* is neither
   reusable nor verifiable: state why it works, not only that it does. Add no
   knowledge of your own — if the source does not cover something, say so. When a
@@ -339,18 +374,44 @@ chapter" → it is a container, extract the concepts inside it.
 
 ## Ingestion receipt
 
-After an approved run, record a **receipt** (a `notes/` or `worklog/` entry) —
+After an approved run, record a **receipt** (a `context/notes/` entry; the prose
+`worklog/` entry points to it — one home, never two) —
 not only prose: five counters (**extracted**, **verified**, **needs-review**,
 **merged**, **discarded-with-reason**) plus the open doubts. Add one row per
 concept: outcome, failing checklist items, dedup decision, open doubts. The
 receipt is the countable record of the run; the prose `worklog/` entry points to
 it.
 
+The receipt opens with one **routing block per source** — the route taken and
+the evidence it rested on:
+
+```
+source: <the pending source, as scoped>
+route: single-pass|book-scale
+section_headings: <n>        # measured on the converted artifact
+lines: <n>
+coverage: <ok>/<units>       # the coverage block's ok over units; book-scale only
+```
+
+The two counts are the routing trail: they make the declared route re-checkable
+from the artifact alone. The `coverage:` line repeats the source's index page's
+`coverage:` block as `ok/units` (`wiki.md`, *The coverage record*): a
+`book-scale` source **owes** it, and a book-scale route without it is an
+**incomplete** receipt, never a small one. A `single-pass` source omits the line
+— it owes no coverage record.
+
 ## Verification
 
 - `sdt context wiki lint` — schema/graph checks on `wiki/` (scanned
   recursively; `id` = relative subpath) plus `ingestion/` markers
   (`refs/` excluded). Separate from the general `sdt context lint`.
+  The **coverage record** is part of that surface: a malformed `coverage:` block,
+  a sum that does not match `units` and a `gap > 0` are reported, while an absent
+  block is not a finding — whether a source was book-scale is the declared route's
+  job (`## Ingestion receipt`), not a shape the tool can infer.
+- The receipt repeats the coverage numbers, so a reader of the run sees the
+  source's coverage without opening the page; a `book-scale` route with no
+  coverage record is an **incomplete** run, not a terse one.
 - Security: `sdt context lint --security` flags prompt-injection phrases,
   credential/secret literals and invisible/zero-width Unicode in the ingested
   knowledge (advisory WARNING) before they can steer the agent.

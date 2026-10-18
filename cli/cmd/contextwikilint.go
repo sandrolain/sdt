@@ -57,6 +57,7 @@ func lintWikiLint() []ctxLintIssue {
 	lintWikiLinks(b, bld)
 	lintWikiGraph(b, bld)
 	lintWikiBudget(b, bld.Pages)
+	lintWikiCoverage(b, bld.Pages)
 	lintWikiMarkdownLD(b, bld.Pages)
 	lintWikiMarkers(b)
 	return b.issues
@@ -252,6 +253,30 @@ func lintWikiBudget(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 		}
 		if p.ClaimCount > contextwiki.BudgetClaims {
 			b.add(p.Path, ctxLintWarning, "page has %d claims (budget ~%d): over budget → split", p.ClaimCount, contextwiki.BudgetClaims)
+		}
+	}
+}
+
+// lintWikiCoverage checks the countable half of a book-scale run's coverage
+// record: a malformed block, a sum that does not match `units`, and a non-zero
+// gap. A page with no block is not a finding — whether a source was book-scale
+// is the declared route's job (ingestion.md, Ingestion receipt), not a shape the
+// tool can infer.
+func lintWikiCoverage(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	for _, p := range pages {
+		c, present, err := contextwiki.CoverageBlock(p.Frontmatter)
+		if !present {
+			continue
+		}
+		if err != nil {
+			b.add(p.Path, ctxLintWarning, "coverage block is malformed: %v", err)
+			continue
+		}
+		if sum := c.OK + c.Part + c.Gap + c.NoOp; sum != c.Units {
+			b.add(p.Path, ctxLintWarning, "coverage does not add up: ok+part+gap+no_op = %d, units = %d", sum, c.Units)
+		}
+		if c.Gap > 0 {
+			b.add(p.Path, ctxLintWarning, "coverage leaves %d unit(s) as gap: the run is incomplete — distil them or disposition them", c.Gap)
 		}
 	}
 }
