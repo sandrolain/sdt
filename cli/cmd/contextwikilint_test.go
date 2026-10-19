@@ -371,6 +371,21 @@ func TestWikiLintBudgetWarnings(t *testing.T) {
 	}
 }
 
+// TestWikiLintBudgetSkipsIndexPage pins that the concept budget does not apply to
+// a source's index page — its `## Structure` list is one line per unit, so its
+// length is the source's — while the same length without a coverage block is
+// still a split signal.
+func TestWikiLintBudgetSkipsIndexPage(t *testing.T) {
+	setupContextProject(t)
+	wikiSourceDirs(t)
+	writeCtxDoc(t, "context/wiki/covered.md",
+		coveragePage("covered", "coverage:\n  units: 10\n  ok: 7\n  part: 2\n  gap: 0\n  no_op: 1\n")+blob(130))
+	writeCtxDoc(t, "context/wiki/peer.md", coveragePeer)
+	if out := string(execute(t, contextWikiLintCmd, nil)); strings.Contains(out, "over budget") {
+		t.Fatalf("an index page's unit list must not trip the concept budget:\n%s", out)
+	}
+}
+
 // firstPageFixture is the frontmatter part of a page with the given id/title.
 func firstPageFixture(id, title string) string {
 	return `---

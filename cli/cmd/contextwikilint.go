@@ -248,7 +248,13 @@ func lintWikiSupersedes(b *wikiIssueBuilder, p *contextwiki.Page, bld *contextwi
 // lintWikiBudget flags pages over the frozen concept budget as a split signal.
 func lintWikiBudget(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 	for _, p := range pages {
-		if p.LineCount > contextwiki.BudgetLines {
+		// A source's index page carries the coverage record's `## Structure`
+		// list — one line per unit — so its length is the source's, never a
+		// concept's; the concept budget does not apply to it (wiki.md, *The
+		// coverage record*). A block that does not parse is lintWikiCoverage's
+		// finding, not a reason to apply the line budget here.
+		_, hasCoverage, covErr := contextwiki.CoverageBlock(p.Frontmatter)
+		if !hasCoverage && covErr == nil && p.LineCount > contextwiki.BudgetLines {
 			b.add(p.Path, ctxLintWarning, "page is %d lines (budget ~%d): over budget → split", p.LineCount, contextwiki.BudgetLines)
 		}
 		if p.ClaimCount > contextwiki.BudgetClaims {
