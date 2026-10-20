@@ -82,6 +82,10 @@ not reach ` + "`src/legacy/context/analysis/*.md`" + `; ` + "`**/`" + ` is how y
   sdt grep "benchmark" --refs --limit 0`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			// `--file` is the global input flag; on a search it silently does
+			// nothing and the walk still covers the tree — a scoped-looking search
+			// that is not scoped. Refuse it and name the flag that scopes.
+			exitWithError(cmd, grepInputFileRefusal(cmd))
 			before, after, err := grepContextFlags(cmd)
 			exitWithError(cmd, err)
 			filesWithMatches := getBoolFlag(cmd, "files-with-matches", false)
@@ -417,6 +421,18 @@ func searchSkipPaths(cmd *cobra.Command) []string {
 		return search.DefaultSkipPathsNoRefs
 	}
 	return nil
+}
+
+// grepInputFileRefusal refuses the global `--file` input flag on a search: it
+// was accepted, did nothing, and the walk still covered the tree — a
+// scoped-looking search that was not scoped. The refusal names the flag that
+// scopes (`--dir`) and the one that lists paths.
+func grepInputFileRefusal(cmd *cobra.Command) error {
+	f := cmd.Root().PersistentFlags().Lookup("file")
+	if f == nil || !f.Changed {
+		return nil
+	}
+	return fmt.Errorf("`grep` takes no --file (that is the global input flag): use --dir <path> to scope the search, or --files-with-matches for names")
 }
 
 func init() {

@@ -69,6 +69,17 @@ func resolveContextDocPath(ref string) (ctxResolvedDoc, error) {
 	case strings.HasPrefix(ref, sdtWorkDir+"/"):
 		candidate = filepath.Clean(ref)
 	default:
+		// A bare file name (`20261020-130531-x.md`) is a name, not a path: look
+		// for it in the directory of every registered kind, and refuse an
+		// ambiguous one instead of guessing. Only then fall back to the old
+		// "context/<ref>" shape, which produces the honest "unknown type" error.
+		if !strings.ContainsAny(ref, `/\\`) {
+			if doc, err := resolveBareContextDoc(ref, hadExt); err == nil {
+				return doc, nil
+			} else if !errors.Is(err, errNoBareContextMatch) {
+				return ctxResolvedDoc{}, err
+			}
+		}
 		// accept "plan/foo" as a shorthand for "context/plan/foo"
 		candidate = filepath.Clean(filepath.Join(sdtWorkDir, ref))
 	}
@@ -102,6 +113,52 @@ func resolveContextDocPath(ref string) (ctxResolvedDoc, error) {
 		return ctxResolvedDoc{}, fmt.Errorf("%s is a directory", candidate)
 	}
 	return ctxResolvedDoc{Path: candidate, Type: t}, nil
+}
+
+// errNoBareContextMatch means a bare name matched no kind directory, so the
+// caller keeps its ordinary path resolution (and its ordinary error).
+var errNoBareContextMatch = errors.New("no document with that name")
+
+// resolveBareContextDoc finds a document by file name alone across the
+// registered kind directories. One match resolves; several are refused with the
+// candidates, because a bare name is a convenience and never a guess.
+func resolveBareContextDoc(ref string, hadExt bool) (ctxResolvedDoc, error) {
+	// The caller stripped a trailing ".md" before reaching here, so the name is
+	// always rebuilt with it: a bare stem and a full markdown ref both resolve.
+	name := ref + sdtMarkdownExt
+	var matches []string
+	for _, t := range contextTypeList {
+		path := filepath.Join(t.dir, name)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			matches = append(matches, path)
+		}
+	}
+	// No exact file: a leading timestamp is an id, and a document is named
+	// `<id>-<slug>.md`. Match the prefix the same way, and refuse several.
+	if len(matches) == 0 {
+		prefix := strings.TrimSuffix(name, sdtMarkdownExt) + "-"
+		for _, t := range contextTypeList {
+			entries, err := os.ReadDir(t.dir)
+			if err != nil {
+				continue
+			}
+			for _, e := range entries {
+				if e.IsDir() || !strings.HasPrefix(e.Name(), prefix) || !strings.HasSuffix(e.Name(), sdtMarkdownExt) {
+					continue
+				}
+				matches = append(matches, filepath.Join(t.dir, e.Name()))
+			}
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return ctxResolvedDoc{}, errNoBareContextMatch
+	case 1:
+		t, _ := ctxTypeForDir(filepath.Dir(matches[0]))
+		return ctxResolvedDoc{Path: matches[0], Type: t}, nil
+	default:
+		return ctxResolvedDoc{}, fmt.Errorf("%q matches more than one document (%s) — name the directory", ref, strings.Join(matches, ", "))
+	}
 }
 
 // ctxFirstSegment returns the directory name right under context/ for a

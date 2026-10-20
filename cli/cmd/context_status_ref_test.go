@@ -320,3 +320,26 @@ func TestStatusSetDecisionContentGuard(t *testing.T) {
 		return string(execute(t, contextStatusSetCmd, nil, "context/decisions/0001-auth.md", "--status", "bogus"))
 	})
 }
+
+// TestBareContextNameResolvesOrRefuses is the D2 gate: a file name without its
+// directory resolves when exactly one kind holds it, and an ambiguous name is
+// refused with the candidates instead of guessing.
+func TestBareContextNameResolvesOrRefuses(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/plan/20260101-000000-x.md", "---\nkind: plan\nsummary: x\nstatus: active\n---\nbody\n")
+
+	doc, err := resolveContextDocPath("20260101-000000-x.md")
+	if err != nil {
+		t.Fatalf("a bare plan name did not resolve: %v", err)
+	}
+	if doc.Path != "context/plan/20260101-000000-x.md" {
+		t.Errorf("resolved to %q", doc.Path)
+	}
+
+	writeCtxDoc(t, "context/analysis/20260101-000000-x.md", "---\nkind: analysis\nsummary: x\n---\nbody\n")
+	if _, err := resolveContextDocPath("20260101-000000-x.md"); err == nil {
+		t.Error("an ambiguous bare name resolved silently")
+	} else if !strings.Contains(err.Error(), "more than one") || !strings.Contains(err.Error(), "context/plan/") {
+		t.Errorf("the refusal does not name the candidates: %v", err)
+	}
+}

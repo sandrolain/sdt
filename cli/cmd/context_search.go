@@ -182,9 +182,20 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		deprecatedNotice(cmd, "`sdt read -p <path> [--section <id>]`")
-		path := strings.TrimPrefix(args[0], "#")
-		path = strings.SplitN(path, "#", 2)[0]
-		if !strings.HasSuffix(path, sdtMarkdownExt) {
+		ref := strings.TrimPrefix(args[0], "#")
+		ref = strings.SplitN(ref, "#", 2)[0]
+		// The references a reader has are a corpus path or a file name; the verb
+		// used to open the raw string and answer "no such file" for both. Resolve
+		// like `read` does, and keep the raw path as the last resort.
+		path := ref
+		if doc, err := resolveContextDocPath(ref); err == nil {
+			path = doc.Path
+		} else if !strings.ContainsAny(ref, `/\\`) && !strings.HasSuffix(ref, sdtMarkdownExt) {
+			// A bare name that resolves to several documents says so, rather than
+			// falling back to a path the reader never wrote.
+			exitWithError(cmd, err)
+			return
+		} else if !strings.HasSuffix(path, sdtMarkdownExt) {
 			path += sdtMarkdownExt
 		}
 		data, err := os.ReadFile(filepath.FromSlash(path)) //#nosec G304 -- explicit user path

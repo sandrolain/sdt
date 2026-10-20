@@ -65,3 +65,24 @@ func TestResumeReportsStaleClaim(t *testing.T) {
 		t.Fatalf("stale claims = %#v, want the 30-day-old claim reported", view.StaleClaims)
 	}
 }
+
+// TestTaskClaimSelectsASplitFile is the D1 gate: the claim family takes
+// `--stream` like `add`, `wip`, `list` and `review`, and claims only that file.
+func TestTaskClaimSelectsASplitFile(t *testing.T) {
+	runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC))
+	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: uid-p\nsummary: p\nstatus: active\n---\n")
+	writeCtxDoc(t, "context/tasks/20261005-000000-p-alpha.md", "---\nkind: tasks\nuid: uid-a\nplan_id: uid-p\nsummary: a\nstatus: pending\nupdated: 2026-10-05T00:00:00Z\n---\n\n- [ ] a <!-- c1 -->\n")
+	writeCtxDoc(t, "context/tasks/20261005-000000-p-beta.md", "---\nkind: tasks\nuid: uid-b\nplan_id: uid-p\nsummary: b\nstatus: pending\nupdated: 2026-10-05T00:00:00Z\n---\n\n- [ ] b <!-- c1 -->\n")
+
+	execute(t, contextTaskClaimCmd, nil, "--plan", "p.md", "--stream", "alpha", "--agent", "tester")
+
+	alpha := mustReadFile(t, "context/tasks/20261005-000000-p-alpha.md")
+	if !strings.Contains(alpha, "claimed_by: tester") || !strings.Contains(alpha, "status: in-progress") {
+		t.Fatalf("the named split file was not claimed:\n%s", alpha)
+	}
+	beta := mustReadFile(t, "context/tasks/20261005-000000-p-beta.md")
+	if strings.Contains(beta, "claimed_by") {
+		t.Fatalf("the other split file was claimed too:\n%s", beta)
+	}
+}

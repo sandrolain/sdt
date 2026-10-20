@@ -72,6 +72,13 @@ func TestReadAbsorbsContextShow(t *testing.T) {
 		t.Errorf("a corpus reference did not resolve to the document:\nref:  %q\npath: %q", byRef, byShow)
 	}
 
+	// The deprecated verb resolves the same references: a corpus-relative path
+	// and a bare file name.
+	byShowRef, _ := runCaptureCmd(t, contextShowCmd, "analysis/a.md")
+	if byShowRef != byShow {
+		t.Errorf("context show did not resolve a corpus path:\nref:  %q\npath: %q", byShowRef, byShow)
+	}
+
 	section, _ := runCaptureCmd(t, fileReadCmd, "-p", "analysis/a", "--section", "Two")
 	if !strings.Contains(section, "second") || strings.Contains(section, "first") {
 		t.Errorf("--section did not select exactly the section: %q", section)
