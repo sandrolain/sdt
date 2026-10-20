@@ -189,6 +189,23 @@ func wireFixtureBytes(t *testing.T) (map[string][]byte, error) {
 
 	fixtures["session.json"] = indentedState(t, wireSession(t))
 
+	// The posture frame: one shape with every field the viewer may send. It is
+	// written here and read by the browser's test, so a renamed field fails on the
+	// side that did not change.
+	statusFrame, err := json.MarshalIndent(StatusEnvelope{
+		Type:      EnvelopeStatus,
+		Activated: true,
+		Connected: true,
+		Status:    "active",
+		SessionID: "sess-1",
+		Model:     "opencode/big-pickle",
+		Error:     "",
+	}, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	fixtures["status.json"] = append(statusFrame, '\n')
+
 	// The envelopes the browser sends. The TS test asserts its builders produce
 	// exactly these, which is what makes a rename on either side a failure.
 	commands := map[string]any{

@@ -17,6 +17,7 @@ import {
   ENVELOPE_PERMISSION,
   ENVELOPE_PROMPT,
   ENVELOPE_STATE,
+  ENVELOPE_STATUS,
   PART_ERROR,
   PART_PERMISSION,
   PART_STOP,
@@ -169,5 +170,22 @@ describe("the wire the Go side writes", () => {
       "opencode/deepseek-v4.1-flash-free",
       "opencode/big-pickle",
     ]);
+  });
+});
+
+describe("the posture frame", () => {
+  it("carries exactly the fields the panel reads, and no thread", () => {
+    const frame = fixture("status.json") as Record<string, unknown>;
+    expect(frame.type).toBe(ENVELOPE_STATUS);
+    expect(Object.keys(frame).sort()).toEqual([
+      "activated",
+      "connected",
+      "model",
+      "sessionId",
+      "status",
+      "type",
+    ]);
+    expect(frame).not.toHaveProperty("thread");
+    expect(frame).not.toHaveProperty("command");
   });
 });

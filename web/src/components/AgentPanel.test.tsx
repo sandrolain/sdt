@@ -201,6 +201,31 @@ describe("AgentPanel", () => {
     expect(screen.queryByRole("button", { name: "Start the agent" })).toBeNull();
   });
 
+  it("takes the posture from the stream: a restart is reported without a poll", async () => {
+    const calls = mockViewer({ activated: true });
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    const source = FakeEventSource.instances[0];
+    const readsBefore = calls.filter((call) => call.path === AGENT_STATE_PATH).length;
+
+    source.emit("message", {
+      data: JSON.stringify({
+        type: "status",
+        activated: true,
+        connected: false,
+        status: "restarting",
+        sessionId: "sess-1",
+        error: "could not put the agent back on its conversation",
+      }),
+    });
+
+    // The sentence and the phase come from the frame; nothing asked the viewer.
+    expect(
+      await screen.findByText(/could not put the agent back on its conversation/),
+    ).toBeTruthy();
+    expect(calls.filter((call) => call.path === AGENT_STATE_PATH)).toHaveLength(readsBefore);
+  });
+
   it("shows a refused turn as the agent's own sentence, on the message that was sent", async () => {
     mockViewer({ activated: true });
     render(<AgentPanel open onOpenChange={vi.fn()} />);

@@ -237,11 +237,54 @@ func (b *Bridge) liveSession() (string, bool) {
 	return b.initial, b.conn != nil
 }
 
-// setStatus records the process view under the state lock.
+// Posture is the bridge's own view of the process, the part a stream reports:
+// the state, the sentence beside it, the session it holds and the model it runs.
+// The viewer adds the fields it owns (activated, connected) when it frames it.
+type Posture struct {
+	Status    Status
+	SessionID string
+	Model     string
+	Error     string
+}
+
+// ListenStatus registers the function called after every posture change. It
+// mirrors ThreadState.Listen: the last registration wins, because one viewer
+// fans the change out to every stream it holds.
+func (b *Bridge) ListenStatus(fn func(Posture)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.statusListener = fn
+}
+
+// Posture returns the current view without waiting for a change.
+func (b *Bridge) Posture() Posture {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.postureLocked()
+}
+
+// postureLocked builds the snapshot the caller must copy before unlocking.
+func (b *Bridge) postureLocked() Posture {
+	return Posture{Status: b.status, SessionID: b.initial, Model: b.model, Error: b.statusErr}
+}
+
+// setStatus records the process view under the state lock and tells the listener.
+// It is the single choke point: every posture change goes through here or through
+// setNote, so there is one place that decides a change happened.
 func (b *Bridge) setStatus(status Status, reason string) {
 	b.mu.Lock()
+	if b.status == status && b.statusErr == reason {
+		// The same posture twice is not a change: a stream must not repeat it.
+		b.mu.Unlock()
+		return
+	}
 	b.status, b.statusErr = status, reason
+	posture := b.postureLocked()
+	fn := b.statusListener
 	b.mu.Unlock()
+	if fn != nil {
+		fn(posture)
+	}
 }
 
 // setNote records a sentence about what just happened without touching the state it belongs
@@ -254,7 +297,12 @@ func (b *Bridge) setNote(sentence string) {
 	}
 	b.mu.Lock()
 	b.statusErr = sentence
+	posture := b.postureLocked()
+	fn := b.statusListener
 	b.mu.Unlock()
+	if fn != nil {
+		fn(posture)
+	}
 }
 
 // validateCommand is the refusal shared by every path that can start a process, so a

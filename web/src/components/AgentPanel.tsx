@@ -39,6 +39,7 @@ import {
   streamAgent,
   type AgentState,
   type AgentStateEnvelope,
+  type AgentStatusFrame,
   type AgentStream,
 } from "../lib/agent";
 
@@ -99,6 +100,24 @@ export function AgentPanel({
     setPhase(phaseFrom(next));
   };
 
+  /**
+   * applyStatus folds a posture frame into the same account a state read fills: one
+   * function decides the phase, so the stream and the endpoint cannot disagree. The
+   * frame carries no `command` (it does not change while a stream is open), so the
+   * panel keeps the one it already has.
+   */
+  const applyStatus = (frame: AgentStatusFrame) => {
+    apply({
+      activated: frame.activated,
+      connected: frame.connected,
+      status: frame.status,
+      session: frame.sessionId,
+      model: frame.model,
+      error: frame.error,
+      command: state?.command,
+    });
+  };
+
   const fail = (reason: string) => {
     setMessage(reason);
     setPhase("error");
@@ -142,6 +161,7 @@ export function AgentPanel({
         setEnvelope(next);
         setSession(next.sessionId);
       },
+      onStatus: applyStatus,
       onClose: () => {
         // The stream ends when the agent it was carrying is gone — a restart, a stop — and
         // the bridge, not this panel, knows which one it was: re-reading its posture is what
@@ -156,34 +176,10 @@ export function AgentPanel({
     };
   }, [phase]);
 
-  // A start and a restart are the bridge's to finish, so the panel asks how they went
-  // rather than guessing: while the process is coming up or coming back it re-reads the
-  // posture and stops as soon as the answer is one thing or the other. It is the only
-  // polling here, and it exists because the stream carries the conversation, not the
-  // process.
-  useEffect(() => {
-    if (phase !== "starting" && phase !== "restarting") return;
-    const tick = setInterval(() => {
-      fetchAgentState()
-        .then(apply)
-        .catch((error: Error) => fail(error.message));
-    }, 1500);
-    return () => clearInterval(tick);
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps -- apply/fail only set state
-
-  // The stream carries the conversation, so the panel reconciles its posture slowly while it
-  // is up: a restart can finish inside a liveness tick, and when it does the bridge's own
-  // sentence — that it could not put the agent back on the conversation it had — is the one
-  // thing a reader must not miss.
-  useEffect(() => {
-    if (phase !== "active") return;
-    const tick = setInterval(() => {
-      fetchAgentState()
-        .then(apply)
-        .catch(() => undefined);
-    }, 10000);
-    return () => clearInterval(tick);
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps -- apply only sets state
+  // The posture arrives on the stream, so the panel has no polling of its own: a
+  // restart that begins and ends between two changes is still a change, and the
+  // bridge reports it. The viewer's liveness tick stays where it is — it ends a
+  // stream whose agent is gone, which is a different job from reporting a change.
 
   /** start asks the viewer to start the agent the project declared. */
   const start = async () => {

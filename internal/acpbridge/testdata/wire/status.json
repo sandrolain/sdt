@@ -1,0 +1,8 @@
+{
+  "type": "status",
+  "activated": true,
+  "connected": true,
+  "status": "active",
+  "sessionId": "sess-1",
+  "model": "opencode/big-pickle"
+}

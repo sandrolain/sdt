@@ -18,6 +18,7 @@ export const ENVELOPE_PROMPT = "prompt";
 export const ENVELOPE_CANCEL = "cancel";
 export const ENVELOPE_PERMISSION = "permission";
 export const ENVELOPE_CONFIG = "config";
+export const ENVELOPE_STATUS = "status";
 
 /** Message roles. */
 export const ROLE_USER = "user";
@@ -58,6 +59,21 @@ export interface AgentState {
   status?: string;
   session?: string;
   command?: string[];
+  model?: string;
+  error?: string;
+}
+
+/**
+ * AgentStatusFrame is the bridge's posture pushed on the open stream: the same
+ * fields the state endpoint reports, minus the thread and minus `command` (which
+ * does not change while a stream is open).
+ */
+export interface AgentStatusFrame {
+  type: string;
+  activated: boolean;
+  connected: boolean;
+  status: string;
+  sessionId?: string;
   model?: string;
   error?: string;
 }
@@ -277,20 +293,22 @@ export interface AgentStream {
  */
 export function streamAgent(options: {
   onState: (envelope: AgentStateEnvelope) => void;
+  onStatus?: (frame: AgentStatusFrame) => void;
   onClose?: (reason: string) => void;
   url?: string;
 }): AgentStream {
   const source = new EventSource(options.url ?? AGENT_STREAM_PATH);
   source.addEventListener("message", (event: MessageEvent<string>) => {
-    let envelope: AgentStateEnvelope;
+    let envelope: AgentStateEnvelope | AgentStatusFrame;
     try {
-      envelope = JSON.parse(event.data) as AgentStateEnvelope;
+      envelope = JSON.parse(event.data) as AgentStateEnvelope | AgentStatusFrame;
     } catch {
       // A frame the wire does not define is dropped rather than fatal: the next state
       // is the whole thread, so nothing is lost by ignoring this one.
       return;
     }
-    if (envelope.type === ENVELOPE_STATE) options.onState(envelope);
+    if (envelope.type === ENVELOPE_STATE) options.onState(envelope as AgentStateEnvelope);
+    if (envelope.type === ENVELOPE_STATUS) options.onStatus?.(envelope as AgentStatusFrame);
   });
   source.addEventListener("error", () => {
     source.close();

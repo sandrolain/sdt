@@ -114,6 +114,24 @@ func (s *streamReader) next(t *testing.T) acpbridge.StateEnvelope {
 	return acpbridge.StateEnvelope{}
 }
 
+// nextFrame returns the next data line verbatim: a status frame is not a
+// StateEnvelope, so the decoded reader above cannot carry it.
+func (s *streamReader) nextFrame(t *testing.T, what string) string {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !s.scanner.Scan() {
+			break
+		}
+		line := s.scanner.Text()
+		if strings.HasPrefix(line, "data: ") {
+			return strings.TrimPrefix(line, "data: ")
+		}
+	}
+	t.Fatalf("no %s arrived", what)
+	return ""
+}
+
 // nextUntil reads frames until one satisfies the predicate.
 func (s *streamReader) nextUntil(t *testing.T, what string, ok func(acpbridge.StateEnvelope) bool) acpbridge.StateEnvelope {
 	t.Helper()
@@ -639,7 +657,10 @@ func TestAgentDeactivateReturnsToInert(t *testing.T) {
 	ended := make(chan bool, 1)
 	go func() {
 		for stream.scanner.Scan() {
-			if strings.HasPrefix(stream.scanner.Text(), "data: ") {
+			line := stream.scanner.Text()
+			// A final posture frame is the report, not a live thread: deactivation
+			// is a change, so the stream says `stopped` and then ends.
+			if strings.HasPrefix(line, "data: ") && !strings.Contains(line, `"type":"status"`) {
 				ended <- false
 				return
 			}
@@ -853,4 +874,26 @@ func getState(t *testing.T, ts *httptest.Server) agentStateResponse {
 		t.Fatalf("state body: %v", err)
 	}
 	return state
+}
+
+// TestAgentStatusFrameReachesEveryStream is the fan-out gate: one posture change
+// becomes one frame on each open stream, built from the same state the endpoint
+// reports.
+func TestAgentStatusFrameReachesEveryStream(t *testing.T) {
+	s, ts := newAgentViewer(t)
+	agent := acptest.NewAgent(t, acptest.Streams("hello"))
+	activateOnSocket(t, s, agent.Path())
+
+	first := openStream(t, ts, ts.URL)
+	first.next(t)
+	second := openStream(t, ts, ts.URL)
+	second.next(t)
+
+	s.broadcastAgentStatus(acpbridge.Posture{Status: acpbridge.StatusActive, SessionID: "sess-1", Error: "could not reattach"})
+
+	for name, stream := range map[string]*streamReader{"first": first, "second": second} {
+		if frame := stream.nextFrame(t, "the posture frame"); !strings.Contains(string(frame), `"type":"status"`) {
+			t.Errorf("%s stream got %q, want a status frame", name, frame)
+		}
+	}
 }

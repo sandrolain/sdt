@@ -130,16 +130,20 @@ type Bridge struct {
 	// life is the bridge's life, which a process inherits and Close ends; proc,
 	// cancel and intended describe the process that is running, and status is what
 	// the panel shows.
-	startMu     sync.Mutex
-	life        context.Context
-	halt        context.CancelFunc
-	proc        *process
-	cancel      context.CancelFunc
-	intended    bool
-	status      Status
-	statusErr   string
-	restarts    int
-	restartFrom time.Time
+	startMu   sync.Mutex
+	life      context.Context
+	halt      context.CancelFunc
+	proc      *process
+	cancel    context.CancelFunc
+	intended  bool
+	status    Status
+	statusErr string
+	// statusListener is called with a copy of the posture after every change, so
+	// the viewer can put it on the streams it already has open. It is set once,
+	// like a thread's listener: one viewer, many browsers.
+	statusListener func(Posture)
+	restarts       int
+	restartFrom    time.Time
 }
 
 // New returns an inert bridge with an empty session registry. It is its own sink:

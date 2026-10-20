@@ -25,6 +25,10 @@ const (
 	// on, its mode. It is general in the protocol's own terms; the panel offers a
 	// control for the model and nothing else.
 	EnvelopeConfig = "config"
+	// EnvelopeStatus is the bridge's posture, sent when it changes rather than
+	// when a browser asks: a restart that begins and ends between two reads is
+	// still a restart the reader has to see.
+	EnvelopeStatus = "status"
 )
 
 // ErrCommand is returned for a browser message the wire does not define. The
@@ -88,6 +92,27 @@ type Command struct {
 // EncodeState marshals the state envelope for a thread.
 func EncodeState(sessionID string, thread Thread) ([]byte, error) {
 	return json.Marshal(StateEnvelope{Type: EnvelopeState, SessionID: sessionID, Thread: thread})
+}
+
+// StatusEnvelope is the posture of the agent behind one stream: the fields the
+// state endpoint reports, minus the thread (a `state` frame is the thread) and
+// minus `command` (it does not change while a stream is open, and the panel
+// reads it once when it opens).
+type StatusEnvelope struct {
+	Type      string `json:"type"`
+	Activated bool   `json:"activated"`
+	Connected bool   `json:"connected"`
+	Status    string `json:"status"`
+	SessionID string `json:"sessionId,omitempty"`
+	Model     string `json:"model,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+// EncodeStatus serialises one posture frame. The viewer builds it; the bridge
+// never knows about HTTP.
+func EncodeStatus(envelope StatusEnvelope) ([]byte, error) {
+	envelope.Type = EnvelopeStatus
+	return json.Marshal(envelope)
 }
 
 // DecodeCommand parses one browser message. Every field the envelope carries is

@@ -78,6 +78,9 @@ const (
 type agentStream struct {
 	sessionID string
 	cancel    context.CancelFunc
+	// frames is where this stream's state and posture frames are queued. The
+	// viewer pushes the latest; a slow browser reads the newest, not a backlog.
+	frames chan []byte
 }
 
 // agentActivateRequest is what an activation request may carry: nothing. The command
@@ -110,6 +113,31 @@ type agentStateResponse struct {
 	Command   []string `json:"command,omitempty"`
 	Model     string   `json:"model,omitempty"`
 	Error     string   `json:"error,omitempty"`
+}
+
+// broadcastAgentStatus puts one posture frame on every open stream. The frame is
+// built by agentState, so the frame and the endpoint cannot disagree about a
+// field; the bridge knows nothing about HTTP, and the viewer knows nothing about
+// the process beyond what the bridge tells it.
+func (s *server) broadcastAgentStatus(posture acpbridge.Posture) {
+	state := s.agentState(posture.SessionID)
+	payload, err := acpbridge.EncodeStatus(acpbridge.StatusEnvelope{
+		Activated: state.Activated,
+		Connected: state.Connected,
+		Status:    state.Status,
+		SessionID: state.Session,
+		Model:     state.Model,
+		Error:     state.Error,
+	})
+	if err != nil {
+		slog.Warn("sdtviewer: status frame not encoded", "err", err)
+		return
+	}
+	s.agentMu.Lock()
+	defer s.agentMu.Unlock()
+	for stream := range s.agentStreams {
+		pushLatest(stream.frames, payload)
+	}
 }
 
 // agentState builds the response for the bridge's current posture. session names the one
@@ -252,7 +280,8 @@ func (s *server) handleAgentStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer session.Close()
-	stream := &agentStream{sessionID: session.ID(), cancel: cancel}
+	frames := make(chan []byte, 1)
+	stream := &agentStream{sessionID: session.ID(), cancel: cancel, frames: frames}
 	s.startAgentStream(stream)
 	defer s.endAgentStream(stream)
 
@@ -261,7 +290,6 @@ func (s *server) handleAgentStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	frames := make(chan []byte, 1)
 	session.State().Listen(func(thread acpbridge.Thread) {
 		if payload, err := acpbridge.EncodeState(session.ID(), thread); err == nil {
 			pushLatest(frames, payload)
@@ -552,6 +580,9 @@ func (s *server) enableAgent(host string) {
 	// The model is the bridge's from birth, not applied afterwards: the declaration
 	// is what every session this bridge opens runs on, including the first.
 	s.agent = acpbridge.New(acpbridge.Options{Root: s.root, Version: version, Model: s.agentModel})
+	// One subscription per bridge: a posture change is fanned out to every stream
+	// this viewer holds, and the bridge stays transport-agnostic.
+	s.agent.ListenStatus(s.broadcastAgentStatus)
 	// The wire log is the project's declaration and nothing else: a path that
 	// cannot be used turns the capture off with one sentence and leaves the agent
 	// running, because a reader debugging a conversation must not lose the
