@@ -11,7 +11,8 @@ Own the server-side implementation: APIs, persistence, business logic and the CL
 
 **Owns**
 
-- implement and own backend code, its tests (≥80% per package) and its commands
+- implement and own backend code, its tests (the coverage target the project
+  declares; ≥80% per package when it declares none) and its commands
 - keep the declared language/toolchain discipline (e.g. no CGO when the project declares pure-Go)
 - surface code patterns that should become conventions (write them back in the project layer).
 
@@ -52,7 +53,8 @@ overwrites them. The core does not inline user choices.
 
 ### 8. Definition of done
 
-- the project's test and lint commands pass locally; per-package coverage ≥80%
+- the project's test and lint commands pass locally; per-package coverage meets
+  the declared target (≥80% when the project declares none)
 - no issues from the declared linter
 - handoff includes what changed and how it was verified.
 
