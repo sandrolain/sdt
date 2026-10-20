@@ -117,8 +117,9 @@ func writeIndexJSONIfChanged(content string) (bool, error) {
 
 // ctxIndexJSONSummary reports the per-index write state for --format json.
 type ctxIndexJSONSummary struct {
-	Markdown string `json:"markdown"`
-	JSON     string `json:"json"`
+	Markdown   string `json:"markdown"`
+	JSON       string `json:"json"`
+	Essentials string `json:"essentials,omitempty"`
 }
 
 func ctxIndexWriteState(written bool) string {

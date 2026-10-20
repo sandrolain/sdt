@@ -221,13 +221,16 @@ func TestContextLintProposalDecisionArchitectureChain(t *testing.T) {
 
 func TestContextReindexSkipUnchanged(t *testing.T) {
 	setupContextProject(t)
+	// The setup generates the entry point, so a change is what makes the first
+	// run write and the second one skip.
+	writeCtxDoc(t, "context/notes/new.md", "---\nkind: notes\nsummary: new\nagent: a\n---\nbody\n")
 	first := execute(t, contextReindexCmd, nil)
 	second := execute(t, contextReindexCmd, nil)
-	if strings.Contains(string(second), "(written)") && !strings.Contains(string(first), "(written)") {
-		t.Errorf("expected second run skipped")
-	}
 	if !strings.Contains(string(first), "(written)") {
 		t.Errorf("expected first run written: %s", first)
+	}
+	if strings.Contains(string(second), "(written)") {
+		t.Errorf("expected second run skipped: %s", second)
 	}
 }
 

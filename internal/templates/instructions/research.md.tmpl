@@ -64,7 +64,7 @@ search window), Findings, Evidence, Limits and open points, Feeds.
 - **Provenance is mandatory.** Every run names its driving prompt
   (`prompts/<…>.md`) and the evidence it relied on under `sources`.
   Non-markdown evidence is converted first with `sdt doc2md` (anydoc → docling
-  → markitdown — see `instructions/ingestion.md`) and the original kept in
+  → markitdown — see `instructions/sources.md`) and the original kept in
   `context/refs/`.
 - **Web sources are captured, never fetched ad hoc.** A web/document sweep
   captures every page it relies on with `sdt crawldown` — stdout to read, a file
@@ -178,7 +178,8 @@ left untouched.
   citation pack. A capture SDT could not verify is never archived.
 - **Wiki population is agent editorial work.** The CLI never writes a
   `context/wiki/` page: after archiving, the agent reads the captures, distils
-  concepts and writes the pages per `instructions/ingestion.md` (a real `##
+  concepts and writes the pages per the knowledge pipeline (`ingestion.md`, the
+  `knowledge` profile) (a real `##
   Summary`, atomic cited claims, typed `relations`), presents the write plan
   and writes only on approval. The `>populate-wiki` trigger drives this.
 - **Negatives are kept.** A failed fetch keeps its error and retry count and

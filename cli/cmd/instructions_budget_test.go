@@ -36,6 +36,13 @@ const (
 // instructionModuleRatchet is the exemption map: a module may not grow past the
 // ceiling recorded here, and the entry is removed when it falls under the common
 // budget or is split.
+// instructionModuleCeilings are per-module ceilings below the common 1,400: a
+// module whose contract is deliberately small, so growth is visible rather than
+// absorbed by the common budget.
+var instructionModuleCeilings = map[string]int{
+	"sources": 800,
+}
+
 var instructionModuleRatchet = map[string]int{
 	"ingestion":    3519,
 	"plan":         2645,
@@ -75,6 +82,9 @@ func TestInstructionWordBudget(t *testing.T) {
 		budget := instructionModuleBudget
 		if name == "cli" {
 			budget = instructionCatalogBudget
+		}
+		if ceiling, ok := instructionModuleCeilings[name]; ok {
+			budget = ceiling
 		}
 		if ratchet, ok := instructionModuleRatchet[name]; ok {
 			budget = ratchet

@@ -22,6 +22,10 @@ that names it, then to that row's durable contract (usually
 contract, e.g. the `sdt research` family resolves to
 `context/instructions/research.md`).
 
+Read one row without reading this file: `sdt context commands show <trigger>`
+prints the trigger's kind, subject, payload, examples and contract. This registry
+stays the owner; the verb is a lookup.
+
 ### Grammar
 
 ```

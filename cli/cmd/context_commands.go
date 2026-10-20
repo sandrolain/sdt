@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -446,7 +448,94 @@ var contextCommandsCmd = &cobra.Command{
 naming the durable contract under ` + "`context/instructions/`" + `.
 
   sdt context commands new <trigger>   add a project row
+  sdt context commands show <trigger>  print one row, without reading the index
   sdt context commands rm <trigger>    remove a project row`,
+}
+
+// commandsShowRow is the projection `commands show` prints: one registry row,
+// with the examples split so a machine consumer does not parse `<br>`.
+type commandsShowRow struct {
+	Trigger  string   `json:"trigger" yaml:"trigger"`
+	Kind     string   `json:"kind" yaml:"kind"`
+	Subject  string   `json:"subject,omitempty" yaml:"subject,omitempty"`
+	Contract string   `json:"contract" yaml:"contract"`
+	Payload  string   `json:"payload,omitempty" yaml:"payload,omitempty"`
+	Examples []string `json:"examples,omitempty" yaml:"examples,omitempty"`
+}
+
+var contextCommandsShowCmd = &cobra.Command{
+	Use:   "show <trigger>",
+	Short: "Print one row of the command registry",
+	Long: `Print one row of the command registry — its kind, subject, payload, examples
+and durable contract — without reading the whole index. The registry stays the
+single owner of the rows; this is a lookup for a trigger whose name the agent
+already knows.
+
+Examples:
+  sdt context commands show plan
+  sdt context commands show wiki --format json`,
+	Args: cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := strings.TrimPrefix(strings.TrimSpace(args[0]), ">")
+		rows := parseCommandRows(commandsIndexContentFor(currentProfiles(), contextCommandProject(), contextNow()))
+		var found *commandRow
+		ids := make([]string, 0, len(rows))
+		for i := range rows {
+			ids = append(ids, ">"+rows[i].Trigger)
+			if strings.EqualFold(rows[i].Trigger, id) {
+				found = &rows[i]
+			}
+		}
+		if found == nil {
+			exitWithError(cmd, fmt.Errorf("no trigger %q in the registry (available: %s)", id, strings.Join(ids, ", ")))
+			return
+		}
+		row := commandsShowRow{
+			Trigger:  ">" + found.Trigger,
+			Kind:     found.Kind,
+			Contract: found.Contract,
+			Payload:  found.Payload,
+		}
+		if found.Subject != "" && found.Subject != "—" {
+			row.Subject = found.Subject
+		}
+		for _, ex := range strings.Split(found.Examples, "<br>") {
+			ex = strings.TrimSpace(strings.ReplaceAll(ex, "`", ""))
+			if ex != "" {
+				row.Examples = append(row.Examples, ex)
+			}
+		}
+		switch getFormat(cmd) {
+		case fmtJSON:
+			out, err := json.MarshalIndent(row, "", "  ")
+			exitWithError(cmd, err)
+			outputBytes(cmd, out)
+		case fmtYAML:
+			out, err := yaml.Marshal(row)
+			exitWithError(cmd, err)
+			outputBytes(cmd, out)
+		default:
+			var b strings.Builder
+			b.WriteString(row.Trigger)
+			if row.Subject != "" {
+				b.WriteString("  (" + row.Kind + ", subject " + row.Subject + ")")
+			} else {
+				b.WriteString("  (" + row.Kind + ")")
+			}
+			b.WriteString("\ncontract  " + row.Contract)
+			if row.Payload != "" {
+				b.WriteString("\npayload   " + row.Payload)
+			}
+			for i, ex := range row.Examples {
+				if i == 0 {
+					b.WriteString("\nexamples  " + ex)
+				} else {
+					b.WriteString("\n          " + ex)
+				}
+			}
+			outputString(cmd, b.String()+"\n")
+		}
+	},
 }
 
 func init() {
@@ -456,6 +545,6 @@ func init() {
 	contextCommandsNewCmd.Flags().String("subject", "", "Subject doc type a workflow trigger resolves (requires --kind workflow)")
 	contextCommandsNewCmd.Flags().Bool("detail", false, "Also write context/commands/<trigger>.md for payload prose a table cell cannot hold")
 	contextCommandsNewCmd.Flags().Bool("force", false, "Update an existing row (and overwrite an existing detail file)")
-	contextCommandsCmd.AddCommand(contextCommandsNewCmd, contextCommandsRmCmd)
+	contextCommandsCmd.AddCommand(contextCommandsNewCmd, contextCommandsRmCmd, contextCommandsShowCmd)
 	contextCmd.AddCommand(contextCommandsCmd)
 }

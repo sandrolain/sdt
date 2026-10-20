@@ -31,7 +31,9 @@ user decides the analysis is closed (see `sdt context close`).
 
 A new objective outside an existing analysis/plan starts here: create the
 analysis and stop, then proceed plan → tasks → execution only with explicit
-approval — see AGENTS.md (HARD RULE 1).
+approval — see AGENTS.md (HARD RULE 1). A **bounded change** — one file, one
+decision, reversible, no new public surface — does not start here: its plan
+carries the intent (`plan.md`).
 
 Before writing an analysis, **type it**: determine and record its `categories`
 (the work type, from the register below) and state the expected outcome —
@@ -165,13 +167,9 @@ session: <session id>        # optional
 
 ## Rules
 
-- **No H1 title** — see AGENTS.md (document conventions).
-- `summary` is mandatory and used by `sdt context reindex`.
-- Timestamps: `created`/`updated` are UTC ISO 8601. `created` is written at
-  creation (`sdt time iso`); `updated` is CLI-written — refresh a body-only edit
-  with `sdt context touch`, never by hand.
-- **CLI-only state**: never hand-edit `status:`, `updated:` or checkbox markers;
-  use `sdt context status set`, `sdt context touch` and `sdt context check`.
+- **No H1 title** — AGENTS.md (document conventions).
+- **CLI-only state** — status, timestamps and markers are written by the CLI
+  (AGENTS.md HARD RULE 9); `summary` is mandatory and feeds `reindex`.
 - Dated files: integrate/modify the current analysis while it is the active one;
   a materially new line of investigation gets a new dated file (and sets
   `sources` back to the analysis it extends).

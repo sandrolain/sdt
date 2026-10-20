@@ -107,7 +107,8 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/questions.md` | Registering an open question |
 | `context/instructions/proposal.md` | Creating or reviewing a proposal |
 | `context/instructions/research.md` | Running research or writing a research note |
-| `context/instructions/ingestion.md` | Ingesting sources, converting non-markdown |
+| `context/instructions/sources.md` | Capturing and citing a source |
+{{if .Profiles.knowledge}}| `context/instructions/ingestion.md` | The knowledge pipeline |{{end}}
 {{if .Profiles.knowledge}}| `context/instructions/distillation.md` | A source too large to read whole |{{end}}
 | `context/instructions/prompts.md` | Creating or running a tracked prompt |
 | `context/instructions/reference.md` | Looking up a command |
@@ -163,38 +164,37 @@ Work directories live under `context/`: `plan/`, `analysis/`, `architecture/`,
 
 ### 5-stage development lifecycle
 
-For any non-trivial task:
+For any non-trivial task. A **bounded change** — one file, one decision,
+reversible, no new surface — runs as one plan carrying intent, checklist and
+closeout, no analysis (`plan.md`); anything larger takes the chain.
 
 1. **Analysis** — integrate/modify the existing analysis; type it first
    (`categories`, expected outcome: information or implementation). It carries
    context, evidence and decisions — the "how" belongs to the plan. Splitting a
    broad analysis asks first; every option ends accepted, rejected or
    `postponed` (`analysis.md`).
-2. **Plan** — from the analysis; it carries the implementation, maps each
-   analysis objective to the phase covering it and ends with a dedicated
-   **Validation phase** (`plan.md`).
-3. **Execution** — the approved plan is the ledger: its phases carry the
-   checklist (`sdt context check <plan> <id>`), its `## Review` the verdicts and
-   its `### Gate` the gate runs. A task file exists only to split the work
-   across parallel agents (`tasks.md`).
-4. **Close** — `sdt context close <plan>` cascades to the analysis; a finished
-   plan with tracked changes gets a proposed Conventional Commits message, then
-   asks whether to commit (`git.md`).
+2. **Plan** — from the analysis; carries the implementation, maps each objective
+   to its phase and ends with a **Validation phase** (`plan.md`).
+3. **Execution** — the approved plan is the ledger: phases carry the checklist
+   (`sdt context check <plan> <id>`), `## Review` the verdicts, `### Gate` the
+   runs. A task file exists only to split across parallel agents
+   (`tasks.md`).
+4. **Close** — `sdt context close <plan>` cascades to the analysis; then propose
+   a Conventional Commits message and ask whether to commit (`git.md`).
 5. **Final reports** — append `context/worklog/` and `notes/` entries.
 
-Sub-agents, injected system text and the no-silent-downgrade rule: `plan.md`.
+Sub-agents and the no-silent-downgrade rule: `plan.md`.
 
-Before closing a phase run the verify-step; the suite cadence is once, at
-delivery (`development.md`, *Verify and deliver*). Then `sdt context reindex` and
+Before closing a phase run the verify-step; the suite runs once, at delivery
+(`development.md`). Then `sdt context reindex` and
 `sdt context lint` — with the baseline, the claim is **no new findings**, never
 "clean" — and `sdt agent gate` for a hard gate (`--record --plan <ref>` appends
 the run to the task file's `## Review`).
 
-At session end: note open tasks and questions in `context/tasks/` or
+At session end: note open tasks/questions in `context/tasks/` or
 `context/questions/`, and run the bounded signal check (`worklog.md`, *Signal review*), recording a
-routed capture or `none`. Substantive answers are filed into `context/` — never
-left in chat. Discover the build/test/lint commands from the project, and record
-them in `project.md` when it declares none.
+routed capture or `none`. Substantive answers are filed into `context/`. Discover the build/test/lint commands from the project; record them in
+`project.md` when it declares none.
 
 ### Communication (default)
 

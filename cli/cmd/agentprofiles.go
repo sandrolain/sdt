@@ -37,7 +37,7 @@ type agentProfile struct {
 var agentProfileRegister = []agentProfile{
 	{Slug: agentProfileCore, Title: "Core", Guide: "the lifecycle, the document contracts and the CLI"},
 	{Slug: "knowledge", Title: "Knowledge", Guide: "briefings, distillation, learning and the wiki",
-		Modules: []string{"briefing", "distillation", "learning", "wiki"}},
+		Modules: []string{"briefing", "distillation", "ingestion", "learning", "wiki"}},
 	{Slug: "ui", Title: "UI/UX", Guide: "layout, components, tokens, motion and accessibility",
 		Modules: []string{"ui", "ui-accessibility", "ui-adapters", "ui-components", "ui-layout", "ui-motion", "ui-performance", "ui-taste", "ui-tokens"},
 		Skills:  []string{"sdt-ui-ux"}},

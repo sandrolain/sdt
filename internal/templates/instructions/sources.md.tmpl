@@ -1,0 +1,39 @@
+---
+kind: instructions
+title: "Sources — capture one and cite it"
+summary: "The core source contract: capture a source into context/refs/, keep its origin, cite it where the claim is made; the full pipeline is the knowledge profile."
+---
+
+`context/refs/<topic>/` holds an archived source; `context/ingestion/` holds one
+awaiting distillation. This module is the **core** contract — capture a source,
+keep it, cite it. The full pipeline (distillation, wiki pages, the coverage
+ledger) is `ingestion.md`, available when the project selects the `knowledge`
+profile.
+
+## Capture
+
+- A web page is read only through `sdt crawldown` (AGENTS HARD RULE 10): to
+  stdout when the content is needed now, to `context/refs/<topic>/` when it must
+  be kept or cited. When the fetch itself fails, record
+  `captured: <url> — crawldown failed: <reason>` and treat any claim resting on
+  it as unverified.
+- A repository, a package or a local file is not a web page: copy it under
+  `context/refs/<topic>/` and keep its origin (URL plus commit or version).
+- Name the file for the source, not for its subject
+  (`<origin>-<date>.<ext>`), so two sources on one topic do not collide.
+
+## Cite
+
+- A claim that rests on a source names it beside the claim, not in a list at the
+  end: `(context/refs/<topic>/<file>)`.
+- Provenance goes in the worklog closeout (`Sources consumed`), one line per
+  source: the path, what it supported, how it was transformed.
+- A source you did not capture is not evidence: mark the claim UNVERIFIED
+  (`tasks-review.md`).
+
+## When the work is larger
+
+Distilling sources into pages, a book-scale run, a coverage ledger: select the
+pipeline with `sdt agent refresh --with knowledge`, then read `ingestion.md`.
+Without that profile this module is the whole contract — capture, keep, cite —
+and `context/ingestion/` staying empty is the normal state.

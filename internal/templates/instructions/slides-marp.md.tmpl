@@ -168,8 +168,8 @@ A deck is an existing corpus document in a particular form, not a new kind:
   aliasing it.
 - Frontmatter and `kind` are inherited from the base document type; the suffix
   adds no kind-specific schema.
-- **Typed relations** follow the closed vocabulary in
-  `context/instructions/ingestion.md`; `[[target|label]]` wikilinks, optionally
+- **Typed relations** follow the closed vocabulary the knowledge pipeline
+  defines (`ingestion.md`, `knowledge` profile); `[[target|label]]` wikilinks, optionally
   with a `#anchor`, are ordinary navigation and are **not** graph edges on their own.
 - **No duplication** — content lives in the deck *or* in the document it
   presents, never in both. A deck that copies its document creates a second

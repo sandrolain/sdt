@@ -174,6 +174,7 @@ func agentDoctorChecks() []doctorCheck {
 	// Context baseline: report-only size/token attribution of the instruction
 	// surface (never a gate).
 	checks = append(checks, contextBaselineCheck())
+	checks = append(checks, sessionStartCheck())
 
 	return checks
 }
@@ -292,6 +293,29 @@ func contextBaselineCheck() doctorCheck {
 		return doctorCheck{Name: "context-baseline", Status: doctorStatusWarn, Detail: detail, Hint: "run `sdt agent init` to restore the missing surface"}
 	}
 	return doctorCheck{Name: "context-baseline", Status: doctorStatusOK, Detail: detail}
+}
+
+// sessionStartCheck reports the bounded digest a session begins with. Its
+// absence is a warning rather than a failure — a project that has not reindexed
+// yet still works — but the size is reported against the cap that makes the read
+// predictable.
+func sessionStartCheck() doctorCheck {
+	data, err := os.ReadFile(sdtEssentialsFile) //#nosec G304 -- fixed corpus path
+	if err != nil {
+		return doctorCheck{
+			Name:   "session-start",
+			Status: doctorStatusWarn,
+			Detail: sdtEssentialsFile + " missing",
+			Hint:   "run `sdt context reindex` (or `sdt agent init`)",
+		}
+	}
+	words := len(strings.Fields(string(data)))
+	status, hint := doctorStatusOK, ""
+	if words > ctxEssentialsWordBudget {
+		status = doctorStatusWarn
+		hint = "the digest is over its cap: split it or raise the cap deliberately"
+	}
+	return doctorCheck{Name: "session-start", Status: status, Detail: fmt.Sprintf("%s %d words (cap %d)", sdtEssentialsFile, words, ctxEssentialsWordBudget), Hint: hint}
 }
 
 // ── delivery gate ──────────────────────────────────────────────────────────────

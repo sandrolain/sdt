@@ -57,3 +57,26 @@ func TestTasksHandoffCarriesTheReplacementNote(t *testing.T) {
 		}
 	}
 }
+
+// TestWorklogCloseoutIsPerPlan is the R3 gate: the closeout's identity is the
+// plan, and a task reference appears only for the split case.
+func TestWorklogCloseoutIsPerPlan(t *testing.T) {
+	body := generatedInstruction(t, "worklog.md")
+	flat := strings.Join(strings.Fields(body), " ")
+
+	for _, want := range []string{
+		"Crystallized closeout (per plan)",
+		"**Plan ref**",
+		"**Task ref** (split only)",
+		"One closeout per plan identity",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("worklog closeout missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{"per phase/task"} {
+		if strings.Contains(flat, unwanted) {
+			t.Errorf("worklog closeout still assumes a task file: %q", unwanted)
+		}
+	}
+}

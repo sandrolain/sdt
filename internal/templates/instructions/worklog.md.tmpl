@@ -85,24 +85,25 @@ session: <session id>        # optional
 - **Next steps** — what should happen next, if not already captured in a task
   file.
 
-## Crystallized closeout (per phase/task)
+## Crystallized closeout (per plan)
 
-At the end of every phase/task run (plan.md, 5-stage lifecycle) the worklog
-records a **crystallized closeout** entry that pins the delivered state, so a
-later agent can resume or audit without re-deriving it. This is a pure
-instruction-level contract: the shape below is the record, written manually —
-no command generates it. The task file is the working ledger; this is its
-crystallized summary, not a second copy.
+At the close of a plan (the execution ledger) the worklog records one
+**crystallized closeout** entry that pins the delivered state, so a later agent
+can resume or audit without re-deriving it. This is a pure **instruction-level
+contract**: the shape below is the record, written manually — no command
+generates it.
+The plan is the working ledger; this is its crystallized summary, not a second
+copy. A split plan closes once per task file, and only then.
 
 ```markdown
-### Closeout — <YYYY-MM-DD> — <task file name>
+### Closeout — <YYYY-MM-DD> — <plan slug>
 
-- **Task ref**: `tasks/<date>-<plan-slug>.md` (or `-<stream>.md` on a split) — one entry per task file identity
-- **Plan ref**: `plan/<date>-<plan-slug>.md`
+- **Plan ref**: `plan/<date>-<plan-slug>.md` — the entry's identity
+- **Task ref** (split only): `tasks/<date>-<plan-slug>-<stream>.md` — one entry per task file identity
 - **Outcome** (per checklist item, standardized claim vocabulary):
   - [x] <item> — **passed** (ran and verified) | **expected** (written, not run) | **inferred** (static analysis only)
 - **Files affected**: <paths touched>
-- **Review verdicts**: <per finding: CONFIRMED / DISPROVED / UNVERIFIED — mirrors the task file Review block>
+- **Review verdicts**: <per finding: CONFIRMED / DISPROVED / UNVERIFIED — mirrors the ledger's `## Review` block>
 - **Decisions**: <small local ones; architectural → decision record, linked>
 - **Lessons / Do-Not-Repeat candidates**: <→ the `context/notes/` lessons note, linked>
 - **Signal review**: <routed capture per *Signal review* below, or `none`>
@@ -112,8 +113,9 @@ crystallized summary, not a second copy.
 
 Idempotency and updates:
 
-- **One closeout per task file identity**: a rerun reuses the existing entry
-  instead of writing a second one; nothing is duplicated.
+- **One closeout per plan identity** (per task file only on a split): a rerun
+  reuses the existing entry instead of writing a second one; nothing is
+  duplicated.
 - **Corrections are append-only**: a further dated block under the same closeout
   heading that quotes what changed (`updated <ISO 8601>`), never an edit of
   the original record.

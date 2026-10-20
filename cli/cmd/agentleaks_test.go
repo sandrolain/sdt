@@ -90,7 +90,10 @@ func TestGateCommandNamesNoToolchain(t *testing.T) {
 }
 
 // citedPathRe matches a markdown path the set points the reader at.
-var citedPathRe = regexp.MustCompile("`(context/[a-z]+/[A-Za-z0-9_.<>/-]+\\.md)`")
+// A cited document is either under a kind directory or at the corpus root
+// (`context/index.md`, `context/essentials.md`): the first pattern alone let a
+// top-level generated file pass unguarded.
+var citedPathRe = regexp.MustCompile("`(context/(?:[a-z]+/)?[A-Za-z0-9_.<>/-]+\\.md)`")
 
 // TestCitedContextDocsAreGenerated fails on a generated surface that cites a
 // `context/...md` file no command creates. This is the L1 class: twenty-two
@@ -118,16 +121,22 @@ func TestCitedContextDocsAreGenerated(t *testing.T) {
 				continue // a placeholder names the shape, not a file
 			}
 			seen[path] = true
-			if produced[path] {
+			if !citedPathUnproduced(path, produced) {
 				continue
-			}
-			dir := path[:strings.LastIndexByte(path, '/')]
-			if kindDirs[dir] {
-				continue // a document the project writes, not one SDT generates
 			}
 			t.Errorf("cited but not generated: %s — no command writes it and it is not a project document directory", path)
 		}
 	}
+}
+
+// citedPathUnproduced reports a cited document that neither a command writes nor
+// a project directory holds.
+func citedPathUnproduced(path string, produced map[string]bool) bool {
+	if produced[path] {
+		return false
+	}
+	dir := path[:strings.LastIndexByte(path, '/')]
+	return !kindDirs[dir]
 }
 
 // generatedContextDocs is the set of context paths `agent init` writes, plus the
@@ -135,6 +144,8 @@ func TestCitedContextDocsAreGenerated(t *testing.T) {
 func generatedContextDocs() map[string]bool {
 	out := map[string]bool{
 		"context/index.md":          true,
+		sdtEssentialsFile:           true,
+		ctxTodoProjectionPath:       true,
 		"context/commands/index.md": true,
 		sdtScriptsIndex:             true,
 		sdtDocsReadme:               true,
@@ -220,4 +231,23 @@ func examplesWithForeignPath(examples []string, roots map[string]bool) []string 
 		}
 	}
 	return problems
+}
+
+// TestCitedPathCheckSeesTopLevelFiles is the R1 fixture: the session-start
+// digest sits at the corpus root, and the check that guards citations must both
+// accept it (a producer exists) and refuse a fabricated root file.
+func TestCitedPathCheckSeesTopLevelFiles(t *testing.T) {
+	produced := generatedContextDocs()
+	if !produced[sdtEssentialsFile] {
+		t.Fatalf("%s has no declared producer", sdtEssentialsFile)
+	}
+	if citedPathUnproduced(sdtEssentialsFile, produced) {
+		t.Errorf("the check refuses a generated top-level file: %s", sdtEssentialsFile)
+	}
+	if !citedPathUnproduced("context/ghost.md", produced) {
+		t.Error("the check accepts a fabricated top-level file")
+	}
+	if !citedPathRe.MatchString("`context/essentials.md`") {
+		t.Error("the citation pattern does not see a top-level file")
+	}
 }

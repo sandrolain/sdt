@@ -54,6 +54,13 @@ from the .sdt.yaml there, and it does not walk up to a parent project. Run
 		if err != nil {
 			exitWithError(cmd, err)
 		}
+		if fi, statErr := os.Stat(sdtWorkDir); statErr == nil && fi.IsDir() {
+			entryResults, entryErr := regenerateCorpusEntry()
+			if entryErr != nil {
+				exitWithError(cmd, entryErr)
+			}
+			results = append(results, entryResults...)
+		}
 		outputFileResults(cmd, results)
 	},
 }

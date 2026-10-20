@@ -225,10 +225,28 @@ func ctxRegenerateIndex() (ctxIndexJSONSummary, error) {
 	if err != nil {
 		return ctxIndexJSONSummary{}, err
 	}
-	if _, err := writeEssentialsIfChanged(essentials); err != nil {
+	essentialsState, err := writeEssentialsIfChanged(essentials)
+	if err != nil {
 		return ctxIndexJSONSummary{}, err
 	}
-	return ctxIndexJSONSummary{Markdown: written, JSON: ctxIndexWriteState(jsonWritten)}, nil
+	return ctxIndexJSONSummary{Markdown: written, JSON: ctxIndexWriteState(jsonWritten), Essentials: essentialsState}, nil
+}
+
+// regenerateCorpusEntry writes the corpus entry point — index, index.json and the
+// bounded essentials digest — and reports each write. `sdt context reindex` and
+// `sdt agent init|refresh` share it: a fresh project must have the file its
+// session-start contract names before the first session runs, so the producer
+// and the citation ship together.
+func regenerateCorpusEntry() ([]FileResult, error) {
+	summary, err := ctxRegenerateIndex()
+	if err != nil {
+		return nil, err
+	}
+	return []FileResult{
+		{Path: sdtContextIndex, Status: summary.Markdown},
+		{Path: ctxIndexJSONPath, Status: summary.JSON},
+		{Path: sdtEssentialsFile, Status: summary.Essentials},
+	}, nil
 }
 
 var contextReindexCmd = &cobra.Command{

@@ -466,6 +466,16 @@ Examples:
 		if err != nil {
 			exitWithError(cmd, err)
 		}
+		// 5. The corpus entry point. Only when the working directory was created:
+		//    a blocked `context/` is already reported above, and a hard failure
+		//    here would hide that report.
+		if fi, statErr := os.Stat(sdtWorkDir); statErr == nil && fi.IsDir() {
+			entryResults, entryErr := regenerateCorpusEntry()
+			if entryErr != nil {
+				exitWithError(cmd, entryErr)
+			}
+			genResults = append(genResults, entryResults...)
+		}
 
 		results := []FileResult{configResult}
 		results = append(results, dirResults...)

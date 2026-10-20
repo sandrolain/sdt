@@ -272,3 +272,26 @@ func TestContextPathWiki(t *testing.T) {
 		t.Errorf("wiki path = %q", out)
 	}
 }
+
+// TestCommandsShowPrintsOneRow is the R5 gate: a known trigger resolves from one
+// row without the whole registry, and an unknown one names what exists.
+func TestCommandsShowPrintsOneRow(t *testing.T) {
+	setupContextProject(t)
+
+	out := string(execute(t, contextCommandsShowCmd, nil, "plan"))
+	for _, want := range []string{">plan", "workflow", "context/instructions/plan.md", "analysis/"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("commands show plan missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, ">wiki") {
+		t.Errorf("commands show plan printed another row:\n%s", out)
+	}
+
+	js := string(execute(t, contextCommandsShowCmd, nil, "plan", "--format", "json"))
+	for _, want := range []string{`"trigger"`, `"kind"`, `"examples"`} {
+		if !strings.Contains(js, want) {
+			t.Errorf("commands show --format json missing %q:\n%s", want, js)
+		}
+	}
+}

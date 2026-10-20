@@ -41,32 +41,13 @@ func writeTestFile(t *testing.T, path, content string) {
 	}
 }
 
-func instructionFileNames() []string {
-	return []string{
-		"project.md",
-		"analysis.md",
-		"plan.md",
-		"tasks.md",
-		"decision.md",
-		"architecture.md",
-		"worklog.md",
-		"notes.md",
-		"lessons.md",
-		"questions.md",
-		"proposal.md",
-		"research.md",
-		"ingestion.md",
-		"reference.md",
-		"cli.md",
-		"scripts.md",
-	}
-}
-
+// assertInstructionFiles checks the set a default init writes: core only, since
+// a domain module (ingestion, wiki, ui, …) ships with its profile.
 func assertInstructionFiles(t *testing.T, dir string) {
 	t.Helper()
-	for _, f := range instructionFileNames() {
-		if _, err := os.Stat(filepath.Join(dir, "context/instructions", f)); err != nil {
-			t.Errorf("expected instruction file %s to be created", f)
+	for _, f := range instructionFilesFor([]string{agentProfileCore}, "p", "g") {
+		if _, err := os.Stat(filepath.Join(dir, "context/instructions", f.name)); err != nil {
+			t.Errorf("expected instruction file %s to be created", f.name)
 		}
 	}
 }
@@ -514,10 +495,10 @@ func TestAgentInitIdempotent(t *testing.T) {
 	if string(firstCfg) != string(secondCfg) {
 		t.Errorf("expected .sdt.yaml unchanged on second run\n--- first ---\n%s\n--- second ---\n%s", firstCfg, secondCfg)
 	}
-	for _, f := range instructionFileNames() {
-		first, _ := os.ReadFile(filepath.Join(dir, "context/instructions", f))
+	for _, f := range instructionFilesFor([]string{agentProfileCore}, "p", "g") {
+		first, _ := os.ReadFile(filepath.Join(dir, "context/instructions", f.name))
 		if !strings.Contains(string(first), "#") {
-			t.Errorf("expected %s to keep content on second run", f)
+			t.Errorf("expected %s to keep content on second run", f.name)
 		}
 	}
 }
@@ -1317,7 +1298,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected context/commands/index.md: %v", err)
 	}
-	for _, want := range []string{"kind: commands", "`>ingestion`", "`context/instructions/ingestion.md`"} {
+	for _, want := range []string{"kind: commands", "`>analysis`", "`context/instructions/analysis.md`"} {
 		if !strings.Contains(string(cmdIndex), want) {
 			t.Errorf("expected %q in commands registry:\n%s", want, cmdIndex)
 		}
@@ -2004,7 +1985,7 @@ func TestAgentMindmapTemplatesCoherence(t *testing.T) {
 			"## Deviations from XMindMark",
 			"## Parser scope",
 			"suffix modifier on an existing document kind",
-			"context/instructions/ingestion.md",
+			"context/instructions/sources.md",
 			"No duplication",
 			"context/instructions/mindmap.md",
 			"context/instructions/wiki.md",
@@ -2220,7 +2201,7 @@ func TestAgentDistillationTemplatesCoherence(t *testing.T) {
 			"Fold-in merge",
 			"high-watermark",
 			"Provenance and boundary",
-			"context/instructions/ingestion.md",
+			"ingestion.md",
 			"context/instructions/wiki.md",
 			"context/instructions/development.md",
 		}},
@@ -2310,7 +2291,7 @@ func TestAgentSlidesTemplatesCoherence(t *testing.T) {
 			"Marpit 3.2.x",
 			"release-candidate",
 			"suffix modifier on an existing document kind",
-			"context/instructions/ingestion.md",
+			"ingestion.md",
 			"No duplication",
 			"context/instructions/slides.md",
 			"context/instructions/wiki.md",
@@ -2415,8 +2396,10 @@ func TestAgentDedupTemplateCoherence(t *testing.T) {
 // idempotent append-only update path (complete, partial and repeated runs)
 // must survive edits.
 func TestAgentWorklogCloseoutTemplateCoherence(t *testing.T) {
+	// Flattened: the contract is asserted, not the line wrapping.
+	flat := strings.Join(strings.Fields(instrWorklogTemplate), " ")
 	for _, want := range []string{
-		"## Crystallized closeout (per phase/task)",
+		"## Crystallized closeout (per plan)",
 		"instruction-level contract",
 		"no command generates it",
 		"**passed**", "**expected**", "**inferred**",
@@ -2428,7 +2411,7 @@ func TestAgentWorklogCloseoutTemplateCoherence(t *testing.T) {
 		"silently rewriting history",
 		"## Rules",
 	} {
-		if !strings.Contains(instrWorklogTemplate, want) {
+		if !strings.Contains(flat, want) {
 			t.Errorf("expected %q in worklog template:\n%s", want, instrWorklogTemplate)
 		}
 	}
