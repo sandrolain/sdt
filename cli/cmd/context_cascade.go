@@ -206,7 +206,10 @@ func (n *cascadeNode) effectiveStatus() string {
 func (s *cascadeStore) derivePlanStatus(n *cascadeNode) string {
 	children := s.childTasks(n.ref)
 	if len(children) == 0 {
-		return ""
+		// The plan is the execution ledger: when it was never split, its own
+		// phase checklist is the completion signal. Without one there is
+		// nothing to derive from, so the status stays as declared.
+		return derivePlanOwnChecklist(n.path)
 	}
 	for _, c := range children {
 		if c.effectiveStatus() != taskFileStatusCompleted {
@@ -216,6 +219,34 @@ func (s *cascadeStore) derivePlanStatus(n *cascadeNode) string {
 	// Reference-only model (F13): the plan's `## Phases` / `## Completion
 	// criteria` checkboxes are intent, not a second executed checklist, so they
 	// never gate completion — the task files own it.
+	return taskFileStatusCompleted
+}
+
+// derivePlanOwnChecklist derives a plan's status from its own `- [ ]` items:
+// every item ticked is `completed`, any open item is `active`, and a plan with
+// no checklist at all derives nothing (a reference-only plan keeps its declared
+// status).
+func derivePlanOwnChecklist(path string) string {
+	data, err := os.ReadFile(path) //#nosec G304 -- path resolved from the corpus
+	if err != nil {
+		return ""
+	}
+	open, done := 0, 0
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "- [ ]"):
+			open++
+		case strings.HasPrefix(trimmed, "- [x]"), strings.HasPrefix(trimmed, "- [X]"):
+			done++
+		}
+	}
+	if done == 0 {
+		return ""
+	}
+	if open > 0 {
+		return ctxWikiStatusActive
+	}
 	return taskFileStatusCompleted
 }
 

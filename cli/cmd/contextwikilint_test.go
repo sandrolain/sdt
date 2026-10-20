@@ -64,6 +64,7 @@ func wikiSourceDirs(t *testing.T) {
 
 func TestWikiLintClean(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	writeCtxDoc(t, "context/wiki/accounts.md", wikiPageFixture("accounts", "Account Service", "module", "active"))
 	writeCtxDoc(t, "context/wiki/db.md", wikiDBPage)
@@ -75,6 +76,7 @@ func TestWikiLintClean(t *testing.T) {
 
 func TestWikiLintCleanJSON(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	writeCtxDoc(t, "context/wiki/accounts.md", wikiPageFixture("accounts", "Account Service", "module", "active"))
 	writeCtxDoc(t, "context/wiki/db.md", wikiDBPage)
@@ -86,6 +88,7 @@ func TestWikiLintCleanJSON(t *testing.T) {
 
 func TestWikiLintReachableKnowledgeAxes(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	writeCtxDoc(t, "context/wiki/axes.md", `---
 kind: wiki
@@ -315,6 +318,7 @@ s
 
 func TestWikiLintSupersedeWarning(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	writeCtxDoc(t, "context/wiki/old.md", `---
 kind: wiki
@@ -359,6 +363,7 @@ sources:
 
 func TestWikiLintBudgetWarnings(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	claims := []int{}
 	for i := 1; i <= 25; i++ {
@@ -377,6 +382,7 @@ func TestWikiLintBudgetWarnings(t *testing.T) {
 // still a split signal.
 func TestWikiLintBudgetSkipsIndexPage(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	writeCtxDoc(t, "context/wiki/covered.md",
 		coveragePage("covered", "coverage:\n  units: 10\n  ok: 7\n  part: 2\n  gap: 0\n  no_op: 1\n")+blob(130))
@@ -405,6 +411,7 @@ sources:
 
 func TestWikiLintMarkdownLD(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	writeCtxDoc(t, "context/wiki/ld.md", `---
 kind: wiki
@@ -431,6 +438,7 @@ s
 	}
 
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	writeCtxDoc(t, "context/wiki/badld.md", `---
 kind: wiki
@@ -482,6 +490,7 @@ func TestWikiLintMissingDir(t *testing.T) {
 
 func TestWikiLintOrphanSuggestion(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	// page without inbound links/relations → orphan SUGGESTION, exit stays 0
 	writeCtxDoc(t, "context/wiki/a.md", `---
@@ -511,6 +520,7 @@ s
 // on a subpath page, and duplicate titles across subdirectories.
 func TestWikiLintSubdirs(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	// Valid nested pages: context/wiki/<ctx>/<slug>.md, id = relative subpath.
 	writeCtxDoc(t, "context/wiki/backend/auth.md", `---
@@ -630,6 +640,7 @@ s
 // page by wrong (flat) id is flagged, and that nested pages resolve flat ids.
 func TestWikiLintBrokenNestedLink(t *testing.T) {
 	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
 	writeCtxDoc(t, "context/wiki/backend/db.md", `---
 kind: wiki

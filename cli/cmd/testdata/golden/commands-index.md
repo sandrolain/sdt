@@ -1,0 +1,116 @@
+---
+kind: commands
+id: commands/index
+title: "Agent-invokable commands registry"
+status: active
+summary: "The single registry of agent-invokable commands: grammar, gates and one row per trigger (>ingestion) naming its durable contract under context/instructions/. Durable contracts stay there; this file invokes/references them, never duplicates them."
+project: tm
+created: "2026-09-20T17:31:00Z"
+updated: "2026-09-20T17:31:00Z"
+---
+
+## Agent-invokable commands registry
+
+This file is the **only** trigger registry. A trigger is not a file: it is a row
+below. Each row **invokes or references** a durable contract under
+`context/instructions/`; it never moves or duplicates the contract text.
+
+Invocation method: an **agent command** — a chat shorthand the host renders as
+typed text, `>trigger`, e.g. `>ingestion`. The trigger resolves through the row
+that names it, then to that row's durable contract (usually
+`context/instructions/<trigger>.md`, but a trigger may declare a different
+contract, e.g. the `sdt research` family resolves to
+`context/instructions/research.md`).
+
+### Grammar
+
+```
+>id                        # no payload: the command default, or ask
+>id: payload               # canonical: the payload starts after the first colon
+>id:payload                # tolerated: whitespace after the colon is trimmed
+```
+
+1. **Identifier** — a single kebab-case segment, no colon; resolved with the
+   lookup order below.
+2. **Payload** — everything after the first colon, verbatim, trimmed at both
+   ends, to the end of the turn. Free prose: no quoting, no escaping, no flags.
+   A command may recognise a small closed set of keywords inside the prose
+   (declared in its row); anything else is context, not a parameter.
+3. **Empty payload** — the command applies its declared default; a command with
+   no meaningful default asks one question and never infers silently.
+4. **Precedence** — explicit payload > working-context resolution > ask the
+   user. The payload wins even when it contradicts the working context.
+5. **Unusable payload** — the agent repeats what it understood (trigger +
+   payload, one line) and asks one question.
+6. **Gates are orthogonal** — a payload is a *what*, not a *permission*: it
+   never relaxes the gates below.
+7. **Per-command variance is intentional** — the grammar is fixed, the payload
+   semantics are declared per command: in the `Payload` and `Examples` columns
+   below, in an optional detail file, and in its contract.
+
+The grammar is a contract for the agent, not a parser: `>trigger` is typed in
+the chat, so the whole line — colon and payload included — reaches the agent
+verbatim.
+
+## Registry
+
+| Trigger | Kind | Subject | Durable contract | Payload | Examples |
+|---|---|---|---|---|---|
+| `>analysis` | document | — | `context/instructions/analysis.md` | subject or scope of the analysis to create or extend | `>analysis: the failing test` |
+| `>ingestion` | document | — | `context/instructions/ingestion.md` | paths and/or URLs to ingest |  |
+
+**Kind** — `document` (produces/edits a document of a fixed type) or `workflow`
+(advances the lifecycle of the **Subject** document type). A workflow command
+resolves its subject via the ladder in *Working-context resolution* below and
+**asks** when it is not unique.
+
+Lookup order for a trigger `>T`: the row whose **Trigger** is `` `>T` `` — below,
+or in the project's own rows under *Project triggers* — then the durable contract
+that row names, then the detail file `context/commands/T.md` when one exists. If
+no row names it, ask the user (never invent a contract).
+
+## Working-context resolution
+
+A **workflow** command (Kind `workflow`) operates on a specific subject document
+of its declared **Subject** type. It resolves that subject through this fixed
+ladder — deterministic where possible, explicit where needed, never a guess:
+
+1. **Explicit** — the subject named in the payload (`>plan analysis/2026…-slug`).
+   Rung 1 is the `>id[: payload]` grammar; it wins even when it contradicts the
+   working context (state the contradiction in one line).
+2. **Active / unique** — exactly one candidate of the subject type carries the
+   "active" status for that type: `analysis`/`plan` → `status: active`;
+   `proposal` → `accepted` or `review`; `tasks` → `pending` or `in-progress`;
+   a plan's task files are the files linked from the plan.
+3. **Under discussion** — the subject document the session is currently about
+   (just read, created or edited in this conversation).
+4. **Ask** — 0 or >1 candidate after rungs 1-3: list them and ask. `updated`
+   recency orders the list as a **hint**; it never picks for you.
+
+A **document** command already declares its type by construction; it follows the
+same rules whenever it extends an existing document (e.g. `>architecture`
+updating a living doc, `>worklog` closing a phase) and the same "ask, don't
+guess" default.
+
+`updated` recency is a **tie-break to propose, never to decide**: with more than
+one candidate the agent shows them (most recent first) and asks. There is no
+persisted "current document" pointer — resolution is read-only over frontmatter
+`status`/`updated`, the `links`/`sources` graph and the session context.
+
+## Invocation contract
+
+- **Approve-before-write:** every execution requires user approval before the
+  agent writes anything. No approve gate → no write. A payload names the work;
+  it never grants the permission.
+- **Approve-before-archive:** moving sources `ingestion/ → refs/` happens only
+  with user approval.
+- **Sealed sources:** `ingestion/` and `refs/` are immutable; the only legal
+  mutation is the archive move after approval.
+- **Scope:** `all` (default) · single file · glob — see each trigger's contract.
+- **Precedence:** payload > working-context resolution > ask the user.
+
+## When not to use
+
+- For informational-only questions that need no write: answer inline instead.
+- When an active plan/analysis already covers the intent: integrate the
+  existing document instead of starting a new task chain.

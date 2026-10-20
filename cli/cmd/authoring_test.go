@@ -16,7 +16,7 @@ func TestAuthoringInstructionModule(t *testing.T) {
 	}
 	for _, want := range []string{
 		"when to use",
-		"Word budget",
+		"Budget by what the reader pays",
 		"force-include a file",
 		"form-to-failure",
 		"no-guidance control",

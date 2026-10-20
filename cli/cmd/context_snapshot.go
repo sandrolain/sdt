@@ -28,7 +28,7 @@ var contextSnapshotCmd = &cobra.Command{
 	Short: "Manage the derived semantic vector snapshot",
 	Long: `Manage the derived semantic vector snapshot (vectors.gob.gz under
 .sdt/cache) that backs the offline neighbour surfaces (sdt context related, the
-viewer semantic map).`,
+semantic map).`,
 }
 
 var contextSnapshotBuildCmd = &cobra.Command{

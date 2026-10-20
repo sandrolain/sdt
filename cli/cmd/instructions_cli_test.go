@@ -11,15 +11,12 @@ func TestCLIInstructionCarriesCorpusFirstAndOutputDiscipline(t *testing.T) {
 
 	for _, want := range []string{
 		"Search before asking", // F1
-		"answered **from the corpus**, not re-asked",
+		"answered **from the corpus**",
 		"Output discipline", // F2
 		"Cap what a verb prints",
 		"Batch what can be batched",
 		"Read the tiered index once",
-		"nothing is capped for the sake of a rule", // the no-op clause
-		"Help-text shape",                          // F3
-		"`WHEN NOT`",
-		"Existing command help predates this shape", // convention, not a rewrite
+		"nothing is capped for a rule's sake", // the no-op clause
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("generated cli.md missing %q", want)

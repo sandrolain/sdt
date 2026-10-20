@@ -42,7 +42,7 @@ func TestAgentRefreshRestoresDriftedInstructionFile(t *testing.T) {
 
 func TestAgentRefreshPreservesProjectBlock(t *testing.T) {
 	cfg := refreshProject(t)
-	_, body := agentMergeTarget(agentTargetDefault, "p", "g", true, true)
+	_, body := agentMergeTarget(agentTargetDefault, "p", "g", nil, true, true)
 	writeTestFile(t, agentTargetDefault, body)
 
 	data, err := os.ReadFile(agentTargetDefault)

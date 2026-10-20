@@ -30,8 +30,18 @@ type skillFile struct {
 // it never collides with a user-chosen skill.
 
 func skillFiles() []skillFile {
+	return skillFilesFor(nil)
+}
+
+// skillFilesFor returns the skills a profile selection writes: a skill whose
+// owning profile is not selected is not generated, so an unselected domain is
+// neither a module nor a skill.
+func skillFilesFor(profiles []string) []skillFile {
 	var out []skillFile
 	for _, dir := range templates.Dirs("skills") {
+		if owner := skillProfile(dir); owner != "" && len(profiles) > 0 && !profileSelected(profiles, owner) {
+			continue
+		}
 		for _, tmpl := range templates.ListFiles("skills/" + dir) {
 			out = append(out, skillFile{
 				dir:  dir,
@@ -48,10 +58,10 @@ func skillFiles() []skillFile {
 // file that carries the generated marker is refreshed in place (content outside
 // the markers survives).
 
-func writeSkillFiles(force bool) []FileResult {
+func writeSkillFiles(profiles []string, force bool) []FileResult {
 	scope := filepath.Base(sdtSkillsDir)
 	var results []FileResult
-	for _, f := range skillFiles() {
+	for _, f := range skillFilesFor(profiles) {
 		path := filepath.Join(sdtSkillsDir, f.dir, f.name)
 		marker := agentGeneratedMarkerName(scope+"/"+f.dir, f.name)
 		results = append(results, agentWriteGeneratedFile(path, marker, f.body, force))

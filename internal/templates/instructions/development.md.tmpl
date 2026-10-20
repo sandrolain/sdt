@@ -127,9 +127,10 @@ apply: no complexity linter → keep the function readable.
   *corpus*: when the entry point outgrows a session, read the essential entries
   inline and the rest as pointers. This doctrine is the *per-file* shape of a
   read. Keep them distinct — restating the index rule here buys nothing.
-- **Honest cost.** A slice of context *around* a match is two round trips: the
-  content search gives the line number, then `sdt read --lines` gives the
-  neighbourhood. `sdt grep` has no `-A`/`-B`, so this cannot be one step today.
+- **Honest cost.** Take the neighbourhood in one call when the search verb offers
+  a context flag (`sdt grep -A`/`-B`/`-C`); when it does not, the slice is two
+  round trips: the search gives the line number, then `sdt read --lines` gives
+  the neighbourhood.
 - **No-op for a short file.** If it fits in one read, read it; do not spend two
   calls on structure.
 
@@ -166,14 +167,14 @@ every turn.
   what the package already uses.
 - Keep the check robust to formatting: assert a short stable token or a
   whitespace-normalised form, never re-wrapped prose.
-- **Name the finding's bracket form, not its priority word.** Every lint's summary
-  line contains the priority names (`0 CRITICAL, 244 WARNING, …`), so a
-  `Contains(out, "CRITICAL")` assertion passes on a clean run: assert
-  `[CRITICAL]`, or the `0 CRITICAL` prefix, and say which one.
+- **Match the finding's structural marker, not its severity word.** When a tool
+  summarises findings by both a count and a per-item marker, asserting the word
+  alone passes on a clean run: assert the marker as the tool prints it, and say
+  which form you matched.
 - **Assert the property, not its rendering.** A check that reads a help text, a
   usage line or an exported shape can hold for cases the property excludes — a
-  group with flags prints a runnable usage line whether or not it is runnable.
-  State the fact about the structure and derive the surface from it.
+  surface that prints a plausible line can still be wrong. State the fact about
+  the structure and derive the surface from it.
 - If the check would need more code than the logic it guards, simplify the
   logic instead.
 
@@ -261,3 +262,22 @@ tracks the work.
 
 - Run the verify-step and `sdt context reindex` after the change (see
   `context/instructions/tasks.md` for the claim vocabulary).
+
+## Verify and deliver
+
+- **The verify-step closes a phase**: completeness, coherence, correctness, in that
+  order, prioritizing CRITICAL / WARNING / SUGGESTION and degrading gracefully when
+  a check cannot run.
+- **Suite cadence: once, at delivery.** Per edit, validate only what covers the
+  files you touched; the full build/test/lint suite runs in the plan's final
+  Validation phase or at the commit gate, never on every edit — a per-edit full
+  suite is slow and can hang offline.
+- **Reindex after the change**: `sdt context reindex` and `sdt context lint`; run
+  `sdt context resume` to read the recorded execution state (it reports the paper,
+  not live work) and spot a stale in-progress file. `sdt agent doctor` reports
+  workspace health; `sdt agent gate` runs the project's own `gate:` steps in order,
+  fail-closed, and `--record --plan <ref>` appends the run to the task file's
+  `## Review` block — a failing run is recorded with the step it failed at, never
+  as a pass.
+- **Claim vocabulary in task files**: **passed** (ran and verified), **expected**
+  (written, not run), **inferred** (static analysis only).

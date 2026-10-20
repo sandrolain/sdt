@@ -6,85 +6,6 @@ import (
 	"time"
 )
 
-// TestCommandsStubTemplateGolden locks the exact bytes of the command trigger
-// stub (context commands new / agent init command files).
-func TestCommandsStubTemplateGolden(t *testing.T) {
-	now := time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC)
-	got := instrCommandStubTemplate("triage", "research", commandKindDocument, "", "the question the run answers",
-		[]string{">triage: what does ctxquery guarantee about list and search", ">triage: the topic to look up"}, "tm", now)
-	want := `---
-kind: commands
-id: commands/triage
-title: ">triage — agent-invokable task trigger"
-summary: "Thin agent command: invoked by the >triage trigger. Proceeds per context/instructions/research.md (the durable contract). Approve-before-write gate."
-# statuses for the commands kind are defined in the matrix (architecture/stack.md)
-status: active
-links:
-  - commands/index.md
-  - instructions/research.md
-sources:
-  - instructions/research.md
-project: tm
-created: "2026-09-20T17:30:00Z"
-updated: "2026-09-20T17:30:00Z"
----
-
-## ` + "`>triage`" + ` — read this when the command fires
-
-**Do not re-implement the task here.** The durable contract lives in
-` + "`context/instructions/research.md`" + `; this file is the thin trigger.
-
-## Invocation
-
-- Canonical trigger: ` + "`>triage`" + ` (see ` + "`context/commands/index.md`" + `).
-- Kind: **document**
-- Scope: ` + "`all`" + ` (default) · single file · glob — see the contract for the
-  task's scope semantics.
-- No settle: **resolve ` + "`context/commands/triage.md`" + ` → read
-  ` + "`context/instructions/research.md`" + ` → proceed per that contract.**
-
-## Payload
-
-- **Form:** ` + "`>triage`" + ` for no payload · ` + "`>triage: <payload>`" + ` for one. The
-  ` + "`:`" + ` is the delimiter; everything after the **first** colon is the payload,
-  verbatim, to the end of the turn (a new line starting with ` + "`>`" + ` ends it). No
-  quoting, no escaping, no flags, no ` + "`key=value`" + ` grammar.
-- **This trigger accepts:** the question the run answers — see
-  ` + "`context/instructions/research.md`" + `.
-- **Examples:**
-  - ` + "`>triage: what does ctxquery guarantee about list and search`" + `
-  - ` + "`>triage: the topic to look up`" + `
-- **Empty payload:** apply the declared default; if the trigger has no
-  meaningful default, ask **one** question. Never infer the subject silently.
-- **Precedence:** explicit payload > working-context resolution > ask the user.
-  A payload wins even when it contradicts the working context — state the
-  contradiction in one line instead of silently choosing.
-- **Unusable payload:** repeat what you understood (trigger + payload, one
-  line) and ask **one** question. Never discard a payload, never proceed on a
-  partial reading.
-
-## Gates (non-negotiable)
-
-- **Approve-before-write** — no write before user approval (see the contract).
-  A payload names the work; it never grants the permission.
-- Approve-before-archive where the contract moves sources
-  (` + "`ingestion/ → refs/`" + `); ` + "`ingestion/`" + `/` + "`refs/`" + ` stay immutable.
-
-## When not to use
-
-- For informational-only questions that need no write: answer inline instead.
-- When an active plan already covers the intent: extend that plan instead of
-  opening a new task chain.
-
-## Verify
-
-- Per the contract; ` + "`sdt context wiki lint`" + ` + ` + "`sdt context reindex`" + ` clean after writes.
-`
-	if got != want {
-		t.Errorf("stub golden mismatch\ngot:\n%s\nwant:\n%s", got, want)
-	}
-}
-
 // TestExecuteTriggerResolves proves the >execute workflow trigger is registered
 // with a resolvable contract and the plan subject, and that its resolved
 // instruction file exists — the same lookup an agent performs when the trigger
@@ -106,8 +27,8 @@ func TestExecuteTriggerResolves(t *testing.T) {
 	if found.subject != ctxTypePlan {
 		t.Errorf(">execute subject = %q, want %q", found.subject, ctxTypePlan)
 	}
-	if found.contract != ctxTypeTasks {
-		t.Errorf(">execute contract = %q, want %q", found.contract, ctxTypeTasks)
+	if found.contract != ctxTypePlan {
+		t.Errorf(">execute contract = %q, want %q", found.contract, ctxTypePlan)
 	}
 	generated := map[string]bool{}
 	for _, f := range instructionFiles("", "") {
@@ -139,137 +60,45 @@ func TestCommandsIndexHasResolutionLadder(t *testing.T) {
 	}
 }
 
-// TestCommandsIndexTemplateGolden locks the exact bytes of the commands index
-// (context commands new/rm rewrite and agent init --force regenerate).
+// TestCommandsIndexTemplateGolden locks the exact bytes of the commands
+// registry (agent init, `context commands new` and `context commands rm`
+// regenerate it). The fixture is regenerable: UPDATE_GOLDEN=1 rewrites it
+// deliberately instead of hand-editing a literal in this file.
 func TestCommandsIndexTemplateGolden(t *testing.T) {
 	now := time.Date(2026, 9, 20, 17, 31, 0, 0, time.UTC)
 	got := instrCommandsIndexTemplate([]commandIndexEntry{
-		{Trigger: "analysis", Contract: "analysis", Kind: commandKindDocument, Payload: "subject or scope of the analysis to create or extend"},
+		{Trigger: "analysis", Contract: "analysis", Kind: commandKindDocument, Payload: "subject or scope of the analysis to create or extend", Examples: commandRowExamples([]string{">analysis: the failing test"})},
 		{Trigger: "ingestion", Contract: "ingestion", Kind: commandKindDocument, Payload: "paths and/or URLs to ingest"},
 	}, "tm", now)
-	want := `---
-kind: commands
-id: commands/index
-title: "Agent-invokable commands index"
-status: active
-summary: "Lookup surface for agent-invokable commands: maps each trigger (>ingestion) to its command file under context/commands/ and to its durable instruction under context/instructions/. Durable contracts stay in context/instructions/; command files invoke/reference them, never move or duplicate them."
-links:
-  - commands/ingestion.md
-sources:
-  - instructions/ingestion.md
-project: tm
-created: "2026-09-20T17:31:00Z"
-updated: "2026-09-20T17:31:00Z"
----
+	checkGolden(t, "commands-index.md", got)
+}
 
-## Agent-invokable commands index
-
-` + "`context/commands/`" + ` holds one thin file per **agent-visible task**, named by
-its trigger. Each command file **invokes or references** its durable contract (a
-file under ` + "`context/instructions/`" + `); it never moves or duplicates the contract
-text.
-
-Invocation method: an **agent command** — opencode slash-command style,
-` + "`>trigger`" + `, e.g. ` + "`>ingestion`" + `. The trigger resolves deterministically to
-` + "`context/commands/<trigger>.md`" + `, then to the durable contract named in the
-registry below (usually ` + "`context/instructions/<trigger>.md`" + `, but a trigger may
-declare a different contract, e.g. the ` + "`sdt research`" + ` family resolves to
-` + "`context/instructions/research.md`" + `).
-
-### Grammar
-
-` + "```" + `
->id                        # no payload: the command default, or ask
->id: payload               # canonical: the payload starts after the first colon
->id:payload                # tolerated: whitespace after the colon is trimmed
-` + "```" + `
-
-1. **Identifier** — a single kebab-case segment, no colon; resolved with the
-   lookup order below.
-2. **Payload** — everything after the first colon, verbatim, trimmed at both
-   ends, to the end of the turn. Free prose: no quoting, no escaping, no flags.
-   A command may recognise a small closed set of keywords inside the prose
-   (declared in its own file); anything else is context, not a parameter.
-3. **Empty payload** — the command applies its declared default; a command with
-   no meaningful default asks one question and never infers silently.
-4. **Precedence** — explicit payload > working-context resolution > ask the
-   user. The payload wins even when it contradicts the working context.
-5. **Unusable payload** — the agent repeats what it understood (trigger +
-   payload, one line) and asks one question.
-6. **Gates are orthogonal** — a payload is a *what*, not a *permission*: it
-   never relaxes the gates below.
-7. **Per-command variance is intentional** — the grammar is fixed, the payload
-   semantics are declared per command: in the ` + "`Payload`" + ` column below, in the
-   ` + "`## Payload`" + ` block of its command file, and in its contract.
-
-The grammar is a contract for the agent, not a parser: ` + "`>trigger`" + ` is typed in
-the chat, so the whole line — colon and payload included — reaches the agent
-verbatim.
-
-## Registry
-
-| Trigger | Kind | Subject | Command file | Durable contract | Payload |
-|---|---|---|---|---|---|
-| ` + "`>analysis`" + ` | document | — | ` + "`context/commands/analysis.md`" + ` | ` + "`context/instructions/analysis.md`" + ` | subject or scope of the analysis to create or extend |
-| ` + "`>ingestion`" + ` | document | — | ` + "`context/commands/ingestion.md`" + ` | ` + "`context/instructions/ingestion.md`" + ` | paths and/or URLs to ingest |
-
-**Kind** — ` + "`document`" + ` (produces/edits a document of a fixed type) or ` + "`workflow`" + `
-(advances the lifecycle of the **Subject** document type). A workflow command
-resolves its subject via the ladder in *Working-context resolution* below and
-**asks** when it is not unique.
-
-Lookup order for a trigger ` + "`>T`" + `: ` + "`context/commands/T.md`" + ` → the durable contract
-named in the registry above (` + "`context/instructions/T.md`" + ` by default). If neither
-exists, ask the user (never invent a contract).
-
-## Working-context resolution
-
-A **workflow** command (Kind ` + "`workflow`" + `) operates on a specific subject document
-of its declared **Subject** type. It resolves that subject through this fixed
-ladder — deterministic where possible, explicit where needed, never a guess:
-
-1. **Explicit** — the subject named in the payload (` + "`>plan analysis/2026…-slug`" + `).
-   Rung 1 is the ` + "`>id[: payload]`" + ` grammar; it wins even when it contradicts the
-   working context (state the contradiction in one line).
-2. **Active / unique** — exactly one candidate of the subject type carries the
-   "active" status for that type: ` + "`analysis`" + `/` + "`plan`" + ` → ` + "`status: active`" + `;
-   ` + "`proposal`" + ` → ` + "`accepted`" + ` or ` + "`review`" + `; ` + "`tasks`" + ` → ` + "`pending`" + ` or ` + "`in-progress`" + `;
-   a plan's task files are the files linked from the plan.
-3. **Under discussion** — the subject document the session is currently about
-   (just read, created or edited in this conversation).
-4. **Ask** — 0 or >1 candidate after rungs 1-3: list them and ask. ` + "`updated`" + `
-   recency orders the list as a **hint**; it never picks for you.
-
-A **document** command already declares its type by construction; it follows the
-same rules whenever it extends an existing document (e.g. ` + "`>architecture`" + `
-updating a living doc, ` + "`>worklog`" + ` closing a phase) and the same "ask, don't
-guess" default.
-
-` + "`updated`" + ` recency is a **tie-break to propose, never to decide**: with more than
-one candidate the agent shows them (most recent first) and asks. There is no
-persisted "current document" pointer — resolution is read-only over frontmatter
-` + "`status`" + `/` + "`updated`" + `, the ` + "`links`" + `/` + "`sources`" + ` graph and the session context.
-
-## Invocation contract
-
-- **Approve-before-write:** every execution requires user approval before the
-  agent writes anything. No approve gate → no write. A payload names the work;
-  it never grants the permission.
-- **Approve-before-archive:** moving sources ` + "`ingestion/ → refs/`" + ` happens only
-  with user approval.
-- **Sealed sources:** ` + "`ingestion/`" + ` and ` + "`refs/`" + ` are immutable; the only legal
-  mutation is the archive move after approval.
-- **Scope:** ` + "`all`" + ` (default) · single file · glob — see each command file.
-- **Precedence:** payload > working-context resolution > ask the user.
-
-## When not to use
-
-- For informational-only questions that need no write: answer inline instead.
-- When an active plan/analysis already covers the intent: integrate the
-  existing document instead of starting a new task chain.
-`
-	if got != want {
-		t.Errorf("index golden mismatch\ngot:\n%s\nwant:\n%s", got, want)
+// TestCommandsIndexShape checks the properties a byte-golden cannot explain: the
+// registry names its contract paths, keeps the grammar and the gates once, and
+// offers no per-trigger file to resolve through.
+func TestCommandsIndexShape(t *testing.T) {
+	now := time.Date(2026, 9, 20, 17, 31, 0, 0, time.UTC)
+	idx := instrCommandsIndexTemplate(commandEntriesFor(agentProfileSlugs()), "tm", now)
+	for _, want := range []string{
+		"### Grammar",
+		"| Trigger | Kind | Subject | Durable contract | Payload | Examples |",
+		"## Working-context resolution",
+		"## Invocation contract",
+		"## When not to use",
+		"`context/instructions/analysis.md`",
+	} {
+		if !strings.Contains(idx, want) {
+			t.Errorf("registry missing %q", want)
+		}
+	}
+	if strings.Contains(idx, "| Command file |") {
+		t.Error("the registry must not route through a per-trigger file")
+	}
+	if got := strings.Count(idx, "### Grammar"); got != 1 {
+		t.Errorf("the grammar is written %d time(s), want once", got)
+	}
+	if got := strings.Count(idx, "Approve-before-write"); got != 1 {
+		t.Errorf("the approve gate is written %d time(s), want once", got)
 	}
 }
 

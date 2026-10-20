@@ -36,17 +36,9 @@ var renderCases = map[string]any{
 		"Project": "p",
 		"Now":     "2026-09-24T00:00:00Z",
 		"Triggers": []map[string]any{
-			{"Trigger": "analysis", "Payload": "subject or scope of the analysis to create or extend"},
-			{"Trigger": "scratch", "Payload": "_not declared_"},
+			{"Trigger": "analysis", "Kind": "document", "Contract": "analysis", "Payload": "subject or scope of the analysis to create or extend", "Examples": "`>analysis: the failing test`"},
+			{"Trigger": "plan", "Kind": "workflow", "Subject": "analysis", "Contract": "plan", "Payload": "the analysis the plan is built from", "Examples": "`>plan: the analysis just discussed`"},
 		},
-	},
-	"commands/stub.md.tmpl": map[string]any{
-		"ID":       "ingestion",
-		"Contract": "ingestion",
-		"Payload":  "paths and/or URLs to ingest",
-		"Examples": []string{">ingestion: context/refs/example-repo", ">ingestion: https://example.com/doc"},
-		"Project":  "p",
-		"Now":      "2026-09-24T00:00:00Z",
 	},
 	"instructions/project.md.tmpl": map[string]any{
 		"Project": "p",
@@ -211,27 +203,6 @@ func TestTemplateExists(t *testing.T) {
 	}
 }
 
-// TestCLITemplateEscapesUserExample checks that the template-escaping example
-// embedded in the cli instruction file renders back to a literal {{.user}},
-// so init output keeps the illustrative action intact.
-func TestCLITemplateEscapesUserExample(t *testing.T) {
-	data := map[string]any{
-		"NewTypes":  "plan|analysis",
-		"PathTypes": "plan|analysis",
-		"ListTypes": "plan|analysis",
-	}
-	got, err := Render("instructions/cli.md.tmpl", data, nil)
-	if err != nil {
-		t.Fatalf("render cli.md.tmpl: %v", err)
-	}
-	if !strings.Contains(got, `Hi {{.user}}`) {
-		t.Errorf("expected literal `Hi {{.user}}` example, got:\n%s", got)
-	}
-	if strings.Contains(got, `{{"{{"}}`) {
-		t.Errorf("escaped action leaked into rendered output:\n%s", got)
-	}
-}
-
 // TestProjectTemplateIdentity covers the four project/group identity combos.
 func TestProjectTemplateIdentity(t *testing.T) {
 	cases := []struct {
@@ -266,6 +237,33 @@ func TestProjectTemplateIdentity(t *testing.T) {
 				t.Errorf("project.md.tmpl must end with a trailing newline")
 			}
 		})
+	}
+}
+
+// TestGeneratedSetCitesNoProjectDoc pins the invariant behind the audit's L1:
+// `context/architecture/stack.md` is a document this repository happens to
+// carry, not a surface `sdt agent init` creates, so no generated module may
+// point a recipient at it. The command that answers the same question is
+// `sdt context vocab`; the tier taxonomy is the type registry's own field.
+func TestGeneratedSetCitesNoProjectDoc(t *testing.T) {
+	const citation = "architecture/stack.md"
+	for _, dir := range []string{"instructions", "agents", "commands", "workspace", "roles"} {
+		err := fs.WalkDir(templatesFS, dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			data, rerr := templatesFS.ReadFile(path)
+			if rerr != nil {
+				return rerr
+			}
+			if strings.Contains(string(data), citation) {
+				t.Errorf("%s cites %s, which no command generates", path, citation)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", dir, err)
+		}
 	}
 }
 

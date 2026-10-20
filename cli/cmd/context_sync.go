@@ -96,6 +96,19 @@ func outputSyncResult(cmd *cobra.Command, changes []cascadeChange) {
 	}
 }
 
+// contextSyncLegacyCmd is the old top-level `sdt context sync`: an alias that
+// still does exactly what it did, and says where the verb lives now.
+var contextSyncLegacyCmd = &cobra.Command{
+	Use:    "sync",
+	Short:  "Recompute derived document statuses (deprecated: use `status sync`)",
+	Hidden: true,
+	Args:   cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		deprecatedNotice(cmd, "`sdt context status sync`")
+		contextSyncCmd.Run(cmd, args)
+	},
+}
+
 var contextSyncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Recompute derived document statuses across the store",
@@ -128,6 +141,13 @@ Examples:
 }
 
 func init() {
+	// One verb per job: the reconciler is a status operation, so it lives under
+	// `context status`. The old top-level verb keeps working as a deprecated
+	// alias, saying which one to use.
+	contextStatusCmd.AddCommand(contextSyncCmd)
+	contextCmd.AddCommand(contextSyncLegacyCmd)
+	contextSyncLegacyCmd.Flags().Bool("dry-run", false, "Report without writing anything")
+	contextSyncLegacyCmd.Flags().String("doc", "", "Reconcile only this document and its ancestors")
 	contextSyncCmd.Flags().Bool("dry-run", false, "Report without writing anything")
 	contextSyncCmd.Flags().String("doc", "", "Reconcile only this document and its ancestors")
 }

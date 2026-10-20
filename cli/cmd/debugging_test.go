@@ -88,7 +88,7 @@ func TestDebugInstructionDiscoverable(t *testing.T) {
 	hasRow := false
 	for _, line := range strings.Split(block, "\n") {
 		if strings.Contains(line, "context/instructions/debugging.md") &&
-			strings.Contains(line, "Diagnosing an unexpected failure") {
+			strings.Contains(line, "Diagnosing a failure or regression") {
 			hasRow = true
 			break
 		}

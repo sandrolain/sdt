@@ -26,8 +26,9 @@ type ctxRelatedHit struct {
 }
 
 var contextRelatedCmd = &cobra.Command{
-	Use:   "related <doc>",
-	Short: "List the documents semantically nearest to a document",
+	Use:    "related <doc>",
+	Short:  "List the documents semantically nearest to a document (deprecated: use `relations similar`)",
+	Hidden: true,
 	Long: `List the documents whose content is nearest to <doc> in the shipped
 semantic index, using the persisted vector snapshot (offline, no model load).
 The result is advisory and degrades to a message when no snapshot exists.
@@ -37,6 +38,15 @@ Examples:
   sdt context related notes/2026-01-01-x.md --limit 5 --format json`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		deprecatedNotice(cmd, "`sdt context relations similar <doc>`")
+		runRelated(cmd, args)
+	},
+}
+
+// runRelated is the body `relations similar` and the deprecated `related`
+// share: one implementation, two spellings.
+func runRelated(cmd *cobra.Command, args []string) {
+	{
 		root, err := os.Getwd()
 		exitWithError(cmd, err)
 		snap := semantic.LoadSnapshot(root)
@@ -72,7 +82,7 @@ Examples:
 				outputString(cmd, fmt.Sprintf("%-6.3f %-16s %s\n         %s\n", h.Score, meta, h.Path, firstSentence(h.Summary)))
 			}
 		}
-	},
+	}
 }
 
 // relatedDocPath normalizes a user argument to a context-relative document path

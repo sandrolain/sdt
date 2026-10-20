@@ -51,8 +51,8 @@ func TestDevelopmentInstructionCarriesOutlineFirstRead(t *testing.T) {
 		"re-reading a file that was already read", // the symptom the rule prevents
 		"Two levels, not a repeat",                // the clause names both levels
 		"the essential entries inline and the rest as pointers",
-		"has no `-A`/`-B`",                // the honest cost
-		"If it fits in one read, read it", // the no-op clause
+		"Take the neighbourhood in one call", // the honest cost
+		"If it fits in one read, read it",    // the no-op clause
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("generated development.md missing %q", want)

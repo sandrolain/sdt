@@ -36,6 +36,21 @@ func setupContextProject(t *testing.T) string {
 	return dir
 }
 
+// enableFrontmatterFamilies declares optional frontmatter families in the
+// project's .sdt.yaml, the way a project opts into an axis it actually uses. A
+// fresh `agent init` declares none, so the lint is silent about them.
+func enableFrontmatterFamilies(t *testing.T, families ...string) {
+	t.Helper()
+	cfg := loadProjectConfig(sdtConfigFile)
+	if cfg == nil {
+		t.Fatalf("no %s in %s: call setupContextProject first", sdtConfigFile, ".")
+	}
+	cfg.Instructions.Frontmatter = families
+	if err := os.WriteFile(sdtConfigFile, []byte(buildProjectConfigContent(cfg, "")), 0o600); err != nil { //#nosec G306 -- test fixture
+		t.Fatal(err)
+	}
+}
+
 func writeCtxDoc(t *testing.T, rel, frontmatter string) {
 	t.Helper()
 	path := filepath.Join(rel)
@@ -636,6 +651,7 @@ func TestContextLintObjectiveValid(t *testing.T) {
 
 func TestContextLintObjectiveMissing(t *testing.T) {
 	dir := setupContextProject(t)
+	enableFrontmatterFamilies(t, "objectives")
 	writeCtxDoc(t, "context/analysis/missing.md", "---\nkind: analysis\nsummary: no group\n---\nbody\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
@@ -652,6 +668,7 @@ func TestContextLintObjectiveMissing(t *testing.T) {
 
 func TestContextLintObjectiveBadSlug(t *testing.T) {
 	dir := setupContextProject(t)
+	enableFrontmatterFamilies(t, "objectives")
 	writeCtxDoc(t, "context/analysis/bad.md", "---\nkind: analysis\nsummary: bad\nobjective: My Objective!\n---\nbody\n")
 	idx := "---\nkind: index\nsummary: i\n---\n"
 	if err := os.WriteFile(filepath.Join(dir, "context/index.md"), []byte(idx), 0o644); err != nil {
@@ -668,6 +685,7 @@ func TestContextLintObjectiveBadSlug(t *testing.T) {
 func writeObjectiveFixture(t *testing.T, analysisObjective, planBody, taskBody string) {
 	t.Helper()
 	dir := setupContextProject(t)
+	enableFrontmatterFamilies(t, "objectives")
 	writeCtxDoc(t, "context/analysis/a.md",
 		"---\nkind: analysis\nsummary: a\nobjective: "+analysisObjective+"\nlinks: none\n---\nbody\n")
 	if planBody != "" {

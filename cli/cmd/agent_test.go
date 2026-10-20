@@ -205,7 +205,7 @@ func TestAgentMergeTargetProjectWriteOnce(t *testing.T) {
 	dir := runInTempDir(t)
 
 	// first init: both blocks created
-	res, content := agentMergeTarget("AGENTS.md", "myapp", "grp", false, true)
+	res, content := agentMergeTarget("AGENTS.md", "myapp", "grp", nil, false, true)
 	if res.Status != statusCreated {
 		t.Fatalf("expected created, got %s", res.Status)
 	}
@@ -219,7 +219,7 @@ func TestAgentMergeTargetProjectWriteOnce(t *testing.T) {
 	}
 
 	// re-init without force: skip unchanged
-	res2, content2 := agentMergeTarget("AGENTS.md", "myapp", "grp", false, true)
+	res2, content2 := agentMergeTarget("AGENTS.md", "myapp", "grp", nil, false, true)
 	if res2.Status != statusSkipped {
 		t.Fatalf("expected skipped on re-run, got %s", res2.Status)
 	}
@@ -232,7 +232,7 @@ func TestAgentMergeTargetProjectWriteOnce(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(edited), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, forced := agentMergeTarget("AGENTS.md", "myapp", "grp", true, true)
+	_, forced := agentMergeTarget("AGENTS.md", "myapp", "grp", nil, true, true)
 	if strings.Contains(forced, "<!-- Go 1.26 -->") != strings.Contains(edited, "<!-- Go 1.26 -->") {
 		t.Error("expected --force to leave the project block untouched")
 	}
@@ -304,13 +304,12 @@ func TestAgentInit(t *testing.T) {
 		"context/instructions/proposal.md",
 		"context/instructions/research.md",
 		"context/instructions/prompts.md",
-		"context/instructions/wiki.md",
 		"context/scripts/",
 		"### 5-stage development lifecycle",
 		"### Communication (default)",
 		"### Patterns (keep updated)",
-		"discover them from the",
-		"one task file per plan",
+		"build/test/lint commands from the project",
+		"task file exists only to split",
 		"context/architecture/",
 		"context/decisions/",
 		"context/index.md",
@@ -327,14 +326,14 @@ func TestAgentInit(t *testing.T) {
 		"Immutable past docs",
 		"### SESSION START",
 		"**On action**",
-		"fill it from project evidence",
+		"from project evidence",
 		"source of truth for project conventions",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md index", want)
 		}
 	}
-	if !strings.Contains(string(data), "write it back into the relevant") {
+	if !strings.Contains(string(data), "is written back into the") {
 		t.Error("expected Patterns to point at the project block")
 	}
 	if !strings.Contains(string(data), "Project: myapp") {
@@ -347,7 +346,7 @@ func TestAgentInit(t *testing.T) {
 		t.Error("expected removed redundant Knowledge tiers section and frontmatter sample")
 	}
 	assertCommitConsentStatedOnce(t, string(data))
-	if !strings.Contains(string(data), "### Keep the chain (recap)") {
+	if !strings.Contains(string(data), "### Keep the chain") {
 		t.Error("expected intent gate recap section at block end")
 	}
 
@@ -592,7 +591,7 @@ func TestAgentInitForceRefreshesInstructions(t *testing.T) {
 func TestAgentInitForceArchivesObsoleteInstructions(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	obsolete := obsoleteInstructionFiles()
+	obsolete := obsoleteInstructionFiles(currentProfiles())
 	for _, name := range obsolete {
 		writeTestFile(t, filepath.Join("context/instructions", name), "obsolete")
 	}
@@ -632,16 +631,23 @@ func TestAgentInitForceArchivesObsoleteCommands(t *testing.T) {
 	}
 }
 
-// TestAgentInitForcePreservesUserCommandTrigger guards that a user-created
-// trigger (sdt context commands new) is not mistaken for an obsolete stub by
-// --force, even though it carries the generated commands/<id> marker.
+// TestAgentInitForcePreservesUserCommandTrigger guards that a project trigger —
+// a row outside the generated block plus its optional detail file — survives
+// --force, which rewrites the built-in table only.
 func TestAgentInitForcePreservesUserCommandTrigger(t *testing.T) {
 	dir := runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	execute(t, contextCommandsNewCmd, nil, "mytask")
+	execute(t, contextCommandsNewCmd, nil, "mytask", "--detail")
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
 	if _, err := os.Stat(filepath.Join(dir, "context/commands/mytask.md")); err != nil {
-		t.Errorf("user command trigger must survive --force: %v", err)
+		t.Errorf("a project detail file must survive --force: %v", err)
+	}
+	idx, err := os.ReadFile(filepath.Join(dir, "context/commands/index.md"))
+	if err != nil {
+		t.Fatalf("read registry: %v", err)
+	}
+	if !hasProjectRow(string(idx), "mytask") {
+		t.Errorf("the project row did not survive --force:\n%s", idx)
 	}
 }
 
@@ -669,10 +675,10 @@ func TestObsoleteInstructionFilesExcludesCurrent(t *testing.T) {
 	runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
 	obsolete := map[string]bool{}
-	for _, name := range obsoleteInstructionFiles() {
+	for _, name := range obsoleteInstructionFiles(currentProfiles()) {
 		obsolete[name] = true
 	}
-	for _, f := range instructionFiles("p", "g") {
+	for _, f := range instructionFilesFor(currentProfiles(), "p", "g") {
 		if obsolete[f.name] {
 			t.Errorf("current instruction file %s classified as obsolete", f.name)
 		}
@@ -720,7 +726,7 @@ func TestAgentInitForcePreservesUserContent(t *testing.T) {
 	runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
 	note := "\n> User note outside the markers — must survive --force.\n"
-	for _, p := range []string{"context/instructions/analysis.md", "context/commands/analysis.md"} {
+	for _, p := range []string{"context/instructions/analysis.md", "context/commands/index.md"} {
 		data, err := os.ReadFile(p)
 		if err != nil {
 			t.Fatalf("read %s: %v", p, err)
@@ -730,7 +736,7 @@ func TestAgentInitForcePreservesUserContent(t *testing.T) {
 		}
 	}
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	for _, p := range []string{"context/instructions/analysis.md", "context/commands/analysis.md"} {
+	for _, p := range []string{"context/instructions/analysis.md", "context/commands/index.md"} {
 		data, err := os.ReadFile(p)
 		if err != nil {
 			t.Fatalf("read %s after --force: %v", p, err)
@@ -1278,9 +1284,9 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"sdt write -p <file>",
 		"A write follows the",
 		"**Validation phase**",
-		"`## Design`",
+		"`### Gate`",
 		"context/",
-		"one task file per plan",
+		"task file exists only to split",
 		"context/architecture/",
 		"context/decisions/",
 		"context/index.md",
@@ -1289,7 +1295,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"agent command",
 		"Lead with the do-able thing",
 		"Number multi-step work",
-		"restate state",
+		"Restate state in one line",
 		"No preamble, no recap, no closer",
 		"When to break it",
 		"context/instructions/writing.md",
@@ -1302,7 +1308,7 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		t.Error("expected removed redundant Knowledge tiers section and frontmatter sample")
 	}
 	assertCommitConsentStatedOnce(t, string(data))
-	if !strings.Contains(string(data), "### Keep the chain (recap)") {
+	if !strings.Contains(string(data), "### Keep the chain") {
 		t.Error("expected intent gate recap section at block end")
 	}
 
@@ -1315,17 +1321,13 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected context/commands/index.md: %v", err)
 	}
-	for _, want := range []string{"kind: commands", ">ingestion", "context/commands/ingestion.md", "context/instructions/ingestion.md"} {
+	for _, want := range []string{"kind: commands", "`>ingestion`", "`context/instructions/ingestion.md`"} {
 		if !strings.Contains(string(cmdIndex), want) {
-			t.Errorf("expected %q in commands index:\n%s", want, cmdIndex)
+			t.Errorf("expected %q in commands registry:\n%s", want, cmdIndex)
 		}
 	}
-	ing, err := os.ReadFile(filepath.Join(dir, "context/commands/ingestion.md"))
-	if err != nil {
-		t.Fatalf("expected context/commands/ingestion.md: %v", err)
-	}
-	if !strings.Contains(string(ing), "id: commands/ingestion") || !strings.Contains(string(ing), "instructions/ingestion.md") {
-		t.Errorf("expected thin ingestion trigger:\n%s", ing)
+	if _, err := os.Stat(filepath.Join(dir, "context/commands/ingestion.md")); !os.IsNotExist(err) {
+		t.Errorf("the registry must not write a per-trigger file: %v", err)
 	}
 
 	for _, name := range []string{
@@ -1388,10 +1390,18 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		}
 	}
 
+	// cli.md is the agent's verb list, not the CLI catalog: the general-purpose
+	// tool verbs are delegated to `sdt schema`, so the file stays a page an agent
+	// reads on demand rather than a reference it drowns in.
 	cli, _ := os.ReadFile(filepath.Join(dir, "context/instructions/cli.md"))
-	for _, want := range []string{"sdt conv --in json --out yaml", "sdt context new --type", "sdt context path --type", "sdt context status get|set", "sdt context rename <ref> --slug <new>", "sdt diff --a A --b B --diff-format", "sdt dns --host", "context/instructions/reference.md"} {
+	for _, want := range []string{"sdt context new|path|list", "sdt read -p", "sdt context check", "sdt grep", "sdt agent doctor|verify|gate|refresh", "`sdt schema`", "context/instructions/reference.md"} {
 		if !strings.Contains(string(cli), want) {
 			t.Errorf("expected %q in cli.md:\n%s", want, cli)
+		}
+	}
+	for _, gone := range []string{"sdt conv --in", "sdt dns --host", "sdt b64"} {
+		if strings.Contains(string(cli), gone) {
+			t.Errorf("cli.md still carries the general-purpose catalog (%q): delegate it to `sdt schema`", gone)
 		}
 	}
 }
@@ -1440,14 +1450,20 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 		"### 5-stage development lifecycle",
 		"verify-step",
 		"sdt context status",
-		"passed",
-		"expected",
-		"inferred",
 		"session end",
-		"### Keep the chain (recap)",
+		"### Keep the chain",
 	} {
 		if !strings.Contains(block, want) {
 			t.Errorf("expected %q in instructions block:\n%s", want, block)
+		}
+	}
+
+	// The claim vocabulary lives with the delivery discipline, not in the
+	// always-loaded block: the block points at it instead of restating it.
+	dev := generatedInstruction(t, "development.md")
+	for _, want := range []string{"**passed**", "**expected**", "**inferred**"} {
+		if !strings.Contains(dev, want) {
+			t.Errorf("expected the claim vocabulary %q in development.md", want)
 		}
 	}
 }
@@ -1615,12 +1631,13 @@ func TestAgentBrowserTemplatesCoherence(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		`title: "Browser automation \u2014 tool profiles"`,
-		"agent-browser",
-		"obscura",
-		"not a layout oracle",
+		`title: "Browser automation \u2014 driver profiles"`,
+		"real browser engine",
+		"capability classes, not products",
+		"driver over a **real browser engine**",
 		"library-first",
-		"not requirements",
+		"it cannot measure\npixel geometry",
+		"frozen contract",
 		"SKIPPED",
 	} {
 		if !strings.Contains(instrBrowserToolsTemplate, want) {
@@ -1639,13 +1656,25 @@ func agentInitInTempProject(t *testing.T) (string, string) {
 	}
 	repoRoot = filepath.Clean(filepath.Join(repoRoot, "..", ".."))
 	dir := runInTempDir(t)
-	execute(t, agentInitCmd, nil,
+	agentInitWithProfiles(t, nil)
+	return repoRoot, dir
+}
+
+// agentInitWithProfiles runs `agent init` in the current temporary directory with
+// the given extra generation profiles, so a test for an optional module asks for
+// the profile that owns it instead of depending on the default set.
+func agentInitWithProfiles(t *testing.T, profiles []string) {
+	t.Helper()
+	args := []string{
 		"--project", "test-project",
 		"--group", "test-group",
 		"--yes",
 		"--gitignore", "none",
-	)
-	return repoRoot, dir
+	}
+	for _, p := range profiles {
+		args = append(args, "--with", p)
+	}
+	execute(t, agentInitCmd, nil, args...)
 }
 
 // TestAgentBrowserTemplatesViewerFree enforces the generated-set invariant that
@@ -1655,7 +1684,10 @@ func agentInitInTempProject(t *testing.T) (string, string) {
 // this module only — the set-wide gate belongs to the portability-audit line.
 func TestAgentBrowserTemplatesViewerFree(t *testing.T) {
 	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
-	repoRoot, dir := agentInitInTempProject(t)
+	repoRoot, _ := os.Getwd()
+	repoRoot = filepath.Clean(filepath.Join(repoRoot, "..", ".."))
+	dir := runInTempDir(t)
+	agentInitWithProfiles(t, []string{"browser"})
 	files := []string{
 		filepath.Join(repoRoot, "internal", "templates", "instructions", "browser.md.tmpl"),
 		filepath.Join(repoRoot, "internal", "templates", "instructions", "browser-tools.md.tmpl"),
@@ -1742,7 +1774,10 @@ func TestAgentVectorToolsTemplatesCoherence(t *testing.T) {
 // this module only — the set-wide gate belongs to the portability-audit line.
 func TestAgentVectorTemplatesViewerFree(t *testing.T) {
 	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
-	repoRoot, dir := agentInitInTempProject(t)
+	repoRoot, _ := os.Getwd()
+	repoRoot = filepath.Clean(filepath.Join(repoRoot, "..", ".."))
+	dir := runInTempDir(t)
+	agentInitWithProfiles(t, []string{"vector"})
 	files := []string{
 		filepath.Join(repoRoot, "internal", "templates", "instructions", "vector.md.tmpl"),
 		filepath.Join(repoRoot, "internal", "templates", "instructions", "vector-svg.md.tmpl"),
@@ -1905,7 +1940,10 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 // is this module only — the set-wide gate belongs to the portability-audit line.
 func TestAgentUITemplatesViewerFree(t *testing.T) {
 	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
-	repoRoot, dir := agentInitInTempProject(t)
+	repoRoot, _ := os.Getwd()
+	repoRoot = filepath.Clean(filepath.Join(repoRoot, "..", ".."))
+	dir := runInTempDir(t)
+	agentInitWithProfiles(t, []string{"ui"})
 	names := []string{
 		"ui.md", "ui-tokens.md", "ui-components.md", "ui-accessibility.md",
 		"ui-taste.md", "ui-adapters.md", "ui-performance.md", "ui-layout.md",
@@ -1993,7 +2031,10 @@ func TestAgentMindmapTemplatesCoherence(t *testing.T) {
 // line.
 func TestAgentMindmapTemplatesViewerFree(t *testing.T) {
 	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
-	repoRoot, dir := agentInitInTempProject(t)
+	repoRoot, _ := os.Getwd()
+	repoRoot = filepath.Clean(filepath.Join(repoRoot, "..", ".."))
+	dir := runInTempDir(t)
+	agentInitWithProfiles(t, []string{"mindmap"})
 	names := []string{"mindmap.md", "mindmap-markmap.md"}
 	var files []string
 	for _, name := range names {
@@ -2061,7 +2102,10 @@ func TestAgentDiagramTemplatesCoherence(t *testing.T) {
 // generated by agent init must contain no `viewer`/`sdtviewer` token.
 func TestAgentDiagramTemplatesViewerFree(t *testing.T) {
 	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
-	repoRoot, dir := agentInitInTempProject(t)
+	repoRoot, _ := os.Getwd()
+	repoRoot = filepath.Clean(filepath.Join(repoRoot, "..", ".."))
+	dir := runInTempDir(t)
+	agentInitWithProfiles(t, []string{"diagram"})
 	names := []string{"diagram.md", "diagram-mermaid.md"}
 	var files []string
 	for _, name := range names {
@@ -2199,7 +2243,10 @@ func TestAgentDistillationTemplatesCoherence(t *testing.T) {
 // file generated by agent init must contain no `viewer`/`sdtviewer` token.
 func TestAgentDistillationTemplatesViewerFree(t *testing.T) {
 	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
-	repoRoot, dir := agentInitInTempProject(t)
+	repoRoot, _ := os.Getwd()
+	repoRoot = filepath.Clean(filepath.Join(repoRoot, "..", ".."))
+	dir := runInTempDir(t)
+	agentInitWithProfiles(t, []string{"knowledge"})
 	names := []string{"distillation.md"}
 	var files []string
 	for _, name := range names {
@@ -2290,7 +2337,10 @@ func TestAgentSlidesTemplatesCoherence(t *testing.T) {
 // portability-audit line.
 func TestAgentSlidesTemplatesViewerFree(t *testing.T) {
 	re := regexp.MustCompile(`(?i)\b(viewer|sdtviewer)\b`)
-	repoRoot, dir := agentInitInTempProject(t)
+	repoRoot, _ := os.Getwd()
+	repoRoot = filepath.Clean(filepath.Join(repoRoot, "..", ".."))
+	dir := runInTempDir(t)
+	agentInitWithProfiles(t, []string{"slides"})
 	names := []string{"slides.md", "slides-marp.md"}
 	var files []string
 	for _, name := range names {
@@ -2397,7 +2447,7 @@ func TestAgentPlanTemplateCoherence(t *testing.T) {
 		"**Validation phase**",
 		"always the last phase",
 		"**analysis objectives**",
-		"`## Design`",
+		"`### Gate`",
 		"instructions/tasks.md",
 	} {
 		if !strings.Contains(instrPlanTemplate, want) {
@@ -2447,7 +2497,7 @@ func TestAgentGitTemplateCoherence(t *testing.T) {
 // edits.
 func TestAgentTasksTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
-		`title: "Task Files (one per plan)"`,
+		`title: "Task Files (only when a plan is split)"`,
 		"## Design section (study of the task objectives)",
 		"## Design",
 		"## Execution workflow",
@@ -2609,7 +2659,7 @@ func TestCommandStubsDeclarePayload(t *testing.T) {
 // command's subject is the trigger itself, so the field stays empty.
 func TestCommandStubsDeclareTaxonomy(t *testing.T) {
 	kinds := map[string]bool{commandKindDocument: true, commandKindWorkflow: true}
-	workflows := map[string]bool{ctxTypePlan: true, "execute": true, ctxTypeDecision: true}
+	workflows := map[string]bool{ctxTypePlan: true, "execute": true, ctxTypeDecision: true, ctxTypeTasks: true}
 	for _, s := range agentCommandStubs {
 		if !kinds[s.kind] {
 			t.Errorf("command stub %q: kind %q is not %q or %q", s.id, s.kind, commandKindDocument, commandKindWorkflow)
@@ -2632,46 +2682,40 @@ func TestCommandStubsDeclareTaxonomy(t *testing.T) {
 }
 
 // TestCommandPayloadSurfaces asserts the payload contract is present in the
-// generated surfaces. It deliberately checks section headers and table shape,
+// generated registry. It deliberately checks section headers and table shape,
 // never the exact wording: re-phrasing the grammar must not break the suite.
 func TestCommandPayloadSurfaces(t *testing.T) {
 	now := time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC)
-	stub := instrCommandStubTemplate("wiki", "wiki", commandKindDocument, "", "topic or page id",
-		[]string{">wiki: backend/auth", ">wiki: list the pages under web/"}, "p", now)
-	for _, want := range []string{"## Payload", ">wiki: <payload>", "topic or page id", ">wiki: backend/auth"} {
-		if !strings.Contains(stub, want) {
-			t.Errorf("stub missing %q", want)
-		}
-	}
-	if strings.Contains(stub, "nothing declared yet") {
-		t.Error("stub with a declared payload must not render the declare-it-here fallback")
-	}
-
 	idx := instrCommandsIndexTemplate([]commandIndexEntry{
-		{Trigger: "wiki", Payload: "topic or page id"},
-		{Trigger: "scratch", Payload: commandPayloadUndeclared},
+		{Trigger: "wiki", Contract: "wiki", Kind: commandKindDocument, Payload: "topic or page id", Examples: commandRowExamples([]string{">wiki: backend/auth"})},
+		{Trigger: "scratch", Contract: "scratch", Kind: commandKindDocument, Payload: commandPayloadUndeclared},
 	}, "p", now)
-	for _, want := range []string{"### Grammar", "| Trigger | Kind | Subject | Command file | Durable contract | Payload |", "topic or page id", commandPayloadUndeclared} {
+	for _, want := range []string{
+		"### Grammar",
+		"| Trigger | Kind | Subject | Durable contract | Payload | Examples |",
+		"topic or page id",
+		commandPayloadUndeclared,
+		"`context/instructions/wiki.md`",
+		"`>wiki: backend/auth`",
+	} {
 		if !strings.Contains(idx, want) {
-			t.Errorf("index missing %q", want)
+			t.Errorf("registry missing %q", want)
 		}
 	}
 }
 
-// TestGeneratedCommandFilesMatchRegistry checks commandFiles() emits one file
-// per registry stub plus the index.
+// TestGeneratedCommandFilesMatchRegistry checks commandFiles() emits the single
+// registry document: a trigger is a row, not a file, so the generated set has
+// one member.
 func TestGeneratedCommandFilesMatchRegistry(t *testing.T) {
 	files := commandFiles("p", contextNow())
-	if len(files) != len(agentCommandStubs)+1 {
-		t.Fatalf("commandFiles() = %d files, want %d stubs + index", len(files), len(agentCommandStubs))
+	if len(files) != 1 || files[0].name != filepath.Base(sdtCommandsIndex) {
+		t.Fatalf("commandFiles() = %d file(s), want only the registry", len(files))
 	}
-	for i, s := range agentCommandStubs {
-		if files[i].name != s.id+sdtMarkdownExt {
-			t.Errorf("position %d: got %q, want %q", i, files[i].name, s.id+sdtMarkdownExt)
+	for _, s := range agentCommandStubs {
+		if _, err := os.Stat(filepath.Join(sdtCommandsDir, s.id+sdtMarkdownExt)); err == nil {
+			t.Errorf("a per-trigger file still exists for %q", s.id)
 		}
-	}
-	if want := filepath.Base(sdtCommandsIndex); files[len(files)-1].name != want {
-		t.Errorf("last file = %q, want index %q", files[len(files)-1].name, want)
 	}
 }
 
@@ -2700,7 +2744,7 @@ func TestWriteInstructionFilesMkdirError(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
-	if res := writeInstructionFiles("p", "g", false); !hasErrorStatus(res) {
+	if res := writeInstructionFiles(nil, "p", "g", false); !hasErrorStatus(res) {
 		t.Fatalf("expected mkdir error status, got %+v", res)
 	}
 }
@@ -2712,7 +2756,7 @@ func TestWriteInstructionFilesWriteError(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod("context/instructions", 0o755) })
-	if res := writeInstructionFiles("p", "g", false); !hasErrorStatus(res) {
+	if res := writeInstructionFiles(nil, "p", "g", false); !hasErrorStatus(res) {
 		t.Fatalf("expected write error status, got %+v", res)
 	}
 }
@@ -2841,7 +2885,7 @@ func TestFillPreservesADeclaredSkipDirs(t *testing.T) {
 		t.Errorf("fill invented a declaration: %+v", fresh.SkipDirs)
 	}
 	// And a declared list must survive the round-trip through the renderer.
-	rendered := buildProjectConfigContent(cfg.Project, cfg.Group, cfg.SkipDirs)
+	rendered := buildProjectConfigContent(cfg, "")
 	var back ProjectConfig
 	if err := yaml.Unmarshal([]byte(rendered), &back); err != nil {
 		t.Fatalf("the rendered config does not parse: %v\n%s", err, rendered)
@@ -2852,7 +2896,7 @@ func TestFillPreservesADeclaredSkipDirs(t *testing.T) {
 }
 
 func TestBuildProjectConfigContent(t *testing.T) {
-	content := buildProjectConfigContent("myapp", "grp", nil)
+	content := buildProjectConfigContent(&ProjectConfig{Project: "myapp", Group: "grp"}, "")
 	for _, want := range []string{"project: myapp", "group: grp"} {
 		if !strings.Contains(content, want) {
 			t.Errorf("expected %q in config content, got:\n%s", want, content)
@@ -2871,12 +2915,96 @@ func TestBuildProjectConfigContent(t *testing.T) {
 
 	// A declared list renders as real values, so `agent init --force` round-trips
 	// what the project said.
-	declared := buildProjectConfigContent("myapp", "grp", []string{"dist", ".next"})
+	declared := buildProjectConfigContent(&ProjectConfig{Project: "myapp", Group: "grp", SkipDirs: []string{"dist", ".next"}}, "")
 	if !strings.Contains(declared, "skipDirs:\n  - dist\n  - .next") {
 		t.Errorf("a declared list must render as values, got:\n%s", declared)
 	}
 	if strings.Contains(declared, "# skipDirs") {
 		t.Errorf("a declared list must not also carry the comment, got:\n%s", declared)
+	}
+}
+
+func TestBuildProjectConfigContentRendersTheDeclaredGate(t *testing.T) {
+	cfg := &ProjectConfig{Project: "p", Group: "g", Gate: []GateStep{
+		{Name: "build", Run: "npm run build"},
+		{Name: "test", Run: "npm test -- --ci"},
+	}}
+	rendered := buildProjectConfigContent(cfg, "")
+	var back ProjectConfig
+	if err := yaml.Unmarshal([]byte(rendered), &back); err != nil {
+		t.Fatalf("the rendered config does not parse: %v\n%s", err, rendered)
+	}
+	if len(back.Gate) != 2 || back.Gate[0].Name != "build" || back.Gate[1].Run != "npm test -- --ci" {
+		t.Fatalf("the gate does not round-trip: %+v\n%s", back.Gate, rendered)
+	}
+}
+
+func TestBuildProjectConfigContentKeepsForeignKeys(t *testing.T) {
+	previous := `project: old
+group: oldgrp
+# A note the project wrote.
+agent:
+  command: ["opencode", "acp"]
+  model: "vendor/model"
+`
+	rendered := buildProjectConfigContent(&ProjectConfig{Project: "new", Group: "g"}, previous)
+	var back map[string]any
+	if err := yaml.Unmarshal([]byte(rendered), &back); err != nil {
+		t.Fatalf("the rendered config does not parse: %v\n%s", err, rendered)
+	}
+	if back["project"] != "new" {
+		t.Errorf("the owned key was not replaced: %v", back["project"])
+	}
+	if _, ok := back["agent"]; !ok {
+		t.Errorf("a foreign block was erased:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "# A note the project wrote.") {
+		t.Errorf("a comment was erased:\n%s", rendered)
+	}
+	if strings.Count(rendered, "agent:") != 1 {
+		t.Errorf("a foreign block was duplicated:\n%s", rendered)
+	}
+}
+
+// TestBuildProjectConfigContentRendersTheDeclaredProfiles pins the instructions
+// block: it is owned by the renderer now, so the selection survives
+// `agent init --force` through fill(), and a core-only selection renders no block
+// at all because absence already means core.
+func TestBuildProjectConfigContentRendersTheDeclaredProfiles(t *testing.T) {
+	cfg := &ProjectConfig{Project: "p", Group: "g"}
+	cfg.fill(&ProjectConfig{Instructions: InstructionsConfig{Profiles: []string{"core", "ui", "roles"}}})
+
+	rendered := buildProjectConfigContent(cfg, "")
+	if !strings.Contains(rendered, "instructions:\n  profiles: [core, ui, roles]") {
+		t.Fatalf("the selection does not render:\n%s", rendered)
+	}
+	var back ProjectConfig
+	if err := yaml.Unmarshal([]byte(rendered), &back); err != nil {
+		t.Fatalf("the rendered config does not parse: %v\n%s", err, rendered)
+	}
+	if got := strings.Join(back.Instructions.Profiles, ","); got != "core,ui,roles" {
+		t.Fatalf("profiles round-trip as %q, want core,ui,roles", got)
+	}
+
+	coreOnly := buildProjectConfigContent(&ProjectConfig{Project: "p", Group: "g", Instructions: InstructionsConfig{Profiles: []string{"core"}}}, "")
+	if strings.Contains(coreOnly, "instructions:") {
+		t.Errorf("a core-only selection must render no block, got:\n%s", coreOnly)
+	}
+}
+
+func TestAgentInitForceKeepsForeignKeyBlocks(t *testing.T) {
+	runInTempDir(t)
+	before := "project: p\ngroup: g\nagent:\n  command: [\"opencode\", \"acp\"]\n  model: \"vendor/model\"\n"
+	if err := os.WriteFile(".sdt.yaml", []byte(before), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	execute(t, agentInitCmd, nil, "--project", "p", "--group", "g", "--yes", "--force")
+	data, err := os.ReadFile(".sdt.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "agent:") || !strings.Contains(string(data), "vendor/model") {
+		t.Fatalf("agent init --force erased a key it does not own:\n%s", data)
 	}
 }
 

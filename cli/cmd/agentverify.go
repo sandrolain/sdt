@@ -58,7 +58,10 @@ func agentVerifyChecks() []ctxLintIssue {
 		}
 	}
 
-	for _, f := range instructionFiles("", "") {
+	// Only the selected profiles are required: a project that never opted into a
+	// domain must not be told it is missing that domain's modules.
+	profiles := currentProfiles()
+	for _, f := range instructionFilesFor(profiles, "", "") {
 		path := filepath.Join(sdtInstrDir, f.name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: "missing instruction file (run sdt agent init)"})
@@ -85,12 +88,14 @@ func agentVerifyChecks() []ctxLintIssue {
 		}
 	}
 
-	for _, name := range obsoleteInstructionFiles() {
+	for _, name := range obsoleteInstructionFiles(profiles) {
 		path := filepath.Join(sdtInstrDir, name)
 		if _, err := os.Stat(path); err == nil {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: "obsolete instruction file (use sdt agent init --force to remove)"})
 		}
 	}
+
+	issues = append(issues, lintCommandsRegistry()...)
 
 	for _, d := range agentVerifyWorkDirs {
 		fi, err := os.Stat(d)
@@ -104,12 +109,41 @@ func agentVerifyChecks() []ctxLintIssue {
 	}
 
 	if block != "" && hasSection(block, agentSectionNameInstructions) {
-		for _, f := range instructionFiles("", "") {
+		for _, f := range instructionFilesFor(profiles, "", "") {
 			want := "context/instructions/" + f.name
 			if !strings.Contains(block, "`"+want+"`") {
 				issues = append(issues, ctxLintIssue{Path: agentTargetDefault, Priority: ctxLintCritical, Message: "instructions block does not reference generated file " + want})
 			}
 		}
+	}
+
+	return issues
+}
+
+// lintCommandsRegistry checks the trigger registry: every row resolves to a
+// contract a reader can open, and a detail file is a document. The registry is
+// the lookup surface, so a row that resolves to nothing is worse than a missing
+// file — the agent would follow it.
+func lintCommandsRegistry() []ctxLintIssue {
+	var issues []ctxLintIssue
+	if data, rerr := os.ReadFile(sdtCommandsIndex); rerr == nil { //#nosec G304 -- fixed registry path
+		for _, row := range parseCommandRows(string(data)) {
+			if row.Contract == "" || row.Contract == "—" {
+				issues = append(issues, ctxLintIssue{Path: sdtCommandsIndex, Priority: ctxLintCritical, Message: "trigger >" + row.Trigger + " names no durable contract"})
+				continue
+			}
+			if _, serr := os.Stat(row.Contract); serr != nil {
+				issues = append(issues, ctxLintIssue{Path: sdtCommandsIndex, Priority: ctxLintCritical, Message: "trigger >" + row.Trigger + " names a contract that does not exist: " + row.Contract})
+			}
+			detail := filepath.Join(sdtCommandsDir, row.Trigger+sdtMarkdownExt)
+			if ddata, derr := os.ReadFile(detail); derr == nil { //#nosec G304 -- fixed commands dir, registry row
+				if !strings.HasPrefix(string(ddata), ctxFrontmatterDelim) {
+					issues = append(issues, ctxLintIssue{Path: detail, Priority: ctxLintWarning, Message: "command detail file has no frontmatter"})
+				}
+			}
+		}
+	} else if os.IsNotExist(rerr) {
+		issues = append(issues, ctxLintIssue{Path: sdtCommandsIndex, Priority: ctxLintWarning, Message: "no commands registry (run sdt agent init)"})
 	}
 
 	return issues

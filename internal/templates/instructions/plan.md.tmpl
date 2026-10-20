@@ -6,8 +6,8 @@ summary: "Plan documents: the implementation derived from an analysis, ending in
 
 `context/plan/<YYYYMMDD-HHMMSS>-<slug>.md` hold the plan for a piece of
 work, derived from the related analysis. Plans are **living documents**: they are
-updated during execution, not frozen. A plan exists to produce task files; a plan
-without tasks has no execution value.
+updated during execution, not frozen. It is the execution ledger: its phases
+carry the checklist a task file would otherwise hold.
 
 The plan carries the **"how"** — the implementation decisions worked out from the
 analysis. Reference the analysis through `sources`; do not repeat its context,
@@ -58,9 +58,12 @@ keep a wave set navigable:
 - a plan that would ship nothing independently is not a wave — fold it into the
   wave it belongs to.
 
-## Workflow (plan → tasks → execution)
+## Workflow (plan → execution)
 
-Follow strictly — the plan defines the work, the task files execute it:
+Follow strictly — **the plan is the execution ledger**. Its phases carry the
+executable checklist, its `## Review` block carries the verify-step verdicts and
+its `### Gate` subsection carries the delivery-gate runs. A task file exists only
+to **split** a plan across parallel streams or sub-agents:
 
 1. **Create the plan** — write Objective, Constraints and assumptions, Out of
    scope, Phases (ending with a Validation phase), Verification and Completion
@@ -72,22 +75,22 @@ Follow strictly — the plan defines the work, the task files execute it:
   as part of plan creation. The approval covers the plan as presented: a later
   or different stage needs its own approval (see AGENTS.md, *No silent
   downgrades*).
-3. **Create the task file(s) after approval** — default to **one task file per
-   plan** (`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md`) holding one `##
-   Phase <n>` section per phase; split into several files only to divide the
-   work by context or across sub-agents (disjoint scopes, each with a stream
-   label). See `instructions/tasks.md`. Link in both directions (plan frontmatter
-   → task files, task file frontmatter → plan).
-4. **Wait for task approval** — stop after creating the task files and wait for
-  explicit user approval before implementation.
-5. **Execute one task file at a time** — never work from the plan itself. Pick
-   a task file with no pending dependencies, mark it **in progress** on
-   take-in, complete items as they finish, then move to the next. The `>execute`
-   trigger drives this step (subject: a plan and its task file; see
-   `instructions/tasks.md` and the working-context ladder in
-   `context/commands/index.md`). For work larger than one session, **claim**
-   the task file before working it and pick from the `sdt context resume`
-   frontier (see `tasks.md`, *Multi-session handoff*).
+3. **Execute the plan** — the approved plan's phases are the checklist: tick a
+   `- [ ]` item with `sdt context check <plan> <id>` as it finishes, and mark the
+   plan **in progress** on take-in. The `>execute` trigger drives this step
+   (subject: the plan; see the working-context ladder in
+   `context/commands/index.md`). For work larger than one session, pick from the
+   `sdt context resume` frontier.
+4. **Split only to parallelize** — when phases run concurrently or across
+   sub-agents, create task files (`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md`,
+   one per disjoint scope) with `sdt context task add --stream <label>`, link
+   them from the plan, and work **one task file at a time**. A split plan's task
+   files own the checklist; an unsplit plan owns it itself. See
+   `instructions/tasks.md`.
+5. **Close the loop** — record the verify-step verdicts under `## Review`
+   (`sdt context task review`), the delivery-gate run under `### Gate`
+   (`sdt agent gate --record --plan <plan>`), then close with
+   `sdt context close <plan>`, which cascades to the analysis.
 6. **Update in place** — plan and task files are **living**: reflect progress,
    decisions and deviations as they happen through the CLI (`sdt context check`
    for phase/checklist items, `sdt context touch` for a body-only edit), never
@@ -102,7 +105,7 @@ summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<objective / what triggered the plan>"
 objective: <slug>         # optional: kebab-case group key shared with the
                           # analysis; inherited by this plan's task files
-status: active            # active | completed | abandoned — statuses defined in the matrix (architecture/stack.md)
+status: active            # active | completed | abandoned — accepted values: `sdt context vocab`
 rigor: <P0-P4>            # optional: how much rigour this wave demands of itself
                           # (see "Rigour dial" below)
 created: "<ISO 8601>"
@@ -155,11 +158,11 @@ session: <session id>        # optional
   file (split files are opt-in, see `instructions/tasks.md`). Each phase has:
   **Goal** (one sentence), **Depends on** (none / Phase X), the **analysis
   objectives** it covers, and the **approach** — the implementation and the "how"
-  (the design decisions, files and patterns). The executable checklist is **not**
-  in the plan: the `- [ ]` steps live only in the task file's `## Phase <n>`
-  section, so a phase and its task section never restate the same list.
-  **Phase rules**
-  (user-mandated):
+  (the design decisions, files and patterns). The executable checklist lives in
+  the phase: `- [ ]` steps with CLI-assigned `<!-- cN -->` ids, ticked with
+  `sdt context check`. A **split** plan moves those steps into its task files
+  instead, so a phase and its task section never restate the same list.
+  **Phase rules**:
   1. one phase = **one deliverable/concern**, stated in its Goal sentence;
   2. **no cap on the number of phases** — a plan may have any count;
   3. keep phases **small**: aim for ~5-7 checklist items; a >10-item phase
@@ -171,10 +174,13 @@ session: <session id>        # optional
   6. every plan ends with a dedicated final **Validation phase** that verifies
      the delivered changes (run the project's build/test/lint and
      `sdt context reindex`/`lint`) — it is always the last phase, even when a
-     previous phase already ran checks. It **enumerates its render cells up
-     front** (routes × viewports × states, or the equivalent surface matrix) and
-     checks each; a partial pass names the cells it skipped rather than
-     reporting a general pass;
+     previous phase already ran checks. When the deliverable has rendered
+     surfaces, that phase **enumerates its cells up front** (routes × viewports
+     × states, or the equivalent matrix for this project's surfaces) and checks
+     each; a partial pass names the cells it skipped rather than reporting a
+     general pass. A deliverable with no rendered surface names the equivalent
+     cells — the types, inputs or paths it changes — instead of omitting the
+     enumeration;
    6a. it includes a **blind reader-test** cell when the deliverable is a
      document a reader meets cold: hand the finished document to a **fresh
      context** with no shared working state and ask it to report what it could
@@ -262,9 +268,9 @@ never lowers the gate, it states what the gate has to answer.
 | created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
 | updated | yes | ISO 8601 UTC last-edit date, written only by the CLI; refresh a body-only edit with `sdt context touch`. |
 | links | yes | Relative paths to source docs (analysis) and task files. |
-| project | yes | Project id from `.sdt.yaml` (e.g. `sdt_01a2b3c4`). |
+| project | yes | Project id from `.sdt.yaml` (e.g. `<project-id>`). |
 | agent | no | Agent/tool (AI or human) that created or last edited this file. |
-| model | no | Model id of that agent (e.g. `opencode/big-pickle`) — provenance. |
+| model | no | Model id of that agent (e.g. `<agent>/<model-id>`) — provenance. |
 | session | no | Session id for traceability across edits. |
 
 ## 5-stage development lifecycle
@@ -276,3 +282,18 @@ AGENTS.md.
 Plan and task files are updated during execution (not append-only); decisions and
 `architecture/` follow their own rules (`instructions/decision.md`,
 `instructions/architecture.md`).
+
+## Dispatching the work
+
+- **Sub-agents (dispatch discipline).** When a phase is split across sub-agents,
+  each takes **one atomic, bounded task** and never recursively spawns further
+  agents; the orchestrator owns the plan, the merge and the closeout. A sub-agent
+  returns a result, never a plan of its own.
+- **System-directive text.** Machine-injected or gate text carries a parseable tag
+  (`[SYSTEM: <source>]`) so the agent recognises its own injected text and never
+  mistakes it for a user instruction — this closes the injection loop where a
+  gate/closeout message is re-read as a directive.
+- **No silent downgrades.** When in doubt between two paths, take the heavier one,
+  and never weaken an agreed plan mid-task without saying so. An approval covers
+  the stage actually presented: approving a plan approves that plan, not a later
+  stage — re-ask when the stage changes.

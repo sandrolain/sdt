@@ -32,8 +32,8 @@ var agentDoctorCmd = &cobra.Command{
 	Short: "Report the health of the SDT workspace (read-only)",
 	Long: `Run a read-only health check over the SDT-managed workspace: AGENTS.md
 and its instruction block, the generated instruction files (missing/obsolete),
-the working directories, the .sdt.yaml project identity, the config file, the
-derived search cache and the corpus exclusions.
+the working directories, the .sdt.yaml project identity, the declared delivery
+gate, the config file, the derived search cache and the corpus exclusions.
 
 Unlike 'sdt agent verify' (which fails on CRITICAL issues), doctor always exits
 0 and prints a per-check report with a remediation hint.
@@ -97,14 +97,17 @@ func agentDoctorChecks() []doctorCheck {
 		add("agents.md", doctorStatusOK, "present with instructions block", "")
 	}
 
-	// Generated instruction files: missing and obsolete.
+	// Generated instruction files: missing and obsolete. Only the selected
+	// profiles count: an unselected domain is neither missing nor obsolete.
+	profiles := currentProfiles()
+	add("profiles", doctorStatusOK, agentProfileSummary(profiles), "add one with `sdt agent init --with <profile>` or `sdt agent refresh --with <profile>`")
 	missing, obsolete := 0, 0
-	for _, f := range instructionFiles("", "") {
+	for _, f := range instructionFilesFor(profiles, "", "") {
 		if _, err := os.Stat(filepath.Join(sdtInstrDir, f.name)); os.IsNotExist(err) {
 			missing++
 		}
 	}
-	for _, name := range obsoleteInstructionFiles() {
+	for _, name := range obsoleteInstructionFiles(profiles) {
 		if _, err := os.Stat(filepath.Join(sdtInstrDir, name)); err == nil {
 			obsolete++
 		}
@@ -121,21 +124,13 @@ func agentDoctorChecks() []doctorCheck {
 	}
 
 	// Role profiles: surface role health from the deterministic checks
-	// (read-only; never fails the shell).
-	checks = append(checks, roleDoctorCheck())
+	// (read-only; never fails the shell). Roles are opt-in, so a project that
+	// did not select the profile has nothing to check.
+	checks = append(checks, roleDoctorCheck(profiles))
 
 	// Working directories.
-	missingDirs := []string{}
-	for _, d := range agentVerifyWorkDirs {
-		if fi, err := os.Stat(d); os.IsNotExist(err) || (err == nil && !fi.IsDir()) {
-			missingDirs = append(missingDirs, d)
-		}
-	}
-	if len(missingDirs) > 0 {
-		add("work-dirs", doctorStatusWarn, fmt.Sprintf("missing: %s", strings.Join(missingDirs, ", ")), "run `sdt agent init`")
-	} else {
-		add("work-dirs", doctorStatusOK, "all present", "")
-	}
+	wd := workDirsDoctorCheck()
+	add(wd.Name, wd.Status, wd.Detail, wd.Hint)
 
 	// .sdt.yaml project identity.
 	if cfg, err := findProjectConfig(); err != nil || cfg == nil {
@@ -144,6 +139,15 @@ func agentDoctorChecks() []doctorCheck {
 		add("project-config", doctorStatusWarn, ".sdt.yaml has no project id", "set `project:` in .sdt.yaml")
 	} else {
 		add("project-config", doctorStatusOK, "project "+cfg.Project, "")
+	}
+
+	// Delivery gate: declared by the project, never assumed. An absent
+	// declaration is a warning, not a failure: a project may run its checks in
+	// CI instead.
+	if cfg, err := findProjectConfig(); err != nil || cfg == nil || len(cfg.Gate) == 0 {
+		add("delivery-gate", doctorStatusWarn, "no gate declared", "add a `gate:` list to .sdt.yaml so `sdt agent gate` runs your own checks")
+	} else {
+		add("delivery-gate", doctorStatusOK, fmt.Sprintf("%d declared step(s): %s", len(cfg.Gate), strings.Join(gateStepNames(cfg.Gate), ", ")), "")
 	}
 
 	// Derived search cache: report-only staleness (missing is fine).
@@ -174,10 +178,27 @@ func agentDoctorChecks() []doctorCheck {
 	return checks
 }
 
+// workDirsDoctorCheck reports the context/ layout the generated set expects.
+func workDirsDoctorCheck() doctorCheck {
+	var missing []string
+	for _, d := range agentVerifyWorkDirs {
+		if fi, err := os.Stat(d); os.IsNotExist(err) || (err == nil && !fi.IsDir()) {
+			missing = append(missing, d)
+		}
+	}
+	if len(missing) > 0 {
+		return doctorCheck{Name: "work-dirs", Status: doctorStatusWarn, Detail: "missing: " + strings.Join(missing, ", "), Hint: "run `sdt agent init`"}
+	}
+	return doctorCheck{Name: "work-dirs", Status: doctorStatusOK, Detail: "all present"}
+}
+
 // roleDoctorCheck surfaces role-profile health as a read-only doctor check:
 // presence, drift and owned-path overlap mirror `agent roles check` findings
 // without ever failing the shell.
-func roleDoctorCheck() doctorCheck {
+func roleDoctorCheck(profiles []string) doctorCheck {
+	if !profileSelected(profiles, "roles") {
+		return doctorCheck{Name: doctorNameRoles, Status: doctorStatusOK, Detail: "not selected", Hint: "add the profile with `sdt agent init --with roles`"}
+	}
 	findings := roleCheckFindings()
 	critical, warns := 0, 0
 	for _, f := range findings {
@@ -275,19 +296,8 @@ func contextBaselineCheck() doctorCheck {
 
 // ── delivery gate ──────────────────────────────────────────────────────────────
 
-// gateStep is one rung of the delivery verification ladder. UseShell marks the
-// go steps whose package list is resolved at runtime by go list, excluding the
-// context/ tree (which holds reference clones with C/broken-Go fixtures, exactly
-// as the project's Taskfile does).
-type gateStep struct {
-	Name     string
-	Bin      string
-	Args     []string
-	UseShell bool
-}
-
 // gateStepLint is the lint-step name and gateStepTest the test-step name,
-// reused by the doctor hint, the gate and the roles project-layer commands.
+// reused by the doctor hint and the roles project-layer commands.
 const gateStepLint = "lint"
 const gateStepTest = "test"
 
@@ -300,40 +310,21 @@ const (
 	doctorNameRoles  = "roles"
 )
 
-// gateGoListExpr resolves the project Go packages, excluding context/ refs
-// (the reference clones hold C/broken-Go fixtures), exactly as Taskfile does.
-//
-// The `|| echo <sentinel>` keeps the ladder fail-closed: when `go list` fails
-// outright (a corpus clone can make the module loader error before the `-e`
-// tolerance applies) or resolves nothing, the expansion is the sentinel and the
-// go command fails on an unknown package. Without it the substitution was empty,
-// the step built or tested nothing and still exited 0, and the gate recorded a
-// `pass` for work it never did — the failure laundered into a pass that c20
-// forbids.
-const gateGoListExpr = "$(go list -e ./... | grep -v /context/ || echo " + gateNoPackagesSentinel + ")"
-
-// gateNoPackagesSentinel is the argument the go steps receive when the package
-// list could not be resolved. It is not a valid import path, so the step fails.
-const gateNoPackagesSentinel = "__sdt_no_packages__"
-
-// deliveryGateSteps is the fixed, fail-closed verification ladder. It stops at
-// the first failure: Build -> Vet -> Lint -> Test.
-var deliveryGateSteps = []gateStep{
-	{"build", "go", []string{"go build", gateGoListExpr}, true},
-	{"vet", "go", []string{"go vet", gateGoListExpr}, true},
-	{gateStepLint, "golangci-lint", []string{"run", "./cli/...", "./viewer/...", "./internal/...", "."}, false},
-	{gateStepTest, "go", []string{"go test", gateGoListExpr}, true},
-}
-
+// agentGateCmd runs the project's own delivery gate: the `gate:` steps declared
+// in .sdt.yaml, in order, stopping at the first failure. SDT ships no ladder of
+// its own — a Go build, a cargo check and an npm test are all one declaration,
+// and a project that declares none has no gate rather than a wrong one.
 var agentGateCmd = &cobra.Command{
 	Use:   "gate",
-	Short: "Run the delivery verification ladder (Build->Vet->Lint->Test)",
-	Long: `Run the deterministic delivery gate: build, vet, lint and test, in a fixed
-order, stopping at the first failure (fail-closed). This is the strict,
-explicit counterpart of the advisory verify-step.
+	Short: "Run the delivery gate declared in .sdt.yaml",
+	Long: `Run the project's own delivery gate: the commands declared under ` + "`gate:`" + ` in
+.sdt.yaml, in order, stopping at the first failure (fail-closed). This is the
+strict, explicit counterpart of the advisory verify-step.
 
-The commands are the project's own Go toolchain (go build/vet/test) plus
-golangci-lint; a missing external tool is reported, never silently skipped.
+Each step's ` + "`run`" + ` is a shell command line executed with /bin/sh -c in the
+project root, so a step can expand its own package list. Nothing is assumed about
+the toolchain: with no ` + "`gate:`" + ` declared the command reports "no gate declared"
+and exits 0, and a missing tool surfaces as that step failing.
 
 With --record the run is appended to the task file's ` + "`## Review`" + ` block as a
 ` + "`### Gate`" + ` subsection, one line per step with its real status and duration.
@@ -352,19 +343,26 @@ Examples:
 			Status string `json:"status" yaml:"status"`
 			Detail string `json:"detail,omitempty" yaml:"detail,omitempty"`
 		}
+		cfg, err := findProjectConfig()
+		exitWithError(cmd, err)
+		if cfg == nil {
+			exitWithError(cmd, fmt.Errorf("no %s found walking up from the current directory", sdtConfigFile))
+			return
+		}
+		if err := validateGateSteps(cfg.Gate); err != nil {
+			exitWithError(cmd, err)
+			return
+		}
 		var results []gateResult
 		var recorded []gateStepResult
 		failed := ""
-		for _, step := range deliveryGateSteps {
-			exe, err := exec.LookPath(step.Bin)
-			if err != nil {
-				results = append(results, gateResult{Step: step.Name, Status: "error", Detail: step.Bin + " not found"})
-				recorded = append(recorded, gateStepResult{Step: step.Name, Status: "error"})
-				failed = step.Name
-				break
-			}
+		if len(cfg.Gate) == 0 {
+			outputString(cmd, "no gate declared: add a `gate:` list to "+sdtConfigFile+"\n")
+			return
+		}
+		for _, step := range cfg.Gate {
 			started := contextNow()
-			out, err := runGateStep(exe, step)
+			out, err := runGateStep(step.Run)
 			elapsed := contextNow().Sub(started)
 			if err != nil {
 				detail := strings.TrimSpace(string(out))
@@ -412,26 +410,79 @@ Examples:
 	},
 }
 
-// gateRecordPath resolves the task file `--record` writes to. An explicit
-// `--plan` is required: the gate never guesses which task file to attribute a
-// run to, and never creates the `## Review` block by default.
+// gateRecordPath resolves the document `--record` writes to. An explicit
+// `--plan` is required: the gate never guesses where a run belongs. The plan is
+// the execution ledger, so the record goes into the plan itself unless the plan
+// was split into a task file — then it goes to the task file that executes the
+// phase named by `--phase`.
 func gateRecordPath(cmd *cobra.Command) (string, error) {
 	plan := getStringFlag(cmd, "plan", false)
 	if plan == "" {
-		return "", errors.New("--record requires --plan <ref>: name the plan whose task file receives the run")
+		return "", errors.New("--record requires --plan <ref>: name the plan the run belongs to")
 	}
-	return taskFileForRef(sanitizeSlug(getStringFlag(cmd, "phase", false)), "", plan), nil
+	if path := existingTaskFileForPlan(sanitizeSlug(getStringFlag(cmd, "phase", false)), plan); path != "" {
+		return path, nil
+	}
+	path, err := resolveContextLintPath(plan)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(path) //#nosec G304 -- path resolved within context/
+	if err != nil {
+		return "", err
+	}
+	if parseFrontmatterField(string(data), ctxFrontmatterKind) != ctxTypePlan {
+		return "", fmt.Errorf("%s is not a plan: --plan names the plan the run belongs to", plan)
+	}
+	return path, nil
 }
 
-// runGateStep runs one ladder step. Shell steps expand the package expression
-// (go list | grep), direct steps exec the fixed argument list.
-func runGateStep(exe string, step gateStep) ([]byte, error) {
-	if step.UseShell {
-		//#nosec G204 -- fixed tool + fixed pipeline, no user input
-		return exec.Command("/bin/sh", "-c", strings.Join(step.Args, " ")).CombinedOutput()
+// existingTaskFileForPlan returns the task file that executes a plan (or one of
+// its phases), or "" when the plan has none — the unsplit case, where the plan
+// carries its own checklist.
+func existingTaskFileForPlan(phase, plan string) string {
+	slug := taskSlugFromPlan(plan)
+	if phase != "" {
+		if matches, err := taskFilesForPhase(phase, slug); err == nil && len(matches) > 0 {
+			return newestTaskFile(matches)
+		}
+		return ""
 	}
-	//#nosec G204 -- fixed tool + fixed argument list, no user input
-	return exec.Command(exe, step.Args...).CombinedOutput()
+	if matches, err := taskPlanFiles(slug); err == nil && len(matches) > 0 {
+		return newestTaskFile(matches)
+	}
+	return ""
+}
+
+// validateGateSteps refuses a malformed declaration before anything runs, so a
+// typo cannot pass silently as a gate that executed nothing.
+func validateGateSteps(steps []GateStep) error {
+	for i, s := range steps {
+		if strings.TrimSpace(s.Name) == "" {
+			return fmt.Errorf("gate step %d has no name", i+1)
+		}
+		if strings.TrimSpace(s.Run) == "" {
+			return fmt.Errorf("gate step %q has no run command", s.Name)
+		}
+	}
+	return nil
+}
+
+// gateStepNames returns the declared step names, in order.
+func gateStepNames(steps []GateStep) []string {
+	names := make([]string, 0, len(steps))
+	for _, s := range steps {
+		names = append(names, s.Name)
+	}
+	return names
+}
+
+// runGateStep runs one declared step through the shell: the command line is the
+// project's own, written in its own .sdt.yaml, so it may expand a package list
+// or pipe a result.
+func runGateStep(command string) ([]byte, error) {
+	//#nosec G204 -- the project's own declared command, executed from its config
+	return exec.Command("/bin/sh", "-c", command).CombinedOutput()
 }
 
 func init() {

@@ -17,8 +17,8 @@ instruction files and temporary files for this project.
 - `notes/` — free-form annotations
 - `questions/` — open questions / points awaiting user decision (`sources` link back to origin)
 - `tasks/` — task checklists (one file per plan by default, phases as `## Phase` sections)
-- `deprecated/` — obsolete generated files moved by `sdt agent init --force` (history)
-- `commands/` — thin agent-invokable trigger files (`context/commands/<trigger>.md`)
+- `trash/` — obsolete generated files moved by `sdt agent init --force` (history)
+- `commands/` — the agent-invokable commands registry (`index.md`)
 - `instructions/` — agent instruction files (referenced by AGENTS.md)
 - `roles/` — generated role profiles (`<slug>.md`) + `shared.md` (see `sdt agent roles`)
 - `scripts/` — reusable utility scripts (`index.md` lists them; see `instructions/scripts.md`)

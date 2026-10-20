@@ -427,6 +427,17 @@ Examples:
 		if !ctxStatusInVocab(doc.Type, status) {
 			exitWithError(cmd, fmt.Errorf("invalid status %q for type %s (use %s)", status, doc.Type.kind, ctxStatusVocab(doc.Type)))
 		}
+		// A terminal status with a `--reason` is the close path: the reason is
+		// recorded in the body (the same implementation `context close` uses), so
+		// an early close is never silent — one verb per job, no second command.
+		if reason := strings.TrimSpace(getStringFlag(cmd, "reason", false)); reason != "" && status == closeTerminalStatus(doc.Type) {
+			if err := closeDocument(doc, true, reason); err != nil {
+				exitWithError(cmd, err)
+			}
+			writeStatusResult(cmd, doc, status)
+			cascadeAfterWrite(cmd, doc.Path)
+			return
+		}
 		// Derived-state guard (analysis Q4): refuse a hand-declared terminal
 		// status that contradicts the children/checklist unless --force.
 		if status == taskFileStatusCompleted && !getBoolFlag(cmd, "force", false) {
@@ -438,27 +449,32 @@ Examples:
 			exitWithError(cmd, err)
 		}
 
-		updated := ""
-		if doc.Type.hasUpdated {
-			updated = contextNow().UTC().Format(time.RFC3339)
-		}
-		switch getFormat(cmd) {
-		case fmtJSON, fmtYAML:
-			res := ctxStatusResult{Path: doc.Path, Type: doc.Type.kind, Status: status, Updated: updated}
-			if getFormat(cmd) == fmtJSON {
-				out, err := json.MarshalIndent(res, "", "  ")
-				exitWithError(cmd, err)
-				outputBytes(cmd, out)
-			} else {
-				out, err := yaml.Marshal(res)
-				exitWithError(cmd, err)
-				outputBytes(cmd, out)
-			}
-		default:
-			outputString(cmd, "ok\n")
-		}
+		writeStatusResult(cmd, doc, status)
 		cascadeAfterWrite(cmd, doc.Path)
 	},
+}
+
+// writeStatusResult prints a status write in the selected format.
+func writeStatusResult(cmd *cobra.Command, doc ctxResolvedDoc, status string) {
+	updated := ""
+	if doc.Type.hasUpdated {
+		updated = contextNow().UTC().Format(time.RFC3339)
+	}
+	switch getFormat(cmd) {
+	case fmtJSON, fmtYAML:
+		res := ctxStatusResult{Path: doc.Path, Type: doc.Type.kind, Status: status, Updated: updated}
+		if getFormat(cmd) == fmtJSON {
+			out, err := json.MarshalIndent(res, "", "  ")
+			exitWithError(cmd, err)
+			outputBytes(cmd, out)
+			return
+		}
+		out, err := yaml.Marshal(res)
+		exitWithError(cmd, err)
+		outputBytes(cmd, out)
+	default:
+		outputString(cmd, "ok\n")
+	}
 }
 
 // ctxStatusInVocab reports whether v belongs to the kind's status vocabulary.
@@ -492,6 +508,7 @@ func init() {
 	addContextStatusRefFlags(contextStatusSetCmd)
 	contextStatusSetCmd.Flags().String("status", "", "New status value (validated against the kind vocabulary)")
 	contextStatusSetCmd.Flags().Bool("force", false, "Set a terminal status even when derived state disagrees")
+	contextStatusSetCmd.Flags().String("reason", "", "With a terminal status: record why the derived state disagrees (the close path)")
 	addCascadeFlag(contextStatusSetCmd)
 	contextStatusCmd.AddCommand(contextStatusGetCmd, contextStatusSetCmd)
 }

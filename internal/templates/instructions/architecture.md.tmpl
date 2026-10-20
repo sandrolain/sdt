@@ -30,7 +30,7 @@ has zero prior context.
 kind: architecture
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 context: "<what this architecture covers and why>"
-status: draft             # draft | current | superseded — statuses defined in the matrix (architecture/stack.md)
+status: draft             # draft | current | superseded — accepted values: `sdt context vocab`
 component: "<slug>"        # e.g. config-loading, task-index
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
@@ -102,5 +102,5 @@ session: <session id>        # optional
 
 ## Tier
 
-`architecture/` and `decisions/` are in the **essential** tier — see
-`architecture/stack.md` for the full tier taxonomy.
+`architecture/` and `decisions/` are in the **essential** tier; `sdt context
+vocab` reports every kind's tier.

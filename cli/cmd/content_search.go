@@ -72,13 +72,13 @@ EXAMPLE — ` + "`sdt grep \"replaceAll\" --include \"**/*.ts\" --limit 40`" + `
 
 Both caps are presentation, never correctness: ` + "`--limit 0`" + ` reports every match.
 A path pattern is matched against the whole path, so ` + "`context/analysis/*.md`" + ` does
-not reach ` + "`cli/.../context/analysis/*.md`" + `; ` + "`**/`" + ` is how you ask for any depth.`,
-		Example: `  sdt grep "errStopScan" --format json
+not reach ` + "`src/legacy/context/analysis/*.md`" + `; ` + "`**/`" + ` is how you ask for any depth.`,
+		Example: `  sdt grep "TODO" --format json
   sdt grep "TODO" --include "**/*.go" --exclude "**/*_test.go"
   sdt grep "cascade rule" --include "context/**/*.md"
-  sdt grep "derivedCompletionBlock" --include "**/*.go" -A 12
-  sdt grep "DOMPurify" --dir web/src -l --limit 0
-  sdt grep "derivedCompletionBlock" --include "**/*.go" -c
+  sdt grep "handleRequest" --include "**/*.go" -A 12
+  sdt grep "deprecated" --dir src -l --limit 0
+  sdt grep "handleRequest" --include "**/*.go" -c
   sdt grep "benchmark" --refs --limit 0`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -163,10 +163,10 @@ context/refs and context/tmp are pruned unless ` + "`--refs`" + ` is given.
 EXAMPLE — ` + "`sdt find \"**/*_test.go\" --format json`" + `
           ` + "`sdt find \"context/decisions/*.md\" --limit 5`" + `
           ` + "`sdt find \"context/refs/**/README.md\" --refs --limit 3`" + `
-          ` + "`sdt find context/architecture/stack.md`" + ``,
+          ` + "`sdt find context/instructions/cli.md`" + ``,
 		Example: `  sdt find "*.tmpl"
-  sdt find "internal/**/*.go" --format json
-  sdt find --dir web/src --limit 0`,
+  sdt find "context/analysis/*.md" --format json
+  sdt find --dir context/notes --limit 0`,
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			opts := search.FindOptions{

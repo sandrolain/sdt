@@ -1,229 +1,57 @@
 ---
 kind: instructions
 title: "CLI usage and examples"
-summary: "CLI usage and examples: the main commands grouped by area with practical invocations."
+summary: "The agent's verbs: corpus read/write, the document lifecycle and the query filters — with a pointer to `sdt schema` for the rest of the surface."
 ---
 
-## CLI Usage & Examples
+## The agent's verbs
 
-Curated command catalog: the main commands grouped by area, with practical
-examples. It is a **selection, not the full surface** — `context/sdtdocs/` holds
-the generated per-command reference (every command, its flags and its contract,
-regenerated with `sdt context docs`). For I/O conventions, project configuration
-and the patterns this catalog does not repeat, see
-`context/instructions/reference.md`.
+`sdt` is broad; this page is the part an agent uses. For the rest, read
+`sdt schema` or `context/sdtdocs/` (`sdt context docs`). Never guess a flag.
 
-## Agent tooling
-
-- `sdt context new --type <t>` — create a work file ({{.NewTypes}})
-- `sdt context path --type <t> [--slug]` — print a path ({{.PathTypes}})
-- `sdt context list --type <t>` — list existing files ({{.ListTypes}}); filter with `--status`, a date range and `--where` (see Context queries)
-- `sdt context search <query>` — ranked fulltext search over the same corpus; takes the same query filters as `list`; a pasted `YYYYMMDD-HHMMSS` or `uid` resolves to its document first
-- `sdt context show <path> [--section <id>]` — print a document from disk, or one
-  section of it; `--lines <from>:<to>` slices it (1-based, inclusive)
-- `sdt context edit <doc> [--section <id>]` — replace the body (or one section)
-  from `--input`/`--file`/stdin, printing a unified diff; `--dry-run` previews
-  without writing, and frontmatter changes are refused in favour of `context set`
-- `sdt grep <pattern>` — regex over the working tree, bounded output;
-  `--include`/`--exclude` scope the **results**, `--dir` points at a subtree,
-  `--refs` reaches the captured clones under `context/refs`. No ignore file is
-  consulted, so a `.gitignore` entry does not hide a file from this verb. The
-  pruned directories are the project's `skipDirs` in `.sdt.yaml`, or the shipped
-  defaults when it declares none; `.git` is pruned either way
-- `sdt find [glob]` — list matching paths, sorted; a pattern without a slash
-  matches a basename at any depth, a pattern with a slash is matched against the
-  whole path, and a printed path round-trips as input
-- `sdt read -p <file> [--lines <from>:<to>]` — print a file, or a line range of it
-  (1-based, inclusive; an inverted range is an error)
-- `sdt write -p <file> [-o|--overwrite] [-m|--multi] [-b|--binary]` — write a file
-  from `--input`/`--file`/stdin; `--multi` takes a JSON array of contents and
-  `--binary` reads each as Base64, and an existing file is refused without
-  `--overwrite`
-- `sdt context memo due|list|add|done` — the planned-operation register and its due
-  check (`sdt context memo due` at session start)
-- `sdt context budget` — measure the always-loaded surface (the `AGENTS.md`
-  instructions block, `context/index.md`, `context/architecture/`,
-  `context/decisions/`) in bytes, lines and words, with the largest entries under
-  `--top`; read-only and informational, never a gate, and any token figure is a
-  labelled estimate derived from bytes
-- `sdt context vocab` — print the per-kind status vocabulary with the default a
-  new document gets, read from the same registry the validators enforce
-- `sdt context status get|set` — read/update a document's status (per-type
-  vocabularies in the status matrix: `context/architecture/stack.md`)
-- `sdt context get <doc> [<key>…]` — read a document's frontmatter: the raw
-  block when no key is given, else one value per top-level key (no nested keys)
-- `sdt context set|unset <doc> <key> [<value>]` — write/remove any top-level
-  frontmatter key with byte fidelity (comments, order, quoting preserved);
-  `--raw`, `--append`, `--remove` (both YAML list shapes are read and the key's
-  existing shape is kept; an unreadable non-empty value is refused);
-  `status`/`updated` validated, CLI-owned
-  `uid`/`analysis_id`/`plan_id` refused without `--force`
-- `sdt q get|set|del <file> <path>` — query/patch a JSON file by gjson path
-  (e.g. `sdt q get context/index.json 'documents.#(kind=="analysis")#.path'`)
-- `sdt context rename <ref> --slug <new>` — move a document to a new slug
-- `sdt context deprecate <ref> [--by <ref>]` — retire a document by setting the
-  retired status its own type's vocabulary carries; the file does not move, and
-  `--by` records the successor that replaced it
-- `sdt context rm <ref>` — discard a document by moving it into `context/trash`,
-  leaving its bytes untouched; it reports the documents that still reference it
-  rather than repairing them
-- `sdt context clean --trash|--tmp` — empty a discard area; a target is required
-  and nothing is ever emptied by omission
-- `sdt context task add ["<step>"] [--phase <n>] [--stream <label>]` — task checklists
-  (one file per plan by default, phases as `## Phase` sections)
-- `sdt context check <doc> [id] [--done|--wip|--block|--pending]` — set one
-  checklist item (a `--phase`/`--all`/`--grep` batch selector updates several);
-  a corpus document's state moves through this verb, never by hand
-- `sdt context template --type <t>` — print the per-type instruction file
-- `sdt context docs` — generated command documentation
-- `sdt context reindex` / `sdt context lint [path...]` — regenerate `index.md` /
-  validate the corpus, or only the positional document paths; `--security` adds
-  the advisory security scan to the selected scope. Paths must be in the
-  corpus-scanned directories; wiki pages use `sdt context wiki lint`.
-- `sdt agent roles show|init|check` — list the closed role register; generate the role profiles under `context/roles/`; validate profile set, drift and owned-path overlap
-- `sdt agent doctor` — read-only workspace health; `sdt agent verify` — instruction contract; `sdt agent gate` — Build→Vet→Lint→Test
-- `sdt agent refresh` — re-render the generated instruction files, command stubs, skills and the AGENTS.md instructions block, without a full `agent init`
-- `sdt template --tmpl` — render Go templates from JSON/YAML data
-- `sdt extract --type urls|emails|ips|json-blocks|code-blocks|dates`
-- `sdt env parse|get|set|merge` — .env handling
-- `sdt diff --a A --b B --diff-format unified|json-patch`
-
-## Logging
-
-`sdt` writes logs to stderr; stdout carries only the command result. Log
-format is independent of the result `--format`:
-
-- `--log-format text` (default) — console handler (tinted via
-  `github.com/lmittmann/tint`); level and values are coloured on a terminal.
-- `--log-format json` — one structured record per line.
-- Colour is used only on a TTY; `--no-color` and the `NO_COLOR` environment
-  variable force plain text.
-- `--quiet` raises the level to `Warn`, hiding info/progress while keeping
-  warnings and errors.
+- `sdt context new|path|list --type <t>` — create a work file ({{.NewTypes}}), print
+  its path ({{.PathTypes}}), list one kind ({{.ListTypes}})
+- `sdt read -p <file|corpus-ref> [--section] [--lines]`, `context edit <doc>` — one
+  reader for the tree and the corpus, and a body/section writer
+- `sdt context get|set|unset <doc> [<key>] [<value>]` — a frontmatter key, bytes
+  preserved; `status`/`updated` are CLI-owned
+- `sdt context status get|set|vocab|sync`, `deprecate|rename|rm` — lifecycle; a
+  terminal status plus `--reason` closes, `rm` trashes
+- `sdt context task add`, `sdt context check <doc> [id] --state done|wip|block` —
+  checklists (`--phase`/`--all`/`--grep` batch); never ticked by hand
+- `sdt context search <query>`, `list` — the query engine
+- `sdt context relations parent|similar|rank|path|backfill` — parent, neighbours,
+  ranked candidates, chain, derived edges
+- `sdt context reindex`, `lint [path...]` — index, corpus
+- `sdt context budget` — the always-loaded surface; informational, never a gate
+- `sdt grep [-A/-B/-C]`, `find [glob]`, `write -p <file>`, `sdt q` for JSON —
+  the working tree, bounded
+- `sdt agent doctor|verify|gate|refresh` — health, instruction contract, the
+  project's `gate:` steps, a re-render without `init`
 
 ## Search before asking
 
-A question the corpus answers is answered **from the corpus**, not re-asked.
-
-- Before asking the user what a document says, search it:
-  `sdt context search "<term>" --where kind=<k>` (see Context queries for the
-  shared filters). Re-asking what `context/index.md` already lists wastes a turn
-  and hands back a stale copy of the answer.
-- When the corpus cannot answer it, say so and ask — with the paths you already
-  read, so the answer is not a duplicate of them.
-- The same rule holds after a compaction or a session resume: the state you need
-  is recorded in the corpus, not in the conversation you lost.
+A question the corpus answers is answered **from the corpus**: search before
+asking what a document says; when the corpus cannot answer, say so, naming the
+paths you read. It holds after a compaction, too.
 
 ## Output discipline
 
-A verb is an interface to a budget, not a dump.
+A verb is an interface to a budget, not a dump:
 
-- **Cap what a verb prints** when the result outgrows a screen: the flag that
-  truncates, the filter that narrows, or `--format json` piped into `sdt q`. A
-  large result becomes a file under `context/tmp/` plus the one line that names
-  it; the full artefact stays retrievable (`development.md`, *Context economy*).
-- **Batch what can be batched.** One command that takes several documents beats
-  several commands; `sdt context list --type <k> --last 7d` beats seven `show`
-  calls. Repeated identical invocations are a missing flag, not a workflow.
-- **Read the tiered index once**, then open only the documents the index points
-  at — do not walk the corpus to rediscover what the index already ranked.
-- When this does not apply: a short result is printed in full; nothing is capped
-  for the sake of a rule.
-
-## Help-text shape
-
-Command help is written in four labelled parts, in this order:
-
-| Part | Says |
-|------|------|
-| `WHEN` | the single condition under which the command is right |
-| `WHEN NOT` | when it does not apply, and what to use instead |
-| `RETURNS` | the result shape and where it goes |
-| `EXAMPLE` | one real invocation |
-
-- Write the `WHEN NOT` line even when it is short: a command without one reads as
-  universal. Affirmative voice — say what to run, not what not to run.
-- Existing command help predates this shape and is not rewritten retroactively; a
-  command touched for another reason adopts it.
+- **Cap what a verb prints**: truncate, filter, or pipe `--format json` into
+  `sdt q`; a large result becomes a `context/tmp/` file and the line naming it.
+- **Batch what can be batched**: one command over several beats several; a
+  repeated identical invocation is a missing flag.
+- **Read the tiered index once**, then open only what it points at. A short result
+  prints in full: nothing is capped for a rule's sake.
 
 ## Context queries
 
-`sdt context list` and `sdt context search` share one filter engine
-(`internal/ctxquery`): every filter is conjunctive (AND), and both commands
-return the same document set for the same filter.
+`list` and `search` share one conjunctive engine returning the same set. Dates:
+`--after`/`--before` (aliases `--since`/`--until`), `--last <N><unit>` (`m` `h` `d`
+`w`), `--date created|updated`, as `YYYY-MM-DD`, RFC3339 or `now[±N<unit>]`.
+Fields: `--type`, `--status`, repeatable `--where <key>=<value>` (or `!=`) over any
+frontmatter field — a list matches a member, an absent key never matches `=`.
 
-Date range:
-
-- `--after <when>` / `--before <when>` — dated on/after or on/before;
-  `--since`/`--until` are aliases.
-- `--last <N><unit>` — relative window, exclusive with `--after`; units
-  `m` minutes, `h` hours, `d` days, `w` weeks (months/years unsupported).
-- `--date created|updated` — reference timestamp (default `created`).
-- `<when>` accepts `YYYY-MM-DD`, RFC3339, `now` and `now-<N><unit>`.
-
-Frontmatter filters:
-
-- `--type <k>` — frontmatter `kind` (on `search`; `list` is already scoped to a
-  directory by `--type`).
-- `--status <s>` — frontmatter `status`.
-- `--where <key>=<value>` / `--where <key>!=<value>` — repeatable, any
-  frontmatter field.
-
-`--where` matching:
-
-| Field | Matches when |
-|-------|--------------|
-| scalar | value equals the field (exact, case-sensitive) |
-| list | value is a member of the list |
-| boolean | value is the literal `true` or `false` (no bare-key form) |
-| absent key | never for `=`, always for `!=` |
-
-```
-sdt context list --type plan --status active --last 7d
-sdt context list --type analysis --where categories=refactor
-sdt context search "filter engine" --date updated --after 2026-09-01
-```
-
-## Encoding & hashing
-
-- `sdt b64|b32|b64url|hex|url|html [dec]` — encode/decode
-- `sdt sha256|sha1|sha384|sha512|md5` — hashes
-- `sdt bcrypt|bcrypt verify`, `sdt hmac --key`, `sdt keypair`, `sdt sign|verify`, `sdt cert inspect|expiry`
-
-## Data & conversion
-
-- `sdt conv --in json|yaml|toml|csv|msgpack --out ...`
-- `sdt json pretty|minify|valid`
-
-## IDs, time, strings
-
-- `sdt uid v4|v7|nano|ks`, `sdt time unix|iso|http`
-- `sdt string uppercase|lowercase|titlecase|count|escape|unescape|replacespace`
-- `sdt regexp|regexp replace --expression`
-
-## Network
-
-- `sdt http`, `sdt ipinfo`, `sdt nslookup`, `sdt dns --host --type A|AAAA|MX|TXT|CNAME|NS|PTR`, `sdt port`
-
-## Other
-
-- `sdt gzip|gunzip`, `sdt password`, `sdt qrcode|qrcode read`, `sdt totp uri|code|verify`, `sdt vman`, `sdt config get|set`, `sdt version`
-
-## Examples
-
-```
-echo "hello" | sdt b64                                  # encode
-echo "password" | sdt sha256                            # hash
-echo "payload" | sdt hmac --key "secret"                # hmac
-echo '{"a":1}' | sdt conv --in json --out yaml          # convert
-echo '{"user":"Alice"}' | sdt template --tmpl "Hi {{"{{"}}.user}}"
-cat llm_response.txt | sdt extract --type urls
-cat config.yaml | sdt conv --in yaml --out json
-echo "password" | sdt sha256 | sdt hex                  # pipeline
-sdt diff --a old.json --b new.json --diff-format json-patch
-sdt totp code --secret BASE32SECRET
-sdt dns --host example.com --type A --format json
-sdt context lint context/plan/example.md                    # validate one document
-sdt context lint plan/example.md --format json              # context-relative path
-sdt context lint --security                                 # corpus + security scan
-```
+Logging, exit codes, global flags: `context/instructions/reference.md`.

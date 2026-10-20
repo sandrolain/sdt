@@ -46,12 +46,14 @@ func TestLintPlanTaskAgreement(t *testing.T) {
 		}
 	})
 
-	t.Run("unresolved reference is distinct from unfinished", func(t *testing.T) {
+	t.Run("an unsplit plan is not a defect", func(t *testing.T) {
+		// The plan is the execution ledger: a completed plan with no task file
+		// carries its own checklist, so there is nothing to report.
 		planPath, _ := planTaskFixture(t, "completed")
 		edges := testEdges(t)
 		issues := lintPlanTaskAgreement([]string{planPath}, nil, edges)
-		if len(issues) != 1 || !strings.Contains(issues[0].Message, "no task file references it") {
-			t.Fatalf("issues = %#v, want one unresolved-reference warning", issues)
+		if len(issues) != 0 {
+			t.Fatalf("issues = %#v, want none for an unsplit plan", issues)
 		}
 	})
 
@@ -70,8 +72,8 @@ func TestLintPlanTaskAgreement(t *testing.T) {
 		writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: uid-p\nanalysis_id: uid-a\nsummary: plan\nstatus: completed\n---\n")
 		edges := testEdges(t)
 		issues := lintPlanTaskAgreement([]string{"context/plan/p.md"}, []string{"context/plan/p.md"}, edges)
-		if len(issues) != 1 || !strings.Contains(issues[0].Message, "no task file references it") {
-			t.Fatalf("issues = %#v, want the unresolved warning, not the plan counted as its own task", issues)
+		if len(issues) != 0 {
+			t.Fatalf("issues = %#v, want none: a plan is never its own task file", issues)
 		}
 	})
 
@@ -89,16 +91,13 @@ func TestLintPlanTaskAgreement(t *testing.T) {
 			[]string{"context/tasks/t0.md"},
 			edges,
 		)
-		// plan/p.md has the task (unfinished → one warning); plan/q.md is cited
-		// but owns nothing, so it reports the unresolved case.
-		if len(issues) != 2 {
-			t.Fatalf("issues = %#v, want the unfinished task and the unresolved plan", issues)
+		// plan/p.md owns the task (unfinished → one warning); plan/q.md is cited
+		// but owns nothing, and an unsplit plan is not a defect.
+		if len(issues) != 1 {
+			t.Fatalf("issues = %#v, want only the unfinished task under plan/p.md", issues)
 		}
 		if !strings.Contains(issues[0].Message, "1 task(s) are not done") || !strings.Contains(issues[0].Path, "plan/p.md") {
 			t.Errorf("issue[0] = %#v, want the unfinished task under plan/p.md", issues[0])
-		}
-		if !strings.Contains(issues[1].Message, "no task file references it") || !strings.Contains(issues[1].Path, "plan/q.md") {
-			t.Errorf("issue[1] = %#v, want the unresolved warning under plan/q.md", issues[1])
 		}
 	})
 }

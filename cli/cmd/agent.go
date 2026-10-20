@@ -68,11 +68,23 @@ type instructionFile struct {
 // list to keep in step.
 
 func instructionFiles(project, group string) []instructionFile {
+	return instructionFilesFor(nil, project, group)
+}
+
+// instructionFilesFor returns the instruction files a profile selection writes.
+// A nil or empty selection means the whole catalogue, which is what the
+// distribution gates and the drift guard inspect; `agent init` always passes the
+// project's resolved selection.
+func instructionFilesFor(profiles []string, project, group string) []instructionFile {
 	names := templates.List("instructions")
 	files := make([]instructionFile, 0, len(names))
 	for _, tmpl := range names {
+		name := strings.TrimSuffix(tmpl, ".tmpl")
+		if len(profiles) > 0 && !moduleSelected(strings.TrimSuffix(name, ".md"), profiles) {
+			continue
+		}
 		files = append(files, instructionFile{
-			name: strings.TrimSuffix(tmpl, ".tmpl"),
+			name: name,
 			body: instructionTemplateBody(tmpl, project, group),
 		})
 	}
@@ -121,9 +133,9 @@ var legacyObsoleteInstructionFiles = []string{
 // unmarked legacy renames. With --force they are moved under
 // context/trash/ instead of removed.
 
-func obsoleteInstructionFiles() []string {
+func obsoleteInstructionFiles(profiles []string) []string {
 	current := make([]string, 0, 32)
-	for _, f := range instructionFiles("", "") {
+	for _, f := range instructionFilesFor(profiles, "", "") {
 		current = append(current, f.name)
 	}
 	stale := append([]string{}, legacyObsoleteInstructionFiles...)
@@ -135,15 +147,15 @@ func obsoleteInstructionFiles() []string {
 // --force refreshes only the marker-delimited generated body. Obsolete files
 // are moved to context/trash/ instead of deleted.
 
-func writeInstructionFiles(project, group string, force bool) []FileResult {
+func writeInstructionFiles(profiles []string, project, group string, force bool) []FileResult {
 	scope := filepath.Base(sdtInstrDir)
 	var results []FileResult
-	for _, f := range instructionFiles(project, group) {
+	for _, f := range instructionFilesFor(profiles, project, group) {
 		path := filepath.Join(sdtInstrDir, f.name)
 		results = append(results, agentWriteGeneratedFile(path, agentGeneratedMarkerName(scope, f.name), f.body, force))
 	}
 	if force {
-		for _, name := range obsoleteInstructionFiles() {
+		for _, name := range obsoleteInstructionFiles(profiles) {
 			results = append(results, agentArchiveGenerated(sdtInstrDir, name, "obsolete (no longer generated)"))
 		}
 	}
@@ -210,7 +222,7 @@ var agentCommandStubs = []commandStub{
 	docTrigger("review", "learning", "the concept to review, or what is due",
 		">review: the search ranking pipeline", ">review: what is due in the learner state"),
 	docTrigger("quiz", "learning", "the concepts a quiz covers",
-		">quiz: the depends_on chain behind contextwiki", ">quiz: cluster mode in the graph"),
+		">quiz: the relation vocabulary, including transitive links", ">quiz: how a page reaches a cluster"),
 	docTrigger("practice", "learning", "the task and its checkable result",
 		">practice: reconcile a staged source set into wiki pages", ">practice: the review pass over the learner state"),
 	docTrigger("research-learn", ctxTypeResearch, "the knowledge gap to ground the lesson in first",
@@ -220,18 +232,18 @@ var agentCommandStubs = []commandStub{
 		">analysis: why does sdt context lint skip .map.md notes?",
 		">analysis: extend analysis/<analysis-file>.md with the host-registration trade-off"),
 	docTrigger("draft", "draft", "the raw notes to capture",
-		">draft: check whether bleve ranking can carry the objective facet",
+		">draft: check whether the ranking can carry the objective facet",
 		">draft: three ideas about phase splitting, see the open question"),
 	docTrigger("scope", "scope", "the objective to scope",
 		">scope: give sdt context lint a closed-schema payload rule", ">scope: replace the sdt context lint entry point with a single filter engine"),
 	workflowTrigger(ctxTypePlan, ctxTypePlan, ctxTypeAnalysis, "the analysis the plan is built from",
 		">plan: analysis/<analysis-file>.md", ">plan: the analysis just discussed"),
-	workflowTrigger("execute", ctxTypeTasks, ctxTypePlan, "the plan (and phase) to execute",
+	workflowTrigger("execute", ctxTypePlan, ctxTypePlan, "the plan (and phase) to execute",
 		">execute: plan/<plan-file>.md", ">execute: phase 3 of the plan just discussed"),
-	docTrigger(ctxTypeTasks, ctxTypeTasks, "the plan whose task file(s) are created",
-		">tasks: plan/<plan-file>.md", ">tasks: the plan just approved"),
+	workflowTrigger(ctxTypeTasks, ctxTypeTasks, ctxTypePlan, "the plan to split across parallel streams",
+		">tasks: plan/<plan-file>.md", ">tasks: the plan just approved, two agents in parallel"),
 	docTrigger(ctxTypeProposal, ctxTypeProposal, "subject of the proposal",
-		">proposal: replace the hand-written command stubs with a generated set", ">proposal: register the triggers with the opencode command registry"),
+		">proposal: replace the hand-written command stubs with a generated set", ">proposal: register the triggers with the host command registry"),
 	workflowTrigger(ctxTypeDecision, ctxTypeDecision, ctxTypeProposal, "the proposal to convert",
 		">decision: proposal/20260927-120000-replace-command-stubs", ">decision: proposal/20260929-063000-register-the-commands-with-the-host"),
 	docTrigger(ctxTypeArchitecture, ctxTypeArchitecture, "component or topic to document",
@@ -239,7 +251,7 @@ var agentCommandStubs = []commandStub{
 	docTrigger(ctxTypeWorklog, ctxTypeWorklog, "the phase or task being closed out",
 		">worklog: phase 3 of plan/<plan-file>.md", ">worklog: close out the whole plan/<plan-file> run"),
 	docTrigger(ctxTypeNotes, ctxTypeNotes, "subject of the note",
-		">notes: bleve filter clauses were dropped for ctxquery", ">notes: the map document that markmap silently truncates"),
+		">notes: filter clauses were dropped from the shared query engine", ">notes: the map document that the parser silently truncates"),
 	docTrigger(ctxTypeQuestions, ctxTypeQuestions, "topic to raise questions about",
 		">questions: whether the payload needs a closed schema", ">questions: which triggers need a subject and which accept a free subject"),
 	docTrigger("prompts", "prompts", "intent of the tracked prompt",
@@ -247,7 +259,7 @@ var agentCommandStubs = []commandStub{
 	docTrigger("reference", "reference", "library or topic to look up",
 		">reference: cobra", ">reference: how do agents invoke commands"),
 	docTrigger("debug", "debugging", "the failure, regression or failing check to diagnose",
-		">debug: the failing TestX in ctxquery", ">debug: the regression the user reported"),
+		">debug: the failing test in the search package", ">debug: the regression the user reported"),
 	docTrigger("memo", "memo", "the planned operation to add, record or review",
 		">memo: add a rule to update dependencies every 14 days",
 		">memo: record the vulnerability scan as done"),
@@ -255,7 +267,7 @@ var agentCommandStubs = []commandStub{
 		">todo: integrate chatbot",
 		">todo: rethink the lint pipeline"),
 	docTrigger(ctxTypeResearch, ctxTypeResearch, "the question the run answers",
-		">research: does ctxquery keep list and search in lockstep", ">research: what the host passes to an agent command"),
+		">research: do list and search stay in lockstep", ">research: what the host passes to an agent command"),
 	docTrigger("deepsearch", ctxTypeResearch, "the question the deepsearch answers",
 		">deepsearch: embedded vector stores for a Go CLI", ">deepsearch: how other Markdown KBs model claim provenance"),
 	docTrigger("search", ctxTypeResearch, "the query to discover sources for",
@@ -274,12 +286,15 @@ var agentCommandStubs = []commandStub{
 // and survive `sdt agent init --force`.
 
 func commandFiles(project string, now time.Time) []instructionFile {
-	var files []instructionFile
-	for _, s := range agentCommandStubs {
-		files = append(files, instructionFile{name: s.id + sdtMarkdownExt, body: instrCommandStubTemplate(s.id, s.contract, s.kind, s.subject, s.payload, s.examples, project, now)})
-	}
-	files = append(files, instructionFile{name: filepath.Base(sdtCommandsIndex), body: commandsIndexContent(project, now)})
-	return files
+	return commandFilesFor(nil, project, now)
+}
+
+// commandFilesFor returns the command files a profile selection writes: a
+// trigger whose durable contract lives in an unselected module is neither
+// generated nor advertised, so the registry never points at a file the project
+// does not have.
+func commandFilesFor(profiles []string, project string, now time.Time) []instructionFile {
+	return []instructionFile{{name: filepath.Base(sdtCommandsIndex), body: commandsIndexContentFor(profiles, project, now)}}
 }
 
 // obsoleteCommandFiles were generated as command stubs by older versions of
@@ -302,15 +317,24 @@ var obsoleteCommandFiles = []string{
 // --force refreshes only the marker-delimited generated body. Obsolete files
 // are moved to context/trash/ instead of deleted.
 
-func writeCommandFiles(project string, force bool) []FileResult {
+func writeCommandFiles(profiles []string, project string, force bool) []FileResult {
 	now := time.Now()
 	scope := filepath.Base(sdtCommandsDir)
 	var results []FileResult
-	for _, f := range commandFiles(project, now) {
+	files := commandFilesFor(profiles, project, now)
+	current := make([]string, 0, len(files))
+	for _, f := range files {
+		current = append(current, f.name)
 		path := filepath.Join(sdtCommandsDir, f.name)
 		results = append(results, agentWriteGeneratedFile(path, agentGeneratedMarkerName(scope, f.name), f.body, force))
 	}
 	if force {
+		// The per-trigger files were generated with a `commands/<id>` marker and
+		// no longer are; marker detection retires them without touching a
+		// project's own files, which carry no marker.
+		for _, name := range obsoleteGeneratedFiles(sdtCommandsDir, scope, current) {
+			results = append(results, agentArchiveGenerated(sdtCommandsDir, name, "obsolete (the trigger registry replaced the per-trigger files)"))
+		}
 		for _, name := range obsoleteCommandFiles {
 			results = append(results, agentArchiveGenerated(sdtCommandsDir, name, "obsolete (no longer generated)"))
 		}
@@ -382,17 +406,35 @@ Examples:
 		}
 
 		cfg := &ProjectConfig{Project: project, Group: group}
-		if _, err := os.Stat(sdtConfigFile); err == nil {
-			existing := loadProjectConfig(sdtConfigFile)
-			if existing != nil {
+		previousConfig := ""
+		if data, err := os.ReadFile(sdtConfigFile); err == nil { //#nosec G304 -- the project config path
+			previousConfig = string(data)
+			if existing := loadProjectConfig(sdtConfigFile); existing != nil {
 				cfg.fill(existing)
 			}
 		}
+		// 1a. Generation profiles: the flag wins, the stored list is reused, and
+		// core is always included. An unknown slug is refused before anything is
+		// written, so a typo cannot silently shrink the generated set.
+		if with := getStringArrayFlag(cmd, "with", false); len(with) > 0 {
+			resolved, err := resolveProfiles(with)
+			if err != nil {
+				exitWithError(cmd, err)
+				return
+			}
+			cfg.Instructions.Profiles = resolved
+		}
+		cfg.Instructions.Profiles = normalizeProfileList(cfg.Instructions.Profiles)
+		if err := validateFrontmatterFamilies(cfg.Instructions.Frontmatter); err != nil {
+			exitWithError(cmd, err)
+			return
+		}
 		configResult := FileResult{Path: sdtConfigFile}
-		// A declared skipDirs is carried through the rewrite: `agent init --force`
-		// must round-trip the project's own scope rather than erase it. Leaving
-		// the key absent keeps it absent, and the create-only comment documents it.
-		if err := os.WriteFile(sdtConfigFile, []byte(buildProjectConfigContent(cfg.Project, cfg.Group, cfg.SkipDirs)), 0o600); err != nil { //#nosec G306 -- user project config
+		// A declared skipDirs or gate is carried through the rewrite, and so is
+		// every key SDT does not render: `agent init --force` must round-trip the
+		// project's own declarations rather than erase them. Leaving a key absent
+		// keeps it absent, and the create-only comment documents skipDirs.
+		if err := os.WriteFile(sdtConfigFile, []byte(buildProjectConfigContent(cfg, previousConfig)), 0o600); err != nil { //#nosec G306 -- user project config
 			exitWithError(cmd, err)
 		}
 		configResult.Status = statusWritten
@@ -444,10 +486,17 @@ Examples:
 // when wantProjectBlock asks for it, and the create-only seed files, .sdt.yaml
 // and .gitignore are the caller's business.
 func agentRefreshGenerated(cfg *ProjectConfig, target string, force, wantProjectBlock bool) ([]FileResult, error) {
-	results := writeInstructionFiles(cfg.Project, cfg.Group, force)
-	results = append(results, writeCommandFiles(cfg.Project, force)...)
-	results = append(results, writeSkillFiles(force)...)
-	mdResult, mdBody := agentMergeTarget(target, cfg.Project, cfg.Group, force, wantProjectBlock)
+	profiles := normalizeProfileList(cfg.Instructions.Profiles)
+	results := writeInstructionFiles(profiles, cfg.Project, cfg.Group, force)
+	results = append(results, writeCommandFiles(profiles, cfg.Project, force)...)
+	results = append(results, writeSkillFiles(profiles, force)...)
+	// Roles are a profile of their own: selecting it generates the profiles here,
+	// so a fresh workspace that asked for them is not unhealthy on its first
+	// `doctor` run for the lack of a second command.
+	if profileSelected(profiles, "roles") {
+		results = append(results, writeRoleFiles(cfg.Project, force, deriveRoleProjectFacts())...)
+	}
+	mdResult, mdBody := agentMergeTarget(target, cfg.Project, cfg.Group, profiles, force, wantProjectBlock)
 	if err := os.WriteFile(target, []byte(mdBody), 0o644); err != nil { //#nosec G306 -- user-chosen output file
 		return results, err
 	}
@@ -559,6 +608,15 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 	}
 	if len(existing.SkipDirs) > 0 {
 		cfg.SkipDirs = existing.SkipDirs
+	}
+	if len(existing.Gate) > 0 {
+		cfg.Gate = existing.Gate
+	}
+	if len(existing.Instructions.Profiles) > 0 {
+		cfg.Instructions.Profiles = existing.Instructions.Profiles
+	}
+	if len(existing.Instructions.Frontmatter) > 0 {
+		cfg.Instructions.Frontmatter = existing.Instructions.Frontmatter
 	}
 }
 
@@ -715,6 +773,7 @@ func init() {
 	agentInitCmd.Flags().Bool("force", false, "Refresh generated template content")
 	agentInitCmd.Flags().Bool("project-block", false, "Insert the write-once <!-- sdt:begin:project --> block (asks interactively when omitted)")
 	agentInitCmd.Flags().Bool("yes", false, "Accept defaults without prompting")
+	agentInitCmd.Flags().StringArray("with", nil, "Optional generation profile to add (repeatable): "+strings.Join(agentProfileSlugs()[1:], ", "))
 
 	agentCmd.AddCommand(agentInitCmd, agentVerifyCmd)
 	rootCmd.AddCommand(agentCmd)

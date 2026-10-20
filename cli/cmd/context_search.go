@@ -95,7 +95,7 @@ result set; by default superseded/archived documents are excluded unless --all.
 Examples:
   sdt context search "hybrid search"
   sdt context search "dead-end" --type analysis --status active
-  sdt context search "bleve" --topic context-search --limit 5 --format json
+  sdt context search "ranking" --topic search --limit 5 --format json
   sdt context search "filter" --date updated --last 7d --where objective=my-group` + ctxQueryHelp,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -167,7 +167,11 @@ Examples:
 
 var contextShowCmd = &cobra.Command{
 	Use:   "show <path>",
-	Short: "Print a document or one of its sections",
+	Short: "Print a document or one of its sections (deprecated: use `sdt read`)",
+	// One reader for the working tree and the corpus: `read` resolves a corpus
+	// reference, slices lines and prints a section, so `show` is the same job
+	// under a second name.
+	Hidden: true,
 	Long: `Print a context/ document from disk (the source of truth), optionally
 restricted to one section or a line range.
 
@@ -177,6 +181,7 @@ Examples:
   sdt context show context/analysis/x.md --lines 10:40`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		deprecatedNotice(cmd, "`sdt read -p <path> [--section <id>]`")
 		path := strings.TrimPrefix(args[0], "#")
 		path = strings.SplitN(path, "#", 2)[0]
 		if !strings.HasSuffix(path, sdtMarkdownExt) {

@@ -54,7 +54,11 @@ func ctxVocabRenderText(rows []ctxVocabRow) string {
 	var b strings.Builder
 	b.WriteString("per-kind status vocabulary (declared in the type registry)\n\n")
 	for _, r := range rows {
-		fmt.Fprintf(&b, "  %s\n", r.Kind)
+		if r.Tier != "" {
+			fmt.Fprintf(&b, "  %s  [tier: %s]\n", r.Kind, r.Tier)
+		} else {
+			fmt.Fprintf(&b, "  %s\n", r.Kind)
+		}
 		for _, s := range r.Statuses {
 			marker := " "
 			if s == r.Default {
@@ -67,7 +71,25 @@ func ctxVocabRenderText(rows []ctxVocabRow) string {
 		}
 	}
 	b.WriteString("\n  A type absent here carries no status field.\n")
+	b.WriteString("\noptional frontmatter families (declared in .sdt.yaml under instructions.frontmatter)\n\n")
+	for _, line := range frontmatterFamilyNotes() {
+		b.WriteString("  " + line + "\n")
+	}
+	b.WriteString("\n  A family that is off produces no lint finding; the base keys stay mandatory.\n")
 	return b.String()
+}
+
+// contextVocabLegacyCmd is the old top-level `sdt context vocab`: an alias that
+// still prints the vocabulary and says where the verb lives now.
+var contextVocabLegacyCmd = &cobra.Command{
+	Use:    "vocab",
+	Short:  "Print the per-kind status vocabulary (deprecated: use `status vocab`)",
+	Hidden: true,
+	Args:   cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		deprecatedNotice(cmd, "`sdt context status vocab`")
+		contextVocabCmd.Run(cmd, args)
+	},
 }
 
 var contextVocabCmd = &cobra.Command{
@@ -107,4 +129,11 @@ EXAMPLE — sdt context vocab
 			outputString(cmd, ctxVocabRenderText(rows))
 		}
 	},
+}
+
+func init() {
+	// The vocabulary is a status fact, so it lives under `context status`; the
+	// old top-level verb stays as a deprecated alias.
+	contextStatusCmd.AddCommand(contextVocabCmd)
+	contextCmd.AddCommand(contextVocabLegacyCmd)
 }

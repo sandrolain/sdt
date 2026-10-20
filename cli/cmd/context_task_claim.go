@@ -27,7 +27,7 @@ var contextTaskClaimCmd = &cobra.Command{
 		"mark it in progress, so a concurrent session reads the frontier from\n" +
 		"`sdt context resume` and skips it. Release it with `task release`.\n\n" +
 		"Examples:\n" +
-		"  sdt context task claim --plan <plan-file> --agent opencode\n" +
+		"  sdt context task claim --plan <plan-file> --agent <agent-name>\n" +
 		"  sdt context task release --plan <plan-file>",
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {

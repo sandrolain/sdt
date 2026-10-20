@@ -51,7 +51,7 @@ func TestMemoInstructionDiscoverable(t *testing.T) {
 	hasRow := false
 	for _, line := range strings.Split(block, "\n") {
 		if strings.Contains(line, "context/instructions/memo.md") &&
-			strings.Contains(line, "Planned operations") {
+			strings.Contains(line, "planned-operation register") {
 			hasRow = true
 			break
 		}
@@ -68,7 +68,7 @@ func TestMemoSessionStartCheck(t *testing.T) {
 	if !strings.Contains(block, "sdt context memo due") {
 		t.Error("SESSION START must run `sdt context memo due`")
 	}
-	for _, want := range []string{"before or after the requested task", "never block the task", "never run it\nsilently", "context/instructions/memo.md"} {
+	for _, want := range []string{"before or after the requested task", "never block the task", "never run it silently", "context/instructions/memo.md"} {
 		if !strings.Contains(block, want) {
 			t.Errorf("SESSION START due check missing %q", want)
 		}

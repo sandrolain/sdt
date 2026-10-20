@@ -15,7 +15,7 @@ import (
 // the open .agents/skills/<name>/SKILL.md layout, prefixed sdt-.
 func TestAgentInitGeneratesSkills(t *testing.T) {
 	dir := runInTempDir(t)
-	execute(t, agentInitCmd, nil, "--project", "p", "--group", "g", "--yes", "--gitignore", "none")
+	execute(t, agentInitCmd, nil, "--project", "p", "--group", "g", "--yes", "--gitignore", "none", "--with", "ui", "--with", "slides", "--with", "mindmap", "--with", "vector", "--with", "browser")
 	for _, name := range []string{"sdt-ui-ux", "sdt-slide-deck", "sdt-mind-map", "sdt-vector-svg", "sdt-browser-verification"} {
 		path := filepath.Join(dir, sdtSkillsDir, name, "SKILL.md")
 		if _, err := os.Stat(path); err != nil {
@@ -28,7 +28,7 @@ func TestAgentInitGeneratesSkills(t *testing.T) {
 // unchanged skill nor drops it.
 func TestWriteSkillFilesIdempotent(t *testing.T) {
 	runInTempDir(t)
-	first := writeSkillFiles(false)
+	first := writeSkillFiles(nil, false)
 	var updated int
 	for _, r := range first {
 		if r.Status == statusCreated {
@@ -38,7 +38,7 @@ func TestWriteSkillFilesIdempotent(t *testing.T) {
 	if updated == 0 {
 		t.Fatal("first run must create skill files")
 	}
-	second := writeSkillFiles(false)
+	second := writeSkillFiles(nil, false)
 	for _, r := range second {
 		if r.Status != statusSkipped {
 			t.Errorf("second run must skip an existing skill, got %s for %s", r.Status, r.Path)

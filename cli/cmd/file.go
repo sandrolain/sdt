@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/sandrolain/sdt/internal/mdstruct"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,6 +57,13 @@ EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 	Run: func(cmd *cobra.Command, args []string) {
 		file := getStringFlag(cmd, "file", true)
 
+		// A corpus reference (`plan/<file>`, `context/analysis/<file>`, a bare
+		// slug) resolves to its document: one reader for the working tree and the
+		// corpus, instead of a second `context show` verb.
+		if resolved, ok := resolveCorpusReadRef(file); ok {
+			file = resolved
+		}
+
 		exist, err := fileExists(file)
 		exitWithError(cmd, err)
 		if !exist {
@@ -76,8 +84,42 @@ EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 			outputBytes(cmd, sliceLinesOrExit(cmd, string(content), lines))
 			return
 		}
+		if f := cmd.Flags().Lookup("section"); f != nil {
+			if section := getStringFlag(cmd, "section", false); section != "" {
+				outputString(cmd, readSectionOrExit(cmd, string(content), section))
+				return
+			}
+		}
 		outputBytes(cmd, content)
 	},
+}
+
+// resolveCorpusReadRef maps a corpus reference to its document path. It returns
+// false for anything that does not resolve, so a plain file path is read as
+// written and a typo still fails with the file's own error.
+func resolveCorpusReadRef(ref string) (string, bool) {
+	if ref == "" {
+		return "", false
+	}
+	doc, err := resolveContextDocPath(ref)
+	if err != nil {
+		return "", false
+	}
+	return doc.Path, true
+}
+
+// readSectionOrExit prints one section of a document, matched by id or heading.
+// It is shared by `sdt read --section` and the deprecated `context show`, so the
+// two cannot disagree.
+func readSectionOrExit(cmd *cobra.Command, content, section string) string {
+	body := ctxDocBody(content)
+	for _, s := range mdstruct.SplitSections(body) {
+		if strings.EqualFold(s.ID, section) || strings.EqualFold(s.Heading, section) {
+			return strings.TrimRight(s.Body, "\n") + "\n"
+		}
+	}
+	exitWithError(cmd, fmt.Errorf("section %q not found", section))
+	return ""
 }
 
 var fileWriteCmd = &cobra.Command{
@@ -145,6 +187,7 @@ func init() {
 	pf := fileReadCmd.PersistentFlags()
 	pf.StringP("file", "p", "", "File path")
 	pf.String("lines", "", "Print only this line range (from:to, 1-based)")
+	pf.String("section", "", "Print only this section (by id or heading)")
 	pf.Bool("count", false, "Print the number of lines instead of them (with --lines: of the range)")
 
 	pf = fileWriteCmd.PersistentFlags()

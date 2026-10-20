@@ -149,21 +149,35 @@ func TestCascadeSkipsNoChildrenAndAbandoned(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
 	analysis := writeCascadeAnalysis(t, dir, "20260101-000000-a", ctxWikiStatusActive)
-	// A plan with no task file is never auto-flipped.
+	// An unsplit plan derives from its own checklist: this fixture's checklist is
+	// ticked, so the plan and its analysis complete without any task file.
 	plan := writeCascadePlan(t, dir, "20260101-000000-a-plan", ctxWikiStatusActive, analysis, true)
 	changes, err := cascadeUp(normalizeContextRef(plan), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(changes) != 0 {
-		t.Fatalf("childless plan must not flip, got %+v", changes)
+	if len(changes) != 2 {
+		t.Fatalf("a plan whose own checklist is done must complete, cascading to its analysis, got %+v", changes)
 	}
-	// An abandoned plan never counts as completion for the analysis.
-	plan2 := writeCascadePlan(t, dir, "20260101-000000-a-plan2", "abandoned", analysis, true)
+	// A plan with no checklist at all has nothing to derive from: it keeps its
+	// declared status.
+	untracked := writeCascadePlan(t, dir, "20260101-000000-a-nolist", ctxWikiStatusActive, analysis, true)
+	content := mustReadFile(t, filepath.Join(dir, untracked))
+	writeTestFile(t, filepath.Join(dir, untracked), strings.Replace(content, "- [x] do it\n", "", 1))
+	changes, err = cascadeUp(normalizeContextRef(untracked), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 0 {
+		t.Fatalf("a plan with no checklist must not flip, got %+v", changes)
+	}
+	// An abandoned plan never counts as completion for its analysis.
+	analysis2 := writeCascadeAnalysis(t, dir, "20260101-000002-b", ctxWikiStatusActive)
+	plan2 := writeCascadePlan(t, dir, "20260101-000002-b-plan", "abandoned", analysis2, true)
 	if _, err := cascadeUp(normalizeContextRef(plan2), true); err != nil {
 		t.Fatal(err)
 	}
-	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, analysis)), ctxMapStatus); got != ctxWikiStatusActive {
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, analysis2)), ctxMapStatus); got != ctxWikiStatusActive {
 		t.Fatalf("analysis must stay active while a plan is abandoned, got %q", got)
 	}
 	if !strings.Contains(mustReadFile(t, filepath.Join(dir, plan2)), "status: abandoned") {

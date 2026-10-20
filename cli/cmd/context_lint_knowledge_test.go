@@ -152,38 +152,6 @@ func TestRigorDial(t *testing.T) {
 	assertFinding(t, lintKnowledgeDoc(t, "kind: plan\nsummary: s\nrigor: high\n", "body\n", rigorSubstr), "free text", ctxLintWarning)
 }
 
-func TestReviewDisposition(t *testing.T) {
-	const head = "kind: tasks\nsummary: s\nstatus: completed\n"
-	body := func(disposition string) string {
-		b := "\n## Phase 1\n\n- [x] a step <!-- c1 -->\n\n## Review\n\n### Findings\n\n- [ ] the gate passed — CONFIRMED <!-- c2 -->\n"
-		if disposition != "" {
-			b += "\n### Disposition\n\n" + disposition + "\n"
-		}
-		return b
-	}
-	assertNoFinding(t, lintKnowledgeDoc(t, head, body(""), "Disposition"), "absent disposition")
-	for _, value := range ctxDispositionValues {
-		assertNoFinding(t, lintKnowledgeDoc(t, head, body(value), "Disposition"), value)
-	}
-	assertNoFinding(t, lintKnowledgeDoc(t, head, body("CONTEXT-GAP — the file was not written yet"), "Disposition"), "value with prose")
-	assertFinding(t, lintKnowledgeDoc(t, head, body("EVIDENCE-GAP"), "Disposition"), "invented disposition", ctxLintWarning)
-}
-
-// The disposition belongs to the `## Review` block: a heading elsewhere in the
-// task file must not be read as a recorded disposition.
-func TestReviewDispositionScopedToReviewBlock(t *testing.T) {
-	content := "---\nkind: tasks\nsummary: s\n---\n\n## Phase 1\n\n- [x] a step <!-- c1 -->\n\n### Disposition\n\nEVIDENCE-GAP\n"
-	path := filepath.Join(t.TempDir(), "doc.md")
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
-	for _, issue := range lintDoc(path) {
-		if strings.Contains(issue.Message, "Disposition") {
-			t.Errorf("disposition read outside `## Review`: %s", issue.Message)
-		}
-	}
-}
-
 // Each new key is declared, so a document adopting the conventions is not told
 // its own frontmatter is undeclared.
 func TestKnowledgeKeysAreDeclared(t *testing.T) {

@@ -59,7 +59,10 @@ directories (wiki pages use `sdt context wiki lint`). Agent instruction contract
 `sdt agent verify`. Utility scripts live in `context/scripts/`
 (usage conventions in `instructions/scripts.md`, inventory in
 `scripts/index.md`; executed on demand, never read into context).
-Nothing is written by the CLI: the agent edits the Markdown files.
+Document state is mutated through the CLI, never by hand: `sdt context status
+set` for `status`, `sdt context touch` for a body-only date, `sdt context
+check` / `sdt context task` for checklist items, and `sdt context set`/`unset`
+for a frontmatter key. Body prose is the agent's to write.
 
 `context list` and `context search` share one conjunctive filter engine
 (`--type`, `--status`, a date range `--after`/`--before`/`--last`/`--date` with

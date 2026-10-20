@@ -1206,7 +1206,7 @@ func TestAgentBlockReferencesContextCommands(t *testing.T) {
 		"sdt context reindex",
 		"sdt context lint",
 		"sdt context task",
-		"one task file per plan",
+		"task file exists only to split",
 		"context/index.md",
 	} {
 		if !strings.Contains(block, want) {

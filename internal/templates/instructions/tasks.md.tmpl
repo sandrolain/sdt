@@ -1,16 +1,15 @@
 ---
 kind: instructions
-title: "Task Files (one per plan)"
-summary: "Task files: the executable checklist for one plan, one phase section per phase."
+title: "Task Files (only when a plan is split)"
+summary: "Task files: an optional split of a plan's checklist across parallel scopes; the plan itself is the ledger."
 ---
 
-`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md` holds the task list for a
-**plan**, with one `## Phase <n>` section per phase. One file per plan is the
-default so a sequentially executed plan does not multiply files; split into
-several files only to divide the work by context or across sub-agents (disjoint
-scopes, each with a `--stream <label>` suffix). The task file is the
-**execution unit**: work happens from one task file — and one phase section — at
-a time, never from the plan.
+`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md` holds a **split** of a plan's
+checklist, with one `## Phase <n>` section per phase. The plan is the execution
+ledger by default: a sequentially executed plan keeps its `- [ ]` items in its
+own phases and never gets a task file. Create one only to divide the work across
+concurrent agents or disjoint scopes (each file with a `--stream <label>`
+suffix); then that file is the execution unit for its scope.
 
 ## Create
 
@@ -35,19 +34,19 @@ A task file is owned by its plan: it carries the optional `phases` list (the
 phase sections it covers; omitted on the whole-plan file) and **inherits the
 plan's `objective`** for grouping — it never declares `objective` itself.
 
-**One home for the checklist.** The task file's `## Phase <n>` checklist is the
-**single home** of the executable steps. The plan carries each phase's intent and
-approach (the "how"); it never repeats the checklist. A plan phase and its task
-`## Phase` section must not restate the same list — the plan states *what and
-how*, the task states the *executable steps*.
+**One home for the checklist.** In an **unsplit** plan the `- [ ]` steps live in
+the plan's own phases. In a **split** plan they live in the task file's
+`## Phase <n>` sections, and the plan keeps only the intent and the approach (the
+"how"). A plan phase and its task `## Phase` section never restate the same
+list.
 
 **Subject resolution (`>tasks`, `>execute`).** Both triggers are **workflow**
-commands. `>tasks`'s subject is a `plan`; `>execute`'s subject is a `plan` and
-one of its task files. They resolve it through the working-context ladder
-(`context/commands/index.md`, *Working-context resolution*): explicit payload →
-exactly one active/unique candidate → the plan under discussion → **ask**. When
-`>execute` finds a plan with no task file, it stops and points to `>tasks` (task
-creation is gated on plan approval); it never invents a task file.
+commands. `>tasks`'s subject is a `plan` (the one to split) and `>execute`'s subject is a
+`plan` (its task file, when it was split). They resolve it through the
+working-context ladder (`context/commands/index.md`, *Working-context
+resolution*): explicit payload → exactly one active/unique candidate → the plan
+under discussion → **ask**. `>execute` on an unsplit plan works its checklist
+directly; it never invents a task file.
 
 ## Structure
 
@@ -56,7 +55,7 @@ creation is gated on plan approval); it never invents a task file.
 kind: tasks
 summary: "<1-2 sentence summary — MANDATORY, index source>"
 phases: [1, 2]           # optional: only on a split file; omitted on the whole-plan file
-status: pending          # pending | in-progress | completed | archived | active(legacy) — statuses defined in the matrix (architecture/stack.md)
+status: pending          # pending | in-progress | completed | archived | active(legacy) — accepted values: `sdt context vocab`
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:
@@ -97,10 +96,6 @@ session: <session id>        # optional
 
 - [ ] <claim> — CONFIRMED <!-- c5 -->
 - [ ] <claim> — UNVERIFIED <!-- c6 -->
-
-### Disposition          <!-- what kind of gap the review found -->
-
-<CONTEXT-GAP | JUDGMENT-GAP | NONE>
 
 ### Gate                 <!-- appended by `agent gate --record`; a failed run says so -->
 
@@ -163,7 +158,7 @@ search. A repeated id in one document is a `sdt context lint` WARNING, and
 | created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
 | updated | yes | ISO 8601 UTC last-edit date, written only by the CLI; refresh a body-only edit with `sdt context touch`. |
 | links | yes | Relative path to the plan this task file executes. |
-| project | yes | Project id from `.sdt.yaml` (e.g. `sdt_01a2b3c4`). |
+| project | yes | Project id from `.sdt.yaml` (e.g. `<project-id>`). |
 | agent | no | Agent/tool that picked up or last edited the file. |
 | model | no | Model id of that agent — provenance. |
 | session | no | Session id for traceability across edits. |
@@ -391,42 +386,28 @@ Two rules bound what the evidence may conclude:
   plan's Validation phase; a per-edit run of everything is slow and can hang
   offline (see `instructions/development.md`).
 
-Record it as a file-level `## Review` block in the task file (write it with
-`sdt context task review --phase <n>`; a completed file without the block gets
-a lint SUGGESTION). Every finding ends as one of the closed verdicts
-**CONFIRMED**, **DISPROVED** or **UNVERIFIED**, with evidence (command output,
-file path). Findings are validated in an **independent pass**; the author of the
-phase does not self-approve.
+The closeout claim is **no new findings**: `sdt context lint` reports what the
+baseline (`context/lint-baseline.json`) has not accepted yet, so "clean" is not a
+statement anyone can make about a living corpus. `sdt context lint --all` shows
+everything; `--baseline-write` records a deliberate acceptance.
 
-- **An independent opinion needs a separate context.** The independent pass must
-  come from a **different model or host** with no shared working context — a
-  second pass by the same agent that wrote the work is not independent. When no
-  second model/host is available, record **"no independent check was possible"**
-  as the verdict and treat the review as **degraded**; never self-approve
-  silently.
+Record it as a file-level `## Review` block (in the plan, or in the split task
+file that holds the work; write it with `sdt context task review --phase <n>`; a
+completed ledger without the block gets a lint SUGGESTION). Every finding ends as
+one of the closed verdicts **CONFIRMED**, **DISPROVED** or **UNVERIFIED**, with
+evidence (command output, file path) — one verdict per claim, no second pass by
+default.
+
+- **When the independent pass is required.** Only a plan whose `rigor` is **P3 or
+  P4** needs a different model/host with no shared context; a second pass by the
+  author is not independent. When none is available, record **"no independent
+  check was possible"** and treat the review as **degraded**. At P0-P2 the single
+  evidenced pass is the review.
 
 - **Review completeness, not the chosen direction.** A verdict judges whether the
   deliverable is complete and evidenced against its claims; it does not re-open a
   decision already taken in the analysis. A direction concern is a new analysis
   or an open question, never a review verdict.
-
-### Disposition — what kind of gap the review found
-
-A **verdict** says whether a claim held; the **disposition** says why a review
-that ran did not settle the thing. It is the closed three-value vocabulary, one
-per review, written under `## Review` as a `### Disposition` subsection:
-
-| Disposition | When |
-|-------------|------|
-| `CONTEXT-GAP` | the material the review needed was not available — the file was not written yet, a dependency had not landed, the diff was not reachable. The next step is to produce the missing context, not to redo the judgement. |
-| `JUDGMENT-GAP` | the material was available and the call made on it was wrong, or a claim was made that the evidence does not carry. The next step is a new judgement, with the evidence named. |
-| `NONE` | the review found no gap of either kind. |
-
-The two are not interchangeable: a CONTEXT-GAP reported as a fix produces work on
-a wrong premise, and a JUDGMENT-GAP reported as "waiting on context" hides a
-defect behind an excuse. When the independent pass is impossible
-(**"no independent check was possible"** above), the review is degraded and the
-disposition is `CONTEXT-GAP` — the missing context is the missing reviewer.
 
 Give each finding its own identity with `--finding "<claim>" --verdict <verdict>`
 (repeatable, paired by position): the pairs become one item per finding under the

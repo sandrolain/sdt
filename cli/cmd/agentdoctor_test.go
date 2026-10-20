@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +13,7 @@ func TestAgentDoctorReportsChecks(t *testing.T) {
 	execute(t, agentInitCmd, nil, "--project", "p", "--group", "g", "--yes", "--gitignore", "none")
 
 	out := string(execute(t, agentDoctorCmd, nil))
-	for _, want := range []string{"agents.md", "instructions", "work-dirs", "project-config", "search-cache"} {
+	for _, want := range []string{"agents.md", "instructions", "work-dirs", "project-config", "delivery-gate", "search-cache"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("doctor output missing check %q:\n%s", want, out)
 		}
@@ -101,27 +100,19 @@ func TestStoreCompletenessVerdict(t *testing.T) {
 }
 
 func TestDeliveryGateStopsAtFirstFailure(t *testing.T) {
-	dir := runInTempDir(t)
-	// A module with a syntax error fails the build step; the ladder must stop
-	// there (only one result) and the command must exit non-zero.
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module gatefail\n\ngo 1.21\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "broken.go"), []byte("package main\n\nfunc main() { this is not go }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	runInTempDir(t)
+	writeGateConfig(t, GateStep{Name: "build", Run: "exit 0"}, GateStep{Name: "test", Run: "exit 3"})
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, agentGateCmd, nil, "--format", "json"))
 	})
 }
 
-// stubGateSteps replaces the delivery ladder so a command test does not run the
-// real Go toolchain.
-func stubGateSteps(t *testing.T, steps ...gateStep) {
+// writeGateConfig declares a gate in the temp project's .sdt.yaml.
+func writeGateConfig(t *testing.T, steps ...GateStep) {
 	t.Helper()
-	orig := deliveryGateSteps
-	deliveryGateSteps = steps
-	t.Cleanup(func() { deliveryGateSteps = orig })
+	if err := os.WriteFile(".sdt.yaml", []byte(buildProjectConfigContent(&ProjectConfig{Project: "p", Group: "g", Gate: steps}, "")), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // stubGateClock pins contextNow so a recorded run is deterministic.
@@ -194,7 +185,7 @@ func TestGateRecordWritesOnlyWhenAsked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stubGateSteps(t, gateStep{Name: "noop", Bin: "true"})
+	writeGateConfig(t, GateStep{Name: "noop", Run: "true"})
 	stubGateClock(t, time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC))
 
 	// Without --record the gate must not touch the corpus: the CI path is
@@ -222,7 +213,7 @@ func TestGateRecordWritesOnlyWhenAsked(t *testing.T) {
 func TestGateRecordRequiresPlan(t *testing.T) {
 	path := gateRecordedTask(t)
 	before, _ := os.ReadFile(path)
-	stubGateSteps(t, gateStep{Name: "noop", Bin: "true"})
+	writeGateConfig(t, GateStep{Name: "noop", Run: "true"})
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, agentGateCmd, nil, "--record"))
 	})
@@ -233,9 +224,9 @@ func TestGateRecordRequiresPlan(t *testing.T) {
 
 func TestGateRecordRecordsAFailingRun(t *testing.T) {
 	path := gateRecordedTask(t)
-	stubGateSteps(t,
-		gateStep{Name: "noop", Bin: "true"},
-		gateStep{Name: "boom", Bin: "false"},
+	writeGateConfig(t,
+		GateStep{Name: "noop", Run: "true"},
+		GateStep{Name: "boom", Run: "false"},
 	)
 	stubGateClock(t, time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC))
 	shouldExitWithCode(t, 1, func() string {
@@ -329,22 +320,33 @@ func TestAppendReviewFindingsKeepsFindingsWhenTheGateCreatedTheBlock(t *testing.
 	}
 }
 
-func TestGateGoListExprFailsClosedWhenNothingResolves(t *testing.T) {
-	// The go steps are shell steps: an empty package list must become an
-	// argument the go tool rejects, so the step fails instead of building and
-	// testing nothing while exiting 0 (a failure laundered into a pass).
-	if !strings.Contains(gateGoListExpr, gateNoPackagesSentinel) {
-		t.Fatalf("gateGoListExpr = %q, want the fail-closed sentinel", gateGoListExpr)
+func TestGateStepRunsThroughTheShell(t *testing.T) {
+	// A declared step may expand its own package list, so it is a shell command
+	// line and not an argv list: a substitution and a pipe both run, and a
+	// non-zero exit is a failure whatever path produced it.
+	runInTempDir(t)
+	out, err := runGateStep("printf '%s' \"$(printf ok | tr a-z A-Z)\"")
+	if err != nil || string(out) != "OK" {
+		t.Fatalf("shell step = %q, %v; want OK", out, err)
 	}
-	if strings.HasPrefix(gateNoPackagesSentinel, ".") || strings.HasPrefix(gateNoPackagesSentinel, "/") {
-		t.Fatalf("sentinel %q must not look like a path go would accept", gateNoPackagesSentinel)
+	if _, err := runGateStep("exit 3"); err == nil {
+		t.Fatal("want a non-zero exit to fail the step")
 	}
-	dir := runInTempDir(t)
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module empties\n\ngo 1.21\n"), 0o644); err != nil {
+}
+
+func TestGateRefusesAMalformedDeclaration(t *testing.T) {
+	runInTempDir(t)
+	writeGateConfig(t, GateStep{Name: "build", Run: "exit 0"}, GateStep{Name: "test", Run: "  "})
+	shouldExitWithCode(t, 1, func() string { return string(execute(t, agentGateCmd, nil)) })
+}
+
+func TestGateWithoutADeclarationSaysSoAndPasses(t *testing.T) {
+	runInTempDir(t)
+	if err := os.WriteFile(".sdt.yaml", []byte(buildProjectConfigContent(&ProjectConfig{Project: "p", Group: "g"}, "")), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	out, err := runGateStep("go", gateStep{Name: "build", Bin: "go", Args: []string{"go build", gateGoListExpr}, UseShell: true})
-	if err == nil {
-		t.Fatalf("want a failure when no package resolves, got success:\n%s", out)
+	out := string(execute(t, agentGateCmd, nil))
+	if !strings.Contains(out, "no gate declared") {
+		t.Fatalf("want the absent gate reported, got:\n%s", out)
 	}
 }

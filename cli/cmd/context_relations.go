@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/sandrolain/sdt/internal/ctxrel"
 	"os"
 	"strings"
 
@@ -611,7 +612,82 @@ Examples:
 
 func init() {
 	contextRelationsBackfillCmd.Flags().Bool("dry-run", false, "Report without writing anything")
-	contextRelationsCmd.AddCommand(contextRelationsBackfillCmd)
+	contextRelationsCmd.AddCommand(
+		contextRelationsBackfillCmd,
+		contextRelationsParentCmd,
+		contextRelationsSimilarCmd,
+		contextRelationsRankCmd,
+		contextRelationsPathCmd,
+	)
+
+	contextRelationsSimilarCmd.Flags().Int("limit", 10, "Maximum number of neighbours to list")
+	addResolveFlags(contextRelationsRankCmd)
+}
+
+// The relation views are one family under one verb: a document's recorded
+// parent, its semantic neighbours, the ranked candidates of a type and its
+// lifecycle path. `related`, `resolve` and `trace` keep working as deprecated
+// aliases of `similar`, `rank` and `path`.
+var (
+	contextRelationsSimilarCmd = &cobra.Command{
+		Use:   "similar <doc>",
+		Short: contextRelatedCmd.Short,
+		Long:  contextRelatedCmd.Long,
+		Args:  contextRelatedCmd.Args,
+		Run:   runRelated,
+	}
+	contextRelationsRankCmd = &cobra.Command{
+		Use:   "rank --type <t> [--status <s>]",
+		Short: contextResolveCmd.Short,
+		Long:  contextResolveCmd.Long,
+		Args:  contextResolveCmd.Args,
+		Run:   runResolve,
+	}
+	contextRelationsPathCmd = &cobra.Command{
+		Use:   "path <doc-ref>",
+		Short: contextTraceCmd.Short,
+		Long:  contextTraceCmd.Long,
+		Args:  contextTraceCmd.Args,
+		Run:   runTrace,
+	}
+)
+
+// contextRelationsParentCmd prints the parent a document records: the typed
+// relation the ladder and the cascade read, without a second lookup verb.
+var contextRelationsParentCmd = &cobra.Command{
+	Use:   "parent <doc-ref>",
+	Short: "Print the recorded parent of a document",
+	Long: `Print the parent a document records in its frontmatter — ` + "`plan_id`" + ` for a
+task file, ` + "`analysis_id`" + ` for a plan — resolved by path or identity, with the
+parent's kind, title and status. Read-only; a document with no parent says so.
+
+Examples:
+  sdt context relations parent context/tasks/<task-file>.md
+  sdt context relations parent plan/<plan-file> --format json`,
+	Args: cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		doc, err := resolveContextDoc(cmd, args)
+		exitWithError(cmd, err)
+		edges, err := ctxrel.Load(sdtWorkDir)
+		exitWithError(cmd, err)
+		ref := edges.ParentOf(doc.Path)
+		if ref == "" {
+			outputString(cmd, "no parent recorded\n")
+			return
+		}
+		step := ctxTraceStepFor(ref)
+		switch getFormat(cmd) {
+		case fmtJSON, fmtYAML:
+			out, err := json.MarshalIndent(step, "", "  ")
+			if getFormat(cmd) == fmtYAML {
+				out, err = yaml.Marshal(step)
+			}
+			exitWithError(cmd, err)
+			outputBytes(cmd, out)
+		default:
+			outputString(cmd, fmt.Sprintf("%s (%s)\n", step.Ref, step.Status))
+		}
+	},
 }
 
 func relListContains(doc ctxRelDoc, field, value string) bool {

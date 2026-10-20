@@ -263,7 +263,7 @@ func agentArchiveGenerated(dir, name, reason string) FileResult {
 
 // ── target file helpers ────────────────────────────────────────────────────────
 
-func agentMergeTarget(target, project, group string, force, wantProject bool) (FileResult, string) {
+func agentMergeTarget(target, project, group string, profiles []string, force, wantProject bool) (FileResult, string) {
 	res := FileResult{Path: target}
 	content := ""
 	if _, err := os.Stat(target); err == nil {
@@ -277,7 +277,7 @@ func agentMergeTarget(target, project, group string, force, wantProject bool) (F
 	}
 
 	// Instructions block: refreshed with --force, else preserved.
-	instrContent, instrChanged := agentMergeBlock(content, agentSectionNameInstructions, agentBlockInstructions(project, group), force)
+	instrContent, instrChanged := agentMergeBlock(content, agentSectionNameInstructions, agentBlockInstructionsFor(project, group, profiles), force)
 
 	// Project block: write-once, created only when absent and requested, never
 	// by --force. Declining never removes an already-present block.
@@ -300,11 +300,26 @@ func agentMergeTarget(target, project, group string, force, wantProject bool) (F
 	return res, projectContent
 }
 
+// agentBlockInstructions renders the always-loaded block with every profile
+// selected: it is the full catalogue, used by the distribution gates and the
+// golden fixture. `agent init` renders the project's actual selection.
 func agentBlockInstructions(project, group string) string {
+	return agentBlockInstructionsFor(project, group, nil)
+}
+
+// agentBlockInstructionsFor renders the block for a selection: the on-action
+// table advertises only the modules the project actually has.
+func agentBlockInstructionsFor(project, group string, profiles []string) string {
 	data := struct {
-		Project string
-		Group   string
-	}{Project: project, Group: group}
+		Project  string
+		Group    string
+		Profiles map[string]bool
+	}{Project: project, Group: group, Profiles: selectedProfiles(profiles)}
+	if len(profiles) == 0 {
+		for _, p := range agentProfileRegister {
+			data.Profiles[p.Slug] = true
+		}
+	}
 	return templates.Must("agents/instructions.md.tmpl", data, nil)
 }
 

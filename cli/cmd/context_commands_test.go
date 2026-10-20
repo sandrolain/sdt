@@ -8,45 +8,55 @@ import (
 	"time"
 )
 
-// TestContextCommandsNew verifies the trigger stub creation and index
-// regeneration from a directory scan (user triggers listed, format identical
-// to `sdt agent init`).
+// newProjectRegistry seeds a registry in the working directory, the way
+// `agent init` leaves one, without asking the CLI to write the whole workspace.
+func newProjectRegistry(t *testing.T) {
+	t.Helper()
+	stubContextNow(t, time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC))
+	body := agentRenderGenerated(commandsRegistryMarker(), commandsIndexContentFor([]string{agentProfileCore}, "tm", contextNow()))
+	writeTestFile(t, "context/commands/index.md", body)
+}
+
+// TestContextCommandsNew verifies that a trigger becomes a registry row: no
+// per-trigger file is written, and the row sits outside the generated block so
+// a refresh keeps it.
 func TestContextCommandsNew(t *testing.T) {
 	runInTempDir(t)
-	stubContextNow(t, time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC))
+	newProjectRegistry(t)
 
 	out := string(execute(t, contextCommandsNewCmd, nil, "triage", "--contract", "research"))
-	if !strings.Contains(out, "context/commands/triage.md") {
-		t.Errorf("missing new file in output: %q", out)
+	if !strings.Contains(out, "registered >triage") {
+		t.Errorf("missing registration line in output: %q", out)
 	}
-	if !strings.Contains(out, "regenerated context/commands/index.md") {
-		t.Errorf("missing index regen in output: %q", out)
-	}
-
-	stub := mustReadFile(t, "context/commands/triage.md")
-	if got := frontmatterField(stub, "kind"); got != "commands" {
-		t.Errorf("stub kind = %q", got)
-	}
-	if got := frontmatterField(stub, "id"); got != "commands/triage" {
-		t.Errorf("stub id = %q", got)
-	}
-	if !strings.Contains(stub, "context/instructions/research.md") {
-		t.Errorf("stub must reference the --contract instruction:\n%s", stub)
+	if _, err := os.Stat("context/commands/triage.md"); !os.IsNotExist(err) {
+		t.Errorf("a trigger must not create a per-trigger file: %v", err)
 	}
 
 	idx := mustReadFile(t, "context/commands/index.md")
-	if !strings.Contains(idx, ">triage") {
-		t.Errorf("index missing >triage row:\n%s", idx)
+	if !strings.Contains(idx, "| `>triage` | document | — | `context/instructions/research.md` |") {
+		t.Errorf("registry missing the trigger row:\n%s", idx)
 	}
-	if _, err := os.Stat("context/commands/index.md"); err != nil {
-		t.Fatalf("index missing: %v", err)
+	if !strings.Contains(idx, "## Project triggers") {
+		t.Errorf("registry missing the project section:\n%s", idx)
+	}
+
+	// The row is outside the generated block: a refresh of the built-in table
+	// keeps it, while the generated table itself is rewritten.
+	refreshed := agentRenderGenerated(commandsRegistryMarker(), commandsIndexContentFor([]string{agentProfileCore}, "tm", contextNow()))
+	_, tail := commandsIndexSplit(idx)
+	if !hasProjectRow(tail, "triage") {
+		t.Errorf("the project row is inside the generated block:\n%s", idx)
+	}
+	if !strings.Contains(refreshed, "| `>analysis` |") {
+		t.Error("the refreshed registry lost its built-in rows")
 	}
 }
 
-// TestContextCommandsNewRejects guards the trigger grammer and the reserved
+// TestContextCommandsNewRejects guards the trigger grammar and the reserved
 // index name.
 func TestContextCommandsNewRejects(t *testing.T) {
 	runInTempDir(t)
+	newProjectRegistry(t)
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextCommandsNewCmd, nil, "bad/slug"))
 	})
@@ -56,136 +66,85 @@ func TestContextCommandsNewRejects(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextCommandsNewCmd, nil, "triage", "--contract", "bad/contract"))
 	})
+	if idx := mustReadFile(t, "context/commands/index.md"); strings.Contains(idx, ">triage") {
+		t.Errorf("a rejected trigger was registered:\n%s", idx)
+	}
 }
 
-// TestContextCommandsNewPayload verifies the --payload flag end to end: the
-// phrase lands in the stub frontmatter (outside the generated markers, so
-// `sdt agent init --force` keeps it) and in the commands index Payload
-// column, while a trigger created without it renders the explicit
+// TestContextCommandsNewPayload verifies the --payload flag: the phrase is the
+// row's Payload cell, and a trigger created without one shows the explicit
 // "not declared" placeholder rather than a blank cell.
 func TestContextCommandsNewPayload(t *testing.T) {
 	runInTempDir(t)
-	stubContextNow(t, time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC))
+	newProjectRegistry(t)
 
 	execute(t, contextCommandsNewCmd, nil, "triage", "--contract", "research", "--payload", "the question the run answers")
 	execute(t, contextCommandsNewCmd, nil, "scratch", "--contract", "research")
 
-	stub := mustReadFile(t, "context/commands/triage.md")
-	if got := frontmatterField(stub, "payload"); got != "the question the run answers" {
-		t.Errorf("stub payload = %q", got)
-	}
-	// The payload is the index cell: the phrase must appear in the table row.
 	idx := mustReadFile(t, "context/commands/index.md")
 	if !strings.Contains(idx, "| the question the run answers |") {
-		t.Errorf("index Payload cell missing the declared phrase:\n%s", idx)
+		t.Errorf("registry Payload cell missing the declared phrase:\n%s", idx)
 	}
 	if !strings.Contains(idx, commandPayloadUndeclared) {
-		t.Errorf("index must show %q for an undeclared trigger:\n%s", commandPayloadUndeclared, idx)
+		t.Errorf("registry must show %q for an undeclared trigger:\n%s", commandPayloadUndeclared, idx)
 	}
-
-	// Resolution order: a generated trigger keeps the table phrase even when a
-	// stale payload field sits in its own frontmatter.
-	writeTestFile(t, "context/commands/wiki.md", addCommandPayloadField(buildCommandsStub("wiki"), "stale hand edit"))
-	execute(t, contextCommandsNewCmd, nil, "other", "--force", "--contract", "research")
-	if got := commandPayloadFor("wiki"); got != declaredCommandPayload("wiki") {
-		t.Errorf("generated trigger payload = %q, want the table phrase %q", got, declaredCommandPayload("wiki"))
-	}
-
-	// The field survives a body-only regeneration.
-	before := mustReadFile(t, "context/commands/triage.md")
-	_ = before
-	if err := commandsRewriteIndex("tm"); err != nil {
-		t.Fatalf("rewrite index: %v", err)
-	}
-	if got := frontmatterField(mustReadFile(t, "context/commands/triage.md"), "payload"); got != "the question the run answers" {
-		t.Errorf("payload lost after index rewrite: %q", got)
-	}
-}
-
-// TestContextCommandPayloadMissingFile guards the read path: a trigger whose
-// file cannot be read resolves to no payload, which the index renders as the
-// undeclared placeholder rather than failing the whole regeneration.
-func TestContextCommandPayloadMissingFile(t *testing.T) {
-	runInTempDir(t)
-	if got := contextCommandPayload(filepath.Join(sdtCommandsDir, "absent.md")); got != "" {
-		t.Errorf("missing file resolved to %q, want empty", got)
-	}
-	if got := commandPayloadFor("absent"); got != commandPayloadUndeclared {
-		t.Errorf("unreadable trigger = %q, want %q", got, commandPayloadUndeclared)
-	}
-}
-
-// TestAddCommandPayloadFieldNoFrontmatter guards the defensive path: a rendered
-// file without frontmatter is returned untouched rather than having the field
-// written outside the frontmatter, where a reader would miss it.
-func TestAddCommandPayloadFieldNoFrontmatter(t *testing.T) {
-	const bare = "# Title\n\nbody only, no frontmatter\n"
-	if got := addCommandPayloadField(bare, "a phrase"); got != bare {
-		t.Errorf("frontmatter-less input was modified:\n%s", got)
+	rows := parseCommandRows(idx)
+	for _, row := range rows {
+		if row.Trigger == "triage" && row.Payload != "the question the run answers" {
+			t.Errorf("parsed payload = %q", row.Payload)
+		}
+		if row.Trigger == "scratch" && row.Payload != commandPayloadUndeclared {
+			t.Errorf("parsed undeclared payload = %q", row.Payload)
+		}
 	}
 }
 
 // TestContextCommandsNewPayloadRejects guards the phrase shape: it must be a
-// non-empty single line, because it is stored as one frontmatter scalar.
+// non-empty single line, because it is stored as one table cell.
 func TestContextCommandsNewPayloadRejects(t *testing.T) {
 	runInTempDir(t)
+	newProjectRegistry(t)
+	before := mustReadFile(t, "context/commands/index.md")
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextCommandsNewCmd, nil, "triage", "--payload", "   "))
 	})
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextCommandsNewCmd, nil, "triage", "--payload", "line one\nline two"))
 	})
-	if _, err := os.Stat("context/commands/triage.md"); !os.IsNotExist(err) {
-		t.Errorf("a rejected --payload must not create the trigger: %v", err)
+	if after := mustReadFile(t, "context/commands/index.md"); after != before {
+		t.Errorf("a rejected --payload must not touch the registry:\n%s", after)
 	}
 }
 
-// TestContextCommandsNewTaxonomy verifies a user trigger can declare its kind
-// and subject, that the declarations persist in frontmatter and reach the index
-// row, and that the default is a document command.
+// TestContextCommandsNewTaxonomy verifies a user trigger declares its kind and
+// subject in the row, and that the default is a document command.
 func TestContextCommandsNewTaxonomy(t *testing.T) {
 	runInTempDir(t)
-	stubContextNow(t, time.Date(2026, 9, 20, 17, 30, 0, 0, time.UTC))
+	newProjectRegistry(t)
 
 	execute(t, contextCommandsNewCmd, nil, "advance", "--contract", "plan", "--kind", "workflow", "--subject", "analysis")
 	execute(t, contextCommandsNewCmd, nil, "plain", "--contract", "research")
 
-	stub := mustReadFile(t, "context/commands/advance.md")
-	if got := frontmatterField(stub, "command_kind"); got != commandKindWorkflow {
-		t.Errorf("workflow stub command_kind = %q, want %q", got, commandKindWorkflow)
-	}
-	if got := frontmatterField(stub, "subject"); got != "analysis" {
-		t.Errorf("workflow stub subject = %q, want analysis", got)
-	}
-	if !strings.Contains(stub, "## Subject") {
-		t.Error("workflow stub must render the ## Subject block")
-	}
-
 	idx := mustReadFile(t, "context/commands/index.md")
-	if !strings.Contains(idx, "| `>advance` | workflow | `analysis` |") {
-		t.Errorf("index row missing the workflow taxonomy:\n%s", idx)
+	if !strings.Contains(idx, "| `>advance` | workflow | `analysis` | `context/instructions/plan.md` |") {
+		t.Errorf("registry row missing the workflow taxonomy:\n%s", idx)
 	}
 	if !strings.Contains(idx, "| `>plain` | document | — |") {
-		t.Errorf("index row missing the document default:\n%s", idx)
+		t.Errorf("registry row missing the document default:\n%s", idx)
 	}
-
-	// Resolution: the table wins, then the frontmatter, then the document default.
-	if got := commandKindFor("advance"); got != commandKindWorkflow {
-		t.Errorf("commandKindFor(advance) = %q", got)
-	}
-	if got := commandSubjectFor("advance"); got != "analysis" {
-		t.Errorf("commandSubjectFor(advance) = %q", got)
-	}
-	if got := commandKindFor("plain"); got != commandKindDocument {
-		t.Errorf("commandKindFor(plain) = %q", got)
+	for _, row := range parseCommandRows(idx) {
+		if row.Trigger == "advance" && (row.Kind != commandKindWorkflow || row.Subject != "analysis") {
+			t.Errorf("parsed workflow row = %+v", row)
+		}
 	}
 }
 
 // TestContextCommandsNewTaxonomyRejects guards the taxonomy shape: an unknown
 // kind, a non-slug subject, or a subject without the workflow kind is rejected
-// and creates nothing.
+// and registers nothing.
 func TestContextCommandsNewTaxonomyRejects(t *testing.T) {
 	runInTempDir(t)
+	newProjectRegistry(t)
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextCommandsNewCmd, nil, "bad", "--kind", "sideways"))
 	})
@@ -195,54 +154,81 @@ func TestContextCommandsNewTaxonomyRejects(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextCommandsNewCmd, nil, "bad", "--subject", "analysis"))
 	})
-	if _, err := os.Stat("context/commands/bad.md"); !os.IsNotExist(err) {
-		t.Errorf("a rejected taxonomy must not create the trigger: %v", err)
+	if idx := mustReadFile(t, "context/commands/index.md"); strings.Contains(idx, ">bad") {
+		t.Errorf("a rejected taxonomy was registered:\n%s", idx)
 	}
 }
 
-// TestContextCommandsRm verifies the stub deletion and index regeneration.
-func TestContextCommandsRm(t *testing.T) {
+// TestContextCommandsNewDetail verifies --detail writes the companion document,
+// that the row name survives a regeneration, and that the detail file is never
+// a generated one (so --force cannot wipe its prose).
+func TestContextCommandsNewDetail(t *testing.T) {
 	runInTempDir(t)
-	writeTestFile(t, "context/commands/triage.md", addCommandPayloadField(buildCommandsStub("triage"), "the removed trigger's payload"))
-	writeTestFile(t, "context/commands/other.md", addCommandPayloadField(buildCommandsStub("other"), "subject of the other command"))
+	newProjectRegistry(t)
+
+	execute(t, contextCommandsNewCmd, nil, "triage", "--contract", "research", "--payload", "the symptom to triage", "--detail")
+	detail := mustReadFile(t, "context/commands/triage.md")
+	if got := frontmatterField(detail, "kind"); got != "commands" {
+		t.Errorf("detail kind = %q", got)
+	}
+	if !strings.Contains(detail, "the symptom to triage") {
+		t.Errorf("detail does not carry the payload phrase:\n%s", detail)
+	}
+	if strings.Contains(detail, "sdt:begin:") {
+		t.Errorf("the detail file must be a project document, not a generated one:\n%s", detail)
+	}
+	if !hasProjectRow(mustReadFile(t, "context/commands/index.md"), "triage") {
+		t.Error("the row was not registered")
+	}
 
 	out := string(execute(t, contextCommandsRmCmd, nil, "triage"))
 	if !strings.Contains(out, "removed context/commands/triage.md") {
+		t.Errorf("rm did not remove the detail file: %q", out)
+	}
+}
+
+// TestContextCommandsRm verifies row removal: the row disappears, the detail
+// file goes with it, a surviving row keeps its payload and `rm` never archives.
+func TestContextCommandsRm(t *testing.T) {
+	runInTempDir(t)
+	newProjectRegistry(t)
+	execute(t, contextCommandsNewCmd, nil, "triage", "--contract", "research", "--payload", "the removed trigger's payload", "--detail")
+	execute(t, contextCommandsNewCmd, nil, "other", "--contract", "research", "--payload", "subject of the other command")
+
+	out := string(execute(t, contextCommandsRmCmd, nil, "triage"))
+	if !strings.Contains(out, "removed >triage") {
 		t.Errorf("missing removal line in output: %q", out)
 	}
-	if !strings.Contains(out, "regenerated context/commands/index.md") {
-		t.Errorf("missing index regen in output: %q", out)
-	}
 	if _, err := os.Stat("context/commands/triage.md"); !os.IsNotExist(err) {
-		t.Errorf("trigger still present: %v", err)
+		t.Errorf("detail file still present: %v", err)
 	}
 	if _, err := os.Stat(sdtTrashDir); !os.IsNotExist(err) {
 		t.Errorf("commands rm must not write a deprecated copy: %v", err)
 	}
 	idx := mustReadFile(t, "context/commands/index.md")
 	if strings.Contains(idx, ">triage") {
-		t.Errorf("index still lists removed trigger:\n%s", idx)
+		t.Errorf("registry still lists the removed trigger:\n%s", idx)
 	}
-	// A removed trigger's payload column disappears with it; a surviving
-	// trigger keeps its own.
 	if strings.Contains(idx, "the removed trigger's payload") {
-		t.Errorf("index still carries a removed trigger's payload:\n%s", idx)
+		t.Errorf("registry still carries the removed trigger's payload:\n%s", idx)
 	}
-	if !strings.Contains(idx, "subject of the other command") {
-		t.Errorf("index dropped a surviving trigger's payload:\n%s", idx)
-	}
-	if !strings.Contains(idx, ">other") {
-		t.Errorf("index dropped a surviving trigger:\n%s", idx)
+	if !strings.Contains(idx, "subject of the other command") || !strings.Contains(idx, ">other") {
+		t.Errorf("registry dropped a surviving trigger:\n%s", idx)
 	}
 }
 
 func TestContextCommandsRmRejects(t *testing.T) {
 	runInTempDir(t)
+	newProjectRegistry(t)
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextCommandsRmCmd, nil, "index"))
 	})
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextCommandsRmCmd, nil, "missing"))
+	})
+	// A built-in trigger comes from the installed set, not from the project.
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextCommandsRmCmd, nil, "analysis"))
 	})
 }
 
@@ -285,27 +271,4 @@ func TestContextPathWiki(t *testing.T) {
 	if !strings.Contains(out, filepath.Join(sdtWikiDir, "backend", "session.md")) {
 		t.Errorf("wiki path = %q", out)
 	}
-}
-
-// buildCommandsStub returns a minimal commands trigger stub for tests.
-func buildCommandsStub(id string) string {
-	return `---
-kind: commands
-id: commands/` + id + `
-title: ">` + id + ` — agent-invokable task trigger"
-summary: "Thin agent command: invoked by the >` + id + ` trigger."
-status: active
-links:
-  - commands/index.md
-project: tm
-created: "2026-09-20T17:30:00Z"
-updated: "2026-09-20T17:30:00Z"
----
-
-<!-- sdt:begin:commands/` + id + ` -->
-
-# ` + "`>" + id + "`" + ` — read this when the command fires
-
-<!-- sdt:end:commands/` + id + ` -->
-`
 }

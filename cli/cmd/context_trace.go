@@ -58,8 +58,9 @@ func ctxTraceChain(ref string, edges *ctxrel.Edges) []ctxTraceStep {
 }
 
 var contextTraceCmd = &cobra.Command{
-	Use:   "trace <doc-ref>",
-	Short: "Show a document's lifecycle chain (leaf → root)",
+	Use:    "trace <doc-ref>",
+	Short:  "Show a document's lifecycle chain (deprecated: use `relations path`)",
+	Hidden: true,
 	Long: `Show a document's lifecycle chain, from the document up to its root, over the
 recorded typed relations (task → plan → analysis). Read-only and deterministic:
 the chain is assembled from what is recorded, never from memory. A document with
@@ -70,30 +71,36 @@ Examples:
   sdt context trace plan/<plan-file> --format json`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		doc, err := resolveContextDoc(cmd, args)
-		exitWithError(cmd, err)
-		edges, err := ctxrel.Load(sdtWorkDir)
-		exitWithError(cmd, err)
-		chain := ctxTraceChain(filepath.ToSlash(doc.Path), edges)
-		switch getFormat(cmd) {
-		case fmtJSON:
-			out, merr := json.MarshalIndent(chain, "", "  ")
-			exitWithError(cmd, merr)
-			outputBytes(cmd, out)
-		case fmtYAML:
-			out, merr := yaml.Marshal(chain)
-			exitWithError(cmd, merr)
-			outputBytes(cmd, out)
-		default:
-			for i, s := range chain {
-				line := fmt.Sprintf("%s%s  %s", strings.Repeat("  ", i), s.Ref, s.Kind)
-				if s.Title != "" {
-					line += "  — " + s.Title
-				}
-				outputString(cmd, line+"\n")
-			}
-		}
+		deprecatedNotice(cmd, "`sdt context relations path <doc-ref>`")
+		runTrace(cmd, args)
 	},
+}
+
+// runTrace is the body `relations path` and the deprecated `trace` share.
+func runTrace(cmd *cobra.Command, args []string) {
+	doc, err := resolveContextDoc(cmd, args)
+	exitWithError(cmd, err)
+	edges, err := ctxrel.Load(sdtWorkDir)
+	exitWithError(cmd, err)
+	chain := ctxTraceChain(filepath.ToSlash(doc.Path), edges)
+	switch getFormat(cmd) {
+	case fmtJSON:
+		out, merr := json.MarshalIndent(chain, "", "  ")
+		exitWithError(cmd, merr)
+		outputBytes(cmd, out)
+	case fmtYAML:
+		out, merr := yaml.Marshal(chain)
+		exitWithError(cmd, merr)
+		outputBytes(cmd, out)
+	default:
+		for i, s := range chain {
+			line := fmt.Sprintf("%s%s  %s", strings.Repeat("  ", i), s.Ref, s.Kind)
+			if s.Title != "" {
+				line += "  — " + s.Title
+			}
+			outputString(cmd, line+"\n")
+		}
+	}
 }
 
 func init() {

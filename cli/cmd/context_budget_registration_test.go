@@ -18,7 +18,7 @@ func TestContextBudgetRegisteredInCLICatalog(t *testing.T) {
 	}
 	// The row must state what the report is, so an agent reading only the
 	// catalog knows it is a measurement and not a gate.
-	for _, want := range []string{"bytes", "informational", "never a gate"} {
+	for _, want := range []string{"bytes", "always-loaded", "informational", "never a gate"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the cli.md row does not mention %q, so a reader cannot tell the verb is informational", want)
 		}

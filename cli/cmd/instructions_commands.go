@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/sandrolain/sdt/internal/templates"
 )
 
-// commandPayloadUndeclared is the index cell for a trigger with no declared
+// commandPayloadUndeclared is the registry cell for a trigger with no declared
 // payload. It is explicit rather than blank so a missing declaration is never
 // read as "this command accepts no payload".
 
@@ -14,9 +16,12 @@ const commandPayloadUndeclared = "_not declared_"
 
 // commandIndexEntry is one row of the commands registry: the trigger, the
 // durable contract id it invokes, its kind (document vs workflow), the subject
-// type a workflow command resolves (empty for a document command) and the
-// payload phrase it accepts. The command file column is derived from the trigger
-// id itself.
+// type a workflow command resolves (empty for a document command), the payload
+// phrase it accepts and a couple of concrete invocations.
+//
+// There is no per-trigger command file any more: the registry is the single
+// lookup surface, so a row is the whole declaration. What used to be a file per
+// trigger — and the duplicated prose it carried — is now one table.
 
 type commandIndexEntry struct {
 	Trigger  string
@@ -24,32 +29,25 @@ type commandIndexEntry struct {
 	Kind     string
 	Subject  string
 	Payload  string
+	Examples string
+}
+
+// commandRowExamples renders a stub's examples as one table cell: each in
+// backticks, separated by a line break so the row stays a single table line.
+func commandRowExamples(examples []string) string {
+	if len(examples) == 0 {
+		return "—"
+	}
+	quoted := make([]string, 0, len(examples))
+	for _, ex := range examples {
+		quoted = append(quoted, "`"+strings.TrimSpace(ex)+"`")
+	}
+	return strings.Join(quoted, "<br>")
 }
 
 // declaredCommandPayload returns the payload phrase declared for a trigger in
 // agentCommandStubs, or the undeclared placeholder when the trigger is not in
-// the table (a user trigger created with `sdt context commands new`).
-
-func declaredCommandPayload(id string) string {
-	for _, s := range agentCommandStubs {
-		if s.id == id {
-			return s.payload
-		}
-	}
-	return commandPayloadUndeclared
-}
-
-// declaredCommandContract returns the durable instruction id a trigger invokes
-// from agentCommandStubs, or the trigger id itself for an undeclared (user)
-// trigger, whose contract defaults to the trigger name.
-func declaredCommandContract(id string) string {
-	for _, s := range agentCommandStubs {
-		if s.id == id {
-			return s.contract
-		}
-	}
-	return id
-}
+// the table (a project trigger added with `sdt context commands new`).
 
 // declaredCommandKind returns the declared kind for a trigger, defaulting to a
 // document command for a trigger not in the table (a user trigger).
@@ -73,49 +71,38 @@ func declaredCommandSubject(id string) string {
 	return ""
 }
 
+// commandEntriesFor renders the built-in triggers a profile selection writes,
+// sorted by trigger so the table is stable across runs.
+func commandEntriesFor(profiles []string) []commandIndexEntry {
+	entries := make([]commandIndexEntry, 0, len(agentCommandStubs))
+	for _, s := range agentCommandStubs {
+		if !stubSelected(s, profiles) {
+			continue
+		}
+		entries = append(entries, commandIndexEntry{
+			Trigger:  s.id,
+			Contract: s.contract,
+			Kind:     s.kind,
+			Subject:  s.subject,
+			Payload:  s.payload,
+			Examples: commandRowExamples(s.examples),
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Trigger < entries[j].Trigger })
+	return entries
+}
+
 type commandsIndexTemplateData struct {
 	Project  string
 	Now      string
 	Triggers []commandIndexEntry
 }
 
+// instrCommandsIndexTemplate renders the registry document from its rows.
 func instrCommandsIndexTemplate(entries []commandIndexEntry, project string, now time.Time) string {
 	return templates.Must("commands/index.md.tmpl", commandsIndexTemplateData{
 		Project:  project,
 		Now:      now.UTC().Format(time.RFC3339),
 		Triggers: entries,
-	}, nil)
-}
-
-type commandStubTemplateData struct {
-	ID       string
-	Contract string
-	Kind     string
-	Subject  string
-	Workflow bool
-	Payload  string
-	Examples []string
-	Project  string
-	Now      string
-}
-
-// instrCommandStubTemplate builds the thin command file for one trigger: it
-// resolves the trigger and delegates to the durable contract. kind/subject
-// declare the taxonomy projection (a workflow command renders a ## Subject
-// block; a document command does not). payload and examples describe what the
-// trigger takes after the colon in `>id: payload`; an empty payload renders the
-// generic declare-it-here block.
-
-func instrCommandStubTemplate(id, contract, kind, subject, payload string, examples []string, project string, now time.Time) string {
-	return templates.Must("commands/stub.md.tmpl", commandStubTemplateData{
-		ID:       id,
-		Contract: contract,
-		Kind:     kind,
-		Subject:  subject,
-		Workflow: kind == commandKindWorkflow,
-		Payload:  payload,
-		Examples: examples,
-		Project:  project,
-		Now:      now.UTC().Format(time.RFC3339),
 	}, nil)
 }

@@ -84,8 +84,9 @@ func outputResolveCandidates(cmd *cobra.Command, cands []ctxResolveCandidate) {
 }
 
 var contextResolveCmd = &cobra.Command{
-	Use:   "resolve --type <t> [--status <s>]",
-	Short: "Rank candidate documents of a type (read-only helper)",
+	Use:    "resolve --type <t> [--status <s>]",
+	Short:  "Rank candidate documents of a type (deprecated: use `relations rank`)",
+	Hidden: true,
 	Long: `Rank the documents of a type by the signals the working-context resolution
 ladder uses — a matching --status first, then most-recently updated — and print
 them (path, status, updated).
@@ -102,6 +103,14 @@ Examples:
   sdt context resolve --type plan --status active --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		deprecatedNotice(cmd, "`sdt context relations rank --type <t>`")
+		runResolve(cmd, args)
+	},
+}
+
+// runResolve is the body `relations rank` and the deprecated `resolve` share.
+func runResolve(cmd *cobra.Command, args []string) {
+	{
 		typ := getStringFlag(cmd, "type", true)
 		if typ == ctxDocAliasDecision {
 			typ = ctxTypeDecision
@@ -122,11 +131,17 @@ Examples:
 		cands, err := resolveCandidates(t, status)
 		exitWithError(cmd, err)
 		outputResolveCandidates(cmd, cands)
-	},
+	}
+}
+
+// addResolveFlags declares the candidate-ranking flags once, so the canonical
+// `relations rank` and the deprecated `resolve` cannot drift.
+func addResolveFlags(c *cobra.Command) {
+	c.Flags().String("type", "", "Document type to resolve candidates for")
+	c.Flags().String("status", "", "Prefer candidates carrying this status (validated against the type vocabulary)")
 }
 
 func init() {
-	contextResolveCmd.Flags().String("type", "", "Document type to resolve candidates for")
-	contextResolveCmd.Flags().String("status", "", "Prefer candidates carrying this status (validated against the type vocabulary)")
+	addResolveFlags(contextResolveCmd)
 	contextCmd.AddCommand(contextResolveCmd)
 }

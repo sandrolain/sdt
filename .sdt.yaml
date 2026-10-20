@@ -6,6 +6,19 @@ group: sdt_44f24890
 # skipDirs:
 #   - dist
 #   - .next
+gate:
+  - name: 'build'
+    run: 'go build $(go list -e ./... | grep -v /context/ || echo __sdt_no_packages__)'
+  - name: 'vet'
+    run: 'go vet $(go list -e ./... | grep -v /context/ || echo __sdt_no_packages__)'
+  - name: 'lint'
+    run: 'golangci-lint run ./cli/... ./viewer/... ./internal/... .'
+  - name: 'test'
+    run: 'go test $(go list -e ./... | grep -v /context/ || echo __sdt_no_packages__)'
+instructions:
+  profiles: [core, knowledge, ui, vector, slides, mindmap, diagram, browser, roles]
+  frontmatter: [maturity, warrant, evidence, verified, rigor, objectives]
+
 agent:
   command: ["opencode", "acp"]
   model: "opencode/big-pickle"

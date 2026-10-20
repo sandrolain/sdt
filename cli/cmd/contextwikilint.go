@@ -51,8 +51,13 @@ func lintWikiLint() []ctxLintIssue {
 		// the cross-kind axes promised to this dedicated loader using the source
 		// text the shared rules expect.
 		content := p.Frontmatter + "\n" + p.Body
-		b.issues = append(b.issues, lintMaturity(p.Path, content)...)
-		b.issues = append(b.issues, lintVerifiedStamp(p.Path, content)...)
+		families := currentFrontmatterFamilies()
+		if families["maturity"] {
+			b.issues = append(b.issues, lintMaturity(p.Path, content, families["warrant"])...)
+		}
+		if families["verified"] {
+			b.issues = append(b.issues, lintVerifiedStamp(p.Path, content)...)
+		}
 	}
 	lintWikiLinks(b, bld)
 	lintWikiGraph(b, bld)

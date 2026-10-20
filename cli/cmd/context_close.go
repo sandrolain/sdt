@@ -31,45 +31,55 @@ Examples:
   sdt context close plan/<plan-file>
   sdt context close plan/<plan-file> --allow-unfinished --reason "shipping the remainder separately"`,
 	Args: cobra.MaximumNArgs(1),
+	// `close` is the old name for what `status set` now does with a terminal
+	// value: one verb per job. It keeps working (an alias, not a removal) and
+	// says which verb to use.
+	Hidden: true,
 	Run: func(cmd *cobra.Command, args []string) {
+		deprecatedNotice(cmd, "`sdt context status set <ref> --status completed --reason \"<why>\"`")
 		doc, err := resolveContextDoc(cmd, args)
 		exitWithError(cmd, err)
-		terminal := closeTerminalStatus(doc.Type)
-		if terminal == "" {
-			exitWithError(cmd, fmt.Errorf("type %s cannot be closed", ctxKindLabel(doc.Type)))
-			return
-		}
 		allow := getBoolFlag(cmd, "allow-unfinished", false)
 		reason := strings.TrimSpace(getStringFlag(cmd, "reason", false))
-		if !allow {
-			if _, why := derivedCompletionBlock(doc.Path); why != "" {
-				exitWithError(cmd, fmt.Errorf("cannot close %s: %s (finish the work, or pass --allow-unfinished --reason \"<why>\")", ctxKindLabel(doc.Type), why))
-				return
-			}
-		} else if reason == "" {
-			exitWithError(cmd, errors.New("--allow-unfinished requires --reason"))
-			return
-		}
-		//#nosec G304 -- user work file
-		data, err := os.ReadFile(doc.Path)
-		exitWithError(cmd, err)
-		content := string(data)
-		if allow {
-			content = appendCloseNote(content, reason)
-		}
-		content, _ = setFrontmatterFields(content, ctxStatusSetPatches(doc.Type, terminal))
-		if ctxUIDEligibleKind(doc.Type.kind) {
-			if stamped, ok := stampUIDMissing(content); ok {
-				content = stamped
-			}
-		}
-		//#nosec G306 -- user work file
-		if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
-			exitWithError(cmd, err)
-		}
+		exitWithError(cmd, closeDocument(doc, allow, reason))
 		outputString(cmd, "ok\n")
 		cascadeAfterWrite(cmd, doc.Path)
 	},
+}
+
+// closeDocument writes a document's terminal status, recording an explicit
+// override note when the derived state disagrees. It is the one implementation
+// behind `context close` (deprecated) and `status set` with a terminal value and
+// a `--reason`, so the two cannot drift.
+func closeDocument(doc ctxResolvedDoc, allow bool, reason string) error {
+	terminal := closeTerminalStatus(doc.Type)
+	if terminal == "" {
+		return fmt.Errorf("type %s cannot be closed", ctxKindLabel(doc.Type))
+	}
+	if !allow {
+		if _, why := derivedCompletionBlock(doc.Path); why != "" {
+			return fmt.Errorf("cannot close %s: %s (finish the work, or pass --reason \"<why>\")", ctxKindLabel(doc.Type), why)
+		}
+	} else if reason == "" {
+		return errors.New("--reason is required when the derived state disagrees")
+	}
+	//#nosec G304 -- user work file
+	data, err := os.ReadFile(doc.Path)
+	if err != nil {
+		return err
+	}
+	content := string(data)
+	if allow {
+		content = appendCloseNote(content, reason)
+	}
+	content, _ = setFrontmatterFields(content, ctxStatusSetPatches(doc.Type, terminal))
+	if ctxUIDEligibleKind(doc.Type.kind) {
+		if stamped, ok := stampUIDMissing(content); ok {
+			content = stamped
+		}
+	}
+	//#nosec G306 G703 -- path resolved from the corpus, not from user input
+	return os.WriteFile(doc.Path, []byte(content), 0o644)
 }
 
 // closeTerminalStatus returns the terminal status `close` writes for a kind, or

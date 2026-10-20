@@ -124,7 +124,7 @@ func ctxMaturityWarrantRequired(v string) bool {
 // `established`/`canonical` without a `warrant` is a SUGGESTION (promotion is a
 // judgement call; the check only asks that the evidence be written down).
 // Absence of any of the three keys is silent on every kind.
-func lintMaturity(path, content string) []ctxLintIssue {
+func lintMaturity(path, content string, warrantEnabled bool) []ctxLintIssue {
 	maturity := strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterMaturity))
 	if maturity == "" {
 		return nil
@@ -145,7 +145,7 @@ func lintMaturity(path, content string) []ctxLintIssue {
 			Message:  "`" + ctxFrontmatterMaturity + ": " + ctxMaturitySuperseded + "` requires `" + ctxFrontmatterSupersededBy + "` naming the successor",
 		})
 	}
-	if ctxMaturityWarrantRequired(maturity) && strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterWarrant)) == "" {
+	if warrantEnabled && ctxMaturityWarrantRequired(maturity) && strings.TrimSpace(parseFrontmatterField(content, ctxFrontmatterWarrant)) == "" {
 		issues = append(issues, ctxLintIssue{
 			Path:     path,
 			Priority: ctxLintSuggestion,
@@ -175,7 +175,7 @@ const (
 // for an explicit `[]` when there is genuinely no dependency.
 const ctxFrontmatterDependsOn = "depends_on"
 
-// ── wave rigour dial and reviewer disposition ──────────────────────────────────
+// ── wave rigour dial ──────────────────────────────────────────────────────────
 
 // ctxFrontmatterRigor is the optional wave rigour dial on a plan.
 const ctxFrontmatterRigor = "rigor"
@@ -183,12 +183,6 @@ const ctxFrontmatterRigor = "rigor"
 // ctxRigorValues is the closed rigour dial (plan.md, *Rigour dial*), ordered by
 // how invisible the failure mode is to the work's own author.
 var ctxRigorValues = []string{"P0", "P1", "P2", "P3", "P4"}
-
-// ctxDispositionValues is the closed reviewer disposition vocabulary (tasks.md,
-// *Disposition*), recorded in the `### Disposition` subsection of a task file's
-// `## Review` block. NONE is the third value on purpose: a review that found no
-// gap of either kind must be able to say so rather than pick one.
-var ctxDispositionValues = []string{"CONTEXT-GAP", "JUDGMENT-GAP", "NONE"}
 
 // lintWaveVocabulary validates the optional wave `rigor` dial: a closed dial, so
 // an out-of-range value is a WARNING. Absence is silent on every kind.
@@ -198,43 +192,6 @@ func lintWaveVocabulary(path, content string) []ctxLintIssue {
 		return nil
 	}
 	return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("`%s` %q is outside the dial (%s)", ctxFrontmatterRigor, v, strings.Join(ctxRigorValues, " | "))}}
-}
-
-// ctxDispositionHeader is the `### Disposition` subsection of a task file's
-// `## Review` block that records what kind of gap the review found.
-const ctxDispositionHeader = "### Disposition"
-
-// lintReviewDisposition checks that a recorded `### Disposition` subsection names
-// one value from the closed vocabulary. The value is the first non-empty line of
-// the subsection, so the heading stays a heading and the recorded value is a
-// single token a reader (or lint) cannot misread. An absent subsection is
-// silent: the disposition is the reviewer's judgement to record, not a field the
-// CLI forces on every closed task file.
-func lintReviewDisposition(path, content string) []ctxLintIssue {
-	lines := strings.Split(content, "\n")
-	review := indexOfTrimmedLine(lines, ctxReviewBlockHeader, 0, len(lines))
-	if review < 0 {
-		return nil
-	}
-	end := sectionEnd(lines, review, 2)
-	at := indexOfTrimmedLine(lines, ctxDispositionHeader, review+1, end)
-	if at < 0 {
-		return nil
-	}
-	subsectionEnd := sectionEnd(lines, at, 3)
-	value := ""
-	for i := at + 1; i < subsectionEnd; i++ {
-		line := strings.TrimSpace(lines[i])
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "<!--") {
-			continue
-		}
-		value = strings.Fields(line)[0]
-		break
-	}
-	if value == "" || slices.Contains(ctxDispositionValues, value) {
-		return nil
-	}
-	return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("review `%s` %q is outside the vocabulary (%s)", ctxDispositionHeader, value, strings.Join(ctxDispositionValues, " | "))}}
 }
 
 // lintVerifiedStamp reports a `verified_at`/`verified_against` stamp missing half
@@ -422,8 +379,8 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"missing YAML frontmatter", "start the file with a YAML `---` frontmatter block carrying at least `kind` and `summary`; use `sdt context new --type <type>`"},
 	{"decision filename", "rename the file to NNNN-<slug>.md so the 4-digit number stays consistent"},
 	{"frontmatter number", "align `number` in the frontmatter with the 4-digit filename prefix"},
-	{"outside vocabulary for kind", "set `status` to a value from the kind's vocabulary (see the status matrix: context/architecture/stack.md)"},
-	{"missing frontmatter `status` for kind", "add `status: <vocab value>`; see the per-type vocabularies in the status matrix (context/architecture/stack.md)"},
+	{"outside vocabulary for kind", "set `status` to a value from the kind's vocabulary (accepted values: `sdt context vocab`)"},
+	{"missing frontmatter `status` for kind", "add `status: <vocab value>`; `sdt context vocab` prints the per-type vocabularies"},
 	{"does not parse as RFC3339 UTC", "format `created`/`updated` as RFC3339 UTC (e.g. `2026-09-25T05:00:00Z`; see `sdt time iso`)"},
 	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
 	{"duplicate checklist id(s)", "run `sdt context checklist backfill` to renumber duplicate anchors so each id addresses one item"},
@@ -674,25 +631,15 @@ func lintDoc(path string) []ctxLintIssue {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintCritical), Message: "frontmatter missing mandatory `summary`"})
 	}
 	// Generic per-type status vocabulary check for every status-bearing kind
-	// (from the shared registry); documented in the stack.md status matrix.
+	// (from the shared registry); `sdt context vocab` prints them.
 	issues = append(issues, lintStatusField(path, content, kind)...)
 	issues = append(issues, lintTimestampFields(path, content, prio)...)
 	// Advisory: a top-level frontmatter key outside the declared set is allowed
 	// (sdt context set is free with respect to keys) but made visible so the
 	// schema stays discoverable without being closed.
 	issues = append(issues, lintUndeclaredFrontmatterKeys(path, content)...)
-	// Optional `objective` grouping key: WARNING on a non-kebab-case value,
-	// SUGGESTION on absence so the convention is adopted gradually without
-	// breaking existing analyses; a plan's objective must match its analysis.
-	issues = append(issues, lintObjectiveField(path, content, kind, prio)...)
-	issues = append(issues, lintPlanObjectiveConsistency(path, content, kind, prio)...)
-	issues = append(issues, lintTaskObjectiveLegacy(path, content, kind)...)
+	issues = append(issues, lintOptionalFrontmatterFamilies(path, content, kind, prio)...)
 	issues = append(issues, lintQuestionsDeferredReason(path, content, kind)...)
-	issues = append(issues, lintEvidenceClass(path, content, kind)...)
-	issues = append(issues, lintMaturity(path, content)...)
-	issues = append(issues, lintVerifiedStamp(path, content)...)
-	issues = append(issues, lintWaveVocabulary(path, content)...)
-	issues = append(issues, lintReviewDisposition(path, content)...)
 	issues = append(issues, lintBriefing(path, content, kind)...)
 	// Immutable identifier: presence (severity flips after the backfill) and
 	// canonical UUIDv7 form. Duplicate detection is corpus-wide (below).
@@ -1435,9 +1382,11 @@ func lintPlanTaskAgreement(planFiles, taskFiles []string, edges *ctxrel.Edges) [
 		if strings.ToLower(strings.TrimSpace(parseFrontmatterField(content, "status"))) != taskFileStatusCompleted {
 			continue
 		}
+		// An unsplit plan carries its own checklist: a completed plan with no
+		// task file is the normal ledger case, not a defect. When a task file
+		// does exist, it owns the completion signal and is checked instead.
 		tasks := tasksByPlan[normalizeContextRef(path)]
 		if len(tasks) == 0 {
-			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: "plan declares completed but no task file references it (cannot verify completion)"})
 			continue
 		}
 		var unfinished []string
@@ -1764,6 +1713,10 @@ Examples:
 		if todoErr := validateTodoRegister(); todoErr != nil {
 			issues = append(issues, ctxLintIssue{Path: ctxTodoFilePath, Priority: ctxLintWarning, Message: todoErr.Error()})
 		}
+		// The frontmatter families are declared by hand in `.sdt.yaml`; an
+		// unknown name is one CRITICAL configuration finding rather than a
+		// silent no-op for the family the author meant to enable.
+		issues = append(issues, lintFrontmatterFamilyConfig()...)
 		if len(args) > 0 {
 			for _, ref := range args {
 				path, err := resolveContextLintPath(ref)
@@ -1839,7 +1792,9 @@ Examples:
 			// Objective-to-phase traceability (B4): a plan phase claiming an
 			// objective its source analysis does not declare, and a declared
 			// objective no derived plan phase covers.
-			issues = append(issues, lintObjectivePhaseCoverage(planFiles, edges)...)
+			if currentFrontmatterFamilies()["objectives"] {
+				issues = append(issues, lintObjectivePhaseCoverage(planFiles, edges)...)
+			}
 			// Declared-vs-derived drift across the whole chain (task, plan,
 			// analysis) at advisory WARNING severity (analysis Q4).
 			issues = append(issues, lintCascadeDrift()...)
@@ -1854,6 +1809,30 @@ Examples:
 			return issues[i].Path < issues[j].Path
 		})
 		decorateLintHints(issues)
+		// Baseline: a default run reports what is new, `--all` reports everything,
+		// `--suggestions` also re-surfaces the accepted suggestions. With no
+		// baseline file the behaviour is unchanged.
+		wroteBaseline := false
+		if getBoolFlag(cmd, "baseline-write", false) {
+			added, removed, berr := writeLintBaseline(issues)
+			exitWithError(cmd, berr)
+			outputString(cmd, fmt.Sprintf("baseline written: %d finding(s) recorded (+%d accepted, -%d gone)\n", len(issues), added, removed))
+			wroteBaseline = true
+		}
+		if !wroteBaseline && !getBoolFlag(cmd, "all", false) {
+			base, berr := loadLintBaseline()
+			exitWithError(cmd, berr)
+			if base != nil {
+				fresh, accepted := filterAgainstBaseline(issues, base)
+				if getBoolFlag(cmd, "suggestions", false) {
+					fresh = append(fresh, baselineAcceptedSuggestions(accepted)...)
+				}
+				issues = fresh
+				if len(accepted) > 0 {
+					outputString(cmd, fmt.Sprintf("baseline: %d accepted finding(s) not shown (--all to see them)\n", len(accepted)))
+				}
+			}
+		}
 		switch getFormat(cmd) {
 		case fmtJSON:
 			// Machine consumers asked for the data and count on it: the JSON and
@@ -1882,3 +1861,32 @@ Examples:
 }
 
 // ── context status ──────────────────────────────────────────────────────────────
+
+// lintOptionalFrontmatterFamilies runs the family-gated checks: an axis the
+// project did not declare in `.sdt.yaml` produces no finding, while a value in a
+// declared axis is still validated.
+func lintOptionalFrontmatterFamilies(path, content, kind string, prio func(string) string) []ctxLintIssue {
+	families := currentFrontmatterFamilies()
+	var issues []ctxLintIssue
+	if families["objectives"] {
+		// WARNING on a non-kebab-case value, SUGGESTION on absence so the
+		// convention is adopted gradually; a plan's objective must match its
+		// analysis.
+		issues = append(issues, lintObjectiveField(path, content, kind, prio)...)
+		issues = append(issues, lintPlanObjectiveConsistency(path, content, kind, prio)...)
+		issues = append(issues, lintTaskObjectiveLegacy(path, content, kind)...)
+	}
+	if families["evidence"] {
+		issues = append(issues, lintEvidenceClass(path, content, kind)...)
+	}
+	if families["maturity"] {
+		issues = append(issues, lintMaturity(path, content, families["warrant"])...)
+	}
+	if families["verified"] {
+		issues = append(issues, lintVerifiedStamp(path, content)...)
+	}
+	if families["rigor"] {
+		issues = append(issues, lintWaveVocabulary(path, content)...)
+	}
+	return issues
+}

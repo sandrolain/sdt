@@ -27,8 +27,8 @@ anatomy (defined below), the closed relation verb
 vocabulary and the concept budget are defined in `context/instructions/ingestion.md` —
 read that for the full schema.
 
-- Wiki page `status` (`draft`/`active`/`archived`) is defined in the status
-  matrix `context/architecture/stack.md`; archive semantics stay in
+- Wiki page `status` (`draft`/`active`/`archived`) is defined once in the type
+  registry (`sdt context vocab` prints it); archive semantics stay in
   `context/instructions/ingestion.md`.
 - **No H1 title** — see AGENTS.md (document conventions).
 - Body anatomy is **adaptive**: the page body takes the form that best fits the
@@ -156,8 +156,10 @@ you not to overwrite silently. This is the procedure behind it.
   statement naming the link. Co-occurrence alone never justifies a relation.
 - `supersedes`/`conflicts_with` are graph signals that trigger human
   review; lint checks only their syntax and targets, not the interpretation.
-- The corpus-level **fact-change vocabulary** (supersede / invalidate / coexist)
-  and the journey rule are defined in `architecture/stack.md` (Fact change).
+- The corpus-level **fact-change vocabulary** records the journey instead of
+  deleting it: `supersedes` for a single-valued replacement, `contradicts` for a
+  fact that ended without one, and no edge (optionally a `links` correlation)
+  when two facts both hold.
 
 ## Evidence and provenance
 
@@ -247,8 +249,7 @@ vault can read the same folder — the two models are close but not identical:
   re-checked, and `canonical` only when it is the reference form for its
   concept. Promoting to `established`/`canonical` carries a `warrant` (one
   compressed line of the evidence that earned it); `superseded` carries
-  `superseded_by` naming the successor. The full semantics are in
-  `architecture/stack.md` (Optional axes orthogonal to `status`); `sdt context
+  `superseded_by` naming the successor. `sdt context
   wiki lint` reports an unknown stage (WARNING), a `superseded` without a
   successor (WARNING) and a promotion without a warrant (SUGGESTION).
 - Re-verification is **stamped, not implied**: `verified_at` (the RFC3339 date of

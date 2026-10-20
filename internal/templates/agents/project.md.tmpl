@@ -13,20 +13,19 @@ profiles derive project facts from them. -->
 top-level directory layout, go.mod/package.json, cmd/ or src/ trees. -->
 
 ### Stack
-<!-- Languages, runtimes, frameworks, datastores. Evidence: .tool-versions,
-go.mod, package.json, lockfiles. e.g. Go 1.27 · PostgreSQL · gRPC -->
+<!-- Languages, runtimes, frameworks, datastores. Evidence: the version file,
+the package manifest, lockfiles. -->
 
 ### Build & Run
 <!-- Exact build and run commands. Evidence: Taskfile, Makefile, package.json
-scripts. e.g. task build · go run ./cli -->
+scripts, CI config. -->
 
 ### Test
 <!-- Exact test commands. Evidence: Taskfile, Makefile, package.json scripts,
-CI config. e.g. go test $(go list -e ./... | grep -v /context/) -->
+CI config. -->
 
 ### Lint & Format
-<!-- Exact lint and format commands. Evidence: Taskfile, Makefile, CI config.
-e.g. golangci-lint run · gofmt -w -->
+<!-- Exact lint and format commands. Evidence: Taskfile, Makefile, CI config. -->
 
 ### Conventions
 <!-- Project-specific coding conventions, naming rules, branch strategy, ... -->

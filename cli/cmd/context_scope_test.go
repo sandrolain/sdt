@@ -57,18 +57,8 @@ func TestScopeCommandStubRegistered(t *testing.T) {
 		t.Fatal("scope trigger not registered in agentCommandStubs")
 	}
 
-	files := commandFiles("p", contextNow())
-	stub := ""
-	for _, f := range files {
-		if f.name == "scope.md" {
-			stub = f.body
-		}
-	}
-	if stub == "" {
-		t.Fatal("commandFiles() did not emit the scope stub")
-	}
-	if !strings.Contains(stub, "instructions/scope.md") {
-		t.Errorf("scope stub does not point at its contract:\n%s", stub)
+	if idx := commandsIndexContentFor([]string{agentProfileCore}, "p", contextNow()); !strings.Contains(idx, "`context/instructions/scope.md`") {
+		t.Errorf("the registry row does not point at the scope contract:\n%s", idx)
 	}
 
 	if idx := commandsIndexContent("p", contextNow()); !strings.Contains(idx, "| `>scope` |") {

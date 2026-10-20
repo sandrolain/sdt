@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,7 +22,33 @@ const ctxCheckPendingFlag = "pending"
 // `## Completion criteria`, questions checklist) addressed by its id anchor,
 // falling back to the positional ordinal.
 
+// ctxCheckStates is the closed set `--state` accepts: one flag for the four
+// checklist moves, so a state is a value rather than a growing family of
+// booleans. The old booleans stay as deprecated spellings.
+var ctxCheckStates = []string{taskStatusDone, taskStatusWip, taskStatusBlock, taskStatusTodo}
+
 func contextCheckStatus(cmd *cobra.Command) (string, error) {
+	state := strings.TrimSpace(getStringFlag(cmd, "state", false))
+	if state != "" {
+		if !slices.Contains(ctxCheckStates, state) {
+			return "", fmt.Errorf("invalid --state %q (use %s)", state, strings.Join(ctxCheckStates, "|"))
+		}
+		for _, c := range []struct{ flag, status string }{
+			{taskStatusDone, taskStatusDone},
+			{taskStatusWip, taskStatusWip},
+			{taskStatusBlock, taskStatusBlock},
+			{ctxCheckPendingFlag, taskStatusTodo},
+		} {
+			if getBoolFlag(cmd, c.flag, false) {
+				return "", errors.New("--state and the per-state flags are alternatives: pass one")
+			}
+		}
+		if state == taskStatusBlock && strings.TrimSpace(getStringFlag(cmd, "reason", false)) == "" {
+			// --block's reason requirement applies to --state block too.
+			return "", errors.New("--state block requires --reason")
+		}
+		return state, nil
+	}
 	candidates := []struct{ flag, status string }{
 		{taskStatusDone, taskStatusDone},
 		{taskStatusWip, taskStatusWip},
@@ -32,12 +59,15 @@ func contextCheckStatus(cmd *cobra.Command) (string, error) {
 	chosen := 0
 	for _, c := range candidates {
 		if getBoolFlag(cmd, c.flag, false) {
+			if f := cmd.Flags().Lookup(c.flag); f != nil && f.Changed {
+				deprecatedNotice(cmd, "`sdt context check <doc> --state "+c.status+"`")
+			}
 			status = c.status
 			chosen++
 		}
 	}
 	if chosen != 1 {
-		return "", errors.New("pass exactly one of --done, --wip, --block or --pending")
+		return "", errors.New("pass --state done|wip|block|pending")
 	}
 	return status, nil
 }
@@ -236,10 +266,11 @@ func addProvenanceFlags(c *cobra.Command) {
 }
 
 func init() {
-	contextCheckCmd.Flags().Bool(taskStatusDone, false, "Mark the item done")
-	contextCheckCmd.Flags().Bool(taskStatusWip, false, "Mark the item in progress")
-	contextCheckCmd.Flags().Bool(taskStatusBlock, false, "Mark the item blocked")
-	contextCheckCmd.Flags().Bool(ctxCheckPendingFlag, false, "Reset the item to todo")
+	contextCheckCmd.Flags().String("state", "", "New state of the selected item(s): done|wip|block|pending")
+	contextCheckCmd.Flags().Bool(taskStatusDone, false, "Mark the item done (deprecated: --state done)")
+	contextCheckCmd.Flags().Bool(taskStatusWip, false, "Mark the item in progress (deprecated: --state wip)")
+	contextCheckCmd.Flags().Bool(taskStatusBlock, false, "Mark the item blocked (deprecated: --state block)")
+	contextCheckCmd.Flags().Bool(ctxCheckPendingFlag, false, "Reset the item to todo (deprecated: --state pending)")
 	contextCheckCmd.Flags().Bool("waive", false, "Record a structured waiver (keeps the item unfinished; requires --reason)")
 	contextCheckCmd.Flags().String("reason", "", "Reason for --"+taskStatusBlock+" or --waive")
 	contextCheckCmd.Flags().Bool("all", false, "Select every checklist item (batch)")
@@ -247,4 +278,12 @@ func init() {
 	contextCheckCmd.Flags().String("grep", "", "Select the items whose text contains this substring (batch)")
 	addProvenanceFlags(contextCheckCmd)
 	addCascadeFlag(contextCheckCmd)
+	// The per-state flags keep working but no longer appear in help: `--state`
+	// is the one spelling, and a script using an old flag is told so on stderr
+	// by contextCheckStatus.
+	for _, flag := range []string{taskStatusDone, taskStatusWip, taskStatusBlock, ctxCheckPendingFlag} {
+		if err := contextCheckCmd.Flags().MarkHidden(flag); err != nil {
+			panic(err)
+		}
+	}
 }

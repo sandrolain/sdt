@@ -60,7 +60,7 @@ evidence_class: <class>   # optional: dominant evidence type — fact | observat
 maturity: <stage>         # optional: cross-kind trust ladder, orthogonal to `status` —
                           # wip | provisional | established | canonical | superseded | retired;
                           # established/canonical want `warrant`, superseded wants `superseded_by`
-status: draft             # draft | active | completed | postponed | archived — statuses defined in the matrix (architecture/stack.md)
+status: draft             # draft | active | completed | postponed | archived — accepted values: `sdt context vocab`
 created: "<ISO 8601>"
 updated: "<ISO 8601>"
 links:                    # optional related documents
@@ -247,8 +247,9 @@ session: <session id>        # optional
   there is genuinely no prior work. `sdt context lint` raises a SUGGESTION
   when an analysis declares nothing, and another when two analyses of the same
   `objective` have near-identical title/summary (possible duplicate — link
-  or differentiate them). The supersede / invalidate / coexist mapping and the
-  journey rule are defined in `architecture/stack.md` (Fact change).
+  or differentiate them). A change of state records the journey rather than
+  deleting it: `supersedes` for a single-valued replacement, `contradicts` for a
+  fact that ended without one, and no edge when two facts both hold.
 - Leave **no open points**: if a decision is missing, ask on the fly or register
   it as an open question in `context/questions/`; keep the user in
   control of the decisions.
@@ -256,9 +257,8 @@ session: <session id>        # optional
   It is the cross-kind trust ladder — `wip` · `provisional` · `established` ·
   `canonical` · `superseded` · `retired` — and it is orthogonal to `status`: an
   analysis can be `status: completed` (concluded) and `maturity: provisional`
-  (thin evidence), or `status: active` and `maturity: established`. The
-  vocabulary, its semantics and the two companion keys are defined in
-  `architecture/stack.md` (Optional axes orthogonal to `status`). Set
+  (thin evidence), or `status: active` and `maturity: established`. The ladder
+  and its two companion keys are enforced by `sdt context lint`. Set
   `maturity: established` or `canonical` only with a `warrant` — one compressed
   line of the evidence that earned it — and `maturity: superseded` only with
   `superseded_by` naming the successor.

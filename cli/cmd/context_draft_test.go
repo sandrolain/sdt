@@ -46,18 +46,8 @@ func TestDraftCommandStubRegistered(t *testing.T) {
 		t.Fatal("draft trigger not registered in agentCommandStubs")
 	}
 
-	files := commandFiles("p", contextNow())
-	stub := ""
-	for _, f := range files {
-		if f.name == "draft.md" {
-			stub = f.body
-		}
-	}
-	if stub == "" {
-		t.Fatal("commandFiles() did not emit the draft stub")
-	}
-	if !strings.Contains(stub, "instructions/draft.md") {
-		t.Errorf("draft stub does not point at its contract:\n%s", stub)
+	if idx := commandsIndexContentFor([]string{agentProfileCore}, "p", contextNow()); !strings.Contains(idx, "`context/instructions/draft.md`") {
+		t.Errorf("the registry row does not point at the draft contract:\n%s", idx)
 	}
 
 	if idx := commandsIndexContent("p", contextNow()); !strings.Contains(idx, "| `>draft` |") {

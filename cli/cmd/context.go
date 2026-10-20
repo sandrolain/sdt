@@ -140,6 +140,15 @@ func contextPath(typ, slug, phase, stream, plan string) (string, error) {
 
 // ── context path ───────────────────────────────────────────────────────────────
 
+// deprecatedNotice writes the one line a legacy verb emits when it still works:
+// the notice goes to stderr so a structured result on stdout stays
+// machine-readable. A verb is absorbed, never removed without a release of
+// notice, and this is that notice.
+func deprecatedNotice(cmd *cobra.Command, replacement string) {
+	//nolint:errcheck // a stderr notice cannot fail the command
+	fmt.Fprintf(cmd.ErrOrStderr(), "Note: `%s` is deprecated; use %s\n", cmd.CommandPath(), replacement)
+}
+
 var contextCmd = &cobra.Command{
 	Use:     "context",
 	Aliases: []string{"ctx"},
@@ -217,6 +226,9 @@ func init() {
 	contextListCmd.Flags().StringArray("where", nil, "Generic frontmatter filter key=value or key!=value (repeatable; AND-ed)")
 
 	contextLintCmd.Flags().Bool("security", false, "Also scan for prompt-injection, credential and invisible-Unicode patterns (advisory WARNING)")
+	contextLintCmd.Flags().Bool("all", false, "Ignore the lint baseline and print every finding")
+	contextLintCmd.Flags().Bool("baseline-write", false, "Record the current findings as the baseline and report the delta accepted")
+	contextLintCmd.Flags().Bool("suggestions", false, "Also show the suggestions the baseline already accepted")
 	contextLintCmd.Flags().Int("stale-days", ctxStaleInProgressDays, "Days before an `in-progress` task file is reported as stale (advisory SUGGESTION)")
 	contextLintCmd.Flags().Int("limit", ctxLintDefaultLimit, "Maximum issues printed in text output (0: every issue); the totals and the exit code are unaffected")
 
@@ -304,6 +316,6 @@ func init() {
 	addCascadeFlag(contextTaskReviewCmd)
 
 	contextTaskCmd.AddCommand(contextTaskListCmd, contextTaskAddCmd, contextTaskDoneCmd, contextTaskBlockCmd, contextTaskWipCmd, contextTaskReviewCmd, contextTaskProgressCmd, contextDeviationCmd, contextTaskClaimCmd, contextTaskReleaseCmd)
-	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextSyncCmd, contextTouchCmd, contextCloseCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextBudgetCmd, contextVocabCmd, contextDeprecateCmd, contextRmCmd, contextCleanCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
+	contextCmd.AddCommand(contextPathCmd, contextNewCmd, contextListCmd, contextTaskCmd, contextCheckCmd, contextChecklistCmd, contextTouchCmd, contextCloseCmd, contextReindexCmd, contextLintCmd, contextResumeCmd, contextStatusCmd, contextBudgetCmd, contextDeprecateCmd, contextRmCmd, contextCleanCmd, contextTemplateCmd, contextSearchCmd, contextShowCmd, contextUIDCmd, contextRelationsCmd, contextMemoCmd, contextTodoCmd)
 	rootCmd.AddCommand(contextCmd)
 }
