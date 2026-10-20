@@ -1,0 +1,92 @@
+---
+kind: instructions
+title: "Task review — deviations, verify-step and the closeout block"
+summary: "Closing a task phase: record a deviation, run the verify-step with fresh evidence, and write the Review block."
+---
+
+Read this before closing a phase: the deviation log, the verify-step with fresh
+evidence, and the `## Review` block. The execution contract is `tasks.md`.
+
+## Deviations
+
+When the work departs from what the plan said, record it in the task file's
+`## Deviations` section instead of silently reinterpreting the plan:
+
+```bash
+sdt context task deviation add "<what departed from the plan>" --kind <kind> \
+  [--id <checklist-id>] [--reason "<why>"]
+```
+
+The kind is a closed vocabulary and is **never inferred**:
+
+| Kind | Meaning |
+|------|---------|
+| `fix` | the plan was wrong and the correction is made |
+| `add` | something had to be added that the plan did not have |
+| `unblock` | a blocker was resolved to continue |
+| `stop-and-ask` | the work halted for the user's decision |
+
+`stop-and-ask` is the **default**: when the caller does not say what kind of
+diversion this is, the recorded instruction is to ask the user, because "when in
+doubt, take the heavier path, and never weaken an agreed plan mid-task without
+saying so". An unknown kind is refused by the CLI and reported by
+`sdt context lint`, so the vocabulary cannot drift by hand-editing.
+
+With `--id <checklist-id>` the item the deviation concerns is **marked, never
+deleted**: `[!]` (stopped to ask) for `stop-and-ask`, `[~]` (in progress)
+otherwise. Its text and id stay, so a reviewer reads what was planned next to why
+it moved. `sdt context task deviation list` lists the section; an item is closed
+by ticking it like any other checklist item. A `completed` file that still
+carries an open deviation is a lint WARNING.
+
+## Verify-step
+
+Run the verify-step before closing a phase (completeness, coherence,
+correctness) and use the standardized claim vocabulary (**passed** / **expected**
+/ **inferred**) — see AGENTS.md (5-stage development lifecycle).
+
+Also run the **prose self-check** on any document the phase returns — no recap
+ending, no filler, every specific fact preserved
+(`context/instructions/writing.md`).
+
+**No completion claim without fresh evidence.** Before writing a status as done,
+run the check now and read its result: identify what proves the claim, run it,
+read the output, verify it against the claim, then write the claim. Evidence
+from an earlier run does not substitute for a fresh one.
+
+Match each claim to the evidence it needs:
+
+| Claim | Required evidence |
+|-------|-------------------|
+| passed | the command output from this run |
+| expected | the artefact was written and inspected, not executed |
+| inferred | a static reading only (file, diff, type) — say so |
+
+Four rules bound what the evidence may conclude:
+
+- **Absence of evidence is not evidence of absence.** A search that finds
+  nothing proves only that the search found nothing: state the search and its
+  scope, and mark the conclusion UNVERIFIED.
+- **A schema-valid artefact is not a complete one.** Passing a structural check
+  does not establish coverage; pair it with a declared coverage check or record
+  coverage as unproven.
+- **A "diff confined to this change" audit is scoped to the files the task
+  owns.** Under a concurrent stream the whole-tree diff is not a valid
+  confinement check — state the owned file set and audit against it.
+- **Scope per-edit validation to the files touched.** The full suite runs in the
+  plan's Validation phase; a per-edit run of everything is slow and can hang
+  offline (see `instructions/development.md`).
+
+The closeout claim is **no new findings**: `sdt context lint` reports what the
+baseline (`context/lint-baseline.json`) has not accepted yet, so "clean" is not a
+statement anyone can make about a living corpus. `sdt context lint --all` shows
+everything; `--baseline-write` records a deliberate acceptance.
+
+## The review block
+
+Record the outcome as a file-level `## Review` block (in the plan, or in the
+split task file that holds the work; write it with `sdt context task review
+--phase <n>`; a completed ledger without the block gets a lint SUGGESTION). Every
+finding ends as one of the closed verdicts **CONFIRMED**, **DISPROVED** or
+**UNVERIFIED**, with evidence (command output, file path) — one verdict per
+claim, no second pass by default.

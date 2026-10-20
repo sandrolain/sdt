@@ -1,0 +1,64 @@
+---
+kind: instructions
+title: "Task handoff — claims, sessions and stale files"
+summary: "Multi-session task execution: claims, the resume frontier, the replacement note and stale in-progress files."
+---
+
+Read this only when an effort is larger than one session or a second agent may
+run concurrently; single-session work needs none of it. The execution contract
+itself is `tasks.md`.
+
+## Multi-session handoff
+
+- **Claim before working.** Before taking a task file, claim it so a concurrent
+  session can see the work is taken (`sdt context task claim --plan <plan>
+  --agent <id>`). Never start a task file that is already claimed or in progress.
+- **The frontier is the claimable work.** `sdt context resume` lists the
+  **frontier** — the task files that are pending, unblocked and unclaimed. Pick
+  from the frontier, never an arbitrary file.
+- **Release when you stop.** If you abandon a claim, release it
+  (`sdt context task release`); a claim left past the stale window shows in the
+  frontier as a **stale claim** to release, not to overwrite.
+- **The map stays a map.** The plan holds the destination and the decisions; the
+  detail lives in the task file, and a claim is durable frontmatter state the CLI
+  writes — never hand-edit it.
+
+## The replacement note
+
+When a long task loses its working state — a compaction, a context switch, a
+fresh session — the next reader needs a note with fixed parts, not a narration:
+
+| Part | Carries |
+|------|---------|
+| Goal | what this work is for, in one line |
+| Files | the paths already touched and their state |
+| Decisions | each ruling and its reason |
+| Next | the exact next step, not a summary of the plan |
+| Failed attempts | every approach tried that did not work, **and why it failed** |
+
+- The failed-attempts row is the part that pays: an approach recorded without its
+  reason is repeated, because the next reader cannot tell a dead end from a gap.
+- Write it into the task file, the plan or the worklog — a place that survives the
+  session — never into the conversation alone.
+
+## Stale task files
+
+At the start of any execution pass, run `sdt context resume` (it reads the
+recorded execution state and names stale `in-progress` files) and scan
+`context/tasks/` for stale files: status `in-progress` (or legacy `active`) with
+`[~]` items that went unupdated for a long time (compare each file's `updated`
+with the current date and the recorded take-in). For each stale file:
+
+1. Receive it and adjust status: locate the exact point of work from `updated`
+   and the `[~]` markers.
+2. Verify against the linked plan and worklog whether work continued elsewhere
+   or stalled.
+3. If stalled: reset in-progress items to `[ ]` (todo) or close them `[x]` when
+   actually finished; clear all `[~]`; refresh `updated`.
+4. If the phase is finished but not closed: mark items `[x]`, set the file
+   `completed`, update the plan, note it in the worklog.
+
+Never leave `[~]` markers unattended across sessions, and never archive a stale
+task file to hide it: `completed` (or `pending` after a reset) is the normal
+terminal state, and archiving is reserved for a file the user explicitly
+retires.

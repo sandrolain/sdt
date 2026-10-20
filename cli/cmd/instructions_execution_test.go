@@ -24,7 +24,7 @@ func TestPlanInstructionCarriesRequirementsDecompositionAndBlindReader(t *testin
 	}
 }
 
-func TestTasksInstructionCarriesReInjectionBatchingAndReplacementNote(t *testing.T) {
+func TestTasksInstructionCarriesReInjectionAndBatching(t *testing.T) {
 	body := generatedInstruction(t, "tasks.md")
 	flat := strings.Join(strings.Fields(body), " ")
 
@@ -34,12 +34,26 @@ func TestTasksInstructionCarriesReInjectionBatchingAndReplacementNote(t *testing
 		"Batched reads", // T4
 		"Broad exploration goes to a sub-agent",
 		"a phase that reads two known files needs no batch", // the no-op clause
-		"The replacement note",                              // T3
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("generated tasks.md missing %q", want)
+		}
+	}
+}
+
+// The replacement note moved to the handoff companion when tasks.md was split:
+// it is read when working state is lost, not while executing a step.
+func TestTasksHandoffCarriesTheReplacementNote(t *testing.T) {
+	body := generatedInstruction(t, "tasks-handoff.md")
+	flat := strings.Join(strings.Fields(body), " ")
+
+	for _, want := range []string{
+		"The replacement note", // T3
 		"Failed attempts | every approach tried that did not work",
 		"a place that survives the session",
 	} {
 		if !strings.Contains(flat, want) {
-			t.Errorf("generated tasks.md missing %q", want)
+			t.Errorf("generated tasks-handoff.md missing %q", want)
 		}
 	}
 }

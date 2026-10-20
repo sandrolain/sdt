@@ -19,11 +19,13 @@ import (
 //   - cli.md ≤ 400 words — the agent's own verb list, the catalog everything else
 //     defers to `sdt schema` for.
 //
-// Seven modules are over the module ceiling and are *ratcheted* rather than cut
-// today: they carry a long procedural contract (task lifecycle, ingestion
-// pipeline, plan phases) whose detail is the point. An exempt module's budget is
-// its size at the moment of the ratchet, so it may only shrink; splitting it into
-// a core contract plus a detail module is the exit from the exemption.
+// A module over the module ceiling is *ratcheted* rather than cut: it carries a
+// long procedural contract (ingestion pipeline, plan phases) whose detail is the
+// point. An exempt module's budget is its measured size at the moment of the
+// ratchet, so it may only shrink from there; splitting it into a core contract
+// plus a detail module is the exit from the exemption. `tasks` left the map that
+// way — split into `tasks-handoff` and `tasks-review`, it now fits the common
+// budget.
 
 const (
 	instructionBlockBudget   = 2200
@@ -35,13 +37,12 @@ const (
 // ceiling recorded here, and the entry is removed when it falls under the common
 // budget or is split.
 var instructionModuleRatchet = map[string]int{
-	"tasks":        3900,
-	"ingestion":    3600,
-	"plan":         2700,
-	"analysis":     2600,
-	"development":  2550,
-	"wiki":         2400,
-	"distillation": 1800,
+	"ingestion":    3519,
+	"plan":         2645,
+	"analysis":     2496,
+	"development":  2455,
+	"wiki":         2327,
+	"distillation": 1763,
 }
 
 // countWords is the one definition the budgets are measured with.

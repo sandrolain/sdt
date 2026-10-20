@@ -96,6 +96,8 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/scope.md` | A vague goal into a complete analysis (`>scope: <goal>`) |
 | `context/instructions/plan.md` | Creating or modifying a plan |
 | `context/instructions/tasks.md` | Creating or modifying task files |
+| `context/instructions/tasks-handoff.md` | Another session picks the work up |
+| `context/instructions/tasks-review.md` | Closing a phase: verify-step, review |
 | `context/instructions/decision.md` | Writing a decision record |
 | `context/instructions/architecture.md` | Updating architecture docs |
 | `context/instructions/worklog.md` | Writing a final report |
@@ -197,10 +199,9 @@ them in `project.md` when it declares none.
 ### Communication (default)
 
 Code work: concise, direct, no filler or hedging, technical terms exact. Pattern:
-`[thing] [action] [reason]. [next step].` Not "Sure! I'd be happy to help…", but
-"Auth middleware has a bug. Fixing:". Code first, then at most three lines of
-explanation; if the explanation outgrows the code, cut it. User-requested docs
-are written normally, in plain concise prose.
+`[thing] [action] [reason]. [next step].` Code first, then at most three lines of
+explanation — if it outgrows the code, cut it. User-requested docs are plain
+concise prose.
 
 - **Lead with the do-able thing**: a command, path or snippet that answers the
   request comes first, prose after.

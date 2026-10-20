@@ -5,249 +5,156 @@ summary: "Task files: an optional split of a plan's checklist across parallel sc
 ---
 
 `context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md` holds a **split** of a plan's
-checklist, with one `## Phase <n>` section per phase. The plan is the execution
-ledger by default: a sequentially executed plan keeps its `- [ ]` items in its
-own phases and never gets a task file. Create one only to divide the work across
-concurrent agents or disjoint scopes (each file with a `--stream <label>`
-suffix); then that file is the execution unit for its scope.
+checklist, one `## Phase <n>` per phase. The plan is the execution ledger by
+default: a sequentially executed plan keeps its `- [ ]` items in its own phases
+and never gets a task file. Create one only to divide the work across concurrent
+agents or disjoint scopes (each file with a `--stream <label>`); then that file
+is the execution unit for its scope.
+
+Companions, read in their situation: `tasks-handoff.md` (a second session,
+claims, stale files) and `tasks-review.md` (closing a phase: verify-step,
+review).
 
 ## Create
 
-Create the plan's task file with the CLI (scaffolds the path and frontmatter):
+Create it with the CLI (path and frontmatter):
 
 ```bash
 sdt context task add "<step>" [--phase <n>] [--stream <label>] [--plan <plan-file>]
 ```
 
-`--phase <n>` places the step in the `## Phase <n>` section (created when
-absent); without it the step lands in the file's unphased checklist. `--stream`
-selects an opt-in split file (`<slug-plan>-<label>.md`). Timestamps
-(`created`/`updated`) come from `sdt time iso` (RFC3339 UTC). Or hand-write the
-file from the template below.
+`--phase <n>` places the step in that `## Phase` section (created when absent);
+without it the step lands unphased. `--stream` selects a split file
+(`<slug-plan>-<label>.md`). Timestamps: `sdt time iso` (RFC3339 UTC).
 
 ## Intent first
 
-Task files follow the plan, which follows the analysis; the chain and its
-approval gates are defined in AGENTS.md (HARD RULE 1).
+The chain and its approval gates are AGENTS.md HARD RULE 1: task file → plan →
+analysis.
 
-A task file is owned by its plan: it carries the optional `phases` list (the
-phase sections it covers; omitted on the whole-plan file) and **inherits the
-plan's `objective`** for grouping — it never declares `objective` itself.
+A task file is owned by its plan: `phases` lists the sections it covers (split
+files only) and **inherits the plan's `objective`** — it never declares one.
 
-**One home for the checklist.** In an **unsplit** plan the `- [ ]` steps live in
-the plan's own phases. In a **split** plan they live in the task file's
-`## Phase <n>` sections, and the plan keeps only the intent and the approach (the
-"how"). A plan phase and its task `## Phase` section never restate the same
-list.
-
-**Subject resolution (`>tasks`, `>execute`).** Both triggers are **workflow**
-commands. `>tasks`'s subject is a `plan` (the one to split) and `>execute`'s subject is a
-`plan` (its task file, when it was split). They resolve it through the
-working-context ladder (`context/commands/index.md`, *Working-context
-resolution*): explicit payload → exactly one active/unique candidate → the plan
-under discussion → **ask**. `>execute` on an unsplit plan works its checklist
-directly; it never invents a task file.
+**One home for the checklist.** In an unsplit plan the `- [ ]` steps live in the
+plan's phases; in a split plan they live in the task file's `## Phase <n>`
+sections, and the plan keeps only intent and approach. A plan phase and its task
+section never restate the same checklist: moving an item into a task file is the
+moment the plan stops being the ledger.
 
 ## Structure
 
 ```markdown
----
-kind: tasks
-summary: "<1-2 sentence summary — MANDATORY, index source>"
-phases: [1, 2]           # optional: only on a split file; omitted on the whole-plan file
-status: pending          # pending | in-progress | completed | archived | active(legacy) — accepted values: `sdt context vocab`
-created: "<ISO 8601>"
-updated: "<ISO 8601>"
-links:
-  - plan/<date>-<plan-slug>.md
-sources:
-  - plan/<date>-<plan-slug>.md
-project: <project>
-agent: <agent/tool>          # optional
-model: <model id>            # optional
-session: <session id>        # optional
----
-
-## Design
-
-- <analysis objective this task covers> — approach: <how>;
-  verify: <command or signal>
-- <analysis objective this task covers> — approach: <how>;
-  verify: <command or signal>
-
 ## Phase 1 — <goal>
-
-- [ ] step one <!-- c1 -->
-- [~] step two (in progress) <!-- c2 -->
+- [ ] <step> <!-- c1 -->
+- [ ] <step> <!-- c2 -->
 
 ## Phase 2 — <goal>
-
-- [x] step three (done) <!-- c3 -->
-- [!] step four (blocked) <!-- c4 -->
+- [ ] <step> <!-- c3 -->
 
 ## Deviations             <!-- one item per deliberate departure from the plan -->
 
-- [ ] fix — the phase order was wrong; corrected <!-- c7 -->
-- [ ] stop-and-ask — the dependency choice needs the user's decision <!-- c8 -->
-
 ## Review                 <!-- file-level; written by `task review` on completion -->
-
 ### Findings             <!-- one item per finding; the verdict is the trailing token -->
-
-- [ ] <claim> — CONFIRMED <!-- c5 -->
-- [ ] <claim> — UNVERIFIED <!-- c6 -->
-
 ### Gate                 <!-- appended by `agent gate --record`; a failed run says so -->
-
-2026-01-01T00:00:00Z (sdt agent gate) — passed
-- build: pass (1.20s)
-- vet: pass (0.40s)
-- lint: pass (3.00s)
-- test: pass (11.00s)
 ```
-
-The trailing `<!-- c<N> -->` is a stable per-document id the CLI assigns; never
-type or renumber it by hand.
 
 ## Design section (study of the task objectives)
 
-Before executing, add a `## Design` section: one short block per objective the
-task's phases cover. Each block names the objective (from the plan phase and the
-analysis it derives from), the approach/design chosen for it, and how it will be
-verified. Keep it short — it studies *this task's* objectives; the full style,
-architecture and dependency contract lives in the plan (see
-`instructions/plan.md`), so do not duplicate it here.
+One short block per objective — the objective, the approach chosen, how it is
+verified. The full style, architecture and dependency
+contract lives in the plan (`plan.md`); do not duplicate it here.
 
 ## Checklist item detail
 
-Each checklist item should be a single, self-contained action. For items that
-need more context, use a description indented below the checkbox:
+One self-contained action per item. A description indented below the checkbox
+carries what one line cannot:
 
 ```markdown
-- [ ] Refactor auth middleware to use token pool
-      File: `internal/auth/middleware.go` — replace per-request
-      token allocation with a sync.Pool; must not change the public API.
-- [~] Add unit tests for token pool
-      Must cover: concurrent access, pool exhaustion fallback.
-      Verification: `go test ./internal/auth/ -race`
-- [ ] Update migration script
-      Depends on: refactor auth middleware.
+- [ ] Refactor auth middleware to use a token pool
+      File: `internal/auth/middleware.go` — replace per-request allocation;
+      the public API must not change.
+- [~] Add unit tests for the pool
+      Must cover: concurrent access, exhaustion fallback.
+- [ ] Update the migration script
+      Depends on: the middleware refactor.
 ```
 
-Keep descriptions concise: what changes, which files, what to verify. Avoid
-full paragraphs — the task file's Verification commands and Definition of Done
-sections handle that.
-
-Each item gets a trailing `<!-- c<N> -->` id when the CLI writes it; the anchor
-is invisible when rendered and lets `sdt context check`/`task <verb>` address the
-item without depending on its position. An item is a checklist line plus its
-indented continuation lines; the id is written on the checklist line and is
-**unique per document** (ids are not per phase), so do not add, edit, reorder or
-reuse an anchor by hand — `--phase` selects the file, it does not scope an id
-search. A repeated id in one document is a `sdt context lint` WARNING, and
+Keep it short: what changes, which files, what to verify. Each item gets a
+trailing `<!-- c<N> -->` id when the CLI writes it. An item is a checklist line
+plus its indented continuation lines; the id is written on the checklist line and
+is **unique per document** (not per phase), so never add, edit, reorder or reuse
+one by hand. A repeated id is a `sdt context lint` WARNING, and
 `sdt context checklist backfill` renumbers duplicates.
 
 ## Frontmatter properties
 
 | Property | Mandatory | Description |
 |----------|-----------|-------------|
-| kind | yes | Document type, fixed value `tasks`; index and lint depend on it. |
-| summary | yes | 1-2 sentence summary → index source. |
-| phases | no | Phase sections this file covers (e.g. `[1, 2]`); only on a split file, omitted on the whole-plan file. The legacy scalar `phase` is still accepted. The task inherits the plan's `objective`; it does not carry one. |
-| status | yes | File state: `pending` (to work on) / `in-progress` / `completed` / `archived`. The first three are always distinguishable — a task file is never stuck with fewer than three meaningful states. `active` is the legacy value accepted by lint. |
-| created | yes | ISO 8601 UTC creation date (use `sdt time iso`). |
-| updated | yes | ISO 8601 UTC last-edit date, written only by the CLI; refresh a body-only edit with `sdt context touch`. |
-| links | yes | Relative path to the plan this task file executes. |
-| project | yes | Project id from `.sdt.yaml` (e.g. `<project-id>`). |
-| agent | no | Agent/tool that picked up or last edited the file. |
-| model | no | Model id of that agent — provenance. |
-| session | no | Session id for traceability across edits. |
+| kind | yes | Document type, fixed value `tasks`. |
+| summary | yes | 1-2 sentences → index source. |
+| phases | no | Sections this file covers (`[1, 2]`); split file only. |
+| status | yes | `pending` / `in-progress` / `completed` / `archived`; `active` is legacy. |
+| created | yes | ISO 8601 UTC (`sdt time iso`). |
+| updated | yes | Written only by the CLI; a body edit uses `sdt context touch`. |
+| links | yes | Relative path to the plan this file executes. |
+| project | yes | Project id from `.sdt.yaml` (`<project-id>`). |
+| agent, model, session | no | Provenance of the agent that last worked the file. |
 
 ## Rules
 
-- **No H1 title** — see AGENTS.md (document conventions).
-- **CLI-only state** — never hand-edit `status:`, `updated:` or a checkbox
-  marker. Mutate them with the CLI: `sdt context task <sub> --phase <n>`
-  (add/list/done/block/wip/review) or, for any checklist, `sdt context check
-  <doc> <id> --done|--wip|--block|--pending`; refresh a body-only edit with
-  `sdt context touch <doc>`.
-- Status markers: `[ ]` todo · `[~]` in-progress · `[x]` done · `[!]` blocked.
-- File status transitions: create → `pending`; `wip`/`block` → `in-progress`; `done` → `completed` when no `[ ]`/`[~]` item remains, else `in-progress`. Completion is `completed` and the file stays in `context/tasks/`; `archived` is reserved for a task file retired by the user's will.
-- **One file per plan by default**: the file holds the plan's phases as `## Phase
-  <n>` sections. Split into several files only to divide the work by context or
-  across sub-agents — disjoint scopes, each named with a `--stream <label>` and
-  declaring its `phases` list. A plan phase with no matching section in any of
-  its task files gets a `sdt context lint` SUGGESTION.
-- Keep each phase section small (~5-7 items); a >10-item section triggers a
-  `sdt context lint` SUGGESTION to split the phase.
-- Task files are **living**: updated during execution of the phase.
-- When every phase section is done and the `## Review` block is present, set the
-  file `completed` (it stays in `context/tasks/`) and update the plan.
+- **No H1 title** — AGENTS.md (document conventions).
+- **CLI-only state** — never hand-edit `status:`, `updated:` or a checklist
+  marker: `sdt context task <sub>` and `sdt context check <doc> <id> --state …`
+  mutate them, `sdt context touch` refreshes a body edit.
+- Markers: `[ ]` todo · `[~]` in-progress · `[x]` done · `[!]` blocked.
+- Transitions: create → `pending`; `wip`/`block` → `in-progress`; `done` →
+  `completed` when no `[ ]`/`[~]` remains, else `in-progress`; `archived` only
+  on the user's explicit retirement.
+- **One file per plan by default**; several only for disjoint scopes, each with
+  `--stream` and `phases`. A plan phase with no matching section in any task
+  file is a lint SUGGESTION.
+- ~5-7 items per phase section; >10 is a SUGGESTION to split the phase.
+- Task files are **living**, updated during execution.
+- Every section done and the `## Review` block present → `completed`, and the
+  linked plan is updated.
 
 ## Execution workflow
 
-1. **Pick** — choose a task file whose dependencies are satisfied (see its plan
-   and links). One file at a time; don't jump between files. Concurrent
-   sub-agents must own different files (disjoint scopes).
-2. **Take in charge** — before any work, mark the phase in progress with
-   `sdt context task wip <id> --phase <n>` (it sets the item `[~]`, flips the
-   file `in-progress` and refreshes `updated`; add `agent`/`model`/`session`
-   when available). Study the task's objectives in the `## Design` section (fill
-   it from the plan and analysis if missing). Log the take-in in the worklog.
-3. **Execute** — work the phase section's items top to bottom; update markers as
-   you go. Any deviation goes back into this file or the plan — never silently.
-4. **Complete** — `[x]` every item of the phase, run the **verify-step** below,
-   then move to the next phase; set the file `completed` (the `## Review` block
-   is written file-level) and update the linked plan.
+1. **Pick** — a file whose dependencies are satisfied (its plan and links). One
+   at a time; concurrent sub-agents own different files.
+2. **Take in charge** — `sdt context task wip <id> --phase <n>` before any work
+   (sets `[~]`, flips the file `in-progress`, refreshes `updated`; add
+   `agent`/`model`/`session`). Study the `## Design` objectives, filling them
+   from the plan and analysis when missing. Log the take-in in the worklog.
+3. **Execute** — work the section top to bottom, updating markers as you go. A
+   deviation goes back into the file or the plan, never silently
+   (`tasks-review.md`).
+4. **Complete** — `[x]` every item, run the verify-step (`tasks-review.md`), then
+   the next phase; set the file `completed` and update the plan.
 5. **Commit gate** — see `instructions/git.md` for the procedure, the message
    format and the approval gate.
 
-**Durable ledger.** Conversation memory does not survive compaction. Keep the
-record of progress in durable files — this task file, the plan and the worklog —
-not only in short-lived todos; narration between steps is at most one short
-line.
+**Durable ledger.** Conversation memory does not survive compaction: the record
+of progress lives in this file, the plan and the worklog, not short-lived
+todos; narration between steps is one short line at most.
 
-**Batched reads.** Read for breadth, not one file at a time:
+**Batched reads.** Read for breadth, not one file at a time: batch what a single
+command can return; **Broad exploration goes to a sub-agent** — it takes back a
+pointer plus the load-bearing lines; keep the original retrievable by naming its
+files (`development.md`, *Context economy*). When this does not apply: a phase
+that reads two known files needs no batch.
 
-- **Batch what a single command can return** (one `list`, one `search` over the
-  whole corpus) instead of a call per candidate; several files the same question
-  needs come back in one round.
-- **Broad exploration goes to a sub-agent.** When a phase needs the surrounding
-  code or corpus surveyed, dispatch a bounded exploration to a sub-agent and take
-  back its findings: the bulk never enters this context, and the sub-agent's
-  answer is a pointer plus the load-bearing lines.
-- **Keep the original retrievable.** A batched or summarised result names its
-  files so they can be re-read exactly (`development.md`, *Context economy*).
-- When this does not apply: a phase that reads two known files needs no batch.
-
-**Re-inject the hard rule at a boundary.** A rule that matters in every phase
-loses force when a long execution has pushed it out of the recent window. Restate
-it at each phase boundary — at take-in, and when a phase closes — in one line,
-pointing at the owning contract rather than restating it. When this does not
-apply: a phase short enough to hold it needs no re-injection.
-
-**The replacement note.** When a long task loses its working state — a
-compaction, a context switch, a fresh session — the next reader needs a note with
-fixed parts, not a narration:
-
-| Part | Carries |
-|------|---------|
-| Goal | what this work is for, in one line |
-| Files | the paths already touched and their state |
-| Decisions | each ruling and its reason |
-| Next | the exact next step, not a summary of the plan |
-| Failed attempts | every approach tried that did not work, **and why it failed** |
-
-- The failed-attempts row is the part that pays: an approach recorded without its
-  reason is repeated, because the next reader cannot tell a dead end from a gap.
-- Write it into the task file, the plan or the worklog — a place that survives the
-  session — never into the conversation alone.
+**Re-inject the hard rule at a boundary.** A rule that matters every phase loses
+force in a long execution. **Restate it at each phase boundary** — at take-in,
+and when a phase closes — in one line, pointing at the owning contract rather
+than restating it. When this does not apply: a phase short enough to hold it
+needs no re-injection.
 
 **Rulings, not stalls.** Inside an approved plan, settle execution-level details
 the plan already authorizes and record each as
-`Ruling: <what was decided> — <why> — <cost if wrong>` in the task file or
-worklog, then keep going. A decision that changes scope, style, architecture or
-cost is not a ruling — it is a question for the user (HARD RULE 7).
+`Ruling: <what was decided> — <why> — <cost if wrong>` in the file or worklog,
+then keep going. A decision that changes scope, style, architecture or cost is
+not a ruling — it is a question for the user (HARD RULE 7).
 
 ### The `>execute` trigger
 
@@ -257,9 +164,8 @@ working-context ladder (`context/commands/index.md`, *Working-context
 resolution*) — explicit payload → exactly one active plan with an unfinished
 task file → the plan under discussion → **ask**. Then:
 
-- **Pick** — select the task file with no pending dependency; if several are
-  eligible, apply the ladder and **ask** when it is not unique. Work one file at
-  a time.
+- **Pick** — the file with no pending dependency; if several are eligible, apply
+  the ladder and **ask** when it is not unique. Work one file at a time.
 - **Take in** — `sdt context task wip <id> --phase <n>` before any work (step 2).
 - **Execute / complete** — steps 3-4, including the verify-step.
 - **Stop conditions** — exactly four; never invent work:
@@ -273,162 +179,3 @@ task file → the plan under discussion → **ask**. Then:
   - an ambiguous or already-closed subject — more than one candidate plan/task,
     or a `completed` plan (do not reopen it silently) → list the candidates and
     **ask**.
-
-## Multi-session handoff
-
-Single-session work needs none of this; apply it only when an effort is larger
-than one session or a second agent may run concurrently.
-
-- **Claim before working.** Before taking a task file, claim it so a concurrent
-  session can see the work is taken (`sdt context task claim --plan <plan>
-  --agent <id>`). Never start a task file that is already claimed or in progress.
-- **The frontier is the claimable work.** `sdt context resume` lists the
-  **frontier** — the task files that are pending, unblocked and unclaimed. Pick
-  from the frontier, never an arbitrary file.
-- **Release when you stop.** If you abandon a claim, release it
-  (`sdt context task release`); a claim left past the stale window shows in the
-  frontier as a **stale claim** to release, not to overwrite.
-- **The map stays a map.** The plan holds the destination and the decisions; the
-  detail lives in the task file, and a claim is durable frontmatter state the CLI
-  writes — never hand-edit it.
-
-## Stale task files
-
-At the start of any execution pass, run `sdt context resume` (it reads the
-recorded execution state and names stale `in-progress` files) and scan
-`context/tasks/` for stale files: status
-`in-progress` (or legacy `active`) with `[~]` items that went unupdated for a
-long time (compare each file's `updated` with the current date and the recorded
-take-in). For each stale file:
-
-1. Receive it and adjust status: locate the exact point of work from
-   `updated` and the `[~]` markers.
-2. Verify against the linked plan and worklog whether work continued elsewhere
-   or stalled.
-3. If stalled: reset in-progress items to `[ ]` (todo) or close them
-   `[x]` when actually finished; clear all `[~]`; refresh
-   `updated`.
-4. If the phase is finished but not closed: mark items `[x]`, set the file
-   `completed`, update the plan, note it in the worklog.
-
-Never leave `[~]` in-progress markers unattended across sessions, and never
-archive a stale task file to hide it: `completed` (or `pending` after a reset)
-is the normal terminal state, and archiving is reserved for a task file the user
-explicitly retires.
-
-## Deviations
-
-When the work departs from what the plan said, record it in the task file's
-`## Deviations` section instead of silently reinterpreting the plan. Write it with
-
-```bash
-sdt context task deviation add "<what departed from the plan>" --kind <kind> \
-  [--id <checklist-id>] [--reason "<why>"]
-```
-
-The kind is a closed vocabulary and is **never inferred**:
-
-| Kind | Meaning |
-|------|---------|
-| `fix` | the plan was wrong and the correction is made |
-| `add` | something had to be added that the plan did not have |
-| `unblock` | a blocker was resolved to continue |
-| `stop-and-ask` | the work halted for the user's decision |
-
-`stop-and-ask` is the **default**: when the caller does not say what kind of
-diversion this is, the recorded instruction is to ask the user, because "when in
-doubt, take the heavier path, and never weaken an agreed plan mid-task without
-saying so". An unknown kind is refused by the CLI and reported by
-`sdt context lint`, so the vocabulary cannot drift by hand-editing.
-
-With `--id <checklist-id>` the item the deviation concerns is **marked, never
-deleted**: `[!]` (stopped to ask) for `stop-and-ask`, `[~]` (in progress)
-otherwise. Its text and id stay, so a reviewer reads what was planned next to why
-it moved. `sdt context task deviation list` lists the section; an item is closed
-by ticking it like any other checklist item. A `completed` file that still
-carries an open deviation is a lint WARNING.
-
-## Verify-step
-
-Run the verify-step before closing a phase (completeness, coherence,
-correctness) and use the standardized claim vocabulary (**passed** / **expected**
-/ **inferred**) — see AGENTS.md (5-stage development lifecycle).
-
-Also run the **prose self-check** on any document the phase returns — no recap
-ending, no filler, every specific fact preserved
-(`context/instructions/writing.md`).
-
-**No completion claim without fresh evidence.** Before writing a status as done,
-run the check now and read its result: identify what proves the claim, run it,
-read the output, verify it against the claim, then write the claim. Evidence
-from an earlier run does not substitute for a fresh one.
-
-Match each claim to the evidence it needs:
-
-| Claim | Required evidence |
-|-------|-------------------|
-| passed | the command output from this run |
-| expected | the artefact was written and inspected, not executed |
-| inferred | a static reading only (file, diff, type) — say so |
-
-Two rules bound what the evidence may conclude:
-
-- **Absence of evidence is not evidence of absence.** A search that finds
-  nothing proves only that the search found nothing: state the search and its
-  scope, and mark the conclusion UNVERIFIED.
-- **A schema-valid artefact is not a complete one.** Passing a structural check
-  does not establish coverage; pair it with a declared coverage check or record
-  coverage as unproven.
-- **A "diff confined to this change" audit is scoped to the files the task
-  owns.** Under a concurrent stream the whole-tree diff is not a valid
-  confinement check — state the owned file set and audit against it.
-- **Scope per-edit validation to the files touched.** The full suite runs in the
-  plan's Validation phase; a per-edit run of everything is slow and can hang
-  offline (see `instructions/development.md`).
-
-The closeout claim is **no new findings**: `sdt context lint` reports what the
-baseline (`context/lint-baseline.json`) has not accepted yet, so "clean" is not a
-statement anyone can make about a living corpus. `sdt context lint --all` shows
-everything; `--baseline-write` records a deliberate acceptance.
-
-Record it as a file-level `## Review` block (in the plan, or in the split task
-file that holds the work; write it with `sdt context task review --phase <n>`; a
-completed ledger without the block gets a lint SUGGESTION). Every finding ends as
-one of the closed verdicts **CONFIRMED**, **DISPROVED** or **UNVERIFIED**, with
-evidence (command output, file path) — one verdict per claim, no second pass by
-default.
-
-- **When the independent pass is required.** Only a plan whose `rigor` is **P3 or
-  P4** needs a different model/host with no shared context; a second pass by the
-  author is not independent. When none is available, record **"no independent
-  check was possible"** and treat the review as **degraded**. At P0-P2 the single
-  evidenced pass is the review.
-
-- **Review completeness, not the chosen direction.** A verdict judges whether the
-  deliverable is complete and evidenced against its claims; it does not re-open a
-  decision already taken in the analysis. A direction concern is a new analysis
-  or an open question, never a review verdict.
-
-Give each finding its own identity with `--finding "<claim>" --verdict <verdict>`
-(repeatable, paired by position): the pairs become one item per finding under the
-block's `### Findings` subsection, with a CLI-assigned id, so a review says
-*which* claim was judged rather than leaving verdicts in a blob of prose. The
-verdict is the item's trailing token — that is what lint reads — and re-recording
-the same claim with the same verdict is a no-op, so a finding's identity is
-stable across a re-run. A claim re-stated with a *different* verdict is a new
-finding with a new id; the earlier one is never overwritten.
-
-The delivery gate leaves its own evidence: `sdt agent gate --record --plan <ref>`
-appends a `### Gate` subsection under the same `## Review` block, one line per
-step with its status and duration, headed by the run timestamp. A run that failed
-is written with the step it failed at and that step's real status — never
-summarised as a pass. Without `--record` the gate writes nothing.
-
-Close-out checks, run before setting the file `completed`:
-
-- `sdt context reindex` and `sdt context lint` — index regenerated, no new
-  findings.
-- `sdt context resume` — read the recorded execution state; no stale
-  `in-progress` file left behind.
-- `sdt context docs` — regenerate the per-command docs when the command help or
-  the version changed (see `context/sdtdocs/README.md`).
