@@ -30,6 +30,14 @@ sdt docs                              # full markdown docs per command (humans)
 sdt <command> --help                  # usage for a single command
 ```
 
+## Verbs an agent does not call
+
+Visible in `sdt context --help` and callable, but no workflow uses them:
+`snapshot` (the semantic index behind the offline neighbour surface), `uid` (document identifiers) and
+`template` (a type's contract — `sdt read -p context/instructions/<type>.md` is
+the shorter path). They are named here so the help and the instruction set agree:
+a verb an agent can read is a verb the set explains.
+
 ## Project configuration
 
 `.sdt.yaml` holds project identity and is found by walking up from the
