@@ -154,6 +154,21 @@ func ctxBudgetSurfaces(top int, includeModules bool) []ctxBudgetSurface {
 		})
 	}
 
+	if data, err := os.ReadFile(sdtEssentialsFile); err == nil { //#nosec G304 -- project surface the user asked to measure
+		size := ctxBudgetMeasure(string(data))
+		surfaces = append(surfaces, ctxBudgetSurface{
+			Name:   "essentials",
+			Detail: sdtEssentialsFile,
+			Files:  1,
+			Bytes:  size.Bytes,
+			Lines:  size.Lines,
+			Words:  size.Words,
+			Largest: ctxBudgetTopEntries([]ctxBudgetEntry{{
+				Path: sdtEssentialsFile, Bytes: size.Bytes, Lines: size.Lines, Words: size.Words,
+			}}, top),
+		})
+	}
+
 	surfaces = append(surfaces,
 		ctxBudgetDirSurface("architecture", sdtArchitectureDir, top),
 		ctxBudgetDirSurface("decisions", sdtDecisionsDir, top),

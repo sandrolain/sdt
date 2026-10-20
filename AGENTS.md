@@ -80,12 +80,13 @@ Change a rule where it is owned; link from the others, never duplicate.
 
 ### SESSION START (always)
 
-Read `context/index.md` first (generated), then the **essential**
-tier. Per-type instruction files are **on-demand**: read one when you take that
-action. When the entry point outgrows a session, read the essential entries inline
-and the rest as pointers; name the tier you omitted.
+Read `context/essentials.md` first — generated, capped at ~1,000 words. Per-type
+instruction files are **on-demand**: read one when you act. **When the entry
+point outgrows a session**, read the essential entries inline, the rest as
+pointers; name the tier you omitted.
 
-**Always read**: `context/index.md`, `context/architecture/`, `context/decisions/`.
+**Always read**: `context/essentials.md`; anything else is a lookup (`sdt context
+list|search`).
 
 **Due operations (opportunistic):** `sdt context memo due` at session start. When
 something is due, surface it and ask whether to run it before or after the requested task — never block the task, and never run it silently (`memo.md`).
@@ -146,7 +147,6 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/slides-marp.md` | The Marp dialect |
 | `context/instructions/diagram.md` | Authoring or reviewing a diagram |
 | `context/instructions/diagram-mermaid.md` | The Mermaid dialect |
-| `context/instructions/capture.md` | A correction worth keeping, at closeout |
 | `context/instructions/memo.md` | The planned-operation register and its due check |
 | `context/instructions/todo.md` | The TODO inbox |
 | `context/commands/index.md` | What a `>trigger` resolves to: its row names the contract; grammar, gates and the resolution ladder live once, there |
@@ -195,7 +195,7 @@ delivery (`development.md`, *Verify and deliver*). Then `sdt context reindex` an
 the run to the task file's `## Review`).
 
 At session end: note open tasks and questions in `context/tasks/` or
-`context/questions/`, and run the bounded signal check (`capture.md`), recording a
+`context/questions/`, and run the bounded signal check (`worklog.md`, *Signal review*), recording a
 routed capture or `none`. Substantive answers are filed into `context/` — never
 left in chat. Discover the build/test/lint commands from the project, and record
 them in `project.md` when it declares none.
@@ -464,9 +464,9 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
     missing tool or CLI verb, cost/velocity wins (tokens, re-read files,
     avoidable steps).
   - **Routed** — every item routed through the table in
-    `context/instructions/capture.md`, one link each; an item already routed
-    there is `none` for the session-end signal check. This block never
-    redefines what makes a signal generalisable: `capture.md` owns that test.
+    `context/instructions/worklog.md` (*Signal review*), one link each; an item
+    already routed there is `none` for the session-end signal check. This block
+    never redefines what makes a signal generalisable: `worklog.md` owns that test.
   - **`nessuna`** — an empty section says `nessuna` explicitly, so "nothing
     found" stays distinguishable from "not reviewed".
 

@@ -221,6 +221,13 @@ func ctxRegenerateIndex() (ctxIndexJSONSummary, error) {
 	if err != nil {
 		return ctxIndexJSONSummary{}, err
 	}
+	essentials, err := buildEssentials()
+	if err != nil {
+		return ctxIndexJSONSummary{}, err
+	}
+	if _, err := writeEssentialsIfChanged(essentials); err != nil {
+		return ctxIndexJSONSummary{}, err
+	}
 	return ctxIndexJSONSummary{Markdown: written, JSON: ctxIndexWriteState(jsonWritten)}, nil
 }
 

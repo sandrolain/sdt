@@ -1207,7 +1207,7 @@ func TestAgentBlockReferencesContextCommands(t *testing.T) {
 		"sdt context lint",
 		"sdt context task",
 		"task file exists only to split",
-		"context/index.md",
+		"context/essentials.md",
 	} {
 		if !strings.Contains(block, want) {
 			t.Errorf("expected %q in agent block", want)

@@ -5,15 +5,14 @@ import (
 	"testing"
 )
 
-// TestCaptureInstructionModule guards the bounded self-improvement capture
-// contract: it renders, carries the four-part signal test and every routing
-// destination, and — per the document convention — has no H1 title.
-func TestCaptureInstructionModule(t *testing.T) {
-	body := instrCaptureTemplate
-	if strings.TrimSpace(body) == "" {
-		t.Fatal("capture template rendered empty")
-	}
+// TestWorklogCarriesTheSignalReview guards the bounded self-improvement contract
+// after it was folded into the closeout: the four-part signal test, every routing
+// destination and the boundaries live in worklog.md, the one file read at the
+// moment the loop runs.
+func TestWorklogCarriesTheSignalReview(t *testing.T) {
+	body := instrWorklogTemplate
 	for _, want := range []string{
+		"## Signal review",
 		"Four-part signal test",
 		"Generalisable?",
 		"Already recorded?",
@@ -30,31 +29,28 @@ func TestCaptureInstructionModule(t *testing.T) {
 		"`none`",
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("capture template missing %q", want)
-		}
-	}
-	for _, line := range strings.Split(body, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "# ") {
-			t.Errorf("capture template must not carry an H1 title: %q", line)
+			t.Errorf("worklog signal review missing %q", want)
 		}
 	}
 }
 
-// TestCaptureDeliveryPoints guards that both delivery points — the worklog
-// crystallized closeout and the AGENTS.md session end — point at capture.md
-// instead of restating its routing table.
-func TestCaptureDeliveryPoints(t *testing.T) {
-	if !strings.Contains(instrWorklogTemplate, "capture.md") {
-		t.Error("worklog closeout must reference the capture contract")
-	}
-	if !strings.Contains(instrWorklogTemplate, "Signal review") {
-		t.Error("worklog closeout must carry a Signal review line")
-	}
+// TestSignalReviewHasOneDeliveryPoint proves the fold did not leave a second
+// copy: the session-end line points at the closeout section, and no instruction
+// module named capture.md survives.
+func TestSignalReviewHasOneDeliveryPoint(t *testing.T) {
 	block := agentBlockInstructions("p", "g")
-	if !strings.Contains(block, "context/instructions/capture.md") {
-		t.Error("AGENTS.md block must reference the capture contract")
-	}
 	if !strings.Contains(block, "bounded signal check") {
 		t.Error("AGENTS.md block must carry the session-end signal check")
+	}
+	if !strings.Contains(block, "worklog.md") {
+		t.Error("AGENTS.md block must point the signal check at worklog.md")
+	}
+	if strings.Contains(block, "capture.md") {
+		t.Error("AGENTS.md block still points at the removed capture.md")
+	}
+	for _, tmpl := range instructionFiles("", "") {
+		if tmpl.name == "capture.md" {
+			t.Error("capture.md is still generated")
+		}
 	}
 }
