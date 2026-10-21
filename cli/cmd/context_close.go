@@ -12,8 +12,9 @@ import (
 // contextCloseCmd closes a document in one step: it sets the terminal
 // `completed` status, refuses when the derived state disagrees (unfinished
 // children or an unfinished task) unless --allow-unfinished records an explicit
-// override, and cascades the completion to the parents. It collapses the
-// multi-step closeout friction F6 into one command.
+// override, cascades the completion to the parents, and records the crystallized
+// closeout of a plan (or of one stream of a split plan) in the worklog. It is the
+// close verb; `status set` stays the generic setter for every other value.
 
 var contextCloseCmd = &cobra.Command{
 	Use:   "close <doc-ref>",
@@ -24,6 +25,12 @@ completion to its parents. It refuses when the derived state disagrees
 ` + "`--allow-unfinished`" + ` is given together with ` + "`--reason`" + `, which records the
 override in the document body.
 
+Closing a plan also writes its crystallized closeout in the worklog directory: the
+checklist states, the ` + "`## Review`" + ` verdicts and the gate result are generated from
+the ledger, while the fields only the author knows (files affected, local
+decisions, lessons, signal review, deviations) stay marked for them. A rerun
+regenerates the derived part and keeps the hand-written one.
+
 Supported kinds: tasks, plan, analysis.
 
 Examples:
@@ -31,42 +38,42 @@ Examples:
   sdt context close plan/<plan-file>
   sdt context close plan/<plan-file> --allow-unfinished --reason "shipping the remainder separately"`,
 	Args: cobra.MaximumNArgs(1),
-	// `close` is the old name for what `status set` now does with a terminal
-	// value: one verb per job. It keeps working (an alias, not a removal) and
-	// says which verb to use.
-	Hidden: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		deprecatedNotice(cmd, "`sdt context status set <ref> --status completed --reason \"<why>\"`")
 		doc, err := resolveContextDoc(cmd, args)
 		exitWithError(cmd, err)
 		allow := getBoolFlag(cmd, "allow-unfinished", false)
 		reason := strings.TrimSpace(getStringFlag(cmd, "reason", false))
-		exitWithError(cmd, closeDocument(doc, allow, reason))
+		entry, err := closeDocument(doc, allow, reason)
+		exitWithError(cmd, err)
 		outputString(cmd, "ok\n")
+		if entry != "" {
+			outputString(cmd, "closeout: "+entry+"\n")
+		}
 		cascadeAfterWrite(cmd, doc.Path)
 	},
 }
 
 // closeDocument writes a document's terminal status, recording an explicit
-// override note when the derived state disagrees. It is the one implementation
-// behind `context close` (deprecated) and `status set` with a terminal value and
-// a `--reason`, so the two cannot drift.
-func closeDocument(doc ctxResolvedDoc, allow bool, reason string) error {
+// override note when the derived state disagrees, then records the closeout when
+// the document is a plan or a stream of one. It is the one implementation behind
+// `context close` and `status set` with a terminal value and a `--reason`, so the
+// two cannot drift.
+func closeDocument(doc ctxResolvedDoc, allow bool, reason string) (string, error) {
 	terminal := closeTerminalStatus(doc.Type)
 	if terminal == "" {
-		return fmt.Errorf("type %s cannot be closed", ctxKindLabel(doc.Type))
+		return "", fmt.Errorf("type %s cannot be closed", ctxKindLabel(doc.Type))
 	}
 	if !allow {
 		if _, why := derivedCompletionBlock(doc.Path); why != "" {
-			return fmt.Errorf("cannot close %s: %s (finish the work, or pass --reason \"<why>\")", ctxKindLabel(doc.Type), why)
+			return "", fmt.Errorf("cannot close %s: %s (finish the work, or pass --reason \"<why>\")", ctxKindLabel(doc.Type), why)
 		}
 	} else if reason == "" {
-		return errors.New("--reason is required when the derived state disagrees")
+		return "", errors.New("--reason is required when the derived state disagrees")
 	}
 	//#nosec G304 -- user work file
 	data, err := os.ReadFile(doc.Path)
 	if err != nil {
-		return err
+		return "", err
 	}
 	content := string(data)
 	if allow {
@@ -79,7 +86,16 @@ func closeDocument(doc ctxResolvedDoc, allow bool, reason string) error {
 		}
 	}
 	//#nosec G306 G703 -- path resolved from the corpus, not from user input
-	return os.WriteFile(doc.Path, []byte(content), 0o644)
+	if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+		return "", err
+	}
+	entry, err := closeoutWrite(doc)
+	if err != nil {
+		// The status is already written: say the record failed rather than
+		// pretending the close produced one.
+		return "", fmt.Errorf("%s is closed, but the closeout could not be recorded: %w", ctxKindLabel(doc.Type), err)
+	}
+	return entry, nil
 }
 
 // closeTerminalStatus returns the terminal status `close` writes for a kind, or

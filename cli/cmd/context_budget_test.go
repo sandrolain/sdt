@@ -120,6 +120,46 @@ func TestContextBudgetTotalsAndEstimate(t *testing.T) {
 	}
 }
 
+// TestContextBudgetSeparatesStartFromLookup is the honesty gate: the report may
+// not add the block a session begins with to the documents it never reads unless
+// the work touches them.
+func TestContextBudgetSeparatesStartFromLookup(t *testing.T) {
+	root := budgetTree(t)
+	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(sdtEssentialsFile)), []byte("digest\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rep := ctxBudgetBuildReport(3, ctxBudgetBytesPerToken, false)
+
+	group := map[string]string{}
+	for _, s := range rep.Surfaces {
+		group[s.Name] = s.Group
+	}
+	for _, want := range []string{"instructions", "essentials"} {
+		if group[want] != ctxBudgetGroupStart {
+			t.Errorf("%s group = %q, want %q", want, group[want], ctxBudgetGroupStart)
+		}
+	}
+	for _, want := range []string{"index", "architecture", "decisions"} {
+		if group[want] != ctxBudgetGroupLookup {
+			t.Errorf("%s group = %q, want %q", want, group[want], ctxBudgetGroupLookup)
+		}
+	}
+	if rep.Start.Words == 0 || rep.Lookup.Words == 0 {
+		t.Fatalf("both groups must be measured: start %d words, lookup %d words", rep.Start.Words, rep.Lookup.Words)
+	}
+	if rep.Start.Words+rep.Lookup.Words != rep.TotalWords {
+		t.Errorf("group words %d+%d do not add up to the total %d",
+			rep.Start.Words, rep.Lookup.Words, rep.TotalWords)
+	}
+
+	text := ctxBudgetRenderText(rep)
+	for _, want := range []string{"paid at the start of a session", "read on demand (lookup)", "subtotal:"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("text report missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestContextBudgetTopEntriesBoundedAndDeterministic(t *testing.T) {
 	tree := budgetTree(t)
 	write := func(rel, content string) {
@@ -208,13 +248,15 @@ func TestContextBudgetTextOutput(t *testing.T) {
 	budgetTree(t)
 	out := string(execute(t, contextBudgetCmd, nil))
 	for _, want := range []string{
-		"always-loaded surface",
+		"agent surface",
+		"paid at the start of a session",
+		"read on demand (lookup)",
 		"instructions:",
 		"index:",
 		"architecture:",
 		"decisions:",
-		"total:",
-		"estimate:",
+		"subtotal:",
+		"estimates:",
 		"not a model tokenizer count",
 		"never fails a build and is not a gate",
 	} {
@@ -226,17 +268,25 @@ func TestContextBudgetTextOutput(t *testing.T) {
 	// A single-file surface names its file on the surface line, so the
 	// largest-entry block is not repeated underneath it.
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-	instructions, index := -1, -1
+	seen := 0
 	for i, l := range lines {
-		if strings.HasPrefix(strings.TrimSpace(l), "instructions:") {
-			instructions = i
+		name := strings.TrimSpace(l)
+		if !strings.HasPrefix(name, "instructions:") && !strings.HasPrefix(name, "index:") {
+			continue
 		}
-		if strings.HasPrefix(strings.TrimSpace(l), "index:") {
-			index = i
+		seen++
+		for _, next := range lines[i+1:] {
+			if strings.TrimSpace(next) == "" {
+				continue
+			}
+			if strings.HasPrefix(next, "    ") {
+				t.Errorf("single-file surface %q repeats its file in a largest-entry block", name)
+			}
+			break
 		}
 	}
-	if instructions < 0 || index < 0 || index != instructions+1 {
-		t.Errorf("single-file surfaces are not adjacent single lines (instructions at %d, index at %d)", instructions, index)
+	if seen != 2 {
+		t.Errorf("found %d single-file surfaces, want instructions and index", seen)
 	}
 }
 

@@ -23,8 +23,8 @@ func TestBriefingInstructionContract(t *testing.T) {
 	}
 	for _, want := range []string{
 		"orienting a newcomer",
-		"## When this applies (no-op rule)",
-		"the right home — do not write a briefing",
+		"**When this applies.**",
+		"say which\ncase applies instead of writing a briefing",
 		"derive, don't trust",
 		"paired with the **command that derives it**",
 		"a stated value that could drift is a defect",

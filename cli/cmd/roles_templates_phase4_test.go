@@ -160,8 +160,8 @@ Provide the independent second pass: verify phases and deliverables against thei
 ### 3. Role-relevant project context
 
 The concrete stack, layout and commands for this role live in the **project
-layer** of ` + "`context/roles/reviewer`" + `/project (see the ` + "`project`" + ` section below); the core
-adds nothing project-specific, so a repo change never rewrites this layer.
+layer** below; the core adds nothing project-specific, so a repo change never
+rewrites this layer.
 
 ### 4. Conventions and constraints
 

@@ -10,17 +10,11 @@ it names operations, not a binary, so it applies to any project and any driver.
 Read it together with `context/instructions/browser-tools.md` (the tool profiles)
 and `context/instructions/development.md` (library-first tool choice).
 
-## When this applies (no-op rule)
-
-- Use it when the project has a rendered web surface (a page, app or component)
-  to check at render time. If there is no rendered surface, this file does not
-  apply — say so and stop.
-- If no browser driver is available, do **not** install one unprompted: run
-  nothing, report the render step as **SKIPPED — never PASSED**, and say which
-  claim is therefore unverified. A real-engine claim requires a real-engine
-  artifact.
-- A DOM test with a simulated document does not satisfy this contract: computed
-  contrast, focus rings, overflow and pixels are not measurable there.
+**When this applies.** Render-time checks on a surface the project actually ships.
+No rendered surface, or no driver, means the step is **SKIPPED — never PASSED**:
+do not install a driver unprompted, and name the claim left unverified. A DOM
+test with a simulated document does not qualify — contrast, focus rings, overflow
+and pixels are not measurable there.
 
 ## Tool-selection rule
 

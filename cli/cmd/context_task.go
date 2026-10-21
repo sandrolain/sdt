@@ -310,6 +310,14 @@ func taskTarget(cmd *cobra.Command) (phase, plan string, err error) {
 	// Accept a path to the plan file: resolve to the basename so the task file
 	// name and the `plan/` link are never built from a path (F2).
 	plan = filepath.Base(plan)
+	if !strings.HasSuffix(plan, sdtMarkdownExt) {
+		// A bare slug that names an existing plan is that plan: linking it is
+		// what the caller meant, and building an unlinked standalone file from
+		// it silently detached the work from its ledger.
+		if doc, derr := resolveBareContextDoc(plan, false); derr == nil && doc.Type.kind == ctxTypePlan {
+			plan = filepath.Base(doc.Path)
+		}
+	}
 	if strings.HasSuffix(plan, sdtMarkdownExt) && !planHasFile(plan) {
 		return "", "", fmt.Errorf("plan not found: %s (pass an existing context/plan file, or a standalone slug without .md)", plan)
 	}

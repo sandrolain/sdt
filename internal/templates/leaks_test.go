@@ -136,6 +136,9 @@ func TestLeakPatternsHaveFixtures(t *testing.T) {
 		"test-stack":         "its tests (jsdom/vitest)",
 		"log-library":        "rendered by lmittmann",
 		"project-id":         "project: sdt_01a2b3c4",
+		"decision-number":    "see decision 0017",
+		"decision-date":      "see decision 2026-10-06",
+		"plan-id":            "see plan 20261006-200432",
 	}
 	names := LeakPatternNames()
 	if len(names) != len(fixtures) {

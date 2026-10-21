@@ -94,7 +94,11 @@ type phaseCoverage struct {
 func parsePlanPhaseCoverage(path, content string) []phaseCoverage {
 	var out []phaseCoverage
 	for _, section := range mdstruct.SplitSections(content) {
-		if section.Level != 3 || !strings.HasPrefix(strings.ToLower(section.Heading), "phase") {
+		// The plan contract (`instructions/plan.md`) makes a phase a `## Phase
+		// <n>` section, and `check --phase` matches exactly that. Accepting only
+		// level 3 meant a plan written to the contract claimed no objective at
+		// all, so the lint called every objective of its analysis uncovered.
+		if (section.Level != 2 && section.Level != 3) || !strings.HasPrefix(strings.ToLower(section.Heading), "phase") {
 			continue
 		}
 		label := phaseHeadingLabel(section.Heading)

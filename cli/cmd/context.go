@@ -144,6 +144,13 @@ func contextPath(typ, slug, phase, stream, plan string) (string, error) {
 // the notice goes to stderr so a structured result on stdout stays
 // machine-readable. A verb is absorbed, never removed without a release of
 // notice, and this is that notice.
+// deprecatedFlagNotice is the same notice for a flag that lost its job to a
+// value flag: it names the flag and the spelling that replaced it.
+func deprecatedFlagNotice(cmd *cobra.Command, flag, replacement string) {
+	//nolint:errcheck // a stderr notice cannot fail the command
+	fmt.Fprintf(cmd.ErrOrStderr(), "Note: `--%s` is deprecated; use `%s`\n", flag, replacement)
+}
+
 func deprecatedNotice(cmd *cobra.Command, replacement string) {
 	//nolint:errcheck // a stderr notice cannot fail the command
 	fmt.Fprintf(cmd.ErrOrStderr(), "Note: `%s` is deprecated; use %s\n", cmd.CommandPath(), replacement)
@@ -153,13 +160,18 @@ var contextCmd = &cobra.Command{
 	Use:     "context",
 	Aliases: []string{"ctx"},
 	Short:   "Context Tools (context/ work files)",
-	Long: `Manage the agent working files under context/: plans, work logs, notes
-and the active task list.
+	Long: `Manage the agent working files under context/: the documents, their state, and
+the derived indexes.
 
-  sdt context path [--type ...]   print a work file path
-  sdt context new --type ...      create a work file with frontmatter
-  sdt context list --type ...     list existing work files
-  sdt context task ...            manage the active task list`,
+  new · edit · set · unset · get · touch    create a document, edit its frontmatter or body
+  rename · rm · clean                       move, retire or discard one
+  list · search · status · resume           what the corpus holds, and where execution stands
+  path · template · docs                    a document path, a type contract, the command docs
+  task · check · checklist · close · deprecate
+                                            run a plan: checklists, item states, the close
+  relations · uid                           typed parent links and document identity
+  reindex · lint · commands · memo · todo · wiki · snapshot · budget
+                                            keep the derived surfaces and the registers true`,
 	// A verb that does not exist must say so. Without this, cobra hands the
 	// unknown token to the parent, which prints its help and exits 0 — so a
 	// mistyped `sdt context srch` looks exactly like a successful one.
@@ -229,6 +241,8 @@ func init() {
 	contextLintCmd.Flags().Bool("all", false, "Ignore the lint baseline and print every finding")
 	contextLintCmd.Flags().Bool("baseline-write", false, "Record the current findings as the baseline and report the delta accepted")
 	contextLintCmd.Flags().Bool("suggestions", false, "Also show the suggestions the baseline already accepted")
+	contextLintCmd.Flags().Bool("fix", false, "Repair the mechanical findings (an H1 the title already carries, a derivable `objective`) before reporting")
+	contextLintCmd.Flags().Bool("fix-terminal", false, "Let `--fix` also rewrite completed and archived documents (off by default)")
 	contextLintCmd.Flags().Int("stale-days", ctxStaleInProgressDays, "Days before an `in-progress` task file is reported as stale (advisory SUGGESTION)")
 	contextLintCmd.Flags().Int("limit", ctxLintDefaultLimit, "Maximum issues printed in text output (0: every issue); the totals and the exit code are unaffected")
 

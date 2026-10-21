@@ -57,10 +57,13 @@ func TestContextBaselineCheckReportsSurfaces(t *testing.T) {
 	if got.Status != doctorStatusOK {
 		t.Fatalf("status = %q, want ok after init", got.Status)
 	}
-	for _, want := range []string{"agents.md", "instructions", "roles", "commands", "tok"} {
+	for _, want := range []string{"agents.md (every turn)", "instructions (on demand)", "roles (on demand)", "commands (on demand)", "tok"} {
 		if !strings.Contains(got.Detail, want) {
 			t.Errorf("detail missing %q: %s", want, got.Detail)
 		}
+	}
+	if strings.Contains(got.Detail, "baseline") {
+		t.Errorf("the on-demand modules are still presented as a baseline: %s", got.Detail)
 	}
 }
 

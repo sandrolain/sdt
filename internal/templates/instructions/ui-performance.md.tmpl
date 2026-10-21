@@ -11,14 +11,11 @@ project-agnostic — it names budgets and measurements, not tools. Read it with
 (the structure it protects) and `context/instructions/browser.md` (how rendered
 and vitals evidence is captured).
 
-## When this applies (no-op rule)
-
-- Use it when the project ships a user interface that renders somewhere a user
-  waits: a web page, a mobile or desktop app, a terminal UI. If the project has
-  no user interface, or the change cannot affect load, interaction or stability,
-  this file does not apply: say so and stop.
-- The numbers below are defaults to reason from, not universal law. The project's
-  own targets win; if it has none, propose them and ask before enforcing.
+**When this applies.** A user interface that renders where someone waits — a web
+page, a mobile or desktop app, a terminal UI — on a change that can affect load,
+interaction or stability; otherwise say so and stop. The numbers below are
+defaults to reason from, not law: the project's targets win, and without any,
+propose them and ask before enforcing.
 
 ## Performance is a feature
 

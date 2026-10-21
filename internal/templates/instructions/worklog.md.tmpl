@@ -90,10 +90,12 @@ session: <session id>        # optional
 At the close of a plan (the execution ledger) the worklog records one
 **crystallized closeout** entry that pins the delivered state, so a later agent
 can resume or audit without re-deriving it. This is a pure **instruction-level
-contract**: the shape below is the record, written manually — no command
-generates it.
-The plan is the working ledger; this is its crystallized summary, not a second
-copy. A split plan closes once per task file, and only then.
+contract**: `sdt context close <plan>` writes the record from the ledger — the
+checklist states, the `## Review` verdicts and the `### Gate` result — and leaves
+the fields only the author knows (files affected, local decisions, lessons,
+signal review, deviations) marked to be filled. The plan is the working ledger;
+this is its crystallized summary, not a second copy. A split plan closes once per
+task file, and only then.
 
 ```markdown
 ### Closeout — <YYYY-MM-DD> — <plan slug>
@@ -116,6 +118,9 @@ Idempotency and updates:
 - **One closeout per plan identity** (per task file only on a split): a rerun
   reuses the existing entry instead of writing a second one; nothing is
   duplicated.
+- **The derived fields are generated, the authored ones survive**: a rerun
+  refreshes the item states, the verdicts and the provenance, and keeps the
+  lines the author filled instead of resetting them to their marker.
 - **Corrections are append-only**: a further dated block under the same closeout
   heading that quotes what changed (`updated <ISO 8601>`), never an edit of
   the original record.

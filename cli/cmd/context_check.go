@@ -60,7 +60,9 @@ func contextCheckStatus(cmd *cobra.Command) (string, error) {
 	for _, c := range candidates {
 		if getBoolFlag(cmd, c.flag, false) {
 			if f := cmd.Flags().Lookup(c.flag); f != nil && f.Changed {
-				deprecatedNotice(cmd, "`sdt context check <doc> --state "+c.status+"`")
+				// The deprecated thing is the *flag*, not the command: a notice
+				// naming the whole verb reads as "stop using check".
+				deprecatedFlagNotice(cmd, c.flag, "--state "+c.status)
 			}
 			status = c.status
 			chosen++
@@ -160,16 +162,17 @@ Pass a batch selector instead of an id to update several items at once:
 ` + "`--phase <n>`" + ` ticks the items in that phase section, ` + "`--all`" + ` every
 item, and ` + "`--grep <text>`" + ` the items whose text contains the substring.
 
-Pass exactly one of --done, --wip, --block or --pending; --block takes an
-optional --reason. The document's ` + "`updated`" + ` is refreshed when its kind
-requires it.
+Pass exactly one ` + "`--state`" + `: done, wip, block or pending. ` + "`--state block`" + ` takes an
+` + "`--reason`" + `. The document's ` + "`updated`" + ` is refreshed when its kind requires it.
+The per-state booleans (` + "`--done`" + `, ` + "`--wip`" + `, ` + "`--block`" + `, ` + "`--pending`" + `) still work but are
+deprecated: they name a value where a flag should name a field.
 
 Examples:
-  sdt context check plan/<plan-file> --done c4
-  sdt context check context/tasks/<task-file>.md --wip 2
-  sdt context check plan/<plan-file> --done --phase 3
-  sdt context check plan/<plan-file> --done --grep "F5"
-  sdt context check questions/20260927-091146-... --block c3 --reason "needs data"`,
+  sdt context check plan/<plan-file> c4 --state done
+  sdt context check context/tasks/<task-file>.md 2 --state wip
+  sdt context check plan/<plan-file> --state done --phase 3
+  sdt context check plan/<plan-file> --state done --grep "F5"
+  sdt context check questions/20260927-091146-... c3 --state block --reason "needs data"`,
 	Args: cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		doc, err := resolveContextDocPath(args[0])

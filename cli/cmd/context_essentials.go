@@ -50,11 +50,15 @@ func buildEssentials() (string, error) {
 		name string
 		dir  string
 		keep func(status string) bool
+		// newestFirst keeps the entries that supersede the others: a decision's
+		// number is its age, and the digest exists to carry what is in force, so
+		// the budget must be spent from the recent end and the cut made at the old.
+		newestFirst bool
 	}{
-		{"Architecture", sdtArchitectureDir, nil},
+		{"Architecture", sdtArchitectureDir, nil, false},
 		{"Decisions in force", sdtDecisionsDir, func(status string) bool {
 			return status == ctxDecisionStatusAccepted || status == ctxDecisionStatusProposed
-		}},
+		}, true},
 	}
 
 	// The preamble and the section headings count against the budget too: the
@@ -79,6 +83,11 @@ func buildEssentials() (string, error) {
 		if len(rows) == 0 {
 			continue
 		}
+		if section.newestFirst {
+			for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
+				rows[i], rows[j] = rows[j], rows[i]
+			}
+		}
 		b.WriteString("### " + section.name + "\n\n")
 		kept := 0
 		for _, row := range rows {
@@ -95,7 +104,7 @@ func buildEssentials() (string, error) {
 	}
 	if dropped > 0 {
 		b.WriteString(strconv.Itoa(dropped))
-		b.WriteString(" more beyond the budget — see `context/index.md` or `sdt context list`.\n")
+		b.WriteString(" more beyond the budget (the oldest are dropped first) — see `context/index.md` or `sdt context list`.\n")
 	}
 	return b.String(), nil
 }

@@ -25,7 +25,7 @@ func TestLearningInstructionModule(t *testing.T) {
 		t.Error("learning.md must not start with an H1 title")
 	}
 	for _, want := range []string{
-		"## When this applies (no-op rule)",
+		"**When this applies.**",
 		"## Classify the intent",
 		"## Resolve the scope",
 		"## Teach",

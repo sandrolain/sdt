@@ -104,6 +104,26 @@ func TestParsePlanPhaseCoverage(t *testing.T) {
 		}
 	})
 
+	t.Run("the documented level-2 phase heading claims its objectives", func(t *testing.T) {
+		// `instructions/plan.md` says a phase is a `## Phase <n>` section and
+		// `check --phase` matches exactly that, so the coverage reader must see
+		// the same heading the writer was told to use.
+		got := parsePlanPhaseCoverage("context/plan/p.md",
+			"## Phases\n\n## Phase 1 — a\n\n**Covers:** B1.\n\n## Phase 2 — b\n\n**Covers:** B2.\n")
+		if len(got) != 2 {
+			t.Fatalf("coverage = %#v, want both level-2 phases", got)
+		}
+		if got[0].Phase != "1" || got[1].Phase != "2" {
+			t.Fatalf("coverage = %#v, want the labels 1 and 2", got)
+		}
+	})
+
+	t.Run("the Phases container is not a phase", func(t *testing.T) {
+		if got := parsePlanPhaseCoverage("context/plan/p.md", "## Phases\n\n- item\n"); len(got) != 0 {
+			t.Fatalf("coverage = %#v, want none for the container heading", got)
+		}
+	})
+
 	t.Run("a non-phase section is not a claim", func(t *testing.T) {
 		if got := parsePlanPhaseCoverage("context/plan/p.md", "## Objective\n\n**Covers:** B1\n"); len(got) != 0 {
 			t.Fatalf("coverage = %#v, want none", got)

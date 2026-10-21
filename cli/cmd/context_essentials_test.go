@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -37,6 +38,35 @@ func TestEssentialsIsBoundedAndNamesWhatMatters(t *testing.T) {
 	}
 	if strings.Contains(content, "superseded long ago") {
 		t.Error("essentials carries a decision that is no longer in force")
+	}
+}
+
+// TestEssentialsKeepsTheNewestDecisions is the ordering gate: the digest carries
+// what is in force, so when the budget cannot hold every decision it must spend
+// from the recent end and drop the oldest, saying so.
+func TestEssentialsKeepsTheNewestDecisions(t *testing.T) {
+	setupContextProject(t)
+	long := strings.TrimSpace(strings.Repeat("an evidence led decision about the corpus and its writers ", 12))
+	for i := 1; i <= 12; i++ {
+		writeCtxDoc(t, fmt.Sprintf("context/decisions/%04d-d%02d.md", i, i),
+			fmt.Sprintf("---\nkind: decision\ntitle: D%02d\nsummary: %s\nstatus: accepted\n---\nbody\n", i, long))
+	}
+
+	execute(t, contextReindexCmd, nil)
+
+	data, err := os.ReadFile(sdtEssentialsFile)
+	if err != nil {
+		t.Fatalf("reindex did not write %s: %v", sdtEssentialsFile, err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "0012-d12.md") {
+		t.Error("the newest decision is missing from the digest")
+	}
+	if strings.Contains(content, "0001-d01.md") {
+		t.Error("the oldest decision survived the cut: the digest is spending its budget from the wrong end")
+	}
+	if !strings.Contains(content, "oldest are dropped first") {
+		t.Errorf("the omission line does not say which end was cut:\n%s", content)
 	}
 }
 

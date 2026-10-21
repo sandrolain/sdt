@@ -1785,7 +1785,7 @@ func TestAgentUITemplatesCoherence(t *testing.T) {
 	}{
 		{"ui.md", instrUITemplate, []string{
 			`title: "UI/UX \u2014 authoring doctrine"`,
-			"When this applies (no-op rule)",
+			"**When this applies.**",
 			"Priority ladder",
 			"Visitor-success mode",
 			"Refine or redesign",
@@ -1955,7 +1955,7 @@ func TestAgentMindmapTemplatesCoherence(t *testing.T) {
 	}{
 		{"mindmap.md", instrMindmapTemplate, []string{
 			`title: "Mind maps \u2014 authoring doctrine"`,
-			"When this applies (no-op rule)",
+			"**When this applies.**",
 			"OUTLINE → CHECK → RENDER → COMPARE AGAINST THE SOURCE → FIX",
 			"One keyword per node",
 			"One parent per node",
@@ -2042,7 +2042,7 @@ func TestAgentDiagramTemplatesCoherence(t *testing.T) {
 	}{
 		{"diagram.md", instrDiagramTemplate, []string{
 			`title: "Diagrams \u2014 authoring doctrine"`,
-			"When this applies (no-op rule)",
+			"**When this applies.**",
 			"Choose the type first",
 			"Constraints fixed, layout free",
 			"Place by connection, not by grid",
@@ -2108,7 +2108,7 @@ func TestAgentDiagramTemplatesViewerFree(t *testing.T) {
 func TestAgentWritingTemplateCoherence(t *testing.T) {
 	want := []string{
 		`title: "Writing \u2014 prose editing doctrine"`,
-		"When this applies (no-op rule)",
+		"**When this applies.**",
 		"Edit or detect (say which)",
 		"minimum effective edit",
 		"Protect the specific fact",
@@ -2189,7 +2189,7 @@ func TestAgentDistillationTemplatesCoherence(t *testing.T) {
 	}{
 		{"distillation.md", instrDistillationTemplate, []string{
 			`title: "Distillation \u2014 book-scale references"`,
-			"When this applies (no-op rule)",
+			"**When this applies.**",
 			"Choose the mode first",
 			"**analyze-only**",
 			"**generate**",
@@ -2257,7 +2257,7 @@ func TestAgentSlidesTemplatesCoherence(t *testing.T) {
 	}{
 		{"slides.md", instrSlidesTemplate, []string{
 			`title: "Slide decks \u2014 authoring doctrine"`,
-			"When this applies (no-op rule)",
+			"**When this applies.**",
 			"OUTLINE → AGREE → WRITE → RENDER → LOOK → FIX",
 			"One idea per slide",
 			"An assertive title",
@@ -2401,7 +2401,9 @@ func TestAgentWorklogCloseoutTemplateCoherence(t *testing.T) {
 	for _, want := range []string{
 		"## Crystallized closeout (per plan)",
 		"instruction-level contract",
-		"no command generates it",
+		"`sdt context close <plan>` writes the record from the ledger",
+		"the fields only the author knows",
+		"The derived fields are generated, the authored ones survive",
 		"**passed**", "**expected**", "**inferred**",
 		"one entry per task file identity",
 		"reuses the existing entry",

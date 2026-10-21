@@ -71,6 +71,7 @@ const (
 
 	// Document statuses.
 	statusPostponed = "postponed"
+	statusRejected  = "rejected"
 
 	// Cobra command Use strings shared across files.
 	useInit   = "init"

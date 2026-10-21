@@ -32,6 +32,33 @@ func TestSchemaCmd_singleCommand(t *testing.T) {
 	}
 }
 
+// TestSchemaCmd_positionalCommand proves the natural spelling works: the command
+// named as arguments answers for that command, and naming it twice is refused
+// rather than silently resolved one way.
+func TestSchemaCmd_positionalCommand(t *testing.T) {
+	out := execute(t, schemaCmd, nil, "tokens", "--format", "json")
+	var result CommandSchema
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("invalid JSON: %v\nout: %s", err, out)
+	}
+	if !strings.Contains(result.Command, "tokens") {
+		t.Errorf("positional command resolved to %q", result.Command)
+	}
+
+	multi := execute(t, schemaCmd, nil, "jwt", "parse", "--format", "json")
+	if err := json.Unmarshal(multi, &result); err != nil {
+		t.Fatalf("invalid JSON for a two-word command: %v\nout: %s", err, multi)
+	}
+	if result.Command != "jwt parse" {
+		t.Errorf("two-word positional resolved to %q, want \"jwt parse\"", result.Command)
+	}
+
+	shouldExitWithCode(t, 1, func() string {
+		execute(t, schemaCmd, nil, "tokens", "--command", "tokens")
+		return ""
+	})
+}
+
 func TestSchemaCmd_unknownCommand(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string {
 		execute(t, schemaCmd, nil, "--command", "nonexistent-xyz")

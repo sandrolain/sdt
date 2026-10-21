@@ -92,8 +92,17 @@ func TestCheckStateAbsorbsTheStateFlags(t *testing.T) {
 	const doc = "---\nkind: plan\nsummary: p\n---\n\n## Phase 1\n\n- [ ] one <!-- c1 -->\n- [ ] two <!-- c2 -->\n"
 	writeCtxDoc(t, "context/plan/p.md", doc)
 
-	if _, errOut := runCaptureCmd(t, contextCheckCmd, "plan/p.md", "--done", "c1"); !strings.Contains(errOut, "deprecated") {
+	errOut := func() string {
+		_, e := runCaptureCmd(t, contextCheckCmd, "plan/p.md", "--done", "c1")
+		return e
+	}()
+	if !strings.Contains(errOut, "deprecated") {
 		t.Errorf("the per-state flag must warn, got stderr %q", errOut)
+	}
+	// The notice names the flag that lost its job, not the whole command: a
+	// message reading "`check` is deprecated" sends the reader to the wrong verb.
+	if !strings.Contains(errOut, "`--done`") || !strings.Contains(errOut, "`--state done`") {
+		t.Errorf("the notice must name the flag and its replacement, got %q", errOut)
 	}
 	legacy := mustReadFile(t, "context/plan/p.md")
 
@@ -113,9 +122,9 @@ func TestCheckStateAbsorbsTheStateFlags(t *testing.T) {
 	}
 }
 
-// TestStatusSetReasonIsTheClosePath proves the close capability moved into
-// `status set`: a terminal status plus `--reason` records the override note, and
-// the `close` alias still does the same thing while saying it is deprecated.
+// TestStatusSetReasonIsTheClosePath proves the two close paths share one
+// implementation: `status set` with a terminal value and `--reason` records the
+// override note, and `close` does the same thing as the verb that owns the job.
 func TestStatusSetReasonIsTheClosePath(t *testing.T) {
 	setupContextProject(t)
 	const body = "---\nkind: tasks\nsummary: t\nstatus: pending\n---\n\n## Phase 1\n\n- [ ] one <!-- c1 -->\n"
@@ -130,8 +139,8 @@ func TestStatusSetReasonIsTheClosePath(t *testing.T) {
 	}
 
 	writeCtxDoc(t, "context/tasks/t2.md", strings.Replace(body, "summary: t", "summary: t2", 1))
-	if _, errOut := runCaptureCmd(t, contextCloseCmd, "context/tasks/t2.md", "--allow-unfinished", "--reason", "shipping later"); !strings.Contains(errOut, "deprecated") {
-		t.Errorf("close must warn, got stderr %q", errOut)
+	if _, errOut := runCaptureCmd(t, contextCloseCmd, "context/tasks/t2.md", "--allow-unfinished", "--reason", "shipping later"); errOut != "" {
+		t.Errorf("close is the close verb and must not warn, got stderr %q", errOut)
 	}
 	viaClose := mustReadFile(t, "context/tasks/t2.md")
 	if !strings.Contains(viaClose, "status: completed") || !strings.Contains(viaClose, "shipping later") {
@@ -142,12 +151,12 @@ func TestStatusSetReasonIsTheClosePath(t *testing.T) {
 // TestDeprecatedCommandsStayHidden proves the alias is out of the help surface:
 // a deprecated verb is not advertised, and its canonical one is not deprecated.
 func TestDeprecatedCommandsStayHidden(t *testing.T) {
-	for _, c := range []*cobra.Command{contextCloseCmd, contextVocabLegacyCmd, contextSyncLegacyCmd, contextRelatedCmd, contextResolveCmd, contextTraceCmd, contextShowCmd} {
+	for _, c := range []*cobra.Command{contextVocabLegacyCmd, contextSyncLegacyCmd, contextRelatedCmd, contextResolveCmd, contextTraceCmd, contextShowCmd} {
 		if !c.Hidden {
 			t.Errorf("%s is still advertised in help", c.Name())
 		}
 	}
-	for _, c := range []*cobra.Command{contextVocabCmd, contextSyncCmd, contextRelationsPathCmd, contextRelationsRankCmd, contextRelationsSimilarCmd, fileReadCmd, contextStatusSetCmd, contextCheckCmd} {
+	for _, c := range []*cobra.Command{contextVocabCmd, contextSyncCmd, contextRelationsPathCmd, contextRelationsRankCmd, contextRelationsSimilarCmd, fileReadCmd, contextStatusSetCmd, contextCheckCmd, contextCloseCmd} {
 		if c.Deprecated != "" {
 			t.Errorf("the canonical verb %s is marked deprecated", c.Name())
 		}

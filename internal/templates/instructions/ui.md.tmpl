@@ -12,16 +12,12 @@ agreement, library-first, simplicity, surgical changes) and the references it
 routes to. Concrete render verification is owned by
 `context/instructions/browser.md`.
 
-## When this applies (no-op rule)
-
-- Use it when the project renders a user interface — a web page, a desktop or
-  mobile app, a terminal UI, a settings screen. If the project has no user
-  interface, this file does not apply: say so and stop.
-- Everything here assumes the project's own stack, tokens and system, not a
-  specific one. If a rule needs a design system the project does not have, do
-  not invent one (see `ui-tokens.md`).
-- For per-context layout and input (responsive / device adaptation) see
-  `ui-adapters.md`; native iOS/Android playbooks are out of scope for this module.
+**When this applies.** A project that renders an interface — a web page, a desktop
+or mobile app, a terminal UI, a settings screen; without one, say so and stop.
+Everything here assumes the project's own stack, tokens and system: where a rule
+needs a design system it does not have, do not invent one (`ui-tokens.md`), and for
+responsive or device adaptation see `ui-adapters.md` (native iOS/Android
+playbooks are out of scope).
 
 ## Priority ladder (tie-breaker)
 

@@ -14,15 +14,12 @@ with `context/instructions/ingestion.md` (conversion and archiving),
 `sdt doc2md`; this module is the procedure that follows it. It names no
 converter and no runtime.
 
-## When this applies (no-op rule)
-
-- Use it when a source is too large to read whole, or must become a queryable
-  reference. If the source is small enough to read in one pass, do **not**
-  distil — read it (`ingestion.md`). Say which case applies. A declared
-  `single-pass` route (`ingestion.md`, *Distillation rules*) is exactly that
-  case: this module's source map, partition and ledger do not apply to it.
-- The module describes a procedure over `doc2md` output; it never selects a
-  converter, a library or a runtime.
+**When this applies.** A source too large to read whole, or one that must become a
+queryable reference; a source readable in one pass is read instead
+(`ingestion.md`), and a declared `single-pass` route (`ingestion.md`, *Distillation
+rules*) is exactly that case — the source map, partition and ledger here do not
+apply to it. The procedure describes `doc2md` output; it never selects a
+converter, library or runtime.
 
 ## Choose the mode first
 

@@ -35,15 +35,33 @@ const (
 	ctxBudgetTopDefault = 10
 )
 
-// ctxBudgetSurface is one always-loaded surface and its measured size.
+// The two groups the report separates. A surface is either paid at the start of
+// a session (the AGENTS.md block on every turn, the digest once) or read only
+// when the work touches it: adding the two into one figure was the defect that
+// made the report claim a session costs ~190k tokens.
+const (
+	ctxBudgetGroupStart  = "start"
+	ctxBudgetGroupLookup = "lookup"
+)
+
+// ctxBudgetSurface is one surface and its measured size.
 type ctxBudgetSurface struct {
 	Name    string           `json:"name" yaml:"name"`
+	Group   string           `json:"group" yaml:"group"`
 	Detail  string           `json:"detail" yaml:"detail"`
 	Files   int              `json:"files" yaml:"files"`
 	Bytes   int              `json:"bytes" yaml:"bytes"`
 	Lines   int              `json:"lines" yaml:"lines"`
 	Words   int              `json:"words" yaml:"words"`
 	Largest []ctxBudgetEntry `json:"largest" yaml:"largest"`
+}
+
+// ctxBudgetTotals is the size of one group.
+type ctxBudgetTotals struct {
+	Bytes           int `json:"bytes" yaml:"bytes"`
+	Lines           int `json:"lines" yaml:"lines"`
+	Words           int `json:"words" yaml:"words"`
+	EstimatedTokens int `json:"estimated_tokens" yaml:"estimated_tokens"`
 }
 
 // ctxBudgetEntry is one file inside a surface, measured.
@@ -59,6 +77,8 @@ type ctxBudgetEntry struct {
 // no consumer can mistake it for a tokenizer count.
 type ctxBudgetReport struct {
 	Surfaces         []ctxBudgetSurface `json:"surfaces" yaml:"surfaces"`
+	Start            ctxBudgetTotals    `json:"start" yaml:"start"`
+	Lookup           ctxBudgetTotals    `json:"lookup" yaml:"lookup"`
 	TotalBytes       int                `json:"total_bytes" yaml:"total_bytes"`
 	TotalLines       int                `json:"total_lines" yaml:"total_lines"`
 	TotalWords       int                `json:"total_words" yaml:"total_words"`
@@ -135,12 +155,15 @@ func ctxBudgetTopEntries(entries []ctxBudgetEntry, n int) []ctxBudgetEntry {
 // The per-type instruction modules are on demand, not always loaded, so they are
 // only walked when includeModules is set.
 func ctxBudgetSurfaces(top int, includeModules bool) []ctxBudgetSurface {
-	surfaces := []ctxBudgetSurface{ctxBudgetInstructionsSurface(top)}
+	instructions := ctxBudgetInstructionsSurface(top)
+	instructions.Group = ctxBudgetGroupStart
+	surfaces := []ctxBudgetSurface{instructions}
 
 	if data, err := os.ReadFile(ctxBudgetIndexFile); err == nil { //#nosec G304 -- project surface the user asked to measure
 		size := ctxBudgetMeasure(string(data))
 		surfaces = append(surfaces, ctxBudgetSurface{
 			Name:   "index",
+			Group:  ctxBudgetGroupLookup,
 			Detail: ctxBudgetIndexFile,
 			Files:  1,
 			Bytes:  size.Bytes,
@@ -158,6 +181,7 @@ func ctxBudgetSurfaces(top int, includeModules bool) []ctxBudgetSurface {
 		size := ctxBudgetMeasure(string(data))
 		surfaces = append(surfaces, ctxBudgetSurface{
 			Name:   "essentials",
+			Group:  ctxBudgetGroupStart,
 			Detail: sdtEssentialsFile,
 			Files:  1,
 			Bytes:  size.Bytes,
@@ -176,6 +200,11 @@ func ctxBudgetSurfaces(top int, includeModules bool) []ctxBudgetSurface {
 
 	if includeModules {
 		surfaces = append(surfaces, ctxBudgetDirSurface("instruction-modules", sdtInstrDir, top))
+	}
+	for i := range surfaces {
+		if surfaces[i].Group == "" {
+			surfaces[i].Group = ctxBudgetGroupLookup
+		}
 	}
 	return surfaces
 }
@@ -246,32 +275,60 @@ func ctxBudgetBuildReport(top int, bytesPerToken int, includeModules bool) ctxBu
 		rep.TotalBytes += s.Bytes
 		rep.TotalLines += s.Lines
 		rep.TotalWords += s.Words
+		switch s.Group {
+		case ctxBudgetGroupStart:
+			rep.Start.Bytes += s.Bytes
+			rep.Start.Lines += s.Lines
+			rep.Start.Words += s.Words
+		default:
+			rep.Lookup.Bytes += s.Bytes
+			rep.Lookup.Lines += s.Lines
+			rep.Lookup.Words += s.Words
+		}
 	}
 	rep.EstimatedTokens = rep.TotalBytes / bytesPerToken
+	rep.Start.EstimatedTokens = rep.Start.Bytes / bytesPerToken
+	rep.Lookup.EstimatedTokens = rep.Lookup.Bytes / bytesPerToken
 	return rep
 }
 
-// ctxBudgetRenderText prints the report as the default text view: one line per
-// surface, the largest entries under each, and the totals with the estimate
-// labelled.
+// ctxBudgetRenderText prints the report as the default text view: the surfaces
+// paid at the start of a session first, then the ones read only when the work
+// touches them, each with its own total and estimate. The two groups are never
+// added together, because a number that mixes them is what made the report claim
+// a session costs six figures in tokens.
 func ctxBudgetRenderText(rep ctxBudgetReport) string {
 	var b strings.Builder
-	b.WriteString("always-loaded surface (measured bytes, lines, words)\n\n")
-	for _, s := range rep.Surfaces {
-		fmt.Fprintf(&b, "  %-20s %7d bytes  %6d lines  %6d words  %2d file(s)  %s\n",
-			s.Name+":", s.Bytes, s.Lines, s.Words, s.Files, s.Detail)
-		// A single-file surface names its one file on the surface line, so a
-		// largest-entry list under it would only repeat that line.
-		if s.Files < 2 {
-			continue
-		}
-		for _, e := range s.Largest {
-			fmt.Fprintf(&b, "    %-18s %7d bytes  %6d lines  %6d words  %s\n", "", e.Bytes, e.Lines, e.Words, e.Path)
-		}
+	b.WriteString("agent surface (measured bytes, lines, words)\n")
+	groups := []struct {
+		title  string
+		group  string
+		totals ctxBudgetTotals
+	}{
+		{"\npaid at the start of a session", ctxBudgetGroupStart, rep.Start},
+		{"\nread on demand (lookup)", ctxBudgetGroupLookup, rep.Lookup},
 	}
-	fmt.Fprintf(&b, "\n  total: %d bytes · %d lines · %d words across %d surface(s)\n",
-		rep.TotalBytes, rep.TotalLines, rep.TotalWords, len(rep.Surfaces))
-	fmt.Fprintf(&b, "  ~%d tokens (%s)\n", rep.EstimatedTokens, rep.TokenBasis)
+	for _, g := range groups {
+		b.WriteString(g.title + "\n")
+		for _, s := range rep.Surfaces {
+			if s.Group != g.group {
+				continue
+			}
+			fmt.Fprintf(&b, "  %-20s %7d bytes  %6d lines  %6d words  %2d file(s)  %s\n",
+				s.Name+":", s.Bytes, s.Lines, s.Words, s.Files, s.Detail)
+			// A single-file surface names its one file on the surface line, so a
+			// largest-entry list under it would only repeat that line.
+			if s.Files < 2 {
+				continue
+			}
+			for _, e := range s.Largest {
+				fmt.Fprintf(&b, "    %-18s %7d bytes  %6d lines  %6d words  %s\n", "", e.Bytes, e.Lines, e.Words, e.Path)
+			}
+		}
+		fmt.Fprintf(&b, "  %-20s %7d bytes  %6d lines  %6d words  ~%d tokens\n",
+			"subtotal:", g.totals.Bytes, g.totals.Lines, g.totals.Words, g.totals.EstimatedTokens)
+	}
+	b.WriteString("\n  estimates: bytes / " + fmt.Sprint(rep.BytesPerToken) + " (documented divisor, not a model tokenizer count)\n")
 	b.WriteString("\n  informational only: this report never fails a build and is not a gate.\n")
 	return b.String()
 }

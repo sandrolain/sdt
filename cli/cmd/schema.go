@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -145,15 +146,25 @@ var schemaCmd = &cobra.Command{
 	Short: "Generate JSON Schema for SDT commands",
 	Long: `Generate JSON Schema documents describing SDT command inputs and flags.
 
-Without --command, emits a schema for every command as a JSON array.
-With --command, emits the schema for a single command.
+Without a command, emits a schema for every command as a JSON array. Name one
+command to get only its schema: ` + "`sdt schema jwt parse`" + ` or the equivalent
+` + "`--command \"jwt parse\"`" + `. The two forms are alternatives; passing both is refused.
 
 Examples:
   sdt schema                          # all commands
-  sdt schema --command "jwt parse"    # single command
+  sdt schema jwt parse                # single command
+  sdt schema --command "jwt parse"    # the same, as one flag
   sdt schema --format yaml            # YAML output`,
+	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmdPath := getStringFlag(cmd, "command", false)
+		if len(args) > 0 {
+			if cmdPath != "" {
+				exitWithError(cmd, errors.New("name the command positionally or with --command, not both"))
+				return
+			}
+			cmdPath = strings.Join(args, " ")
+		}
 		root := cmd.Root()
 		format := getFormat(cmd)
 

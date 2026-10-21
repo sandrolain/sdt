@@ -263,15 +263,17 @@ func measureContextBaseline(path string, isDir bool) (files, bytes, lines, token
 	return 1, bytes, lines, tokens, true
 }
 
-// contextBaselineCheck reports the size and token cost of the instruction
-// surface (AGENTS.md, the generated instructions, roles and command stubs) as an
-// advisory, report-only check: it never fails the shell and never gates.
+// agentSurfaceCheck reports the size and token cost of the agent surface as an
+// advisory, report-only check: it never fails the shell and never gates. The two
+// halves are named apart — the AGENTS.md block is paid on every turn, while the
+// instruction modules, roles and command stubs are read on demand — because a
+// single figure that adds them reads as a baseline nobody actually loads.
 func contextBaselineCheck() doctorCheck {
 	surfaces := []contextBaselineSurface{
-		{"agents.md", agentTargetDefault, false},
-		{"instructions", sdtInstrDir, true},
-		{"roles", sdtRolesDir, true},
-		{"commands", sdtCommandsDir, true},
+		{"agents.md (every turn)", agentTargetDefault, false},
+		{"instructions (on demand)", sdtInstrDir, true},
+		{"roles (on demand)", sdtRolesDir, true},
+		{"commands (on demand)", sdtCommandsDir, true},
 	}
 	parts := make([]string, 0, len(surfaces))
 	missing := false
@@ -290,9 +292,9 @@ func contextBaselineCheck() doctorCheck {
 	}
 	detail := strings.Join(parts, " · ")
 	if missing {
-		return doctorCheck{Name: "context-baseline", Status: doctorStatusWarn, Detail: detail, Hint: "run `sdt agent init` to restore the missing surface"}
+		return doctorCheck{Name: "agent-surface", Status: doctorStatusWarn, Detail: detail, Hint: "run `sdt agent init` to restore the missing surface"}
 	}
-	return doctorCheck{Name: "context-baseline", Status: doctorStatusOK, Detail: detail}
+	return doctorCheck{Name: "agent-surface", Status: doctorStatusOK, Detail: detail}
 }
 
 // sessionStartCheck reports the bounded digest a session begins with. Its

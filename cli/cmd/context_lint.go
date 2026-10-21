@@ -806,6 +806,40 @@ func frontmatterBody(data []byte) []byte {
 	return nil
 }
 
+// lintFixTargets applies `--fix` to the selected documents: the named paths when
+// the run is scoped, the whole corpus otherwise. Each change is printed, so the
+// run says what it rewrote instead of silently editing the corpus.
+func lintFixTargets(cmd *cobra.Command, args []string) {
+	includeTerminal := getBoolFlag(cmd, "fix-terminal", false)
+	var targets []string
+	if len(args) > 0 {
+		for _, ref := range args {
+			path, err := resolveContextLintPath(ref)
+			exitWithError(cmd, err)
+			targets = append(targets, path)
+		}
+	} else {
+		for _, dir := range ctxIndexDirs {
+			files, err := dirFiles(dir)
+			exitWithError(cmd, err)
+			targets = append(targets, files...)
+		}
+	}
+	fixed := 0
+	for _, path := range targets {
+		changes, err := lintFixDoc(path, includeTerminal)
+		exitWithError(cmd, err)
+		if len(changes) == 0 {
+			continue
+		}
+		fixed++
+		outputString(cmd, fmt.Sprintf("fixed: %s — %s\n", path, strings.Join(changes, "; ")))
+	}
+	if fixed == 0 {
+		outputString(cmd, "fixed: nothing mechanical to repair\n")
+	}
+}
+
 func lintMarkdownBody(path string, body []byte, isMap, isDeck bool) []ctxLintIssue {
 	root := parser.New().Parse(body)
 	var issues []ctxLintIssue
@@ -1684,9 +1718,21 @@ Examples:
   sdt context lint plan/example.md --format json
   sdt context lint --limit 0
   sdt context lint --security
-  sdt context lint --format json`,
+  sdt context lint --fix
+  sdt context lint --fix --fix-terminal
+  sdt context lint --format json
+
+With --fix, the mechanical findings are repaired before the report: an H1 the
+frontmatter title already carries is removed, and a missing ` + "`objective`" + `
+is filled from the parent document (a plan from its analysis, a task file from
+its plan) when the parent answers it. Terminal documents are left untouched
+unless --fix-terminal is given, because a rule adopted today does not rewrite a
+closed document. Every change is named on stdout.`,
 	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		if getBoolFlag(cmd, "fix", false) {
+			lintFixTargets(cmd, args)
+		}
 		var issues []ctxLintIssue
 		security := getBoolFlag(cmd, "security", false)
 		staleDays := getIntFlag(cmd, "stale-days", false)

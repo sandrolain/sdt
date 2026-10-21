@@ -11,13 +11,10 @@ with `context/instructions/ui.md` (the doctrine),
 `context/instructions/ui-motion.md` (motion's own value family) and
 `context/instructions/ui-adapters.md` (how tokens map to a framework's theming).
 
-## When this applies (no-op rule)
-
-- Use it when the project has tokens or a design system to extend. If it has
-  none, this file does not apply: **stop and ask** — do not create a design
-  system, and do not introduce one as a side effect of a change.
-- The project's own system is the source of truth. Local rules belong in the
-  AGENTS.md project block, not here.
+**When this applies.** Tokens or a design system exist to extend; without one,
+**stop and ask** — never create a design system, and never introduce one as a side
+effect of a change. The project's own system is the source of truth, and local
+rules belong in the AGENTS.md project block, not here.
 
 ## Tokens by intent, not by appearance
 

@@ -33,7 +33,7 @@ var contextMemoCmd = &cobra.Command{
   sdt context memo remove <id>
 
 ` + "`due`" + ` prints nothing when nothing is due. It is advisory by default and
-exits non-zero only with ` + "`--check`" + `, for scripts (see decision 0023).`,
+exits non-zero only with ` + "`--check`" + `, for scripts.`,
 }
 
 var contextMemoAddCmd = &cobra.Command{
@@ -115,7 +115,7 @@ var contextMemoDueCmd = &cobra.Command{
 	Long: `List the rules whose cadence has elapsed and the memos whose due date has
 arrived, as of today (or --today). Text output is empty when nothing is due;
 the exit status is 0 unless --check is given, which returns non-zero when
-something is due (advisory otherwise — decision 0023).`,
+something is due (advisory otherwise).`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
 		today := memoToday(cmd)
@@ -145,7 +145,7 @@ var contextMemoDoneCmd = &cobra.Command{
 	Short: "Record a rule as done today, or a memo as done",
 	Long: `Record that a rule was performed (sets last_done to today, or --today), or
 that a memo is done. Call it only after the operation succeeded: it records a
-claim, and SDT cannot verify the operation (decision 0023).`,
+claim, and SDT cannot verify the operation.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		reg := loadMemoRegister(cmd)

@@ -83,6 +83,21 @@ var leakPatterns = []leakPattern{
 		Re:     regexp.MustCompile(`\bsdt_[0-9a-f]{6,}\b`),
 		Reason: "a concrete project id where the contract needs a placeholder",
 	},
+	{
+		Name:   "decision-number",
+		Re:     regexp.MustCompile(`\bdecision[ \t]+[0-9]{4}\b`),
+		Reason: "a numbered decision from a corpus the recipient does not have",
+	},
+	{
+		Name:   "decision-date",
+		Re:     regexp.MustCompile(`\bdecision[ \t]+20[0-9]{2}-[0-9]{2}-[0-9]{2}\b`),
+		Reason: "a dated decision from this repository's history",
+	},
+	{
+		Name:   "plan-id",
+		Re:     regexp.MustCompile(`\bplan[ \t]+20[0-9]{6}-[0-9]{6}\b`),
+		Reason: "a concrete plan id: the recipient has no such document",
+	},
 }
 
 // LeakHit is one forbidden reference found in a text.

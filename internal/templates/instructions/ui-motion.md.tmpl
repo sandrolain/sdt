@@ -11,14 +11,11 @@ is project-agnostic — it names the decisions, not the numbers. Read it with
 (the values), `context/instructions/ui-accessibility.md` (the reduced-motion
 principle) and `context/instructions/ui-components.md` (the states that move).
 
-## When this applies
-
-- Use it when a change adds, removes or changes motion — a transition, a feedback
-  animation, a state change, an entrance. If the change does not move anything,
-  this file does not apply: say so and stop.
-- The project's own scale supplies every value. If the project has no motion
-  tokens, this file still applies as decisions to follow, but never invent a scale
-  as a side effect (see `ui-tokens.md`).
+**When this applies.** A change adds, removes or changes motion — a transition, a
+feedback animation, a state change, an entrance; a change that moves nothing
+means this file does not apply, so say so and stop. The project's scale supplies
+every value, and without one this file is still decisions to follow — never a
+licence to invent a scale (`ui-tokens.md`).
 
 ## Decide before you animate
 
