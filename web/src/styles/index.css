@@ -333,11 +333,22 @@
     font-size: 0.95rem;
     margin: 0;
   }
-  .agent-panel__close {
-    background: none;
-    border: 0;
+  /* The header's dismissal: the app's icon control, the shape `.doc-tab-actions__button`
+     already has, with the word kept as the accessible name and the tooltip. */
+  .agent-panel__icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: var(--radius-sm);
+    background: transparent;
     color: var(--fg-dim);
     cursor: pointer;
+  }
+  .agent-panel__icon-button:hover {
+    background: var(--bg-hover);
+    color: var(--fg);
   }
   .agent-panel__body {
     flex: 1;
@@ -395,6 +406,25 @@
   .agent-panel__action:disabled {
     opacity: 0.5;
     cursor: default;
+  }
+  /* The hierarchy: the base class is primary, and a control that is not the main answer
+     says so rather than sharing the accent. */
+  .agent-panel__action--secondary {
+    background: var(--bg-rise);
+    border: 1px solid var(--border);
+    color: var(--fg);
+  }
+  .agent-panel__action--secondary:hover {
+    background: var(--bg-hover);
+  }
+  .agent-panel__action--quiet {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--fg-dim);
+  }
+  .agent-panel__action--quiet:hover {
+    background: var(--bg-hover);
+    color: var(--fg);
   }
   .agent-panel__thread {
     display: flex;
@@ -519,7 +549,10 @@
   }
   /* The protocol's own record of the call: opt-in detail, the same shape the reasoning
      block already uses. */
-  .agent-panel__tool-envelope summary {
+  .agent-panel__tool-envelope summary,
+  /* The command's own output is collapsed by default, for the same reason: it is what the
+     call produced, not the answer, and a long one would own the thread. */
+  .agent-panel__tool-output summary {
     cursor: pointer;
     color: var(--fg-dim);
     font-size: 0.72rem;
@@ -530,6 +563,13 @@
     overflow-x: auto;
     font-size: 0.72rem;
     color: var(--fg-dim);
+  }
+  /* An expanded output scrolls inside a bounded block, so opening a 400-line command
+     cannot push the conversation out of reach. */
+  .agent-panel__tool-result {
+    max-block-size: 16rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .agent-panel__plan {
     margin: 0;

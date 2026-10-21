@@ -85,7 +85,7 @@ describe("AgentThread", () => {
     expect(document.querySelector("script")).toBeNull();
   });
 
-  it("reads as the command and its outcome, with the protocol's record behind a disclosure", () => {
+  it("keeps a command's output collapsed behind the size it states", () => {
     show([
       {
         kind: PART_TOOL_CALL,
@@ -105,14 +105,46 @@ describe("AgentThread", () => {
     expect(screen.getByText("bash: go test ./...")).toBeTruthy();
     expect(screen.getByText("Completed")).toBeTruthy();
 
-    // The body is the tool's own output, not the protocol's record of it.
-    const body = document.querySelector(".agent-panel__tool-result");
-    expect(body?.textContent).toBe("the tests passed");
+    // The output is the disclosure's body, closed until the reader opens it, and the summary
+    // says what opening it costs — the reader's own unit, not a character count.
+    const output = document.querySelector<HTMLDetailsElement>(".agent-panel__tool-output");
+    expect(output?.open).toBe(false);
+    expect(output?.querySelector("summary")?.textContent).toBe("Output · 1 line");
+    expect(output?.querySelector(".agent-panel__tool-result")?.textContent).toBe(
+      "the tests passed",
+    );
 
+    // The protocol's record stays where it was: a second disclosure, after the output.
     const envelope = document.querySelector(".agent-panel__tool-envelope");
     expect(envelope?.querySelector("summary")?.textContent).toBe("Protocol envelope");
     expect(envelope?.textContent).toContain('{"command":"go test ./..."}');
     expect(envelope?.textContent).toContain('{"exitCode":0}');
+  });
+
+  it("counts a long output's lines in the disclosure's summary", () => {
+    show([
+      {
+        kind: PART_TOOL_CALL,
+        toolCall: { id: "t1", title: "bash: diff", status: "completed", content: "a\nb\nc" },
+      },
+    ]);
+
+    expect(document.querySelector(".agent-panel__tool-output summary")?.textContent).toBe(
+      "Output · 3 lines",
+    );
+
+    // A trailing newline ends the last line rather than starting an empty one: a command
+    // whose output is four lines and a newline does not report five.
+    cleanup();
+    show([
+      {
+        kind: PART_TOOL_CALL,
+        toolCall: { id: "t2", title: "bash: printf", status: "completed", content: "a\nb\nc\nd\n" },
+      },
+    ]);
+    expect(document.querySelector(".agent-panel__tool-output summary")?.textContent).toBe(
+      "Output · 4 lines",
+    );
   });
 
   it("names the state of a call that failed and of one still running", () => {
@@ -133,6 +165,7 @@ describe("AgentThread", () => {
     show([{ kind: PART_TOOL_CALL, toolCall: { id: "t1", title: "read a file" } }]);
 
     expect(screen.getByText("read a file")).toBeTruthy();
+    expect(document.querySelector(".agent-panel__tool-output")).toBeNull();
     expect(document.querySelector(".agent-panel__tool-result")).toBeNull();
     expect(document.querySelector(".agent-panel__tool-envelope")).toBeNull();
   });

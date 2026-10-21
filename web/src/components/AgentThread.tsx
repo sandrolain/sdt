@@ -138,14 +138,20 @@ const ToolCallPart: ToolCallMessagePartComponent = ({
   artifact,
 }) => {
   const raw = artifact as ToolArtifact | undefined;
+  // The output is read once: the disclosure's summary states its size, and the body is the
+  // text itself, so the reader decides what opening it costs before it takes the thread.
+  const output = result === undefined ? undefined : asText(result);
   return (
     <div className={`agent-panel__tool${isError ? " is-error" : ""}`}>
       <p className="agent-panel__tool-head">
         <span className="agent-panel__tool-name">{toolName}</span>
         <span className="agent-panel__tool-status">{statusWord(raw, isError)}</span>
       </p>
-      {result === undefined ? null : (
-        <pre className="agent-panel__tool-result">{asText(result)}</pre>
+      {output === undefined ? null : (
+        <details className="agent-panel__tool-output">
+          <summary>{outputSummary(output)}</summary>
+          <pre className="agent-panel__tool-result">{output}</pre>
+        </details>
       )}
       {argsText || raw?.output !== undefined ? (
         <details className="agent-panel__tool-envelope">
@@ -163,6 +169,15 @@ const ToolCallPart: ToolCallMessagePartComponent = ({
 /** asText is a value as the panel shows it: a string as it stands, anything else as JSON. */
 function asText(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** outputSummary is what opening the output costs, in the reader's own unit: lines. A
+ *  trailing newline ends the last line, it does not start an empty one, so the count is the
+ *  number of lines the reader will see. */
+function outputSummary(text: string): string {
+  const body = text.endsWith("\n") ? text.slice(0, -1) : text;
+  const lines = body.split("\n").length;
+  return `Output · ${lines} ${lines === 1 ? "line" : "lines"}`;
 }
 
 /** statusWord is the call's state in a word, so it never rests on the colour alone. It is
@@ -227,7 +242,7 @@ function PermissionPart({ data }: { data: AgentPermission }) {
           </button>
           <button
             type="button"
-            className="agent-panel__action"
+            className="agent-panel__action agent-panel__action--secondary"
             onClick={() => answer(data.requestId, false)}
           >
             Deny

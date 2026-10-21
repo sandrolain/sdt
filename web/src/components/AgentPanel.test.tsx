@@ -629,6 +629,18 @@ describe("AgentPanel", () => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 
+    it("closes with the app's icon control, named for assistive tech", async () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      const close = await screen.findByRole("button", { name: "Close the agent panel" });
+
+      // The glyph every other surface closes with, decorative because the button is named.
+      const icon = close.querySelector(".ms-icon");
+      expect(icon?.textContent).toBe("close");
+      expect(icon?.getAttribute("aria-hidden")).toBe("true");
+      expect(close.classList.contains("agent-panel__icon-button")).toBe(true);
+    });
+
     it("leaves the agent, the session and the turn alone when it closes", async () => {
       const calls = mockViewer();
       const onOpenChange = vi.fn();
@@ -658,6 +670,39 @@ describe("AgentPanel", () => {
       expect(source.closed).toBe(false);
       expect(commands(calls)).toHaveLength(posted);
       expect(screen.getByText("still working")).toBeTruthy();
+    });
+  });
+
+  /**
+   * The controls declare what they are: the accent belongs to the answer the panel wants, a
+   * secondary control is readable but not competing, and Stop is quiet. The class is the
+   * contract — a test pins it so a later restyle cannot silently flatten the hierarchy.
+   */
+  describe("control hierarchy", () => {
+    it("gives Send the accent and Stop the quiet treatment beside it", async () => {
+      mockViewer();
+      await open();
+
+      const send = screen.getByRole("button", { name: "Send" });
+      const stop = screen.getByRole("button", { name: "Stop" });
+      expect(send.className).toContain("agent-panel__action");
+      expect(send.className).not.toContain("agent-panel__action--");
+      expect(stop.className).toContain("agent-panel__action--quiet");
+    });
+
+    it("keeps the first start control primary and the retry secondary", async () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      const start = await screen.findByRole("button", { name: "Start the agent" });
+      expect(start.className).not.toContain("agent-panel__action--");
+
+      cleanup();
+      mockViewer({ error: "the agent exited" });
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      const retry = await screen.findByRole("button", {
+        name: /Start the agent again|Read the bridge state again/,
+      });
+      expect(retry.className).toContain("agent-panel__action--secondary");
     });
   });
 });

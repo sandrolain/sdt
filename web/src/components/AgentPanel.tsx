@@ -18,6 +18,8 @@
 import { Dialog, Modal, ModalOverlay } from "react-aria-components";
 import { AgentThread } from "./AgentThread";
 import { ComboBox, type UiComboOption } from "./ui/ComboBox";
+import { TooltipButton } from "./ui/Tooltip";
+import { Icon } from "../lib/icon";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import {
   clampPanelWidth,
@@ -258,14 +260,14 @@ export function AgentPanel({
               <PanelResizeHandle width={width} onDrag={dragPanel} onCommit={commitPanel} />
               <header className="agent-panel__header">
                 <h2 className="agent-panel__title">Agent</h2>
-                <button
-                  type="button"
-                  className="agent-panel__close"
-                  onClick={close}
-                  aria-label="Close the agent panel"
+                <TooltipButton
+                  className="agent-panel__icon-button"
+                  label="Close the agent panel"
+                  tooltip="Close"
+                  onPress={close}
                 >
-                  close
-                </button>
+                  <Icon name="close" />
+                </TooltipButton>
               </header>
               <div className="agent-panel__body">
                 {phase === "loading" && <p className="agent-panel__note">Reading the bridge…</p>}
@@ -276,7 +278,7 @@ export function AgentPanel({
                     {configured ? (
                       <button
                         type="button"
-                        className="agent-panel__action"
+                        className="agent-panel__action agent-panel__action--secondary"
                         onClick={() => void start()}
                       >
                         Start the agent again
@@ -284,7 +286,7 @@ export function AgentPanel({
                     ) : (
                       <button
                         type="button"
-                        className="agent-panel__action"
+                        className="agent-panel__action agent-panel__action--secondary"
                         onClick={() => void readState()}
                       >
                         Read the bridge state again
@@ -317,7 +319,7 @@ export function AgentPanel({
                         </p>
                         <button
                           type="button"
-                          className="agent-panel__action"
+                          className="agent-panel__action agent-panel__action--secondary"
                           onClick={() => void readState()}
                         >
                           Read the bridge state again
@@ -385,7 +387,7 @@ export function AgentPanel({
                   </button>
                   <button
                     type="button"
-                    className="agent-panel__action"
+                    className="agent-panel__action agent-panel__action--quiet"
                     onClick={() => tell(cancelCommand(session))}
                   >
                     Stop
