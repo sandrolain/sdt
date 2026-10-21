@@ -101,6 +101,8 @@ func TestDocumentExtension(t *testing.T) {
 		{"REPORT.PDF", ".pdf"},
 		{"https://x.example/docs/file.docx?raw=1", ".docx"},
 		{"https://x.example/a/b.xlsx#sheet", ".xlsx"},
+		{"https://ingestion.test/books/buildingmicro-frontends.epub", ".epub"},
+		{"book.epub?raw=1", ".epub"},
 		{"notes.md", ".md"},
 		{"image.png", ""},
 		{"", ""},
@@ -113,7 +115,11 @@ func TestDocumentExtension(t *testing.T) {
 }
 
 func TestDocumentExtensionsRegistry(t *testing.T) {
-	missing := map[string]bool{".pdf": true, ".docx": true, ".md": true, ".csv": true}
+	// .epub is the one book format the converter chain already reads (anydoc's
+	// own format list); a format the chain cannot read must not be registered.
+	missing := map[string]bool{
+		".pdf": true, ".docx": true, ".md": true, ".csv": true, ".epub": true,
+	}
 	for _, ext := range converter.DocumentExtensions {
 		delete(missing, ext)
 	}

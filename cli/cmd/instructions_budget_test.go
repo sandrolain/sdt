@@ -44,7 +44,10 @@ var instructionModuleCeilings = map[string]int{
 }
 
 var instructionModuleRatchet = map[string]int{
-	"ingestion":    3519,
+	// ingestion rose to 3569 (2026-10-21): the routing receipt now names where
+	// the two counts come from — `sdt doc2md` keeps them measured, so the hand
+	// count that motivated the routing trail is the documented fallback.
+	"ingestion":    3569,
 	"plan":         2645,
 	"analysis":     2496,
 	"development":  2455,

@@ -200,11 +200,15 @@ func TestKeepPreservesExistingMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, err := Keep(doc, dir); err != nil {
-		t.Fatal(err)
+	// A re-keep whose bytes differ from the kept file is refused (the summary was
+	// added by hand here, but the same refusal protects any byte change); the
+	// enriched file is left exactly as the caller made it.
+	_, _, keepErr := Keep(doc, dir)
+	if keepErr == nil || !strings.Contains(keepErr.Error(), "refusing to rewrite") {
+		t.Fatalf("re-keep = %v, want a refusal", keepErr)
 	}
 	if got := string(mustRead(t, path)); got != enriched {
-		t.Error("re-keeping overwrote an enriched file")
+		t.Error("the refusal still changed the kept file")
 	}
 }
 

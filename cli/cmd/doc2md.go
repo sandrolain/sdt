@@ -33,8 +33,14 @@ and a tool that fails, times out or produces no markdown advances the chain.
 
 Markdown goes to stdout to read. --keep stores the document under
 context/refs/converted/<slug>-<sha256[:12]>.md with provenance frontmatter
-and prints the path; --output-file writes the same stamped document to an
-explicit path. Exit codes are normalized:
+and prints the path, then the routing counts the ingestion doctrine asks for —
+section-level headings (markdown levels 2 and 3 of the conversion) and the
+conversion's lines — so the receipt is measured here, never by hand;
+--output-file writes the same stamped document to an
+explicit path. A re-keep of an already kept source that would produce different
+bytes is refused (the citing documents' digests are named), because that rewrite
+is what makes refs/converted/<file>@<sha> citations stale; --force is the
+explicit way through. Exit codes are normalized:
   0 success · 1 failed · 2 no runnable converter · 3 PDF needs OCR
 
 This command replaces the removed context/scripts/convert-to-md.sh wrapper
@@ -49,7 +55,9 @@ var doc2mdListCmd = &cobra.Command{
 	Long: `List the kept converted corpus. The rows are read from the per-file
 frontmatter under context/refs/converted/ (never from index.md), so the
 projection can never become a second source of truth. --format json|yaml
-prints the machine view.
+prints the machine view and adds each artifact's routing counts
+(section_headings, lines) measured on the file, so older keeps can be
+refilled from the listing alone.
 
 Examples:
   sdt doc2md list
@@ -99,6 +107,7 @@ A tool is available only if it launches; presence on PATH is not enough.`,
 func runDoc2md(cmd *cobra.Command, args []string) {
 	timeout, err := cmd.Flags().GetDuration("timeout")
 	exitWithError(cmd, err)
+	force := getBoolFlag(cmd, "force", false)
 	tool := getStringFlag(cmd, "tool", false)
 	keep := getBoolFlag(cmd, "keep", false)
 	name := getStringFlag(cmd, "name", false)
@@ -122,8 +131,14 @@ func runDoc2md(cmd *cobra.Command, args []string) {
 			Timeout: timeout,
 			Tool:    tool,
 		})
+		if res.Status == doc2md.StatusSuccess {
+			// The routing counts ride on every success result, so a receipt is
+			// never assembled by hand; MeasureArtifact re-derives them for
+			// artifacts kept before this field existed.
+			res.SectionHeadings, res.Lines = doc2md.Measure(res.Markdown)
+		}
 		if res.Status == doc2md.StatusSuccess && (keep || outputFile != "") {
-			path, err := writeDoc2mdFile(input, res, keep, outputFile, name)
+			path, err := writeDoc2mdFile(input, res, keep, outputFile, name, force)
 			if err != nil {
 				res.Status = doc2md.StatusFailed
 				res.Reason = err.Error()
@@ -152,6 +167,7 @@ func runDoc2md(cmd *cobra.Command, args []string) {
 			switch {
 			case keep && r.KeptFile != "":
 				outputString(cmd, r.KeptFile+"\n")
+				outputString(cmd, fmt.Sprintf("%d section-level headings, %d lines\n", r.SectionHeadings, r.Lines))
 			case outputFile != "":
 				// crawldown's --output-file is silent on stdout.
 			default:
@@ -169,8 +185,8 @@ func runDoc2md(cmd *cobra.Command, args []string) {
 
 // writeDoc2mdFile keeps the conversion under context/refs/converted/ or writes
 // it to the explicit --output-file path, always with the provenance frontmatter.
-func writeDoc2mdFile(input string, res doc2md.Result, keep bool, outputFile, name string) (string, error) {
-	doc := doc2md.Document{Source: input, Name: name, Converter: res.Converter, Markdown: res.Markdown}
+func writeDoc2mdFile(input string, res doc2md.Result, keep bool, outputFile, name string, force bool) (string, error) {
+	doc := doc2md.Document{Source: input, Name: name, Converter: res.Converter, Markdown: res.Markdown, Force: force}
 	if keep {
 		path, created, err := doc2md.Keep(doc, sdtConvertedDir)
 		if err != nil {
@@ -217,7 +233,11 @@ func runDoc2mdList(cmd *cobra.Command, _ []string) {
 	}
 	switch getFormat(cmd) {
 	case fmtJSON:
-		data, err := json.MarshalIndent(idx.Documents, "", "  ")
+		counted := make([]doc2md.CountedEntry, 0, len(idx.Documents))
+		for _, entry := range idx.Documents {
+			counted = append(counted, doc2md.NewCountedEntry(sdtConvertedDir, entry))
+		}
+		data, err := json.MarshalIndent(counted, "", "  ")
 		exitWithError(cmd, err)
 		outputString(cmd, string(data)+"\n")
 	case fmtYAML:
@@ -248,11 +268,12 @@ func runDoc2mdSet(cmd *cobra.Command, args []string) {
 	}
 	summary := getStringFlag(cmd, "summary", false)
 	links := getStringArrayFlag(cmd, "link", false)
+	force := getBoolFlag(cmd, "force", false)
 	if summary == "" && len(links) == 0 {
 		exitWithError(cmd, fmt.Errorf("nothing to set (pass --summary and/or --link)"))
 		return
 	}
-	if err := doc2md.SetMetadata(sdtConvertedDir, file, summary, links); err != nil {
+	if err := doc2md.SetMetadata(sdtConvertedDir, file, summary, links, force); err != nil {
 		exitWithError(cmd, err)
 		return
 	}
@@ -322,6 +343,8 @@ func runDoc2mdTools(cmd *cobra.Command, _ []string) {
 }
 
 func init() {
+	doc2mdCmd.Flags().Bool("force", false, "Allow a rewrite of an existing kept artifact whose bytes would change (the citing documents are named either way)")
+	doc2mdSetCmd.Flags().Bool("force", false, "Allow a byte-changing frontmatter rewrite of a cited artifact (the citing documents are named either way)")
 	doc2mdCmd.Flags().String("tool", "", "Pin one converter (anydoc, docling, markitdown)")
 	doc2mdCmd.Flags().Bool("keep", false, "Keep the document under context/refs/converted/ with provenance frontmatter")
 	doc2mdCmd.Flags().String("name", "", "Override the kept filename stem (with --keep)")

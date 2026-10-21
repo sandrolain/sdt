@@ -17,11 +17,32 @@ import (
 type IndexEntry struct {
 	File        string   `json:"file" yaml:"file"`
 	Source      string   `json:"source" yaml:"source"`
+	Title       string   `json:"title,omitempty" yaml:"title,omitempty"`
 	SHA256      string   `json:"sha256,omitempty" yaml:"sha256,omitempty"`
 	Converter   string   `json:"converter,omitempty" yaml:"converter,omitempty"`
 	ConvertedAt string   `json:"converted_at,omitempty" yaml:"converted_at,omitempty"`
 	Summary     string   `json:"summary,omitempty" yaml:"summary,omitempty"`
 	Links       []string `json:"links,omitempty" yaml:"links,omitempty"`
+}
+
+// CountedEntry is the listing view of one kept artifact: the index row plus the
+// routing counts, measured on the artifact on disk so the two views of a
+// receipt and a listing cannot disagree.
+type CountedEntry struct {
+	IndexEntry
+	SectionHeadings int `json:"section_headings" yaml:"section_headings"`
+	Lines           int `json:"lines" yaml:"lines"`
+}
+
+// NewCountedEntry decorates one index row with the artifact's counts. A missing
+// artifact (the row outlived the file) measures as zero rather than dropping
+// the row the corpus still lists.
+func NewCountedEntry(dir string, entry IndexEntry) CountedEntry {
+	headings, lines, err := MeasureArtifact(filepath.Join(dir, filepath.Base(entry.File)))
+	if err != nil {
+		headings, lines = 0, 0
+	}
+	return CountedEntry{IndexEntry: entry, SectionHeadings: headings, Lines: lines}
 }
 
 // Index is the whole projection, as emitted to index.json.
@@ -66,13 +87,17 @@ func ReadIndex(dir string) (Index, error) {
 	return idx, nil
 }
 
+// indexedFrontmatter mirrors provenance's tags exactly: a re-encoded kept
+// document must be byte-identical to the original when nothing was set, which
+// is what makes SetMetadata's no-op a real no-op rather than a quiet rewrite.
 type indexedFrontmatter struct {
 	Source      string   `yaml:"source"`
+	Title       string   `yaml:"title,omitempty"`
 	SHA256      string   `yaml:"sha256"`
 	Converter   string   `yaml:"converter"`
 	ConvertedAt string   `yaml:"converted_at"`
-	Summary     string   `yaml:"summary"`
-	Links       []string `yaml:"links"`
+	Summary     string   `yaml:"summary,omitempty"`
+	Links       []string `yaml:"links,omitempty"`
 }
 
 func parseIndexEntry(file, content string) IndexEntry {
@@ -86,6 +111,7 @@ func parseIndexEntry(file, content string) IndexEntry {
 		return entry
 	}
 	entry.Source = parsed.Source
+	entry.Title = parsed.Title
 	entry.SHA256 = parsed.SHA256
 	entry.Converter = parsed.Converter
 	entry.ConvertedAt = parsed.ConvertedAt
@@ -179,8 +205,12 @@ func writeIfChanged(path string, data []byte) (bool, error) {
 }
 
 // SetMetadata enriches a kept document's frontmatter (summary and links) and
-// refreshes both projections. It is the only mutator of a kept document.
-func SetMetadata(dir, file, summary string, links []string) error {
+// refreshes both projections. It is the only mutator of a kept document. An
+// unchanged request writes nothing (byte-compare, no index churn). A changing
+// request on a cited artifact changes the file bytes and with them the digests
+// every `@sha` citation carries, so it is refused until Force is named, with
+// the citing documents listed; an uncited artifact is enriched freely.
+func SetMetadata(dir, file, summary string, links []string, force bool) error {
 	path := filepath.Join(dir, filepath.Base(file))
 	//#nosec G304 G703 -- the file names a document inside the corpus directory
 	data, err := os.ReadFile(path)
@@ -197,8 +227,13 @@ func SetMetadata(dir, file, summary string, links []string) error {
 	}
 
 	body := splitBody(string(data))
+	// splitBody keeps the frontmatter's leading separator (TestSplitBody pins
+	// it); the renderer's canonical body starts directly, so the rebuild must
+	// trim it or every set would quietly add a blank line — a harmless-looking
+	// byte change that the digest, and every citation, would believe.
 	fm, err := yaml.Marshal(indexedFrontmatter{
 		Source:      entry.Source,
+		Title:       entry.Title,
 		SHA256:      entry.SHA256,
 		Converter:   entry.Converter,
 		ConvertedAt: entry.ConvertedAt,
@@ -208,7 +243,19 @@ func SetMetadata(dir, file, summary string, links []string) error {
 	if err != nil {
 		return fmt.Errorf("marshal frontmatter: %w", err)
 	}
-	content := "---\n" + string(fm) + "---\n\n" + body
+	content := "---\n" + string(fm) + "---\n\n" + strings.TrimLeft(body, "\n")
+	if string(data) == content {
+		return nil
+	}
+	if !force {
+		citations, citErr := CitationsFor(corpusRoot(dir), path)
+		if citErr != nil {
+			citations = nil
+		}
+		if len(citations) > 0 {
+			return rewriteRefusal(relToRoot(corpusRoot(dir), path), citations)
+		}
+	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil { //#nosec G306 G703 -- corpus markdown
 		return fmt.Errorf("write %s: %w", file, err)
 	}

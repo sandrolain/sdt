@@ -54,6 +54,10 @@ type Document struct {
 	Summary   string
 	Links     []string
 	Now       time.Time
+	// Force allows a rewrite of an existing kept artifact whose bytes would
+	// change. Without it the rewrite is refused and the citing documents are
+	// named, because the rewrite silently invalidates their digest citations.
+	Force bool
 }
 
 // provenance is the per-file frontmatter of a kept conversion. It mirrors the
@@ -118,21 +122,33 @@ func KeptFileName(source, name, digest string) string {
 }
 
 // Keep writes doc under dir with its canonical content-addressed filename.
-// Keeping the same source bytes again is idempotent: the existing file is left
-// untouched (so a summary or links added later are not lost) and created is
-// false.
+// Keeping the same source bytes again is idempotent when the artifact would be
+// byte-identical: the existing file is left untouched (so a summary or links
+// added later are not lost) and created is false. A re-keep that would produce
+// different bytes is the incident class where cited markdown goes stale — the
+// artifact changes and every `@sha` citation to it dies — so it is refused
+// until the caller names Force, and the refusal lists the citing documents.
 func Keep(doc Document, dir string) (path string, created bool, err error) {
 	info, err := Inspect(doc.Source)
 	if err != nil {
 		return "", false, err
 	}
 	path = filepath.Join(dir, KeptFileName(doc.Source, doc.Name, info.Digest()))
-	if _, statErr := os.Stat(path); statErr == nil {
-		return path, false, nil
-	}
 	body, err := renderWith(info, doc)
 	if err != nil {
 		return "", false, err
+	}
+	if existing, statErr := os.ReadFile(path); statErr == nil { //#nosec G304 -- typed corpus path
+		if string(existing) == string(body) {
+			return path, false, nil
+		}
+		if !doc.Force {
+			citations, citErr := CitationsFor(corpusRoot(dir), path)
+			if citErr != nil {
+				citations = nil
+			}
+			return "", false, rewriteRefusal(relToRoot(corpusRoot(dir), path), citations)
+		}
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil { //#nosec G301 -- corpus directory
 		return "", false, fmt.Errorf("create %s: %w", dir, err)

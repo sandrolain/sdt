@@ -170,6 +170,26 @@ func TestDoc2mdUnsupportedInput(t *testing.T) {
 	}
 }
 
+// An epub must reach the converter chain: the registry used to refuse it before
+// anydoc — the only converter that reads book formats — was ever asked.
+func TestDoc2mdEpubReachesTheChain(t *testing.T) {
+	runInTempDir(t)
+	captureCmdErr(t)
+	var got string
+	withDoc2mdSeams(t, func(_ context.Context, opts doc2md.Options) doc2md.Result {
+		got = opts.Input
+		return doc2md.Result{Status: doc2md.StatusSuccess, Markdown: "converted"}
+	}, nil)
+
+	out := execute(t, doc2mdCmd, nil, "book.epub")
+	if got != "book.epub" {
+		t.Errorf("converter received %q, want the epub", got)
+	}
+	if !strings.Contains(string(out), "converted") {
+		t.Errorf("markdown = %q", out)
+	}
+}
+
 func TestDoc2mdKeepWritesCorpus(t *testing.T) {
 	dir := runInTempDir(t)
 	writeTestFile(t, "report.csv", "a,b\n1,2\n")
@@ -179,9 +199,15 @@ func TestDoc2mdKeepWritesCorpus(t *testing.T) {
 	}, nil)
 
 	out := execute(t, doc2mdCmd, nil, "report.csv", "--keep")
-	rel := strings.TrimSpace(string(out))
+	rel := strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
 	if !strings.HasPrefix(rel, sdtConvertedDir+"/") || !strings.HasSuffix(rel, ".md") {
 		t.Fatalf("kept path = %q", rel)
+	}
+	// The counts follow the path: the routing receipt's two numbers, measured on
+	// the conversion. The fake's heading is level 1 — the document title, not a
+	// section level — so the count is 0 by the doctrine's own definition.
+	if !strings.Contains(string(out), "0 section-level headings, 3 lines\n") {
+		t.Errorf("counts line missing after the path: %q", out)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, rel))
 	if err != nil {
@@ -194,7 +220,7 @@ func TestDoc2mdKeepWritesCorpus(t *testing.T) {
 	}
 
 	out2 := execute(t, doc2mdCmd, nil, "report.csv", "--keep")
-	if strings.TrimSpace(string(out2)) != rel {
+	if strings.TrimSpace(strings.SplitN(string(out2), "\n", 2)[0]) != rel {
 		t.Errorf("second keep path = %q, want %q", out2, rel)
 	}
 	again, err := os.ReadFile(filepath.Join(dir, rel))

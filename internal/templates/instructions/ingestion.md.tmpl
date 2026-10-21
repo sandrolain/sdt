@@ -393,7 +393,11 @@ coverage: <ok>/<units>       # the coverage block's ok over units; book-scale on
 ```
 
 The two counts are the routing trail: they make the declared route re-checkable
-from the artifact alone. The `coverage:` line repeats the source's index page's
+from the artifact alone. `sdt doc2md` measures them when it keeps an artifact —
+levels 2–3 and the conversion's lines, frontmatter excluded — and
+`sdt doc2md list --format json` re-measures them on every kept artifact, so an
+older keep's receipt can be refilled from the listing; a hand count stays the
+fallback for an artifact that was never kept. The `coverage:` line repeats the source's index page's
 `coverage:` block as `ok/units` (`wiki.md`, *The coverage record*): a
 `book-scale` source **owes** it, and a book-scale route without it is an
 **incomplete** receipt, never a small one. A `single-pass` source omits the line

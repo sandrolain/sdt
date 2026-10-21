@@ -131,7 +131,7 @@ func TestSetMetadataEnrichesAndReindexes(t *testing.T) {
 		t.Fatal(err)
 	}
 	file := idx.Documents[0].File
-	if err := SetMetadata(dir, file, "my summary", []string{"analysis/x.md"}); err != nil {
+	if err := SetMetadata(dir, file, "my summary", []string{"analysis/x.md"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -166,7 +166,7 @@ func TestSetMetadataEnrichesAndReindexes(t *testing.T) {
 }
 
 func TestSetMetadataMissingFile(t *testing.T) {
-	if err := SetMetadata(t.TempDir(), "nope.md", "s", nil); err == nil {
+	if err := SetMetadata(t.TempDir(), "nope.md", "s", nil, false); err == nil {
 		t.Error("expected an error for a missing document")
 	}
 }

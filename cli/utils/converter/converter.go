@@ -311,6 +311,7 @@ var DocumentExtensions = []string{
 	".odp",
 	".rtf",
 	".txt",
+	".epub",
 	markdownExt,
 	".markdown",
 	".csv",

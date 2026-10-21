@@ -68,12 +68,14 @@ type Attempt struct {
 
 // Result is the outcome of Convert.
 type Result struct {
-	Status    Status    `json:"status" yaml:"status"`
-	Converter string    `json:"converter,omitempty" yaml:"converter,omitempty"`
-	Markdown  string    `json:"markdown,omitempty" yaml:"markdown,omitempty"`
-	Reason    string    `json:"reason,omitempty" yaml:"reason,omitempty"`
-	KeptFile  string    `json:"kept_file,omitempty" yaml:"kept_file,omitempty"`
-	Attempts  []Attempt `json:"attempts" yaml:"attempts"`
+	Status          Status    `json:"status" yaml:"status"`
+	Converter       string    `json:"converter,omitempty" yaml:"converter,omitempty"`
+	Markdown        string    `json:"markdown,omitempty" yaml:"markdown,omitempty"`
+	Reason          string    `json:"reason,omitempty" yaml:"reason,omitempty"`
+	KeptFile        string    `json:"kept_file,omitempty" yaml:"kept_file,omitempty"`
+	Attempts        []Attempt `json:"attempts" yaml:"attempts"`
+	SectionHeadings int       `json:"section_headings,omitempty" yaml:"section_headings,omitempty"`
+	Lines           int       `json:"lines,omitempty" yaml:"lines,omitempty"`
 }
 
 // Options configures Convert.
