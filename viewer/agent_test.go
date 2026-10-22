@@ -57,6 +57,18 @@ func command(t *testing.T, ts *httptest.Server, envelope any) *http.Response {
 	return post(t, ts, agentCommandPath, string(body), ts.URL)
 }
 
+// askedTimes counts the times the agent was asked a method: how a test sees that a join
+// opened no session.
+func askedTimes(agent *acptest.Agent, method string) int {
+	count := 0
+	for _, asked := range agent.Methods() {
+		if asked == method {
+			count++
+		}
+	}
+	return count
+}
+
 // activateOnSocket puts the bridge on a live agent without going through the HTTP
 // surface. The viewer's activation now starts the process the project declared, which is
 // what the refusal and start-failure tests below exercise; what these tests need is a live
@@ -561,26 +573,128 @@ func TestAgentCommandReportsARefusedModelAsASentence(t *testing.T) {
 	})
 }
 
-// One session per browser stream: the stream gets its own, not the one activation
-// opened.
-func TestAgentStreamOwnsItsOwnSession(t *testing.T) {
+// One conversation per bridge: a stream joins the session the bridge already holds, so a
+// panel that was closed and reopened finds the thread it left instead of a new session.
+func TestASecondStreamJoinsTheConversation(t *testing.T) {
 	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
 	activateOnSocket(t, s, agent.Path())
-	initial := s.agent.SessionID()
 
-	stream := openStream(t, ts, ts.URL)
-	state := stream.next(t)
-	if state.SessionID == initial {
-		t.Fatalf("the browser joined the session activation opened (%q)", initial)
+	first := openStream(t, ts, ts.URL)
+	sessionID := first.next(t).SessionID
+	if response := command(t, ts, acpbridge.PromptEnvelope{
+		Type:      acpbridge.EnvelopePrompt,
+		Text:      "una domanda",
+		SessionID: sessionID,
+	}); response.StatusCode != http.StatusOK {
+		t.Fatalf("the prompt answered %d", response.StatusCode)
 	}
-	if _, ok := s.agent.Session(state.SessionID); !ok {
-		t.Fatalf("the browser's session %q is not registered", state.SessionID)
+	first.nextUntil(t, "the turn to land", func(state acpbridge.StateEnvelope) bool {
+		return len(state.Thread.Messages) == 2
+	})
+
+	// Reopening the panel: another stream, handed the conversation that is in progress.
+	second := openStream(t, ts, ts.URL)
+	state := second.next(t)
+	if state.SessionID != sessionID {
+		t.Fatalf("a reopen opened %q instead of joining %q", state.SessionID, sessionID)
+	}
+	if len(state.Thread.Messages) != 2 {
+		t.Fatalf("the reopened stream carries %d messages, want the thread the reader left",
+			len(state.Thread.Messages))
+	}
+	if got := askedTimes(agent, "session/new"); got != 1 {
+		t.Fatalf("the agent was asked session/new %d times, want the one activation opened", got)
 	}
 	// A command that names nothing reaches the stream's session, which is the
 	// single-browser case.
 	if response := command(t, ts, acpbridge.CancelEnvelope{Type: acpbridge.EnvelopeCancel}); response.StatusCode != http.StatusOK {
 		t.Fatalf("a command with no session id answered %d", response.StatusCode)
+	}
+}
+
+// A new chat is the reader's one explicit way to start over: a fresh conversation, empty,
+// and the one it replaced is over rather than left reachable.
+func TestANewChatOpensAFreshConversation(t *testing.T) {
+	s, ts := newAgentViewer(t)
+	agent := acptest.NewAgent(t, acptest.Streams("hello"))
+	activateOnSocket(t, s, agent.Path())
+
+	first := openStream(t, ts, ts.URL)
+	previous := first.next(t).SessionID
+	if response := command(t, ts, acpbridge.PromptEnvelope{
+		Type:      acpbridge.EnvelopePrompt,
+		Text:      "una domanda",
+		SessionID: previous,
+	}); response.StatusCode != http.StatusOK {
+		t.Fatalf("the prompt answered %d", response.StatusCode)
+	}
+	first.nextUntil(t, "the turn to land", func(state acpbridge.StateEnvelope) bool {
+		return len(state.Thread.Messages) == 2
+	})
+
+	response := post(t, ts, agentNewChatPath, "", ts.URL)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("the new chat answered %d", response.StatusCode)
+	}
+	var state agentStateResponse
+	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
+		t.Fatalf("new chat body: %v", err)
+	}
+	if state.Session == "" || state.Session == previous {
+		t.Fatalf("the new chat reported session %q, want a conversation of its own", state.Session)
+	}
+	if _, still := s.agent.Session(previous); still {
+		t.Fatalf("the replaced conversation %q is still reachable", previous)
+	}
+
+	fresh := openStream(t, ts, ts.URL)
+	frame := fresh.next(t)
+	if frame.SessionID != state.Session {
+		t.Fatalf("a stream joined %q, want the conversation the new chat opened (%q)",
+			frame.SessionID, state.Session)
+	}
+	if len(frame.Thread.Messages) != 0 {
+		t.Fatalf("a new chat starts with %d messages", len(frame.Thread.Messages))
+	}
+}
+
+// The new chat is a state-changing POST like every other: the same origin gate and the same
+// method gate, and an inert bridge refuses it rather than opening a session nothing can
+// answer.
+func TestANewChatIsGatedLikeEveryAgentEndpoint(t *testing.T) {
+	s, ts := newAgentViewer(t)
+	agent := acptest.NewAgent(t, acptest.Streams("hello"))
+	activateOnSocket(t, s, agent.Path())
+
+	if response := post(t, ts, agentNewChatPath, "", "http://someone-else.test"); response.StatusCode != http.StatusForbidden {
+		t.Fatalf("a foreign origin answered %d, want 403", response.StatusCode)
+	}
+	request, err := http.NewRequest(http.MethodGet, ts.URL+agentNewChatPath, nil)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	request.Header.Set("Origin", ts.URL)
+	response, err := ts.Client().Do(request)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("a GET answered %d, want 405", response.StatusCode)
+	}
+	if got := askedTimes(agent, "session/new"); got != 1 {
+		t.Fatalf("a refused new chat opened %d sessions, want only the activation's", got-1)
+	}
+}
+
+// An inert bridge has no conversation to replace, and the refusal says so instead of
+// reaching a connection that is not there.
+func TestANewChatNeedsAnActivatedBridge(t *testing.T) {
+	_, ts := newAgentViewer(t)
+	response := post(t, ts, agentNewChatPath, "", ts.URL)
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("an inert bridge answered %d, want 403", response.StatusCode)
 	}
 }
 

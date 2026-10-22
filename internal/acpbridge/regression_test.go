@@ -2,6 +2,8 @@ package acpbridge
 
 import (
 	"context"
+	"errors"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -109,6 +111,37 @@ func TestAClosedConversationLeavesTheRegistry(t *testing.T) {
 	if _, still := bridge.Session(current); still {
 		t.Fatalf("a closed conversation must leave the registry, and %q is still there", current)
 	}
+}
+
+// TestAStartAndAWatcherShareTheBoundUnderTheLock is the -race smoke check for the two
+// accesses the supervisor used to make outside its state lock: a start resets the bound
+// while the watcher of the cycle it replaces may still be unwinding it, and a watcher read
+// the state after releasing the lock. A deterministic overlap cannot be forced from outside
+// the package, so this drives both paths hard and the race detector is what judges them.
+func TestAStartAndAWatcherShareTheBoundUnderTheLock(t *testing.T) {
+	restartWith(t)
+	scratch, root := t.TempDir(), t.TempDir()
+	bridge := New(Options{Root: root})
+	t.Cleanup(func() { _ = bridge.Close() })
+
+	command := spawnCommand(scratch, spawnHelperDieMode)
+	for i := 0; i < 8; i++ {
+		if _, err := bridge.EnsureStarted(context.Background(), command, root); err != nil {
+			t.Fatalf("EnsureStarted %d: %v", i, err)
+		}
+		// The kill is what leaves a watcher behind for the next start to overlap with.
+		if pid := bridge.agentPID(); pid != 0 {
+			if err := syscallKill(pid); err != nil && !errors.Is(err, syscall.ESRCH) {
+				t.Fatalf("killing the agent: %v", err)
+			}
+		}
+	}
+	// The last cycle has to be accounted for before the bridge closes, so the detector sees
+	// the watcher's own accesses rather than only the teardown's.
+	started := len(startedPIDs(t, scratch))
+	waitFor(t, "the last watcher to restart the agent the loop killed", func() bool {
+		return len(startedPIDs(t, scratch)) > started
+	})
 }
 
 // TestAStartSomebodyAsksForResetsTheBound covers the fourth defect: the bound exists to

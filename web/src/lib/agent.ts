@@ -45,6 +45,7 @@ export const AGENT_ACTIVATE_PATH = "/api/agent/activate";
 export const AGENT_DEACTIVATE_PATH = "/api/agent/deactivate";
 export const AGENT_COMMAND_PATH = "/api/agent/command";
 export const AGENT_STREAM_PATH = "/api/agent/stream";
+export const AGENT_NEW_CHAT_PATH = "/api/agent/new-chat";
 
 /**
  * AgentState is what the viewer reports before and after a start: whether the surface is
@@ -262,6 +263,15 @@ export async function activateAgent(): Promise<AgentState> {
 /** deactivateAgent stops the agent on purpose and returns the viewer to a stopped bridge. */
 export async function deactivateAgent(): Promise<AgentState> {
   return agentRequest(AGENT_DEACTIVATE_PATH, undefined, "POST");
+}
+
+/**
+ * newAgentChat ends the conversation the bridge holds and opens a fresh one: the panel's
+ * one explicit way to start over. It names nothing — the conversation is the bridge's, and
+ * a request does not get to choose one.
+ */
+export async function newAgentChat(): Promise<AgentState> {
+  return agentRequest(AGENT_NEW_CHAT_PATH, undefined, "POST");
 }
 
 /** agentRequest posts to an agent endpoint and reports the viewer's message on refusal. */

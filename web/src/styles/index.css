@@ -333,6 +333,13 @@
     font-size: 0.95rem;
     margin: 0;
   }
+  /* The header's controls sit together at the inline end: the new chat, then the dismissal.
+     Both are the same icon shape, so the group is what keeps them apart from the title. */
+  .agent-panel__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
   /* The header's dismissal: the app's icon control, the shape `.doc-tab-actions__button`
      already has, with the word kept as the accessible name and the tooltip. */
   .agent-panel__icon-button {

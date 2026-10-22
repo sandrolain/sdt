@@ -14,6 +14,7 @@ import {
 import {
   AGENT_ACTIVATE_PATH,
   AGENT_COMMAND_PATH,
+  AGENT_NEW_CHAT_PATH,
   AGENT_STATE_PATH,
   AGENT_STREAM_PATH,
   type AgentStateEnvelope,
@@ -93,6 +94,7 @@ function mockViewer(
     error?: string;
     command?: string[];
     commandError?: string;
+    newChatError?: string;
   } = {},
 ) {
   const calls: { path: string; init?: RequestInit }[] = [];
@@ -129,6 +131,20 @@ function mockViewer(
       if (options.commandError)
         return new Response(JSON.stringify({ error: options.commandError }), { status: 502 });
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    if (path === AGENT_NEW_CHAT_PATH) {
+      if (options.newChatError)
+        return new Response(JSON.stringify({ error: options.newChatError }), { status: 502 });
+      return new Response(
+        JSON.stringify({
+          activated: true,
+          connected: true,
+          status: "active",
+          session: "sess-2",
+          command,
+        }),
+        { status: 200 },
+      );
     }
     return new Response(JSON.stringify({}), { status: 200 });
   });
@@ -520,6 +536,111 @@ describe("AgentPanel", () => {
       expect(calls.filter((call) => call.path === AGENT_STATE_PATH).length).toBeGreaterThan(reads),
     );
     expect(FakeEventSource.instances).toHaveLength(1);
+  });
+
+  /**
+   * A conversation outlives the panel. Closing it is closing a surface, and reopening it is
+   * not an act on the conversation either: the stream the viewer already has keeps the
+   * thread, and no new session is asked for.
+   */
+  describe("the conversation outlives the panel", () => {
+    it("keeps the stream and the thread when the panel is closed and reopened", async () => {
+      mockViewer({ activated: true });
+      const { rerender } = render(<AgentPanel open onOpenChange={vi.fn()} />);
+      await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+      const source = FakeEventSource.instances[0];
+      source.emit("message", {
+        data: JSON.stringify(
+          state({
+            messages: [
+              { id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "still here" }] },
+            ],
+          }),
+        ),
+      });
+      expect(await screen.findByText("still here")).toBeTruthy();
+
+      rerender(<AgentPanel open={false} onOpenChange={vi.fn()} />);
+      rerender(<AgentPanel open onOpenChange={vi.fn()} />);
+
+      // The same stream, still open: reopening is not a new conversation.
+      expect(FakeEventSource.instances).toHaveLength(1);
+      expect(source.closed).toBe(false);
+      expect(await screen.findByText("still here")).toBeTruthy();
+    });
+
+    it("starts a new chat from one control: a fresh stream and an empty thread", async () => {
+      const calls = mockViewer({ activated: true });
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+      const first = FakeEventSource.instances[0];
+      first.emit("message", {
+        data: JSON.stringify(
+          state({
+            messages: [
+              { id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "still here" }] },
+            ],
+          }),
+        ),
+      });
+      expect(await screen.findByText("still here")).toBeTruthy();
+
+      await userEvent.click(screen.getByRole("button", { name: "Start a new chat" }));
+
+      await waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+      expect(first.closed).toBe(true);
+      expect(calls.at(-1)?.path).toBe(AGENT_NEW_CHAT_PATH);
+      expect(calls.at(-1)?.init?.method).toBe("POST");
+      // The thread the reader left belongs to the conversation that was ended.
+      await waitFor(() => expect(screen.queryByText("still here")).toBeNull());
+
+      const second = FakeEventSource.instances[1];
+      second.emit("message", { data: JSON.stringify(state({}, "sess-2")) });
+      await waitFor(() =>
+        expect(screen.queryByText("Connected. Waiting for the agent…")).toBeNull(),
+      );
+      expect(screen.getByLabelText("Message")).toBeTruthy();
+    });
+
+    it("keeps the conversation when the viewer refuses a new chat", async () => {
+      const calls = mockViewer({
+        activated: true,
+        newChatError: "the agent did not open a conversation",
+      });
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+      FakeEventSource.instances[0].emit("message", {
+        data: JSON.stringify(
+          state({
+            messages: [
+              { id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "still here" }] },
+            ],
+          }),
+        ),
+      });
+      expect(await screen.findByText("still here")).toBeTruthy();
+
+      await userEvent.click(screen.getByRole("button", { name: "Start a new chat" }));
+
+      // A refusal is a sentence above the composer, not the end of what the reader has.
+      expect(await screen.findByText("the agent did not open a conversation")).toBeTruthy();
+      expect(screen.getByText("still here")).toBeTruthy();
+
+      await userEvent.type(screen.getByLabelText("Message"), "ancora?");
+      await userEvent.click(screen.getByRole("button", { name: "Send" }));
+      expect(commands(calls).at(-1)).toEqual({
+        type: "prompt",
+        text: "ancora?",
+        sessionId: "sess-1",
+      });
+    });
+
+    it("offers no new chat until there is a conversation", async () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      expect(await screen.findByRole("button", { name: "Start the agent" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Start a new chat" })).toBeNull();
+    });
   });
 
   /**

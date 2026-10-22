@@ -9,9 +9,10 @@ import (
 	"github.com/coder/acp-go-sdk"
 )
 
-// Session is one browser connection's conversation: the ACP session it opened and
-// the thread it accumulates. One browser connection owns one session; the viewer
-// opens a session when a browser arrives and closes it when the browser leaves.
+// Session is the bridge's conversation: the ACP session it opened and the thread it
+// accumulates. One bridge holds one conversation, every stream joins it, and it ends only
+// when the reader asks for a new one, stops the agent, or the bridge closes — a browser
+// leaving is not an act on it.
 type Session struct {
 	// mu guards id and conn, which a reattach replaces: the conversation outlives the
 	// process that was carrying it, and only what it runs on changes.
@@ -21,10 +22,11 @@ type Session struct {
 	state  *ThreadState
 	perms  *PermissionQueue
 	detach func()
-	// ctx is the life of the conversation: it ends when the browser that opened it
-	// goes away, and every turn of this session runs under it, so an agent's work
-	// dies with the connection that asked for it.
-	ctx context.Context
+	// ctx is the life of the conversation, derived from the bridge's own life rather
+	// than from a request: every turn runs under it, so a browser that closes its panel
+	// does not call off the work it asked for. End is what stops it.
+	ctx  context.Context
+	halt context.CancelFunc
 
 	turnsMu sync.Mutex
 	running bool
@@ -178,15 +180,24 @@ func (s *Session) Cancel(ctx context.Context) error {
 	return nil
 }
 
-// Close ends this conversation and returns how many permission waits it cancelled:
-// a card nobody can answer must not leave the agent blocked, so a disconnect
-// cancels every wait of this session. The ACP session itself is not closed — the
-// protocol's optional session/close would need a capability this wave does not ask
-// for, and the connection dies with the viewer anyway.
+// Close releases the waits this conversation holds without ending it: a restart lifts the
+// conversation out of a dead process and puts it back on the new one, and the waits the
+// dead agent left are the only thing that has to go. It reports how many waits it
+// cancelled.
 func (s *Session) Close() int {
 	cancelled := s.perms.CancelSession(s.ID())
 	if s.detach != nil {
 		s.detach()
 	}
 	return cancelled
+}
+
+// End ends the conversation: its life stops, so a turn in flight is called off, and the
+// waits it held are released. It is the reader's explicit act — a new chat — or the
+// bridge going inert, never a browser leaving the panel.
+func (s *Session) End() int {
+	if s.halt != nil {
+		s.halt()
+	}
+	return s.Close()
 }

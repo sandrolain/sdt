@@ -124,6 +124,9 @@ type Bridge struct {
 	loadSession bool
 	sessions    map[string]*Session
 	initial     string
+	// conversationMu serialises choosing or replacing the conversation a browser is
+	// handed: two streams arriving together must join one session, not open two.
+	conversationMu sync.Mutex
 
 	// The supervisor's own state. startMu serialises a start — a caller's or a
 	// restart's — so that "already started" cannot be read by two callers at once;
@@ -146,9 +149,9 @@ type Bridge struct {
 	restartFrom    time.Time
 }
 
-// New returns an inert bridge with an empty session registry. It is its own sink:
-// one connection can carry several browser sessions, so what the callbacks publish
-// is routed by the session the update names.
+// New returns an inert bridge with an empty session registry. It is its own sink: a
+// callback carries only the session id it is about, so what it publishes is routed by that
+// id to the conversation the registry holds under it.
 func New(opts Options) *Bridge {
 	log := opts.Log
 	if log == nil {
@@ -197,29 +200,76 @@ func (b *Bridge) Session(id string) (*Session, bool) {
 	return session, ok
 }
 
-// NewSession opens an ACP session on the live connection, with its own thread.
-func (b *Bridge) NewSession(ctx context.Context) (*Session, error) {
+// CurrentSession returns the conversation a browser joining the bridge is handed: the one
+// the bridge already holds, so a panel that was closed and reopened finds the thread it
+// was reading, or a new one when the bridge holds none. A conversation is opened here only
+// when there is nothing to join, which is what makes a reopen free of session/new.
+func (b *Bridge) CurrentSession(ctx context.Context) (*Session, error) {
+	b.conversationMu.Lock()
+	defer b.conversationMu.Unlock()
+
 	b.mu.Lock()
-	conn := b.conn
+	conn, id := b.conn, b.initial
+	session := b.sessions[id]
 	b.mu.Unlock()
 	if conn == nil {
 		return nil, ErrNotActivated
 	}
+	if session != nil {
+		return session, nil
+	}
+	return b.openConversation(ctx, conn)
+}
+
+// NewConversation ends the conversation the bridge holds and opens a fresh one, which
+// becomes the one a browser joining it is handed. It is the reader's explicit act — a new
+// chat — and the only thing that ends a conversation besides a stop and the bridge closing.
+func (b *Bridge) NewConversation(ctx context.Context) (string, error) {
+	b.conversationMu.Lock()
+	defer b.conversationMu.Unlock()
+
+	b.mu.Lock()
+	conn := b.conn
+	previous := b.sessions[b.initial]
+	b.mu.Unlock()
+	if conn == nil {
+		return "", ErrNotActivated
+	}
+	session, err := b.openConversation(ctx, conn)
+	if err != nil {
+		return "", err
+	}
+	if previous != nil && previous != session {
+		// The conversation it replaced is over: its life stops, so a turn still running
+		// is called off, and its waits are released rather than left for an answer
+		// nobody will give.
+		previous.End()
+	}
+	return session.ID(), nil
+}
+
+// openConversation opens one conversation on a live connection and makes it the one a
+// browser is handed. The caller serialises the selection.
+func (b *Bridge) openConversation(ctx context.Context, conn *acp.ClientSideConnection) (*Session, error) {
 	session, note, err := b.newSession(ctx, conn)
 	if err != nil {
 		return nil, err
 	}
-	// A browser that opened this session is the reader the sentence is for, and the note
-	// channel is the one it reads: nothing in the command that opened the session carries
-	// a sentence, and the session is usable either way.
+	b.mu.Lock()
+	b.initial = session.ID()
+	b.mu.Unlock()
+	// The sentence a reader is owed about the session that just opened travels on the
+	// posture, the channel the panel reads; nothing in the command that opened it carries
+	// one, and the session is usable either way.
 	b.setNote(note)
 	return session, nil
 }
 
-// newSession opens one session on an already-live connection and registers it. The
-// attach path opens its session here and so does a second browser, so a
-// conversation always begins the same way. The sentence it returns is what a reader is
-// owed about the session that just opened — empty when there is nothing to say.
+// newSession opens one session on an already-live connection and registers it. The attach
+// path opens its session here, a bridge with none opens one when a browser arrives, and a
+// new chat opens one here too, so a conversation always begins the same way. The sentence
+// it returns is what a reader is owed about the session that just opened — empty when there
+// is nothing to say.
 func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection) (*Session, string, error) {
 	openCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
 	defer cancel()
@@ -227,12 +277,17 @@ func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection)
 	if err != nil {
 		return nil, "", err
 	}
+	// The conversation's life is the bridge's, not the caller's: the thread outlives the
+	// request that opened it, so a browser that closes its panel does not call off a turn
+	// it asked for. End is what stops it.
+	life, halt := context.WithCancel(b.life)
 	session := &Session{
 		id:    id,
 		conn:  conn,
 		state: NewThreadState(id),
 		perms: b.perms,
-		ctx:   ctx,
+		ctx:   life,
+		halt:  halt,
 	}
 	// What the agent offers for this session arrives with the answer that opened it, and
 	// nowhere else: folded here, so a browser that joins a session the bridge just opened
@@ -301,7 +356,7 @@ func (b *Bridge) CloseSessions() int {
 	b.initial = ""
 	b.mu.Unlock()
 	for _, session := range sessions {
-		session.Close()
+		session.End()
 	}
 	return len(sessions)
 }
@@ -317,9 +372,9 @@ func (b *Bridge) Activated() bool {
 	return b.conn != nil
 }
 
-// SessionID is the session the handshake opened, and empty while the bridge is
-// inert. It is the session a browser is handed when it arrives; a second browser
-// opens its own with NewSession.
+// SessionID is the conversation the bridge holds, and empty while the bridge is inert.
+// It is the session every browser joining the bridge is handed, so a stream that arrives
+// after another one went away finds the same thread rather than a new session.
 func (b *Bridge) SessionID() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -388,6 +443,12 @@ func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTranspo
 		b.traceFail(rt, err)
 		return nil, "", b.abandon(closeTransport, err)
 	}
+
+	// Choosing the conversation is serialised with a stream that arrives while this
+	// attach is still opening it: `conn` is live before `initial` exists, and a browser
+	// reading the state in that window would otherwise open a conversation of its own.
+	b.conversationMu.Lock()
+	defer b.conversationMu.Unlock()
 
 	b.mu.Lock()
 	b.conn, b.loadSession = conn, res.AgentCapabilities.LoadSession

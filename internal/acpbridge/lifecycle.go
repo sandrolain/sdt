@@ -72,8 +72,12 @@ func (b *Bridge) EnsureStarted(ctx context.Context, command []string, dir string
 	}
 	// A start somebody asked for is a new decision: the bound exists to stop a loop
 	// around a command that cannot run, not to hold a reader's own start against the
-	// budget of an agent that died before it.
+	// budget of an agent that died before it. The fields belong to the watcher's state, so
+	// they are reset under the same lock it reads them with: the start lock serialises
+	// starts, not a watcher still unwinding the cycle this start replaces.
+	b.mu.Lock()
 	b.restarts, b.restartFrom = 0, time.Time{}
+	b.mu.Unlock()
 	b.setStatus(StatusStarting, "")
 
 	agentCtx, cancel := context.WithCancel(b.life)
@@ -143,9 +147,13 @@ func (b *Bridge) watch(proc *process, agentCtx context.Context, command []string
 	intended := b.intended
 	b.proc = nil
 	if intended {
+		// A stop somebody asked for. The state is recorded under the lock this branch
+		// already holds — reading it after the unlock was the second unsynchronised access
+		// — and the listener is told once it is released.
+		posture, fn, changed := b.recordStatusLocked(StatusStopped, "")
 		b.mu.Unlock()
-		if b.status != StatusStopped {
-			b.setStatus(StatusStopped, "")
+		if changed && fn != nil {
+			fn(posture)
 		}
 		return
 	}
@@ -273,18 +281,23 @@ func (b *Bridge) postureLocked() Posture {
 // setNote, so there is one place that decides a change happened.
 func (b *Bridge) setStatus(status Status, reason string) {
 	b.mu.Lock()
-	if b.status == status && b.statusErr == reason {
-		// The same posture twice is not a change: a stream must not repeat it.
-		b.mu.Unlock()
-		return
-	}
-	b.status, b.statusErr = status, reason
-	posture := b.postureLocked()
-	fn := b.statusListener
+	posture, fn, changed := b.recordStatusLocked(status, reason)
 	b.mu.Unlock()
-	if fn != nil {
+	if changed && fn != nil {
 		fn(posture)
 	}
+}
+
+// recordStatusLocked records the process view and returns what the caller announces once
+// the lock is released: the snapshot, the listener and whether the posture actually
+// changed. The same posture twice is not a change — a stream must not repeat it — and this
+// is the one place that decides it. A caller already holding the lock uses it directly.
+func (b *Bridge) recordStatusLocked(status Status, reason string) (Posture, func(Posture), bool) {
+	if b.status == status && b.statusErr == reason {
+		return Posture{}, nil, false
+	}
+	b.status, b.statusErr = status, reason
+	return b.postureLocked(), b.statusListener, true
 }
 
 // setNote records a sentence about what just happened without touching the state it belongs

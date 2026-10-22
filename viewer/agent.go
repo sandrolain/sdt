@@ -43,6 +43,7 @@ const (
 	agentDeactivatePath = "/api/agent/deactivate"
 	agentCommandPath    = "/api/agent/command"
 	agentStreamPath     = "/api/agent/stream"
+	agentNewChatPath    = "/api/agent/new-chat"
 
 	// agentWriteWait bounds one write to a browser, agentReadLimit one command from
 	// it, and agentHeartbeat both keeps a stream that has nothing to say from looking
@@ -249,10 +250,33 @@ func (s *server) handleAgentDeactivate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.agentState(""))
 }
 
-// handleAgentStream is the Server-Sent Events response: one ACP session for this
-// browser, the current thread as the first frame, and one frame per state change
-// until the client goes away — at which point the session closes and every wait it
-// held is released.
+// handleAgentNewChat ends the conversation the bridge holds and opens a fresh one: the
+// reader's one explicit way to start over, and the only thing besides a stop that ends a
+// conversation. The panel restarts its own stream, which joins the new conversation, so
+// nothing here touches a stream or names a session.
+func (s *server) handleAgentNewChat(w http.ResponseWriter, r *http.Request) {
+	if s.agentUnavailable(w, r) {
+		return
+	}
+	if !s.agent.Activated() {
+		writeErr(w, http.StatusForbidden, errAgentNotActive)
+		return
+	}
+	session, err := s.agent.NewConversation(r.Context())
+	if err != nil {
+		slog.Warn("sdtviewer: a new conversation could not be opened", "err", err)
+		writeErr(w, http.StatusBadGateway, errAgentHandshake)
+		return
+	}
+	slog.Info("sdtviewer: a new conversation was opened", "session", session)
+	writeJSON(w, http.StatusOK, s.agentState(session))
+}
+
+// handleAgentStream is the Server-Sent Events response: the conversation the bridge holds,
+// the current thread as the first frame, and one frame per state change until the client
+// goes away. A stream joins that conversation rather than opening one — a panel closed and
+// reopened finds the thread it was reading — and its end releases nothing: the conversation
+// is the bridge's, and only a new chat, a stop or the viewer going away ends it.
 func (s *server) handleAgentStream(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case s.agentReason != "":
@@ -273,13 +297,12 @@ func (s *server) handleAgentStream(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	session, err := s.agent.NewSession(ctx)
+	session, err := s.agent.CurrentSession(ctx)
 	if err != nil {
 		slog.Warn("sdtviewer: agent session", "err", err)
 		writeErr(w, http.StatusBadGateway, errAgentHandshake)
 		return
 	}
-	defer session.Close()
 	frames := make(chan []byte, 1)
 	stream := &agentStream{sessionID: session.ID(), cancel: cancel, frames: frames}
 	s.startAgentStream(stream)

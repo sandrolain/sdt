@@ -35,6 +35,7 @@ import {
   configCommand,
   fetchAgentState,
   modelOption,
+  newAgentChat,
   permissionCommand,
   promptCommand,
   sendAgentCommand,
@@ -82,18 +83,6 @@ export function AgentPanel({
   const [envelope, setEnvelope] = useState<AgentStateEnvelope | null>(null);
   const [session, setSession] = useState("");
   const stream = useRef<AgentStream | null>(null);
-
-  // Opening is a change of props, not an event of ours, so the reset happens during
-  // render — React's documented pattern — rather than in an effect that would only
-  // derive state.
-  const [wasOpen, setWasOpen] = useState(open);
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open) {
-      setPhase("loading");
-      setMessage("");
-    }
-  }
 
   /** apply takes the viewer's own account of the process as the truth about it. */
   const apply = (next: AgentState) => {
@@ -199,6 +188,27 @@ export function AgentPanel({
     sendAgentCommand(command).catch((error: Error) => setMessage(error.message));
   };
 
+  /**
+   * startOver ends the conversation and opens a fresh one: the reader's one explicit way to
+   * start again, and the only thing a mount never does. The phase goes through `loading`
+   * because that is what restarts the stream effect, which then joins the new conversation.
+   * A refusal is a sentence above the composer rather than a dead panel — the conversation
+   * the reader has was never ended, so nothing is lost by staying on it.
+   */
+  const startOver = async () => {
+    setPhase("loading");
+    setMessage("");
+    try {
+      const next = await newAgentChat();
+      setEnvelope(null);
+      setSession("");
+      apply(next);
+    } catch (error) {
+      setPhase("active");
+      setMessage((error as Error).message);
+    }
+  };
+
   // The width is read once, on mount, and written at the end of a drag or a keyboard step
   // rather than on every pointer move: a preference is a decision, and the pointer passing
   // over the edge is not one.
@@ -260,14 +270,28 @@ export function AgentPanel({
               <PanelResizeHandle width={width} onDrag={dragPanel} onCommit={commitPanel} />
               <header className="agent-panel__header">
                 <h2 className="agent-panel__title">Agent</h2>
-                <TooltipButton
-                  className="agent-panel__icon-button"
-                  label="Close the agent panel"
-                  tooltip="Close"
-                  onPress={close}
-                >
-                  <Icon name="close" />
-                </TooltipButton>
+                <div className="agent-panel__header-actions">
+                  {/* One explicit way to start over: a mount never ends a conversation, and
+                      neither does closing the panel. */}
+                  {phase === "active" && (
+                    <TooltipButton
+                      className="agent-panel__icon-button"
+                      label="Start a new chat"
+                      tooltip="New chat"
+                      onPress={() => void startOver()}
+                    >
+                      <Icon name="add_comment" />
+                    </TooltipButton>
+                  )}
+                  <TooltipButton
+                    className="agent-panel__icon-button"
+                    label="Close the agent panel"
+                    tooltip="Close"
+                    onPress={close}
+                  >
+                    <Icon name="close" />
+                  </TooltipButton>
+                </div>
               </header>
               <div className="agent-panel__body">
                 {phase === "loading" && <p className="agent-panel__note">Reading the bridge…</p>}

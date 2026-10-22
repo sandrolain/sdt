@@ -231,6 +231,7 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc(agentDeactivatePath, s.handleAgentDeactivate)
 	mux.HandleFunc(agentCommandPath, s.handleAgentCommand)
 	mux.HandleFunc(agentStreamPath, s.handleAgentStream)
+	mux.HandleFunc(agentNewChatPath, s.handleAgentNewChat)
 	mux.HandleFunc(contextCommandPath, s.handleContextCommand)
 	mux.HandleFunc("/", s.handleIndex)
 	return mux
