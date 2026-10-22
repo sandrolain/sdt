@@ -28,7 +28,7 @@ When `--objective` is omitted and `--source` points to an analysis carrying an
 ## Intent first
 
 A plan is required before implementation and derives from an analysis; the
-analysis → plan → tasks → execution chain and its approval gates are defined in
+analysis → plan → execution chain and its gates are defined in
 AGENTS.md (HARD RULE 1). The plan is built on top of the analysis (set
 `sources`); within a running plan, integrate/modify in place — do not
 restart the chain.
@@ -44,7 +44,7 @@ source analysis) stays reachable via `sdt context new --type plan`.
 **R2 — one analysis may feed several plans (waves).** The analysis/plan
 relation is not 1:1: several plans may declare the same analysis in `sources`,
 each covering a slice of it, and each is an independently shippable wave with
-its own phases, its own final Validation phase and its own approval gate. To
+its own phases, its own final Validation phase and its own delivery boundary. To
 keep a wave set navigable:
 
 - the **analysis** carries the ordering in a `## Plans` section: one line per
@@ -77,12 +77,11 @@ to **split** a plan across parallel streams or sub-agents:
    criteria from the analysis, plus a
    **Design contract** (style, architecture and dependency choices — see
    `instructions/development.md`).
-2. **Wait for plan approval** — stop after creating the plan and wait for
-  explicit user approval before creating task files. Do not create task files
-  as part of plan creation. The approval covers the plan as presented: a later
-  or different stage needs its own approval (see AGENTS.md, *No silent
-  downgrades*).
-3. **Execute the plan** — the approved plan's phases are the checklist: tick a
+2. **Declare the plan, then execute** — the plan is the record, not a checkpoint:
+  state it and continue inside the objective (HARD RULE 1 owns the gates). Task
+  files are created as part of execution, when the plan is split; never as part of
+  plan creation.
+3. **Execute the plan** — the plan's phases are the checklist: tick a
    `- [ ]` item with `sdt context check <plan> <id>` as it finishes, and mark the
    plan **in progress** on take-in. The `>execute` trigger drives this step
    (subject: the plan; see the working-context ladder in
@@ -143,11 +142,11 @@ session: <session id>        # optional
 - **Objective** — 1-3 sentences: what this plan achieves and why, clear enough
   to stand alone.
 - **Constraints and assumptions** — explicit limitations and assumptions. A costly
-  low-confidence guess is resolved before approval, not built on. A
+  low-confidence guess is resolved before the plan, not built on. A
   **data-format** assumption a migration or import depends on (a field's meaning,
-  a serialization shape) is verified against a **real sample** before approval —
-  never inferred from a field name; a mismatch found after scheduling is exactly
-  the rework this rule prevents.
+  a serialization shape) is verified against a **real sample** before the plan is
+  written — never inferred from a field name; a mismatch found after scheduling is
+  exactly the rework this rule prevents.
 - **Out of scope** — work explicitly excluded, to prevent scope creep. Name
   areas, not "other things". State a schema boundary precisely: "no schema
   change" is ambiguous — say whether optional fields are in scope.
@@ -232,7 +231,7 @@ session: <session id>        # optional
   plan derives `completed` from its task files, not from these checkboxes. Tick
   a plan checklist item through the CLI (`sdt context check <plan> <id> --done`)
   only to record intent — never to gate completion.
-- **Review log** — only if the plan is revised after approval. Not for execution
+- **Review log** — only if the plan is revised after it was declared. Not for execution
   progress (that lives in task files). Format: `- <YYYY-MM-DD>: <what changed and why>`.
 
 ## Rigour dial (optional)
@@ -298,6 +297,5 @@ Plan and task files are updated during execution (not append-only); decisions an
   mistakes it for a user instruction — this closes the injection loop where a
   gate/closeout message is re-read as a directive.
 - **No silent downgrades.** When in doubt between two paths, take the heavier one,
-  and never weaken an agreed plan mid-task without saying so. An approval covers
-  the stage actually presented: approving a plan approves that plan, not a later
-  stage — re-ask when the stage changes.
+  and never weaken an agreed plan mid-task without saying so. A request covers the
+  objective it names; a different one is declared, never slipped in.

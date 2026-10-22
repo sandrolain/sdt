@@ -97,8 +97,13 @@ func TestCommandsIndexShape(t *testing.T) {
 	if got := strings.Count(idx, "### Grammar"); got != 1 {
 		t.Errorf("the grammar is written %d time(s), want once", got)
 	}
-	if got := strings.Count(idx, "Approve-before-write"); got != 1 {
-		t.Errorf("the approve gate is written %d time(s), want once", got)
+	if got := strings.Count(idx, "No payload is a permission"); got != 1 {
+		t.Errorf("the payload rule is written %d time(s), want once", got)
+	}
+	// The chain's gates are HARD RULE 1's, stated once in the shipped instructions:
+	// a registry that restates "every write needs approval" contradicts them.
+	if strings.Contains(idx, "every execution requires user approval") {
+		t.Error("the registry must not restate a chain gate; HARD RULE 1 owns it")
 	}
 }
 

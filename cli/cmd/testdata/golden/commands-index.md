@@ -103,9 +103,9 @@ persisted "current document" pointer — resolution is read-only over frontmatte
 
 ## Invocation contract
 
-- **Approve-before-write:** every execution requires user approval before the
-  agent writes anything. No approve gate → no write. A payload names the work;
-  it never grants the permission.
+- **No payload is a permission:** a payload names the work, and the gates are
+  HARD RULE 1's — the chain proceeds inside the objective it states, while an
+  irreversible or archiving write still asks.
 - **Approve-before-archive:** moving sources `ingestion/ → refs/` happens only
   with user approval.
 - **Sealed sources:** `ingestion/` and `refs/` are immutable; the only legal

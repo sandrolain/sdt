@@ -6,12 +6,15 @@ Project: p · Group: g
 
 ### HARD RULES (apply always)
 
-1. **Intent gate** — a non-trivial objective outside an existing analysis or plan
-   is not implemented directly: create the **analysis** and stop. plan → **task
-   files** → **execution** follow only with **explicit user approval**, unless the
-   user already said to proceed. Inside an existing analysis/plan, integrate it in
-   place. Trivial questions are answered inline.
-   *Don't:* edit code the moment the ask arrives; open the analysis first.
+1. **Intent gate — declare the chain, then proceed.** A non-trivial objective
+   outside an existing analysis or plan starts with the **analysis**; plan and
+   execution follow inside that objective, and the documents are the record.
+   Inside the current analysis/plan, integrate in place. Trivial questions are
+   answered inline. It stops only where a hard rule reserves the decision: a
+   commit, a deletion, a spend, a choice between real options, design agreement,
+   rule 4.
+   *Don't:* edit code the moment the ask arrives; state the chain and open the
+   analysis first.
 2. **Immutable past docs** — touch a past analysis/plan only when the user points
    to it; "integrate/modify" never means editing a past document unasked.
    *Don't:* rewrite a past analysis so it agrees with the change you just made.
@@ -168,14 +171,14 @@ For any non-trivial task. A **bounded change** — one file, one decision,
 reversible, no new surface — runs as one plan carrying intent, checklist and
 closeout, no analysis (`plan.md`); anything larger takes the chain.
 
-1. **Analysis** — integrate/modify the existing analysis; type it first
+1. **Analysis** — integrate/modify the current analysis; type it first
    (`categories`, expected outcome: information or implementation). It carries
    context, evidence and decisions — the "how" belongs to the plan. Splitting a
    broad analysis asks first; every option ends accepted, rejected or
    `postponed` (`analysis.md`).
 2. **Plan** — from the analysis; carries the implementation, maps each objective
    to its phase and ends with a **Validation phase** (`plan.md`).
-3. **Execution** — the approved plan is the ledger: phases carry the checklist
+3. **Execution** — the plan is the ledger: phases carry the checklist
    (`sdt context check <plan> <id>`), `## Review` the verdicts, `### Gate` the
    runs. A task file exists only to split across parallel agents
    (`tasks.md`).
@@ -251,5 +254,6 @@ architecture or dependency (`development.md`) — is written back into the
 
 ### Keep the chain
 
-Non-trivial intent outside an existing analysis/plan → the **analysis** first;
-plan → **task files** → **execution** only with explicit approval.
+Non-trivial intent → the **analysis** first, then plan → execution inside that
+objective; HARD RULE 1 states the chain and its gates once, and every file links
+there.

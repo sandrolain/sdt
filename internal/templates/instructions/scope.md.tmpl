@@ -26,9 +26,8 @@ analysis; a well-scoped objective goes directly to `>analysis`.
 - **The payload narrows the objective; it never authorises the write.** Confirm
   once — `scope <objective> into a draft analysis?` — before creating the
   `status: draft` analysis, then treat that confirmation as covering the whole
-  flow (its appends and the final `status` flip). The plan gate is untouched:
-  this flow ends at the analysis, and `>plan` is a separate command needing its
-  own approval.
+  flow (its appends and the final `status` flip). This flow ends at the analysis;
+  `>plan` is a separate command (AGENTS.md HARD RULE 1 owns the gates).
 
 ## The flow (phases are ordered; do not run ahead)
 
@@ -133,7 +132,6 @@ postponed options per **R3**. Both rules are in
   `summary`, style/architecture agreed a priori, library-first).
 - No open points in the analysis: residuals go to `context/questions/`, never an
   "Open points" section.
-- The flow produces the analysis only; the plan is `>plan` and needs its own
-  approval.
+- The flow produces the analysis only; the plan is `>plan`.
 - All file mutations go through the CLI (`sdt context new`, `sdt context status
   set`, `sdt context touch`, `sdt context check`) — never hand-write state.

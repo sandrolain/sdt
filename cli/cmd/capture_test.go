@@ -25,7 +25,7 @@ func TestWorklogCarriesTheSignalReview(t *testing.T) {
 		"context/questions/",
 		">draft",
 		"Observation",
-		"approval gate",
+		"HARD RULE 1",
 		"`none`",
 	} {
 		if !strings.Contains(body, want) {

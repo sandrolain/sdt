@@ -29,7 +29,7 @@ without it the step lands unphased. `--stream` selects a split file
 
 ## Intent first
 
-The chain and its approval gates are AGENTS.md HARD RULE 1: task file → plan →
+The chain and its gates are AGENTS.md HARD RULE 1: task file → plan →
 analysis.
 
 A task file is owned by its plan: `phases` lists the sections it covers (split
@@ -132,7 +132,7 @@ one by hand. A repeated id is a `sdt context lint` WARNING, and
 4. **Complete** — `[x]` every item, run the verify-step (`tasks-review.md`), then
    the next phase; set the file `completed` and update the plan.
 5. **Commit gate** — see `instructions/git.md` for the procedure, the message
-   format and the approval gate.
+   format and the commit gate.
 
 **Durable ledger.** Conversation memory does not survive compaction: the record
 of progress lives in this file, the plan and the worklog, not short-lived
@@ -150,7 +150,7 @@ and when a phase closes — in one line, pointing at the owning contract rather
 than restating it. When this does not apply: a phase short enough to hold it
 needs no re-injection.
 
-**Rulings, not stalls.** Inside an approved plan, settle execution-level details
+**Rulings, not stalls.** Inside a plan, settle execution-level details
 the plan already authorizes and record each as
 `Ruling: <what was decided> — <why> — <cost if wrong>` in the file or worklog,
 then keep going. A decision that changes scope, style, architecture or cost is
