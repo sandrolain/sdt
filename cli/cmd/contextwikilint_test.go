@@ -147,6 +147,97 @@ func TestGeneratedWikiInstructionRoutesKnowledgeAxesToDedicatedLint(t *testing.T
 }
 
 // TestWikiLintSchemaErrors exercises every schema CRITICAL on one broken page.
+// TestWikiLintDuplicateFrontmatterKey flags a page whose frontmatter declares the
+// same top-level key twice: the readers keep the first and drop the second, so the
+// page cannot be read the way it was written.
+func TestWikiLintDuplicateFrontmatterKey(t *testing.T) {
+	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
+	wikiSourceDirs(t)
+	page := `---
+kind: wiki
+id: twice
+title: Twice
+type: concept
+status: active
+summary: s
+tags:
+  - x
+relations:
+  refers_to:
+    - [[accounts|Account Service]]
+relations:
+  part_of:
+    - [[db|Database]]
+sources:
+  - refs/spec.md
+---
+## Summary
+s
+## Claims
+1. one. {#claim-1} (refs/spec.md@abc:1)
+`
+	writeCtxDoc(t, "context/wiki/twice.md", page)
+	out := wikiLintError(t)
+	if !strings.Contains(out, "duplicate frontmatter key `relations` at lines 10 and 13") {
+		t.Errorf("expected the duplicate key and both lines, got:\n%s", out)
+	}
+}
+
+// TestWikiLintDuplicateClaimAnchor flags the same anchor twice in one page; the
+// same number on two different pages is the doctrine and stays clean.
+func TestWikiLintDuplicateClaimAnchor(t *testing.T) {
+	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
+	wikiSourceDirs(t)
+	dup := `---
+kind: wiki
+id: dup
+title: Dup
+type: concept
+status: active
+summary: s
+tags:
+  - x
+sources:
+  - refs/spec.md
+---
+## Summary
+A claim {#claim-1} (refs/spec.md@a:1).
+## Claims
+1. one {#claim-1} (refs/spec.md@a:1).
+2. two {#claim-2} (refs/spec.md@a:2).
+`
+	writeCtxDoc(t, "context/wiki/dup.md", dup)
+	writeCtxDoc(t, "context/wiki/peer.md", wikiDBPage)
+	out := wikiLintError(t)
+	for _, want := range []string{
+		"duplicate claim anchor {#claim-1} at lines 14 and 16",
+		// The gap the duplicate implies is not a second finding.
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in wiki lint output:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "not contiguous") {
+		t.Errorf("a duplicate must not also report a gap:\n%s", out)
+	}
+}
+
+// TestWikiLintClaimAnchorGap is the WARNING side: a missing number is residue, not
+// a lie, and the finding names what is missing.
+func TestWikiLintClaimAnchorGap(t *testing.T) {
+	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
+	wikiSourceDirs(t)
+	writeCtxDoc(t, "context/wiki/gap.md", firstPageFixture("gap", "Gap Page")+fileBody([]int{1, 2, 4}))
+	out := wikiLintWarning(t)
+	if !strings.Contains(out, "claim anchors are not contiguous: missing claim anchor {#claim-3}") {
+		t.Errorf("expected the missing anchor, got:\n%s", out)
+	}
+}
+
+// TestWikiLintSchemaErrors flags a page whose frontmatter fields are broken.
 func TestWikiLintSchemaErrors(t *testing.T) {
 	setupContextProject(t)
 	broken := `---
@@ -373,6 +464,26 @@ func TestWikiLintBudgetWarnings(t *testing.T) {
 	out := wikiLintWarning(t)
 	if !strings.Contains(out, "over budget") {
 		t.Errorf("expected budget warning:\n%s", out)
+	}
+}
+
+// TestWikiLintBudgetBoundary pins the measure: a page at the budget is at the
+// budget (120 `wc -l` lines pass), one more warns, and the finding names `wc -l` so
+// a trim has one instrument to re-run.
+func TestWikiLintBudgetBoundary(t *testing.T) {
+	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
+	wikiSourceDirs(t)
+	atBudget := firstPageFixture("atbudget", "At Budget") + blob(108) // 12 + 108 = 120
+	writeCtxDoc(t, "context/wiki/atbudget.md", atBudget)
+	if out := string(execute(t, contextWikiLintCmd, nil)); strings.Contains(out, "over budget") {
+		t.Fatalf("a page exactly at the budget must pass:\n%s", out)
+	}
+
+	writeCtxDoc(t, "context/wiki/over.md", firstPageFixture("over", "Over")+blob(109))
+	out := wikiLintWarning(t)
+	if !strings.Contains(out, "page is 121 lines (budget ~120; counted as `sdt read --count`)") {
+		t.Errorf("expected the labelled count, got:\n%s", out)
 	}
 }
 

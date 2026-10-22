@@ -379,6 +379,22 @@ func ParseFrontmatterMap(fm, key string) (map[string][]string, bool) {
 	return out, false
 }
 
+// contentLines counts the lines a reader sees, the way `sdt read --count` and
+// `SplitLines` in internal/search do: a trailing newline ends the last line
+// rather than opening an empty one, and an unterminated final line still exists.
+// For a newline-terminated file this equals `wc -l`; the old count("\n")+1 was
+// one above it because it counted the trailing newline as a line of its own.
+func contentLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	lines := strings.Count(content, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		lines++
+	}
+	return lines
+}
+
 // ParseContent builds a Page for the given full file content and file id
 // (the dir-relative path minus ".md"). path is only used for Page.Path/Base.
 func ParseContent(content, path, fileID string) *Page {
@@ -398,7 +414,7 @@ func ParseContent(content, path, fileID string) *Page {
 		Verified:    FrontmatterField(fm, "verified"),
 		Tags:        FrontmatterList(fm, "tags"),
 		Sources:     FrontmatterList(fm, "sources"),
-		LineCount:   strings.Count(content, "\n") + 1,
+		LineCount:   contentLines(content),
 		ClaimCount:  len(ClaimRegexp.FindAllString(body, -1)),
 		HasLD:       MarkdownLDPrag.MatchString(body),
 	}

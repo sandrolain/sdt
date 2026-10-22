@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -46,6 +47,8 @@ func lintWikiLint() []ctxLintIssue {
 	b := &wikiIssueBuilder{}
 	bld := lintWikiLoad(b)
 	lintWikiSchema(b, bld.Pages)
+	lintWikiDuplicateKeys(b, bld.Pages)
+	lintWikiClaims(b, bld.Pages)
 	for _, p := range bld.Pages {
 		// Wiki pages intentionally stay out of lintDoc's corpus route; apply only
 		// the cross-kind axes promised to this dedicated loader using the source
@@ -199,6 +202,115 @@ func lintWikiBodyLinks(b *wikiIssueBuilder, p *contextwiki.Page, bld *contextwik
 	}
 }
 
+// lintWikiDuplicateKeys flags a top-level frontmatter key repeated in one page.
+// The single-value readers keep the first occurrence and drop the rest, so the
+// page cannot be read the way it is written; that is a fact about the document,
+// hence CRITICAL, reported without touching the parse.
+func lintWikiDuplicateKeys(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	for _, p := range pages {
+		for _, dup := range contextwiki.DuplicateFrontmatterKeys(p.Frontmatter) {
+			b.add(p.Path, ctxLintCritical, "duplicate frontmatter key `%s` %s", dup.Key, ctxLineList(dup.Lines))
+		}
+	}
+}
+
+// claimAnchor is one `{#claim-N}` occurrence with its 1-based file line.
+type claimAnchor struct {
+	Number int
+	Line   int
+}
+
+// claimAnchors reads a page's claim anchors with file line numbers. The body
+// starts after the frontmatter block, so the offset's newline count is shifted by
+// the block's own line span.
+func claimAnchors(p *contextwiki.Page) []claimAnchor {
+	base := strings.Count(p.Frontmatter, "\n") + 1
+	var anchors []claimAnchor
+	for _, loc := range contextwiki.ClaimRegexp.FindAllStringIndex(p.Body, -1) {
+		text := strings.TrimSuffix(strings.TrimPrefix(p.Body[loc[0]:loc[1]], "{#claim-"), "}")
+		n, err := strconv.Atoi(text)
+		if err != nil {
+			continue
+		}
+		anchors = append(anchors, claimAnchor{
+			Number: n,
+			Line:   base + strings.Count(p.Body[:loc[0]], "\n"),
+		})
+	}
+	return anchors
+}
+
+// lintWikiClaims flags claim anchors that are repeated (CRITICAL: a citation to
+// that number is ambiguous) or that leave a gap in the numbering (WARNING: the
+// residue of a deleted claim, a hint rather than a lie). A page with a duplicate
+// reports only the duplicate — the gap it implies adds nothing.
+func lintWikiClaims(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	for _, p := range pages {
+		byNumber := map[int][]int{}
+		var order []int
+		for _, a := range claimAnchors(p) {
+			if _, known := byNumber[a.Number]; !known {
+				order = append(order, a.Number)
+			}
+			byNumber[a.Number] = append(byNumber[a.Number], a.Line)
+		}
+		duplicated := false
+		for _, n := range order {
+			if lines := byNumber[n]; len(lines) > 1 {
+				duplicated = true
+				b.add(p.Path, ctxLintCritical, "duplicate claim anchor {#claim-%d} %s", n, ctxLineList(lines))
+			}
+		}
+		if duplicated || len(order) == 0 {
+			continue
+		}
+		highest := order[0]
+		for _, n := range order[1:] {
+			if n > highest {
+				highest = n
+			}
+		}
+		var missing []int
+		for n := 1; n <= highest; n++ {
+			if _, present := byNumber[n]; !present {
+				missing = append(missing, n)
+			}
+		}
+		if len(missing) > 0 {
+			b.add(p.Path, ctxLintWarning, "claim anchors are not contiguous: %s", ctxAnchorList(missing))
+		}
+	}
+}
+
+// ctxLineList renders cited file lines as a reader says them: "at line 7",
+// "at lines 7 and 9", "at lines 7, 9 and 12".
+func ctxLineList(lines []int) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	parts := make([]string, len(lines))
+	for i, n := range lines {
+		parts[i] = strconv.Itoa(n)
+	}
+	if len(parts) == 1 {
+		return "at line " + parts[0]
+	}
+	return "at lines " + strings.Join(parts[:len(parts)-1], ", ") + " and " + parts[len(parts)-1]
+}
+
+// ctxAnchorList names the missing claim numbers.
+func ctxAnchorList(numbers []int) string {
+	parts := make([]string, len(numbers))
+	for i, n := range numbers {
+		parts[i] = fmt.Sprintf("{#claim-%d}", n)
+	}
+	noun := "missing claim anchor"
+	if len(parts) > 1 {
+		noun = "missing claim anchors"
+	}
+	return noun + " " + strings.Join(parts, ", ")
+}
+
 // lintWikiTitleUniqueness flags duplicate explicit titles across wiki pages.
 func lintWikiTitleUniqueness(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 	seen := map[string]bool{}
@@ -260,7 +372,7 @@ func lintWikiBudget(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 		// finding, not a reason to apply the line budget here.
 		_, hasCoverage, covErr := contextwiki.CoverageBlock(p.Frontmatter)
 		if !hasCoverage && covErr == nil && p.LineCount > contextwiki.BudgetLines {
-			b.add(p.Path, ctxLintWarning, "page is %d lines (budget ~%d): over budget → split", p.LineCount, contextwiki.BudgetLines)
+			b.add(p.Path, ctxLintWarning, "page is %d lines (budget ~%d; counted as `sdt read --count`): over budget → split", p.LineCount, contextwiki.BudgetLines)
 		}
 		if p.ClaimCount > contextwiki.BudgetClaims {
 			b.add(p.Path, ctxLintWarning, "page has %d claims (budget ~%d): over budget → split", p.ClaimCount, contextwiki.BudgetClaims)

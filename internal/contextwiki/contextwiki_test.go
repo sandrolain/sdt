@@ -90,8 +90,9 @@ func TestParseContentFields(t *testing.T) {
 	if want := 1; p.ClaimCount != want {
 		t.Errorf("ClaimCount = %d, want %d", p.ClaimCount, want)
 	}
-	// 20 file lines (15 frontmatter + 5 body, trailing newline included).
-	if want := 20; p.LineCount != want {
+	// 19 lines by `wc -l` (15 frontmatter + 4 body lines, the trailing newline
+	// ending the last one rather than opening another).
+	if want := 19; p.LineCount != want {
 		t.Errorf("LineCount = %d, want %d", p.LineCount, want)
 	}
 }
