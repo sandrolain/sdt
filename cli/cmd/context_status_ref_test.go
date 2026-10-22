@@ -321,6 +321,107 @@ func TestStatusSetDecisionContentGuard(t *testing.T) {
 	})
 }
 
+// TestIdentityReferencesResolve is the O3 gate: a wiki page is reachable by its
+// frontmatter id and by its file name at any depth, and a document by its uid.
+// The resolver runs the identity steps only after the path steps fail.
+func TestIdentityReferencesResolve(t *testing.T) {
+	setupContextProject(t)
+	writeTestFile(t, "context/wiki/architecture/anthology-saga.md",
+		"---\nkind: wiki\nuid: "+testUIDv7(11)+"\nid: architecture/anthology-saga\nsummary: saga\nstatus: active\n---\nbody\n")
+	writeTestFile(t, "context/wiki/sdt-dev-lifecycle.md",
+		"---\nkind: wiki\nuid: "+testUIDv7(12)+"\nid: sdt-dev-lifecycle\nsummary: lifecycle\nstatus: active\n---\nbody\n")
+
+	for _, tc := range []struct{ name, ref, want string }{
+		{"wiki id", "architecture/anthology-saga", "context/wiki/architecture/anthology-saga.md"},
+		{"bare wiki name", "anthology-saga", "context/wiki/architecture/anthology-saga.md"},
+		{"top-level wiki id", "sdt-dev-lifecycle", "context/wiki/sdt-dev-lifecycle.md"},
+		{"uid", testUIDv7(11), "context/wiki/architecture/anthology-saga.md"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc, err := resolveContextDocPath(tc.ref)
+			if err != nil {
+				t.Fatalf("%q did not resolve: %v", tc.ref, err)
+			}
+			if doc.Path != tc.want || doc.Type.kind != ctxTypeWiki {
+				t.Errorf("%q resolved to %+v, want %s (wiki)", tc.ref, doc, tc.want)
+			}
+		})
+	}
+}
+
+// TestAmbiguousIdentityIsRefused proves the identity step guesses nothing: two
+// pages sharing a file name are both named, as the bare-name step already does.
+func TestAmbiguousIdentityIsRefused(t *testing.T) {
+	setupContextProject(t)
+	for _, sub := range []string{"architecture/shared", "patterns/shared"} {
+		writeTestFile(t, "context/wiki/"+sub+".md",
+			"---\nkind: wiki\nuid: "+testUIDv7(len(sub))+"\nid: "+sub+"\nsummary: shared\nstatus: active\n---\nbody\n")
+	}
+	_, err := resolveContextDocPath("shared")
+	if err == nil {
+		t.Fatal("an ambiguous wiki name resolved silently")
+	}
+	for _, part := range []string{"more than one", "context/wiki/architecture/shared.md", "context/wiki/patterns/shared.md"} {
+		if !strings.Contains(err.Error(), part) {
+			t.Errorf("the refusal does not carry %q: %v", part, err)
+		}
+	}
+}
+
+// TestReferencePrecedence pins the declared order: a real path wins over a wiki
+// id, a kind-directory name wins over a wiki file name, and a wiki id wins over
+// a uid.
+func TestReferencePrecedence(t *testing.T) {
+	setupContextProject(t)
+	// "architecture/anthology-saga" is both a real document path and a wiki id.
+	fixtureDoc(t, "context/architecture/anthology-saga.md", "architecture", "draft", "")
+	writeTestFile(t, "context/wiki/architecture/anthology-saga.md",
+		"---\nkind: wiki\nuid: "+testUIDv7(13)+"\nid: architecture/anthology-saga\nsummary: saga\nstatus: active\n---\nbody\n")
+	if doc, err := resolveContextDocPath("architecture/anthology-saga"); err != nil {
+		t.Fatal(err)
+	} else if doc.Path != "context/architecture/anthology-saga.md" || doc.Type.kind != ctxTypeArchitecture {
+		t.Errorf("an existing path must beat a wiki id: %+v", doc)
+	}
+
+	// "x" is both a kind-directory file name and a wiki file name.
+	writeTestFile(t, "context/plan/x.md", "---\nkind: plan\nsummary: x\nstatus: active\n---\nbody\n")
+	writeTestFile(t, "context/wiki/deep/x.md",
+		"---\nkind: wiki\nuid: "+testUIDv7(14)+"\nid: deep/x\nsummary: x\nstatus: active\n---\nbody\n")
+	if doc, err := resolveContextDocPath("x"); err != nil {
+		t.Fatal(err)
+	} else if doc.Path != "context/plan/x.md" {
+		t.Errorf("a kind-directory name must beat a wiki name: %+v", doc)
+	}
+
+	// The uuid names a wiki id and another document's uid.
+	writeTestFile(t, "context/wiki/deep/id-page.md",
+		"---\nkind: wiki\nuid: "+testUIDv7(15)+"\nid: "+testUIDv7(16)+"\nsummary: id page\nstatus: active\n---\nbody\n")
+	writeTestFile(t, "context/notes/uid-page.md",
+		"---\nkind: notes\nuid: "+testUIDv7(16)+"\nsummary: uid page\n---\nbody\n")
+	if doc, err := resolveContextDocPath(testUIDv7(16)); err != nil {
+		t.Fatal(err)
+	} else if doc.Path != "context/wiki/deep/id-page.md" {
+		t.Errorf("a wiki id must beat a uid: %+v", doc)
+	}
+}
+
+// TestUnknownIdentityKeepsThePathError proves the fallback is additive: a typo
+// reaches the same error the path step produced, with no new wording.
+func TestUnknownIdentityKeepsThePathError(t *testing.T) {
+	setupContextProject(t)
+	fixtureDoc(t, "context/architecture/config.md", "architecture", "draft", "")
+	_, err := resolveContextDocPath(testUIDv7(99))
+	if err == nil || !strings.Contains(err.Error(), testUIDv7(99)) {
+		t.Errorf("an unknown uid must keep the path error, naming the reference: %v", err)
+	}
+	if _, err := resolveContextDocPath("architecture/nope"); err == nil || !strings.Contains(err.Error(), "no such document") {
+		t.Errorf("an unknown id must keep the path error: %v", err)
+	}
+	if _, err := resolveContextDocPath("not-a-uuid-and-not-an-id"); err == nil {
+		t.Error("a plain unknown name must still error")
+	}
+}
+
 // TestBareContextNameResolvesOrRefuses is the D2 gate: a file name without its
 // directory resolves when exactly one kind holds it, and an ambiguous name is
 // refused with the candidates instead of guessing.

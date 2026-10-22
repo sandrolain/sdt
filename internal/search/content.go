@@ -396,6 +396,16 @@ func Grep(opts GrepOptions) (GrepResults, error) {
 	if err != nil {
 		return GrepResults{}, err
 	}
+	// A root that is not a directory cannot be searched: the walk would hand
+	// back the file itself, rootRel would drop it as outside the root, and the
+	// verb would answer "no match" with exit 0 — indistinguishable from an
+	// empty tree. Refuse it with the same shape Find uses, so the two verbs do
+	// not disagree about --dir.
+	if st, statErr := os.Stat(absRoot); statErr != nil {
+		return GrepResults{}, statErr
+	} else if !st.IsDir() {
+		return GrepResults{}, fmt.Errorf("grep: %s is not a directory", opts.Root)
+	}
 	s, err := newGrepScanner(absRoot, opts)
 	if err != nil {
 		return GrepResults{}, err

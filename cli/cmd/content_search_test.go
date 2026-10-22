@@ -388,6 +388,24 @@ func TestFindCommandDirFlagScopesTheSearch(t *testing.T) {
 	}
 }
 
+func TestGrepAndFindRefuseAFileRoot(t *testing.T) {
+	contentTree(t)
+	for _, tc := range []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{"grep", grepCmd},
+		{"find", findCmd},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			shouldExitWithCode(t, 1, func() string {
+				execute(t, tc.cmd, nil, "needle", "--dir", "src/keep.txt")
+				return ""
+			})
+		})
+	}
+}
+
 func TestGrepAndFindHelpCarryTheDeclaredShape(t *testing.T) {
 	for _, cmd := range []*cobra.Command{grepCmd, findCmd} {
 		for _, part := range []string{"WHEN —", "WHEN NOT —", "RETURNS —", "EXAMPLE —"} {
@@ -397,6 +415,9 @@ func TestGrepAndFindHelpCarryTheDeclaredShape(t *testing.T) {
 		}
 		if cmd.Example == "" {
 			t.Errorf("%s carries no example", cmd.Use)
+		}
+		if u := cmd.Flags().Lookup("dir").Usage; !strings.Contains(u, "file path is refused") {
+			t.Errorf("%s --dir does not state that a file is refused: %q", cmd.Use, u)
 		}
 	}
 }

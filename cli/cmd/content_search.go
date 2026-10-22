@@ -31,7 +31,9 @@ kind, status and date. You want the captured third-party clones under
 context/refs (pass ` + "`--refs`" + `); they are pruned by default because they are 9,2 GB
 of third-party code. Or you want to prune a large subtree: ` + "`--exclude`" + ` filters
 the **results**, so the walk still descends into it — use ` + "`--dir`" + ` to point at
-the part you want instead.
+the part you want instead. ` + "`--dir`" + ` names a directory: a file path is refused
+with the reason, never answered with an empty result; to search one file, scope
+it with ` + "`--include`" + `.
 
 RETURNS — one entry per matching line (path, 1-based line number, text) plus the
 counts of files searched and matched, and ` + "`truncated`" + ` when a cap stopped the scan
@@ -144,7 +146,8 @@ WHEN NOT — you need the corpus work files with their status and date:
 context/refs (pass ` + "`--refs`" + `), which are pruned by default for size. Or you are
 about to hand this a glob to prune a large subtree — that does not work here,
 because the descent happens before the glob is applied; use ` + "`--dir`" + ` to point at
-the part you want.
+the part you want. ` + "`--dir`" + ` names a directory: a file path is refused with the
+reason rather than listed as an empty result.
 
 RETURNS — the matching paths, sorted, relative to the search root, each marked
 when it is a directory. Omitting the glob lists every file in scope. A pattern
@@ -439,7 +442,7 @@ func init() {
 	f := grepCmd.Flags()
 	f.String("include", "", "Only search paths matching this glob")
 	f.String("exclude", "", "Skip paths matching this glob")
-	f.String("dir", "", "Directory to search (default: the working directory)")
+	f.String("dir", "", "Directory to search; a file path is refused (default: the working directory)")
 	f.Bool("no-ignore", false, "No longer needed: the raw tree is already the default (accepted for compatibility)")
 	f.Bool("refs", false, "Also search the captured clones under context/refs (pruned by default)")
 	f.Int("max-count", 0, "Maximum matches reported per file (0: unlimited)")
@@ -452,7 +455,7 @@ func init() {
 	f.BoolP("count", "c", false, "Print the number of matching lines instead of them")
 
 	f = findCmd.Flags()
-	f.String("dir", "", "Directory to search (default: the working directory)")
+	f.String("dir", "", "Directory to list; a file path is refused (default: the working directory)")
 	f.Bool("no-ignore", false, "No longer needed: the raw tree is already the default (accepted for compatibility)")
 	f.Bool("refs", false, "Also list the captured clones under context/refs (pruned by default)")
 	f.Bool("dirs", false, "Include directories in the result")

@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 const editProbeDoc = "context/plan/planx.md"
@@ -117,6 +119,152 @@ func TestContextEditSectionByHeading(t *testing.T) {
 	}
 }
 
+// emptyBodyFile writes the explicitly empty body an accidental redirect
+// produces, so the test and the incident use the same shape.
+func emptyBodyFile(t *testing.T) string {
+	t.Helper()
+	name := "empty-body.md"
+	if err := os.WriteFile(name, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return name
+}
+
+// TestContextEditRefusesAnEmptyBodyWithoutForce is the O2 gate: naming a body
+// source was treated as consent to empty the page, which is exactly what a
+// stray redirect does not mean. Both preview and real write are refused, and
+// the file keeps every byte.
+func TestContextEditRefusesAnEmptyBodyWithoutForce(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		name := "dry-run"
+		if dryRun {
+			name = "write"
+		}
+		t.Run(name, func(t *testing.T) {
+			path := editProbeFixture(t)
+			before := readDoc(t, path)
+			empty := emptyBodyFile(t)
+			args := []string{path, "--file", empty}
+			if dryRun {
+				args = append(args, "--dry-run")
+			}
+			shouldExitWithCode(t, 1, func() string {
+				execute(t, contextEditCmd, nil, args...)
+				return ""
+			})
+			if after := readDoc(t, path); after != before {
+				t.Errorf("a refused empty edit must not touch the file:\n%s", after)
+			}
+		})
+	}
+}
+
+// TestContextEditForceEmptiesTheBody proves the refusal is a guard, not a
+// removal of the capability: the explicit word still empties the body and keeps
+// the frontmatter.
+func TestContextEditForceEmptiesTheBody(t *testing.T) {
+	path := editProbeFixture(t)
+	execute(t, contextEditCmd, nil, path, "--file", emptyBodyFile(t), "--force")
+	got := readDoc(t, path)
+	if strings.Contains(got, "old work") || strings.Contains(got, "## Phase 1") {
+		t.Errorf("--force must empty the body:\n%s", got)
+	}
+	for _, keep := range []string{"kind: plan", "uid: " + testUIDv7(9), "summary: A plan"} {
+		if !strings.Contains(got, keep) {
+			t.Errorf("--force lost frontmatter key %q:\n%s", keep, got)
+		}
+	}
+}
+
+// TestContextEditEmptySectionRemovalNeedsForce keeps the documented removal
+// path reachable, behind the same explicit word: an empty section body is a
+// destruction too.
+func TestContextEditEmptySectionRemovalNeedsForce(t *testing.T) {
+	path := editProbeFixture(t)
+	before := readDoc(t, path)
+	shouldExitWithCode(t, 1, func() string {
+		execute(t, contextEditCmd, nil, path, "--section", "phase-2", "--input", "")
+		return ""
+	})
+	if after := readDoc(t, path); after != before {
+		t.Errorf("a refused section removal must not touch the file:\n%s", after)
+	}
+	execute(t, contextEditCmd, nil, path, "--section", "phase-2", "--input", "", "--force")
+	got := readDoc(t, path)
+	if strings.Contains(got, "## Phase 2") || strings.Contains(got, "more") {
+		t.Errorf("--force must remove the whole section:\n%s", got)
+	}
+	if !strings.Contains(got, "## Phase 1\nold work") {
+		t.Errorf("the untouched section changed:\n%s", got)
+	}
+}
+
+// TestContextEditForceKeepsTheAcceptedShape proves --force changes nothing for
+// a non-empty edit: the diff is printed, the body is written, and the JSON
+// result keeps its fields.
+func TestContextEditForceKeepsTheAcceptedShape(t *testing.T) {
+	path := editProbeFixture(t)
+	out := execute(t, contextEditCmd, nil, path, "--input", "## Phase 1\nforced\n", "--force", "--format", "json")
+	var res contextEditResult
+	if err := json.Unmarshal(out, &res); err != nil {
+		t.Fatalf("--force broke the JSON result: %v\n%s", err, out)
+	}
+	if !res.Changed || res.DryRun || !strings.Contains(res.Diff, "+forced") {
+		t.Errorf("a forced non-empty edit changed shape: %+v", res)
+	}
+	if got := readDoc(t, path); !strings.Contains(got, "## Phase 1\nforced") {
+		t.Errorf("a forced non-empty edit was not written:\n%s", got)
+	}
+}
+
+// TestContextEditSectionRefusesABodyWithoutItsHeading is the O4 gate: the
+// section range is heading-inclusive, so a body that does not begin with the
+// heading would delete it. The refusal names the expected heading and writes
+// nothing.
+func TestContextEditSectionRefusesABodyWithoutItsHeading(t *testing.T) {
+	path := editProbeFixture(t)
+	before := readDoc(t, path)
+	shouldExitWithCode(t, 1, func() string {
+		execute(t, contextEditCmd, nil, path, "--section", "phase-2", "--input", "more\n")
+		return ""
+	})
+	if after := readDoc(t, path); after != before {
+		t.Errorf("a refused section body must not touch the file:\n%s", after)
+	}
+}
+
+// TestContextEditSectionRefusesAWrongHeading proves --force is about emptiness
+// only: a different heading text or level is still a structural error.
+func TestContextEditSectionRefusesAWrongHeading(t *testing.T) {
+	for _, body := range []string{"## Phase 1\nwrong text\n", "### Phase 2\nwrong level\n"} {
+		t.Run(body, func(t *testing.T) {
+			path := editProbeFixture(t)
+			before := readDoc(t, path)
+			shouldExitWithCode(t, 1, func() string {
+				execute(t, contextEditCmd, nil, path, "--section", "phase-2", "--input", body, "--force")
+				return ""
+			})
+			if after := readDoc(t, path); after != before {
+				t.Errorf("a refused section body must not touch the file:\n%s", after)
+			}
+		})
+	}
+}
+
+// TestContextEditSectionKeepsItsHeading proves every accepted replacement leaves
+// exactly one heading, at its original position.
+func TestContextEditSectionKeepsItsHeading(t *testing.T) {
+	path := editProbeFixture(t)
+	execute(t, contextEditCmd, nil, path, "--section", "phase-2", "--input", "## Phase 2\nrevisited\n")
+	got := readDoc(t, path)
+	if n := strings.Count(got, "## Phase 2"); n != 1 {
+		t.Errorf("the heading appears %d times, want exactly 1:\n%s", n, got)
+	}
+	if !strings.Contains(got, "## Phase 2\nrevisited") {
+		t.Errorf("the replacement body did not land under the heading:\n%s", got)
+	}
+}
+
 func TestContextEditReportsNoChange(t *testing.T) {
 	path := editProbeFixture(t)
 	out := execute(t, contextEditCmd, nil, path, "--input", "## Phase 1\nold work\n\n## Phase 2\nmore\n")
@@ -152,5 +300,40 @@ func TestContextEditHelpCarriesTheDeclaredShape(t *testing.T) {
 	}
 	if contextEditCmd.Example == "" {
 		t.Error("edit carries no example")
+	}
+}
+
+// TestContextEditAndGetShareTheReferenceGrammar is the O3 sentence proven at the
+// command boundary: the same document is reachable by path, bare wiki name, wiki
+// id and uid through both verbs, so they cannot disagree.
+func TestContextEditAndGetShareTheReferenceGrammar(t *testing.T) {
+	setupContextProject(t)
+	writeTestFile(t, "context/wiki/architecture/anthology-saga.md", "---\nkind: wiki\nuid: "+testUIDv7(21)+
+		"\nid: architecture/anthology-saga\nsummary: saga\nstatus: active\n---\n## Summary\noriginal\n")
+
+	for _, ref := range []string{"wiki/architecture/anthology-saga.md", "architecture/anthology-saga", "anthology-saga", testUIDv7(21)} {
+		out := strings.TrimSpace(string(execute(t, contextGetCmd, nil, ref, "id")))
+		if out != "architecture/anthology-saga" {
+			t.Errorf("context get %q resolved to %q", ref, out)
+		}
+	}
+
+	for _, ref := range []string{"architecture/anthology-saga", testUIDv7(21)} {
+		execute(t, contextEditCmd, nil, ref, "--input", "## Summary\nedited through "+ref+"\n")
+		if got := readDoc(t, "wiki/architecture/anthology-saga.md"); !strings.Contains(got, "edited through "+ref) {
+			t.Errorf("context edit %q did not reach the page:\n%s", ref, got)
+		}
+	}
+}
+
+// TestContextEditAndGetHelpNameTheReferenceForms keeps the declared grammar
+// discoverable from --help, not only from the code.
+func TestContextEditAndGetHelpNameTheReferenceForms(t *testing.T) {
+	for _, cmd := range []*cobra.Command{contextEditCmd, contextGetCmd} {
+		for _, part := range []string{"wiki page id", "uid"} {
+			if !strings.Contains(cmd.Long, part) {
+				t.Errorf("%s help does not name %q", cmd.Use, part)
+			}
+		}
 	}
 }

@@ -15,8 +15,8 @@ var contextGetCmd = &cobra.Command{
 	Use:   "get <doc> [<key>...]",
 	Short: "Read a document's frontmatter: the raw block or named top-level keys",
 	Long: `Read the frontmatter of a context document. The document is resolved like
-'sdt context status get' (a path under context/, or --type/--slug identity
-flags).
+every verb that takes a <doc>, in this order: a path under context/, a bare file
+name, a wiki page id or file name, or a uid; plus --type/--slug identity flags.
 
 With no key, the raw frontmatter block (including its --- fences) is printed
 byte-exact. With one or more keys, one value is printed per requested key, in

@@ -146,6 +146,28 @@ func TestFindRejectsNonDirectoryRoot(t *testing.T) {
 	}
 }
 
+// TestGrepRejectsNonDirectoryRoot is the O1 gate: the walk used to drop the
+// only entry (a root-relative "." is outside the root), so a file passed as
+// --dir produced an empty result with exit 0 — the same answer as "no match".
+// The refusal names the path and a directory root still scans.
+func TestGrepRejectsNonDirectoryRoot(t *testing.T) {
+	root := treeRoot(t)
+	_, err := Grep(GrepOptions{Root: filepath.Join(root, "keep.md"), Pattern: "needle"})
+	if err == nil {
+		t.Fatal("want an error for a file root")
+	}
+	if !strings.Contains(err.Error(), "is not a directory") || !strings.Contains(err.Error(), "keep.md") {
+		t.Errorf("the refusal must name the path and the reason: %v", err)
+	}
+	res, err := Grep(GrepOptions{Root: root, Pattern: "needle"})
+	if err != nil {
+		t.Fatalf("a directory root must still scan: %v", err)
+	}
+	if len(res.Matches) == 0 {
+		t.Error("the directory scan found nothing")
+	}
+}
+
 func TestFindIncludesDirectoriesOnRequest(t *testing.T) {
 	got, err := Find(FindOptions{Root: treeRoot(t), Pattern: "*", IncludeDirs: true})
 	if err != nil {

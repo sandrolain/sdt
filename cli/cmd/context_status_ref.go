@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +45,46 @@ func ctxCwd() string {
 	return wd
 }
 
+// resolveContextDocPath resolves a reference to an existing context document.
+// The steps are tried in order, and a step runs only when the previous one
+// found nothing:
+//
+//  1. an explicit path — absolute, context/-prefixed, or kind/name;
+//  2. a bare file name across the registered kind directories;
+//  3. a wiki page by its frontmatter id, or by its file name at any depth under
+//     context/wiki;
+//  4. a uid, when the reference is a canonical UUIDv7.
+//
+// An ambiguous reference is refused with its candidates rather than guessed.
+// When no step matches, the path error is returned unchanged, so a typo keeps
+// its familiar message.
 func resolveContextDocPath(ref string) (ctxResolvedDoc, error) {
+	doc, pathErr := resolveContextDocFilePath(ref)
+	if pathErr == nil {
+		return doc, nil
+	}
+	// An ambiguity is a conclusive answer: the caller named a document twice,
+	// and an id must not silently pick one of them.
+	var ambiguous *ctxAmbiguousRefError
+	if errors.As(pathErr, &ambiguous) {
+		return ctxResolvedDoc{}, pathErr
+	}
+	if !ctxRefMayNameADocument(ref) {
+		return ctxResolvedDoc{}, pathErr
+	}
+	doc, err := resolveContextDocByRefIdentity(ref)
+	if err == nil {
+		return doc, nil
+	}
+	if !errors.Is(err, errNoContextRefMatch) {
+		return ctxResolvedDoc{}, err
+	}
+	return ctxResolvedDoc{}, pathErr
+}
+
+// resolveContextDocFilePath resolves the path-shaped references: an explicit
+// path, or a bare file name in a registered kind directory.
+func resolveContextDocFilePath(ref string) (ctxResolvedDoc, error) {
 	ref = strings.TrimSpace(ref)
 	// A full markdown path (including a suffix-modified one such as
 	// `.slide.md` or `.map.md`) keeps its extension: only a bare ref has
@@ -157,8 +198,123 @@ func resolveBareContextDoc(ref string, hadExt bool) (ctxResolvedDoc, error) {
 		t, _ := ctxTypeForDir(filepath.Dir(matches[0]))
 		return ctxResolvedDoc{Path: matches[0], Type: t}, nil
 	default:
-		return ctxResolvedDoc{}, fmt.Errorf("%q matches more than one document (%s) — name the directory", ref, strings.Join(matches, ", "))
+		return ctxResolvedDoc{}, &ctxAmbiguousRefError{Ref: ref, Matches: matches}
 	}
+}
+
+// ctxAmbiguousRefError refuses a reference that named several documents. It is
+// a conclusive answer: the identity steps must not turn it into a guess.
+type ctxAmbiguousRefError struct {
+	Ref     string
+	Matches []string
+	Hint    string
+}
+
+func (e *ctxAmbiguousRefError) Error() string {
+	hint := e.Hint
+	if hint == "" {
+		hint = "name the directory"
+	}
+	return fmt.Sprintf("%q matches more than one document (%s) — %s", e.Ref, strings.Join(e.Matches, ", "), hint)
+}
+
+// errNoContextRefMatch means neither the wiki step nor the uid step named a
+// document, so the caller keeps the path error it already had.
+var errNoContextRefMatch = errors.New("no document with that name or id")
+
+// ctxRefMayNameADocument reports whether a reference is corpus-internal, so the
+// identity steps may be tried on it. An absolute path, or one that climbs out
+// of the tree, is a path error and never a name.
+func ctxRefMayNameADocument(ref string) bool {
+	ref = strings.TrimSpace(ref)
+	if ref == "" || filepath.IsAbs(ref) {
+		return false
+	}
+	clean := filepath.Clean(ref)
+	return clean != "." && clean != ".." && !strings.HasPrefix(clean, ".."+string(filepath.Separator))
+}
+
+// resolveContextDocByRefIdentity resolves a reference by what a document calls
+// itself: a wiki id or page name, then a uid. The wiki step runs first, so a
+// page's own id wins over a uid-shaped value that happens to be stored in one.
+func resolveContextDocByRefIdentity(ref string) (ctxResolvedDoc, error) {
+	matches, err := ctxWikiRefMatches(ref)
+	if err != nil {
+		return ctxResolvedDoc{}, err
+	}
+	if len(matches) == 0 && validUIDv7(ref) {
+		matches, err = ctxUIDRefMatches(ref)
+		if err != nil {
+			return ctxResolvedDoc{}, err
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return ctxResolvedDoc{}, errNoContextRefMatch
+	case 1:
+		return ctxDocForPath(matches[0])
+	default:
+		return ctxResolvedDoc{}, &ctxAmbiguousRefError{Ref: ref, Matches: matches, Hint: "name it by its context/ path"}
+	}
+}
+
+// ctxWikiRefMatches finds wiki pages by frontmatter id, or — for a reference
+// without a separator — by file name at any depth. A page matching both shapes
+// is reported once. It reads through the same loader the graph uses, so a page
+// that cannot be parsed cannot be named by id either.
+func ctxWikiRefMatches(ref string) ([]string, error) {
+	bld, _, walkErr := contextwiki.LoadWiki(sdtWikiDir)
+	if walkErr != nil {
+		if os.IsNotExist(walkErr) {
+			return nil, nil
+		}
+		return nil, walkErr
+	}
+	bareName := !strings.ContainsAny(ref, `/\`)
+	var matches []string
+	for _, p := range bld.Pages {
+		hit := bareName && strings.TrimSuffix(p.Base, sdtMarkdownExt) == ref
+		if !hit {
+			hit = p.ID == ref
+		}
+		if hit {
+			matches = append(matches, p.Path)
+		}
+	}
+	sort.Strings(matches)
+	return matches, nil
+}
+
+// ctxUIDRefMatches finds the identifier-eligible document carrying a uid.
+// Only a canonical UUIDv7 reaches this scan, so an ordinary reference pays no
+// tree walk.
+func ctxUIDRefMatches(uid string) ([]string, error) {
+	files, err := ctxUIDFiles()
+	if err != nil {
+		return nil, err
+	}
+	var matches []string
+	for _, path := range files {
+		//#nosec G304 -- identifier-eligible corpus document
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			continue
+		}
+		if strings.TrimSpace(frontmatterField(string(data), ctxFrontmatterUID)) == uid {
+			matches = append(matches, path)
+		}
+	}
+	return matches, nil
+}
+
+// ctxDocForPath builds the resolved document for a path found by name or id,
+// deriving its type from the first segment under context/.
+func ctxDocForPath(path string) (ctxResolvedDoc, error) {
+	t, ok := ctxTypeForDir(ctxFirstSegmentDir(path))
+	if !ok {
+		return ctxResolvedDoc{}, fmt.Errorf("unknown context type for path %q", path)
+	}
+	return ctxResolvedDoc{Path: path, Type: t}, nil
 }
 
 // ctxFirstSegment returns the directory name right under context/ for a
