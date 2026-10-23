@@ -65,6 +65,7 @@ func lintWikiLint() []ctxLintIssue {
 	lintWikiLinks(b, bld)
 	lintWikiGraph(b, bld)
 	lintWikiBudget(b, bld.Pages)
+	lintWikiDepth(b, bld.Pages)
 	lintWikiCoverage(b, bld.Pages)
 	lintWikiMarkdownLD(b, bld.Pages)
 	lintWikiMarkers(b)
@@ -378,6 +379,59 @@ func lintWikiBudget(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 			b.add(p.Path, ctxLintWarning, "page has %d claims (budget ~%d): over budget → split", p.ClaimCount, contextwiki.BudgetClaims)
 		}
 	}
+}
+
+// Density floor for a distilled concept page. The concept budget is a ceiling;
+// without a floor a 7-claim, 40-word page passes every check while carrying one
+// umbrella concept. The numbers are calibrated on the 2026-10-19 pages (11-16
+// claims, 64-89 summary words) and are a SUGGESTION, never a target to pad.
+const (
+	wikiDepthMinClaims       = 8
+	wikiDepthMinSummaryWords = 50
+)
+
+// lintWikiDepth flags a concept page below the density floor. Index pages (a
+// coverage block) and non-concept pages are exempt: the floor is about the
+// knowledge layer, not source frames or maps.
+func lintWikiDepth(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	for _, p := range pages {
+		if p.Type != "concept" {
+			continue
+		}
+		if _, hasCoverage, covErr := contextwiki.CoverageBlock(p.Frontmatter); hasCoverage || covErr != nil {
+			continue
+		}
+		if p.ClaimCount < wikiDepthMinClaims {
+			b.add(p.Path, ctxLintSuggestion, "page has %d claim(s); the density floor is %d — the concept inventory expects more", p.ClaimCount, wikiDepthMinClaims)
+		}
+		if words := wikiSummaryWords(p.Body); words < wikiDepthMinSummaryWords {
+			b.add(p.Path, ctxLintSuggestion, "summary is %d word(s); the density floor is %d — restate the knowledge, do not name the topic", words, wikiDepthMinSummaryWords)
+		}
+	}
+}
+
+// wikiSummaryWords counts the words of the page's `## Summary` section. A
+// missing section is 0, so the finding names the absence instead of skipping it.
+func wikiSummaryWords(body string) int {
+	in := false
+	var b strings.Builder
+	for _, line := range strings.Split(body, "\n") {
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, "## ") {
+			if in {
+				break
+			}
+			if trim == "## Summary" {
+				in = true
+			}
+			continue
+		}
+		if in {
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
+	}
+	return len(strings.Fields(b.String()))
 }
 
 // lintWikiCoverage checks the countable half of a book-scale run's coverage

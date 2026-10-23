@@ -7,7 +7,21 @@ import (
 	"testing"
 )
 
-// wikiPageFixture returns a minimally valid wiki page body for the given id/title.
+// wikiPageFixture returns a valid dense wiki page for the given id/title.
+// denseWikiBody keeps a fixture at the density floor: eight claims and a
+// summary long enough that the depth check does not fire on unrelated tests.
+func denseWikiBody(prefix string) string {
+	summary := prefix + " The page states the concept, the mechanism that makes it work, the consequence for the architecture, and the case where it does not apply. It names the trade-off it carries and the related concept that owns the neighbouring decision, so a reader can act without the source, and it names the source it rests on."
+	var b strings.Builder
+	b.WriteString("\n## Summary\n")
+	b.WriteString(summary)
+	b.WriteString("\n## Claims\n")
+	for i := 1; i <= 8; i++ {
+		b.WriteString("1. {#claim-" + strconv.Itoa(i) + "} fact " + strconv.Itoa(i) + " (refs/spec.md@abc:1)\n")
+	}
+	return b.String()
+}
+
 func wikiPageFixture(id, title, typ, status string) string {
 	return `---
 kind: wiki
@@ -24,15 +38,10 @@ relations:
     - [[db|Database]]
 sources:
   - refs/spec.md
----
-## Summary
-Shape of ` + title + `.
-## Claims
-1. One fact. {#claim-1} (refs/spec.md@abc:1)
-`
+---` + denseWikiBody("Shape of "+title+".")
 }
 
-const wikiDBPage = `---
+var wikiDBPage = `---
 kind: wiki
 id: db
 title: Database
@@ -46,12 +55,7 @@ relations:
     - [[accounts|Account Service]]
 sources:
   - refs/spec.md
----
-## Summary
-Shape of the data store.
-## Claims
-1. DB stores rows. {#claim-1} (refs/spec.md@abc:3)
-`
+---` + denseWikiBody("Shape of the data store.")
 
 // wikiSourceDirs creates the empty immutable source dir a wiki lint run
 // expects (a missing ingestion/ marker is a warning). refs/ is excluded.
@@ -340,12 +344,8 @@ tags:
   - backend
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	out := wikiLintError(t)
 	for _, want := range []string{
 		`relation depends_on targets missing page "missing-db"`,
@@ -375,12 +375,8 @@ relations:
     - [[b|B]]
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	writeCtxDoc(t, "context/wiki/b.md", `---
 kind: wiki
 id: b
@@ -395,12 +391,8 @@ relations:
     - [[a|A]]
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	out := wikiLintError(t)
 	if !strings.Contains(out, "depends_on cycle detected") {
 		t.Errorf("expected cycle detection:\n%s", out)
@@ -615,12 +607,8 @@ tags:
   - x
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	out := execute(t, contextWikiLintCmd, nil)
 	if !strings.Contains(string(out), "[SUGGESTION]") || !strings.Contains(string(out), "orphan page") {
 		t.Errorf("expected orphan suggestion:\n%s", out)
@@ -648,12 +636,8 @@ relations:
     - [[backend/db|Database]]
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	writeCtxDoc(t, "context/wiki/backend/db.md", `---
 kind: wiki
 id: backend/db
@@ -668,12 +652,8 @@ relations:
     - [[accounts|Account Service]]
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	// Flat pages may reference nested ones by subpath id.
 	writeCtxDoc(t, "context/wiki/accounts.md", `---
 kind: wiki
@@ -689,12 +669,8 @@ relations:
     - [[backend/auth|Authentication]]
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	out := execute(t, contextWikiLintCmd, nil)
 	if len(out) != 0 {
 		t.Fatalf("expected clean recursive lint, got:\n%s", out)
@@ -712,12 +688,8 @@ tags:
   - backend
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	bad := wikiLintError(t)
 	if !strings.Contains(bad, "`id` \"auth\" does not match the file id \"backend/badid\"") {
 		t.Errorf("expected subpath id mismatch:\n%s", bad)
@@ -735,12 +707,8 @@ tags:
   - frontend
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	dup := wikiLintError(t)
 	if !strings.Contains(dup, `duplicate title "Database"`) {
 		t.Errorf("expected duplicate title across subdirs:\n%s", dup)
@@ -764,12 +732,8 @@ tags:
   - backend
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	writeCtxDoc(t, "context/wiki/accounts.md", `---
 kind: wiki
 id: accounts
@@ -784,12 +748,8 @@ relations:
     - [[db|Database]]
 sources:
   - refs/spec.md
----
-## Summary
-s
-## Claims
-1. f. {#claim-1} (refs/spec.md@a:1)
-`)
+---`+denseWikiBody("s"))
+
 	out := wikiLintWarning(t)
 	if !strings.Contains(out, `relation refers_to targets missing page "db"`) {
 		t.Errorf("expected flat-to-nested id mismatch warning:\n%s", out)
