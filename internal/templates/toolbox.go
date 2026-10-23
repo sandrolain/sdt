@@ -47,6 +47,15 @@ func ToolboxRows() []ToolboxRow {
 			Replaces: "`grep`",
 		},
 		{
+			Operation: "a book, by meaning, without an index",
+			Display:   "`sdt chunk search <artifact> <q>`",
+			Command:   "chunk",
+			Subcommands: []string{
+				"search",
+			},
+			Replaces: "a throwaway search index",
+		},
+		{
 			Operation: "corpus text",
 			Display:   "`sdt read -p <ref>`",
 			Command:   toolboxCmdRead,

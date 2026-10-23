@@ -15,6 +15,7 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
 | Need | Verb | Instead of |
 |---|---|---|
 | corpus, by meaning | `sdt context search <q>` | `grep` |
+| a book, by meaning, without an index | `sdt chunk search <artifact> <q>` | a throwaway search index |
 | corpus text | `sdt read -p <ref>` | `cat` |
 | line range | `sdt read --lines a:b` | `sed -n` |
 | numbered lines | `sdt read --numbered` | host reader |
