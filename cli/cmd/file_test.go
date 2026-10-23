@@ -109,6 +109,8 @@ func TestFileReadCmd(t *testing.T) {
 			_ = cmd.Flags().String("file", "", "File path")
 			_ = cmd.Flags().String("lines", "", "Line range")
 			_ = cmd.Flags().Bool("count", false, "Line count")
+			_ = cmd.Flags().String("section", "", "Section")
+			_ = cmd.Flags().Bool("numbered", false, "Line numbers")
 			_ = cmd.Flags().String("output", "raw", "Output format")
 			_ = cmd.Flags().Set("file", tt.filePath)
 

@@ -8,6 +8,26 @@ This project is managed with SDT: this block, and the write-once
 `<!-- sdt:begin:project -->` block below for project conventions.
 Project: sdt_44f24890 · Group: sdt_44f24890
 
+### Toolbox — what goes through `sdt`
+
+Pick by the operation; if the verb cannot do it, use the host tool and say so.
+
+| Need | Verb | Instead of |
+|---|---|---|
+| corpus, by meaning | `sdt context search <q>` | `grep` |
+| corpus text | `sdt read -p <ref>` | `cat` |
+| line range | `sdt read --lines a:b` | `sed -n` |
+| numbered lines | `sdt read --numbered` | host reader |
+| listing, sizes | `sdt ls --stat` | `ls -la` |
+| paths by glob | `sdt find <glob>` | `find` |
+| tree search | `sdt grep <p>` | `grep -r` |
+| one file | `sdt grep --path <f>` | `grep -n` |
+| web page | `sdt crawldown <url>` | fetcher |
+| JSON, API | `sdt http` into `sdt q` | `curl`/`jq` |
+| two files | `sdt diff <a> <b>` | `diff` |
+| append to corpus | `sdt context edit --append` | `cat >>` |
+| document state | `sdt context check/status/close` | none |
+
 ### HARD RULES (apply always)
 
 1. **Intent gate — declare the chain, then proceed.** A non-trivial objective
@@ -58,17 +78,13 @@ Project: sdt_44f24890 · Group: sdt_44f24890
     an uncaptured page is not *verified*. Git clones, package managers, JSON/API
     endpoints, authenticated pages and local files are not web pages.
     *Don't:* fetch a web page with a host tool, or cite an uncaptured page as fact.
-11. **Local file work via the shipped verbs** — read, search and list through
-    `sdt` before a host tool: `sdt read` (`--lines`, `--count`), `sdt grep`
-    (`-A`/`-B`/`-C`, `-l`, `-c`), `sdt find`, `sdt write -p <file>`. A JSON or API
-    endpoint is `sdt http` into `sdt q` (rule 10 does not treat it as a page).
-    Learn a verb's options from `sdt schema`, not by scraping `--help`: a flag an
-    agent cannot discover does not exist to it. **A write follows the same line**:
-    a corpus document goes through `sdt context edit`/`set`/`check`, never a
-    hand-edited file; `sdt write` is for bytes SDT itself produced.
-    *Don't:* reach for `sed`/`cat`/`grep`/`find`/`curl` because the reflex is
-    quicker. A running process, a shell pipeline, a binary file, a path outside
-    the tree and anything with a purpose-built verb stay a host tool's job.
+11. **Local file work: the corpus is SDT's, code is the host's.** Corpus
+    documents, document state, web capture and structured data go through `sdt`
+    — the table above picks the verb. Code editing, git, builds and running
+    processes stay the host's. A corpus write goes through `context edit`/`set`/
+    `check`, never a hand-edited file; `sdt write` is for bytes SDT produced.
+    Learn a flag from `sdt schema`, never from `--help`.
+    *Don't:* leave the corpus to a host tool, or hand-edit its state.
 
 ### Document ownership
 
@@ -312,6 +328,11 @@ Module `github.com/sandrolain/sdt`. Entry `cli/main.go` (sets build-time vars);
 `main.go` at repo root is a legacy duplicate. `web/` is Bun + Vite + React TS;
 DOM tests use **jsdom** (happy-dom breaks DOMPurify).
 
+A bare `go build ./...` fails: `context/` holds a clone with C files and broken
+packages, so scope it the way the test command does —
+`go build $(go list -e ./... | grep -v /context/)` — or build the package you
+touch (`go build ./cli ...`).
+
 **Regenerating the generated surfaces** (after any `internal/templates/**` edit, in
 this order): `go build -o bin/sdt ./cli`, then `sdt agent init --force` (instruction
 modules + `AGENTS.md`), `sdt agent roles init --force` (`context/roles/**`) and
@@ -357,6 +378,16 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
 ### Conventions
 
 - **Language**: all code, comments, and documentation in English.
+- **The Toolbox table is data, not prose.** The map at the top of the
+  always-loaded block lives in `internal/templates/toolbox.go`;
+  `TestToolboxRowsExistInManifest` fails when a row names a command,
+  subcommand or flag the binary lacks, and `TestToolboxSkillTableMatchesRows`
+  keeps the `sdt-toolbox` skill's copy identical. A new verb adds its row in
+  the same commit, so the table is never ahead of the binary.
+- **The always-loaded ceiling is 2,400 words**, and the number is owned twice:
+  `context/instructions/authoring.md` and the pin in
+  `cli/cmd/instructions_budget_test.go`. Changing one without the other fails
+  `TestInstructionBudgetCoversEveryModule`.
 - **Colours**: `web/src/styles/tokens.css` owns every raw colour and the
   semantic aliases. Outside it, migrate a literal only when it is a semantic
   role (surface, border, text tone, state, focus ring, elevation); leave a

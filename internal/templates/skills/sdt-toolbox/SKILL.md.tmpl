@@ -1,0 +1,40 @@
+---
+name: sdt-toolbox
+description: >
+  Use this skill to choose the right tool for local files and the SDT corpus:
+  reading a file or a line range, searching a tree or one file, listing a
+  directory, comparing two files, appending to a document, or capturing a web
+  page — even when the request does not name sdt. It states the boundary
+  between sdt and the host tools, names the verb for each operation, and says
+  what to do when sdt cannot do the job.
+---
+
+The boundary: the corpus, document state, web capture and structured data
+belong to `sdt`; code editing, git, builds and running processes belong to the
+host. Pick the verb by the operation, not by the tool you already reach for.
+
+| Need | Verb | Instead of |
+|---|---|---|
+| corpus, by meaning | `sdt context search <q>` | `grep` |
+| corpus text | `sdt read -p <ref>` | `cat` |
+| line range | `sdt read --lines a:b` | `sed -n` |
+| numbered lines | `sdt read --numbered` | host reader |
+| listing, sizes | `sdt ls --stat` | `ls -la` |
+| paths by glob | `sdt find <glob>` | `find` |
+| tree search | `sdt grep <p>` | `grep -r` |
+| one file | `sdt grep --path <f>` | `grep -n` |
+| web page | `sdt crawldown <url>` | fetcher |
+| JSON, API | `sdt http` into `sdt q` | `curl`/`jq` |
+| two files | `sdt diff <a> <b>` | `diff` |
+| append to corpus | `sdt context edit --append` | `cat >>` |
+| document state | `sdt context check/status/close` | none |
+
+A flag is real only if `sdt schema --command <name>` prints it; `--help` is the
+last resort, not the map (`context/instructions/cli.md` carries the compact
+verb list, `context/instructions/reference.md` the discovery routes).
+
+When `sdt` cannot do the job — a surgical edit of a source file, a listing with
+sizes while `sdt ls` is not shipped, a flag that does not exist — name the verb
+that fell short, then use the host tool and keep going. The rule is about
+spending the fewest calls on the work, not about obeying prose: the corpus is
+the one thing a host tool must never write.

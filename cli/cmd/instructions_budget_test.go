@@ -28,7 +28,12 @@ import (
 // budget.
 
 const (
-	instructionBlockBudget   = 2200
+	// 2,400 rather than 2,200: the Toolbox map (analysis 20261023-065322) added
+	// ~150 words that the block did not carry, and the map is the point — it
+	// names the verb for the operation at the moment of choice, where three
+	// impossible substitutions used to be listed. Measured 2,329 words when the
+	// ceiling moved; growth is visible again from here.
+	instructionBlockBudget   = 2400
 	instructionModuleBudget  = 1400
 	instructionCatalogBudget = 400
 )
@@ -121,7 +126,7 @@ func TestInstructionBudgetCoversEveryModule(t *testing.T) {
 			t.Errorf("module %q missing from the budgeted set", want)
 		}
 	}
-	if fmt.Sprintf("%d", instructionBlockBudget) != "2200" {
+	if fmt.Sprintf("%d", instructionBlockBudget) != "2400" {
 		t.Error("the always-loaded budget changed without updating authoring.md")
 	}
 }

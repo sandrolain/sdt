@@ -32,8 +32,8 @@ context/refs (pass ` + "`--refs`" + `); they are pruned by default because they 
 of third-party code. Or you want to prune a large subtree: ` + "`--exclude`" + ` filters
 the **results**, so the walk still descends into it — use ` + "`--dir`" + ` to point at
 the part you want instead. ` + "`--dir`" + ` names a directory: a file path is refused
-with the reason, never answered with an empty result; to search one file, scope
-it with ` + "`--include`" + `.
+with the reason, never answered with an empty result; to search one file, pass
+` + "`--path <file>`" + `.
 
 RETURNS — one entry per matching line (path, 1-based line number, text) plus the
 counts of files searched and matched, and ` + "`truncated`" + ` when a cap stopped the scan
@@ -93,8 +93,10 @@ not reach ` + "`src/legacy/context/analysis/*.md`" + `; ` + "`**/`" + ` is how y
 			filesWithMatches := getBoolFlag(cmd, "files-with-matches", false)
 			countOnly := getBoolFlag(cmd, "count", false)
 			exitWithError(cmd, grepIncompatibleFlags(cmd, filesWithMatches, countOnly))
+			exitWithError(cmd, grepPathFlags(cmd))
 			opts := search.GrepOptions{
 				Root:             getStringFlag(cmd, "dir", false),
+				Path:             getStringFlag(cmd, "path", false),
 				Pattern:          args[0],
 				Include:          getStringFlag(cmd, "include", false),
 				Exclude:          getStringFlag(cmd, "exclude", false),
@@ -435,7 +437,22 @@ func grepInputFileRefusal(cmd *cobra.Command) error {
 	if f == nil || !f.Changed {
 		return nil
 	}
-	return fmt.Errorf("`grep` takes no --file (that is the global input flag): use --dir <path> to scope the search, or --files-with-matches for names")
+	return fmt.Errorf("`grep` takes no --file (that is the global input flag): use --path <file> for one file, --dir <path> for a tree, or --files-with-matches for names")
+}
+
+// grepPathFlags refuses the flag combinations that would make --path mean two
+// things: a file and a tree, or a file and a path filter.
+func grepPathFlags(cmd *cobra.Command) error {
+	if getStringFlag(cmd, "path", false) == "" {
+		return nil
+	}
+	if dir := getStringFlag(cmd, "dir", false); dir != "" {
+		return fmt.Errorf("--path and --dir both name where to search: pass one (--path searches exactly one file)")
+	}
+	if include := getStringFlag(cmd, "include", false); include != "" {
+		return fmt.Errorf("--include filters paths inside a tree: with --path <file> it has nothing to filter")
+	}
+	return nil
 }
 
 func init() {
@@ -443,6 +460,7 @@ func init() {
 	f.String("include", "", "Only search paths matching this glob")
 	f.String("exclude", "", "Skip paths matching this glob")
 	f.String("dir", "", "Directory to search; a file path is refused (default: the working directory)")
+	f.String("path", "", "Search exactly one file (a directory is refused)")
 	f.Bool("no-ignore", false, "No longer needed: the raw tree is already the default (accepted for compatibility)")
 	f.Bool("refs", false, "Also search the captured clones under context/refs (pruned by default)")
 	f.Int("max-count", 0, "Maximum matches reported per file (0: unlimited)")

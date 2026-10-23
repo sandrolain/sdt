@@ -46,6 +46,11 @@ the text must begin with that section's heading, at its own level (for example
 ## Claims). A body without the heading is refused rather than spliced in, which
 would delete the anchor a reader navigates by.
 
+--append ADDS INSTEAD OF REPLACING — the text goes after the body's last line,
+or after the last line of --section, and carries no heading. It is the shape for
+one checklist item, one section, one log line: the worklog and note bodies that
+used to be re-sent whole through --file.
+
 AN EMPTY BODY IS A DESTRUCTION — it empties the document, or removes the section
 when --section is named. A body source that yields no text is refused unless
 --force is given, and the refusal names the document; a caller that pipes the
@@ -95,15 +100,29 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 		return
 	}
 	text := ensureTrailingNewline(newText)
+	section := getStringFlag(cmd, "section", false)
 
 	fm, body := contextwiki.SplitFrontmatter(content)
-	newBody := text
-	if section := getStringFlag(cmd, "section", false); section != "" {
+	var newBody string
+	switch {
+	case getBoolFlag(cmd, "append", false):
+		if strings.TrimSpace(newText) == "" {
+			exitWithError(cmd, fmt.Errorf("nothing to append to %s: pass the text through --input, --file or stdin", doc.Path))
+			return
+		}
+		newBody, err = appendContextBody(body, section, text)
+		if err != nil {
+			exitWithError(cmd, fmt.Errorf("%s: %w", doc.Path, err))
+			return
+		}
+	case section != "":
 		newBody, err = replaceContextSection(body, section, text)
 		if err != nil {
 			exitWithError(cmd, fmt.Errorf("%s: %w", doc.Path, err))
 			return
 		}
+	default:
+		newBody = text
 	}
 	if newBody == body {
 		outputContextEdit(cmd, contextEditResult{Path: doc.Path, Section: getStringFlag(cmd, "section", false), DryRun: getBoolFlag(cmd, "dry-run", false)})
@@ -214,6 +233,53 @@ func replaceContextSection(body, sectionRef, text string) (string, error) {
 	return "", fmt.Errorf("section %q not found", sectionRef)
 }
 
+// appendContextBody returns body with text appended after its last line, or
+// after the last line of the named section. Unlike a replacement, the text does
+// not carry the heading: append adds a line, a checklist item or a block to
+// what is already there, which is the case that used to mean re-sending a whole
+// body through --file.
+func appendContextBody(body, sectionRef, text string) (string, error) {
+	lines := strings.Split(body, "\n")
+	trailing := false
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
+		trailing = true
+	}
+	// insertAt is the 0-based index just past the last line being appended to.
+	insertAt := len(lines)
+	if sectionRef != "" {
+		found := false
+		for _, s := range mdstruct.SplitSections(body) {
+			if !strings.EqualFold(s.ID, sectionRef) && !strings.EqualFold(s.Heading, sectionRef) {
+				continue
+			}
+			// mdstruct reports EndLine 1-based and inclusive; the index after it
+			// is the same number.
+			insertAt = s.EndLine
+			found = true
+			break
+		}
+		if !found {
+			return "", fmt.Errorf("section %q not found", sectionRef)
+		}
+		// The section's range includes the blank line before the next heading;
+		// appending before it keeps the block separated from that heading.
+		for insertAt > 0 && strings.TrimSpace(lines[insertAt-1]) == "" {
+			insertAt--
+		}
+	}
+	repl := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	out := make([]string, 0, len(lines)+len(repl))
+	out = append(out, lines[:insertAt]...)
+	out = append(out, repl...)
+	out = append(out, lines[insertAt:]...)
+	res := strings.Join(out, "\n")
+	if trailing {
+		res += "\n"
+	}
+	return res, nil
+}
+
 // checkSectionReplacement refuses a non-empty body that does not begin with the
 // heading it is replacing. mdstruct's section range is heading-inclusive by
 // design, so splicing a body without the heading would delete it — the anchor a
@@ -256,6 +322,7 @@ func splitATXHeading(line string) (int, string, bool) {
 func init() {
 	addContextStatusRefFlags(contextEditCmd)
 	contextEditCmd.Flags().String("section", "", "Edit only this section (its stable id or its heading)")
+	contextEditCmd.Flags().Bool("append", false, "Append the input after the body, or after --section, instead of replacing")
 	contextEditCmd.Flags().Bool("dry-run", false, "Print the diff without writing")
 	contextEditCmd.Flags().Bool("force", false, "Allow an empty body (empties the document, or removes the section)")
 	contextCmd.AddCommand(contextEditCmd)

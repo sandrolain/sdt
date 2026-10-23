@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -49,6 +50,14 @@ than an empty answer; an upper bound past the last line clamps to the end.
 composes with ` + "`--lines`" + `, counting the selection rather than contradicting it, and a
 file with no lines has a count of 0.
 
+` + "`--numbered`" + ` prefixes each printed line with its 1-based number in the file, the
+shape a host reader prints, so a citation can be quoted verbatim. ` + "`--lines -N:`" + `
+selects the last N lines — ` + "`tail -n`" + ` without a second verb.
+
+Earlier versions ignored ` + "`--format json`" + ` here and printed raw text: a global flag
+that silently did nothing is the defect the change fixed. The JSON answer is an
+object ` + "`{path, lines, count, numbered}`" + `.
+
 EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 `,
 	Example: `  sdt read -p go.mod
@@ -74,23 +83,54 @@ EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 		content, err := os.ReadFile(file)
 		exitWithError(cmd, err)
 		lines := getStringFlag(cmd, "lines", false)
+		section := getStringFlag(cmd, "section", false)
+		numbered := getBoolFlag(cmd, "numbered", false)
 		if getBoolFlag(cmd, "count", false) {
-			selected, err := selectLines(string(content), lines)
+			selected, _, err := selectLinesFrom(string(content), lines)
 			exitWithError(cmd, err)
 			outputLineCount(cmd, len(selected))
 			return
 		}
-		if lines != "" {
-			outputBytes(cmd, sliceLinesOrExit(cmd, string(content), lines))
-			return
+		if section != "" {
+			if numbered {
+				exitWithError(cmd, fmt.Errorf("--numbered numbers the whole file: narrow with --lines instead of --section"))
+			}
+			content = []byte(readSectionOrExit(cmd, string(content), section))
+			lines = ""
 		}
-		if f := cmd.Flags().Lookup("section"); f != nil {
-			if section := getStringFlag(cmd, "section", false); section != "" {
-				outputString(cmd, readSectionOrExit(cmd, string(content), section))
+		selected, start, err := selectLinesFrom(string(content), lines)
+		exitWithError(cmd, err)
+		if numbered {
+			selected = numberLines(selected, start)
+		}
+		switch getFormat(cmd) {
+		case fmtJSON:
+			payload := struct {
+				Path     string   `json:"path"`
+				Lines    []string `json:"lines"`
+				Count    int      `json:"count"`
+				Numbered bool     `json:"numbered"`
+			}{Path: file, Lines: selected, Count: len(selected), Numbered: numbered}
+			out, err := json.MarshalIndent(payload, "", "  ")
+			exitWithError(cmd, err)
+			outputBytes(cmd, append(out, '\n'))
+		case fmtYAML:
+			payload := struct {
+				Path     string   `yaml:"path"`
+				Lines    []string `yaml:"lines"`
+				Count    int      `yaml:"count"`
+				Numbered bool     `yaml:"numbered"`
+			}{Path: file, Lines: selected, Count: len(selected), Numbered: numbered}
+			out, err := yaml.Marshal(payload)
+			exitWithError(cmd, err)
+			outputBytes(cmd, out)
+		default:
+			if lines != "" || section != "" || numbered {
+				outputString(cmd, strings.Join(selected, "\n")+"\n")
 				return
 			}
+			outputBytes(cmd, content)
 		}
-		outputBytes(cmd, content)
 	},
 }
 
@@ -189,6 +229,7 @@ func init() {
 	pf.String("lines", "", "Print only this line range (from:to, 1-based)")
 	pf.String("section", "", "Print only this section (by id or heading)")
 	pf.Bool("count", false, "Print the number of lines instead of them (with --lines: of the range)")
+	pf.BoolP("numbered", "n", false, "Prefix each line with its 1-based number")
 
 	pf = fileWriteCmd.PersistentFlags()
 	pf.StringP("file", "p", "", "File path")

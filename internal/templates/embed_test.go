@@ -52,8 +52,9 @@ func TestMustIsRenderForKnownTemplate(t *testing.T) {
 	data := struct {
 		Project  string
 		Group    string
+		Toolbox  string
 		Profiles map[string]bool
-	}{Project: "p", Group: "g", Profiles: map[string]bool{"ui": true}}
+	}{Project: "p", Group: "g", Toolbox: ToolboxMarkdown(), Profiles: map[string]bool{"ui": true}}
 	rendered, err := Render("agents/instructions.md.tmpl", data, nil)
 	if err != nil {
 		t.Fatalf("Render: %v", err)

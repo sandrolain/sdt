@@ -337,3 +337,46 @@ func TestContextEditAndGetHelpNameTheReferenceForms(t *testing.T) {
 		}
 	}
 }
+
+// TestContextEditAppendsInsteadOfReplacing proves the append half: the whole
+// body changes only by the added lines, and the frontmatter survives.
+func TestContextEditAppendsInsteadOfReplacing(t *testing.T) {
+	path := editProbeFixture(t)
+	execute(t, contextEditCmd, nil, path, "--append", "--input", "one more line\n")
+	got := readDoc(t, path)
+	if !strings.Contains(got, "## Phase 2\nmore\none more line\n") {
+		t.Errorf("append must keep the body and add the line at its end:\n%s", got)
+	}
+	if !strings.Contains(got, "kind: plan") {
+		t.Errorf("frontmatter lost on append:\n%s", got)
+	}
+	if !strings.Contains(string(execute(t, contextEditCmd, nil, path, "--append", "--input", "x\n", "--dry-run")), "+x") {
+		t.Error("--dry-run must print the diff and write nothing")
+	}
+}
+
+// TestContextEditAppendsToASection proves --section with --append adds after the
+// section's last line, and does not require the heading a replacement needs.
+func TestContextEditAppendsToASection(t *testing.T) {
+	path := editProbeFixture(t)
+	execute(t, contextEditCmd, nil, path, "--section", "Phase 1", "--append", "--input", "added to phase 1\n")
+	got := readDoc(t, path)
+	want := "## Phase 1\nold work\nadded to phase 1\n\n## Phase 2"
+	if !strings.Contains(got, want) {
+		t.Errorf("section append landed in the wrong place, want %q:\n%s", want, got)
+	}
+}
+
+// TestContextEditAppendRefusals covers the two inputs that must not become a
+// silent no-op: nothing to append, and a section that does not exist.
+func TestContextEditAppendRefusals(t *testing.T) {
+	path := editProbeFixture(t)
+	for _, args := range [][]string{
+		{path, "--append", "--input", "   \n"},
+		{path, "--append", "--section", "Nope", "--input", "x\n"},
+	} {
+		shouldExitWithCode(t, 1, func() string {
+			return string(execute(t, contextEditCmd, nil, args...))
+		})
+	}
+}

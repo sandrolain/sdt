@@ -311,6 +311,13 @@ type GrepOptions struct {
 	SkipDirs []string
 	// Pattern is a Go regular expression matched line by line.
 	Pattern string
+	// Path, when set, searches exactly that one file instead of the tree under
+	// Root. It is the answer to "grep this file": the tree walk would need a
+	// directory and a basename glob, which also matches the same name at any
+	// depth. Root, Include and Exclude are refused by the caller rather than
+	// silently ignored, and the reported path is the one the caller typed so the
+	// answer round-trips into `sdt read -p`.
+	Path string
 	// Include and Exclude are globs over slash-separated paths relative to Root;
 	// either may be empty. Exclude wins over Include.
 	Include string
@@ -415,7 +422,11 @@ func Grep(opts GrepOptions) (GrepResults, error) {
 		skip = defaultSkipPaths
 	}
 	names, declared := searchScope(opts.ProjectRoot, opts.SkipDirs)
-	if walkErr := walkAll(absRoot, names, pathSet(skip), declared, s.visit); walkErr != nil && !errors.Is(walkErr, errStopScan) {
+	if opts.Path != "" {
+		if err := s.searchPath(opts.Path); err != nil {
+			return GrepResults{}, err
+		}
+	} else if walkErr := walkAll(absRoot, names, pathSet(skip), declared, s.visit); walkErr != nil && !errors.Is(walkErr, errStopScan) {
 		return GrepResults{}, walkErr
 	}
 	sortMatches(s.res.Matches)
@@ -511,6 +522,42 @@ func (s *grepScanner) visit(path string, d fs.DirEntry) error {
 		return err // the cap ended the scan: this file is not counted as matched
 	}
 	if perFile > 0 {
+		s.res.FilesMatched++
+	}
+	return nil
+}
+
+// searchPath scans one file instead of the tree. The reported path is the one
+// the caller typed, so a match can be handed straight back to `sdt read -p`.
+// A directory, a missing path or a binary file is answered rather than skipped:
+// a single-file search that silently returns nothing is indistinguishable from
+// a file with no matches.
+func (s *grepScanner) searchPath(path string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	st, err := os.Stat(abs)
+	if err != nil {
+		return err
+	}
+	if st.IsDir() {
+		return fmt.Errorf("grep: %s is a directory; --dir searches a tree", path)
+	}
+	lines, binary, err := readTextLines(abs)
+	if err != nil {
+		return err
+	}
+	if binary {
+		return nil // same rule as the walk: binary files are not read
+	}
+	s.res.FilesSearched++
+	rel := filepath.ToSlash(filepath.Clean(path))
+	n, scanErr := s.scanLines(rel, lines)
+	if scanErr != nil && !errors.Is(scanErr, errStopScan) {
+		return scanErr
+	}
+	if n > 0 {
 		s.res.FilesMatched++
 	}
 	return nil

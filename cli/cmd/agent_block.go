@@ -313,8 +313,9 @@ func agentBlockInstructionsFor(project, group string, profiles []string) string 
 	data := struct {
 		Project  string
 		Group    string
+		Toolbox  string
 		Profiles map[string]bool
-	}{Project: project, Group: group, Profiles: selectedProfiles(profiles)}
+	}{Project: project, Group: group, Toolbox: templates.ToolboxMarkdown(), Profiles: selectedProfiles(profiles)}
 	if len(profiles) == 0 {
 		for _, p := range agentProfileRegister {
 			data.Profiles[p.Slug] = true

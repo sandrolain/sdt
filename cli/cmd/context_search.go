@@ -251,26 +251,61 @@ func parseLineRange(spec string) (int, int, error) {
 // empty read and a miscounted one are indistinguishable to the caller, and the
 // silent one is always the wrong one. An upper bound past the last line clamps
 // to the end, which is what a reader asking for "through line 999" means.
-// selectLines returns the lines a `--lines <from>:<to>` spec selects, or every
-// line when the spec is empty. It is the one owner of the range rule: `sdt read`
-// slices and counts through it and `sdt context show --lines` slices through it,
-// so a count and a slice cannot disagree about what the range contains.
+//
+// selectLines returns the lines a `--lines` spec selects, or every line when the
+// spec is empty. It is the one owner of the range rule: `sdt read` slices and
+// counts through it and `sdt context show --lines` slices through it, so a count
+// and a slice cannot disagree about what the range contains.
 func selectLines(content, spec string) ([]string, error) {
+	lines, _, err := selectLinesFrom(content, spec)
+	return lines, err
+}
+
+// selectLinesFrom is selectLines that also reports the 1-based number of the
+// first selected line, so `sdt read --numbered` prints the file's own numbers
+// rather than the selection's ordinal.
+//
+// Three spec forms are accepted: empty (every line), `a:b`, and `-N:` — the last
+// N lines, which is `tail -n N` without a second verb.
+func selectLinesFrom(content, spec string) ([]string, int, error) {
 	lines := search.SplitLines(content)
 	if spec == "" {
-		return lines, nil
+		return lines, 1, nil
+	}
+	if strings.HasPrefix(spec, "-") && strings.HasSuffix(spec, ":") {
+		raw := strings.TrimSuffix(strings.TrimPrefix(spec, "-"), ":")
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			return nil, 0, fmt.Errorf("invalid --lines range %q", spec)
+		}
+		if n > len(lines) {
+			n = len(lines)
+		}
+		start := len(lines) - n
+		return lines[start:], start + 1, nil
 	}
 	from, to, err := parseLineRange(spec)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if from > len(lines) {
-		return nil, fmt.Errorf("--lines range %q starts past the last line (%d)", spec, len(lines))
+		return nil, 0, fmt.Errorf("--lines range %q starts past the last line (%d)", spec, len(lines))
 	}
 	if to > len(lines) {
 		to = len(lines)
 	}
-	return lines[from-1 : to], nil
+	return lines[from-1 : to], from, nil
+}
+
+// numberLines prefixes each line with its 1-based number and a colon — the shape
+// the host reader prints, so a citation copied from `sdt read --numbered` is the
+// string a reviewer can search for.
+func numberLines(lines []string, start int) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = fmt.Sprintf("%d: %s", start+i, line)
+	}
+	return out
 }
 
 func sliceLines(content, spec string) ([]byte, error) {

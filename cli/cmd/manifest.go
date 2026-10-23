@@ -41,7 +41,11 @@ func buildCommandManifest(c *cobra.Command) CommandManifest {
 	}
 
 	var flags []FlagManifest
-	c.Flags().VisitAll(func(f *pflag.Flag) {
+	// LocalFlags, not Flags: a command that declares its whole option set with
+	// PersistentFlags (read, write) showed no flags at all, so the manifest told
+	// an agent the verb takes none. LocalFlags is the set the command itself
+	// parses; the globals every command inherits stay on the root entry.
+	c.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		if f.Hidden {
 			return
 		}

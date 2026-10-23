@@ -7,27 +7,29 @@ summary: "The agent's verbs: corpus read/write, the document lifecycle and the q
 ## The agent's verbs
 
 `sdt` is broad; this page is the part an agent uses. For the rest, read
-`sdt schema` or `context/sdtdocs/` (`sdt context docs`). Never guess a flag.
+`sdt schema` or `context/sdtdocs/`.
 
 - `sdt context new|path|list --type <t>` — create a work file ({{.NewTypes}}), print
   its path ({{.PathTypes}}), list one kind ({{.ListTypes}})
-- `sdt read -p <file|corpus-ref> [--section] [--lines]`, `context edit <doc>` — one
-  reader for the tree and the corpus, and a body/section writer
+- `sdt read -p <file|corpus-ref> [--section] [--lines a:b|-N:] [--numbered]`,
+  `context edit <doc> [--append]` — one reader with line numbers and a real
+  `--format json`, and a body writer that appends or replaces
 - `sdt context get|set|unset <doc> [<key>] [<value>]` — a frontmatter key, bytes
   preserved; `status`/`updated` are CLI-owned
 - `sdt context status get|set|vocab|sync`, `deprecate|rename|rm` — lifecycle; a
-  terminal status plus `--reason` closes, `rm` trashes
+  terminal status plus `--reason` closes
 - `sdt context task add`, `sdt context check <doc> [id] --state done|wip|block` —
-  checklists (`--phase`/`--all`/`--grep` batch); never ticked by hand
-- `sdt context search <query>`, `list` — the query engine
-- `sdt context relations parent|similar|rank|path|backfill` — parent, neighbours,
-  ranked candidates, chain, derived edges
-- `sdt context reindex`, `lint [path...]` — index, corpus
+  checklists (`--phase`/`--all`/`--grep`); never ticked by hand
+- `sdt context search`, `list` — the query engine
+- `sdt context relations parent|similar|rank|path` — parent, neighbours,
+  ranked candidates, chain
+- `sdt context reindex`, `lint` — index, corpus
 - `sdt context budget` — the always-loaded surface; informational, never a gate
-- `sdt grep [-A/-B/-C]`, `find [glob]`, `write -p <file>`, `sdt q` for JSON —
-  the working tree, bounded
+- `sdt grep [-A/-B/-C] [--path <file>]`, `find [glob]`, `ls [--stat] [--depth]`,
+  `diff <a> <b>`, `write -p <file>`, `sdt q` for JSON — the working tree,
+  bounded; `--path` is the one-file form
 - `sdt agent doctor|verify|gate|refresh` — health, instruction contract, the
-  project's `gate:` steps, a re-render without `init`
+  project's `gate:` steps, a re-render
 
 ## Search before asking
 
@@ -37,7 +39,7 @@ paths you read. It holds after a compaction, too.
 
 ## Output discipline
 
-A verb is an interface to a budget, not a dump:
+A verb is an interface to a budget:
 
 - **Cap what a verb prints**: truncate, filter, or pipe `--format json` into
   `sdt q`; a large result becomes a `context/tmp/` file and the line naming it.
