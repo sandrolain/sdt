@@ -121,6 +121,13 @@ func ToolboxRows() []ToolboxRow {
 			Replaces: "`cat >>`",
 		},
 		{
+			Operation: "replace one literal",
+			Display:   "`sdt edit -p <f> --old/--new`",
+			Command:   "edit",
+			Flags:     []string{"old", "new"},
+			Replaces:  "`python3`/`sed -i`",
+		},
+		{
 			Operation: "document state",
 			Display:   "`sdt context check/status/close`",
 			Command:   toolboxCmdContext,

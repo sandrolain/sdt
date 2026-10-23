@@ -26,6 +26,7 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
 | JSON, API | `sdt http` into `sdt q` | `curl`/`jq` |
 | two files | `sdt diff <a> <b>` | `diff` |
 | append to corpus | `sdt context edit --append` | `cat >>` |
+| replace one literal | `sdt edit -p <f> --old/--new` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
 
 ### HARD RULES (apply always)
@@ -80,9 +81,11 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
     *Don't:* fetch a web page with a host tool, or cite an uncaptured page as fact.
 11. **Local file work: the corpus is SDT's, code is the host's.** Corpus
     documents, document state, web capture and structured data go through `sdt`
-    — the table above picks the verb. Code editing, git, builds and running
-    processes stay the host's. A corpus write goes through `context edit`/`set`/
-    `check`, never a hand-edited file; `sdt write` is for bytes SDT produced.
+    — the table above picks the verb. Code editing stays the host's, except one
+    literal replacement (`sdt edit`, guarded and atomic); interactive editing,
+    patches, git, builds and processes stay the host's. A corpus write goes
+    through `context edit`/`set`/`check`, never a hand-edited file; `sdt write`
+    is for bytes SDT produced.
     Learn a flag from `sdt schema`, never from `--help`.
     *Don't:* leave the corpus to a host tool, or hand-edit its state.
 
