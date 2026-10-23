@@ -11,8 +11,7 @@ a merge that folds new material into an existing reference. Read it together
 with `context/instructions/ingestion.md` (conversion and archiving),
 `context/instructions/wiki.md` (the page model) and
 `context/instructions/development.md` (the process contract). Conversion is
-`sdt doc2md`; this module is the procedure that follows it. It names no
-converter and no runtime.
+`sdt doc2md`.
 
 **When this applies.** A source too large to read whole, or one that must become a
 queryable reference; a source readable in one pass is read instead
@@ -38,12 +37,14 @@ State the mode before extracting — it decides the budget and the output:
   per segment. Never one-shot the whole book, and never summarise a section you
   did not read.
 - **Partition exhaustively and validate it.** Split TOC-first (bookmarks or
-  headings), not by heuristic guesswork: the partition must cover the source
+  headings): the partition must cover the source
   **exactly once** — refuse gaps, overlaps and duplicates — with front/back matter
-  captured explicitly, and state the **numbering semantics** (source order, not
-  printed page numbers). When this does not apply: a source with no usable
-  structure falls back to section-native boundaries, and the refusal is reported,
-  never silently bypassed.
+  captured, and state the **numbering semantics** (source order, not
+  printed page numbers). `sdt context wiki units` enumerates them with line
+  spans, outside fenced code; never count by hand. When this does not apply: a
+  source with no
+  usable structure falls back to section-native boundaries, and the refusal is
+  reported, never silently bypassed.
 
 ## Extraction ledger and reconciliation
 
@@ -63,8 +64,7 @@ State the mode before extracting — it decides the budget and the output:
   claim. Do not invent a page number the conversion did not preserve.
 - **The source thesis is conditional.** A source-level thesis and its
   load-bearing claims can orient an argumentative work, but are not mandatory for
-  every source (a reference manual or dataset may have none); they never replace
-  claim-level evidence.
+  every source; they never replace claim-level evidence.
 
 ## Structure over summary
 
@@ -147,9 +147,11 @@ A distilled reference and the concept graph are two layers of one result, and
 one artifact spans them — the **index page**:
 
 - The reference's **section files** are the *load-on-demand navigable layer*:
-  they keep the source's own order, one file per section, and are loaded when a
-  reader needs them. They carry the source's structure with provenance, and they
-  are not the knowledge layer.
+  they keep the source's own order and load on demand. They
+  carry the source's structure with provenance, and they are not the knowledge
+  layer. They live under `context/refs/reference/<source-slug>/`, outside the
+  linted wiki; one file per source-native section, or a declared chapter bundle
+  named in the receipt. Every file cites its artifact range.
 - The **index page** in `context/wiki/` is the source's own page — one per source.
   It declares what the source covers (`wiki.md`, *The coverage record*), cites the
   reference's section files, and links the concept nodes that came out of the
@@ -199,8 +201,9 @@ the verify-step vocabulary (**passed** / **expected** / **inferred**) and
   (navigation, front/back matter, case-study narrative). A unit with no
   disposition is an unanswered question, not a quiet omission, and **any `gap`
   refuses completion** — never ship a partial as whole. The counts go into the
-  destination's coverage record (`wiki.md`, *The coverage record*). What the
-  audit cannot see: it measures coverage, not comprehension — a unit can be `OK`
+  destination's coverage record (`wiki.md`, *The coverage record*);
+  `sdt context wiki coverage --write` regenerates it from the citations. What
+  the audit cannot see: it measures coverage, not comprehension — a unit can be `OK`
   and still be badly explained, and that is the page contract's job, not this
   count's.
 - **Cross-ref integrity** — every `depends_on` has its reciprocal `required_by`

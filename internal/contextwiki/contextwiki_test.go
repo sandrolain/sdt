@@ -490,3 +490,53 @@ func TestFrontmatterTitleDecodesYAMLEscapes(t *testing.T) {
 		t.Errorf("FrontmatterTitle() = %q, want %q", got, want)
 	}
 }
+
+func TestParseFrontmatterMapReadsInlineFlowMap(t *testing.T) {
+	fm := `---
+kind: wiki
+relations: {refers_to: "[[architecture/fitness-function|fitness function]]", part_of: ["[[architecture/a|a]]", "[[architecture/b|b]]"]}
+tags: [architecture/evolution]
+---
+`
+	rels, inline := ParseFrontmatterMap(fm, "relations")
+	if !inline {
+		t.Fatalf("inline map must be reported as inline")
+	}
+	if got := rels["refers_to"]; len(got) != 1 || got[0] != "[[architecture/fitness-function|fitness function]]" {
+		t.Errorf("refers_to = %v", got)
+	}
+	if got := rels["part_of"]; len(got) != 2 || got[0] != "[[architecture/a|a]]" || got[1] != "[[architecture/b|b]]" {
+		t.Errorf("part_of = %v", got)
+	}
+}
+
+func TestParseFrontmatterMapKeepsBlockMap(t *testing.T) {
+	fm := `---
+relations:
+  refers_to:
+    - "[[a|a]]"
+---
+`
+	rels, inline := ParseFrontmatterMap(fm, "relations")
+	if inline {
+		t.Fatalf("block map must not be reported as inline")
+	}
+	if got := rels["refers_to"]; len(got) != 1 || got[0] != `"[[a|a]]"` {
+		t.Errorf("refers_to = %v", got)
+	}
+}
+
+func TestParseContentSeesInlineRelations(t *testing.T) {
+	content := `---
+kind: wiki
+id: architecture/fitness-function
+title: Fitness Function
+relations: {refers_to: "[[architecture/evolutionary-architecture|evolutionary architecture]]"}
+---
+body
+`
+	p := ParseContent(content, "context/wiki/architecture/fitness-function.md", "architecture/fitness-function")
+	if len(p.Relations["refers_to"]) != 1 {
+		t.Fatalf("inline relations were not read: %v", p.Relations)
+	}
+}

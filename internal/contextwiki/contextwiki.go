@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/frontmatter"
 )
@@ -355,7 +357,12 @@ func ParseFrontmatterMap(fm, key string) (map[string][]string, bool) {
 			if strings.HasPrefix(line, key+":") {
 				val := strings.TrimSpace(strings.TrimPrefix(line, key+":"))
 				if val != "" {
-					return nil, true // inline map; not supported
+					// Inline flow map (`{verb: "[[id]]"}`): the writer
+					// (`context set`, a hand edit) can produce it, so the
+					// reader must see the same edges. A malformed value keeps
+					// the old signal (inline present, no map) rather than
+					// silently pretending the page has none.
+					return parseInlineFlowMap(val), true
 				}
 				in = true
 			}
@@ -377,6 +384,38 @@ func ParseFrontmatterMap(fm, key string) (map[string][]string, bool) {
 		return nil, false
 	}
 	return out, false
+}
+
+// parseInlineFlowMap reads a YAML flow map value (`{verb: "[[id]]"}` or
+// `{verb: ["[[a]]", "[[b]]"]}`) into the same verb -> targets shape the block
+// reader returns. A value that does not parse yields nil, mirroring the block
+// reader's tolerance: the caller still knows the key was present.
+func parseInlineFlowMap(value string) map[string][]string {
+	var raw map[string]any
+	if err := yaml.Unmarshal([]byte(value), &raw); err != nil || len(raw) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(raw))
+	for verb, v := range raw {
+		switch tv := v.(type) {
+		case string:
+			out[verb] = []string{tv}
+		case []any:
+			items := make([]string, 0, len(tv))
+			for _, item := range tv {
+				if s, ok := item.(string); ok {
+					items = append(items, s)
+				}
+			}
+			if len(items) > 0 {
+				out[verb] = items
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // contentLines counts the lines a reader sees, the way `sdt read --count` and

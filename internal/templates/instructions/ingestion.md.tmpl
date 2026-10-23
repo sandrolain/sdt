@@ -60,14 +60,15 @@ are always skipped.
 1. Resolve the invocation scope (above).
 2. List pending (`status: pending`) files in scope.
 3. Convert when needed: bring each non-markdown source to markdown (see Reading
-   & conversion). The converted artifact — the kept markdown under
-   `context/refs/converted/`, or the text `sdt doc2md` prints — is what the
-   routing test measures, never the source binary.
+   & conversion). The converted artifact, not the source binary, is what the routing test
+   measures.
 4. **Route, and declare it** — count the artifact's section-level headings and
    its lines, and declare `route: single-pass` or `route: book-scale` with the
    test in Distillation rules. The route is a **declared decision, never an
    inference**: record it with the two counts in the receipt (`## Ingestion
-   receipt`), so it is auditable from the artifact alone. A `book-scale` source
+   receipt`), so it is auditable from the artifact alone. `sdt context wiki units`
+   prints those counts with the unit spans; use them as the denominator. A
+   `book-scale` source
    goes through `context/instructions/distillation.md` — its tiered batches, the
    extraction ledger and the fold-in merge — **before** any fact reaches a page.
 5. Read each source and split it into atomic facts (distillation rules below).
@@ -76,7 +77,9 @@ are always skipped.
    or create a new one.
 7. Write or update distilled `wiki/` pages per the schema, the six invariants
    and the concept budget — but only where the source adds durable synthesis
-   (the **compilation-value gate** below).
+   (the **compilation-value gate** below). On a book-scale source, `sdt context
+   wiki coverage --write` regenerates the index page's coverage block and
+   `## Structure` from the pages' citations.
 8. Wire `relations` + `tags`; every claim carries its source citation.
 9. Present the **write + archive plan** to the user: pages touched (created/
    updated), relations added/removed, and files to archive. **Wait for
@@ -87,19 +90,18 @@ are always skipped.
 **Routing record**: a run that skips the route is not auditable, so the receipt
 states `route:` and the two counts for **every** source, `single-pass` included.
 A route may be declared against the measured default when the agent knows the
-source (a dense reference index with few sections, a chapter already read): the
-declaration and its reason are recorded, never left implicit.
+source; record the reason.
 
-**Idempotence**: skip `status: archived` files; a re-run matches new candidates
-against existing nodes instead of re-reading archived sources as new input.
-**Existence guard**: before any write to `wiki/`, check the target path. A
+**Idempotence**: skip `status: archived` files; a re-run matches candidates
+against existing nodes, not against archived sources as new input.
+**Existence guard**: before any write to `wiki/`, check the path. A
 same-slug file with the same concept is **updated in place** (append claims /
 `refines #claim-n`), never overwritten silently; creating a new node requires
 the slug to be free.
 **Compilation-value gate**: create or expand a canonical page only when the
 source adds durable synthesis, navigation, a decision or a reusable connection
-beyond the captured source. A concise, searchable source may need only its
-`refs/` record or **a no-op** — never paraphrase merely to produce a page. Not
+beyond the captured source. A concise source may need only its
+`refs/` record or **a no-op** — never paraphrase to produce a page. Not
 writing is a first-class, correct outcome: record the no-op and its reason in
 the run's receipt counters.
 
@@ -396,10 +398,11 @@ The two counts are the routing trail: they make the declared route re-checkable
 from the artifact alone. `sdt doc2md` measures them when it keeps an artifact —
 levels 2–3 and the conversion's lines, frontmatter excluded — and
 `sdt doc2md list --format json` re-measures them on every kept artifact, so an
-older keep's receipt can be refilled from the listing; a hand count stays the
-fallback for an artifact that was never kept. The `coverage:` line repeats the source's index page's
-`coverage:` block as `ok/units` (`wiki.md`, *The coverage record*): a
-`book-scale` source **owes** it, and a book-scale route without it is an
+older keep's receipt can be refilled from the listing; `sdt context wiki
+coverage --receipt` prints the block above, filled in. The `coverage:` line
+repeats the source's
+index page's `coverage:` block as `ok/units` (`wiki.md`, *The coverage record*):
+a `book-scale` source **owes** it, and a book-scale route without it is an
 **incomplete** receipt, never a small one. A `single-pass` source omits the line
 — it owes no coverage record.
 

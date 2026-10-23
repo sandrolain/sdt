@@ -58,7 +58,9 @@ check can read it and a run cannot claim a complete book by accident.
 
 - **Units** come from the source's own chapter-and-section headings, classified
   `OK` / `PART` / `GAP`, with every non-`OK` unit dispositioned `gap` / `no-op` /
-  `not-conceptual` (`distillation.md`, *Quality gates*).
+  `not-conceptual` (`distillation.md`, *Quality gates*). They are enumerated by
+  `sdt context wiki units`, never counted by hand: code fences contain
+  heading-like lines.
 - **Frontmatter block** — the machine half, on the index page only:
 
   ```yaml
@@ -73,21 +75,20 @@ check can read it and a run cannot claim a complete book by accident.
   `ok + part + gap + no_op == units`; `gap > 0` means the run is **incomplete**
   and the page stays `draft` until the gap is distilled or dispositioned away.
 - **Body** — the human half: a `## Structure` section, one line per unit with its
-  classification and disposition (`Ch 4 — Decomposition · PART · gap`). A unit
-  list without dispositions is not a record.
+  classification and disposition (`- L234 · The Challenges of Evolving Software ·
+  OK · —`). A unit list without dispositions is not a record; the number is the
+  artifact line.
+- **Both halves are written by the audit.** `sdt context wiki coverage --write`
+  regenerates them from the pages' citations, keeping recorded dispositions;
+  `--receipt` prints the routing block. A hand-written block stays valid, but it
+  is the exception, not the path.
 - **Scope.** The block belongs to the source's index page, not to every page. A
-  page written from a single-pass source carries none, and its absence is not a
-  defect: only a declared book-scale run owes the block
+  single-pass source owes none; absence is not a defect
   (`ingestion.md`, *Ingestion receipt*).
-- **What the index page owns.** The source's frame: the coverage block, the
-  `## Structure` unit list, the one-line disposition per unit, the citations to
-  the reference's section files and the links to the concept nodes the source
-  produced. It is the single artifact that spans the reference layer and the
-  concept graph.
-- **What it must not carry.** Concept content. A definition, a mechanism or a
-  worked example belongs to the concept node that owns it; the index row links
-  to that node, and the node never restates an index row. Two copies of one
-  explanation is the defect this rule exists for
+- **What it owns.** The coverage block, the `## Structure` list, the
+  reference-file citations and the links to the concept nodes.
+- **What it must not carry.** Concept content: a definition or worked example
+  belongs to the node that owns it, and the node never restates an index row
   (`distillation.md`, *Reference → wiki bridge*).
 
 ## Reading and writing
