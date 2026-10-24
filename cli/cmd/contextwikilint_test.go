@@ -889,3 +889,99 @@ func TestWikiLintCoverage(t *testing.T) {
 		}
 	})
 }
+
+const conceptsInventoryNote = `---
+kind: notes
+note_type: concept-inventory
+sources:
+  - refs/spec.md
+summary: inventory
+inventory:
+  units: 10
+  candidates: 10
+  paged: 6
+  merged: 0
+  inline: 4
+  declined: 0
+  pending: 0
+---
+
+## Paged concepts
+`
+
+// conceptsPageBlock renders the coverage and concepts blocks the lint tests
+// vary one counter at a time.
+func conceptsPageBlock(candidates, paged, inline, pending int, from string) string {
+	return "coverage:\n  units: 10\n  ok: 6\n  part: 0\n  gap: 0\n  no_op: 4\n" +
+		"concepts:\n  from: " + from + "\n" +
+		"  candidates: " + itoa(candidates) + "\n" +
+		"  paged: " + itoa(paged) + "\n" +
+		"  merged: 0\n" +
+		"  inline: " + itoa(inline) + "\n" +
+		"  declined: 0\n" +
+		"  pending: " + itoa(pending) + "\n"
+}
+
+func itoa(n int) string {
+	return strconv.Itoa(n)
+}
+
+func writeConceptsFixture(t *testing.T, block string) {
+	t.Helper()
+	wikiSourceDirs(t)
+	writeCtxDoc(t, "context/notes/inv.md", conceptsInventoryNote)
+	writeCtxDoc(t, "context/wiki/covered.md", coveragePage("covered", block))
+	writeCtxDoc(t, "context/wiki/peer.md", coveragePeer)
+}
+
+func TestWikiLintConcepts(t *testing.T) {
+	t.Run("consistent block is silent", func(t *testing.T) {
+		setupContextProject(t)
+		writeConceptsFixture(t, conceptsPageBlock(10, 6, 4, 0, "notes/inv.md"))
+		if out := string(execute(t, contextWikiLintCmd, nil)); strings.Contains(out, "concepts") {
+			t.Fatalf("a consistent concepts block must not be a finding:\n%s", out)
+		}
+	})
+
+	t.Run("sum mismatch", func(t *testing.T) {
+		setupContextProject(t)
+		writeConceptsFixture(t, conceptsPageBlock(9, 6, 4, 0, "notes/inv.md"))
+		if out := wikiLintWarning(t); !strings.Contains(out, "concepts do not add up") {
+			t.Fatalf("expected a sum-mismatch finding:\n%s", out)
+		}
+	})
+
+	t.Run("pending candidate", func(t *testing.T) {
+		setupContextProject(t)
+		writeConceptsFixture(t, conceptsPageBlock(10, 6, 3, 1, "notes/inv.md"))
+		if out := wikiLintWarning(t); !strings.Contains(out, "pending") {
+			t.Fatalf("expected a pending finding:\n%s", out)
+		}
+	})
+
+	t.Run("missing note", func(t *testing.T) {
+		setupContextProject(t)
+		writeConceptsFixture(t, conceptsPageBlock(10, 6, 4, 0, "notes/missing.md"))
+		if out := wikiLintWarning(t); !strings.Contains(out, "concepts from") {
+			t.Fatalf("expected a missing-note finding:\n%s", out)
+		}
+	})
+
+	t.Run("counters disagree with the note", func(t *testing.T) {
+		setupContextProject(t)
+		writeConceptsFixture(t, conceptsPageBlock(10, 5, 5, 0, "notes/inv.md"))
+		if out := wikiLintWarning(t); !strings.Contains(out, "disagrees") {
+			t.Fatalf("expected a counter-disagreement finding:\n%s", out)
+		}
+	})
+
+	t.Run("absent block is not a finding", func(t *testing.T) {
+		setupContextProject(t)
+		wikiSourceDirs(t)
+		writeCtxDoc(t, "context/wiki/covered.md", coveragePage("covered", "coverage:\n  units: 10\n  ok: 6\n  part: 0\n  gap: 0\n  no_op: 4\n"))
+		writeCtxDoc(t, "context/wiki/peer.md", coveragePeer)
+		if out := string(execute(t, contextWikiLintCmd, nil)); strings.Contains(out, "concepts") {
+			t.Fatalf("an absent concepts block must not be a finding:\n%s", out)
+		}
+	})
+}

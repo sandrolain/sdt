@@ -182,6 +182,59 @@ Shape.
 	}
 }
 
+func TestConceptsBlock(t *testing.T) {
+	valid := `---
+kind: wiki
+id: book
+title: Book
+concepts:
+  from: notes/book-inventory.md
+  candidates: 10
+  paged: 6
+  merged: 1
+  inline: 2
+  declined: 0
+  pending: 1
+---
+## Summary
+Shape.
+`
+	c, present, err := ConceptsBlock(valid)
+	if !present || err != nil {
+		t.Fatalf("valid block: present=%v err=%v", present, err)
+	}
+	want := Concepts{From: "notes/book-inventory.md", Candidates: 10, Paged: 6, Merged: 1, Inline: 2, Declined: 0, Pending: 1}
+	if c != want {
+		t.Errorf("Concepts = %+v, want %+v", c, want)
+	}
+
+	if _, present, err := ConceptsBlock("---\nkind: wiki\n---\nbody\n"); present || err != nil {
+		t.Errorf("absent block: present=%v err=%v, want false/nil", present, err)
+	}
+
+	bad := []struct{ name, fm string }{
+		{"inline value", "---\nconcepts: 10\n---\n"},
+		{"unknown key", "---\nconcepts:\n  from: n.md\n  candidates: 1\n  paged: 1\n  merged: 0\n  inline: 0\n  declined: 0\n  pending: 0\n  extra: 0\n---\n"},
+		{"repeated key", "---\nconcepts:\n  from: n.md\n  candidates: 1\n  candidates: 1\n  paged: 1\n  merged: 0\n  inline: 0\n  declined: 0\n  pending: 0\n---\n"},
+		{"not an integer", "---\nconcepts:\n  from: n.md\n  candidates: many\n  paged: 1\n  merged: 0\n  inline: 0\n  declined: 0\n  pending: 0\n---\n"},
+		{"negative", "---\nconcepts:\n  from: n.md\n  candidates: 1\n  paged: 1\n  merged: 0\n  inline: 0\n  declined: -1\n  pending: 0\n---\n"},
+		{"missing from", "---\nconcepts:\n  candidates: 1\n  paged: 1\n  merged: 0\n  inline: 0\n  declined: 0\n  pending: 0\n---\n"},
+		{"missing key", "---\nconcepts:\n  from: n.md\n  candidates: 1\n  paged: 1\n---\n"},
+	}
+	for _, tc := range bad {
+		if _, present, err := ConceptsBlock(tc.fm); !present || err == nil {
+			t.Errorf("%s: present=%v err=%v, want a reported malformed block", tc.name, present, err)
+		}
+	}
+
+	// The sum identity and a pending candidate are the caller's findings, not
+	// parse errors.
+	_, present, err = ConceptsBlock("---\nconcepts:\n  from: n.md\n  candidates: 10\n  paged: 6\n  merged: 0\n  inline: 3\n  declined: 0\n  pending: 1\n---\n")
+	if !present || err != nil {
+		t.Errorf("sum/pending findings must not be parse errors: present=%v err=%v", present, err)
+	}
+}
+
 func TestParseContentTypedBodyLinks(t *testing.T) {
 	p := ParseContent("---\nid: a\n---\nBody with [[depends_on::B]] and [[plain|Label]].", "context/wiki/a.md", "a")
 	if len(p.Links) != 2 {

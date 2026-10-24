@@ -67,6 +67,7 @@ func lintWikiLint() []ctxLintIssue {
 	lintWikiBudget(b, bld.Pages)
 	lintWikiDepth(b, bld.Pages)
 	lintWikiCoverage(b, bld.Pages)
+	lintWikiConcepts(b, bld.Pages)
 	lintWikiMarkdownLD(b, bld.Pages)
 	lintWikiMarkers(b)
 	return b.issues
@@ -457,6 +458,65 @@ func lintWikiCoverage(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 			b.add(p.Path, ctxLintWarning, "coverage leaves %d unit(s) as gap: the run is incomplete — distil them or disposition them", c.Gap)
 		}
 	}
+}
+
+// lintWikiConcepts checks the concept half of a book-scale run's coverage
+// record: a malformed block, the counters' identity, a pending candidate, a
+// `from` note that cannot be read, and counters that disagree with that note.
+// A page with no block is not a finding.
+func lintWikiConcepts(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	for _, p := range pages {
+		c, present, err := contextwiki.ConceptsBlock(p.Frontmatter)
+		if !present {
+			continue
+		}
+		if err != nil {
+			b.add(p.Path, ctxLintWarning, "concepts block is malformed: %v", err)
+			continue
+		}
+		if sum := c.Paged + c.Merged + c.Inline + c.Declined + c.Pending; sum != c.Candidates {
+			b.add(p.Path, ctxLintWarning, "concepts do not add up: paged+merged+inline+declined+pending = %d, candidates = %d", sum, c.Candidates)
+		}
+		if c.Pending > 0 {
+			b.add(p.Path, ctxLintWarning, "concept coverage leaves %d candidate(s) pending: the run is incomplete — page, inline or decline them", c.Pending)
+		}
+		notePath, nerr := resolveInventoryNote(c.From)
+		if nerr != nil {
+			b.add(p.Path, ctxLintWarning, "concepts from %q: %v", c.From, nerr)
+			continue
+		}
+		note, nerr := readInventoryNote(notePath)
+		if nerr != nil {
+			b.add(p.Path, ctxLintWarning, "concepts from %q is unreadable: %v", c.From, nerr)
+			continue
+		}
+		if diffs := conceptCounterDiffs(c, note.Inventory); len(diffs) > 0 {
+			b.add(p.Path, ctxLintWarning, "concepts block disagrees with %s: %s", c.From, strings.Join(diffs, ", "))
+		}
+	}
+}
+
+// conceptCounterDiffs names every counter the block and the note disagree on.
+func conceptCounterDiffs(c contextwiki.Concepts, n inventoryCounts) []string {
+	pairs := []struct {
+		name string
+		got  int
+		want int
+	}{
+		{"candidates", c.Candidates, n.Candidates},
+		{"paged", c.Paged, n.Paged},
+		{"merged", c.Merged, n.Merged},
+		{"inline", c.Inline, n.Inline},
+		{"declined", c.Declined, n.Declined},
+		{"pending", c.Pending, n.Pending},
+	}
+	var diffs []string
+	for _, p := range pairs {
+		if p.got != p.want {
+			diffs = append(diffs, fmt.Sprintf("%s=%d (note %d)", p.name, p.got, p.want))
+		}
+	}
+	return diffs
 }
 
 // lintWikiMarkdownLD validates optional markdown-ld JSON blocks.

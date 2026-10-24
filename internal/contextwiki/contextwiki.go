@@ -682,6 +682,123 @@ func CoverageBlock(fm string) (Coverage, bool, error) {
 	return Coverage{}, false, nil
 }
 
+// Concepts is the concept-coverage record a book-scale source's index page
+// declares next to the unit `coverage:` block (wiki.md, *The coverage record*):
+// the inventory's candidate counts, read from the checked inventory note.
+type Concepts struct {
+	From       string
+	Candidates int
+	Paged      int
+	Merged     int
+	Inline     int
+	Declined   int
+	Pending    int
+}
+
+// ConceptKeys are the six count keys a concepts block declares, in the order
+// the record reads them; `from` names the inventory note and is also required.
+var ConceptKeys = []string{"candidates", "paged", "merged", "inline", "declined", "pending"}
+
+// ConceptsBlock reads the `concepts:` block from a page frontmatter (the full
+// block incl. its `---` delimiters, or the bare frontmatter text). present
+// reports whether the key is declared at all. err is non-nil when the block is
+// there and does not parse as `from` plus the six non-negative integer keys
+// (inline value, unknown or repeated key, non-integer, negative, missing key).
+// The identity and a non-zero Pending are the caller's findings.
+func ConceptsBlock(fm string) (Concepts, bool, error) {
+	block := strings.TrimPrefix(fm, fmStart)
+	lines := strings.Split(block, "\n")
+	for i, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" || strings.HasPrefix(trim, "#") || line[0] == ' ' || line[0] == '\t' {
+			continue
+		}
+		key, val, ok := strings.Cut(line, ":")
+		if !ok || strings.TrimSpace(key) != "concepts" {
+			continue
+		}
+		if strings.TrimSpace(val) != "" {
+			return Concepts{}, true, fmt.Errorf("`concepts` must be a block of keys, got the inline value %q", strings.TrimSpace(val))
+		}
+		return parseConceptsBlock(lines[i+1:])
+	}
+	return Concepts{}, false, nil
+}
+
+// parseConceptsBlock reads the indented key/value lines after `concepts:`,
+// requiring `from` and all six count keys exactly once.
+func parseConceptsBlock(lines []string) (Concepts, bool, error) {
+	c := Concepts{}
+	seen := map[string]bool{}
+	for _, line := range lines {
+		sub := strings.TrimSpace(line)
+		if sub == "" {
+			continue
+		}
+		if line[0] != ' ' && line[0] != '\t' {
+			break
+		}
+		k, v, ok := strings.Cut(sub, ":")
+		if !ok {
+			return Concepts{}, true, fmt.Errorf("concepts entry %q is not a `key: value` pair", sub)
+		}
+		k = strings.TrimSpace(k)
+		if seen[k] {
+			return Concepts{}, true, fmt.Errorf("concepts key %q is declared twice", k)
+		}
+		if k == "from" {
+			c.From = trimYAMLQuotes(strings.TrimSpace(v))
+			if c.From == "" {
+				return Concepts{}, true, fmt.Errorf("concepts from must name the inventory note")
+			}
+			seen[k] = true
+			continue
+		}
+		n, convErr := strconv.Atoi(trimYAMLQuotes(strings.TrimSpace(v)))
+		if convErr != nil || n < 0 {
+			return Concepts{}, true, fmt.Errorf("concepts %s must be a non-negative integer, got %q", k, strings.TrimSpace(v))
+		}
+		if err := c.set(k, n); err != nil {
+			return Concepts{}, true, err
+		}
+		seen[k] = true
+	}
+	var missing []string
+	if !seen["from"] {
+		missing = append(missing, "from")
+	}
+	for _, k := range ConceptKeys {
+		if !seen[k] {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) > 0 {
+		return Concepts{}, true, fmt.Errorf("concepts block is missing %s", strings.Join(missing, ", "))
+	}
+	return c, true, nil
+}
+
+// set assigns one declared concepts count key; an unknown key is malformed.
+func (c *Concepts) set(key string, n int) error {
+	switch key {
+	case "candidates":
+		c.Candidates = n
+	case "paged":
+		c.Paged = n
+	case "merged":
+		c.Merged = n
+	case "inline":
+		c.Inline = n
+	case "declined":
+		c.Declined = n
+	case "pending":
+		c.Pending = n
+	default:
+		return fmt.Errorf("unknown concepts key %q (want from, %s)", key, strings.Join(ConceptKeys, ", "))
+	}
+	return nil
+}
+
 // parseCoverageBlock reads the indented `key: value` lines that follow a
 // `coverage:` key, up to the next top-level key or the end of the block, and
 // requires all five keys exactly once.

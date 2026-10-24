@@ -74,14 +74,35 @@ check can read it and a run cannot claim a complete book by accident.
 
   `ok + part + gap + no_op == units`; `gap > 0` means the run is **incomplete**
   and the page stays `draft` until the gap is distilled or dispositioned away.
+- **Concept block** — the inventory half, next to the unit block and on the same
+  page:
+
+  ```yaml
+  concepts:
+    from: notes/<source>-concept-inventory.md
+    candidates: 72
+    paged: 37
+    merged: 2
+    inline: 33
+    declined: 0
+    pending: 0
+  ```
+
+  `paged + merged + inline + declined + pending == candidates`; `pending > 0`
+  means the run is **incomplete** for the same reason `gap > 0` is. The counters
+  are read from the checked inventory note named by `from`
+  (`sdt context wiki inventory`), never typed by hand, and a block that disagrees
+  with its note is a finding. The block is additional: it does not reclassify a
+  unit and does not replace `coverage:`.
 - **Body** — the human half: a `## Structure` section, one line per unit with its
   classification and disposition (`- L234 · The Challenges of Evolving Software ·
   OK · —`). A unit list without dispositions is not a record; the number is the
   artifact line.
 - **Both halves are written by the audit.** `sdt context wiki coverage --write`
   regenerates them from the pages' citations, keeping recorded dispositions;
-  `--receipt` prints the routing block. A hand-written block stays valid, but it
-  is the exception, not the path.
+  `--inventory <note>` seeds the concept block, and a later `--write` reads the
+  recorded `from`; `--receipt` prints the routing block. A hand-written block
+  stays valid, but it is the exception, not the path.
 - **Scope.** The block belongs to the source's index page, not to every page. A
   single-pass source owes none; absence is not a defect
   (`ingestion.md`, *Ingestion receipt*).

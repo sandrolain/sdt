@@ -171,3 +171,102 @@ func TestWikiCoverageReadsDispositions(t *testing.T) {
 		t.Errorf("the recorded disposition was not kept:\n%s", out)
 	}
 }
+
+const covRunInventory = `---
+kind: notes
+note_type: concept-inventory
+sources:
+  - refs/converted/book-abcdef123456.md
+summary: inventory fixture
+inventory:
+  units: 5
+  candidates: 4
+  paged: 2
+  merged: 0
+  inline: 2
+  declined: 0
+  pending: 0
+---
+
+## Paged concepts
+
+| id | concept | disposition | target | claim | source |
+|---|---|---|---|---|---|
+| C1 | Alpha | page | architecture/alpha | claim-1 | refs/converted/book-abcdef123456.md |
+| C2 | Alpha | page | architecture/alpha | claim-2 | refs/converted/book-abcdef123456.md |
+`
+
+func TestWikiCoverageWritesConcepts(t *testing.T) {
+	setupContextProject(t)
+	writeCovRunFixture(t)
+	writeCtxDoc(t, "context/notes/book-inventory.md", covRunInventory)
+
+	out := execute(t, contextWikiCoverageCmd, nil,
+		"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
+		"--inventory", "notes/book-inventory.md", "--write")
+	if !strings.Contains(string(out), "coverage updated") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+
+	content, err := os.ReadFile("context/wiki/sources/book.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(content)
+	for _, want := range []string{
+		"coverage:",
+		"  units: 5",
+		"concepts:",
+		"  from: notes/book-inventory.md",
+		"  candidates: 4",
+		"  paged: 2",
+		"  merged: 0",
+		"  inline: 2",
+		"  declined: 0",
+		"  pending: 0",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page is missing %q:\n%s", want, page)
+		}
+	}
+	if strings.Index(page, "coverage:") > strings.Index(page, "concepts:") {
+		t.Errorf("concepts must follow coverage:\n%s", page)
+	}
+
+	// A second run without --inventory reads the recorded `from` and is
+	// byte-identical.
+	execute(t, contextWikiCoverageCmd, nil,
+		"sources/book", "--artifact", "refs/converted/book-abcdef123456.md", "--write")
+	again, err := os.ReadFile("context/wiki/sources/book.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(again) != page {
+		t.Errorf("a concepts write without --inventory is not idempotent:\nfirst:\n%s\nsecond:\n%s", page, again)
+	}
+}
+
+func TestWikiCoverageReceiptQuotesConcepts(t *testing.T) {
+	setupContextProject(t)
+	writeCovRunFixture(t)
+	writeCtxDoc(t, "context/notes/book-inventory.md", covRunInventory)
+	execute(t, contextWikiCoverageCmd, nil,
+		"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
+		"--inventory", "notes/book-inventory.md", "--write")
+	out := execute(t, contextWikiCoverageCmd, nil,
+		"sources/book", "--artifact", "refs/converted/book-abcdef123456.md", "--receipt")
+	if !strings.Contains(string(out), "concepts: 2/4") {
+		t.Errorf("receipt does not quote the concept counters:\n%s", out)
+	}
+}
+
+func TestWikiCoverageRefusesAnInventoryForAnotherSource(t *testing.T) {
+	setupContextProject(t)
+	writeCovRunFixture(t)
+	writeCtxDoc(t, "context/notes/book-inventory.md", strings.Replace(covRunInventory,
+		"refs/converted/book-abcdef123456.md", "refs/converted/other-abcdef123456.md", 2))
+	stubWikiExit(t)
+	execute(t, contextWikiCoverageCmd, nil,
+		"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
+		"--inventory", "notes/book-inventory.md", "--write")
+}

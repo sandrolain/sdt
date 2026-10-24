@@ -392,6 +392,8 @@ route: single-pass|book-scale
 section_headings: <n>        # measured on the converted artifact
 lines: <n>
 coverage: <ok>/<units>       # the coverage block's ok over units; book-scale only
+concepts: <paged>/<candidates> # the concepts block's paged over candidates; book-scale only
+summary_check: pass|fail (pages: <ids>)
 ```
 
 The two counts are the routing trail: they make the declared route re-checkable
@@ -406,6 +408,18 @@ a `book-scale` source **owes** it, and a book-scale route without it is an
 **incomplete** receipt, never a small one. A `single-pass` source omits the line
 — it owes no coverage record.
 
+The `concepts:` line repeats the index page's `concepts:` block as
+`paged/candidates` (`wiki.md`, *The coverage record*). The block is derived from
+the source's checked inventory note, never typed by hand; a block that disagrees
+with its note, or that still carries pending candidates, is an **incomplete**
+run for the same reason a non-zero gap is.
+
+The `summary_check:` line records a review, not a lint. For each concept page,
+the reviewer states what the page claims and why it matters **without opening
+the source**: a summary that only names the topic fails, and the summary or the
+prose is rewritten until the sentence is possible. The failing page ids stay in
+the line so the review is visible after the fact; no tool reads comprehension.
+
 ## Verification
 
 - `sdt context wiki lint` — schema/graph checks on `wiki/` (scanned
@@ -414,10 +428,16 @@ a `book-scale` source **owes** it, and a book-scale route without it is an
   The **coverage record** is part of that surface: a malformed `coverage:` block,
   a sum that does not match `units` and a `gap > 0` are reported, while an absent
   block is not a finding — whether a source was book-scale is the declared route's
-  job (`## Ingestion receipt`), not a shape the tool can infer.
+  job (`## Ingestion receipt`), not a shape the tool can infer. The
+  **concepts block** is checked the same way: a malformed block, a sum that does
+  not match `candidates`, counters that disagree with the note it names, a
+  missing note and `pending > 0` are reported; an absent block is not.
 - The receipt repeats the coverage numbers, so a reader of the run sees the
   source's coverage without opening the page; a `book-scale` route with no
   coverage record is an **incomplete** run, not a terse one.
+- The **summary check** is a review, not a lint: no tool reads comprehension.
+  `summary_check:` records the reviewer's verdict and the failing page ids; a
+  passing line with no review behind it is a false record, not a check.
 - Security: `sdt context lint --security` flags prompt-injection phrases,
   credential/secret literals and invisible/zero-width Unicode in the ingested
   knowledge (advisory WARNING) before they can steer the agent.

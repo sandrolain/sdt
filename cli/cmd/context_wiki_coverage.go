@@ -24,14 +24,15 @@ import (
 
 // wikiCoverageReport is the machine view of one coverage run.
 type wikiCoverageReport struct {
-	Page      string          `json:"page" yaml:"page"`
-	Artifact  string          `json:"artifact" yaml:"artifact"`
-	Pages     []string        `json:"pages" yaml:"pages"`
-	Route     string          `json:"route" yaml:"route"`
-	Stats     distill.Stats   `json:"stats" yaml:"stats"`
-	Counts    distill.Counts  `json:"coverage" yaml:"coverage"`
-	Units     []distill.Unit  `json:"units" yaml:"units"`
-	OutOfSpan []distill.Range `json:"out_of_span,omitempty" yaml:"out_of_span,omitempty"`
+	Page      string                `json:"page" yaml:"page"`
+	Artifact  string                `json:"artifact" yaml:"artifact"`
+	Pages     []string              `json:"pages" yaml:"pages"`
+	Route     string                `json:"route" yaml:"route"`
+	Stats     distill.Stats         `json:"stats" yaml:"stats"`
+	Counts    distill.Counts        `json:"coverage" yaml:"coverage"`
+	Concepts  *contextwiki.Concepts `json:"concepts,omitempty" yaml:"concepts,omitempty"`
+	Units     []distill.Unit        `json:"units" yaml:"units"`
+	OutOfSpan []distill.Range       `json:"out_of_span,omitempty" yaml:"out_of_span,omitempty"`
 }
 
 var contextWikiCoverageCmd = &cobra.Command{
@@ -104,6 +105,11 @@ Examples:
 		}
 
 		route := routeFor(stats)
+		concepts, cerr := conceptsForWrite(cmd, pageContent, relArtifact)
+		if cerr != nil {
+			exitWithError(cmd, cerr)
+			return
+		}
 		report := wikiCoverageReport{
 			Page:      corpusRelative(pagePath),
 			Artifact:  relArtifact,
@@ -111,6 +117,7 @@ Examples:
 			Route:     route,
 			Stats:     stats,
 			Counts:    counts,
+			Concepts:  concepts,
 			Units:     units,
 			OutOfSpan: outOfSpan,
 		}
@@ -141,6 +148,10 @@ Examples:
 		default:
 			outputString(cmd, fmt.Sprintf("%s  units=%d ok=%d part=%d gap=%d no_op=%d\n",
 				report.Artifact, counts.Units, counts.OK, counts.Part, counts.Gap, counts.NoOp))
+			if c := report.Concepts; c != nil {
+				outputString(cmd, fmt.Sprintf("concepts: %d/%d paged, %d merged, %d inline, %d declined, %d pending\n",
+					c.Paged, c.Candidates, c.Merged, c.Inline, c.Declined, c.Pending))
+			}
 			for _, u := range units {
 				if u.Kind == distill.UnitContainer {
 					continue
@@ -308,8 +319,58 @@ func routeFor(stats distill.Stats) string {
 
 // receiptBlock renders the lines an ingestion receipt quotes for one source.
 func receiptBlock(r wikiCoverageReport) string {
-	return fmt.Sprintf("source: %s\nroute: %s\nsection_headings: %d\nlines: %d\ncoverage: %d/%d\n",
+	out := fmt.Sprintf("source: %s\nroute: %s\nsection_headings: %d\nlines: %d\ncoverage: %d/%d\n",
 		r.Artifact, r.Route, r.Stats.Headings23, r.Stats.Lines, r.Counts.OK, r.Counts.Units)
+	if r.Concepts != nil {
+		out += fmt.Sprintf("concepts: %d/%d\n", r.Concepts.Paged, r.Concepts.Candidates)
+	}
+	return out
+}
+
+// conceptsForWrite resolves the concept-coverage block: from the --inventory
+// flag, or from the `from` already recorded on the page. The note is read and
+// validated (source match and the counters' identity), never trusted as typed.
+// With neither, the page keeps no block.
+func conceptsForWrite(cmd *cobra.Command, pageContent []byte, artifact string) (*contextwiki.Concepts, error) {
+	ref := getStringFlag(cmd, "inventory", false)
+	if ref == "" {
+		recorded, present, err := contextwiki.ConceptsBlock(string(pageContent))
+		if err != nil {
+			return nil, fmt.Errorf("read concepts block: %w", err)
+		}
+		if !present {
+			return nil, nil
+		}
+		ref = recorded.From
+	}
+	notePath, err := resolveInventoryNote(ref)
+	if err != nil {
+		return nil, err
+	}
+	note, err := readInventoryNote(notePath)
+	if err != nil {
+		return nil, err
+	}
+	source := note.artifactSource()
+	if source == "" {
+		return nil, fmt.Errorf("inventory %s names no refs/ source", ref)
+	}
+	if source != artifact {
+		return nil, fmt.Errorf("inventory %s describes %s, not %s", ref, source, artifact)
+	}
+	c := note.Inventory
+	if sum := c.Paged + c.Merged + c.Inline + c.Declined + c.Pending; sum != c.Candidates {
+		return nil, fmt.Errorf("inventory %s does not add up: paged+merged+inline+declined+pending = %d, candidates = %d", ref, sum, c.Candidates)
+	}
+	return &contextwiki.Concepts{
+		From:       corpusRelative(notePath),
+		Candidates: c.Candidates,
+		Paged:      c.Paged,
+		Merged:     c.Merged,
+		Inline:     c.Inline,
+		Declined:   c.Declined,
+		Pending:    c.Pending,
+	}, nil
 }
 
 // writeCoverage regenerates the coverage block and the ## Structure section.
@@ -326,11 +387,28 @@ func writeCoverage(path string, content []byte, report wikiCoverageReport, dryRu
 	if err != nil {
 		return err
 	}
+	if c := report.Concepts; c != nil {
+		conceptValue := fmt.Sprintf("  from: %s\n  candidates: %d\n  paged: %d\n  merged: %d\n  inline: %d\n  declined: %d\n  pending: %d",
+			c.From, c.Candidates, c.Paged, c.Merged, c.Inline, c.Declined, c.Pending)
+		staged, perr := frontmatter.Parse("---\n" + newYAML + "\n---\n")
+		if perr != nil {
+			return fmt.Errorf("stage coverage block of %s: %w", path, perr)
+		}
+		newYAML, err = staged.Set("concepts", conceptValue, []string{"coverage"})
+		if err != nil {
+			return err
+		}
+	}
 	updated := block.ReplaceBody(string(content), newYAML)
 	fm, body := contextwiki.SplitFrontmatter(updated)
 	body = replaceStructure(body, report.Units)
 	if dryRun {
-		if _, werr := fmt.Fprintf(os.Stdout, "--- coverage ---\ncoverage:\n%s\n--- structure ---\n%s", strings.TrimPrefix(value, "  "), structureSection(report.Units)); werr != nil {
+		extra := ""
+		if c := report.Concepts; c != nil {
+			extra = fmt.Sprintf("concepts:\n  from: %s\n  candidates: %d\n  paged: %d\n  merged: %d\n  inline: %d\n  declined: %d\n  pending: %d\n",
+				c.From, c.Candidates, c.Paged, c.Merged, c.Inline, c.Declined, c.Pending)
+		}
+		if _, werr := fmt.Fprintf(os.Stdout, "--- coverage ---\ncoverage:\n%s\n%s--- structure ---\n%s", strings.TrimPrefix(value, "  "), extra, structureSection(report.Units)); werr != nil {
 			return werr
 		}
 		return nil
@@ -395,6 +473,7 @@ func structureSection(units []distill.Unit) string {
 
 func init() {
 	contextWikiCoverageCmd.Flags().String("artifact", "", "Converted artifact the page represents (required)")
+	contextWikiCoverageCmd.Flags().String("inventory", "", "Concept-inventory note to derive the concepts block from (default: the page's recorded from)")
 	contextWikiCoverageCmd.Flags().StringArray("from", nil, "Page carrying the citations (repeatable; default: every wiki page citing the artifact)")
 	contextWikiCoverageCmd.Flags().Bool("receipt", false, "Print the ingestion receipt's routing block")
 	contextWikiCoverageCmd.Flags().Bool("write", false, "Regenerate the coverage block and ## Structure")

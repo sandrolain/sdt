@@ -49,14 +49,16 @@ var instructionModuleCeilings = map[string]int{
 }
 
 var instructionModuleRatchet = map[string]int{
-	// ingestion rose to 3569 (2026-10-21): the routing receipt now names where
-	// the two counts come from — `sdt doc2md` keeps them measured, so the hand
-	// count that motivated the routing trail is the documented fallback.
-	"ingestion":    3569,
-	"plan":         2645,
-	"analysis":     2496,
-	"development":  2455,
-	"wiki":         2327,
+	// ingestion rose to 3786 (2026-10-24): the receipt now carries the
+	// concept-coverage line and the summary-check verdict, the two halves of a
+	// book-scale run that the unit coverage alone could not report.
+	"ingestion":   3786,
+	"plan":        2645,
+	"analysis":    2496,
+	"development": 2455,
+	// wiki rose to 2443 (2026-10-24): the coverage record documents the
+	// `concepts:` block beside the unit block, its identity and its findings.
+	"wiki":         2443,
 	"distillation": 1763,
 }
 
