@@ -599,6 +599,41 @@
     font-size: 0.78rem;
     font-style: italic;
   }
+  /* The pet's style menu: a short list on the popover's own surface. The additive
+     variants are disabled on the light theme and the note under the list says why, so a
+     reader who wonders where they went reads an answer instead of a silent absence. */
+  .agent-panel__pet-popover {
+    min-width: 10rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-mantle);
+    box-shadow: 0 8px 24px var(--shadow-color);
+  }
+  .agent-panel__pet-menu {
+    display: flex;
+    flex-direction: column;
+  }
+  .agent-panel__pet-item {
+    padding: 0.3rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .agent-panel__pet-item[data-hovered] {
+    background: var(--bg-hover);
+  }
+  .agent-panel__pet-item[data-selected] {
+    color: var(--accent);
+  }
+  .agent-panel__pet-item[data-disabled] {
+    color: var(--fg-dim);
+    cursor: default;
+  }
+  .agent-panel__pet-note {
+    padding: 0.3rem 0.5rem 0.2rem;
+    font-size: 0.72rem;
+  }
   .agent-panel__model {
     display: flex;
     align-items: center;
@@ -616,6 +651,18 @@
   }
   .agent-panel__composer input {
     flex: 1;
+  }
+  /* The pet's band: a declared height above the composer, so the lazy WebGL chunk arriving
+     never resizes the thread, and the pet's own surface — the additive variants need a
+     stable colour behind them, which is the panel's mantle. Decorative: the band is
+     aria-hidden in the markup, because the state is already words in the thread. */
+  .agent-panel__pet {
+    position: relative;
+    flex: none;
+    block-size: 11rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-mantle);
+    overflow: hidden;
   }
   .search-palette__overlay {
     position: fixed;

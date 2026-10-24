@@ -38,8 +38,13 @@ const (
 // and nothing else. The plan is thread-level rather than a part of a message,
 // because a plan spans messages and is updated in place by id.
 type Thread struct {
-	SessionID string            `json:"sessionId"`
-	Messages  []Message         `json:"messages"`
+	SessionID string `json:"sessionId"`
+	// Running marks a turn in flight: the user has sent a prompt and the agent has not
+	// answered it yet. It is the thread's own fact rather than a part's, because the
+	// question it answers — "is a turn happening now?" — is asked across messages, and a
+	// snapshot that had to infer it from parts would guess at both ends of the turn.
+	Running  bool              `json:"running,omitempty"`
+	Messages []Message         `json:"messages"`
 	Plan      *Plan             `json:"plan,omitempty"`
 	Commands  []SlashCommand    `json:"commands,omitempty"`
 	Mode      string            `json:"mode,omitempty"`
@@ -359,6 +364,21 @@ func (s *ThreadState) messageIndex(id string) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// SetRunning records whether a turn is in flight and announces the change: the snapshot a
+// browser reads is a whole thread, so a turn's span is a state change like any other and
+// has to notify. A no-op when nothing changed keeps a repeated report from waking every
+// listener for nothing.
+func (s *ThreadState) SetRunning(running bool) {
+	s.mu.Lock()
+	if s.thread.Running == running {
+		s.mu.Unlock()
+		return
+	}
+	s.thread.Running = running
+	s.mu.Unlock()
+	s.notify()
 }
 
 // notify hands a snapshot to the listener, if one is registered.

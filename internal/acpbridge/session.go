@@ -83,7 +83,14 @@ func (s *Session) Prompt(ctx context.Context, text string) error {
 		s.turnsMu.Lock()
 		s.running = false
 		s.turnsMu.Unlock()
+		// Cleared after the ending was written, so a reader who sees the turn finish also
+		// sees it stopped: the two facts travel in one snapshot, never in two.
+		s.state.SetRunning(false)
 	}()
+
+	// The span opens before the message it belongs to: a reader who sees the turn is
+	// running, and the prompt that opened it, from the same side of the wire.
+	s.state.SetRunning(true)
 
 	conn, sessionID := s.connection()
 	id := s.state.openUserMessage(text)

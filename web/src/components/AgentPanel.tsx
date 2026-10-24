@@ -15,12 +15,39 @@
  * Its width is the reader's too: the handle on the panel's inline-start edge drags and
  * steps it, and the value is remembered across sessions.
  */
-import { Dialog, Modal, ModalOverlay } from "react-aria-components";
+import {
+  Button,
+  Dialog,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+  Modal,
+  ModalOverlay,
+  Popover,
+} from "react-aria-components";
 import { AgentThread } from "./AgentThread";
 import { ComboBox, type UiComboOption } from "./ui/ComboBox";
 import { TooltipButton } from "./ui/Tooltip";
 import { Icon } from "../lib/icon";
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  effectiveVariant,
+  PET_VARIANTS,
+  readPetEnabled,
+  readPetVariant,
+  writePetEnabled,
+  writePetVariant,
+} from "../lib/petPreference";
+import type { PetVariant } from "../lib/pet/types";
+import { useDocumentTheme } from "../lib/themeAttr";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import {
   clampPanelWidth,
   DEFAULT_PANEL_WIDTH,
@@ -45,6 +72,13 @@ import {
   type AgentStatusFrame,
   type AgentStream,
 } from "../lib/agent";
+
+/**
+ * The pet is lazy for the same reason the canvas is: its library imports `three`, and a
+ * reader who never opens the panel never downloads it. The band declares its own height, so
+ * the chunk arriving never resizes the thread.
+ */
+const PetStrip = lazy(() => import("./PetStrip"));
 
 /** What the panel is showing, as one value rather than a set of booleans. */
 type Phase = "loading" | "starting" | "active" | "restarting" | "stopped" | "error";
@@ -212,6 +246,23 @@ export function AgentPanel({
   // The width is read once, on mount, and written at the end of a drag or a keyboard step
   // rather than on every pointer move: a preference is a decision, and the pointer passing
   // over the edge is not one.
+  // The pet is a browser preference, read once on mount and written on the reader's own
+  // acts — the same shape as the width, and never a project file.
+  const [petOn, setPetOn] = useState(readPetEnabled);
+  const [petVariant, setPetVariant] = useState(readPetVariant);
+  const theme = useDocumentTheme();
+
+  const togglePet = () => {
+    const next = !petOn;
+    setPetOn(next);
+    writePetEnabled(next);
+  };
+
+  const choosePet = (variant: PetVariant) => {
+    setPetVariant(variant);
+    writePetVariant(variant);
+  };
+
   const [width, setWidth] = useState(readPanelWidth);
 
   const dragPanel = (next: number) => setWidth(clampPanelWidth(next));
@@ -283,6 +334,20 @@ export function AgentPanel({
                       <Icon name="add_comment" />
                     </TooltipButton>
                   )}
+                  {/* The style menu exists only while there is a pet to style; the toggle is
+                      always here, because the band it controls collapses to nothing. */}
+                  {petOn && (
+                    <AgentPetMenu variant={petVariant} theme={theme} onSelect={choosePet} />
+                  )}
+                  <TooltipButton
+                    className="agent-panel__icon-button"
+                    label={petOn ? "Hide the pet" : "Show the pet"}
+                    tooltip={petOn ? "Hide the pet" : "Show the pet"}
+                    aria-pressed={petOn}
+                    onPress={togglePet}
+                  >
+                    <Icon name="pets" />
+                  </TooltipButton>
                   <TooltipButton
                     className="agent-panel__icon-button"
                     label="Close the agent panel"
@@ -377,6 +442,15 @@ export function AgentPanel({
                   <p className="agent-panel__note">Connected. Waiting for the agent…</p>
                 )}
               </div>
+              {petOn && (
+                <Suspense fallback={null}>
+                  <PetStrip
+                    phase={phase}
+                    thread={envelope?.thread}
+                    variant={effectiveVariant(petVariant, theme)}
+                  />
+                </Suspense>
+              )}
               {phase === "active" && message !== "" && (
                 <p className="agent-panel__note agent-panel__note--error">{message}</p>
               )}
@@ -501,5 +575,59 @@ function PanelResizeHandle({
         onCommit(next);
       }}
     />
+  );
+}
+
+/** The pet's three names, in the reader's words; the vocabulary itself is the library's. */
+const PET_VARIANT_LABELS: Record<PetVariant, string> = {
+  dot: "Dot",
+  sciame: "Sciame",
+  trama: "Trama",
+};
+
+/**
+ * AgentPetMenu is the pet's style picker in the panel header.
+ *
+ * The additive variants are disabled on the light theme rather than hidden: a reader who
+ * wonders where they went reads the sentence under the list. The control is absent while
+ * the pet is off — there is nothing to style — and the toggle beside it is always there.
+ */
+function AgentPetMenu({
+  variant,
+  theme,
+  onSelect,
+}: {
+  variant: PetVariant;
+  theme: "light" | "dark";
+  onSelect: (variant: PetVariant) => void;
+}) {
+  const light = theme === "light";
+  return (
+    <MenuTrigger>
+      <Button className="agent-panel__icon-button" aria-label="Pet style">
+        <Icon name="style" />
+      </Button>
+      <Popover className="agent-panel__pet-popover" placement="bottom end" offset={4}>
+        <Menu
+          className="agent-panel__pet-menu"
+          aria-label="Pet style"
+          selectionMode="single"
+          selectedKeys={[effectiveVariant(variant, theme)]}
+          disabledKeys={light ? ["sciame", "trama"] : []}
+          onAction={(key) => onSelect(key as PetVariant)}
+        >
+          {PET_VARIANTS.map((choice) => (
+            <MenuItem key={choice} id={choice} className="agent-panel__pet-item">
+              {PET_VARIANT_LABELS[choice]}
+            </MenuItem>
+          ))}
+        </Menu>
+        {light ? (
+          <p className="agent-panel__note agent-panel__pet-note">
+            Sciame and trama are additive: they need the dark theme.
+          </p>
+        ) : null}
+      </Popover>
+    </MenuTrigger>
   );
 }

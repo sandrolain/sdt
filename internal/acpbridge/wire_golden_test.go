@@ -106,6 +106,9 @@ func wireSession(t *testing.T) *ThreadState {
 	stopped := state.openUserMessage("and who owns the retry?")
 	state.endTurn(stopped, string(acp.StopReasonMaxTokens))
 	state.openUserMessage("and the panel?")
+	// The last turn is the one still in flight, so the fixture carries the field that says
+	// so: a thread read while the agent works is the shape the panel paints its pet from.
+	state.SetRunning(true)
 	return state
 }
 

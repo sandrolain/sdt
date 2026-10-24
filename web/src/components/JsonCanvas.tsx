@@ -24,6 +24,7 @@ import {
 } from "react";
 import "./JsonCanvas.css";
 import { type CanvasDocument, type CanvasEdge, type CanvasNode } from "../lib/jsoncanvas/document";
+import { readThemeAttr, subscribeThemeAttr } from "../lib/themeAttr";
 import { collapsedContainedIds } from "../lib/jsoncanvas/collapse";
 import { edgeKindStyle } from "../lib/jsoncanvas/edgeKind";
 import { arrow, edgeGeom } from "../lib/jsoncanvas/geometry";
@@ -94,19 +95,6 @@ interface ViewState {
   x: number;
   y: number;
   k: number;
-}
-
-function subscribeThemeAttr(onChange: () => void): () => void {
-  if (typeof MutationObserver === "undefined" || typeof document === "undefined") return () => {};
-  const obs = new MutationObserver(onChange);
-  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  return () => obs.disconnect();
-}
-
-function readThemeAttr(): "light" | "dark" | null {
-  if (typeof document === "undefined") return null;
-  const attr = document.documentElement.dataset.theme;
-  return attr === "light" || attr === "dark" ? attr : null;
 }
 
 function useThemeMode(theme: "light" | "dark" | "auto"): "light" | "dark" {

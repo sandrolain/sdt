@@ -133,6 +133,9 @@ export interface AgentPlan {
 /** AgentThread is the whole state of one session, as the bridge sends it. */
 export interface AgentThread {
   sessionId: string;
+  /** A turn is in flight: the prompt has gone out and the agent has not finished it.
+   *  The wire's one turn fact, and the reason a panel can show work rather than guess. */
+  running?: boolean;
   messages: AgentMessage[];
   plan?: AgentPlan;
   commands?: { name: string; description?: string }[];

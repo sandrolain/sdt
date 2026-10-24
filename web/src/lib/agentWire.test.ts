@@ -50,6 +50,9 @@ describe("the wire the Go side writes", () => {
       expect(envelope.type).toBe(ENVELOPE_STATE);
       expect(typeof envelope.sessionId).toBe("string");
       expect(Array.isArray(envelope.thread.messages)).toBe(true);
+      // A single update is not a turn: only the thread's own running field says one is in
+      // flight, and the field is absent rather than false when it is not.
+      expect(envelope.thread.running).toBeUndefined();
       for (const message of envelope.thread.messages) {
         for (const part of message.parts) kinds.add(part.kind);
       }
@@ -66,6 +69,9 @@ describe("the wire the Go side writes", () => {
     const envelope = fixture("session.json") as AgentStateEnvelope;
     expect(envelope.type).toBe(ENVELOPE_STATE);
     expect(envelope.sessionId).toBe("sess-1");
+    // The scripted session ends on a turn still in flight: the thread's one turn fact,
+    // which the runtime's `isRunning` and the panel's pet both read.
+    expect(envelope.thread.running).toBe(true);
 
     const [user, assistant] = envelope.thread.messages;
     expect(user.role).toBe("user");

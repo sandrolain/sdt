@@ -2,13 +2,19 @@
  * Minimal ambient types for the three.js surface used by the viewer.
  *
  * The project deliberately does not depend on `@types/three`; this stub declares
- * only the members the 3D graph and the shared JsonCanvas 3D layer touch.
- * Extend it when new three.js members are adopted.
+ * only the members the 3D graph, the shared JsonCanvas 3D layer and the agent panel's
+ * pet touch. Extend it when new three.js members are adopted.
+ *
+ * The pet's variants are shader work: they bind `Color` and `Vector2` uniforms, use a
+ * `ShaderMaterial` on meshes and points, and rotate groups. Those are the widenings in
+ * this file — each additive, so the graph engine's existing uses stay assignable.
  */
 declare module "three" {
   export const SRGBColorSpace: string;
+  export const LinearSRGBColorSpace: string;
   export const LinearFilter: number;
   export const DynamicDrawUsage: number;
+  export const AdditiveBlending: number;
   export const DoubleSide: number;
   export const FrontSide: number;
 
@@ -19,10 +25,17 @@ declare module "three" {
     degToRad(value: number): number;
   };
 
+  /** One shader uniform. The value is the shader's own type: a number, a Color, a Vector2. */
+  export interface IUniform<T = any> {
+    value: T;
+  }
+
   export class Vector2 {
     x: number;
     y: number;
     constructor(x?: number, y?: number);
+    set(x: number, y: number): this;
+    multiplyScalar(s: number): this;
   }
 
   export class Vector3 {
@@ -34,11 +47,14 @@ declare module "three" {
     copy(v: Vector3): this;
     clone(): Vector3;
     sub(v: Vector3): this;
+    dot(v: Vector3): number;
     length(): number;
+    distanceTo(v: Vector3): number;
+    distanceToSquared(v: Vector3): number;
     divideScalar(s: number): this;
+    multiplyScalar(s: number): this;
     normalize(): this;
     addScaledVector(v: Vector3, s: number): this;
-    distanceTo(v: Vector3): number;
     applyQuaternion(q: Quaternion): this;
     project(camera: PerspectiveCamera): this;
     setFromUnitVectors(from: Vector3, to: Vector3): this;
@@ -50,12 +66,24 @@ declare module "three" {
     setFromUnitVectors(from: Vector3, to: Vector3): this;
   }
 
+  /** A rotation in the three axes: what a group or a mesh is turned with. */
+  export class Euler {
+    x: number;
+    y: number;
+    z: number;
+    set(x: number, y: number, z: number): this;
+  }
+
   export class Color {
     r: number;
     g: number;
     b: number;
     constructor(value?: string | number);
     set(css: string): this;
+    setStyle(css: string, colorSpace?: string): this;
+    setHex(hex: number, colorSpace?: string): this;
+    copy(color: Color): this;
+    lerp(color: Color, alpha: number): this;
     getRGB(
       target: { r: number; g: number; b: number },
       colorSpace?: string,
@@ -63,17 +91,21 @@ declare module "three" {
   }
 
   export class Object3D {
-    scale: { set(x: number, y: number, z: number): void };
+    scale: Vector3;
     position: Vector3;
+    rotation: Euler;
     quaternion: Quaternion;
     userData: Record<string, unknown>;
     visible: boolean;
     frustumCulled: boolean;
     renderOrder: number;
-    add(child: Object3D): this;
+    add(...children: Object3D[]): this;
     remove(child: Object3D): this;
     traverse(callback: (object: Object3D) => void): void;
   }
+
+  /** A container with no geometry: the pet's variants hang the body and the eyes off one. */
+  export class Group extends Object3D {}
 
   export class Sprite extends Object3D {
     constructor(material?: SpriteMaterial);
@@ -100,7 +132,7 @@ declare module "three" {
   }
 
   export class Scene {
-    add(object: Object3D): void;
+    add(...objects: Object3D[]): void;
     remove(object: Object3D): void;
     traverse(callback: (object: Object3D) => void): void;
   }
@@ -130,13 +162,21 @@ declare module "three" {
     constructor(radius?: number, height?: number, radialSegments?: number);
   }
 
+  export class IcosahedronGeometry extends BufferGeometry {
+    constructor(radius?: number, detail?: number);
+  }
+
+  export class SphereGeometry extends BufferGeometry {
+    constructor(radius?: number, widthSegments?: number, heightSegments?: number);
+  }
+
   export class ShaderMaterial extends Material {
-    uniforms: Record<string, { value: number }>;
+    uniforms: Record<string, IUniform>;
     constructor(params?: Record<string, unknown>);
   }
 
   export class MeshBasicMaterial extends Material {
-    color: Color | string;
+    color: Color;
     map: CanvasTexture | null;
     transparent: boolean;
     side: number;
@@ -146,7 +186,7 @@ declare module "three" {
   }
 
   export class LineBasicMaterial extends Material {
-    color: Color | string;
+    color: Color;
     transparent: boolean;
     opacity: number;
     constructor(params?: Record<string, unknown>);
@@ -154,7 +194,7 @@ declare module "three" {
 
   export class Points extends Object3D {
     geometry: BufferGeometry;
-    constructor(geometry: BufferGeometry, material: ShaderMaterial);
+    constructor(geometry: BufferGeometry, material: Material);
   }
 
   export class LineSegments extends Object3D {
@@ -170,8 +210,8 @@ declare module "three" {
 
   export class Mesh extends Object3D {
     geometry: BufferGeometry;
-    material: MeshBasicMaterial;
-    constructor(geometry?: BufferGeometry, material?: MeshBasicMaterial);
+    material: Material | Material[];
+    constructor(geometry?: BufferGeometry, material?: Material | Material[]);
   }
 
   export class CubicBezierCurve3 {
@@ -197,10 +237,13 @@ declare module "three" {
 
   export class WebGLRenderer {
     domElement: HTMLCanvasElement;
+    outputColorSpace: string;
     constructor(params?: Record<string, unknown>);
+    getPixelRatio(): number;
     setPixelRatio(value: number): void;
     setSize(width: number, height: number, updateStyle?: boolean): void;
     setClearColor(color: number, alpha?: number): void;
+    forceContextLoss(): void;
     render(scene: Scene, camera: PerspectiveCamera): void;
     dispose(): void;
   }

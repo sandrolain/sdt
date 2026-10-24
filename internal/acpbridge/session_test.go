@@ -379,3 +379,61 @@ func TestADeclaredModelTheAgentRefusesOpensTheSessionAnyway(t *testing.T) {
 		t.Fatalf("the conversation must still work on the agent's own model: %v", err)
 	}
 }
+
+// A turn's span is on the thread the reader holds: running from the moment the prompt
+// goes out until the ending is written, and only then closed. The per-turn flag and the
+// page's `running` are the same fact seen from two sides, so the test asserts the thread
+// rather than the field.
+func TestATurnIsRunningFromThePromptToItsEnding(t *testing.T) {
+	release := make(chan struct{})
+	handler := func(agent *fakeAgent, method string, params json.RawMessage) any {
+		if method == "session/prompt" {
+			<-release
+			return map[string]any{"stopReason": "end_turn"}
+		}
+		return agentVersion(1, "sess-1")(agent, method, params)
+	}
+	bridge, agent := activatedBridge(t, handler)
+	session, ok := bridge.Session(bridge.SessionID())
+	if !ok {
+		t.Fatal("the bridge holds no session")
+	}
+	states := make(chan Thread, 16)
+	session.State().Listen(func(thread Thread) { states <- thread })
+
+	turn := make(chan error, 1)
+	go func() { turn <- session.Prompt(context.Background(), "how big is the corpus?") }()
+	waitForMethod(t, agent, "session/prompt")
+
+	if !session.State().Snapshot().Running {
+		t.Fatal("the thread does not say a turn is running while the agent works")
+	}
+	// The opening is announced, not only held: a browser that joined before the prompt
+	// paints the working face from the snapshot it is sent.
+	var sawRunning bool
+	for drained := false; !drained; {
+		select {
+		case announced := <-states:
+			sawRunning = sawRunning || announced.Running
+		default:
+			drained = true
+		}
+	}
+	if !sawRunning {
+		t.Fatal("no announced thread carried the turn in flight")
+	}
+
+	close(release)
+	if err := <-turn; err != nil {
+		t.Fatalf("the turn failed: %v", err)
+	}
+	thread := session.State().Snapshot()
+	if thread.Running {
+		t.Fatal("the thread still says a turn is running after it settled")
+	}
+	// The ending and the closed span travel together: the last snapshot the browser gets
+	// carries both, so a turn is never finished but still marked running.
+	if thread.Messages[0].Provisional {
+		t.Fatal("the turn settled and the message it opened is still waiting")
+	}
+}

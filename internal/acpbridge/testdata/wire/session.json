@@ -3,6 +3,7 @@
   "sessionId": "sess-1",
   "thread": {
     "sessionId": "sess-1",
+    "running": true,
     "messages": [
       {
         "id": "msg-1",

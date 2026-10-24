@@ -19,6 +19,7 @@ import {
   AGENT_STREAM_PATH,
   type AgentStateEnvelope,
 } from "../lib/agent";
+import { PET_ENABLED_KEY, PET_VARIANT_KEY } from "../lib/petPreference";
 
 /** FakeEventSource is the browser side the panel talks to, driven by the test. */
 class FakeEventSource {
@@ -825,5 +826,72 @@ describe("AgentPanel", () => {
       });
       expect(retry.className).toContain("agent-panel__action--secondary");
     });
+  });
+});
+
+describe("the pet's controls", () => {
+  afterEach(() => {
+    delete document.documentElement.dataset.theme;
+  });
+
+  it("shows the pet on by default and remembers the reader turning it off", async () => {
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    const toggle = await screen.findByRole("button", { name: "Hide the pet" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+
+    await userEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Show the pet" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+    expect(localStorage.getItem(PET_ENABLED_KEY)).toBe("off");
+
+    // The choice outlives the panel: a reopened panel keeps the pet off.
+    cleanup();
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    expect(
+      (await screen.findByRole("button", { name: "Show the pet" })).getAttribute("aria-pressed"),
+    ).toBe("false");
+  });
+
+  it("leaves the panel without a band when the pet is off", async () => {
+    // The band's height is the strip's own, so an off pet leaves no empty gap: the element
+    // is not there at all, and the composer sits where it always did.
+    localStorage.setItem(PET_ENABLED_KEY, "off");
+    const { container } = render(<AgentPanel open onOpenChange={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Show the pet" })).toBeTruthy();
+    expect(container.querySelector(".agent-panel__pet")).toBeNull();
+  });
+
+  it("offers the style menu only while there is a pet to style", async () => {
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Pet style" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Hide the pet" }));
+    expect(screen.queryByRole("button", { name: "Pet style" })).toBeNull();
+    // The toggle that brings it back is still there.
+    expect(screen.getByRole("button", { name: "Show the pet" })).toBeTruthy();
+  });
+
+  it("remembers the variant the reader picks", async () => {
+    document.documentElement.dataset.theme = "dark";
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Pet style" }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: "Trama" }));
+    expect(localStorage.getItem(PET_VARIANT_KEY)).toBe("trama");
+  });
+
+  it("disables the additive variants on the light theme and says why", async () => {
+    document.documentElement.dataset.theme = "light";
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Pet style" }));
+    expect(
+      (await screen.findByRole("menuitemradio", { name: "Sciame" })).getAttribute("aria-disabled"),
+    ).toBe("true");
+    expect(screen.getByRole("menuitemradio", { name: "Trama" }).getAttribute("aria-disabled")).toBe(
+      "true",
+    );
+    expect(
+      screen.getByRole("menuitemradio", { name: "Dot" }).getAttribute("aria-disabled"),
+    ).toBeNull();
+    expect(screen.getByText(/need the dark theme/)).toBeTruthy();
   });
 });

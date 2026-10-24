@@ -389,3 +389,44 @@ func TestAListenerSeesEveryStateAndSnapshotsAreIndependent(t *testing.T) {
 		t.Fatalf("the second state = %q", second.Messages[0].Parts[0].Text)
 	}
 }
+
+// A turn is a fact about the thread, and it is announced like any other: the snapshot a
+// browser reads says whether the agent is working, and a repeated report changes nothing.
+func TestRunningIsOnTheThreadAndAnnouncedWhenItChanges(t *testing.T) {
+	state := NewThreadState("sess-1")
+	states := make(chan Thread, 4)
+	state.Listen(func(thread Thread) { states <- thread })
+
+	if state.Snapshot().Running {
+		t.Fatal("a fresh thread claims a turn is in flight")
+	}
+
+	state.SetRunning(true)
+	if !state.Snapshot().Running {
+		t.Fatal("the snapshot does not carry the turn in flight")
+	}
+	select {
+	case announced := <-states:
+		if !announced.Running {
+			t.Fatal("the announced thread does not say the turn is running")
+		}
+	default:
+		t.Fatal("a turn starting was never announced")
+	}
+
+	// The same value again is not a change: nothing is re-announced.
+	state.SetRunning(true)
+	select {
+	case <-states:
+		t.Fatal("a repeated report was announced as a change")
+	default:
+	}
+
+	state.SetRunning(false)
+	if state.Snapshot().Running {
+		t.Fatal("the snapshot still says a turn is running after it settled")
+	}
+	if announced := <-states; announced.Running {
+		t.Fatal("the announced thread still says the turn is running")
+	}
+}

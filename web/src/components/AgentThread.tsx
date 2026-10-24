@@ -49,10 +49,10 @@ export function AgentThread({
     // The panel owns the composer, so the runtime's own send path is not used; it still
     // has to exist, because the adapter has no shape without it.
     onNew: async () => undefined,
-    // The bridge's wire has no turn-completion event (the state is the whole thread and
-    // nothing else), so the runtime is never told a turn is running; the thread shows
-    // what it has rather than a spinner it cannot justify.
-    isRunning: false,
+    // The bridge knows whether a turn is in flight and says so on the thread: the runtime
+    // reads the same field the panel does, so the two cannot disagree about whether the
+    // agent is working.
+    isRunning: Boolean(thread.running),
   });
 
   return (
