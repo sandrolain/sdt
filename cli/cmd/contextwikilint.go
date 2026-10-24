@@ -386,6 +386,7 @@ func lintWikiBudget(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 // umbrella concept. The numbers are calibrated on the 2026-10-19 pages (11-16
 // claims, 64-89 summary words) and are a SUGGESTION, never a target to pad.
 const (
+	wikiTypeConcept          = "concept"
 	wikiDepthMinClaims       = 8
 	wikiDepthMinSummaryWords = 50
 )
@@ -395,7 +396,7 @@ const (
 // knowledge layer, not source frames or maps.
 func lintWikiDepth(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 	for _, p := range pages {
-		if p.Type != "concept" {
+		if p.Type != wikiTypeConcept {
 			continue
 		}
 		if _, hasCoverage, covErr := contextwiki.CoverageBlock(p.Frontmatter); hasCoverage || covErr != nil {

@@ -34,7 +34,7 @@ var ctxDeclaredKeys = map[string]bool{
 	ctxFrontmatterDependsOn: true,
 	// Provenance and annotations.
 	ctxFrontmatterAgent: true, "model": true, "session": true, "role": true, "note_type": true,
-	"claimed_by": true, "claimed_at": true,
+	"claimed_by": true, "claimed_at": true, "inventory": true,
 	"via": true, "project": true, "group": true, "id": true, "tier": true,
 	// Index/viewer generated markers.
 	"_generated": true, "position": true, "order": true,

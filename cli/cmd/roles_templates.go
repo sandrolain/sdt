@@ -68,14 +68,14 @@ func instrRoleCoreTemplate(r roleDescriptor) (string, bool) {
 // roleSharedFrontmatter is the frontmatter for role profile files.
 func roleFrontmatter(r roleDescriptor, project string, now time.Time) string {
 	return strings.Join([]string{
-		"---",
+		ctxFrontmatterDelim,
 		"kind: role",
 		"title: \"" + r.Title + "\"",
 		"slug: " + r.Slug,
 		"summary: \"Generated role profile for " + r.Slug + " (closed register); shared rules in context/roles/shared.md.\"",
 		"created: \"" + now.UTC().Format(time.RFC3339) + "\"",
 		"project: " + project,
-		"---",
+		ctxFrontmatterDelim,
 	}, "\n") + "\n"
 }
 
