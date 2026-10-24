@@ -106,9 +106,9 @@ func TestWikiCoverageClassifiesAndWrites(t *testing.T) {
 		"  no_op: 2",
 		"- L9 · Alpha · OK · —",
 		"- L15 · Beta · PART · gap",
-		"- L5 · Book · GAP · not-conceptual",
+		"- L5 · Book · CLOSED · not-conceptual",
 		"- L20 · Gamma · GAP · gap",
-		"- L26 · Entries · GAP · not-conceptual",
+		"- L26 · Entries · CLOSED · not-conceptual",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page is missing %q:\n%s", want, page)
@@ -135,8 +135,9 @@ func TestWikiCoverageReceipt(t *testing.T) {
 	for _, want := range []string{
 		"source: refs/converted/book-abcdef123456.md",
 		"route: single-pass",
-		"section_headings: 4",
-		"coverage: 1/5",
+		"route_headings: 4",
+		"coverage_units: 5",
+		"coverage: ok=1 part=1 gap=1 no_op=2",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("receipt is missing %q:\n%s", want, text)

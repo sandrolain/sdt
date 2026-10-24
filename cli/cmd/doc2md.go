@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/sandrolain/sdt/cli/utils/converter"
@@ -45,7 +47,7 @@ explicit way through. Exit codes are normalized:
 
 This command replaces the removed context/scripts/convert-to-md.sh wrapper
 (the old invocation was "context/scripts/convert-to-md.sh <file> [outdir]").`,
-	Args: cobra.MinimumNArgs(1),
+	Args: cobra.ArbitraryArgs,
 	Run:  runDoc2md,
 }
 
@@ -110,77 +112,144 @@ func runDoc2md(cmd *cobra.Command, args []string) {
 	force := getBoolFlag(cmd, "force", false)
 	tool := getStringFlag(cmd, "tool", false)
 	keep := getBoolFlag(cmd, "keep", false)
+	dir := getStringFlag(cmd, "dir", false)
 	name := getStringFlag(cmd, "name", false)
 	outputFile := getStringFlag(cmd, "output-file", false)
 	if keep && outputFile != "" {
 		exitWithError(cmd, fmt.Errorf("cannot use both --keep and --output-file"))
 		return
 	}
-
-	results := make([]doc2md.Result, 0, len(args))
-	for _, input := range args {
-		if converter.DocumentExtension(input) == "" {
-			results = append(results, doc2md.Result{
-				Status: doc2md.StatusFailed,
-				Reason: fmt.Sprintf("unsupported input %q (supported: %s)", input, strings.Join(converter.DocumentExtensions, " ")),
-			})
-			continue
-		}
-		res := doc2mdConvert(context.Background(), doc2md.Options{
-			Input:   input,
-			Timeout: timeout,
-			Tool:    tool,
-		})
-		if res.Status == doc2md.StatusSuccess {
-			// The routing counts ride on every success result, so a receipt is
-			// never assembled by hand; MeasureArtifact re-derives them for
-			// artifacts kept before this field existed.
-			res.SectionHeadings, res.Lines = doc2md.Measure(res.Markdown)
-		}
-		if res.Status == doc2md.StatusSuccess && (keep || outputFile != "") {
-			path, err := writeDoc2mdFile(input, res, keep, outputFile, name, force)
-			if err != nil {
-				res.Status = doc2md.StatusFailed
-				res.Reason = err.Error()
-			} else {
-				res.KeptFile = path
-				res.Markdown = ""
-			}
-		}
-		results = append(results, res)
+	if dir != "" && outputFile != "" {
+		exitWithError(cmd, fmt.Errorf("--dir cannot be combined with --output-file; use --keep or JSON/YAML"))
+		return
+	}
+	inputs, err := doc2mdInputs(args, dir, keep, getFormat(cmd))
+	if err != nil {
+		exitWithError(cmd, err)
+		return
 	}
 
+	results := make([]doc2md.Result, 0, len(inputs))
+	for _, input := range inputs {
+		results = append(results, runDoc2mdOne(input, timeout, tool, keep, outputFile, name, force))
+	}
+	outputDoc2md(cmd, dir, inputs, results, keep, outputFile)
+	exitWithDoc2mdStatus(results)
+}
+
+// doc2mdInputs expands --dir and enforces the batch guard: a text run without
+// --keep would concatenate unrelated markdown on stdout.
+func doc2mdInputs(args []string, dir string, keep bool, format string) ([]string, error) {
+	if dir == "" && len(args) == 0 {
+		return nil, fmt.Errorf("name a file or use --dir")
+	}
+	if dir == "" {
+		return args, nil
+	}
+	if !keep && format == formatText {
+		return nil, fmt.Errorf("--dir needs --keep or --format json|yaml; a text run would concatenate markdown")
+	}
+	files, err := doc2mdDirInputs(dir)
+	if err != nil {
+		return nil, err
+	}
+	return append(args, files...), nil
+}
+
+func runDoc2mdOne(input string, timeout time.Duration, tool string, keep bool, outputFile, name string, force bool) doc2md.Result {
+	if converter.DocumentExtension(input) == "" {
+		return doc2md.Result{
+			Status: doc2md.StatusFailed,
+			Reason: fmt.Sprintf("unsupported input %q (supported: %s)", input, strings.Join(converter.DocumentExtensions, " ")),
+		}
+	}
+	res := doc2mdConvert(context.Background(), doc2md.Options{
+		Input:   input,
+		Timeout: timeout,
+		Tool:    tool,
+	})
+	if res.Status == doc2md.StatusSuccess {
+		// The routing counts ride on every success result, so a receipt is
+		// never assembled by hand; MeasureArtifact re-derives them for
+		// artifacts kept before this field existed.
+		res.SectionHeadings, res.Lines = doc2md.Measure(res.Markdown)
+	}
+	if res.Status == doc2md.StatusSuccess && (keep || outputFile != "") {
+		path, err := writeDoc2mdFile(input, res, keep, outputFile, name, force)
+		if err != nil {
+			res.Status = doc2md.StatusFailed
+			res.Reason = err.Error()
+		} else {
+			res.KeptFile = path
+			res.Markdown = ""
+		}
+	}
+	return res
+}
+
+func outputDoc2md(cmd *cobra.Command, dir string, inputs []string, results []doc2md.Result, keep bool, outputFile string) {
 	switch getFormat(cmd) {
 	case fmtJSON:
-		data, err := json.MarshalIndent(results, "", "  ")
+		payload := any(results)
+		if dir != "" {
+			payload = doc2mdBatchEntries(inputs, results)
+		}
+		data, err := json.MarshalIndent(payload, "", "  ")
 		exitWithError(cmd, err)
 		outputString(cmd, string(data)+"\n")
 	case fmtYAML:
-		data, err := yaml.Marshal(results)
+		payload := any(results)
+		if dir != "" {
+			payload = doc2mdBatchEntries(inputs, results)
+		}
+		data, err := yaml.Marshal(payload)
 		exitWithError(cmd, err)
 		outputBytes(cmd, data)
 	default:
-		for _, r := range results {
-			if r.Status != doc2md.StatusSuccess {
-				continue
+		if dir != "" {
+			outputDoc2mdBatch(cmd, inputs, results)
+			return
+		}
+		outputDoc2mdSingle(cmd, results, keep, outputFile)
+	}
+}
+
+func outputDoc2mdBatch(cmd *cobra.Command, inputs []string, results []doc2md.Result) {
+	for i, r := range results {
+		status := string(r.Status)
+		if r.Status == doc2md.StatusSuccess {
+			status = "ok"
+		}
+		line := fmt.Sprintf("%s\t%s", status, inputs[i])
+		if r.KeptFile != "" {
+			line += "\t" + r.KeptFile
+		}
+		if r.Reason != "" {
+			line += "\t" + r.Reason
+		}
+		outputString(cmd, line+"\n")
+	}
+}
+
+func outputDoc2mdSingle(cmd *cobra.Command, results []doc2md.Result, keep bool, outputFile string) {
+	for _, r := range results {
+		if r.Status != doc2md.StatusSuccess {
+			continue
+		}
+		switch {
+		case keep && r.KeptFile != "":
+			outputString(cmd, r.KeptFile+"\n")
+			outputString(cmd, fmt.Sprintf("%d section-level headings, %d lines\n", r.SectionHeadings, r.Lines))
+		case outputFile != "":
+			// crawldown's --output-file is silent on stdout.
+		default:
+			markdown := r.Markdown
+			if !strings.HasSuffix(markdown, "\n") {
+				markdown += "\n"
 			}
-			switch {
-			case keep && r.KeptFile != "":
-				outputString(cmd, r.KeptFile+"\n")
-				outputString(cmd, fmt.Sprintf("%d section-level headings, %d lines\n", r.SectionHeadings, r.Lines))
-			case outputFile != "":
-				// crawldown's --output-file is silent on stdout.
-			default:
-				markdown := r.Markdown
-				if !strings.HasSuffix(markdown, "\n") {
-					markdown += "\n"
-				}
-				outputString(cmd, markdown)
-			}
+			outputString(cmd, markdown)
 		}
 	}
-
-	exitWithDoc2mdStatus(results)
 }
 
 // writeDoc2mdFile keeps the conversion under context/refs/converted/ or writes
@@ -207,6 +276,44 @@ func writeDoc2mdFile(input string, res doc2md.Result, keep bool, outputFile, nam
 		return "", fmt.Errorf("write %s: %w", outputFile, err)
 	}
 	return outputFile, nil
+}
+
+type doc2mdBatchEntry struct {
+	Input string `json:"input" yaml:"input"`
+	doc2md.Result
+}
+
+func doc2mdBatchEntries(inputs []string, results []doc2md.Result) []doc2mdBatchEntry {
+	out := make([]doc2mdBatchEntry, 0, len(results))
+	for i, r := range results {
+		input := ""
+		if i < len(inputs) {
+			input = inputs[i]
+		}
+		if r.Status == doc2md.StatusSuccess {
+			r.Status = doc2md.Status("ok")
+		}
+		out = append(out, doc2mdBatchEntry{Input: input, Result: r})
+	}
+	return out
+}
+
+func doc2mdDirInputs(dir string) ([]string, error) {
+	var files []string
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasPrefix(d.Name(), ".") || converter.DocumentExtension(d.Name()) == "" {
+			return nil
+		}
+		files = append(files, path)
+		return nil
+	})
+	return files, err
 }
 
 func exitWithDoc2mdStatus(results []doc2md.Result) {
@@ -349,6 +456,7 @@ func init() {
 	doc2mdCmd.Flags().Bool("keep", false, "Keep the document under context/refs/converted/ with provenance frontmatter")
 	doc2mdCmd.Flags().String("name", "", "Override the kept filename stem (with --keep)")
 	doc2mdCmd.Flags().String("output-file", "", "Write the document to an explicit path instead of stdout")
+	doc2mdCmd.Flags().String("dir", "", "Convert every supported document under this directory")
 	doc2mdSetCmd.Flags().String("summary", "", "Document summary")
 	doc2mdSetCmd.Flags().StringArray("link", nil, "Related document path (repeatable)")
 	doc2mdCmd.PersistentFlags().Duration("timeout", doc2md.DefaultTimeout, "Per-process timeout")

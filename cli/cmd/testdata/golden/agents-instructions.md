@@ -16,6 +16,7 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
 | line range | `sdt read --lines a:b` | `sed -n` |
 | numbered lines | `sdt read --numbered` | host reader |
 | listing, sizes | `sdt ls --stat` | `ls -la` |
+| ingestion queue | `sdt context ingest list` | `ls` of context/ingestion |
 | paths by glob | `sdt find <glob>` | `find` |
 | tree search | `sdt grep <p>` | `grep -r` |
 | one file | `sdt grep --path <f>` | `grep -n` |

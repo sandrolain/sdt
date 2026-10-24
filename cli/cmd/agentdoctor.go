@@ -333,6 +333,7 @@ const (
 	doctorStatusOK   = "ok"
 	doctorStatusWarn = "warn"
 	doctorStatusFail = "fail"
+	doctorStatusPass = "pass"
 	doctorNameRoles  = "roles"
 )
 
@@ -400,8 +401,8 @@ Examples:
 				failed = step.Name
 				break
 			}
-			results = append(results, gateResult{Step: step.Name, Status: "pass"})
-			recorded = append(recorded, gateStepResult{Step: step.Name, Status: "pass", Duration: elapsed})
+			results = append(results, gateResult{Step: step.Name, Status: doctorStatusPass})
+			recorded = append(recorded, gateStepResult{Step: step.Name, Status: doctorStatusPass, Duration: elapsed})
 		}
 		switch getFormat(cmd) {
 		case fmtJSON:

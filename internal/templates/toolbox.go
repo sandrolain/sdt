@@ -83,6 +83,13 @@ func ToolboxRows() []ToolboxRow {
 			Replaces:  "`ls -la`",
 		},
 		{
+			Operation:   "ingestion queue",
+			Display:     "`sdt context ingest list`",
+			Command:     toolboxCmdContext,
+			Subcommands: []string{"ingest"},
+			Replaces:    "`ls` of context/ingestion",
+		},
+		{
 			Operation: "paths by glob",
 			Display:   "`sdt find <glob>`",
 			Command:   "find",

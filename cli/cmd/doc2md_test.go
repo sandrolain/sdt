@@ -388,3 +388,68 @@ func TestDoc2mdReindexNoChange(t *testing.T) {
 		t.Errorf("second reindex = %s", second)
 	}
 }
+
+func TestDoc2mdDirJSONStatuses(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/ingestion/a.pdf", "pdf")
+	writeCtxDoc(t, "context/ingestion/b.epub", "epub")
+	writeCtxDoc(t, "context/ingestion/notes.bin", "skip")
+	withDoc2mdSeams(t, func(_ context.Context, opts doc2md.Options) doc2md.Result {
+		if strings.HasSuffix(opts.Input, "b.epub") {
+			return doc2md.Result{Status: doc2md.StatusNeedsOCR, Reason: "PDF needs OCR"}
+		}
+		return doc2md.Result{Status: doc2md.StatusSuccess, Converter: "anydoc", Markdown: "# ok\n"}
+	}, nil)
+
+	var out string
+	shouldExitWithCode(t, 3, func() string {
+		out = string(execute(t, doc2mdCmd, nil, "--dir", "context/ingestion", "--format", "json"))
+		return out
+	})
+	for _, want := range []string{`"input": "context/ingestion/a.pdf"`, `"status": "ok"`, `"input": "context/ingestion/b.epub"`, `"status": "needs_ocr"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("batch JSON is missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "notes.bin") {
+		t.Errorf("unsupported file was converted:\n%s", out)
+	}
+}
+
+func TestDoc2mdDirRefusesTextWithoutKeep(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/ingestion/a.pdf", "pdf")
+	captureLogs(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, doc2mdCmd, nil, "--dir", "context/ingestion"))
+	})
+}
+
+func TestDoc2mdDirTextStatusesWithKeep(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/ingestion/a.pdf", "pdf")
+	withDoc2mdSeams(t, func(_ context.Context, _ doc2md.Options) doc2md.Result {
+		return doc2md.Result{Status: doc2md.StatusSuccess, Converter: "anydoc", Markdown: "# ok\n"}
+	}, nil)
+
+	out := string(execute(t, doc2mdCmd, nil, "--dir", "context/ingestion", "--keep"))
+	if !strings.Contains(out, "ok\tcontext/ingestion/a.pdf") {
+		t.Fatalf("batch text is missing the ok row:\n%s", out)
+	}
+	files, err := filepath.Glob("context/refs/converted/*.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Errorf("--keep wrote no converted artifact")
+	}
+}
+
+func TestDoc2mdDirRefusesOutputFile(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/ingestion/a.pdf", "pdf")
+	captureLogs(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, doc2mdCmd, nil, "--dir", "context/ingestion", "--output-file", "out.md", "--format", "json"))
+	})
+}

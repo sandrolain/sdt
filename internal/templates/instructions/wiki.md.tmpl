@@ -52,15 +52,13 @@ read that for the full schema.
 
 ## The coverage record
 
-A source distilled at book scale keeps its coverage **on its index page** — the
-`wiki/` page that represents the source itself. The record is countable, so a
-check can read it and a run cannot claim a complete book by accident.
+A book-scale source keeps its coverage **on its index page**.
 
 - **Units** come from the source's own chapter-and-section headings, classified
   `OK` / `PART` / `GAP`, with every non-`OK` unit dispositioned `gap` / `no-op` /
-  `not-conceptual` (`distillation.md`, *Quality gates*). They are enumerated by
-  `sdt context wiki units`, never counted by hand: code fences contain
-  heading-like lines.
+  `not-conceptual` (`distillation.md`, *Quality gates*). A `GAP` unit
+  dispositioned `no-op` or `not-conceptual` displays as `CLOSED`: decided, not
+  open. They are enumerated by `sdt context wiki units`, never counted by hand.
 - **Frontmatter block** — the machine half, on the index page only:
 
   ```yaml
@@ -92,25 +90,26 @@ check can read it and a run cannot claim a complete book by accident.
   means the run is **incomplete** for the same reason `gap > 0` is. The counters
   are read from the checked inventory note named by `from`
   (`sdt context wiki inventory`), never typed by hand, and a block that disagrees
-  with its note is a finding. The block is additional: it does not reclassify a
-  unit and does not replace `coverage:`.
+  with its note is a finding.
 - **Body** — the human half: a `## Structure` section, one line per unit with its
   classification and disposition (`- L234 · The Challenges of Evolving Software ·
-  OK · —`). A unit list without dispositions is not a record; the number is the
-  artifact line.
+  OK · —`; a decided no-op is `CLOSED · no-op`).
 - **Both halves are written by the audit.** `sdt context wiki coverage --write`
   regenerates them from the pages' citations, keeping recorded dispositions;
-  `--inventory <note>` seeds the concept block, and a later `--write` reads the
-  recorded `from`; `--receipt` prints the routing block. A hand-written block
-  stays valid, but it is the exception, not the path.
-- **Scope.** The block belongs to the source's index page, not to every page. A
-  single-pass source owes none; absence is not a defect
-  (`ingestion.md`, *Ingestion receipt*).
-- **What it owns.** The coverage block, the `## Structure` list, the
-  reference-file citations and the links to the concept nodes.
-- **What it must not carry.** Concept content: a definition or worked example
-  belongs to the node that owns it, and the node never restates an index row
-  (`distillation.md`, *Reference → wiki bridge*).
+  `--inventory <note>` seeds the concept block; `--receipt` prints the routing
+  block. `sdt context wiki audit` adds page/claim totals and the inventory
+  verdict; `receipt lint` checks the counters.
+- **The inventory note is checked whole.** `sdt context wiki inventory` reads
+  every chapter table and the totals; a pending row is a finding even when the
+  frontmatter says `pending: 0`. `inventory --write --sync-index` repairs the
+  counters from the top table and the page's concepts block (inline stays
+  declared).
+- **Signals.** `claims` flags >40 lines/2 units; `reference` checks bundles;
+  `orphans` lists orphan concepts; `comprehension` samples 2 pages/book;
+  `inventory` rejects a bare `inline`.
+- **Scope.** The index page owns the block; a single-pass source owes none.
+- **Limits.** Concept content belongs to its node; an index row is not a
+  definition (`distillation.md`, *Reference → wiki bridge*).
 
 ## Reading and writing
 

@@ -30,6 +30,9 @@ import (
 // validation loop and the derived-document contract.
 const ctxFrontmatterSources = "sources"
 
+// ctxFrontmatterRelations is the typed relation map every page may carry.
+const ctxFrontmatterRelations = "relations"
+
 // ctxFrontmatterLinks is the generic-correlation reference field.
 const ctxFrontmatterLinks = "links"
 

@@ -61,65 +61,10 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		artifactRef := getStringFlag(cmd, "artifact", true)
-		artifact, err := resolveCorpusFile(artifactRef)
+		report, pagePath, pageContent, err := buildCoverageReport(cmd, args[0], artifactRef)
 		if err != nil {
 			exitWithError(cmd, err)
 			return
-		}
-		source, err := os.ReadFile(artifact) //#nosec G304 -- corpus path resolved under context/
-		if err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-		pagePath, err := resolveWikiPage(args[0])
-		if err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-		pageContent, err := os.ReadFile(pagePath) //#nosec G304 -- corpus path resolved under context/wiki/
-		if err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-
-		relArtifact := corpusRelative(artifact)
-		pageIDs, cites := coverageCitations(cmd, relArtifact, pagePath)
-		ranges, whole := distill.RangesFor(cites, relArtifact)
-		if whole > 0 {
-			fmt.Fprintf(os.Stderr, "warning: %d citation(s) name no line range and cannot be classified\n", whole)
-		}
-
-		units, stats := distill.Parse(string(source), distill.Options{})
-		dispositions := readStructureDispositions(pageContent)
-		for i := range units {
-			if d, ok := dispositions[units[i].Line]; ok {
-				units[i].Disposition = d
-			}
-		}
-		units = distill.Classify(units, ranges, string(source))
-		units = applyDefaultDispositions(units)
-		counts := distill.Count(units)
-		outOfSpan := citationsOutsideUnits(ranges, units)
-		for _, c := range outOfSpan {
-			fmt.Fprintf(os.Stderr, "warning: citation %s:%d-%d falls outside every unit span\n", c.Ref, c.Start, c.End)
-		}
-
-		route := routeFor(stats)
-		concepts, cerr := conceptsForWrite(cmd, pageContent, relArtifact)
-		if cerr != nil {
-			exitWithError(cmd, cerr)
-			return
-		}
-		report := wikiCoverageReport{
-			Page:      corpusRelative(pagePath),
-			Artifact:  relArtifact,
-			Pages:     pageIDs,
-			Route:     route,
-			Stats:     stats,
-			Counts:    counts,
-			Concepts:  concepts,
-			Units:     units,
-			OutOfSpan: outOfSpan,
 		}
 
 		if write := getBoolFlag(cmd, "write", false); write {
@@ -146,20 +91,83 @@ Examples:
 			exitWithError(cmd, merr)
 			outputBytes(cmd, out)
 		default:
+			counts := report.Counts
 			outputString(cmd, fmt.Sprintf("%s  units=%d ok=%d part=%d gap=%d no_op=%d\n",
 				report.Artifact, counts.Units, counts.OK, counts.Part, counts.Gap, counts.NoOp))
 			if c := report.Concepts; c != nil {
 				outputString(cmd, fmt.Sprintf("concepts: %d/%d paged, %d merged, %d inline, %d declined, %d pending\n",
 					c.Paged, c.Candidates, c.Merged, c.Inline, c.Declined, c.Pending))
 			}
-			for _, u := range units {
+			for _, u := range report.Units {
 				if u.Kind == distill.UnitContainer {
 					continue
 				}
-				outputString(cmd, fmt.Sprintf("  L%5d-%-5d %-8s %-14s %s\n", u.Line, u.End, u.State, u.Disposition, u.Title))
+				outputString(cmd, fmt.Sprintf("  L%5d-%-5d %-8s %-14s %s\n", u.Line, u.End, displayState(u), u.Disposition, u.Title))
 			}
 		}
 	},
+}
+
+// buildCoverageReport is the read-only half of the coverage command: it reads
+// the artifact and the index page, classifies every unit from the pages'
+// citations, and returns the report plus the page path and bytes a writer needs.
+func buildCoverageReport(cmd *cobra.Command, pageRef, artifactRef string) (wikiCoverageReport, string, []byte, error) {
+	artifact, err := resolveCorpusFile(artifactRef)
+	if err != nil {
+		return wikiCoverageReport{}, "", nil, err
+	}
+	source, err := os.ReadFile(artifact) //#nosec G304 -- corpus path resolved under context/
+	if err != nil {
+		return wikiCoverageReport{}, "", nil, err
+	}
+	pagePath, err := resolveWikiPage(pageRef)
+	if err != nil {
+		return wikiCoverageReport{}, "", nil, err
+	}
+	pageContent, err := os.ReadFile(pagePath) //#nosec G304 -- corpus path resolved under context/wiki/
+	if err != nil {
+		return wikiCoverageReport{}, "", nil, err
+	}
+
+	relArtifact := corpusRelative(artifact)
+	pageIDs, cites := coverageCitations(cmd, relArtifact, pagePath)
+	ranges, whole := distill.RangesFor(cites, relArtifact)
+	if whole > 0 {
+		fmt.Fprintf(os.Stderr, "warning: %d citation(s) name no line range and cannot be classified\n", whole)
+	}
+
+	units, stats := distill.Parse(string(source), distill.Options{})
+	dispositions := readStructureDispositions(pageContent)
+	for i := range units {
+		if d, ok := dispositions[units[i].Line]; ok {
+			units[i].Disposition = d
+		}
+	}
+	units = distill.Classify(units, ranges, string(source))
+	units = applyDefaultDispositions(units)
+	counts := distill.Count(units)
+	outOfSpan := citationsOutsideUnits(ranges, units)
+	for _, c := range outOfSpan {
+		fmt.Fprintf(os.Stderr, "warning: citation %s:%d-%d falls outside every unit span\n", c.Ref, c.Start, c.End)
+	}
+
+	route := routeFor(stats)
+	concepts, cerr := conceptsForWrite(cmd, pageContent, relArtifact)
+	if cerr != nil {
+		return wikiCoverageReport{}, "", nil, cerr
+	}
+	report := wikiCoverageReport{
+		Page:      corpusRelative(pagePath),
+		Artifact:  relArtifact,
+		Pages:     pageIDs,
+		Route:     route,
+		Stats:     stats,
+		Counts:    counts,
+		Concepts:  concepts,
+		Units:     units,
+		OutOfSpan: outOfSpan,
+	}
+	return report, pagePath, pageContent, nil
 }
 
 // coverageCitations resolves the pages to read and returns their ids and the
@@ -318,13 +326,28 @@ func routeFor(stats distill.Stats) string {
 }
 
 // receiptBlock renders the lines an ingestion receipt quotes for one source.
+// The two counts are deliberately separate: route_headings is the levels 2-3
+// routing proxy, coverage_units is the levels 1-3 coverage denominator.
 func receiptBlock(r wikiCoverageReport) string {
-	out := fmt.Sprintf("source: %s\nroute: %s\nsection_headings: %d\nlines: %d\ncoverage: %d/%d\n",
-		r.Artifact, r.Route, r.Stats.Headings23, r.Stats.Lines, r.Counts.OK, r.Counts.Units)
+	out := fmt.Sprintf("source: %s\nroute: %s\nroute_headings: %d\nlines: %d\ncoverage_units: %d\ncoverage: ok=%d part=%d gap=%d no_op=%d\n",
+		r.Artifact, r.Route, r.Stats.Headings23, r.Stats.Lines, r.Counts.Units,
+		r.Counts.OK, r.Counts.Part, r.Counts.Gap, r.Counts.NoOp)
 	if r.Concepts != nil {
-		out += fmt.Sprintf("concepts: %d/%d\n", r.Concepts.Paged, r.Concepts.Candidates)
+		out += fmt.Sprintf("concepts: candidates=%d paged=%d merged=%d inline=%d declined=%d pending=%d\n",
+			r.Concepts.Candidates, r.Concepts.Paged, r.Concepts.Merged, r.Concepts.Inline,
+			r.Concepts.Declined, r.Concepts.Pending)
 	}
 	return out
+}
+
+// displayState is the human classification: a GAP unit that the page has
+// dispositioned no-op or not-conceptual is CLOSED, not an open gap.
+func displayState(u distill.Unit) string {
+	if u.State == distill.StateGap &&
+		(u.Disposition == distill.DispositionNoOp || u.Disposition == distill.DispositionNotConceptual) {
+		return "CLOSED"
+	}
+	return u.State
 }
 
 // conceptsForWrite resolves the concept-coverage block: from the --inventory
@@ -383,7 +406,7 @@ func writeCoverage(path string, content []byte, report wikiCoverageReport, dryRu
 	}
 	value := fmt.Sprintf("  units: %d\n  ok: %d\n  part: %d\n  gap: %d\n  no_op: %d",
 		report.Counts.Units, report.Counts.OK, report.Counts.Part, report.Counts.Gap, report.Counts.NoOp)
-	newYAML, err := block.Set("coverage", value, []string{ctxFrontmatterSources, "tags", "relations"})
+	newYAML, err := block.Set("coverage", value, []string{ctxFrontmatterSources, "tags", ctxFrontmatterRelations})
 	if err != nil {
 		return err
 	}
@@ -455,6 +478,7 @@ func structureSection(units []distill.Unit) string {
 	var b strings.Builder
 	b.WriteString("## Structure\n\n")
 	b.WriteString("One line per unit: artifact span · title · classification · disposition.\n")
+	b.WriteString("Classification: OK = fully cited, PART = partly cited, GAP = open, CLOSED = no-op/not-conceptual.\n")
 	chapter := ""
 	for _, u := range units {
 		if u.Kind == distill.UnitContainer {
@@ -466,7 +490,7 @@ func structureSection(units []distill.Unit) string {
 		if disposition == "" {
 			disposition = "—"
 		}
-		fmt.Fprintf(&b, "- L%d · %s · %s · %s\n", u.Line, u.Title, u.State, disposition)
+		fmt.Fprintf(&b, "- L%d · %s · %s · %s\n", u.Line, u.Title, displayState(u), disposition)
 	}
 	return b.String()
 }

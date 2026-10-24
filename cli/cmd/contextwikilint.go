@@ -388,6 +388,7 @@ func lintWikiBudget(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 // claims, 64-89 summary words) and are a SUGGESTION, never a target to pad.
 const (
 	wikiTypeConcept          = "concept"
+	wikiTypeEntity           = "entity"
 	wikiDepthMinClaims       = 8
 	wikiDepthMinSummaryWords = 50
 )
@@ -698,9 +699,18 @@ var contextWikiCmd = &cobra.Command{
 	Use:   ctxTypeWiki,
 	Short: "Knowledge graph operations (wiki lint)",
 	Long: `Knowledge-pipeline commands for the wiki/ knowledge graph under context/.
-Currently provides "lint": recursive schema/graph validation of wiki pages
-(including wiki/<context>/<slug>.md subdirectories) and the immutable source
-markers (ingestion/ status: pending, refs/ status: archived).`,
+
+  lint       recursive schema/graph validation plus the source markers
+  units      the heading/unit spans of an artifact
+  coverage   the citation coverage record and receipt block
+  inventory  concept-inventory counters, rows and scope
+  claims     broad citation spans
+  reference  the conditional reference bridge
+  frontier   the read-only graph frontier score
+  orphans    concept pages with no relation and no index link
+  comprehension  the two-page-per-book sample
+  audit      the generated receipt with page/claim and inventory totals
+  receipt    receipt lint`,
 }
 
 func init() {

@@ -8,8 +8,13 @@ The three-stage knowledge pipeline on top of `context/`: source material lands
 in `context/ingestion/`, an **agent command** distils it into knowledge-graph
 pages under `context/wiki/`, and consumed sources are archived to
 `context/refs/`. No CLI ingests files — placement is manual (user),
-distillation is agent work. This file is the **agent command**: read it when a
-new ingestion request arrives.
+distillation is agent work. This file is the **agent command**: read it on a new
+ingestion request.
+
+## Run card
+
+scope → list/plan → convert/distil → `inventory`/`coverage`/`audit`
+→ review → `archive`.
 
 ## Files & lifecycle
 
@@ -19,10 +24,10 @@ new ingestion request arrives.
 | `context/wiki/` | knowledge-graph pages | agent | `wiki` | `active`/`draft`/`archived` |
 | `context/refs/` | archived, immutable sources | agent (after approval) | `reference` | `archived` |
 
-> Marker enforcement: `sdt context wiki lint` enforces the `ingestion/` markers
-> (`kind: reference`, `status: pending`). `refs/` is **excluded from lint** — its
-> markers are a convention only, since it holds large immutable external
-> captures that need not follow the frontmatter contract.
+> Marker enforcement: `sdt context wiki lint` checks `ingestion/` markdown
+> markers (`status: pending`); `refs/` is excluded from lint. A binary carries no
+> frontmatter: `sdt context ingest list` derives its state and `list --write`
+> records it in `manifest.yaml`.
 
 ```
 user drops files → ingestion/ (pending)
@@ -58,7 +63,10 @@ are always skipped.
 ## Operating sequence
 
 1. Resolve the invocation scope (above).
-2. List pending (`status: pending`) files in scope.
+2. List the scope with `sdt context ingest list` (the status is derived from the
+   filesystem and the manifest; a binary source has no frontmatter). `status`
+   prints one source; `plan` prints the source status, the routing counts when
+   an artifact is known, and the scope/mode.
 3. Convert when needed: bring each non-markdown source to markdown (see Reading
    & conversion). The converted artifact, not the source binary, is what the routing test
    measures.
@@ -80,17 +88,19 @@ are always skipped.
    (the **compilation-value gate** below). On a book-scale source, `sdt context
    wiki coverage --write` regenerates the index page's coverage block and
    `## Structure` from the pages' citations.
-8. Wire `relations` + `tags`; every claim carries its source citation.
-9. Present the **write + archive plan** to the user: pages touched (created/
-   updated), relations added/removed, and files to archive. **Wait for
-   approval**.
-10. On approval: archive processed sources to `context/refs/` with
-    `status: archived`, append a `worklog/` entry, run `sdt context reindex`.
+8. Wire `relations` + `tags`; every claim cites its source. Repair the inventory
+   with `inventory --write --sync-index` (inline stays declared); `wiki claims`
+   flags broad claims.
+9. Persist the scope with `ingest plan ... --write`, then present the **write +
+   archive plan**; **wait for approval**.
+10. On approval: archive processed sources with `sdt context ingest archive
+    <source>` (hash check, destination collision guard and a
+    `<basename>.source.yaml` sidecar), append a `worklog/` entry, run
+    `sdt context reindex`. `--force` is only for a source whose run is
+    dispositioned but has no converted artifact.
 
-**Routing record**: a run that skips the route is not auditable, so the receipt
-states `route:` and the two counts for **every** source, `single-pass` included.
-A route may be declared against the measured default when the agent knows the
-source; record the reason.
+**Routing record**: the receipt states `route:` and the two counts for every
+source; a route declared against the measured default records why.
 
 **Idempotence**: skip `status: archived` files; a re-run matches candidates
 against existing nodes, not against archived sources as new input.
@@ -121,6 +131,9 @@ Sources are frequently not plain markdown — convert first, then distil.
   (availability means the tool launches, not that it is on PATH) and prints
   markdown to stdout to read. Use `--tool <name>` to pin one converter;
   `sdt doc2md tools` probes the chain.
+- **Batch convert** with `sdt doc2md --dir <path> --keep` (per-source statuses).
+- **Reference lane:** `refs/reference/<dir>/` is mandatory once a page cites a
+  file; `wiki reference` reports missing files, optional bundles.
 - **Keep a document** with `sdt doc2md <file> --keep`: it stores a
   content-addressed, provenance-stamped file under `context/refs/converted/`
   and regenerates the index there (`list`, `set`, `reindex` are the read /
@@ -387,32 +400,30 @@ The receipt opens with one **routing block per source** — the route taken and
 the evidence it rested on:
 
 ```
-source: <the pending source, as scoped>
+source: <refs/converted/...>
 route: single-pass|book-scale
-section_headings: <n>        # measured on the converted artifact
+route_headings: <n>        # levels 2-3, the routing proxy
 lines: <n>
-coverage: <ok>/<units>       # the coverage block's ok over units; book-scale only
-concepts: <paged>/<candidates> # the concepts block's paged over candidates; book-scale only
+coverage_units: <n>        # levels 1-3, the coverage denominator
+coverage: ok=<n> part=<n> gap=<n> no_op=<n>
+concepts: candidates=<n> paged=<n> merged=<n> inline=<n> declined=<n> pending=<n>
 summary_check: pass|fail (pages: <ids>)
 ```
 
-The two counts are the routing trail: they make the declared route re-checkable
-from the artifact alone. `sdt doc2md` measures them when it keeps an artifact —
-levels 2–3 and the conversion's lines, frontmatter excluded — and
-`sdt doc2md list --format json` re-measures them on every kept artifact, so an
-older keep's receipt can be refilled from the listing; `sdt context wiki
-coverage --receipt` prints the block above, filled in. The `coverage:` line
-repeats the source's
-index page's `coverage:` block as `ok/units` (`wiki.md`, *The coverage record*):
-a `book-scale` source **owes** it, and a book-scale route without it is an
-**incomplete** receipt, never a small one. A `single-pass` source omits the line
-— it owes no coverage record.
+`route_headings` is the levels 2-3 routing proxy; `coverage_units` is the
+levels 1-3 coverage denominator. Both are measured on the converted artifact,
+never counted by hand; `sdt doc2md` and `sdt context wiki coverage --receipt`
+print them.
 
-The `concepts:` line repeats the index page's `concepts:` block as
-`paged/candidates` (`wiki.md`, *The coverage record*). The block is derived from
-the source's checked inventory note, never typed by hand; a block that disagrees
-with its note, or that still carries pending candidates, is an **incomplete**
-run for the same reason a non-zero gap is.
+A `book-scale` source **owes** `coverage_units`, `coverage` and `concepts`; a
+route without them is an **incomplete** receipt. A `single-pass` source may
+omit those lines. The `coverage:` and `concepts:` lines repeat the index page's
+blocks (`wiki.md`, *The coverage record*); the counters come from the checked
+inventory note, never typed by hand.
+
+`sdt context wiki receipt lint <note>` rejects a block missing any counter.
+`sdt context wiki inventory <note>` reads every chapter table and the totals,
+so a pending row cannot hide behind `pending: 0`.
 
 The `summary_check:` line records a review, not a lint. For each concept page,
 the reviewer states what the page claims and why it matters **without opening
@@ -425,19 +436,19 @@ the line so the review is visible after the fact; no tool reads comprehension.
 - `sdt context wiki lint` — schema/graph checks on `wiki/` (scanned
   recursively; `id` = relative subpath) plus `ingestion/` markers
   (`refs/` excluded). Separate from the general `sdt context lint`.
-  The **coverage record** is part of that surface: a malformed `coverage:` block,
-  a sum that does not match `units` and a `gap > 0` are reported, while an absent
-  block is not a finding — whether a source was book-scale is the declared route's
-  job (`## Ingestion receipt`), not a shape the tool can infer. The
-  **concepts block** is checked the same way: a malformed block, a sum that does
-  not match `candidates`, counters that disagree with the note it names, a
-  missing note and `pending > 0` are reported; an absent block is not.
-- The receipt repeats the coverage numbers, so a reader of the run sees the
-  source's coverage without opening the page; a `book-scale` route with no
-  coverage record is an **incomplete** run, not a terse one.
-- The **summary check** is a review, not a lint: no tool reads comprehension.
-  `summary_check:` records the reviewer's verdict and the failing page ids; a
-  passing line with no review behind it is a false record, not a check.
+  The **coverage record** is part of that surface: a malformed block, a sum that
+  does not match `units` and a `gap > 0` are reported; an absent block is not,
+  because the declared route, not the shape, says whether the source was
+  book-scale. The **concepts block** is checked the same way, including a
+  counters/note mismatch and `pending > 0`.
+- `sdt context wiki audit <index-page> --artifact <artifact> [--inventory
+  <note>]` prints the receipt with page/claim totals and the inventory verdict;
+  `sdt context wiki receipt lint <note>` checks the counters;
+  `sdt context wiki inventory <note>` checks the whole note.
+- `sdt context ingest list --write` derives the queue manifest; `archive` is the
+  only archive move and records a sidecar. A source with no manifest entry is
+  still visible as `pending`, so the manifest is a derived index, not a second
+  truth.
 - Security: `sdt context lint --security` flags prompt-injection phrases,
   credential/secret literals and invisible/zero-width Unicode in the ingested
   knowledge (advisory WARNING) before they can steer the agent.

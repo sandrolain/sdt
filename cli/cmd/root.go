@@ -25,7 +25,7 @@ func getFormat(cmd *cobra.Command) string {
 			}
 		}
 	}
-	return "text"
+	return formatText
 }
 
 // getPersistentBool returns the value of a root persistent bool flag, or false

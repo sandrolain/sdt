@@ -170,7 +170,7 @@ the derived indexes.
   task · check · checklist · close · deprecate
                                             run a plan: checklists, item states, the close
   relations · uid                           typed parent links and document identity
-  reindex · lint · commands · memo · todo · wiki · snapshot · budget
+  reindex · lint · commands · memo · todo · wiki · ingest · snapshot · budget
                                             keep the derived surfaces and the registers true`,
 	// A verb that does not exist must say so. Without this, cobra hands the
 	// unknown token to the parent, which prints its help and exits 0 — so a
