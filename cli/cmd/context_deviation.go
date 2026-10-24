@@ -228,6 +228,7 @@ Examples:
 			content = setTaskFileStatus(updated, taskFileNextStatus(marker, updated))
 		}
 		content = appendDeviationItem(content, kind, text, reason)
+		content = stampProvenance(content, cmd)
 		path := taskFileForRef(phase, stream, plan)
 		//#nosec G306 -- user work file
 		if err := writeTaskFile(path, content); err != nil {

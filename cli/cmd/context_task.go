@@ -577,6 +577,7 @@ var contextTaskAddCmd = &cobra.Command{
 				taskUID = parseFrontmatterField(content, ctxFrontmatterUID)
 			}
 		}
+		content = stampProvenance(content, cmd)
 		if err := os.MkdirAll(sdtTasksDir, 0o750); err != nil { //#nosec G301 -- user work dir
 			exitWithError(cmd, err)
 		}
@@ -778,6 +779,7 @@ Examples:
 		if !hasUnfinishedTaskItem(content) {
 			content = setTaskFileStatus(content, taskFileStatusCompleted)
 		}
+		content = stampProvenance(content, cmd)
 		//#nosec G306 -- user work file
 		if err := os.WriteFile(path, []byte(strings.TrimRight(content, "\n")+"\n"), 0o644); err != nil {
 			exitWithError(cmd, err)

@@ -77,6 +77,10 @@ func runContextSet(cmd *cobra.Command, args []string) {
 		exitWithError(cmd, err)
 		return
 	}
+	if err := checkProvenanceCollision(cmd, key); err != nil {
+		exitWithError(cmd, err)
+		return
+	}
 
 	//#nosec G304 -- resolved context document
 	data, err := os.ReadFile(doc.Path)
@@ -98,7 +102,7 @@ func runContextSet(cmd *cobra.Command, args []string) {
 	}
 
 	doc0 := block.ReplaceBody(content, newYAML)
-	doc0 = refreshUpdated(cmd, doc, key, doc0)
+	doc0 = finalizeDocWrite(cmd, doc, key, doc0)
 	if err := writeContextDocFile(doc.Path, doc0); err != nil {
 		exitWithError(cmd, err)
 		return
@@ -169,6 +173,10 @@ func runContextUnset(cmd *cobra.Command, args []string) {
 		exitWithError(cmd, err)
 		return
 	}
+	if err := checkProvenanceCollision(cmd, key); err != nil {
+		exitWithError(cmd, err)
+		return
+	}
 	//#nosec G304 -- resolved context document
 	data, err := os.ReadFile(doc.Path)
 	if err != nil {
@@ -186,7 +194,7 @@ func runContextUnset(cmd *cobra.Command, args []string) {
 		exitWithError(cmd, err)
 		return
 	}
-	doc0 := refreshUpdated(cmd, doc, key, block.ReplaceBody(content, newYAML))
+	doc0 := finalizeDocWrite(cmd, doc, key, block.ReplaceBody(content, newYAML))
 	if err := writeContextDocFile(doc.Path, doc0); err != nil {
 		exitWithError(cmd, err)
 		return
@@ -239,6 +247,24 @@ func validateSetValue(doc ctxResolvedDoc, key, rendered string) error {
 
 // refreshUpdated rewrites `updated` to now unless the caller set it directly or
 // the kind does not carry an `updated` field.
+// finalizeDocWrite applies the derived frontmatter a mutating write owes the
+// document: the `updated` refresh and the provenance stamps (--agent/--model/
+// --session). One choke point, so a mutator cannot grow one and forget the other.
+func finalizeDocWrite(cmd *cobra.Command, doc ctxResolvedDoc, key, content string) string {
+	return stampProvenance(refreshUpdated(cmd, doc, key, content), cmd)
+}
+
+// checkProvenanceCollision refuses a key that is also the provenance flag being
+// passed: one value with two spellings, and the stamp would silently win.
+func checkProvenanceCollision(cmd *cobra.Command, key string) error {
+	for _, k := range []string{ctxFieldAgent, ctxFieldModel, ctxFieldSession} {
+		if key == k && cmd.Flags().Changed(k) {
+			return fmt.Errorf("%q is both the key being written and the --%s provenance flag: pass one", key, k)
+		}
+	}
+	return nil
+}
+
 func refreshUpdated(cmd *cobra.Command, doc ctxResolvedDoc, key, content string) string {
 	if key == statusUpdated || !ctxHasUpdatedFor(doc.Type.kind) {
 		return content
@@ -342,5 +368,7 @@ func init() {
 	contextSetCmd.Flags().Bool("force", false, "Write a CLI-owned key (uid, analysis_id, plan_id)")
 	addContextStatusRefFlags(contextUnsetCmd)
 	contextUnsetCmd.Flags().Bool("force", false, "Remove a CLI-owned key (uid, analysis_id, plan_id)")
+	addProvenanceFlags(contextSetCmd)
+	addProvenanceFlags(contextUnsetCmd)
 	contextCmd.AddCommand(contextSetCmd, contextUnsetCmd)
 }

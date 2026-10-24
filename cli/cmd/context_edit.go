@@ -129,7 +129,7 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	newContent := refreshUpdated(cmd, doc, "", fm+newBody)
+	newContent := finalizeDocWrite(cmd, doc, "", fm+newBody)
 	diff := unifiedDiff(doc.Path, doc.Path, strings.Split(content, "\n"), strings.Split(newContent, "\n"), 3)
 	dryRun := getBoolFlag(cmd, "dry-run", false)
 	outputContextEdit(cmd, contextEditResult{
@@ -325,5 +325,6 @@ func init() {
 	contextEditCmd.Flags().Bool("append", false, "Append the input after the body, or after --section, instead of replacing")
 	contextEditCmd.Flags().Bool("dry-run", false, "Print the diff without writing")
 	contextEditCmd.Flags().Bool("force", false, "Allow an empty body (empties the document, or removes the section)")
+	addProvenanceFlags(contextEditCmd)
 	contextCmd.AddCommand(contextEditCmd)
 }

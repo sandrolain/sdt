@@ -40,6 +40,11 @@ Examples:
 		exitWithError(cmd, err)
 		now := contextNow().UTC().Format(time.RFC3339)
 		content, changed := setFrontmatterFields(string(data), []frontmatterPatch{{key: statusUpdated, value: now}})
+		// A provenance flag alone is a write too: `touch --agent x` records who
+		// touched the document even when `updated` would not move.
+		if stamped := stampProvenance(content, cmd); stamped != content {
+			content, changed = stamped, true
+		}
 		if !changed {
 			// A same-second/equal-value call is an idempotent no-op, not an
 			// error; only a document without usable frontmatter is (F3).
@@ -69,4 +74,5 @@ Examples:
 
 func init() {
 	addContextStatusRefFlags(contextTouchCmd)
+	addProvenanceFlags(contextTouchCmd)
 }

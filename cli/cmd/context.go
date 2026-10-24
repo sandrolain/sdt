@@ -253,6 +253,7 @@ func init() {
 	contextDeviationAddCmd.Flags().String("kind", ctxDeviationDefaultKind, "Deviation kind: "+ctxDeviationKindHelp())
 	contextDeviationAddCmd.Flags().String("id", "", "Checklist id of the phase item the deviation concerns (marked, never deleted)")
 	contextDeviationAddCmd.Flags().String("reason", "", "Why the plan was departed from (recorded with the item)")
+	addProvenanceFlags(contextDeviationAddCmd)
 	for _, c := range []*cobra.Command{contextDeviationAddCmd, contextDeviationListCmd} {
 		c.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 		c.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
@@ -306,6 +307,8 @@ func init() {
 	}
 	addProvenanceFlags(contextStatusSetCmd)
 	addProvenanceFlags(contextDeprecateCmd)
+	addProvenanceFlags(contextTaskAddCmd)
+	addProvenanceFlags(contextTaskReviewCmd)
 	contextTaskReviewCmd.Flags().String("stream", "", "Split-file label (kebab-case); selects <slug-plan>-<stream>.md")
 	contextTaskClaimCmd.Flags().String("plan", "", "Plan reference (plan file; default: latest active plan; custom slug for standalone)")
 	contextTaskClaimCmd.Flags().String("phase", "", "Phase number from the plan, e.g. 1 or 1a (optional; targets the ## Phase section)")
@@ -321,6 +324,7 @@ func init() {
 
 	contextCloseCmd.Flags().Bool("allow-unfinished", false, "Close despite unfinished children/tasks (requires --reason)")
 	contextCloseCmd.Flags().String("reason", "", "Why the document is closed early (required with --allow-unfinished)")
+	addProvenanceFlags(contextCloseCmd)
 	addCascadeFlag(contextCloseCmd)
 
 	addCascadeFlag(contextTaskAddCmd)

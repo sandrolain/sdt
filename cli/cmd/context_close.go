@@ -43,7 +43,7 @@ Examples:
 		exitWithError(cmd, err)
 		allow := getBoolFlag(cmd, "allow-unfinished", false)
 		reason := strings.TrimSpace(getStringFlag(cmd, "reason", false))
-		entry, err := closeDocument(doc, allow, reason)
+		entry, err := closeDocument(cmd, doc, allow, reason)
 		exitWithError(cmd, err)
 		outputString(cmd, "ok\n")
 		if entry != "" {
@@ -58,7 +58,7 @@ Examples:
 // the document is a plan or a stream of one. It is the one implementation behind
 // `context close` and `status set` with a terminal value and a `--reason`, so the
 // two cannot drift.
-func closeDocument(doc ctxResolvedDoc, allow bool, reason string) (string, error) {
+func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason string) (string, error) {
 	terminal := closeTerminalStatus(doc.Type)
 	if terminal == "" {
 		return "", fmt.Errorf("type %s cannot be closed", ctxKindLabel(doc.Type))
@@ -85,6 +85,7 @@ func closeDocument(doc ctxResolvedDoc, allow bool, reason string) (string, error
 			content = stamped
 		}
 	}
+	content = stampProvenance(content, cmd)
 	//#nosec G306 G703 -- path resolved from the corpus, not from user input
 	if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
 		return "", err
