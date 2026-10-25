@@ -38,6 +38,19 @@ func lintAnalysisRules(t *testing.T, kind, body string) (outcome, oversize []ctx
 	return outcome, oversize
 }
 
+// lintAcceptanceFindings runs the per-file lint and returns the R3 acceptance
+// findings (an accepted option that names no user).
+func lintAcceptanceFindings(t *testing.T, kind, body string) []ctxLintIssue {
+	t.Helper()
+	var found []ctxLintIssue
+	for _, i := range lintAnalysisDocKind(t, kind, body) {
+		if strings.Contains(i.Message, "accepted with no user named") {
+			found = append(found, i)
+		}
+	}
+	return found
+}
+
 func lintAnalysisDocKind(t *testing.T, kind, body string) []ctxLintIssue {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "a.md")
@@ -54,8 +67,8 @@ func TestLintAnalysisOptionsOutcome(t *testing.T) {
 		options string
 		want    int // unrecorded options; 0 means the rule must stay silent
 	}{
-		{"recorded with the Outcome form", "### Option A: one\n- **Outcome:** accepted\n### Option B: two\n- **Outcome:** rejected (too costly)\n", 0},
-		{"recorded with the terse bold form", "### Option A: one\n**Accepted**\n### Option B: two\n**Rejected**\n", 0},
+		{"recorded with the Outcome form", "### Option A: one\n- **Outcome:** accepted (user, 2026-01-01)\n### Option B: two\n- **Outcome:** rejected (too costly)\n", 0},
+		{"recorded with the terse bold form", "### Option A: one\n**Accepted (user, 2026-01-01)**\n### Option B: two\n**Rejected**\n", 0},
 		{"one of two recorded", "### Option A: one\n- **Outcome:** accepted\n### Option B: two\n- Pros: cheap\n", 1},
 		{"none recorded", "### Option A: one\n- Pros: x\n- Cons: y\n### Option B: two\n- Pros: x\n", 2},
 	}
@@ -78,7 +91,7 @@ func TestLintAnalysisOptionsOutcome(t *testing.T) {
 				t.Errorf("rule must stay advisory SUGGESTION, got %s", got[0].Priority)
 			}
 			// The hint names the R3 outcome vocabulary and the rule.
-			if !strings.Contains(got[0].Hint, "accepted / rejected") || !strings.Contains(got[0].Hint, "R3") {
+			if !strings.Contains(got[0].Hint, "accepted (by the user) / proposed / rejected") || !strings.Contains(got[0].Hint, "R3") {
 				t.Errorf("hint should name the R3 outcomes, got %q", got[0].Hint)
 			}
 		})
@@ -93,6 +106,53 @@ func TestLintAnalysisOptionsScope(t *testing.T) {
 	// The rule is analysis-only.
 	if got, _ := lintAnalysisRules(t, ctxTypePlan, analysisDoc(1, "### Option A: one\n- Pros: x\n")); len(got) != 0 {
 		t.Errorf("rule is analysis-only, fired on a plan: %v", got)
+	}
+}
+
+func TestLintAnalysisAcceptance(t *testing.T) {
+	cases := []struct {
+		name    string
+		options string
+		want    int // accepted options naming no user; 0 means the rule stays silent
+	}{
+		{"accepted naming the user", "### Option A: one\n- **Outcome:** accepted (user, 2026-10-25)\n", 0},
+		{"accepted naming nobody", "### Option A: one\n- **Outcome:** accepted\n", 1},
+		{"accepted naming the analyst", "### Option A: one\n- **Outcome:** accepted (analyst, 2026-10-24)\n", 1},
+		{"terse bold verdict naming nobody", "### Option A: one\n**Accepted**\n", 1},
+		{"proposed waiting on the user", "### Option A: one\n- **Outcome:** proposed (waiting on the user)\n", 0},
+		{"proposed with no attribution", "### Option A: one\n- **Outcome:** proposed\n", 0},
+		{"rejected and postponed", "### Option A: one\n- **Outcome:** rejected (too costly)\n### Option B: two\n- **Outcome:** postponed (its own analysis)\n", 0},
+		{"the user in the prose does not name the decider", "### Option A: one\n- Pros: the user asked for this shape\n- **Outcome:** accepted\n", 1},
+		{"two accepted, one named", "### Option A: one\n- **Outcome:** accepted (user, 2026-10-25)\n### Option B: two\n- **Outcome:** accepted\n", 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := lintAcceptanceFindings(t, ctxTypeAnalysis, analysisDoc(1, c.options))
+			if len(got) != c.want {
+				t.Fatalf("want %d acceptance finding(s), got %d: %v", c.want, len(got), got)
+			}
+			if c.want == 0 {
+				return
+			}
+			if got[0].Priority != ctxLintSuggestion {
+				t.Errorf("rule must stay advisory SUGGESTION, got %s", got[0].Priority)
+			}
+			// The hint names the two honest forms and the rule.
+			if !strings.Contains(got[0].Hint, "accepted (user,") || !strings.Contains(got[0].Hint, "proposed") || !strings.Contains(got[0].Hint, "R3") {
+				t.Errorf("hint should name both forms and R3, got %q", got[0].Hint)
+			}
+		})
+	}
+}
+
+func TestLintAnalysisAcceptanceScope(t *testing.T) {
+	// The rule is analysis-only, and reads only the options section: an
+	// acceptance written elsewhere is not a verdict.
+	if got := lintAcceptanceFindings(t, ctxTypePlan, analysisDoc(1, "### Option A: one\n- **Outcome:** accepted\n")); len(got) != 0 {
+		t.Errorf("rule is analysis-only, fired on a plan: %v", got)
+	}
+	if got := lintAcceptanceFindings(t, ctxTypeAnalysis, "## Problem statement\n\n- **Outcome:** accepted\n"); len(got) != 0 {
+		t.Errorf("an acceptance outside `## Options considered` is not a verdict: %v", got)
 	}
 }
 

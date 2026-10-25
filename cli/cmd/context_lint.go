@@ -654,6 +654,9 @@ func lintDoc(path string) []ctxLintIssue {
 	// postponed). Rule R1: an analysis past the soft section/option bounds is a
 	// split candidate, gated on asking the user. Both advisory SUGGESTIONs.
 	issues = append(issues, lintAnalysisOptions(path, content, kind)...)
+	// Rule R3, second half: an accepted option names the user as the decider;
+	// the analyst's own recommendation is `proposed`. Advisory SUGGESTION.
+	issues = append(issues, lintAnalysisAcceptance(path, content, kind)...)
 	issues = append(issues, lintAnalysisOversize(path, content, kind)...)
 	// Optional controlled vocabulary: `topics`/`entities` are validated against
 	// context/topics.yaml (alias canonicalization, advisory for unknown).
@@ -1247,7 +1250,56 @@ func lintAnalysisOptions(path, content, kind string) []ctxLintIssue {
 		Path:     path,
 		Priority: ctxLintSuggestion,
 		Message:  fmt.Sprintf("analysis lists %d option(s) with no recorded outcome (%s)", len(unrecorded), strings.Join(names, "; ")),
-		Hint:     "record the fate of every option as accepted / rejected (+ reason) / postponed — R3 in `context/instructions/analysis.md`",
+		Hint:     "record the fate of every option as accepted (by the user) / proposed / rejected (+ reason) / postponed — R3 in `context/instructions/analysis.md`",
+	}}
+}
+
+// ctxOptionAcceptedRegexp matches a recorded acceptance verdict — the
+// `**Outcome:** accepted …` form R3 asks for, or a standalone bold
+// `**Accepted**`. Prose that merely mentions an acceptance is not one.
+var ctxOptionAcceptedRegexp = regexp.MustCompile(`(?im)^\s*[-*]?\s*\**\s*(outcome|fate|verdict|decision)\s*\**\s*:\s*\**\s*accepted\b|^\s*\*\*\s*accepted\s*\*\*\s*$`)
+
+// ctxUserRefRegexp matches the decider R3 requires on an accepted option.
+var ctxUserRefRegexp = regexp.MustCompile(`(?i)\buser\b`)
+
+// lintAnalysisAcceptance requires the acceptance verdict itself to name the user
+// (rule R3): the acceptance is the user's act, so an `accepted` that names
+// nobody reads as the analyst's own verdict. The attribution is looked for on
+// the verdict line only — a paragraph elsewhere in the option mentioning the
+// user does not name the decider. Presence-only, like the outcome rule beside
+// it: a token, never proof that a conversation happened, which is why it stays
+// advisory. `proposed` is the honest state for an unanswered recommendation and
+// is never flagged.
+func lintAnalysisAcceptance(path, content, kind string) []ctxLintIssue {
+	if kind != ctxTypeAnalysis {
+		return nil
+	}
+	section, ok := ctxSection(content, "Options considered")
+	if !ok {
+		return nil
+	}
+	var unnamed []string
+	for _, b := range ctxOptionBlocks(section) {
+		for _, line := range strings.Split(b.body, "\n") {
+			if !ctxOptionAcceptedRegexp.MatchString(line) || ctxUserRefRegexp.MatchString(line) {
+				continue
+			}
+			unnamed = append(unnamed, b.heading)
+			break
+		}
+	}
+	if len(unnamed) == 0 {
+		return nil
+	}
+	names := unnamed
+	if len(names) > 3 {
+		names = append(names[:3:3], "…")
+	}
+	return []ctxLintIssue{{
+		Path:     path,
+		Priority: ctxLintSuggestion,
+		Message:  fmt.Sprintf("option accepted with no user named (%s) — the acceptance is the user's act", strings.Join(names, "; ")),
+		Hint:     "record it as `**Outcome:** accepted (user, <date>)` with the reason, or `proposed (waiting on the user)` while it is unanswered — R3 in `context/instructions/analysis.md`",
 	}}
 }
 

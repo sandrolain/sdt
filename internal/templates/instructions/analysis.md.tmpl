@@ -116,7 +116,7 @@ session: <session id>        # optional
   Distinct from assumptions: a constraint is a decision already taken, not a
   guess.
 - **Investigation** — what was tried, checked, tested. Include dead ends; they
-  save the next person (human or agent) from repeating them. Format:
+  save the next reader from repeating them. Format:
   `<step taken> → <result / finding>`, incl. "ruled out because ...".
 - **Behaviour decisions** (optional) — each rule with its concrete example and
   who decided it (user answer or a declared default). A rule without its example
@@ -124,9 +124,10 @@ session: <session id>        # optional
 - **Design decisions** (optional) — technical choices with their rationale,
   filled by the `>scope` Plan phase; the plan's Design contract references them
   and may only change one with an explicit note.
-- **Options considered** (conditional) — only when the analysis leads to a real
-  choice; otherwise omit. One subsection per option: Description, Pros, Cons,
-  Effort/risk, and `**Outcome:**` (accepted / rejected / postponed) — R3.
+- **Options considered** — only when the analysis leads to a real choice. One
+  subsection per option: Description, Pros, Cons,
+  Effort/risk, and `**Outcome:**` (accepted / proposed / rejected /
+  postponed) — R3.
 - **Postponed from** — `status: postponed` analyses only: the origin option, the
   reason it was not chosen now, and the condition that would revive it (R3).
 - **Objectives** (optional) — the **checklist** of outcomes this analysis must
@@ -186,14 +187,15 @@ session: <session id>        # optional
   the umbrella, and the umbrella lists them in a `## Sibling analyses` section.
   `sdt context lint` raises a SUGGESTION past 12 sections or 6 options — the ask
   still comes first.
-- **R3 — every option records its fate.** At the end of an analysis each option
-  in `## Options considered` carries exactly one outcome: **accepted** (it
-  becomes the subject of a plan), **rejected** (one line
-  with the reason, in the option's own subsection; a rejected approach found
-  later during execution is a `note_type: dead-end` note), or **postponed** (a
-  new analysis, see below). Record it as `- **Outcome:** <verdict> (<reason>)`
-  in the option's subsection; `sdt context lint` raises a SUGGESTION on an option
-  with none.
+- **R3 — every option records its fate; only the user may accept one.** Each
+  option carries exactly one outcome: **accepted** (`accepted (user, <date>)` —
+  the user's act, never the analyst's; the plan's input), **proposed** (the
+  agent's recommendation, unanswered — no plan may start from it; a written
+  question in the option, not an open point), **rejected** (one line with the
+  reason; found later, it is a `note_type: dead-end` note), or **postponed** (a
+  new analysis, below). Record `- **Outcome:** <verdict> (<reason>)` in its
+  subsection; `sdt context lint` flags a missing outcome, and an `accepted` line
+  naming no user.
 - **A postponed option becomes its own analysis, not a footnote.** Create one
   analysis per origin (split further only when the options belong to different
   domains, each then its own umbrella linking to the origin) with

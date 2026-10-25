@@ -11,9 +11,9 @@ This project is managed with SDT: this block, and the write-once
    outside an existing analysis or plan starts with the **analysis**; plan and
    execution follow inside that objective, and the documents are the record.
    Inside the current analysis/plan, integrate in place. Trivial questions are
-   answered inline. It stops only where a hard rule reserves the decision: a
-   commit, a deletion, a spend, a choice between real options, design agreement,
-   rule 4.
+   answered inline. It stops only where a hard rule reserves it: a commit, a
+   deletion, a spend, a choice between real options, including which one an
+   analysis accepts, design agreement, rule 4.
    *Don't:* edit code the moment the ask arrives; state the chain and open the
    analysis first.
 2. **Immutable past docs** — touch a past analysis/plan only when the user points
@@ -173,8 +173,8 @@ closeout, no analysis (`plan.md`); anything larger takes the chain.
 1. **Analysis** — integrate/modify the current analysis; type it first
    (`categories`, expected outcome: information or implementation). It carries
    context, evidence and decisions — the "how" belongs to the plan. Splitting a
-   broad analysis asks first; every option ends accepted, rejected or
-   `postponed` (`analysis.md`).
+   broad analysis asks first; every option ends accepted by the user,
+   proposed, rejected or `postponed` (`analysis.md`).
 2. **Plan** — from the analysis; carries the implementation, maps each objective
    to its phase and ends with a **Validation phase** (`plan.md`).
 3. **Execution** — the plan is the ledger: phases carry the checklist
@@ -254,5 +254,5 @@ architecture or dependency (`development.md`) — is written back into the
 ### Keep the chain
 
 Non-trivial intent → the **analysis** first, then plan → execution inside that
-objective; HARD RULE 1 states the chain and its gates once, and every file links
+objective; HARD RULE 1 states the chain and its gates once; every file links
 there.
