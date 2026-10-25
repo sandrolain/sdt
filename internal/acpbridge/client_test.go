@@ -18,8 +18,11 @@ import (
 type recordingSink struct {
 	mu           sync.Mutex
 	updates      []acp.SessionNotification
-	permissions  []Permission
-	onPermission func(Permission)
+	permissions   []Permission
+	onPermission  func(Permission)
+	elicitations  []Elicitation
+	onElicitation func(Elicitation)
+	completed     []string
 }
 
 func (s *recordingSink) SessionUpdate(_ context.Context, notification acp.SessionNotification) error {
@@ -37,6 +40,22 @@ func (s *recordingSink) Permission(_ context.Context, request Permission) {
 	if notify != nil {
 		notify(request)
 	}
+}
+
+func (s *recordingSink) Elicitation(_ context.Context, request Elicitation) {
+	s.mu.Lock()
+	s.elicitations = append(s.elicitations, request)
+	notify := s.onElicitation
+	s.mu.Unlock()
+	if notify != nil {
+		notify(request)
+	}
+}
+
+func (s *recordingSink) ElicitationComplete(_ context.Context, elicitationID string) {
+	s.mu.Lock()
+	s.completed = append(s.completed, elicitationID)
+	s.mu.Unlock()
 }
 
 // The confinement matrix: what the policy refuses and what it allows, next to each
@@ -113,7 +132,13 @@ func newTestClient(t *testing.T, root string, sink Sink) *client {
 	if sink == nil {
 		sink = &recordingSink{}
 	}
-	return &client{root: root, sink: sink, perms: NewPermissionQueue(sink.Permission)}
+	return &client{
+		root:           root,
+		sink:           sink,
+		perms:          NewPermissionQueue(sink.Permission),
+		elicitations:   NewElicitationQueue(sink.Elicitation),
+		currentSession: func() string { return "sess-1" },
+	}
 }
 
 // The positive case and the refusals together: a read inside the root returns the
@@ -363,7 +388,7 @@ func TestAPermissionWithoutAnAnswerIsCancelled(t *testing.T) {
 	if response.Outcome.Cancelled == nil {
 		t.Fatalf("a cancelled wait returned %+v, want the protocol's cancellation", response.Outcome)
 	}
-	if got := len(c.perms.queue); got != 0 {
+	if got := len(c.perms.q.queue); got != 0 {
 		t.Fatalf("%d requests were left in the queue after the wait ended", got)
 	}
 }

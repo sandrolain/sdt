@@ -38,6 +38,12 @@ func handshake(ctx context.Context, conn *acp.ClientSideConnection, version stri
 			// offer one.
 			Fs:       acp.FileSystemCapabilities{ReadTextFile: true, WriteTextFile: true},
 			Terminal: false,
+			// A question is answered by the panel, so both shapes are advertised: a
+			// capability the bridge does not declare is a question an agent will not ask.
+			Elicitation: &acp.ElicitationCapabilities{
+				Form: &acp.ElicitationFormCapabilities{},
+				Url:  &acp.ElicitationUrlCapabilities{},
+			},
 		},
 	})
 	if err != nil {

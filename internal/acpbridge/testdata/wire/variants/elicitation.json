@@ -1,0 +1,40 @@
+{
+  "type": "state",
+  "sessionId": "sess-1",
+  "thread": {
+    "sessionId": "sess-1",
+    "messages": [
+      {
+        "id": "msg-1",
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "elicitation",
+            "elicitation": {
+              "requestId": "elicit-1",
+              "sessionId": "sess-1",
+              "mode": "form",
+              "message": "Which branch should the change land on?",
+              "schema": {
+                "properties": {
+                  "branch": {
+                    "title": "Branch",
+                    "type": "string"
+                  },
+                  "push": {
+                    "title": "Push it",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "branch"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

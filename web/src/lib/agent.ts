@@ -17,6 +17,7 @@ export const ENVELOPE_STATE = "state";
 export const ENVELOPE_PROMPT = "prompt";
 export const ENVELOPE_CANCEL = "cancel";
 export const ENVELOPE_PERMISSION = "permission";
+export const ENVELOPE_ELICITATION = "elicitation";
 export const ENVELOPE_CONFIG = "config";
 export const ENVELOPE_STATUS = "status";
 
@@ -32,12 +33,27 @@ export const PART_TEXT = "text";
 export const PART_THOUGHT = "thought";
 export const PART_TOOL_CALL = "tool_call";
 export const PART_PERMISSION = "permission";
+export const PART_ELICITATION = "elicitation";
 export const PART_ERROR = "error";
 export const PART_STOP = "stop";
 
 /** The user's answer to a permission card, as the bridge records it. */
 export const DECISION_ALLOWED = "allowed";
 export const DECISION_DENIED = "denied";
+
+/** The user's answer to a question, as the bridge records it. */
+export const DECISION_ACCEPTED = "accepted";
+export const DECISION_DECLINED = "declined";
+export const DECISION_CANCELLED = "cancelled";
+
+/** The two shapes a question can take. */
+export const ELICITATION_FORM = "form";
+export const ELICITATION_URL = "url";
+
+/** The actions a browser sends back, which are the protocol's own words. */
+export const ACTION_ACCEPT = "accept";
+export const ACTION_DECLINE = "decline";
+export const ACTION_CANCEL = "cancel";
 
 /** Paths of the viewer's agent endpoints. */
 export const AGENT_STATE_PATH = "/api/agent/state";
@@ -91,6 +107,31 @@ export interface AgentPermission {
   decision?: string;
 }
 
+/** Elicitation is one question the agent asks, as the bridge sends it. */
+export interface AgentElicitation {
+  requestId: string;
+  sessionId: string;
+  /** form or url. */
+  mode: string;
+  message: string;
+  /** The requested schema, verbatim: properties, required names, title and description. */
+  schema?: {
+    type?: string;
+    properties?: Record<string, unknown>;
+    required?: string[];
+    title?: string;
+    description?: string;
+  };
+  url?: string;
+  elicitationId?: string;
+  /** Set when the answer arrives, so the card resolves in place. */
+  decision?: string;
+  /** The accepted form's values. */
+  content?: Record<string, unknown>;
+  /** Set by the protocol's own completion of a url question. */
+  completed?: boolean;
+}
+
 /** ToolCall is one tool the agent ran. */
 export interface AgentToolCall {
   id: string;
@@ -111,6 +152,7 @@ export interface AgentPart {
   text?: string;
   toolCall?: AgentToolCall;
   permission?: AgentPermission;
+  elicitation?: AgentElicitation;
 }
 
 /** Message is one user or assistant turn. */
@@ -197,14 +239,21 @@ export interface AgentStateEnvelope {
 }
 
 /**
- * The four commands a browser sends. `sessionId` names the conversation, because a
- * command travels as its own POST while the stream is a different request; omitted
- * means "the stream I am reading", which is the single-browser case.
+ * The commands a browser sends. `sessionId` names the conversation, because a command
+ * travels as its own POST while the stream is a different request; omitted means "the
+ * stream I am reading", which is the single-browser case.
  */
 export type AgentCommand =
   | { type: typeof ENVELOPE_PROMPT; text: string; sessionId?: string }
   | { type: typeof ENVELOPE_CANCEL; sessionId?: string }
   | { type: typeof ENVELOPE_PERMISSION; requestId: string; allow: boolean; sessionId?: string }
+  | {
+      type: typeof ENVELOPE_ELICITATION;
+      requestId: string;
+      action: string;
+      content?: Record<string, unknown>;
+      sessionId?: string;
+    }
   | { type: typeof ENVELOPE_CONFIG; configId: string; value: string; sessionId?: string };
 
 /** promptCommand builds the envelope for a user message. */
@@ -226,6 +275,17 @@ export function permissionCommand(
   return sessionId
     ? { type: ENVELOPE_PERMISSION, requestId, allow, sessionId }
     : { type: ENVELOPE_PERMISSION, requestId, allow };
+}
+
+/** elicitationCommand is the user's answer to a question the agent asked. */
+export function elicitationCommand(
+  requestId: string,
+  action: string,
+  content: Record<string, unknown> | undefined,
+  sessionId?: string,
+): AgentCommand {
+  const base: AgentCommand = { type: ENVELOPE_ELICITATION, requestId, action, content };
+  return sessionId ? { ...base, sessionId } : base;
 }
 
 /**

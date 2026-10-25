@@ -20,8 +20,9 @@ type Session struct {
 	id     string
 	conn   *acp.ClientSideConnection
 	state  *ThreadState
-	perms  *PermissionQueue
-	detach func()
+	perms   *PermissionQueue
+	elicits *ElicitationQueue
+	detach  func()
 	// ctx is the life of the conversation, derived from the bridge's own life rather
 	// than from a request: every turn runs under it, so a browser that closes its panel
 	// does not call off the work it asked for. End is what stops it.
@@ -192,7 +193,7 @@ func (s *Session) Cancel(ctx context.Context) error {
 // dead agent left are the only thing that has to go. It reports how many waits it
 // cancelled.
 func (s *Session) Close() int {
-	cancelled := s.perms.CancelSession(s.ID())
+	cancelled := s.perms.CancelSession(s.ID()) + s.elicits.CancelSession(s.ID())
 	if s.detach != nil {
 		s.detach()
 	}

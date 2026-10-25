@@ -41,6 +41,7 @@ func wireVariants(t *testing.T) map[string]acp.SessionUpdate {
 		"session_info":        {SessionInfoUpdate: &acp.SessionSessionInfoUpdate{Title: acp.Ptr("Reading the corpus")}},
 		"usage":               {UsageUpdate: &acp.SessionUsageUpdate{Used: 1200, Size: 8000, Cost: &acp.Cost{Amount: 0.02, Currency: "USD"}}},
 		"permission":          {},
+		"elicitation":         {},
 	}
 }
 
@@ -98,6 +99,24 @@ func wireSession(t *testing.T) *ThreadState {
 		Input:      map[string]any{"path": "context/notes/x.md"},
 	})
 	state.ResolvePermission("perm-1", DecisionAllowed)
+	// A question answered, and a URL question the protocol completed: both shapes a card
+	// can end in, so the browser's test reads them from one frame.
+	state.Elicitation(t.Context(), Elicitation{
+		RequestID: "elicit-1", SessionID: "sess-1", Mode: ElicitationForm,
+		Message: "Which branch should the change land on?",
+		Schema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"branch": map[string]any{"type": "string", "title": "Branch"}},
+			"required":   []any{"branch"},
+		},
+	})
+	state.ResolveElicitation("elicit-1", DecisionAccepted, map[string]any{"branch": "main"})
+	state.Elicitation(t.Context(), Elicitation{
+		RequestID: "elicit-2", SessionID: "sess-1", Mode: ElicitationURL,
+		Message: "Open the provider page to finish", URL: "https://example.com/auth",
+		ElicitationID: "e-2",
+	})
+	state.CompleteElicitation("e-2")
 	// The two endings a reader has to be told about, written the way a turn writes them,
 	// and one turn still in flight: a refusal in the agent's own words, an ending that
 	// explains the silence, and a message with no answer yet.
@@ -169,6 +188,27 @@ func wireFixtureBytes(t *testing.T) (map[string][]byte, error) {
 
 	// One file per variant, applied alone so its shape is the only thing in the frame.
 	for name, update := range wireVariants(t) {
+		if name == "elicitation" {
+			// The question is not a session/update either: it is the bridge asking the
+			// user, so it is built the way the bridge builds it.
+			state := NewThreadState("sess-1")
+			state.Elicitation(t.Context(), Elicitation{
+				RequestID: "elicit-1",
+				SessionID: "sess-1",
+				Mode:      ElicitationForm,
+				Message:   "Which branch should the change land on?",
+				Schema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"branch": map[string]any{"type": "string", "title": "Branch"},
+						"push":   map[string]any{"type": "boolean", "title": "Push it"},
+					},
+					"required": []any{"branch"},
+				},
+			})
+			fixtures[filepath.Join("variants", name+".json")] = indentedState(t, state)
+			continue
+		}
 		if name == "permission" {
 			// The permission card is not a session/update: it is the bridge asking the
 			// user, so it is built the way the bridge builds it.
@@ -216,6 +256,10 @@ func wireFixtureBytes(t *testing.T) (map[string][]byte, error) {
 		"cancel":     CancelEnvelope{Type: EnvelopeCancel, SessionID: "sess-1"},
 		"permission": PermissionEnvelope{Type: EnvelopePermission, RequestID: "perm-1", Allow: true, SessionID: "sess-1"},
 		"config":     ConfigEnvelope{Type: EnvelopeConfig, ConfigID: "model", Value: "opencode/big-pickle", SessionID: "sess-1"},
+		"elicitation": ElicitationEnvelope{
+			Type: EnvelopeElicitation, RequestID: "elicit-1", Action: ActionAccept,
+			Content: map[string]any{"branch": "main"}, SessionID: "sess-1",
+		},
 	}
 	for name, envelope := range commands {
 		payload, err := json.MarshalIndent(envelope, "", "  ")

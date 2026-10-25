@@ -58,9 +58,43 @@ func agentVerifyChecks() []ctxLintIssue {
 		}
 	}
 
+	// Only the selected profiles are required: a project that never opted into a domain
+	// must not be told it is missing that domain's modules.
+	profiles := currentProfiles()
+	issues = agentVerifyInstructionFiles(issues, profiles)
+
+	issues = append(issues, lintCommandsRegistry()...)
+
+	for _, d := range agentVerifyWorkDirs {
+		fi, err := os.Stat(d)
+		if os.IsNotExist(err) {
+			issues = append(issues, ctxLintIssue{Path: d, Priority: ctxLintWarning, Message: "missing work directory (run sdt agent init)"})
+		} else if err != nil {
+			issues = append(issues, ctxLintIssue{Path: d, Priority: ctxLintWarning, Message: err.Error()})
+		} else if !fi.IsDir() {
+			issues = append(issues, ctxLintIssue{Path: d, Priority: ctxLintWarning, Message: "exists and is not a directory"})
+		}
+	}
+
+	if block != "" && hasSection(block, agentSectionNameInstructions) {
+		for _, f := range instructionFilesFor(profiles, "", "") {
+			want := "context/instructions/" + f.name
+			if !strings.Contains(block, "`"+want+"`") {
+				issues = append(issues, ctxLintIssue{Path: agentTargetDefault, Priority: ctxLintCritical, Message: "instructions block does not reference generated file " + want})
+			}
+		}
+	}
+
+	return issues
+}
+
+// agentVerifyInstructionFiles checks the generated instruction modules: every file the
+// selected profiles require exists, none that the set no longer names lingers, and the
+// bodies carry no H1. It is a function of its own because the parent's other checks are
+// independent of it — the split keeps each one readable.
+func agentVerifyInstructionFiles(issues []ctxLintIssue, profiles []string) []ctxLintIssue {
 	// Only the selected profiles are required: a project that never opted into a
 	// domain must not be told it is missing that domain's modules.
-	profiles := currentProfiles()
 	for _, f := range instructionFilesFor(profiles, "", "") {
 		path := filepath.Join(sdtInstrDir, f.name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -92,28 +126,6 @@ func agentVerifyChecks() []ctxLintIssue {
 		path := filepath.Join(sdtInstrDir, name)
 		if _, err := os.Stat(path); err == nil {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: "obsolete instruction file (use sdt agent init --force to remove)"})
-		}
-	}
-
-	issues = append(issues, lintCommandsRegistry()...)
-
-	for _, d := range agentVerifyWorkDirs {
-		fi, err := os.Stat(d)
-		if os.IsNotExist(err) {
-			issues = append(issues, ctxLintIssue{Path: d, Priority: ctxLintWarning, Message: "missing work directory (run sdt agent init)"})
-		} else if err != nil {
-			issues = append(issues, ctxLintIssue{Path: d, Priority: ctxLintWarning, Message: err.Error()})
-		} else if !fi.IsDir() {
-			issues = append(issues, ctxLintIssue{Path: d, Priority: ctxLintWarning, Message: "exists and is not a directory"})
-		}
-	}
-
-	if block != "" && hasSection(block, agentSectionNameInstructions) {
-		for _, f := range instructionFilesFor(profiles, "", "") {
-			want := "context/instructions/" + f.name
-			if !strings.Contains(block, "`"+want+"`") {
-				issues = append(issues, ctxLintIssue{Path: agentTargetDefault, Priority: ctxLintCritical, Message: "instructions block does not reference generated file " + want})
-			}
 		}
 	}
 

@@ -400,6 +400,14 @@ func (s *server) handleAgentCommand(w http.ResponseWriter, r *http.Request) {
 		// the answer is handed to the agent second, which releases its wait.
 		session.State().ResolvePermission(command.RequestID, agentDecision(command.Allow))
 		s.agent.Permissions().Answer(command.RequestID, command.Allow)
+	case acpbridge.EnvelopeElicitation:
+		// The same order the permission card keeps: the decision is recorded in place so
+		// the browser sees it, then the answer releases the agent's wait.
+		session.State().ResolveElicitation(command.RequestID, agentElicitationDecision(command.Action), command.Content)
+		s.agent.Elicitations().Answer(command.RequestID, acpbridge.ElicitationAnswer{
+			Action:  command.Action,
+			Content: command.Content,
+		})
 	case acpbridge.EnvelopeConfig:
 		// A set the agent refuses is the reader's business, not a failed request: the agent's
 		// own sentence travels back, never the JSON-RPC envelope it came in, and the
@@ -510,6 +518,18 @@ func activationMessage(err error) string {
 		return errAgentVersion
 	default:
 		return errAgentHandshake
+	}
+}
+
+// agentElicitationDecision is the past tense the card records for the protocol's action.
+func agentElicitationDecision(action string) string {
+	switch action {
+	case acpbridge.ActionAccept:
+		return acpbridge.DecisionAccepted
+	case acpbridge.ActionDecline:
+		return acpbridge.DecisionDeclined
+	default:
+		return acpbridge.DecisionCancelled
 	}
 }
 

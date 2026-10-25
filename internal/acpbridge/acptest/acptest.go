@@ -20,9 +20,23 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/coder/acp-go-sdk"
 )
+
+// The JSON-RPC frame's two names, spelled once: every message this peer writes goes
+// through rpcEnvelope, so a frame cannot lose its version and read as something else.
+const (
+	jsonRPCVersion = "2.0"
+	jsonRPCKey     = "jsonrpc"
+)
+
+// rpcEnvelope adds the protocol's own names to one message.
+func rpcEnvelope(fields map[string]any) map[string]any {
+	fields[jsonRPCKey] = jsonRPCVersion
+	return fields
+}
 
 // RawReply makes a handler answer with a line the protocol does not allow (a
 // malformed result, a body that is not JSON). The token %ID% is replaced by the
@@ -53,6 +67,11 @@ type Agent struct {
 	accepted int
 	sessions int
 	conn     io.ReadWriteCloser
+
+	// Requests the agent makes of the client, and the replies it is waiting for: the
+	// session loop below delivers a reply to the goroutine that asked.
+	requests int
+	pending  map[string]chan []byte
 
 	done chan struct{}
 }
@@ -187,6 +206,11 @@ func (a *Agent) session(conn io.ReadWriteCloser) {
 		if err := json.Unmarshal(reader.Bytes(), &msg); err != nil {
 			return
 		}
+		if msg.ID != nil && msg.Method == "" {
+			// A reply to a request the agent made: hand it to whoever asked.
+			a.deliver(msg.ID, append([]byte(nil), reader.Bytes()...))
+			continue
+		}
 		a.record(msg.Method, msg.Params)
 		if msg.ID == nil {
 			// A notification: in ACP the peer answers nothing.
@@ -233,6 +257,62 @@ func (a *Agent) ParamsFor(t *testing.T, method string) map[string]any {
 	return nil
 }
 
+// Ask sends a request from the agent to the client and returns the decoded response
+// envelope. It must run on the agent's own goroutine — start one inside the handler —
+// because the session loop that reads the reply is the loop that called the handler, so
+// a caller blocking it would wait for an answer only it can deliver.
+func (a *Agent) Ask(t *testing.T, method string, params any) map[string]any {
+	t.Helper()
+	a.mu.Lock()
+	a.requests++
+	id := "agent-" + strconv.Itoa(a.requests)
+	wait := make(chan []byte, 1)
+	if a.pending == nil {
+		a.pending = map[string]chan []byte{}
+	}
+	a.pending[id] = wait
+	a.mu.Unlock()
+
+	line, err := json.Marshal(rpcEnvelope(map[string]any{
+		"id": id, "method": method, "params": params,
+	}))
+	if err != nil {
+		t.Errorf("marshal the request to %s: %v", method, err)
+		return nil
+	}
+	a.writeLine(line)
+
+	select {
+	case raw := <-wait:
+		var envelope map[string]any
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			t.Errorf("decode the reply to %s: %v", method, err)
+			return nil
+		}
+		return envelope
+	case <-time.After(5 * time.Second):
+		t.Errorf("the client did not answer %s within 5s", method)
+		return nil
+	}
+}
+
+// deliver hands a reply to the goroutine waiting for it, if the id is one of the
+// agent's own requests. An id this package never issued is dropped: the client answering
+// something the agent did not ask is not a case the harness models.
+func (a *Agent) deliver(id json.RawMessage, raw []byte) {
+	var key string
+	if err := json.Unmarshal(id, &key); err != nil {
+		return
+	}
+	a.mu.Lock()
+	wait, ok := a.pending[key]
+	delete(a.pending, key)
+	a.mu.Unlock()
+	if ok {
+		wait <- raw
+	}
+}
+
 // NextSessionID hands out a distinct session id per session/new, the way a real
 // agent does: two browsers on one connection get two conversations.
 func (a *Agent) NextSessionID() string {
@@ -255,7 +335,7 @@ func (a *Agent) Connections() int {
 // than t.Fatalf, which may only be called from the test goroutine.
 func (a *Agent) Notify(t *testing.T, method string, params any) {
 	t.Helper()
-	line, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "method": method, "params": params})
+	line, err := json.Marshal(rpcEnvelope(map[string]any{"method": method, "params": params}))
 	if err != nil {
 		t.Errorf("marshal %s: %v", method, err)
 		return
@@ -439,7 +519,7 @@ func answer(id json.RawMessage, reply any) ([]byte, error) {
 	if raw, ok := reply.(RawReply); ok {
 		return []byte(replaceID(string(raw), string(id))), nil
 	}
-	envelope := map[string]any{"jsonrpc": "2.0", "id": id}
+	envelope := rpcEnvelope(map[string]any{"id": id})
 	if failure, ok := reply.(RPCError); ok {
 		envelope["error"] = failure
 	} else {

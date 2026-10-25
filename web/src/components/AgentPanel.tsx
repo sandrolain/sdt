@@ -68,6 +68,7 @@ import {
   fetchAgentState,
   modelOption,
   newAgentChat,
+  elicitationCommand,
   permissionCommand,
   promptCommand,
   sendAgentCommand,
@@ -492,6 +493,9 @@ export function AgentPanel({
                     thread={envelope.thread}
                     onAnswer={(requestId, allow) =>
                       tell(permissionCommand(requestId, allow, session))
+                    }
+                    onElicitation={(requestId, action, content) =>
+                      tell(elicitationCommand(requestId, action, content, session))
                     }
                   />
                 )}

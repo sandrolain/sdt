@@ -8,6 +8,7 @@
  * a part kind this build does not know shows its own name rather than disappearing.
  */
 import {
+  PART_ELICITATION,
   PART_ERROR,
   PART_PERMISSION,
   PART_STOP,
@@ -17,6 +18,7 @@ import {
   ROLE_USER,
   type AgentMessage,
   type AgentPart,
+  type AgentElicitation,
   type AgentPermission,
   type AgentPlan,
   type AgentThread,
@@ -39,6 +41,7 @@ export type PartLike =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
   | { type: "data-permission"; data: AgentPermission }
+  | { type: "data-elicitation"; data: AgentElicitation }
   | { type: "data-plan"; data: AgentPlan }
   // The turn's own outcome, recorded by the bridge on the message that was sent: the
   // agent's refusal, the reason it stopped, and the wait before either arrives.
@@ -143,6 +146,14 @@ export function partLike(part: AgentPart): PartLike {
       // A card with no permission at all cannot happen on the wire; the fallback keeps the
       // part renderable rather than dropping it.
       return { type: "data-permission", data: part.permission ?? { requestId: "", sessionId: "" } };
+    case PART_ELICITATION:
+      // A question the agent asks: a `data-` part, like the permission card, so the
+      // panel answers it where it stands. A part with no question cannot happen on the
+      // wire; the fallback keeps it renderable rather than dropping it.
+      return {
+        type: "data-elicitation",
+        data: part.elicitation ?? { requestId: "", sessionId: "", mode: "form", message: "" },
+      };
     case PART_ERROR:
       // A turn that failed: the agent's own sentence, where the answer would have been.
       return { type: "data-error", data: { text: part.text ?? "" } };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { partLike, threadMessages } from "./agentThread";
 import {
+  PART_ELICITATION,
   PART_ERROR,
   PART_PERMISSION,
   PART_STOP,
@@ -58,6 +59,20 @@ describe("the thread converter", () => {
       { type: "data-waiting", data: {} },
     ]);
     expect(answered.content).toEqual([{ type: "text", text: "and the panel?" }]);
+  });
+
+  it("maps a question to the data part the panel answers in place", () => {
+    const question = {
+      requestId: "elicit-1",
+      sessionId: "sess-1",
+      mode: "form",
+      message: "Which branch?",
+      schema: { type: "object", properties: { branch: { type: "string" } } },
+    };
+    expect(partLike({ kind: PART_ELICITATION, elicitation: question })).toEqual({
+      type: "data-elicitation",
+      data: question,
+    });
   });
 
   it("maps the agent's reasoning to a reasoning part, not into its answer", () => {

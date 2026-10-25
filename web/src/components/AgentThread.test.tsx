@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentThread } from "./AgentThread";
 import {
+  ACTION_ACCEPT,
+  ACTION_CANCEL,
+  ACTION_DECLINE,
+  PART_ELICITATION,
   PART_TEXT,
   PART_THOUGHT,
   PART_TOOL_CALL,
@@ -24,7 +28,13 @@ function threadOf(parts: AgentPart[]): AgentThreadState {
 }
 
 function show(parts: AgentPart[]) {
-  return render(<AgentThread thread={threadOf(parts)} onAnswer={() => undefined} />);
+  return render(
+    <AgentThread
+      thread={threadOf(parts)}
+      onAnswer={() => undefined}
+      onElicitation={() => undefined}
+    />,
+  );
 }
 
 /** parses counts the parses of one exact string, so a second part cannot pass for it. */
@@ -69,6 +79,8 @@ describe("AgentThread", () => {
     // changed keeps the HTML it already has rather than being parsed again.
     view.rerender(
       <AgentThread
+        onAnswer={() => undefined}
+        onElicitation={() => undefined}
         thread={{
           sessionId: "sess-1",
           messages: [
@@ -84,7 +96,6 @@ describe("AgentThread", () => {
             },
           ],
         }}
-        onAnswer={() => undefined}
       />,
     );
 
@@ -218,5 +229,103 @@ describe("AgentThread", () => {
 
     expect(screen.getByText("Reasoning")).toBeTruthy();
     expect(screen.getByText("weighing the options")).toBeTruthy();
+  });
+});
+
+describe("the agent's question", () => {
+  /** questionCard renders one elicitation part and hands back the answer spy. */
+  function questionCard(
+    data: Partial<import("../lib/agent").AgentElicitation> = {},
+  ): ReturnType<typeof vi.fn> {
+    const onElicitation = vi.fn();
+    render(
+      <AgentThread
+        thread={threadOf([
+          {
+            kind: PART_ELICITATION,
+            elicitation: {
+              requestId: "elicit-1",
+              sessionId: "sess-1",
+              mode: "form",
+              message: "Which branch?",
+              schema: {
+                type: "object",
+                properties: {
+                  branch: { type: "string", title: "Branch" },
+                  push: { type: "boolean", title: "Push it" },
+                },
+                required: ["branch"],
+              },
+              ...data,
+            } as never,
+          },
+        ])}
+        onAnswer={() => undefined}
+        onElicitation={onElicitation}
+      />,
+    );
+    return onElicitation;
+  }
+
+  it("renders one control per property and accepts with the typed values", () => {
+    const onElicitation = questionCard();
+    expect(screen.getByText("Which branch?")).toBeTruthy();
+    expect(screen.getByText("Branch *")).toBeTruthy();
+
+    const accept = screen.getByRole("button", { name: "Accept" }) as HTMLButtonElement;
+    // A required field nobody filled cannot be accepted: the reader sees why, not a
+    // silent no-op.
+    expect(accept.disabled).toBe(true);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /Branch/ }), {
+      target: { value: "main" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Push it/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+
+    expect(onElicitation).toHaveBeenCalledWith("elicit-1", ACTION_ACCEPT, {
+      branch: "main",
+      push: true,
+    });
+  });
+
+  it("declines without sending content", () => {
+    const onElicitation = questionCard();
+    fireEvent.click(screen.getByRole("button", { name: "Decline" }));
+    expect(onElicitation).toHaveBeenCalledWith("elicit-1", ACTION_DECLINE);
+  });
+
+  it("keeps the decision and the values in place once answered", () => {
+    questionCard({ decision: "accepted", content: { branch: "main" } });
+    expect(screen.getByText("accepted")).toBeTruthy();
+    expect(screen.getByText("main")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+  });
+
+  it("renders a url question as a link and a cancel", () => {
+    const onElicitation = questionCard({
+      mode: "url",
+      message: "Open the provider page",
+      url: "https://example.com/auth",
+      elicitationId: "e-1",
+    });
+    const link = screen.getByRole("link");
+    expect(link.getAttribute("href")).toBe("https://example.com/auth");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onElicitation).toHaveBeenCalledWith("elicit-1", ACTION_CANCEL);
+  });
+
+  it("declines a question whose fields this panel cannot render", () => {
+    questionCard({
+      schema: {
+        type: "object",
+        properties: { files: { type: "array", title: "Files" } },
+      },
+    });
+    expect(screen.getByText(/cannot render/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Accept" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(screen.getByRole("button", { name: "Decline" })).toBeTruthy();
   });
 });

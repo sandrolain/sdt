@@ -24,22 +24,35 @@ import type {
   TextMessagePartComponent,
   ReasoningMessagePartComponent,
 } from "@assistant-ui/react";
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { renderMarkdown, highlightCode } from "../lib/markdown";
 import { markdownControlAction } from "../lib/markdownActions";
 import { highlightedToolOutput } from "../lib/toolOutput";
 import { threadMessages, type ConvertedMessage, type ToolArtifact } from "../lib/agentThread";
-import type { AgentPermission, AgentPlan, AgentThread as AgentThreadState } from "../lib/agent";
+import {
+  ACTION_ACCEPT,
+  ACTION_CANCEL,
+  ACTION_DECLINE,
+  type AgentElicitation,
+  type AgentPermission,
+  type AgentPlan,
+  type AgentThread as AgentThreadState,
+} from "../lib/agent";
 
 /** The answer to a card travels up through a context: a part cannot take a prop. */
 const AnswerContext = createContext<(requestId: string, allow: boolean) => void>(() => undefined);
+const ElicitationContext = createContext<
+  (requestId: string, action: string, content?: Record<string, unknown>) => void
+>(() => undefined);
 
 export function AgentThread({
   thread,
   onAnswer,
+  onElicitation,
 }: {
   thread: AgentThreadState;
   onAnswer: (requestId: string, allow: boolean) => void;
+  onElicitation: (requestId: string, action: string, content?: Record<string, unknown>) => void;
 }) {
   // The converter is where the runtime expects one: `messages` are the bridge's own
   // shape and the runtime normalises them (metadata included) on the way into its store.
@@ -59,13 +72,15 @@ export function AgentThread({
 
   return (
     <AnswerContext.Provider value={onAnswer}>
-      <AssistantRuntimeProvider runtime={runtime}>
-        <ThreadPrimitive.Root className="agent-thread">
-          <ThreadPrimitive.Viewport className="agent-thread__viewport">
-            <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
-          </ThreadPrimitive.Viewport>
-        </ThreadPrimitive.Root>
-      </AssistantRuntimeProvider>
+      <ElicitationContext.Provider value={onElicitation}>
+        <AssistantRuntimeProvider runtime={runtime}>
+          <ThreadPrimitive.Root className="agent-thread">
+            <ThreadPrimitive.Viewport className="agent-thread__viewport">
+              <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
+            </ThreadPrimitive.Viewport>
+          </ThreadPrimitive.Root>
+        </AssistantRuntimeProvider>
+      </ElicitationContext.Provider>
     </AnswerContext.Provider>
   );
 }
@@ -93,6 +108,7 @@ function MessageRow({ role }: { role: "user" | "assistant" }) {
           data: {
             by_name: {
               permission: PermissionPart,
+              elicitation: ElicitationPart,
               plan: PlanPart,
               error: ErrorPart,
               stop: StopPart,
@@ -239,6 +255,214 @@ function stateKey(raw: ToolArtifact | undefined, isError: boolean | undefined): 
 function statusWord(raw: ToolArtifact | undefined, isError: boolean | undefined): string {
   if (isError || raw?.status === "failed") return "Failed";
   return raw?.status === "completed" ? "Completed" : "Running";
+}
+
+/**
+ * ElicitationPart is the agent's question. The card renders the message and one control
+ * per requested property, and answers through the same command path the permission card
+ * uses; once answered it keeps the decision and the values in place, so the thread is the
+ * record of what was asked and what was chosen.
+ *
+ * The schema is the protocol's own: this build renders the four primitive shapes it can
+ * (string, number, boolean, enum) and declines a question whose fields it cannot draw
+ * rather than sending the agent a half-filled form.
+ */
+const ELICITATION_LABELS: Record<string, string> = {
+  accepted: "accepted",
+  declined: "declined",
+  cancelled: "cancelled",
+};
+
+interface ElicitationField {
+  name: string;
+  kind: "string" | "number" | "boolean" | "enum" | "unknown";
+  title: string;
+  required: boolean;
+  choices?: string[];
+}
+
+function elicitationFields(request: AgentElicitation): ElicitationField[] {
+  const properties = request.schema?.properties ?? {};
+  const required = new Set(request.schema?.required ?? []);
+  return Object.entries(properties).map(([name, value]) => {
+    const spec = (value ?? {}) as Record<string, unknown>;
+    const choices = Array.isArray(spec.enum)
+      ? spec.enum.map((choice) => String(choice))
+      : undefined;
+    const kind: ElicitationField["kind"] = choices
+      ? "enum"
+      : spec.type === "number" || spec.type === "integer"
+        ? "number"
+        : spec.type === "boolean"
+          ? "boolean"
+          : spec.type === "string"
+            ? "string"
+            : "unknown";
+    return {
+      name,
+      kind,
+      title: typeof spec.title === "string" ? spec.title : name,
+      required: required.has(name),
+      choices,
+    };
+  });
+}
+
+/** initialValues is the draft a reader starts from: a boolean is false, everything else
+ *  empty, so an untouched required field is visibly missing. */
+function initialValues(fields: ElicitationField[]): Record<string, string | boolean> {
+  const values: Record<string, string | boolean> = {};
+  for (const field of fields) values[field.name] = field.kind === "boolean" ? false : "";
+  return values;
+}
+
+/** elicitedContent turns the draft into the values the agent asked for: numbers as
+ *  numbers, booleans as booleans, everything else as typed. */
+function elicitedContent(
+  fields: ElicitationField[],
+  values: Record<string, string | boolean>,
+): Record<string, unknown> {
+  const content: Record<string, unknown> = {};
+  for (const field of fields) {
+    const value = values[field.name];
+    if (field.kind === "unknown") continue;
+    if (field.kind === "boolean") content[field.name] = Boolean(value);
+    else if (field.kind === "number") content[field.name] = value === "" ? 0 : Number(value);
+    else content[field.name] = String(value ?? "");
+  }
+  return content;
+}
+
+function ElicitationPart({ data }: { data: AgentElicitation }) {
+  const answer = useContext(ElicitationContext);
+  const fields = useMemo(() => elicitationFields(data), [data]);
+  const [values, setValues] = useState(() => initialValues(fields));
+  const unsupported = fields.some((field) => field.kind === "unknown");
+  const missing = fields.some(
+    (field) => field.required && !data.decision && isBlank(values[field.name]),
+  );
+
+  return (
+    <div className="agent-panel__card agent-panel__elicitation">
+      <p className="agent-panel__part">
+        {data.message === "" ? "The agent asks a question" : data.message}
+      </p>
+
+      {data.decision ? (
+        <>
+          <p className="agent-panel__part agent-panel__decision">
+            {ELICITATION_LABELS[data.decision] ?? data.decision}
+          </p>
+          {data.content && Object.keys(data.content).length > 0 ? (
+            <dl className="agent-panel__elicitation-values">
+              {Object.entries(data.content).map(([name, value]) => (
+                <div key={name}>
+                  <dt>{name}</dt>
+                  <dd>{String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </>
+      ) : data.mode === "url" ? (
+        <>
+          <p className="agent-panel__part">
+            <a href={data.url} target="_blank" rel="noopener noreferrer">
+              Open {data.url}
+            </a>
+          </p>
+          <p className="agent-panel__note">
+            {data.completed ? "Completed." : "Finish there; the agent continues when it is done."}
+          </p>
+          <div className="agent-panel__card-actions">
+            <button
+              type="button"
+              className="agent-panel__action agent-panel__action--secondary"
+              onClick={() => answer(data.requestId, ACTION_CANCEL)}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          {unsupported ? (
+            <p className="agent-panel__note">
+              This question asks for a field this panel cannot render. Decline it and ask the agent
+              another way.
+            </p>
+          ) : null}
+          {fields.length > 0 ? (
+            <div className="agent-panel__elicitation-fields">
+              {fields.map((field) => (
+                <label key={field.name} className="agent-panel__field">
+                  <span>
+                    {field.title}
+                    {field.required ? " *" : ""}
+                  </span>
+                  {field.kind === "boolean" ? (
+                    <input
+                      type="checkbox"
+                      checked={Boolean(values[field.name])}
+                      onChange={(event) =>
+                        setValues((current) => ({ ...current, [field.name]: event.target.checked }))
+                      }
+                    />
+                  ) : field.kind === "enum" ? (
+                    <select
+                      aria-required={field.required}
+                      value={String(values[field.name] ?? "")}
+                      onChange={(event) =>
+                        setValues((current) => ({ ...current, [field.name]: event.target.value }))
+                      }
+                    >
+                      <option value="">Choose…</option>
+                      {(field.choices ?? []).map((choice) => (
+                        <option key={choice} value={choice}>
+                          {choice}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={field.kind === "number" ? "number" : "text"}
+                      aria-required={field.required}
+                      disabled={field.kind === "unknown"}
+                      value={String(values[field.name] ?? "")}
+                      onChange={(event) =>
+                        setValues((current) => ({ ...current, [field.name]: event.target.value }))
+                      }
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+          ) : null}
+          <div className="agent-panel__card-actions">
+            <button
+              type="button"
+              className="agent-panel__action"
+              disabled={unsupported || missing}
+              onClick={() => answer(data.requestId, ACTION_ACCEPT, elicitedContent(fields, values))}
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              className="agent-panel__action agent-panel__action--secondary"
+              onClick={() => answer(data.requestId, ACTION_DECLINE)}
+            >
+              Decline
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function isBlank(value: string | boolean | undefined): boolean {
+  return value === undefined || value === "" || value === false;
 }
 
 /** ErrorPart is a turn that produced no answer: the agent's own sentence, unedited. */

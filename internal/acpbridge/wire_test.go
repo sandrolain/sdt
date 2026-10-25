@@ -3,6 +3,7 @@ package acpbridge
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/coder/acp-go-sdk"
@@ -38,6 +39,17 @@ func TestDecodeCommandAcceptsTheBrowserVocabulary(t *testing.T) {
 			Command{Kind: EnvelopePermission, RequestID: "perm-2", Allow: false, SessionID: "sess-3"},
 		},
 		{
+			"a question accepted with its values",
+			`{"type":"elicitation","requestId":"elicit-1","action":"accept","content":{"branch":"main"},"sessionId":"sess-1"}`,
+			Command{Kind: EnvelopeElicitation, RequestID: "elicit-1", Action: ActionAccept,
+				Content: map[string]any{"branch": "main"}, SessionID: "sess-1"},
+		},
+		{
+			"a question declined",
+			`{"type":"elicitation","requestId":"elicit-2","action":"decline"}`,
+			Command{Kind: EnvelopeElicitation, RequestID: "elicit-2", Action: ActionDecline},
+		},
+		{
 			"a configuration option set",
 			`{"type":"config","configId":"model","value":"opencode/big-pickle"}`,
 			Command{Kind: EnvelopeConfig, ConfigID: "model", Value: "opencode/big-pickle"},
@@ -54,7 +66,7 @@ func TestDecodeCommandAcceptsTheBrowserVocabulary(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DecodeCommand(%s) = %v", tc.body, err)
 			}
-			if got != tc.want {
+			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("DecodeCommand(%s) = %+v, want %+v", tc.body, got, tc.want)
 			}
 		})

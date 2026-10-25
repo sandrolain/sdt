@@ -446,6 +446,54 @@ describe("AgentPanel", () => {
     expect(input.value).toBe("keep me");
   });
 
+  it("answers the agent's question through the command path", async () => {
+    const calls = mockViewer();
+    const source = await open();
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [
+            {
+              id: "msg-1",
+              role: "assistant",
+              parts: [
+                {
+                  kind: "elicitation",
+                  elicitation: {
+                    requestId: "elicit-1",
+                    sessionId: "sess-1",
+                    mode: "form",
+                    message: "Which branch?",
+                    schema: {
+                      type: "object",
+                      properties: { branch: { type: "string", title: "Branch" } },
+                      required: ["branch"],
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    });
+
+    fireEvent.change(await screen.findByRole("textbox", { name: /Branch/ }), {
+      target: { value: "main" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+
+    await waitFor(() =>
+      expect(commands(calls).at(-1)).toEqual({
+        type: "elicitation",
+        requestId: "elicit-1",
+        action: "accept",
+        content: { branch: "main" },
+        sessionId: "sess-1",
+      }),
+    );
+  });
+
   it("resolves a permission card in place with the answer the user gives", async () => {
     const calls = mockViewer();
     const source = await open();

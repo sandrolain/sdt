@@ -2,6 +2,7 @@ package acpbridge
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,9 +18,9 @@ import (
 var ErrOutsideRoot = errors.New("acpbridge: the path resolves outside the project root")
 
 // Sink is where the client publishes what the browser must see: the agent's
-// session updates, and a permission request waiting for the user. The thread fold
-// implements it (phase 3); a bridge with no sink discards both, which is what a
-// handshake-only test needs.
+// session updates, a permission request waiting for the user, and a question the
+// user has to answer. The thread fold implements it (phase 3); a bridge with no sink
+// discards them, which is what a handshake-only test needs.
 type Sink interface {
 	// SessionUpdate receives one update from the agent, in arrival order.
 	SessionUpdate(ctx context.Context, notification acp.SessionNotification) error
@@ -27,6 +28,13 @@ type Sink interface {
 	// request, when that request becomes the current one; the answer comes back
 	// through PermissionQueue.Answer.
 	Permission(ctx context.Context, request Permission)
+	// Elicitation announces a question the user has to answer. It is called once per
+	// question, when it becomes current; the answer comes back through
+	// ElicitationQueue.Answer.
+	Elicitation(ctx context.Context, request Elicitation)
+	// ElicitationComplete tells the thread that a URL question finished, which is the
+	// protocol saying so rather than the reader closing the card.
+	ElicitationComplete(ctx context.Context, elicitationID string)
 }
 
 // Permission is one permission request as the browser renders it: which tool, its
@@ -43,41 +51,55 @@ type Permission struct {
 	Decision string `json:"decision,omitempty"`
 }
 
-// permissionWait is one request waiting for its answer. `dropped` is closed when
-// the wait is cancelled rather than answered, so the goroutine blocked on it is
-// released at once instead of waiting for a context it may not have.
-type permissionWait struct {
-	request Permission
-	answer  chan bool
+// askWait is one request waiting for its answer. `dropped` is closed when the wait is
+// cancelled rather than answered, so the goroutine blocked on it is released at once
+// instead of waiting for a context it may not have.
+type askWait[Req any, Ans any] struct {
+	request Req
+	answer  chan Ans
 	dropped chan struct{}
 }
 
-// PermissionQueue brokers the permission requests of one connection. One request
-// is current at a time — the thread shows one card — and a second waits its turn
-// rather than being dropped, so an agent that asks twice gets two answers.
-type PermissionQueue struct {
+// askQueue brokers the cards of one connection: permission requests and questions share
+// it, because they have the same life — one current at a time, a second queued rather
+// than dropped, an answer that promotes the next, and a session that ends releasing what
+// it held. The two typed faces below keep their own vocabulary; only the mechanics live
+// here, so the two cannot drift.
+//
+// The three accessors are how the queue names a request without an interface the request
+// types would have to implement: the id the browser answers with, the session that owns
+// it, and the request with its id assigned.
+type askQueue[Req any, Ans any] struct {
 	mu      sync.Mutex
 	counter int
-	queue   []*permissionWait
-	publish func(context.Context, Permission)
+	prefix  string
+	queue   []*askWait[Req, Ans]
+	publish func(context.Context, Req)
+	id      func(Req) string
+	session func(Req) string
+	tag     func(Req, string) Req
 }
 
-// NewPermissionQueue returns a queue that announces the current request through
-// publish. A nil publish keeps the queue silent, which is what a test that only
-// exercises the answers needs.
-func NewPermissionQueue(publish func(context.Context, Permission)) *PermissionQueue {
-	return &PermissionQueue{publish: publish}
+func newAskQueue[Req any, Ans any](
+	prefix string,
+	publish func(context.Context, Req),
+	id func(Req) string,
+	session func(Req) string,
+	tag func(Req, string) Req,
+) *askQueue[Req, Ans] {
+	return &askQueue[Req, Ans]{prefix: prefix, publish: publish, id: id, session: session, tag: tag}
 }
 
-// Ask makes the request current — or queues it behind one already waiting — and
-// blocks until the user answers or ctx ends. The error is ctx's.
-func (q *PermissionQueue) Ask(ctx context.Context, request Permission) (bool, error) {
+// ask makes the request current — or queues it behind one already waiting — and blocks
+// until the user answers or ctx ends. The error is ctx's, or ErrCancelled when the wait
+// was dropped.
+func (q *askQueue[Req, Ans]) ask(ctx context.Context, request Req) (Ans, error) {
 	q.mu.Lock()
 	q.counter++
-	request.RequestID = fmt.Sprintf("perm-%d", q.counter)
-	wait := &permissionWait{
+	request = q.tag(request, fmt.Sprintf("%s-%d", q.prefix, q.counter))
+	wait := &askWait[Req, Ans]{
 		request: request,
-		answer:  make(chan bool, 1),
+		answer:  make(chan Ans, 1),
 		dropped: make(chan struct{}),
 	}
 	q.queue = append(q.queue, wait)
@@ -87,24 +109,25 @@ func (q *PermissionQueue) Ask(ctx context.Context, request Permission) (bool, er
 	if current && q.publish != nil {
 		q.publish(ctx, request)
 	}
+	var zero Ans
 	select {
-	case allow := <-wait.answer:
-		return allow, nil
+	case answer := <-wait.answer:
+		return answer, nil
 	case <-wait.dropped:
-		return false, ErrCancelled
+		return zero, ErrCancelled
 	case <-ctx.Done():
 		q.forget(wait)
-		return false, ctx.Err()
+		return zero, ctx.Err()
 	}
 }
 
-// Answer resolves the request with this id and reports whether it was waiting. The
+// answer resolves the request with this id and reports whether it was waiting. The
 // request after it becomes current, so the user sees the queue one card at a time.
-func (q *PermissionQueue) Answer(requestID string, allow bool) bool {
+func (q *askQueue[Req, Ans]) answer(requestID string, answer Ans) bool {
 	q.mu.Lock()
 	index := -1
 	for i, wait := range q.queue {
-		if wait.request.RequestID == requestID {
+		if q.id(wait.request) == requestID {
 			index = i
 			break
 		}
@@ -115,29 +138,29 @@ func (q *PermissionQueue) Answer(requestID string, allow bool) bool {
 	}
 	answered := q.queue[index]
 	q.queue = append(q.queue[:index:index], q.queue[index+1:]...)
-	var next *permissionWait
+	var next *askWait[Req, Ans]
 	if index == 0 && len(q.queue) > 0 {
 		next = q.queue[0]
 	}
 	q.mu.Unlock()
 
-	answered.answer <- allow
+	answered.answer <- answer
 	if next != nil && q.publish != nil {
 		q.publish(context.Background(), next.request)
 	}
 	return true
 }
 
-// CancelSession drops every wait of one session and reports how many it dropped:
-// the browser that would have answered them is gone, and a card nobody can answer
-// must not leave the agent blocked. The agent receives the protocol's own
-// cancellation, because the request's context is the one that ended.
-func (q *PermissionQueue) CancelSession(sessionID string) int {
+// cancelSession drops every wait of one session and reports how many it dropped: the
+// browser that would have answered them is gone, and a card nobody can answer must not
+// leave the agent blocked. The agent receives the protocol's own cancellation, because
+// the request's context is the one that ended.
+func (q *askQueue[Req, Ans]) cancelSession(sessionID string) int {
 	q.mu.Lock()
-	kept := make([]*permissionWait, 0, len(q.queue))
-	var dropped []*permissionWait
+	kept := make([]*askWait[Req, Ans], 0, len(q.queue))
+	var dropped []*askWait[Req, Ans]
 	for _, wait := range q.queue {
-		if wait.request.SessionID == sessionID {
+		if q.session(wait.request) == sessionID {
 			dropped = append(dropped, wait)
 			continue
 		}
@@ -145,7 +168,7 @@ func (q *PermissionQueue) CancelSession(sessionID string) int {
 	}
 	wasCurrent := len(kept) > 0 && len(q.queue) > 0 && q.queue[0] != kept[0]
 	q.queue = kept
-	var next *permissionWait
+	var next *askWait[Req, Ans]
 	if wasCurrent && len(kept) > 0 {
 		next = kept[0]
 	}
@@ -161,7 +184,7 @@ func (q *PermissionQueue) CancelSession(sessionID string) int {
 }
 
 // forget drops a wait whose context ended, and promotes the next one.
-func (q *PermissionQueue) forget(wait *permissionWait) {
+func (q *askQueue[Req, Ans]) forget(wait *askWait[Req, Ans]) {
 	q.mu.Lock()
 	index := -1
 	for i, queued := range q.queue {
@@ -175,7 +198,7 @@ func (q *PermissionQueue) forget(wait *permissionWait) {
 		return
 	}
 	q.queue = append(q.queue[:index:index], q.queue[index+1:]...)
-	var next *permissionWait
+	var next *askWait[Req, Ans]
 	if index == 0 && len(q.queue) > 0 {
 		next = q.queue[0]
 	}
@@ -185,6 +208,120 @@ func (q *PermissionQueue) forget(wait *permissionWait) {
 	}
 }
 
+// PermissionQueue brokers the permission requests of one connection.
+type PermissionQueue struct {
+	q *askQueue[Permission, bool]
+}
+
+// NewPermissionQueue returns a queue that announces the current request through
+// publish. A nil publish keeps the queue silent, which is what a test that only
+// exercises the answers needs.
+func NewPermissionQueue(publish func(context.Context, Permission)) *PermissionQueue {
+	return &PermissionQueue{q: newAskQueue[Permission, bool]("perm", publish,
+		func(request Permission) string { return request.RequestID },
+		func(request Permission) string { return request.SessionID },
+		func(request Permission, id string) Permission { request.RequestID = id; return request },
+	)}
+}
+
+// Ask makes the request current — or queues it behind one already waiting — and
+// blocks until the user answers or ctx ends. The error is ctx's.
+func (q *PermissionQueue) Ask(ctx context.Context, request Permission) (bool, error) {
+	return q.q.ask(ctx, request)
+}
+
+// Answer resolves the request with this id and reports whether it was waiting.
+func (q *PermissionQueue) Answer(requestID string, allow bool) bool {
+	return q.q.answer(requestID, allow)
+}
+
+// CancelSession drops every wait of one session and reports how many it dropped.
+func (q *PermissionQueue) CancelSession(sessionID string) int {
+	return q.q.cancelSession(sessionID)
+}
+
+// The two shapes a question can take: a form built from a JSON schema, or a URL the
+// reader is sent to.
+const (
+	ElicitationForm = "form"
+	ElicitationURL  = "url"
+)
+
+// The user's answer to a question, as the card records it.
+const (
+	DecisionAccepted  = "accepted"
+	DecisionDeclined  = "declined"
+	DecisionCancelled = "cancelled"
+)
+
+// The actions a browser sends back, which are the protocol's own words.
+const (
+	ActionAccept  = "accept"
+	ActionDecline = "decline"
+	ActionCancel  = "cancel"
+)
+
+// Elicitation is one question the agent asks, as the browser renders it. The schema is
+// the requested schema verbatim — the protocol's shape, not a second model of it — so a
+// property this build cannot render is still visible to the reader and to the panel.
+type Elicitation struct {
+	RequestID string `json:"requestId"`
+	SessionID string `json:"sessionId"`
+	// Mode is ElicitationForm or ElicitationURL.
+	Mode    string `json:"mode"`
+	Message string `json:"message"`
+	// Schema is the form's requested schema (object with properties and required).
+	Schema map[string]any `json:"schema,omitempty"`
+	// URL is set for the url mode, with the id the protocol completes it by.
+	URL           string `json:"url,omitempty"`
+	ElicitationID string `json:"elicitationId,omitempty"`
+	// Decision is the reader's answer, recorded on the card in place; empty while the
+	// request is waiting, and DecisionCancelled when nobody could answer it.
+	Decision string `json:"decision,omitempty"`
+	// Content is the accepted form's values, if any.
+	Content map[string]any `json:"content,omitempty"`
+	// Completed is the protocol's completion of a URL question.
+	Completed bool `json:"completed,omitempty"`
+}
+
+// ElicitationAnswer is what the browser sends back for one question.
+type ElicitationAnswer struct {
+	// Action is ActionAccept, ActionDecline or ActionCancel.
+	Action  string
+	Content map[string]any
+}
+
+// ElicitationQueue brokers the questions of one connection.
+type ElicitationQueue struct {
+	q *askQueue[Elicitation, ElicitationAnswer]
+}
+
+// NewElicitationQueue returns a queue that announces the current question through
+// publish. A nil publish keeps it silent, which a test that only answers needs.
+func NewElicitationQueue(publish func(context.Context, Elicitation)) *ElicitationQueue {
+	return &ElicitationQueue{q: newAskQueue[Elicitation, ElicitationAnswer]("elicit", publish,
+		func(request Elicitation) string { return request.RequestID },
+		func(request Elicitation) string { return request.SessionID },
+		func(request Elicitation, id string) Elicitation { request.RequestID = id; return request },
+	)}
+}
+
+// Ask makes the question current — or queues it behind one already waiting — and blocks
+// until the reader answers or ctx ends.
+func (q *ElicitationQueue) Ask(ctx context.Context, request Elicitation) (ElicitationAnswer, error) {
+	return q.q.ask(ctx, request)
+}
+
+// Answer resolves the question with this id and reports whether it was waiting.
+func (q *ElicitationQueue) Answer(requestID string, answer ElicitationAnswer) bool {
+	return q.q.answer(requestID, answer)
+}
+
+// CancelSession drops every question of one session and reports how many it dropped.
+func (q *ElicitationQueue) CancelSession(sessionID string) int {
+	return q.q.cancelSession(sessionID)
+}
+
 // client is the acp.Client implementation: the policy this wave decided on. No
 // method is a pass-through — the file pair is confined to the root, a permission
 // request suspends for the user, and the terminal family refuses.
@@ -192,9 +329,23 @@ type client struct {
 	root  string
 	sink  Sink
 	perms *PermissionQueue
+	// elicitations is the question queue, and currentSession names the conversation a
+	// question belongs to: the protocol's request carries no session id, so the bridge
+	// supplies the one it holds when the question arrives.
+	elicitations   *ElicitationQueue
+	currentSession func() string
 }
 
 var _ acp.Client = (*client)(nil)
+
+// The question methods are not part of acp.Client — the SDK routes them only to a client
+// that implements the unstable interface, and answers MethodNotFound otherwise — so the
+// contract is pinned here: deleting or renaming a method becomes a build failure instead
+// of an agent's question silently disappearing.
+var _ interface {
+	UnstableCreateElicitation(context.Context, acp.UnstableCreateElicitationRequest) (acp.UnstableCreateElicitationResponse, error)
+	UnstableCompleteElicitation(context.Context, acp.UnstableCompleteElicitationNotification) error
+} = (*client)(nil)
 
 // resolveProjectPath is the single confinement point for the file callbacks. Given
 // the project root and the path the agent asked for, it returns the absolute path
@@ -370,6 +521,82 @@ func permissionFrom(params acp.RequestPermissionRequest) Permission {
 		request.Title = *params.ToolCall.Title
 	}
 	return request
+}
+
+// UnstableCreateElicitation suspends until the reader answers the question the agent
+// asks: the request is published as a card (one at a time, queued behind any other) and
+// the wait ends with the reader's answer or with the protocol's own cancellation when
+// the wait's context ends. The protocol's actions are mapped here, at the boundary; the
+// card records the past tense.
+func (c *client) UnstableCreateElicitation(ctx context.Context, params acp.UnstableCreateElicitationRequest) (acp.UnstableCreateElicitationResponse, error) {
+	request := elicitationFrom(params)
+	// The protocol's request is not tied to a session; the conversation the bridge holds
+	// is the one the question belongs to, and naming it is what lets a conversation that
+	// ends release its question.
+	if c.currentSession != nil {
+		request.SessionID = c.currentSession()
+	}
+	answer, err := c.elicitations.Ask(ctx, request)
+	if err != nil {
+		// The connection died or the request was cancelled: the agent must not be left
+		// waiting for a card nobody will see, and a JSON-RPC error would tell it less than
+		// the protocol's own cancellation.
+		return acp.NewUnstableCreateElicitationResponseCancel(), nil
+	}
+	switch answer.Action {
+	case ActionAccept:
+		return acp.UnstableCreateElicitationResponse{
+			Accept: &acp.UnstableCreateElicitationAccept{Action: ActionAccept, Content: answer.Content},
+		}, nil
+	case ActionDecline:
+		return acp.NewUnstableCreateElicitationResponseDecline(), nil
+	default:
+		return acp.NewUnstableCreateElicitationResponseCancel(), nil
+	}
+}
+
+// UnstableCompleteElicitation records that a URL question finished. It carries no
+// session, so the sink marks the card the id names wherever it stands.
+func (c *client) UnstableCompleteElicitation(ctx context.Context, notification acp.UnstableCompleteElicitationNotification) error {
+	if c.sink == nil {
+		return nil
+	}
+	c.sink.ElicitationComplete(ctx, string(notification.ElicitationId))
+	return nil
+}
+
+// elicitationFrom converts the protocol's two request shapes into the card's one: the
+// schema travels verbatim — its properties, the required names, its title and
+// description — because a second model of it would lose whatever this build does not
+// know how to render.
+func elicitationFrom(params acp.UnstableCreateElicitationRequest) Elicitation {
+	request := Elicitation{}
+	switch {
+	case params.Form != nil:
+		request.Mode = ElicitationForm
+		request.Message = params.Form.Message
+		request.Schema = schemaMap(params.Form.RequestedSchema)
+	case params.Url != nil:
+		request.Mode = ElicitationURL
+		request.Message = params.Url.Message
+		request.URL = params.Url.Url
+		request.ElicitationID = string(params.Url.ElicitationId)
+	}
+	return request
+}
+
+// schemaMap is the requested schema as the browser reads it: the protocol's own JSON,
+// decoded into the generic map the wire carries.
+func schemaMap(schema acp.UnstableElicitationSchema) map[string]any {
+	raw, err := json.Marshal(schema)
+	if err != nil {
+		return nil
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil
+	}
+	return decoded
 }
 
 func (c *client) SessionUpdate(ctx context.Context, notification acp.SessionNotification) error {

@@ -751,6 +751,75 @@ func TestAgentPermissionAnswerReleasesTheAgent(t *testing.T) {
 	})
 }
 
+// The question relay: the card is resolved in place for the browser, and the agent's
+// wait is released with the answer and its values.
+func TestAgentElicitationAnswerReleasesTheAgent(t *testing.T) {
+	s, ts := newAgentViewer(t)
+	agent := acptest.NewAgent(t, acptest.Streams("hello"))
+	activateOnSocket(t, s, agent.Path())
+
+	stream := openStream(t, ts, ts.URL)
+	sessionID := stream.next(t).SessionID
+
+	answered := make(chan acpbridge.ElicitationAnswer, 1)
+	go func() {
+		answer, err := s.agent.Elicitations().Ask(context.Background(), acpbridge.Elicitation{
+			SessionID: sessionID,
+			Mode:      acpbridge.ElicitationForm,
+			Message:   "Which branch?",
+			Schema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"branch": map[string]any{"type": "string"}},
+				"required":   []string{"branch"},
+			},
+		})
+		if err != nil {
+			answered <- acpbridge.ElicitationAnswer{Action: acpbridge.ActionCancel}
+			return
+		}
+		answered <- answer
+	}()
+
+	card := stream.nextUntil(t, "carrying the question", func(state acpbridge.StateEnvelope) bool {
+		return findElicitation(state) != nil
+	})
+	question := findElicitation(card)
+	if question.Mode != acpbridge.ElicitationForm || question.Decision != "" {
+		t.Fatalf("the question is %+v", question)
+	}
+
+	response := command(t, ts, acpbridge.ElicitationEnvelope{
+		Type:      acpbridge.EnvelopeElicitation,
+		RequestID: question.RequestID,
+		Action:    acpbridge.ActionAccept,
+		Content:   map[string]any{"branch": "main"},
+		SessionID: sessionID,
+	})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("the answer answered %d", response.StatusCode)
+	}
+	answer := <-answered
+	if answer.Action != acpbridge.ActionAccept || answer.Content["branch"] != "main" {
+		t.Fatalf("the agent's wait was released with %+v", answer)
+	}
+	stream.nextUntil(t, "showing the decision", func(state acpbridge.StateEnvelope) bool {
+		resolved := findElicitation(state)
+		return resolved != nil && resolved.Decision == acpbridge.DecisionAccepted
+	})
+}
+
+// findElicitation returns the first question of a thread.
+func findElicitation(state acpbridge.StateEnvelope) *acpbridge.Elicitation {
+	for _, message := range state.Thread.Messages {
+		for _, part := range message.Parts {
+			if part.Elicitation != nil {
+				return part.Elicitation
+			}
+		}
+	}
+	return nil
+}
+
 // Deactivate returns the server to inert and ends the open streams.
 func TestAgentDeactivateReturnsToInert(t *testing.T) {
 	s, ts := newAgentViewer(t)

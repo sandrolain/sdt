@@ -55,6 +55,43 @@
               },
               "decision": "allowed"
             }
+          },
+          {
+            "kind": "elicitation",
+            "elicitation": {
+              "requestId": "elicit-1",
+              "sessionId": "sess-1",
+              "mode": "form",
+              "message": "Which branch should the change land on?",
+              "schema": {
+                "properties": {
+                  "branch": {
+                    "title": "Branch",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "branch"
+                ],
+                "type": "object"
+              },
+              "decision": "accepted",
+              "content": {
+                "branch": "main"
+              }
+            }
+          },
+          {
+            "kind": "elicitation",
+            "elicitation": {
+              "requestId": "elicit-2",
+              "sessionId": "sess-1",
+              "mode": "url",
+              "message": "Open the provider page to finish",
+              "url": "https://example.com/auth",
+              "elicitationId": "e-2",
+              "completed": true
+            }
           }
         ]
       },

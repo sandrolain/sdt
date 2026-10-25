@@ -1,0 +1,9 @@
+{
+  "type": "elicitation",
+  "requestId": "elicit-1",
+  "action": "accept",
+  "content": {
+    "branch": "main"
+  },
+  "sessionId": "sess-1"
+}

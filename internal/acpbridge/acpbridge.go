@@ -106,8 +106,9 @@ type Bridge struct {
 	// once, when the bridge is built from the project's own file, and never changes:
 	// the picker changes a session, not the project.
 	model string
-	perms *PermissionQueue
-	log   *slog.Logger
+	perms   *PermissionQueue
+	elicits *ElicitationQueue
+	log     *slog.Logger
 	// trace is the sink the wire log writes into, set by the viewer before the
 	// first start; rt is the capture of the run in flight, if any.
 	trace TraceSink
@@ -169,6 +170,7 @@ func New(opts Options) *Bridge {
 	// started can outlive the bridge.
 	bridge.life, bridge.halt = context.WithCancel(context.Background())
 	bridge.perms = NewPermissionQueue(bridge.Permission)
+	bridge.elicits = NewElicitationQueue(bridge.Elicitation)
 	return bridge
 }
 
@@ -190,6 +192,40 @@ func (b *Bridge) Permission(ctx context.Context, request Permission) {
 	if session, ok := b.Session(request.SessionID); ok {
 		session.state.Permission(ctx, request)
 	}
+}
+
+// Elicitation shows the question on the conversation it belongs to. The protocol's
+// request carries no session, so the client names the bridge's current one; a question
+// that somehow arrives unnamed is still shown on that conversation rather than dropped.
+func (b *Bridge) Elicitation(ctx context.Context, request Elicitation) {
+	if request.SessionID == "" {
+		request.SessionID = b.currentSessionID()
+	}
+	if session, ok := b.Session(request.SessionID); ok {
+		session.state.Elicitation(ctx, request)
+	}
+}
+
+// ElicitationComplete records the protocol's completion of a URL question. It names an
+// elicitation, not a conversation, so every session is asked and the card is found where
+// it stands; the bridge holds one conversation, and a second reader is not a promise.
+func (b *Bridge) ElicitationComplete(_ context.Context, elicitationID string) {
+	b.mu.Lock()
+	sessions := make([]*Session, 0, len(b.sessions))
+	for _, session := range b.sessions {
+		sessions = append(sessions, session)
+	}
+	b.mu.Unlock()
+	for _, session := range sessions {
+		session.state.CompleteElicitation(elicitationID)
+	}
+}
+
+// currentSessionID is the conversation a browser joining the bridge is handed.
+func (b *Bridge) currentSessionID() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.initial
 }
 
 // Session returns the live session with this ACP id.
@@ -285,7 +321,8 @@ func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection)
 		id:    id,
 		conn:  conn,
 		state: NewThreadState(id),
-		perms: b.perms,
+		perms:   b.perms,
+		elicits: b.elicits,
 		ctx:   life,
 		halt:  halt,
 	}
@@ -365,6 +402,9 @@ func (b *Bridge) CloseSessions() int {
 // asked.
 func (b *Bridge) Permissions() *PermissionQueue { return b.perms }
 
+// Elicitations is the question queue, which is what the viewer answers through.
+func (b *Bridge) Elicitations() *ElicitationQueue { return b.elicits }
+
 // Activated reports whether the bridge holds a handshaken agent connection.
 func (b *Bridge) Activated() bool {
 	b.mu.Lock()
@@ -429,7 +469,7 @@ func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTranspo
 
 	// The connection's callbacks are the policy, not a pass-through, and the bridge
 	// is their sink: this is the one place the two are joined.
-	callbacks := &client{root: b.root, sink: b, perms: b.perms}
+	callbacks := &client{root: b.root, sink: b, perms: b.perms, elicitations: b.elicits, currentSession: b.currentSessionID}
 	conn := acp.NewClientSideConnection(callbacks, rw, rw)
 	conn.SetLogger(b.log)
 

@@ -405,6 +405,7 @@
     color: var(--fg-dim);
   }
   .agent-panel__field input,
+  .agent-panel__field select,
   .agent-panel__composer textarea {
     padding: 0.4rem 0.55rem;
     background: var(--bg-rise);
@@ -617,6 +618,50 @@
     max-block-size: 16rem;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+  /* The cards the bridge asks with: the permission request and the question share one
+     surface, since both are the agent blocking on the reader. */
+  .agent-panel__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-block-start: 0.4rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-base);
+  }
+  .agent-panel__decision {
+    color: var(--fg-dim);
+    font-size: 0.8rem;
+  }
+  .agent-panel__card-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  /* The question's fields: one row per property the schema names, in the same field
+     shape the panel's activation form uses. */
+  .agent-panel__elicitation-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  /* A boolean is one box, not a stretched field: the row's label is the control's name. */
+  .agent-panel__elicitation-fields input[type="checkbox"] {
+    align-self: flex-start;
+    inline-size: auto;
+  }
+  .agent-panel__elicitation-values {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+  }
+  .agent-panel__elicitation-values dt {
+    font-weight: 600;
+  }
+  .agent-panel__elicitation-values dd {
+    margin: 0 0 0.2rem;
   }
   .agent-panel__plan {
     margin: 0;

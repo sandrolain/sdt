@@ -24,6 +24,7 @@ const (
 	PartThought    = "thought"    // agent_thought_chunk
 	PartToolCall   = "tool_call"  // tool_call, tool_call_update
 	PartPermission = "permission" // a RequestPermission waiting for the user
+	PartElicitation = "elicitation" // an elicitation/create waiting for the user
 	PartError      = "error"      // the turn failed, in the agent's own words
 	PartStop       = "stop"       // the turn stopped, for a reason worth telling
 )
@@ -76,6 +77,8 @@ type Part struct {
 	Text       string      `json:"text,omitempty"`
 	ToolCall   *ToolCall   `json:"toolCall,omitempty"`
 	Permission *Permission `json:"permission,omitempty"`
+	// Elicitation is a question the agent asks, waiting for the reader's answer.
+	Elicitation *Elicitation `json:"elicitation,omitempty"`
 }
 
 // ToolCall is one tool the agent ran, as the protocol reports it.
@@ -216,6 +219,64 @@ func (s *ThreadState) Permission(_ context.Context, request Permission) {
 	// A card the browser never hears about is a card nobody answers, so adding one
 	// is a state change like any other.
 	s.notify()
+}
+
+// Elicitation adds the question to the turn the agent is streaming, so the reader
+// answers it where the agent asked.
+func (s *ThreadState) Elicitation(_ context.Context, request Elicitation) {
+	s.mu.Lock()
+	index := s.thread.assistant()
+	s.thread.Messages[index].Parts = append(s.thread.Messages[index].Parts, Part{
+		Kind:        PartElicitation,
+		Elicitation: &request,
+	})
+	s.mu.Unlock()
+	s.notify()
+}
+
+// ResolveElicitation records the reader's answer on the question in place: the part keeps
+// its position and its content, so the browser only sees the decision and the values
+// change.
+func (s *ThreadState) ResolveElicitation(requestID, decision string, content map[string]any) bool {
+	s.mu.Lock()
+	resolved := false
+	for i := range s.thread.Messages {
+		parts := s.thread.Messages[i].Parts
+		for j := range parts {
+			if parts[j].Kind == PartElicitation && parts[j].Elicitation != nil &&
+				parts[j].Elicitation.RequestID == requestID {
+				parts[j].Elicitation.Decision = decision
+				parts[j].Elicitation.Content = content
+				resolved = true
+			}
+		}
+	}
+	s.mu.Unlock()
+	if resolved {
+		s.notify()
+	}
+	return resolved
+}
+
+// CompleteElicitation marks a URL question finished, which is the protocol saying so.
+func (s *ThreadState) CompleteElicitation(elicitationID string) bool {
+	s.mu.Lock()
+	completed := false
+	for i := range s.thread.Messages {
+		parts := s.thread.Messages[i].Parts
+		for j := range parts {
+			if parts[j].Kind == PartElicitation && parts[j].Elicitation != nil &&
+				parts[j].Elicitation.ElicitationID == elicitationID {
+				parts[j].Elicitation.Completed = true
+				completed = true
+			}
+		}
+	}
+	s.mu.Unlock()
+	if completed {
+		s.notify()
+	}
+	return completed
 }
 
 // ResolvePermission records the answer on the card in place: the part keeps its

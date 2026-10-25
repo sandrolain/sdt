@@ -21,6 +21,8 @@ const (
 	EnvelopeCancel = "cancel"
 	// EnvelopePermission answers a pending request.
 	EnvelopePermission = "permission"
+	// EnvelopeElicitation answers a question the agent asked.
+	EnvelopeElicitation = "elicitation"
 	// EnvelopeConfig sets one configuration option of a session — the model it runs
 	// on, its mode. It is general in the protocol's own terms; the panel offers a
 	// control for the model and nothing else.
@@ -67,6 +69,16 @@ type PermissionEnvelope struct {
 	SessionID string `json:"sessionId,omitempty"`
 }
 
+// ElicitationEnvelope is the user's answer to a question. The action is the protocol's
+// own word; the content is the form's values and travels only with accept.
+type ElicitationEnvelope struct {
+	Type      string         `json:"type"`
+	RequestID string         `json:"requestId"`
+	Action    string         `json:"action"`
+	Content   map[string]any `json:"content,omitempty"`
+	SessionID string         `json:"sessionId,omitempty"`
+}
+
 // ConfigEnvelope sets one configuration option of a session. The option is named by
 // its own id and set to one of the values the agent offered, both verbatim: the
 // viewer never maps a model name, so what the agent advertised is what it is asked
@@ -87,6 +99,10 @@ type Command struct {
 	ConfigID  string
 	Value     string
 	SessionID string
+	// Action and Content belong to an elicitation answer: the protocol's action and the
+	// form's values.
+	Action  string
+	Content map[string]any
 }
 
 // EncodeState marshals the state envelope for a thread.
@@ -154,6 +170,26 @@ func DecodeCommand(data []byte) (Command, error) {
 			RequestID: permission.RequestID,
 			Allow:     permission.Allow,
 			SessionID: permission.SessionID,
+		}, nil
+	case EnvelopeElicitation:
+		var answer ElicitationEnvelope
+		if err := json.Unmarshal(data, &answer); err != nil {
+			return Command{}, fmt.Errorf("%w: elicitation: %v", ErrCommand, err)
+		}
+		if answer.RequestID == "" {
+			return Command{}, fmt.Errorf("%w: an answer names no question", ErrCommand)
+		}
+		switch answer.Action {
+		case ActionAccept, ActionDecline, ActionCancel:
+		default:
+			return Command{}, fmt.Errorf("%w: unknown elicitation action %q", ErrCommand, answer.Action)
+		}
+		return Command{
+			Kind:      EnvelopeElicitation,
+			RequestID: answer.RequestID,
+			Action:    answer.Action,
+			Content:   answer.Content,
+			SessionID: answer.SessionID,
 		}, nil
 	case EnvelopeConfig:
 		var config ConfigEnvelope

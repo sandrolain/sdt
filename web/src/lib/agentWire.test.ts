@@ -12,12 +12,15 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  ACTION_ACCEPT,
   ENVELOPE_CANCEL,
   ENVELOPE_CONFIG,
+  ENVELOPE_ELICITATION,
   ENVELOPE_PERMISSION,
   ENVELOPE_PROMPT,
   ENVELOPE_STATE,
   ENVELOPE_STATUS,
+  PART_ELICITATION,
   PART_ERROR,
   PART_PERMISSION,
   PART_STOP,
@@ -26,6 +29,7 @@ import {
   PART_TOOL_CALL,
   cancelCommand,
   configCommand,
+  elicitationCommand,
   permissionCommand,
   promptCommand,
   type AgentStateEnvelope,
@@ -61,7 +65,7 @@ describe("the wire the Go side writes", () => {
     // A new part kind on the Go side fails here, rather than showing up in the thread
     // as a blank line.
     expect([...kinds].sort()).toEqual(
-      [PART_TEXT, PART_THOUGHT, PART_TOOL_CALL, PART_PERMISSION].sort(),
+      [PART_TEXT, PART_THOUGHT, PART_TOOL_CALL, PART_PERMISSION, PART_ELICITATION].sort(),
     );
   });
 
@@ -80,7 +84,15 @@ describe("the wire the Go side writes", () => {
     // The streaming rule, visible in the fixture: the chunks that arrive before the
     // tool call share one text part, and the one after it opens a new part.
     const kinds = assistant.parts.map((part) => part.kind);
-    expect(kinds).toEqual([PART_TEXT, PART_THOUGHT, PART_TOOL_CALL, PART_TEXT, PART_PERMISSION]);
+    expect(kinds).toEqual([
+      PART_TEXT,
+      PART_THOUGHT,
+      PART_TOOL_CALL,
+      PART_TEXT,
+      PART_PERMISSION,
+      PART_ELICITATION,
+      PART_ELICITATION,
+    ]);
     expect(assistant.parts[0].text).toBe("Let me look at the notes.");
     expect(assistant.parts[3].text).toBe(" The corpus has 224 analyses.");
 
@@ -102,6 +114,22 @@ describe("the wire the Go side writes", () => {
       toolKind: "edit",
       title: "Write context/notes/x.md",
       decision: "allowed",
+    });
+
+    // The two shapes a question can end in: a form answered with its values, and a url
+    // the protocol completed.
+    expect(assistant.parts[5].elicitation).toMatchObject({
+      requestId: "elicit-1",
+      mode: "form",
+      decision: "accepted",
+      content: { branch: "main" },
+    });
+    expect(assistant.parts[6].elicitation).toMatchObject({
+      requestId: "elicit-2",
+      mode: "url",
+      url: "https://example.com/auth",
+      elicitationId: "e-2",
+      completed: true,
     });
 
     expect(envelope.thread.plan?.entries?.[0]).toEqual({
@@ -147,6 +175,9 @@ describe("the wire the Go side writes", () => {
     expect(configCommand("model", "opencode/big-pickle", "sess-1")).toEqual(
       fixture("commands", "config.json"),
     );
+    expect(elicitationCommand("elicit-1", ACTION_ACCEPT, { branch: "main" }, "sess-1")).toEqual(
+      fixture("commands", "elicitation.json"),
+    );
 
     // Every kind the fixture set uses is one the wire defines, and the set is exactly the
     // vocabulary: a fifth kind on the Go side fails here rather than arriving unrecognised.
@@ -156,7 +187,13 @@ describe("the wire the Go side writes", () => {
       ),
     );
     expect([...kinds].sort()).toEqual(
-      [ENVELOPE_CANCEL, ENVELOPE_CONFIG, ENVELOPE_PERMISSION, ENVELOPE_PROMPT].sort(),
+      [
+        ENVELOPE_CANCEL,
+        ENVELOPE_CONFIG,
+        ENVELOPE_ELICITATION,
+        ENVELOPE_PERMISSION,
+        ENVELOPE_PROMPT,
+      ].sort(),
     );
   });
 

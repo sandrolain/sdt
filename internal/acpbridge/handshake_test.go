@@ -56,6 +56,18 @@ func TestActivateCompletesTheHandshake(t *testing.T) {
 	if capabilities["terminal"] == true {
 		t.Fatalf("the bridge advertised terminal support it refuses: %v", capabilities)
 	}
+	// A question is rendered by the panel, so both shapes are declared: an agent asks
+	// only what the client says it can answer.
+	elicit, ok := capabilities["elicitation"].(map[string]any)
+	if !ok {
+		t.Fatalf("the bridge advertised no elicitation capability: %v", capabilities)
+	}
+	if _, ok := elicit["form"].(map[string]any); !ok {
+		t.Fatalf("form elicitation is not advertised although the panel renders it: %v", elicit)
+	}
+	if _, ok := elicit["url"].(map[string]any); !ok {
+		t.Fatalf("url elicitation is not advertised although the panel renders it: %v", elicit)
+	}
 
 	newsSession := agent.ParamsFor(t, "session/new")
 	if got := newsSession["cwd"]; got != bridge.Root() {
