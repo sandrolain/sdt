@@ -196,6 +196,28 @@ describe("AgentPanel", () => {
     expect(screen.queryByRole("button", { name: "Start the agent" })).toBeNull();
   });
 
+  it("gives the thread the scroll when a thread is on screen, and keeps it for the notes", async () => {
+    mockViewer();
+    await open();
+
+    // Before a frame there is no thread: the body still scrolls its own notes.
+    expect(document.querySelector(".agent-panel__body--thread")).toBeNull();
+
+    FakeEventSource.instances[0].emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [{ id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "hi" }] }],
+        }),
+      ),
+    });
+    expect(await screen.findByText("hi")).toBeTruthy();
+
+    // The runtime follows the bottom on the viewport, so the body must hand it over.
+    const body = document.querySelector(".agent-panel__body");
+    expect(body?.classList.contains("agent-panel__body--thread")).toBe(true);
+    expect(document.querySelector(".agent-thread__viewport")).toBeTruthy();
+  });
+
   it("shows the command the project declared and starts nothing until it is asked", async () => {
     const calls = mockViewer();
     render(<AgentPanel open onOpenChange={vi.fn()} />);
@@ -377,6 +399,51 @@ describe("AgentPanel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(commands(calls).at(-1)).toEqual({ type: "cancel", sessionId: "sess-1" });
+  });
+
+  it("takes a multi-line prompt: Enter is a newline and Cmd+Enter sends it", async () => {
+    const calls = mockViewer();
+    const source = await open();
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [{ id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "ready" }] }],
+        }),
+      ),
+    });
+    expect(await screen.findByText("ready")).toBeTruthy();
+
+    const input = screen.getByLabelText("Message") as HTMLTextAreaElement;
+    expect(input.tagName).toBe("TEXTAREA");
+    expect(input.getAttribute("rows")).toBe("1");
+
+    await userEvent.type(input, "first line{enter}second line");
+    expect(input.value).toBe("first line\nsecond line");
+    // Enter alone typed a newline and sent nothing.
+    expect(commands(calls)).toHaveLength(0);
+
+    fireEvent.keyDown(input, { key: "Enter", metaKey: true });
+    await waitFor(() =>
+      expect(commands(calls).at(-1)).toEqual({
+        type: "prompt",
+        text: "first line\nsecond line",
+        sessionId: "sess-1",
+      }),
+    );
+    // The draft clears once the viewer accepted it.
+    expect(input.value).toBe("");
+  });
+
+  it("keeps the draft when the viewer refuses the send", async () => {
+    mockViewer({ commandError: "the bridge is not listening" });
+    await open();
+
+    const input = screen.getByLabelText("Message") as HTMLTextAreaElement;
+    await userEvent.type(input, "keep me");
+    fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+
+    expect(await screen.findByText("the bridge is not listening")).toBeTruthy();
+    expect(input.value).toBe("keep me");
   });
 
   it("resolves a permission card in place with the answer the user gives", async () => {
@@ -855,11 +922,27 @@ describe("the pet's controls", () => {
 
   it("leaves the panel without a band when the pet is off", async () => {
     // The band's height is the strip's own, so an off pet leaves no empty gap: the element
-    // is not there at all, and the composer sits where it always did.
+    // is not there at all, and the composer sits where it always did. The state does not go
+    // with it: the word moves into the header.
     localStorage.setItem(PET_ENABLED_KEY, "off");
-    const { container } = render(<AgentPanel open onOpenChange={vi.fn()} />);
+    mockViewer();
+    render(<AgentPanel open onOpenChange={vi.fn()} />);
     expect(await screen.findByRole("button", { name: "Show the pet" })).toBeTruthy();
-    expect(container.querySelector(".agent-panel__pet")).toBeNull();
+    expect(document.querySelector(".agent-panel__pet")).toBeNull();
+    const word = document.querySelector(".agent-panel__state-word--header");
+    expect(word?.textContent).toBe("stopped");
+  });
+
+  it("says the conversation's state in the band's corner, and in the header when the pet is off", async () => {
+    mockViewer();
+    await open();
+
+    const inBand = await screen.findByText("idle");
+    expect(inBand.className).toContain("agent-panel__state-word--band");
+
+    await userEvent.click(screen.getByRole("button", { name: "Hide the pet" }));
+    expect(document.querySelector(".agent-panel__state-word--band")).toBeNull();
+    expect(document.querySelector(".agent-panel__state-word--header")?.textContent).toBe("idle");
   });
 
   it("offers the style menu only while there is a pet to style", async () => {

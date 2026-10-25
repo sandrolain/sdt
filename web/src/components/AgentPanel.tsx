@@ -26,6 +26,7 @@ import {
   Popover,
 } from "react-aria-components";
 import { AgentThread } from "./AgentThread";
+import { AgentStateWord } from "./AgentStateWord";
 import { ComboBox, type UiComboOption } from "./ui/ComboBox";
 import { TooltipButton } from "./ui/Tooltip";
 import { Icon } from "../lib/icon";
@@ -38,15 +39,19 @@ import {
   writePetVariant,
 } from "../lib/petPreference";
 import type { PetVariant } from "../lib/pet/types";
+import { petSignal, usePetState } from "../lib/petState";
 import { useDocumentTheme } from "../lib/themeAttr";
 import {
   Suspense,
   lazy,
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
   type FormEvent,
+  type KeyboardEvent,
 } from "react";
 import {
   clampPanelWidth,
@@ -83,6 +88,9 @@ const PetStrip = lazy(() => import("./PetStrip"));
 /** What the panel is showing, as one value rather than a set of booleans. */
 type Phase = "loading" | "starting" | "active" | "restarting" | "stopped" | "error";
 
+/** The composer's ceiling before it scrolls inside: roughly eight lines of the panel's type. */
+const COMPOSER_MAX_HEIGHT = 176;
+
 /**
  * phaseFrom reads the phase from the viewer's account of the process. A failure and a stop
  * are different things to a reader: a failure carries a sentence and offers a retry, a
@@ -114,6 +122,8 @@ export function AgentPanel({
   const [phase, setPhase] = useState<Phase>("loading");
   const [state, setState] = useState<AgentState | null>(null);
   const [message, setMessage] = useState("");
+  const [draft, setDraft] = useState("");
+  const composer = useRef<HTMLTextAreaElement>(null);
   const [envelope, setEnvelope] = useState<AgentStateEnvelope | null>(null);
   const [session, setSession] = useState("");
   const stream = useRef<AgentStream | null>(null);
@@ -265,6 +275,16 @@ export function AgentPanel({
 
   const [width, setWidth] = useState(readPanelWidth);
 
+  // One derivation for the band and the word: the panel owns the machine, because the state
+  // must stay readable while the pet itself is off. The signal is the thread's own facts,
+  // so a frame that only repeated itself costs no state change.
+  const running = Boolean(envelope?.thread.running);
+  const signal = useMemo(
+    () => petSignal(phase, envelope?.thread, running),
+    [phase, envelope, running],
+  );
+  const petState = usePetState(signal);
+
   const dragPanel = (next: number) => setWidth(clampPanelWidth(next));
 
   const commitPanel = (next: number) => {
@@ -275,12 +295,36 @@ export function AgentPanel({
 
   const onPrompt = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = event.currentTarget;
-    const text = new FormData(form).get("prompt");
-    if (typeof text !== "string" || text.trim() === "") return;
-    tell(promptCommand(text, session));
-    form.reset();
+    if (draft.trim() === "") return;
+    // The draft clears only once the viewer accepted it: a refused send must not cost the
+    // reader the prompt they just wrote.
+    sendAgentCommand(promptCommand(draft, session))
+      .then(() => {
+        setDraft("");
+        setMessage("");
+      })
+      .catch((error: Error) => setMessage(error.message));
   };
+
+  /** The composer's chord: Enter is a newline, Cmd/Ctrl+Enter is the send. */
+  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  };
+
+  // The composer grows with its draft up to a cap and then scrolls inside. The height is
+  // measured because `field-sizing: content` is not available in every browser this app
+  // runs in; the effect writes style, never state, so it cannot re-render on its own. jsdom
+  // reports no layout, and the guard leaves the element alone there.
+  useLayoutEffect(() => {
+    const el = composer.current;
+    if (!el) return;
+    el.style.height = "auto";
+    if (el.scrollHeight === 0) return;
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_HEIGHT ? "auto" : "hidden";
+  }, [draft]);
 
   const command = state?.command ?? [];
   const configured = command.length > 0;
@@ -321,6 +365,15 @@ export function AgentPanel({
               <PanelResizeHandle width={width} onDrag={dragPanel} onCommit={commitPanel} />
               <header className="agent-panel__header">
                 <h2 className="agent-panel__title">Agent</h2>
+                {/* The pet is a preference; the state is information. With the pet off the
+                    word moves here, from the one machine that also drives the band. */}
+                {!petOn && (
+                  <AgentStateWord
+                    phase={phase}
+                    state={petState}
+                    className="agent-panel__state-word--header"
+                  />
+                )}
                 <div className="agent-panel__header-actions">
                   {/* One explicit way to start over: a mount never ends a conversation, and
                       neither does closing the panel. */}
@@ -358,7 +411,11 @@ export function AgentPanel({
                   </TooltipButton>
                 </div>
               </header>
-              <div className="agent-panel__body">
+              <div
+                className={`agent-panel__body${
+                  phase === "active" && envelope ? " agent-panel__body--thread" : ""
+                }`}
+              >
                 {phase === "loading" && <p className="agent-panel__note">Reading the bridge…</p>}
 
                 {phase === "error" && (
@@ -446,7 +503,8 @@ export function AgentPanel({
                 <Suspense fallback={null}>
                   <PetStrip
                     phase={phase}
-                    thread={envelope?.thread}
+                    signal={signal}
+                    state={petState}
                     variant={effectiveVariant(petVariant, theme)}
                   />
                 </Suspense>
@@ -473,11 +531,14 @@ export function AgentPanel({
               )}
               {phase === "active" && (
                 <form className="agent-panel__composer" onSubmit={onPrompt}>
-                  <input
-                    type="text"
+                  <textarea
+                    ref={composer}
+                    rows={1}
                     name="prompt"
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={onComposerKeyDown}
                     placeholder="Ask the agent…"
-                    autoComplete="off"
                     aria-label="Message"
                   />
                   <button type="submit" className="agent-panel__action">

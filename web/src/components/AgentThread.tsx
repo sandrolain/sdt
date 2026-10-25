@@ -25,7 +25,9 @@ import type {
   ReasoningMessagePartComponent,
 } from "@assistant-ui/react";
 import { createContext, useContext, useMemo } from "react";
-import { renderMarkdown } from "../lib/markdown";
+import { renderMarkdown, highlightCode } from "../lib/markdown";
+import { markdownControlAction } from "../lib/markdownActions";
+import { highlightedToolOutput } from "../lib/toolOutput";
 import { threadMessages, type ConvertedMessage, type ToolArtifact } from "../lib/agentThread";
 import type { AgentPermission, AgentPlan, AgentThread as AgentThreadState } from "../lib/agent";
 
@@ -122,7 +124,18 @@ const ReasoningPart: ReasoningMessagePartComponent = ({ text }) => (
  */
 function MarkdownPart({ markdown }: { markdown: string }) {
   const html = useMemo(() => renderMarkdown(markdown), [markdown]);
-  return <div className="agent-panel__markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    <div
+      className="agent-panel__markdown"
+      // The renderer's code-block controls (wrap, copy) are answered by the same shared
+      // action the document page uses; nothing here routes a link, so a click that is not
+      // one of those controls keeps the browser's own behaviour.
+      onClick={(event) => {
+        if (markdownControlAction(event.target)) event.preventDefault();
+      }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 }
 
 /**
@@ -141,16 +154,39 @@ const ToolCallPart: ToolCallMessagePartComponent = ({
   // The output is read once: the disclosure's summary states its size, and the body is the
   // text itself, so the reader decides what opening it costs before it takes the thread.
   const output = result === undefined ? undefined : asText(result);
+  const highlighted = useMemo(
+    () => (output === undefined ? undefined : highlightedToolOutput(output)),
+    [output],
+  );
+  const command = commandOf(raw?.input);
   return (
     <div className={`agent-panel__tool${isError ? " is-error" : ""}`}>
+      {/* The state lives in the block's corner and is always a word: colour reinforces it
+          and never carries it alone. */}
+      <span className="agent-panel__tool-state" data-state={stateKey(raw, isError)}>
+        {statusWord(raw, isError)}
+      </span>
       <p className="agent-panel__tool-head">
-        <span className="agent-panel__tool-name">{toolName}</span>
-        <span className="agent-panel__tool-status">{statusWord(raw, isError)}</span>
+        {command === undefined ? (
+          <span className="agent-panel__tool-name">{toolName}</span>
+        ) : (
+          // The agent's own command line, highlighted as the shell it is. hljs escapes what
+          // it is given, so this is the agent's text as text, never as markup.
+          <code
+            className="agent-panel__tool-command hljs"
+            dangerouslySetInnerHTML={{ __html: highlightCode(command, "shell") }}
+          />
+        )}
       </p>
-      {output === undefined ? null : (
+      {highlighted === undefined ? null : (
         <details className="agent-panel__tool-output">
-          <summary>{outputSummary(output)}</summary>
-          <pre className="agent-panel__tool-result">{output}</pre>
+          <summary>{outputSummary(output ?? "")}</summary>
+          <pre className="agent-panel__tool-result">
+            <code
+              className={`hljs language-${highlighted.language}`}
+              dangerouslySetInnerHTML={{ __html: highlighted.html }}
+            />
+          </pre>
         </details>
       )}
       {argsText || raw?.output !== undefined ? (
@@ -171,6 +207,16 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
+/**
+ * commandOf is the command line inside a tool's input. Most agents put a shell command in
+ * `command`; a call without one keeps the ACP title, which is the only line it has.
+ */
+function commandOf(input: unknown): string | undefined {
+  if (input === null || typeof input !== "object") return undefined;
+  const command = (input as { command?: unknown }).command;
+  return typeof command === "string" && command.trim() !== "" ? command : undefined;
+}
+
 /** outputSummary is what opening the output costs, in the reader's own unit: lines. A
  *  trailing newline ends the last line, it does not start an empty one, so the count is the
  *  number of lines the reader will see. */
@@ -178,6 +224,12 @@ function outputSummary(text: string): string {
   const body = text.endsWith("\n") ? text.slice(0, -1) : text;
   const lines = body.split("\n").length;
   return `Output · ${lines} ${lines === 1 ? "line" : "lines"}`;
+}
+
+/** stateKey is the call's state as the stylesheet's own handle on it. */
+function stateKey(raw: ToolArtifact | undefined, isError: boolean | undefined): string {
+  if (isError || raw?.status === "failed") return "failed";
+  return raw?.status === "completed" ? "completed" : "running";
 }
 
 /** statusWord is the call's state in a word, so it never rests on the colour alone. It is

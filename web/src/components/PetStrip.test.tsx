@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentThread } from "../lib/agent";
+import type { AgentPart, AgentThread } from "../lib/agent";
+import { petSignal } from "../lib/petState";
 import { PetStrip } from "./PetStrip";
 
 /**
  * The WebGL half is not testable in jsdom (there is no context), so the vendored canvas is
  * replaced by a recorder: the test asserts what the strip asks of it — state, still, paused,
- * pulse — not the pixels it would paint.
+ * pulse — not the pixels it would paint. The machine itself is no longer the strip's: the
+ * panel owns `usePetState`, so these tests hand the state in and check that it is applied.
  */
 const recorder = vi.hoisted(() => ({
   states: [] as (string | undefined)[],
@@ -52,12 +54,17 @@ vi.mock("../lib/pet", async () => {
   return { PetCanvas };
 });
 
-function thread(parts: AgentThread["messages"][number]["parts"], running: boolean): AgentThread {
+function thread(parts: AgentPart[], running: boolean): AgentThread {
   return {
     sessionId: "sess-1",
     running,
     messages: [{ id: "a", role: "assistant", parts }],
   };
+}
+
+/** signalOf is the panel's own reduction, so a test hands the strip what the panel would. */
+function signalOf(parts: AgentPart[], running: boolean) {
+  return petSignal("active", thread(parts, running), running);
 }
 
 beforeEach(() => {
@@ -75,53 +82,60 @@ afterEach(() => {
 });
 
 describe("PetStrip", () => {
-  it("paints the band as decorative and shows the work the turn is doing", () => {
+  it("paints the canvas as decorative and says the state in words", () => {
     const { container } = render(
       <PetStrip
         phase="active"
-        thread={thread([{ kind: "thought", text: "hm" }], true)}
+        signal={signalOf([{ kind: "thought", text: "hm" }], true)}
+        state="thinking"
         variant="dot"
       />,
     );
-    const band = container.querySelector(".agent-panel__pet");
-    expect(band?.getAttribute("aria-hidden")).toBe("true");
+    // The hidden half is the canvas; the band's corner carries the state a reader can read.
+    expect(container.querySelector(".agent-panel__pet-stage")?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+    expect(screen.getByText("thinking")).toBeTruthy();
     expect(screen.getByTestId("fake-pet").getAttribute("data-state")).toBe("thinking");
     expect(screen.getByTestId("fake-pet").getAttribute("data-variant")).toBe("dot");
   });
 
-  it("shows a running turn moving and a resting one still", () => {
-    const running = render(
+  it("shows a working state moving and a resting one still", () => {
+    const working = render(
       <PetStrip
         phase="active"
-        thread={thread([{ kind: "text", text: "an answer" }], true)}
+        signal={signalOf([{ kind: "text", text: "an answer" }], true)}
+        state="speaking"
         variant="dot"
       />,
     );
-    expect(screen.getByTestId("fake-pet").getAttribute("data-state")).toBe("speaking");
     expect(screen.getByTestId("fake-pet").getAttribute("data-still")).toBe("false");
-    running.unmount();
+    expect(screen.getByText("answering")).toBeTruthy();
+    working.unmount();
 
     render(
       <PetStrip
         phase="active"
-        thread={thread([{ kind: "text", text: "an answer" }], false)}
+        signal={signalOf([{ kind: "text", text: "an answer" }], false)}
+        state="idle"
         variant="dot"
       />,
     );
-    expect(screen.getByTestId("fake-pet").getAttribute("data-state")).toBe("idle");
     expect(screen.getByTestId("fake-pet").getAttribute("data-still")).toBe("true");
+    expect(screen.getByText("idle")).toBeTruthy();
   });
 
   it("pulses when the answer grows during a turn", () => {
-    const parts = { kind: "text", text: "an" } as const;
+    const first = signalOf([{ kind: "text", text: "an" }], true);
     const { rerender } = render(
-      <PetStrip phase="active" thread={thread([parts], true)} variant="dot" />,
+      <PetStrip phase="active" signal={first} state="speaking" variant="dot" />,
     );
     recorder.pulses = [];
     rerender(
       <PetStrip
         phase="active"
-        thread={thread([{ kind: "text", text: "an answer" }], true)}
+        signal={signalOf([{ kind: "text", text: "an answer" }], true)}
+        state="speaking"
         variant="dot"
       />,
     );
@@ -133,7 +147,8 @@ describe("PetStrip", () => {
     render(
       <PetStrip
         phase="active"
-        thread={thread([{ kind: "text", text: "x" }], true)}
+        signal={signalOf([{ kind: "text", text: "x" }], true)}
+        state="working"
         variant="dot"
       />,
     );
@@ -142,17 +157,23 @@ describe("PetStrip", () => {
   });
 
   it("follows a variant change", () => {
-    const { rerender } = render(<PetStrip phase="active" variant="dot" />);
+    const signal = signalOf([], false);
+    const { rerender } = render(
+      <PetStrip phase="active" signal={signal} state="idle" variant="dot" />,
+    );
     expect(screen.getByTestId("fake-pet").getAttribute("data-variant")).toBe("dot");
-    rerender(<PetStrip phase="active" variant="trama" />);
+    rerender(<PetStrip phase="active" signal={signal} state="idle" variant="trama" />);
     expect(screen.getByTestId("fake-pet").getAttribute("data-variant")).toBe("trama");
   });
 
-  it("collapses the band when the canvas cannot get a context", () => {
-    const { container } = render(<PetStrip phase="active" variant="dot" />);
+  it("keeps the band and its word when the canvas cannot get a context", () => {
+    const { container } = render(
+      <PetStrip phase="active" signal={signalOf([], false)} state="idle" variant="dot" />,
+    );
     expect(container.querySelector(".agent-panel__pet")).not.toBeNull();
     act(() => recorder.unavailable?.());
+    // The canvas is gone; the state is not, because it is text in the band.
     expect(screen.queryByTestId("fake-pet")).toBeNull();
-    expect(container.querySelector(".agent-panel__pet")).toBeNull();
+    expect(screen.getByText("idle")).toBeTruthy();
   });
 });

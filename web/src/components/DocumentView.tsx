@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { activeSectionKey, setActiveSection } from "../lib/activeSection";
-import { codeBlockText, lineNumbers } from "../lib/codeLines";
+import { lineNumbers } from "../lib/codeLines";
+import { markdownControlAction } from "../lib/markdownActions";
 import {
   defaultMode,
   isDocumentMode,
@@ -71,7 +72,6 @@ function copyAnchor(button: Element, route: (hash: string) => void): void {
   window.setTimeout(() => button.classList.remove("is-copied"), 1200);
 }
 
-/** Copy the sibling `<code>` text and flash a success glyph on the button. */
 /**
  * Heading text for a fragment anchor: by element id first, then by comparing the
  * slugified heading text. The server slug and the renderer slug agree for plain
@@ -86,21 +86,6 @@ function resolveHeadingText(root: HTMLElement | null, anchor: string): string | 
     if (text && slugify(text) === anchor) return text;
   }
   return null;
-}
-
-function copyCodeBlock(button: Element): void {
-  const code = button.closest(".md-code-block")?.querySelector("code");
-  if (!code || !navigator.clipboard) return;
-  void navigator.clipboard.writeText(codeBlockText(code)).then(() => {
-    const glyph = button.querySelector(".ms-icon");
-    const previous = glyph?.textContent ?? "content_copy";
-    if (glyph) glyph.textContent = "check";
-    button.setAttribute("aria-label", "Copied");
-    window.setTimeout(() => {
-      if (glyph) glyph.textContent = previous;
-      button.setAttribute("aria-label", "Copy code");
-    }, 1200);
-  });
 }
 
 interface DocumentViewProps {
@@ -336,19 +321,9 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
       downloadDiagramSvg(downloadButton);
       return;
     }
-    const wrapButton = (event.target as HTMLElement | null)?.closest?.(".md-code__wrap");
-    if (wrapButton) {
+    // The renderer's own controls: one shared action, so the panel and this page agree.
+    if (markdownControlAction(event.target)) {
       event.preventDefault();
-      wrapButton
-        .closest(".md-code-block")
-        ?.querySelector("pre.md-code")
-        ?.classList.toggle("is-wrapped");
-      return;
-    }
-    const copyButton = (event.target as HTMLElement | null)?.closest?.(".md-code__copy");
-    if (copyButton) {
-      event.preventDefault();
-      copyCodeBlock(copyButton);
       return;
     }
     const anchor = (event.target as HTMLElement | null)?.closest?.("a");

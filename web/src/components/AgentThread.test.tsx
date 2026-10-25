@@ -47,6 +47,20 @@ describe("AgentThread", () => {
     ).toBe("https://example.com");
   });
 
+  it("gives a fenced block the document renderer's chrome, and its copy control works", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    show([{ kind: PART_TEXT, text: "```js\nconst x = 1;\n```" }]);
+
+    // The renderer's block, not a bare <pre>: this is what the panel's stylesheet targets.
+    expect(document.querySelector(".agent-panel__markdown .md-code-block")).toBeTruthy();
+    const copy = document.querySelector<HTMLButtonElement>(".md-code__copy");
+    expect(copy).toBeTruthy();
+    copy?.click();
+    expect(writeText).toHaveBeenCalledWith("const x = 1;");
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
   it("parses a part's prose once, however many frames arrive", () => {
     const view = show([{ kind: PART_TEXT, text: "unique prose markdown" }]);
     expect(parses("unique prose markdown")).toBe(1);
@@ -101,8 +115,11 @@ describe("AgentThread", () => {
       },
     ]);
 
-    // The command once, with the state as a word rather than only as a colour.
-    expect(screen.getByText("bash: go test ./...")).toBeTruthy();
+    // The command line is the agent's own command, highlighted — not the bold ACP title.
+    const command = document.querySelector(".agent-panel__tool-command");
+    expect(command?.textContent).toBe("go test ./...");
+    expect(command?.classList.contains("hljs")).toBe(true);
+    expect(document.querySelector(".agent-panel__tool-name")).toBeNull();
     expect(screen.getByText("Completed")).toBeTruthy();
 
     // The output is the disclosure's body, closed until the reader opens it, and the summary
@@ -119,6 +136,26 @@ describe("AgentThread", () => {
     expect(envelope?.querySelector("summary")?.textContent).toBe("Protocol envelope");
     expect(envelope?.textContent).toContain('{"command":"go test ./..."}');
     expect(envelope?.textContent).toContain('{"exitCode":0}');
+  });
+
+  it("highlights a JSON output as JSON, inside the closed body", () => {
+    show([
+      {
+        kind: PART_TOOL_CALL,
+        toolCall: {
+          id: "t1",
+          title: "bash: curl",
+          status: "completed",
+          output: '{"answer":42}',
+        },
+      },
+    ]);
+
+    const body = document.querySelector<HTMLDetailsElement>(".agent-panel__tool-output");
+    expect(body?.open).toBe(false);
+    const code = body?.querySelector(".agent-panel__tool-result code");
+    expect(code?.className).toContain("language-json");
+    expect(code?.textContent).toBe('{"answer":42}');
   });
 
   it("counts a long output's lines in the disclosure's summary", () => {
@@ -155,10 +192,16 @@ describe("AgentThread", () => {
       },
     ]);
     expect(screen.getByText("Failed")).toBeTruthy();
+    const failedBadge = document.querySelector(".agent-panel__tool-state");
+    expect(failedBadge?.getAttribute("data-state")).toBe("failed");
+    expect(failedBadge?.closest(".agent-panel__tool")).toBeTruthy();
 
     cleanup();
     show([{ kind: PART_TOOL_CALL, toolCall: { id: "t2", title: "read", status: "in_progress" } }]);
     expect(screen.getByText("Running")).toBeTruthy();
+    expect(document.querySelector(".agent-panel__tool-state")?.getAttribute("data-state")).toBe(
+      "running",
+    );
   });
 
   it("shows a call with no output at all as the command alone", () => {

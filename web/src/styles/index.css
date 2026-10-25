@@ -357,13 +357,26 @@
     background: var(--bg-hover);
     color: var(--fg);
   }
+  /* The body scrolls only while no thread is in it. With a thread on screen the thread's
+     own viewport must be the scroller: the runtime's follow-bottom machinery measures
+     scrollTop/scrollHeight on the viewport and scrolls it, so a viewport that never
+     scrolls — because an ancestor does — would measure constants and a new message would
+     never be followed. */
   .agent-panel__body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 0.9rem;
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
+  }
+  .agent-panel__body--thread {
+    overflow: hidden;
+  }
+  .agent-panel__body--thread .agent-thread {
+    flex: 1;
+    min-height: 0;
   }
   .agent-panel__note {
     color: var(--fg-dim);
@@ -392,7 +405,7 @@
     color: var(--fg-dim);
   }
   .agent-panel__field input,
-  .agent-panel__composer input {
+  .agent-panel__composer textarea {
     padding: 0.4rem 0.55rem;
     background: var(--bg-rise);
     border: 1px solid var(--border);
@@ -438,14 +451,20 @@
     flex-direction: column;
     gap: 0.6rem;
   }
-  /* The runtime's thread takes the panel's column; its viewport is the scroller the
-     body already is, so it only needs to stop stretching its rows. */
+  /* The runtime's thread takes the panel's column, and its viewport is the scroller the
+     runtime follows the bottom on; the body above stops scrolling while it is present, so
+     there is exactly one scroll owner. */
   .agent-thread,
   .agent-thread__viewport {
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
     align-items: stretch;
+  }
+  .agent-thread__viewport {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
   .agent-panel__message {
     padding: 0.5rem 0.6rem;
@@ -521,12 +540,18 @@
   .agent-panel__markdown table {
     border-collapse: collapse;
   }
+  /* A section link is a document affordance: copying it builds a URL fragment for the
+     page, and a chat message has no section on the page to point at. */
+  .agent-panel__markdown .md-anchor {
+    display: none;
+  }
   .agent-panel__markdown th,
   .agent-panel__markdown td {
     border: 1px solid var(--border);
     padding: 0.15rem 0.35rem;
   }
   .agent-panel__tool {
+    position: relative;
     border-inline-start: 2px solid var(--border);
     padding-inline-start: 0.5rem;
     font-size: 0.8rem;
@@ -534,25 +559,40 @@
   .agent-panel__tool.is-error {
     border-inline-start-color: var(--danger, var(--fg-dim));
   }
-  .agent-panel__tool-name {
-    font-weight: 600;
+  /* The command line is the agent's own text, highlighted: no bold, because weight is not
+     what tells a reader it is a command. The fallback title (a call with no command in its
+     input) is plain text in the same monospace head. */
+  .agent-panel__tool-command {
+    font: inherit;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
-  /* The tool call's head: the command, and the state as a word rather than as a colour. */
+  /* The call's state in the block's own corner: the word is the state, the tone only
+     reinforces it, and the head reserves the corner so a wrapped command never runs under it. */
+  .agent-panel__tool-state {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--radius-pill);
+    background: var(--bg-base);
+    color: var(--fg-dim);
+    font-size: 0.65rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .agent-panel__tool-state[data-state="failed"] {
+    color: var(--danger);
+  }
+  /* The tool call's head: one command line, with room kept for the corner badge. */
   .agent-panel__tool-head {
     display: flex;
     align-items: baseline;
-    justify-content: space-between;
     gap: 0.5rem;
     margin: 0;
+    padding-inline-end: 4.5rem;
     font-family: ui-monospace, "SF Mono", monospace;
-  }
-  .agent-panel__tool-status {
-    flex: none;
-    color: var(--fg-dim);
-    font-size: 0.7rem;
-  }
-  .agent-panel__tool.is-error .agent-panel__tool-status {
-    color: var(--danger);
   }
   /* The protocol's own record of the call: opt-in detail, the same shape the reasoning
      block already uses. */
@@ -645,12 +685,21 @@
   }
   .agent-panel__composer {
     display: flex;
+    align-items: flex-end;
     gap: 0.4rem;
     padding: 0.6rem 0.9rem;
     border-top: 1px solid var(--border);
   }
-  .agent-panel__composer input {
+  /* The composer is a textarea, because a prompt is prose: Enter is a newline and the send
+     is the chord. It grows with its draft up to the measured cap and then scrolls inside, so
+     a long prompt never pushes the thread out of reach. */
+  .agent-panel__composer textarea {
     flex: 1;
+    min-block-size: 2.2rem;
+    max-block-size: 11rem;
+    line-height: 1.4;
+    resize: none;
+    overflow-y: hidden;
   }
   /* The pet's band: a declared height above the composer, so the lazy WebGL chunk arriving
      never resizes the thread, and the pet's own surface — the additive variants need a
@@ -663,6 +712,33 @@
     border-top: 1px solid var(--border);
     background: var(--bg-mantle);
     overflow: hidden;
+  }
+  /* The canvas fills the band; the band itself is not hidden from assistive tech, because
+     its corner carries the state in words. */
+  .agent-panel__pet-stage {
+    position: absolute;
+    inset: 0;
+  }
+  /* The conversation's state, in words: in the band's corner while the pet is on, beside the
+     title while it is off. Same derivation, same vocabulary, two placements. */
+  .agent-panel__state-word {
+    margin: 0;
+    color: var(--fg-dim);
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+  }
+  .agent-panel__state-word--band {
+    position: absolute;
+    inset-block-start: 0.4rem;
+    inset-inline-end: 0.6rem;
+    z-index: 1;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--bg-base) 80%, transparent);
+  }
+  .agent-panel__state-word--header {
+    margin-inline-start: auto;
+    margin-inline-end: 0.5rem;
   }
   .search-palette__overlay {
     position: fixed;
@@ -3596,7 +3672,7 @@
   .doc-rendered sup {
     font-size: 0.75em;
   }
-  .doc-rendered .md-callout {
+  :is(.doc-rendered, .agent-panel__markdown) .md-callout {
     --callout-color: var(--ctp-sapphire);
     margin: 1rem 0;
     padding: 0.6rem 0.9rem;
@@ -3605,27 +3681,27 @@
     border-radius: 0 var(--radius-md) var(--radius-md) 0;
     background: color-mix(in srgb, var(--callout-color) 10%, transparent);
   }
-  .doc-rendered .md-callout--note {
+  :is(.doc-rendered, .agent-panel__markdown) .md-callout--note {
     --callout-color: var(--ctp-sapphire);
   }
-  .doc-rendered .md-callout--tip {
+  :is(.doc-rendered, .agent-panel__markdown) .md-callout--tip {
     --callout-color: var(--ctp-teal);
   }
-  .doc-rendered .md-callout--important {
+  :is(.doc-rendered, .agent-panel__markdown) .md-callout--important {
     --callout-color: var(--ctp-mauve);
   }
-  .doc-rendered .md-callout--warning {
+  :is(.doc-rendered, .agent-panel__markdown) .md-callout--warning {
     --callout-color: var(--ctp-peach);
   }
-  .doc-rendered .md-callout--caution {
+  :is(.doc-rendered, .agent-panel__markdown) .md-callout--caution {
     --callout-color: var(--ctp-red);
   }
-  .doc-rendered .md-callout__title {
+  :is(.doc-rendered, .agent-panel__markdown) .md-callout__title {
     margin: 0 0 0.25rem;
     font-weight: 700;
     color: var(--callout-color);
   }
-  .doc-rendered .md-callout__body > p {
+  :is(.doc-rendered, .agent-panel__markdown) .md-callout__body > p {
     margin: 0;
   }
   .doc-rendered .md-mermaid {
@@ -3812,7 +3888,7 @@
     background: color-mix(in srgb, var(--ctp-mauve) 16%, transparent);
     color: var(--ctp-mauve);
   }
-  .doc-rendered pre.md-code {
+  :is(.doc-rendered, .agent-panel__markdown) pre.md-code {
     margin: 0.75rem 0;
     padding: 1.9rem 1rem 0.9rem;
     overflow: auto;
@@ -3821,18 +3897,18 @@
     background: var(--bg-mantle);
     border: 1px solid var(--border);
   }
-  .doc-rendered pre.md-code.is-wrapped code {
+  :is(.doc-rendered, .agent-panel__markdown) pre.md-code.is-wrapped code {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  .doc-rendered .md-code__line {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__line {
     display: block;
   }
-  .doc-rendered .md-code__line.is-hl {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__line.is-hl {
     background: color-mix(in srgb, var(--ctp-yellow) 15%, transparent);
     box-shadow: inset 2px 0 0 var(--ctp-yellow);
   }
-  .doc-rendered .md-code__lang {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__lang {
     position: absolute;
     top: 0.5rem;
     left: 0.75rem;
@@ -3841,10 +3917,10 @@
     text-transform: uppercase;
     color: var(--fg-faint);
   }
-  .doc-rendered .md-code__lang--plain {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__lang--plain {
     opacity: 0.6;
   }
-  .doc-rendered .md-code__wrap {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__wrap {
     position: absolute;
     top: 0.4rem;
     right: 2.2rem;
@@ -3859,44 +3935,44 @@
     opacity: 0;
     transition: opacity 0.12s ease;
   }
-  .doc-rendered .md-code-block:hover .md-code__wrap,
-  .doc-rendered .md-code__wrap:focus-visible {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code-block:hover .md-code__wrap,
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__wrap:focus-visible {
     opacity: 1;
   }
-  .doc-rendered .md-code__wrap:hover {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__wrap:hover {
     color: var(--fg);
   }
-  .doc-rendered .md-code__wrap .ms-icon {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__wrap .ms-icon {
     font-size: 1rem;
   }
-  .doc-rendered .md-table-wrap {
+  :is(.doc-rendered, .agent-panel__markdown) .md-table-wrap {
     max-width: 100%;
     margin: 0.85rem 0;
     overflow: auto;
   }
-  .doc-rendered .md-table-wrap table {
+  :is(.doc-rendered, .agent-panel__markdown) .md-table-wrap table {
     margin: 0;
   }
-  .doc-rendered .md-table-wrap thead th {
+  :is(.doc-rendered, .agent-panel__markdown) .md-table-wrap thead th {
     position: sticky;
     top: 0;
     z-index: 1;
   }
-  .doc-rendered .md-align-center {
+  :is(.doc-rendered, .agent-panel__markdown) .md-align-center {
     text-align: center;
   }
-  .doc-rendered .md-align-right {
+  :is(.doc-rendered, .agent-panel__markdown) .md-align-right {
     text-align: right;
   }
-  .doc-rendered pre.md-code code {
+  :is(.doc-rendered, .agent-panel__markdown) pre.md-code code {
     padding: 0;
     background: none;
     font-size: 0.8125rem;
   }
-  .doc-rendered .md-code-block {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code-block {
     position: relative;
   }
-  .doc-rendered .md-code__copy {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__copy {
     position: absolute;
     top: 0.4rem;
     right: 0.5rem;
@@ -3911,14 +3987,14 @@
     opacity: 0;
     transition: opacity 0.12s ease;
   }
-  .doc-rendered .md-code-block:hover .md-code__copy,
-  .doc-rendered .md-code__copy:focus-visible {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code-block:hover .md-code__copy,
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__copy:focus-visible {
     opacity: 1;
   }
-  .doc-rendered .md-code__copy:hover {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__copy:hover {
     color: var(--fg);
   }
-  .doc-rendered .md-code__copy .ms-icon {
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__copy .ms-icon {
     font-size: 1rem;
   }
   .doc-rendered blockquote {
@@ -4812,20 +4888,20 @@
   }
 
   /* code and tables must never be clipped by the pane: long lines wrap */
-  .doc-rendered pre.md-code,
-  .doc-rendered .md-code__wrap,
-  .doc-rendered .md-table-wrap {
+  :is(.doc-rendered, .agent-panel__markdown) pre.md-code,
+  :is(.doc-rendered, .agent-panel__markdown) .md-code__wrap,
+  :is(.doc-rendered, .agent-panel__markdown) .md-table-wrap {
     overflow: visible !important;
     max-width: none !important;
     max-height: none !important;
   }
 
-  .doc-rendered pre.md-code code {
+  :is(.doc-rendered, .agent-panel__markdown) pre.md-code code {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 
-  .doc-rendered .md-table-wrap table {
+  :is(.doc-rendered, .agent-panel__markdown) .md-table-wrap table {
     width: 100%;
   }
 

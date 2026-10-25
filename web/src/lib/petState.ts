@@ -16,6 +16,7 @@
  */
 import type { AgentThread } from "./agent";
 import type { PetState } from "./pet/types";
+import { useEffect, useRef, useState } from "react";
 
 /** The panel's phase, structurally: `AgentPanel` owns the vocabulary. */
 export type PetPhase = "loading" | "starting" | "active" | "restarting" | "stopped" | "error";
@@ -174,4 +175,95 @@ export function nextPetState(
 export function petPulse(previous: PetSignal | null, signal: PetSignal): number {
   if (!previous?.running || !signal.running) return 0;
   return signal.textLength > previous.textLength ? 0.5 : 0;
+}
+
+/**
+ * The clock, read only from the hook's effect: the machine takes time as a parameter, so
+ * nothing reads "now" during render. A module-scope arrow is the documented escape hatch.
+ */
+const clock = () => performance.now();
+
+/** dueAt is the next moment the frame could change on its own, or null when the next change
+ *  needs a new signal. `held` is a frame the machine refused to leave yet: the flicker guard
+ *  is what expires. */
+function dueAt(frame: PetFrame, held: boolean): number | null {
+  if (held) return frame.at + MIN_STATE_MS;
+  if (frame.state === "success") return frame.at + SUCCESS_MS;
+  if (frame.state === "error") return frame.at + ERROR_MS;
+  if (frame.state === "idle") return frame.idleSince + SLEEP_AFTER_MS;
+  return null;
+}
+
+/**
+ * stateWord is the state in the reader's words, with the process's own phase winning: a
+ * stopped agent is stopped, not asleep. It is the panel's single vocabulary for the state,
+ * so the band, the header and the tests cannot drift apart.
+ */
+export function stateWord(phase: PetPhase, state: PetState): string {
+  switch (phase) {
+    case "loading":
+    case "starting":
+      return "starting";
+    case "restarting":
+      return "restarting";
+    case "stopped":
+      return "stopped";
+    case "error":
+      return "failed";
+    default:
+      break;
+  }
+  switch (state) {
+    case "listening":
+      return "waiting for you";
+    case "thinking":
+      return "thinking";
+    case "working":
+      return "running a command";
+    case "speaking":
+      return "answering";
+    case "success":
+      return "done";
+    case "error":
+      return "failed";
+    case "sleeping":
+      return "asleep";
+    default:
+      return "idle";
+  }
+}
+
+/**
+ * usePetState runs the machine for one signal and hands back the state to render.
+ *
+ * It lives here rather than in `PetStrip` because the panel also says the state in words,
+ * including while the pet itself is off: two clocks would let the band and the word
+ * disagree about whether the agent is working.
+ */
+export function usePetState(signal: PetSignal): PetState {
+  const frame = useRef<PetFrame | null>(null);
+  const [state, setState] = useState<PetState>("idle");
+
+  // The machine runs once per signal and schedules the one moment it could move again: a
+  // held change, the end of a celebration, or the rest before sleep. Nothing here polls — a
+  // state with no pending change sets no timer.
+  useEffect(() => {
+    let timer = 0;
+    const step = () => {
+      const now = clock();
+      const before = frame.current;
+      const next = nextPetState(before, signal, now);
+      if (next !== before) {
+        frame.current = next;
+        setState(next.state);
+      }
+      window.clearTimeout(timer);
+      const due = dueAt(next, next === before);
+      if (due !== null) timer = window.setTimeout(step, Math.max(0, due - now));
+    };
+    step();
+    return () => window.clearTimeout(timer);
+  }, [signal]);
+
+  return state;
 }
