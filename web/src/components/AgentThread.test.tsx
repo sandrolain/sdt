@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentThread } from "./AgentThread";
 import {
@@ -21,6 +21,11 @@ vi.mock("../lib/markdown", async (importOriginal) => {
   return { ...actual, renderMarkdown: vi.fn(actual.renderMarkdown) };
 });
 import { renderMarkdown } from "../lib/markdown";
+
+// The renderer is the browser's job; this file owns the wiring claim, so the module is
+// replaced and the mount is observed instead of a diagram being drawn in jsdom.
+vi.mock("../lib/mermaidRender", () => ({ renderMermaid: vi.fn(() => Promise.resolve()) }));
+import { renderMermaid } from "../lib/mermaidRender";
 
 /** threadOf is one session with one assistant message carrying these parts. */
 function threadOf(parts: AgentPart[]): AgentThreadState {
@@ -44,6 +49,7 @@ const parses = (text: string) =>
 afterEach(() => {
   cleanup();
   vi.mocked(renderMarkdown).mockClear();
+  vi.mocked(renderMermaid).mockClear();
 });
 
 describe("AgentThread", () => {
@@ -69,6 +75,14 @@ describe("AgentThread", () => {
     copy?.click();
     expect(writeText).toHaveBeenCalledWith("const x = 1;");
     Reflect.deleteProperty(navigator, "clipboard");
+  });
+
+  it("mounts the document's mermaid renderer on a diagram fence", async () => {
+    show([{ kind: PART_TEXT, text: "```mermaid\nflowchart LR\n  A --> B\n```" }]);
+
+    await waitFor(() => expect(vi.mocked(renderMermaid)).toHaveBeenCalled());
+    const host = vi.mocked(renderMermaid).mock.calls.at(-1)?.[0];
+    expect(host?.querySelector(".md-mermaid")).toBeTruthy();
   });
 
   it("parses a part's prose once, however many frames arrive", () => {

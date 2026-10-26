@@ -24,8 +24,9 @@ import type {
   TextMessagePartComponent,
   ReasoningMessagePartComponent,
 } from "@assistant-ui/react";
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { renderMarkdown, highlightCode } from "../lib/markdown";
+import { renderMermaid } from "../lib/mermaidRender";
 import { markdownControlAction } from "../lib/markdownActions";
 import { highlightedToolOutput } from "../lib/toolOutput";
 import { threadMessages, type ConvertedMessage, type ToolArtifact } from "../lib/agentThread";
@@ -140,8 +141,16 @@ const ReasoningPart: ReasoningMessagePartComponent = ({ text }) => (
  */
 function MarkdownPart({ markdown }: { markdown: string }) {
   const html = useMemo(() => renderMarkdown(markdown), [markdown]);
+  const host = useRef<HTMLDivElement | null>(null);
+  // The document page's own mount: a mermaid fence becomes a placeholder here, and the
+  // renderer is what turns it into a diagram. It returns before importing mermaid when the
+  // part carries none, so an answer without a diagram pays nothing for this effect.
+  useEffect(() => {
+    void renderMermaid(host.current);
+  }, [html]);
   return (
     <div
+      ref={host}
       className="agent-panel__markdown"
       // The renderer's code-block controls (wrap, copy) are answered by the same shared
       // action the document page uses; nothing here routes a link, so a click that is not

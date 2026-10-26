@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    The agent panel's styling harness: the panel's own markup on the app's real
+    stylesheet, with no agent and no runtime. Serve it with `bun run dev` and open
+    /harness/agent-panel.html?theme=dark or ?theme=light. It is not an entry in the
+    production build, so the viewer's embedded SPA never carries this page.
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <title>Agent panel — styling harness</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Set the theme before paint, the way the app does, so the stylesheet resolves
+      // its tokens on the first frame instead of flashing the other scheme.
+      (() => {
+        const wanted = new URLSearchParams(location.search).get("theme");
+        const theme = wanted === "light" || wanted === "dark" ? wanted : "dark";
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+    <style>
+      /* Placement only: every style under test comes from the app's stylesheet. */
+      html,
+      body {
+        height: auto;
+        overflow: auto;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--bg-base);
+        color: var(--fg);
+        font-family: "IBM Plex Sans Variable", system-ui, sans-serif;
+      }
+      .harness {
+        width: 560px;
+        max-width: 100%;
+        padding: 14px;
+        border-radius: 8px;
+        background: var(--bg-mantle);
+      }
+      .harness__nav {
+        margin-bottom: 12px;
+        font-size: 12px;
+      }
+      .harness__nav a {
+        color: var(--accent);
+        margin-right: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="harness">
+      <p class="harness__nav">
+        <a href="?theme=dark">dark</a>
+        <a href="?theme=light">light</a>
+      </p>
+
+      <p class="agent-panel__state-word agent-panel__state-word--header" style="text-align: end">
+        idle
+      </p>
+
+      <div class="agent-panel__message agent-panel__message--assistant">
+        <div class="agent-panel__markdown">
+          <p>Prose with <strong>bold</strong>, <em>italic</em> and <code>inline code</code>.</p>
+          <ul>
+            <li>first point</li>
+            <li>second point</li>
+          </ul>
+          <div class="md-code-block">
+            <span class="md-code__lang">go</span>
+            <button type="button" class="md-code__wrap" aria-label="Toggle line wrapping">
+              <span class="ms-icon" aria-hidden="true">wrap_text</span>
+            </button>
+            <button type="button" class="md-code__copy" aria-label="Copy code">
+              <span class="ms-icon" aria-hidden="true">content_copy</span>
+            </button>
+            <pre
+              class="md-code"
+            ><code class="hljs language-go"><span class="hljs-keyword">func</span> <span class="hljs-title function_">main</span>() {
+    fmt.<span class="hljs-title function_">Println</span>(<span class="hljs-string">"hi"</span>)
+}</code></pre>
+          </div>
+          <div class="md-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>a</th>
+                  <th>b</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>2</td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>4</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="md-callout md-callout--note">
+            <p class="md-callout__title">Note</p>
+            <div class="md-callout__body"><p>a callout body</p></div>
+          </div>
+          <!-- The diagram mount: agent-panel.ts appends the placeholder the thread's
+               renderer produces and calls the same renderMermaid. -->
+          <div data-harness-mermaid></div>
+        </div>
+      </div>
+
+      <div class="agent-panel__tool">
+        <span class="agent-panel__tool-state" data-state="completed">Completed</span>
+        <p class="agent-panel__tool-head">
+          <code class="agent-panel__tool-command hljs"
+            ><span class="hljs-built_in">seq</span> 1 60</code
+          >
+        </p>
+        <details class="agent-panel__tool-output">
+          <summary>Output · 60 lines</summary>
+          <pre class="agent-panel__tool-result"><code class="hljs language-plaintext">1
+2
+3
+…</code></pre>
+        </details>
+      </div>
+
+      <div class="agent-panel__card agent-panel__elicitation">
+        <p class="agent-panel__part">Which branch should the change land on?</p>
+        <div class="agent-panel__elicitation-fields">
+          <label class="agent-panel__field">
+            <span>Branch *</span>
+            <input type="text" value="main" />
+          </label>
+          <label class="agent-panel__field">
+            <span>Push it</span>
+            <input type="checkbox" checked />
+          </label>
+          <label class="agent-panel__field">
+            <span>Mode</span>
+            <select>
+              <option>fast-forward</option>
+            </select>
+          </label>
+        </div>
+        <div class="agent-panel__card-actions">
+          <button type="button" class="agent-panel__action">Accept</button>
+          <button type="button" class="agent-panel__action agent-panel__action--secondary">
+            Decline
+          </button>
+        </div>
+      </div>
+
+      <div class="agent-panel__card agent-panel__elicitation">
+        <p class="agent-panel__part">Which branch should the change land on?</p>
+        <p class="agent-panel__part agent-panel__decision">accepted</p>
+        <dl class="agent-panel__elicitation-values">
+          <div>
+            <dt>branch</dt>
+            <dd>main</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="agent-panel__tool is-error">
+        <span class="agent-panel__tool-state" data-state="failed">Failed</span>
+        <p class="agent-panel__tool-head">
+          <span class="agent-panel__tool-name">edit</span>
+          <code class="agent-panel__tool-command hljs">make check</code>
+        </p>
+      </div>
+    </div>
+    <script type="module" src="./agent-panel.ts"></script>
+  </body>
+</html>
