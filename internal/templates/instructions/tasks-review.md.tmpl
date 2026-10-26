@@ -87,6 +87,8 @@ everything; `--baseline-write` records a deliberate acceptance.
 Record the outcome as a file-level `## Review` block (in the plan, or in the
 split task file that holds the work; write it with `sdt context task review
 --phase <n>`; a completed ledger without the block gets a lint SUGGESTION). Every
-finding ends as one of the closed verdicts **CONFIRMED**, **DISPROVED** or
-**UNVERIFIED**, with evidence (command output, file path) — one verdict per
-claim, no second pass by default.
+finding ends as one of the closed verdicts **CONFIRMED**, **DISPROVED**,
+**UNVERIFIED** or **DISCREPANT**, with evidence (command output, file path) — one
+verdict per claim, no second pass by default. `DISCREPANT` means a document and
+the implementation disagree and the user has not ruled: report it as
+`context/instructions/reconciliation.md` prescribes, and never resolve it here.

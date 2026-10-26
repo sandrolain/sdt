@@ -387,7 +387,7 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"does not parse as RFC3339 UTC", "format `created`/`updated` as RFC3339 UTC (e.g. `2026-09-25T05:00:00Z`; see `sdt time iso`)"},
 	{"consider splitting the phase", "split the phase into smaller single-deliverable task files (one concern per phase)"},
 	{"duplicate checklist id(s)", "run `sdt context checklist backfill` to renumber duplicate anchors so each id addresses one item"},
-	{"completed task file has no `## Review`", "record the verify-step verdicts with `sdt context task review --phase <n>` (CONFIRMED | DISPROVED | UNVERIFIED per finding)"},
+	{"completed task file has no `## Review`", "record the verify-step verdicts with `sdt context task review --phase <n>` (CONFIRMED | DISPROVED | UNVERIFIED | DISCREPANT per finding)"},
 	{"task declares completed but its checklist", "tick the remaining items with `sdt context check`/`task done`, or reopen the file with `sdt context task wip`; `sdt context sync` will not regress a completed file"},
 	{"task checklist is complete but the file status", "run `sdt context sync` (or `sdt context task done` on the last item) to derive `completed`"},
 	{"plan is derivably completed", "run `sdt context sync` to derive the plan `completed`"},

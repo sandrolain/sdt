@@ -20,11 +20,11 @@ const ctxReviewVerb = "review"
 // ctxReviewVerdicts is the closed vocabulary of the verify-step protocol
 // (decision 0013). It is the single source: the help text and the CLI validation
 // both derive from it, so a new verdict is added in exactly one place.
-var ctxReviewVerdicts = []string{"CONFIRMED", "DISPROVED", "UNVERIFIED"}
+var ctxReviewVerdicts = []string{"CONFIRMED", "DISPROVED", "UNVERIFIED", "DISCREPANT"}
 
 // ctxReviewVerdictHelp documents the protocol in the CLI help and templates; it
-// is the single source for the three closed verdicts (CONFIRMED, DISPROVED,
-// UNVERIFIED) used by the verify-step review.
+// is the single source for the closed verdicts (CONFIRMED, DISPROVED,
+// UNVERIFIED, DISCREPANT) used by the verify-step review.
 var ctxReviewVerdictHelp = strings.Join(ctxReviewVerdicts, " | ")
 
 // validReviewVerdict reports whether v is in the closed verdict vocabulary.
@@ -195,7 +195,7 @@ func appendReviewFindings(content, body string) string {
 // reviewProtocolReminder is the fixed protocol text stored in every Review
 // block: closed verdicts, evidence, and no self-approval.
 func reviewProtocolReminder() string {
-	return "Verify-step protocol: each finding ends as **CONFIRMED**, **DISPROVED** or\n" +
-		"**UNVERIFIED**, with evidence (command output, file path). An independent\n" +
-		"pass validates findings; the author of the phase does not self-approve."
+	return "Verify-step protocol: each finding ends as **CONFIRMED**, **DISPROVED**,\n" +
+		"**UNVERIFIED** or **DISCREPANT**, with evidence (command output, file path).\n" +
+		"An independent pass validates findings; the author of the phase does not self-approve."
 }

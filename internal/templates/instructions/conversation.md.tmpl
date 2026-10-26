@@ -1,0 +1,127 @@
+---
+kind: instructions
+title: "Conversation — the user-facing register"
+summary: "The register a turn uses when the reader must decide: the two registers, the four-part shape, its worked pair, and the precedence with the document register."
+---
+
+`context/instructions/conversation.md` is the contract for the register the agent
+uses when it talks to the user, as distinct from the register its documents use.
+It is portable: it names the two registers and their readers, not a tool. Read it
+with `context/instructions/writing.md` for the document register and
+`context/instructions/authoring.md` for how guidance is shaped.
+
+**When this applies.** A turn opens or closes a unit of work, or asks the user to
+decide something. A mid-work progress line and a one-word acknowledgement stay
+terse: this register is for the turns where the reader has to understand and
+choose, and a turn that asks for nothing and reports nothing is not one.
+
+## Two registers, two readers
+
+| Register | Reader | Contract | Owner |
+|---|---|---|---|
+| Document | works in the corpus, now or later | technical, terse, every reference named by path | `context/instructions/writing.md` |
+| User-facing | decides what happens next | plain, contextual, carries the choice | this file |
+
+The registers answer different questions. "Is this claim supported?" is asked by a
+document reader; "what happens if I say yes?" is asked by the person the work is
+for. A sentence that is interpretive filler in a plan can be the payload of a
+decision turn.
+
+## The four-part turn
+
+When the reader must decide, the turn carries four things and one question:
+
+1. **What happened** — the outcome, in the user's terms, with the number or path
+   that makes it checkable.
+2. **What it means for the work** — the consequence for what comes next, not a
+   restatement of the first part.
+3. **The choice** — the options that actually exist, each with its cost; if there
+   is one option, say so instead of staging a choice.
+4. **The recommendation** — which one you would take and why, in one line.
+
+Then **exactly one question**, naming the decision. A second question makes the
+first unanswerable; a batch of findings is one report with one decision.
+
+The parts are a checklist, not a form to fill verbatim. A turn that carries all
+five and reads like a template has failed differently.
+
+## A worked pair
+
+The same work, in the wrong register and then the right one.
+
+**Mid-work, wrong** — a decision turn written as a status line:
+
+> Phase 2 is done. Tests pass. Next: Phase 3.
+
+The reader cannot tell whether anything is asked of them, what saying nothing
+would mean, or which way the work is about to go.
+
+**Decision turn, right**:
+
+> The retry now stops after three attempts instead of ten, so a failing call gives
+> up in about two seconds rather than seven. The remaining change is the sentence
+> that tells the caller why.
+> One thing to settle: the fourth failure currently surfaces as a timeout.
+> Reporting it as "gave up after three attempts" is truthful and changes the error
+> text some callers log; keeping "timeout" preserves the current contract but
+> misdescribes what happened.
+> I would report what happened and accept the log change.
+> Do you want the new wording?
+
+**A mid-work line, right** — terse is still right when nothing is being decided:
+
+> Phase 2 done, tests pass. Phase 3 next.
+
+The pair is the test: if the reader can answer the question only after asking a
+follow-up, the turn was in the wrong register.
+
+## Precedence with `writing.md`
+
+- The document register never governs a chat turn. Its cut-list removes
+  interpretive metadiscourse from a document; in a decision turn that same
+  sentence may be the explanation the reader needs.
+- The user-facing register never governs a document. A plan stays technical, and
+  the explanation that belongs in the turn does not move into the file.
+- A mid-work line, a progress note and a one-word answer are neither: they stay
+  short, and the brevity rules of the code-work contract still apply.
+
+When the two rules point in opposite directions, the artefact decides the
+register: a document being edited is the document register; a message being sent
+is the user-facing one.
+
+## Precision survives translation
+
+Plain does not mean vague. Keep:
+
+- the number that makes a claim checkable ("3 warnings, unchanged", not "a few");
+- a path or a command the reader may act on, quoted exactly;
+- an exact term when the decision turns on it, with a one-line gloss the first
+  time;
+- a risk, a fact or a hedge that carries real uncertainty.
+
+Translate or drop an internal name that only labels a mechanism: "the function
+that resolves the project root" is better than its identifier, unless the reader
+is about to edit that function.
+
+## Simplicity is not vagueness
+
+A rule that asks for context can drift into length. The guard is the question,
+not the paragraph count: if the reader can decide from the message, it is done; if
+they cannot, more prose is not the fix — the missing part is one of the four.
+
+Over-correction is its own failure. Trimming a fact, a risk or a hedge to make a
+turn shorter is the same defect as padding it (`context/instructions/writing.md`,
+*Over-correction is its own failure*).
+
+## Language
+
+The answer is in the user's language, including when the work, the documents and
+the code are in English. A document keeps the project's language; a quotation
+stays in the language of its source. A project that declares another answer
+language overrides this paragraph.
+
+## What nothing checks
+
+No gate reads a turn, so the rule binds only through this wording. The first
+message that leaves the reader asking for the context they needed is the evidence
+to revisit it: record it, and fix the wording rather than the reader's habit.

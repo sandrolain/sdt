@@ -1,0 +1,112 @@
+---
+kind: instructions
+title: "Reconciliation — when a document and the code disagree"
+summary: "A documentation–implementation discrepancy: neither side is presumed right, the report carries both readings with their costs and one question, and a closed phase records DISCREPANT."
+---
+
+`context/instructions/reconciliation.md` is the contract for a
+documentation–implementation discrepancy: a document states something and the
+implementation does something else. It is portable. Read it with
+`context/instructions/tasks-review.md` (the verdict that closes a phase),
+`context/instructions/development.md` (evidence and the installed-version
+exception) and `context/instructions/questions.md` (the filing).
+
+**When this applies.** A document and the implementation disagree about what the
+project does. A documented third-party API that the installed version lacks is
+not this case: `context/instructions/development.md` settles it in favour of the
+installed version, and the exception is named below. No disagreement means this
+file does not apply.
+
+## Neither side is presumed
+
+A document and the code are two legitimate artefacts of one project. The document
+records intent; the code records what was built. Which one is wrong is a decision
+about intent, and the agent does not own that decision.
+
+The two silent moves both destroy evidence:
+
+- **editing the document to match the code** loses the only record of what was
+  intended;
+- **calling the code a bug because the document says otherwise** loses the
+  possibility that the document was aspiration.
+
+Do not resolve, do not "fix a line", do not open a bug before the user rules.
+
+## The report shape
+
+One report per discrepancy, in this order:
+
+1. **The claim as written** — the path and the quoted sentence, not a paraphrase.
+2. **The observed behaviour** — the command and its output, or the code path with
+   file and line.
+3. **Two candidate reconciliations** — the document is corrected, or the
+   behaviour is; each with what it costs (an interface change, a migration, an
+   amended decision).
+4. **One question** naming the choice.
+
+The shape is fixed because a report missing the claim cannot be checked, and one
+missing the consequence is a fact the reader has to interpret.
+
+A worked pair:
+
+> **Claim** — `docs/retries.md:12`: "A failed call is retried ten times."
+> **Observed** — `retry --help` documents `--attempts` with a default of 3, and
+> `retry_test.go` asserts three.
+> **Reconcile the document** — one file changes; callers reading the doc stop
+> expecting a slower failure path.
+> **Reconcile the behaviour** — the default returns to ten; every caller's worst
+> case grows, and the help text and a test change with it.
+> **Which reading should stand?**
+
+## One report, one decision
+
+Batch. A run that meets five discrepancies produces one report with five rows and
+one decision, never five stops. The work that does not depend on the answer
+proceeds while the answer is pending.
+
+## When nobody is there to answer
+
+An unattended run records and continues:
+
+- the finding lands in `context/questions/` with `sources` naming both artefacts;
+- the phase that cannot proceed without the answer stops;
+- every other phase of the plan proceeds.
+
+## Filing follows the clock
+
+- **Answered in the same turn**: the plan's `## Review` block records the row
+  with the verdict `DISCREPANT`, and no question document is created.
+- **Not answered**: a `context/questions/` document whose `sources` name both
+  artefacts; the answer resolves it there.
+
+Nothing is recorded twice: the question document is the record while the answer
+is pending, the Review block once it is answered.
+
+## What is already gated
+
+Do not restate a rule a check already enforces; name it and move on:
+
+- a Toolbox row naming a command or a flag the binary lacks is a test;
+- a generated set drifting from its template is a test;
+- a document's declared state disagreeing with its derived state is the lint's
+  cascade check.
+
+What remains is the judgement class: a prose claim about behaviour, a decision
+record's stated rule against the code, a declared command line against the build
+file. That class has no gate, and this file is its contract.
+
+## The declared exception
+
+A documented third-party API that the installed version lacks is not a
+discrepancy to arbitrate: `context/instructions/development.md` settles it in
+favour of the installed version, because the installed code is the only evidence
+of what runs. The report may still be worth writing, but the reconciliation is
+already decided and this file only records it.
+
+## Where it lands
+
+- The verdict `DISCREPANT` is defined in `context/instructions/tasks-review.md`;
+  this file owns the shape of what it reports.
+- A pending answer is a `context/questions/` document.
+- An architectural consequence (an interface, a migration) is a decision record
+  once the user rules, not before.

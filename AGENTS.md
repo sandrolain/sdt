@@ -214,7 +214,8 @@ closeout, no analysis (`plan.md`); anything larger takes the chain.
 Sub-agents and the no-silent-downgrade rule: `plan.md`.
 
 Before closing a phase run the verify-step; the suite runs once, at delivery
-(`development.md`). Then `sdt context reindex` and
+(`development.md`). A document and the code disagreeing is `DISCREPANT`, reported
+not resolved (`context/instructions/reconciliation.md`). Then `sdt context reindex` and
 `sdt context lint` — with the baseline, the claim is **no new findings**, never
 "clean" — and `sdt agent gate` for a hard gate (`--record --plan <ref>` appends
 the run to the task file's `## Review`).
@@ -227,9 +228,7 @@ routed capture or `none`. Substantive answers are filed into `context/`. Discove
 ### Communication (default)
 
 Code work: concise, direct, no filler or hedging, technical terms exact. Pattern:
-`[thing] [action] [reason]. [next step].` Code first, then at most three lines of
-explanation — if it outgrows the code, cut it. User-requested docs are plain
-concise prose.
+`[thing] [action] [reason]. [next step].` Code first, three lines at most.
 
 - **Lead with the do-able thing**: a command, path or snippet that answers the
   request comes first, prose after.
@@ -242,8 +241,10 @@ concise prose.
 - **When to break it**: an explain request, a destructive action, a debug spiral,
   real ambiguity, or a rule that fights the task or the harness.
 
-Files in `context/`: concise technical language. For the prose patterns to cut and
-how to edit a draft without flattening it, see `writing.md`.
+A turn the reader must decide from is its own register: what happened, what it
+means, the choice, your recommendation, one question, in the user's language.
+Documents stay technical (`writing.md`); the recipe is in
+`context/instructions/conversation.md`.
 
 ### Open points (no open questions in analysis/plans)
 
@@ -256,10 +257,10 @@ document and mark the question resolved.
 
 ### Patterns (keep updated)
 
-This file is the source of truth for project conventions. A pattern agreed on
-development, testing, documentation or workflows — including a style,
-architecture or dependency (`development.md`) — is written back into the
-`<!-- sdt:begin:project -->` block and recorded in `context/worklog/`.
+This file is the source of truth for project conventions: an agreed style,
+architecture, dependency or workflow is written back into the
+`<!-- sdt:begin:project -->` block and recorded in `context/worklog/`
+(`development.md`).
 
 ### Document conventions
 

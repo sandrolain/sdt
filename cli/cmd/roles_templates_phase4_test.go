@@ -105,7 +105,7 @@ structure, point 7):
 Use the standardized claims: **passed** (ran and verified), **expected**
 (written, not run), **inferred** (static analysis only). Close phases with the
 verify-step and record verdicts in the task-file ` + "`## Review`" + ` block
-(CONFIRMED / DISPROVED / UNVERIFIED). Deterministic gates: ` + "`sdt agent verify`" + `,
+(CONFIRMED / DISPROVED / UNVERIFIED / DISCREPANT). Deterministic gates: ` + "`sdt agent verify`" + `,
 ` + "`sdt agent doctor`" + `, ` + "`sdt agent gate`" + `.
 
 ## Profile body rules
@@ -145,7 +145,7 @@ Provide the independent second pass: verify phases and deliverables against thei
 **Owns**
 
 - review deliverables (code, docs, phases) against the task-file claims and the project's gates
-- run the verify-step and record CONFIRMED / DISPROVED / UNVERIFIED verdicts
+- run the verify-step and record CONFIRMED / DISPROVED / UNVERIFIED / DISCREPANT verdicts
 - own the review surface: proposals and open questions get closed verdicts.
 
 **Does not**
