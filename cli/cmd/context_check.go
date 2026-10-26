@@ -103,8 +103,12 @@ func selectChecklistIDs(content, phase, grep string, all bool) []string {
 			return nil
 		}
 		lo = h + 1
+		// The phase ends at the next heading at the same or a shallower level: a
+		// plan's `### Phase <n>` sections are siblings, so a `## `-only
+		// boundary would swallow every later phase.
+		level := headingLevel(lines[h])
 		for i := lo; i < len(lines); i++ {
-			if strings.HasPrefix(strings.TrimSpace(lines[i]), "## ") {
+			if lvl := headingLevel(lines[i]); lvl > 0 && lvl <= level {
 				hi = i
 				break
 			}

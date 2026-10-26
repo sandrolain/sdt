@@ -93,7 +93,9 @@ func closeoutScanLedger(body string) ([]closeoutItem, []string, string) {
 		}
 		switch section {
 		case ctxReviewVerb:
-			verdicts = append(verdicts, strings.TrimPrefix(trimmed, "- "))
+			// The verdicts are copied verbatim, indentation included: a
+			// continuation line is part of its finding, not a second one.
+			verdicts = append(verdicts, line)
 		case closeoutGateSection:
 			// A recorded run is the strongest evidence the section holds, and
 			// the last one wins; without one, the first line is the best the
@@ -188,7 +190,7 @@ func closeoutFactsRender(f closeoutFacts, date string, carried map[string]string
 		b.WriteString("  - _no review findings recorded_\n")
 	}
 	for _, v := range f.Verdicts {
-		fmt.Fprintf(&b, "  - %s\n", v)
+		fmt.Fprintf(&b, "  %s\n", v)
 	}
 	if f.Gate != "" {
 		fmt.Fprintf(&b, "- **Gate**: %s\n", f.Gate)
@@ -229,6 +231,10 @@ func closeoutFindSection(content, slug string) (start, end int, date string) {
 // closeoutCarriedFields reads the human lines a previous block holds, so a
 // regeneration keeps what the agent wrote and refreshes only the derived part.
 func closeoutCarriedFields(block string) map[string]string {
+	known := make(map[string]bool, len(closeoutHumanFields))
+	for _, fld := range closeoutHumanFields {
+		known[fld.Label] = true
+	}
 	carried := map[string]string{}
 	for _, line := range strings.Split(block, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -241,12 +247,49 @@ func closeoutCarriedFields(block string) map[string]string {
 			continue
 		}
 		label, value := rest[:idx], strings.TrimSpace(rest[idx+3:])
+		// Only the five declared fields are human: a bold verdict line is part
+		// of the review, not a field to carry.
+		if !known[label] {
+			continue
+		}
 		if value == "" || (strings.HasPrefix(value, "_") && strings.HasSuffix(value, "_")) {
 			continue
 		}
 		carried[label] = value
 	}
 	return carried
+}
+
+// closeoutRemainingSlots reports the human fields still carrying their marker in
+// a recorded closeout, so `close` says what a rerun still needs instead of
+// leaving the fill-in lines to be discovered by reading the file.
+func closeoutRemainingSlots(entry, slug string) []string {
+	//#nosec G304 -- corpus document just written by closeoutWrite
+	data, err := os.ReadFile(entry)
+	if err != nil {
+		return nil
+	}
+	start, end, _ := closeoutFindSection(string(data), slug)
+	if start < 0 {
+		return nil
+	}
+	block := strings.Join(strings.Split(string(data), "\n")[start:end], "\n")
+	var remaining []string
+	for _, fld := range closeoutHumanFields {
+		prefix := "- **" + fld.Label + "**:"
+		for _, line := range strings.Split(block, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if !strings.HasPrefix(trimmed, prefix) {
+				continue
+			}
+			value := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+			if strings.HasPrefix(value, "_") && strings.HasSuffix(value, "_") {
+				remaining = append(remaining, fld.Label)
+			}
+			break
+		}
+	}
+	return remaining
 }
 
 // closeoutWrite records the closeout of the document just closed: it finds or

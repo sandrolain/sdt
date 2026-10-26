@@ -48,6 +48,11 @@ Examples:
 		outputString(cmd, "ok\n")
 		if entry != "" {
 			outputString(cmd, "closeout: "+entry+"\n")
+			if slots := closeoutRemainingSlots(entry, closeoutSlug(doc.Path)); len(slots) > 0 {
+				outputString(cmd, "closeout slots to fill: "+strings.Join(slots, ", ")+"\n")
+			} else {
+				outputString(cmd, "closeout slots to fill: none\n")
+			}
 		}
 		cascadeAfterWrite(cmd, doc.Path)
 	},

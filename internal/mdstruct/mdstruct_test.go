@@ -129,3 +129,23 @@ func TestHeadingAnchor(t *testing.T) {
 		}
 	}
 }
+
+// TestSplitSectionsBoundaryIsFlat pins the documented rule: a section ends at
+// the next heading at any level, so a subsection is its own section and the
+// parent's body stops before it.
+func TestSplitSectionsBoundaryIsFlat(t *testing.T) {
+	doc := "## Parent\n\nparent body\n\n### Child\n\nchild body\n\n## Next\n\nnext body\n"
+	secs := SplitSections(doc)
+	if len(secs) != 3 {
+		t.Fatalf("expected 3 sections, got %d: %+v", len(secs), secs)
+	}
+	if got := secs[0].Body; got != "## Parent\n\nparent body\n\n" {
+		t.Errorf("parent body = %q, want it to stop before the subsection", got)
+	}
+	if strings.Contains(secs[0].Body, "child body") {
+		t.Error("the parent absorbed its subsection's body")
+	}
+	if got := secs[1].Body; got != "### Child\n\nchild body\n\n" {
+		t.Errorf("child body = %q", got)
+	}
+}

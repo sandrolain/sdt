@@ -133,7 +133,7 @@ func TestCloseoutPrefersTheRecordedGateRun(t *testing.T) {
 	body := "## Review\n\n- a verdict\n\n### Gate\n\n- a prose claim\n\n" +
 		"2026-01-02T00:00:00Z (sdt agent gate) — passed\n- build: pass\n"
 	_, verdicts, gate := closeoutScanLedger(body)
-	if len(verdicts) != 1 || verdicts[0] != "a verdict" {
+	if len(verdicts) != 1 || verdicts[0] != "- a verdict" {
 		t.Errorf("verdicts = %v, want the review line only", verdicts)
 	}
 	if gate != "2026-01-02T00:00:00Z (sdt agent gate) — passed" {

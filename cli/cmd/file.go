@@ -85,6 +85,15 @@ EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 		lines := getStringFlag(cmd, "lines", false)
 		section := getStringFlag(cmd, "section", false)
 		numbered := getBoolFlag(cmd, "numbered", false)
+		if getBoolFlag(cmd, "sections", false) {
+			if section != "" || lines != "" || numbered || getBoolFlag(cmd, "count", false) {
+				exitWithError(cmd, fmt.Errorf("--sections lists the document: use it without --section, --lines, --count or --numbered"))
+			}
+			out, err := renderSectionList(getFormat(cmd), file, ctxDocBody(string(content)))
+			exitWithError(cmd, err)
+			outputBytes(cmd, out)
+			return
+		}
 		if getBoolFlag(cmd, "count", false) {
 			selected, _, err := selectLinesFrom(string(content), lines)
 			exitWithError(cmd, err)
@@ -229,6 +238,7 @@ func init() {
 	pf.String("lines", "", "Print only this line range (from:to, 1-based)")
 	pf.String("section", "", "Print only this section (by id or heading)")
 	pf.Bool("count", false, "Print the number of lines instead of them (with --lines: of the range)")
+	pf.Bool("sections", false, "List the document's sections (id, level, heading)")
 	pf.BoolP("numbered", "n", false, "Prefix each line with its 1-based number")
 
 	pf = fileWriteCmd.PersistentFlags()
@@ -239,4 +249,43 @@ func init() {
 
 	rootCmd.AddCommand(fileReadCmd)
 	rootCmd.AddCommand(fileWriteCmd)
+}
+
+// renderSectionList prints every section of a document body with its stable id,
+// its level and its heading — the round trip `read --section <id>` needs, since
+// an id used to surface only in the error sentence that failed to find it.
+func renderSectionList(format, path, body string) ([]byte, error) {
+	sections := mdstruct.SplitSections(body)
+	type sectionRow struct {
+		ID      string `json:"id" yaml:"id"`
+		Level   int    `json:"level" yaml:"level"`
+		Heading string `json:"heading" yaml:"heading"`
+	}
+	if format == fmtJSON || format == fmtYAML {
+		rows := make([]sectionRow, 0, len(sections))
+		for _, s := range sections {
+			rows = append(rows, sectionRow{ID: s.ID, Level: s.Level, Heading: s.Heading})
+		}
+		payload := struct {
+			Path     string       `json:"path" yaml:"path"`
+			Sections []sectionRow `json:"sections" yaml:"sections"`
+		}{Path: path, Sections: rows}
+		if format == fmtJSON {
+			out, err := json.MarshalIndent(payload, "", "  ")
+			if err != nil {
+				return nil, err
+			}
+			return append(out, '\n'), nil
+		}
+		return yaml.Marshal(payload)
+	}
+	var b strings.Builder
+	for _, s := range sections {
+		heading := s.Heading
+		if heading == "" {
+			heading = "(preamble)"
+		}
+		fmt.Fprintf(&b, "%s\tL%d\t%s\n", s.ID, s.Level, heading)
+	}
+	return []byte(b.String()), nil
 }

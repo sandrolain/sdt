@@ -15,8 +15,10 @@ import (
 	"strings"
 )
 
-// Section is one heading and its body (up to the next heading of the same or a
-// higher level).
+// Section is one heading and its body, up to the next heading at any level.
+// The boundary is flat on purpose: a subsection is its own section, so
+// `read --section` addresses the smallest unit and replacing a section cannot
+// silently delete its subsections.
 type Section struct {
 	// ID is a stable identifier: the heading anchor followed by an ordinal when
 	// the anchor repeats. Empty headings use the anchor "section".

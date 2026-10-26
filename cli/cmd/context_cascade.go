@@ -225,15 +225,25 @@ func (s *cascadeStore) derivePlanStatus(n *cascadeNode) string {
 // derivePlanOwnChecklist derives a plan's status from its own `- [ ]` items:
 // every item ticked is `completed`, any open item is `active`, and a plan with
 // no checklist at all derives nothing (a reference-only plan keeps its declared
-// status).
+// status). The `## Completion criteria` section is intent, not the executed
+// checklist (`plan.md`), so its boxes never gate the close; every other item
+// does, phases included.
 func derivePlanOwnChecklist(path string) string {
 	data, err := os.ReadFile(path) //#nosec G304 -- path resolved from the corpus
 	if err != nil {
 		return ""
 	}
 	open, done := 0, 0
+	section := ""
 	for _, line := range strings.Split(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") {
+			section = strings.TrimSpace(strings.TrimPrefix(trimmed, "## "))
+			continue
+		}
+		if strings.EqualFold(section, "completion criteria") {
+			continue
+		}
 		switch {
 		case strings.HasPrefix(trimmed, "- [ ]"):
 			open++
@@ -241,7 +251,7 @@ func derivePlanOwnChecklist(path string) string {
 			done++
 		}
 	}
-	if done == 0 {
+	if open+done == 0 {
 		return ""
 	}
 	if open > 0 {

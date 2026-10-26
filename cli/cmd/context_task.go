@@ -44,9 +44,13 @@ func taskItemsInSection(content, phase string) []taskItem {
 	if hi < 0 {
 		return nil
 	}
+	// The section ends at the next heading at the same or a shallower level. A
+	// plan writes `### Phase <n>`, so a `## `-only boundary would run through
+	// every later phase and tick the whole plan.
+	level := headingLevel(lines[hi])
 	end := len(lines)
 	for i := hi + 1; i < len(lines); i++ {
-		if strings.HasPrefix(strings.TrimSpace(lines[i]), "## ") {
+		if lvl := headingLevel(lines[i]); lvl > 0 && lvl <= level {
 			end = i
 			break
 		}
@@ -423,14 +427,19 @@ func appendTaskStep(content, phase, step string) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// phaseHeadingIndex returns the line index of the `## Phase <phase>` heading,
-// or -1. Matching is case-insensitive and token-exact on the phase label.
-
+// phaseHeadingIndex returns the line index of the `Phase <phase>` heading at any
+// level, or -1: plans write `### Phase <n>`, older documents `## Phase <n>`, and
+// the selector is written for the plan. Matching is case-insensitive and
+// token-exact on the phase label, and the first match wins.
 func phaseHeadingIndex(lines []string, phase string) int {
-	want := strings.ToLower("## phase " + phase)
+	want := strings.ToLower("phase " + phase)
 	for i, line := range lines {
+		if headingLevel(line) == 0 {
+			continue
+		}
 		t := strings.ToLower(strings.TrimSpace(line))
-		if t == want || strings.HasPrefix(t, want+" ") || strings.HasPrefix(t, want+"\t") {
+		heading := strings.TrimSpace(strings.TrimLeft(t, "#"))
+		if heading == want || strings.HasPrefix(heading, want+" ") || strings.HasPrefix(heading, want+"\t") {
 			return i
 		}
 	}
