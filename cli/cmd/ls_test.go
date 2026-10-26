@@ -34,6 +34,10 @@ func TestLsListsOneLevelByDefault(t *testing.T) {
 func TestLsDepthStatAndLimit(t *testing.T) {
 	dir := runInTempDir(t)
 	writeTestFile(t, filepath.Join(dir, "sub", "b.go"), "package x")
+	// The size assertion below reads this file's exact byte count. A directory's
+	// reported size is a filesystem fact — ext4/overlayfs say 4096, APFS says less —
+	// so a unit letter in a directory's row proves nothing on a runner.
+	writeTestFile(t, filepath.Join(dir, "a.txt"), "hello")
 
 	out := string(execute(t, lsCmd, nil, "--dir", ".", "--depth", "2"))
 	if !strings.Contains(out, "sub/b.go") {
@@ -41,7 +45,7 @@ func TestLsDepthStatAndLimit(t *testing.T) {
 	}
 
 	out = string(execute(t, lsCmd, nil, "--dir", ".", "--stat"))
-	if !strings.Contains(out, "sub") || !strings.Contains(out, "B") {
+	if !strings.Contains(out, "sub") || !strings.Contains(out, "5B") {
 		t.Errorf("--stat must add a size column:\n%s", out)
 	}
 

@@ -36,7 +36,7 @@ jobs:
         run: go mod verify
 
       - name: Run tests
-        run: go test -v -coverprofile=coverage.out -covermode=atomic ./cli/...
+        run: go test -v -coverprofile=coverage.out -covermode=atomic ./cli/... ./internal/... ./viewer/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7

@@ -1,6 +1,7 @@
 package distill
 
 import (
+	"errors"
 	"os"
 	"testing"
 )
@@ -168,6 +169,11 @@ func TestParseRealArtifactCounts(t *testing.T) {
 	}
 	for path, want := range paths {
 		data, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			// context/ is gitignored (the repo tracks code only), so a fresh
+			// checkout — CI included — has no captured artifact to parse.
+			t.Skipf("%s absent (context/ is gitignored); the corpus guard is local-only", path)
+		}
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
 		}

@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -261,6 +262,13 @@ func TestReproAPrintedPathRoundTrips(t *testing.T) {
 func TestReproNoTestFixtureStandsInForTheCorpus(t *testing.T) {
 	root := projectRoot(t)
 	t.Chdir(root)
+	// context/ is gitignored (the repo tracks code only), so a fresh checkout — CI
+	// included — carries no corpus to answer for. Skip there, exactly as the
+	// sibling repro tests do; a corpus that is present but yields nothing stays a
+	// failure, because that is the defect this test exists for.
+	if _, err := os.Stat(filepath.Join("context", "analysis")); errors.Is(err, os.ErrNotExist) {
+		t.Skip("context/ is absent (gitignored): no corpus to stand in for")
+	}
 	out := execute(t, findCmd, nil, "context/analysis/*.md", "--format", "json", "--limit", "10")
 	var res []search.FindResult
 	if err := json.Unmarshal(out, &res); err != nil {
