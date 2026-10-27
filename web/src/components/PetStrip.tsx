@@ -51,9 +51,10 @@ export function PetStrip({
     if (amount > 0) pet.current?.pulse(amount);
   }, [signal]);
 
-  // A resting pet and a reduced-motion reader both get still frames; a hidden document
-  // pauses without settling, so the pet comes back exactly as it was.
-  const still = reducedMotion || state === "idle" || state === "sleeping";
+  // Only reduced motion gets still frames: a resting pet keeps breathing, because a band
+  // that freezes the moment the turn ends reads as a broken pet, not a calm one. A hidden
+  // document pauses without settling, so the pet comes back exactly as it was.
+  const still = reducedMotion;
 
   return (
     <div className="agent-panel__pet">

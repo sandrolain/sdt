@@ -31,12 +31,17 @@ export const col = (c: string | number): THREE.Color => {
 export const WHITE = col(0xffffff);
 
 export abstract class PetBase extends PetCore {
+  protected readonly canvas: HTMLCanvasElement;
   protected readonly renderer: THREE.WebGLRenderer;
+  /** The size the renderer was last told about, so `paint` can notice a stale buffer. */
+  private sizedW = 0;
+  private sizedH = 0;
   protected readonly scene = new THREE.Scene();
   protected readonly camera = new THREE.PerspectiveCamera(40, 1, 0.1, 50);
 
   constructor(canvas: HTMLCanvasElement, opts: PetOptions = {}) {
     super(opts);
+    this.canvas = canvas;
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: true,
@@ -48,11 +53,20 @@ export abstract class PetBase extends PetCore {
   }
 
   protected paint(dt: number): void {
+    // The element's box is the coordinate space, the same rule the 2D base follows: a mount
+    // during a layout change (the panel's entrance, a dock resize) can leave the drawing
+    // buffer at an older size, and the browser then stretches it to the CSS box — the pet
+    // reads as squeezed horizontally. Reconcile here, so every frame draws at its size.
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    if (w >= 1 && h >= 1 && (w !== this.sizedW || h !== this.sizedH)) this.onResize(w, h);
     this.tick(dt);
     this.renderer.render(this.scene, this.camera);
   }
 
   protected onResize(w: number, h: number): void {
+    this.sizedW = w;
+    this.sizedH = h;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();

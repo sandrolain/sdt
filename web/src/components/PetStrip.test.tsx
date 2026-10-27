@@ -100,7 +100,7 @@ describe("PetStrip", () => {
     expect(screen.getByTestId("fake-pet").getAttribute("data-variant")).toBe("dot");
   });
 
-  it("shows a working state moving and a resting one still", () => {
+  it("keeps a resting pet moving, and stills it only for reduced motion", () => {
     const working = render(
       <PetStrip
         phase="active"
@@ -113,6 +113,7 @@ describe("PetStrip", () => {
     expect(screen.getByText("answering")).toBeTruthy();
     working.unmount();
 
+    cleanup();
     render(
       <PetStrip
         phase="active"
@@ -121,8 +122,18 @@ describe("PetStrip", () => {
         variant="dot"
       />,
     );
-    expect(screen.getByTestId("fake-pet").getAttribute("data-still")).toBe("true");
+    expect(screen.getByTestId("fake-pet").getAttribute("data-still")).toBe("false");
     expect(screen.getByText("idle")).toBeTruthy();
+
+    cleanup();
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    render(<PetStrip phase="active" signal={signalOf([], false)} state="idle" variant="dot" />);
+    expect(screen.getByTestId("fake-pet").getAttribute("data-still")).toBe("true");
+    vi.unstubAllGlobals();
   });
 
   it("pulses when the answer grows during a turn", () => {
