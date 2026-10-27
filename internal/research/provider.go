@@ -65,7 +65,7 @@ func NewFirecrawlProvider(apiKey, apiURL string) (*FirecrawlProvider, error) {
 }
 
 // Name identifies the provider in the run manifest.
-func (p *FirecrawlProvider) Name() string { return "firecrawl" }
+func (p *FirecrawlProvider) Name() string { return ProviderFirecrawl }
 
 // Search runs a web search and normalizes the results.
 func (p *FirecrawlProvider) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {

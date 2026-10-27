@@ -131,11 +131,12 @@ left untouched.
   — create a run; `--objective` names the archive directory and is derived from
   the query when omitted.
 - `sdt research search --query "<q>" --network --confirm [--limit N]
-  [--max-credits N] [--api-url <url>]` — discover sources with the configured
-  provider (Firecrawl). **Search is opt-in**: it refuses to run without
-  `--network` and `--confirm` because it reaches the network and spends
-  provider credits. The key comes from `FIRECRAWL_API_KEY` (shell or the
-  project `.env`); only discovery happens here.
+  [--max-credits N] [--api-url <url>]` — discover sources with the project's
+  declared providers, tried in `.sdt.yaml` order. **Search is opt-in**: it
+  refuses without `--network` and `--confirm` because it spends provider
+  credits. No `research:` block means `tavily, firecrawl, exa, searxng`; a paid
+  provider without a key is skipped and recorded, SearXNG needs an `endpoint`,
+  and the run records who answered. Only discovery happens here.
 - `sdt research fetch <url>...` (or no URL = every `discovered` source) —
   acquire pages with the **crawldown pipeline** (Markdown + provenance: title,
   date, content type, size, SHA-256). Content acquisition is always crawldown,

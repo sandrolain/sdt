@@ -1,0 +1,23 @@
+services:
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: sdt-searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8888:8080"
+    environment:
+      # The URL a browser would use. A local, single-user instance: keep it on loopback.
+      SEARXNG_BASE_URL: "http://127.0.0.1:8888/"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

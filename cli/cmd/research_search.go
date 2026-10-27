@@ -4,33 +4,53 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/sandrolain/sdt/internal/research"
 	"github.com/spf13/cobra"
 )
 
-// searchProviderFactory is overridable in tests so the command never touches
-// the network under `go test`.
-var searchProviderFactory = func(cmd *cobra.Command) (research.SearchProvider, error) {
-	apiKey := getStringFlag(cmd, "api-key", false)
-	apiURL := getStringFlag(cmd, "api-url", false)
-	return research.NewFirecrawlProvider(apiKey, apiURL)
+// searchProviderSetFactory is overridable in tests so the command never touches the
+// network under `go test`. It reads the project's `research:` order, falls back to the
+// default one, and prepends an ad-hoc Firecrawl entry when --api-key/--api-url are given,
+// so a one-off run behaves as it always did without a config file.
+var searchProviderSetFactory = func(cmd *cobra.Command) (*research.ProviderSet, []research.Attempt, error) {
+	cfgs := research.DefaultProviders()
+	if cfg, err := findProjectConfig(); err == nil && cfg != nil && len(cfg.Research) > 0 {
+		cfgs = make([]research.ProviderConfig, 0, len(cfg.Research))
+		for _, entry := range cfg.Research {
+			cfgs = append(cfgs, research.ProviderConfig{
+				Provider: entry.Provider,
+				Endpoint: entry.Endpoint,
+				Key:      entry.Key,
+				KeyEnv:   entry.KeyEnv,
+				KeyFile:  entry.KeyFile,
+			})
+		}
+	}
+	apiKey, apiURL := getStringFlag(cmd, "api-key", false), getStringFlag(cmd, "api-url", false)
+	if apiKey != "" || apiURL != "" {
+		cfgs = append([]research.ProviderConfig{{Provider: "firecrawl", Key: apiKey, Endpoint: apiURL}}, cfgs...)
+	}
+	return research.NewProviderSet(cfgs, os.Getenv)
 }
 
 var researchSearchCmd = &cobra.Command{
 	Use:   "search",
 	Short: "Discover sources for a query and record them in the run",
-	Long: `Discover sources for a query with the configured provider (Firecrawl) and
-record them as 'discovered' in the run manifest. Search is opt-in: it refuses
-to run without --network and --confirm, because it reaches the network and
-consumes provider credits.
+	Long: `Discover sources for a query with the project's declared providers, tried in
+the order .sdt.yaml gives them, and record them as 'discovered' in the run
+manifest. Search is opt-in: it refuses to run without --network and --confirm,
+because it reaches the network and consumes provider credits.
 
 Only discovery happens here; content acquisition stays with 'sdt crawldown'.
 
-The API key comes from FIRECRAWL_API_KEY (shell or project .env) or --api-key;
---api-url points the SDK at a self-hosted instance. --limit caps the number of
-results and --max-credits aborts before starting when the remaining credits are
-below it.
+No research: block means tavily, firecrawl, exa, searxng. A paid provider whose
+key is not set is skipped and recorded; SearXNG needs a declared endpoint. Keys
+come from the entry (key, key_env, key_file), then the shell or the project .env.
+--api-key/--api-url add an ad-hoc Firecrawl entry before the declared order.
+--limit caps the results and --max-credits aborts before starting when the first
+provider's remaining credits are below it.
 
 Examples:
   sdt research init --query "vector stores"
@@ -58,7 +78,7 @@ Examples:
 		limit := getIntFlag(cmd, "limit", false)
 		maxCredits := getIntFlag(cmd, "max-credits", false)
 
-		provider, err := searchProviderFactory(cmd)
+		providers, _, err := searchProviderSetFactory(cmd)
 		exitWithError(cmd, err)
 
 		ctx := cmd.Context()
@@ -66,17 +86,24 @@ Examples:
 			ctx = context.Background()
 		}
 
-		// Pre-flight credit check: abort before spending when below the budget.
-		remaining, cerr := provider.CreditUsage(ctx)
+		// Pre-flight credit check: abort before spending when below the budget. Only the
+		// provider a run would spend first is asked; the others report unknown (-1).
+		remaining, cerr := providers.CreditUsage(ctx)
 		if cerr == nil && maxCredits > 0 && remaining >= 0 && remaining < maxCredits {
 			exitWithError(cmd, fmt.Errorf("remaining credits (%d) are below --max-credits (%d): refusing to start", remaining, maxCredits))
 			return
 		}
 
-		results, serr := provider.Search(ctx, query, limit)
+		results, attempts, serr := providers.Search(ctx, query, limit)
 		if serr != nil {
 			exitWithError(cmd, serr)
 			return
+		}
+		r.Provider, r.ProviderAttempts = "", attempts
+		for _, a := range attempts {
+			if a.OK {
+				r.Provider = a.Provider
+			}
 		}
 		if limit > 0 && len(results) > limit {
 			results = results[:limit]
@@ -101,7 +128,7 @@ Examples:
 		r.Budget.MaxCredits = maxCredits
 		r.Budget.Results = len(r.Sources)
 		if remaining >= 0 {
-			if after, aerr := provider.CreditUsage(ctx); aerr == nil && after >= 0 {
+			if after, aerr := providers.CreditUsage(ctx); aerr == nil && after >= 0 {
 				r.Budget.CreditsUsed += creditDelta(remaining, after)
 			}
 		}

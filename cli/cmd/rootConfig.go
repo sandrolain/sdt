@@ -33,6 +33,20 @@ type ProjectConfig struct {
 	// Instructions is the generated set's own configuration: which optional
 	// profiles to write and which frontmatter families the lint checks.
 	Instructions InstructionsConfig `json:"instructions,omitempty" yaml:"instructions,omitempty"`
+	// Research is the declared search-provider order: priority first. Each entry names a
+	// provider and may override its endpoint and carry one credential reference. An absent
+	// block means the default order (tavily, firecrawl, exa, searxng), where a paid
+	// provider is used only when its key is set.
+	Research []ResearchProviderConfig `json:"research,omitempty" yaml:"research,omitempty"`
+}
+
+// ResearchProviderConfig is one `research:` entry.
+type ResearchProviderConfig struct {
+	Provider string `json:"provider" yaml:"provider"`
+	Endpoint string `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	Key      string `json:"key,omitempty" yaml:"key,omitempty"`
+	KeyEnv   string `json:"key_env,omitempty" yaml:"key_env,omitempty"`
+	KeyFile  string `json:"key_file,omitempty" yaml:"key_file,omitempty"`
 }
 
 // InstructionsConfig is the `instructions:` block. An absent key is the default

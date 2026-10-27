@@ -1,0 +1,23 @@
+# SearXNG, for the SDT research lane's self-hosted provider.
+#
+# Copy this file once, replace `secret_key` with a random value, and keep the file
+# private (`docker compose` writes nothing here itself):
+#
+#   openssl rand -hex 32
+#
+# JSON is what `sdt research search` reads, and it is off by default upstream — that is
+# the one line this instance must carry beyond the defaults.
+use_default_settings: true
+
+server:
+  secret_key: "change-me-please-this-is-not-a-secret"
+  limiter: false
+  image_proxy: false
+  # A local instance behind loopback: no public binding, no bot protection needed.
+  bind_address: "0.0.0.0"
+
+search:
+  safe_search: 0
+  formats:
+    - html
+    - json

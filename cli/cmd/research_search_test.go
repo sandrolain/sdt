@@ -44,9 +44,11 @@ func (f *fakeProvider) CreditUsage(_ context.Context) (int, error) {
 // withFakeProvider swaps the provider factory for the duration of a test.
 func withFakeProvider(t *testing.T, f *fakeProvider) {
 	t.Helper()
-	prev := searchProviderFactory
-	searchProviderFactory = func(*cobra.Command) (research.SearchProvider, error) { return f, nil }
-	t.Cleanup(func() { searchProviderFactory = prev })
+	prev := searchProviderSetFactory
+	searchProviderSetFactory = func(*cobra.Command) (*research.ProviderSet, []research.Attempt, error) {
+		return research.NewProviderSetFrom(f), nil, nil
+	}
+	t.Cleanup(func() { searchProviderSetFactory = prev })
 }
 
 // runSearch executes the search command and reports the exit code it triggered

@@ -80,18 +80,22 @@ type Checkpoint struct {
 
 // Run is the whole manifest.
 type Run struct {
-	RunID      string     `json:"run_id" yaml:"run_id"`
-	Query      string     `json:"query" yaml:"query"`
-	Scope      string     `json:"scope,omitempty" yaml:"scope,omitempty"`
-	Objective  string     `json:"objective,omitempty" yaml:"objective,omitempty"`
-	ArchiveDir string     `json:"archive_dir,omitempty" yaml:"archive_dir,omitempty"`
-	Created    string     `json:"created" yaml:"created"`
-	Updated    string     `json:"updated" yaml:"updated"`
-	Tool       string     `json:"tool,omitempty" yaml:"tool,omitempty"`
-	Config     string     `json:"config,omitempty" yaml:"config,omitempty"`
-	Budget     Budget     `json:"budget,omitempty" yaml:"budget,omitempty"`
-	Checkpoint Checkpoint `json:"checkpoint,omitempty" yaml:"checkpoint,omitempty"`
-	Sources    []Source   `json:"sources" yaml:"sources"`
+	RunID      string `json:"run_id" yaml:"run_id"`
+	Query      string `json:"query" yaml:"query"`
+	Scope      string `json:"scope,omitempty" yaml:"scope,omitempty"`
+	Objective  string `json:"objective,omitempty" yaml:"objective,omitempty"`
+	ArchiveDir string `json:"archive_dir,omitempty" yaml:"archive_dir,omitempty"`
+	Created    string `json:"created" yaml:"created"`
+	Updated    string `json:"updated" yaml:"updated"`
+	Tool       string `json:"tool,omitempty" yaml:"tool,omitempty"`
+	Config     string `json:"config,omitempty" yaml:"config,omitempty"`
+	// Provider names the search service that answered the last discovery; the attempts
+	// record every step of the walk, including the providers skipped for a missing key.
+	Provider         string     `json:"provider,omitempty" yaml:"provider,omitempty"`
+	ProviderAttempts []Attempt  `json:"provider_attempts,omitempty" yaml:"provider_attempts,omitempty"`
+	Budget           Budget     `json:"budget,omitempty" yaml:"budget,omitempty"`
+	Checkpoint       Checkpoint `json:"checkpoint,omitempty" yaml:"checkpoint,omitempty"`
+	Sources          []Source   `json:"sources" yaml:"sources"`
 }
 
 // RunDir returns the run directory under a project root.

@@ -184,6 +184,9 @@ func researchInspectText(r *research.Run, counts map[string]int) string {
 	if r.Checkpoint.Operation != "" {
 		out += fmt.Sprintf("  checkpoint: %s (%s)\n", r.Checkpoint.Operation, r.Checkpoint.At)
 	}
+	if r.Provider != "" {
+		out += fmt.Sprintf("  provider: %s (%d step(s) walked)\n", r.Provider, len(r.ProviderAttempts))
+	}
 	if r.Budget.MaxResults > 0 || r.Budget.MaxCredits > 0 {
 		out += fmt.Sprintf("  budget: results<=%d credits<=%d used(credits=%d results=%d)\n",
 			r.Budget.MaxResults, r.Budget.MaxCredits, r.Budget.CreditsUsed, r.Budget.Results)
