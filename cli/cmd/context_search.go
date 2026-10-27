@@ -83,6 +83,18 @@ type ctxSearchHit struct {
 	Snippet    string   `json:"snippet,omitempty" yaml:"snippet,omitempty"`
 }
 
+// ctxSearchDefaultStatuses is the status set a search applies when the caller
+// named none. The corpus defaults to active. A wiki page defaults to draft and
+// active: a draft concept page is one being written, not a retired one, and a
+// reader asking for wiki results is looking for exactly that page; archived and
+// legacy pages stay out.
+func ctxSearchDefaultStatuses(kinds []string) []string {
+	if len(kinds) == 1 && kinds[0] == ctxTypeWiki {
+		return []string{ctxWikiStatusDraft, ctxWikiStatusActive}
+	}
+	return []string{ctxWikiStatusActive}
+}
+
 var contextSearchCmd = &cobra.Command{
 	Use:   "search <query>",
 	Short: "Search the context/ corpus (section-level, ranked)",
@@ -104,14 +116,13 @@ Examples:
 		if limit <= 0 {
 			limit = 10
 		}
-		status := getStringFlag(cmd, "status", false)
-		if !getBoolFlag(cmd, "all", false) && status == "" {
-			status = "active"
+		kinds := stringList(getStringFlag(cmd, "type", false))
+		statuses := stringList(getStringFlag(cmd, "status", false))
+		if !getBoolFlag(cmd, "all", false) && len(statuses) == 0 {
+			statuses = ctxSearchDefaultStatuses(kinds)
 		}
 		ix := ctxBuildSearchIndex(cmd)
-		filter, err := buildQueryFilter(cmd,
-			stringList(getStringFlag(cmd, "type", false)),
-			stringList(status),
+		filter, err := buildQueryFilter(cmd, kinds, statuses,
 			stringList(getStringFlag(cmd, "category", false)),
 			searchAliasTerms(cmd),
 		)

@@ -75,6 +75,6 @@ Create and manage work files with `sdt context`:
 - `sdt context template --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki|briefing` — print the per-type instruction file
 - `sdt context path --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|briefing [--slug]` — print a
   path without creating anything
-- `sdt context list --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands|briefing` — list existing files
+- `sdt context list --type plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|briefing` — list existing files
 - `sdt context task add "<step>" [--phase <n>] [--stream <label>]` / `done|block|wip <id>` — manage a
   plan task checklist (one file per plan, phases as sections)

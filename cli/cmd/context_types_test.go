@@ -17,7 +17,7 @@ import (
 const (
 	wantNewTypes      = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|wiki|briefing"
 	wantPathTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|briefing"
-	wantListTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands|briefing"
+	wantListTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|briefing"
 	wantTemplateTypes = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki|briefing"
 )
 

@@ -204,7 +204,7 @@ X when Y"), never as a fact.
 | `title` | yes | unique across all `wiki/` pages (ambiguity = lint error) |
 | `type` | yes | `concept` · `entity` · `decision` · `pattern` · `module` |
 | `status` | yes | `draft` · `active` · `archived` |
-| `summary` | yes | 1-2 lines for the index |
+| `summary` | yes | 1-2 lines: wiki list, search and lint read it |
 | `relations` | yes | ordered map: closed verbs → `[[id\|label]]` |
 | `tags` | yes | hierarchical (`backend/performance`) |
 | `sources` | yes | `refs/` files this page cites |
@@ -235,11 +235,11 @@ Page anatomy is **adaptive**: the body takes the form that best fits the
 material (prose, procedure, comparison, timeline). `## Summary` / `## Claims` /
 `## Notes` are the **default**, not a required template. What the tooling reads
 is not the headings but the parts: claim anchors, citations and the typed links,
-plus the 1-2 line frontmatter `summary` the lint requires.
+plus the 1-2 line frontmatter `summary`.
 
-- `## Summary` — a 3-10 line TL;DR restating the knowledge in the KB's own
-  words; the primary human reading surface (frontmatter `summary` stays 1-2
-  lines for the index).
+- `## Summary` — a 3-10 line TL;DR in the KB's own words; the human reading
+  surface (frontmatter `summary` stays 1-2 lines: wiki list, search and
+  lint read it).
 - `## Claims` — numbered, **atomic** assertions; each is one fact, each cites
   its source inline `(refs/<file>@<sha>:<lines>)`, each carries an anchor
   `{#claim-<n>}` so other pages can supersede/refine a single claim without
