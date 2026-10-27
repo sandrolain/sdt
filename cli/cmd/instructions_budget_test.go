@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -28,14 +30,20 @@ import (
 // budget.
 
 const (
-	// 2,400 rather than 2,200: the Toolbox map (analysis 20261023-065322) added
-	// ~150 words that the block did not carry, and the map is the point — it
-	// names the verb for the operation at the moment of choice, where three
-	// impossible substitutions used to be listed. Measured 2,329 words when the
-	// ceiling moved; growth is visible again from here.
-	instructionBlockBudget   = 2400
+	// 2,398 is the measured size, not a round ceiling: the audit
+	// (analysis 20261025-154218, F2) found the block at 2,398/2,400, and a budget
+	// with two words of room is a budget that says yes to the next sentence. The
+	// block is a zero-growth surface — an addition displaces a line or moves detail
+	// into the module that owns it (authoring.md, "Spend the reader's context").
+	instructionBlockBudget   = 2398
 	instructionModuleBudget  = 1400
 	instructionCatalogBudget = 400
+	// instructionFileBudget is the whole every-turn file — the generated block plus
+	// the write-once project block, title and separators included — pinned at the
+	// measured 4,380 words of 2026-10-27 (audit 20261025-154218, F1). The block
+	// ceiling alone left the authored half unguarded: it was 1,977 words, so the
+	// file a session actually pays for was 1.8x what the block budget named.
+	instructionFileBudget = 4380
 )
 
 // instructionModuleRatchet is the exemption map: a module may not grow past the
@@ -112,6 +120,26 @@ func TestInstructionWordBudget(t *testing.T) {
 	}
 }
 
+// TestAgentsFileWordBudget is the ceiling the block budget could not give: the
+// whole every-turn file, project block included. The block ceiling measures the
+// template; this one measures the file on disk, because the project block is
+// authored in place. A checkout without the file skips with a sentence rather than
+// failing: the ceiling applies where the file lives.
+func TestAgentsFileWordBudget(t *testing.T) {
+	path := filepath.Join("..", "..", agentTargetDefault)
+	data, err := os.ReadFile(path) //#nosec G304 -- the project's own always-loaded file
+	if err != nil {
+		t.Skipf("%s is not in this checkout: the file ceiling applies where the file lives", agentTargetDefault)
+	}
+	words := countWords(string(data))
+	if words > instructionFileBudget {
+		t.Errorf("%s: %d words, budget %d — the project block is paid every turn too: move detail on demand or displace a line", agentTargetDefault, words, instructionFileBudget)
+	}
+	if words < instructionFileBudget/2 {
+		t.Errorf("%s: %d words is far under the pinned ceiling %d — re-measure it rather than leaving a budget nobody can hit", agentTargetDefault, words, instructionFileBudget)
+	}
+}
+
 // TestInstructionBudgetCoversEveryModule proves the budget loop is not silently
 // skipping a member: every embedded module is measured, cli.md included.
 func TestInstructionBudgetCoversEveryModule(t *testing.T) {
@@ -128,7 +156,7 @@ func TestInstructionBudgetCoversEveryModule(t *testing.T) {
 			t.Errorf("module %q missing from the budgeted set", want)
 		}
 	}
-	if fmt.Sprintf("%d", instructionBlockBudget) != "2400" {
+	if fmt.Sprintf("%d", instructionBlockBudget) != "2398" {
 		t.Error("the always-loaded budget changed without updating authoring.md")
 	}
 }

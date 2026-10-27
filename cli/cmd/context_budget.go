@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -158,6 +159,9 @@ func ctxBudgetSurfaces(top int, includeModules bool) []ctxBudgetSurface {
 	instructions := ctxBudgetInstructionsSurface(top)
 	instructions.Group = ctxBudgetGroupStart
 	surfaces := []ctxBudgetSurface{instructions}
+	if project := ctxBudgetProjectSurface(top); project.Name != "" {
+		surfaces = append(surfaces, project)
+	}
 
 	if data, err := os.ReadFile(ctxBudgetIndexFile); err == nil { //#nosec G304 -- project surface the user asked to measure
 		size := ctxBudgetMeasure(string(data))
@@ -223,6 +227,47 @@ func ctxBudgetInstructionsSurface(top int) ctxBudgetSurface {
 	path := name + " (" + agentSectionNameInstructions + " block)"
 	return ctxBudgetSurface{
 		Name:   agentSectionNameInstructions,
+		Detail: path,
+		Files:  1,
+		Bytes:  size.Bytes,
+		Lines:  size.Lines,
+		Words:  size.Words,
+		// The single block is named on the surface line, so it enters the
+		// largest-entry list only when the bound actually admits it.
+		Largest: ctxBudgetTopEntries([]ctxBudgetEntry{{
+			Path: path, Bytes: size.Bytes, Lines: size.Lines, Words: size.Words,
+		}}, top),
+	}
+}
+
+// ctxBudgetProjectSurface measures the write-once project block of AGENTS.md — the
+// half of the every-turn file the instructions surface deliberately leaves out. The
+// two together are what a session pays before its first lookup, so a report that
+// shows only the bounded half shows half the bill (audit 20261025-154218, F1).
+//
+// The block is found from the *last* marker pair, not the first: the instructions
+// block names the project marker in prose ("the write-once `<!-- sdt:begin:project -->`
+// block below"), and a first-match search would start there and swallow the tail of
+// the very block this one is supposed to sit beside. A file without the block
+// contributes nothing rather than an error: the project block is authored, and a
+// checkout may not have one.
+func ctxBudgetProjectSurface(top int) ctxBudgetSurface {
+	name := agentTargetDefault
+	data, err := os.ReadFile(name) //#nosec G304 -- project surface the user asked to measure
+	if err != nil {
+		return ctxBudgetSurface{}
+	}
+	begin := bytes.LastIndex(data, []byte(sectionBeginMarker(agentSectionNameProject)))
+	end := bytes.LastIndex(data, []byte(sectionEndMarker(agentSectionNameProject)))
+	if begin < 0 || end < begin {
+		return ctxBudgetSurface{}
+	}
+	block := data[begin : end+len(sectionEndMarker(agentSectionNameProject))]
+	size := ctxBudgetMeasure(string(block))
+	path := name + " (" + agentSectionNameProject + " block)"
+	return ctxBudgetSurface{
+		Name:   agentSectionNameProject,
+		Group:  ctxBudgetGroupStart,
 		Detail: path,
 		Files:  1,
 		Bytes:  size.Bytes,
@@ -337,7 +382,8 @@ var contextBudgetCmd = &cobra.Command{
 	Use:   "budget",
 	Short: "Report the measured size of the always-loaded context/ surface",
 	Long: `Report the measured byte, line and word cost of the surface a session
-always loads: the AGENTS.md instructions block, context/index.md, and the two
+always loads: the AGENTS.md instructions block and its write-once project block
+(the two together are the whole every-turn file), context/index.md, and the two
 essential-tier directories context/architecture/ and context/decisions/. Each
 surface is reported separately with its largest entries.
 

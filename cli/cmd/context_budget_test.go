@@ -43,7 +43,7 @@ func TestContextBudgetMeasuresDeclaredSurfaces(t *testing.T) {
 	budgetTree(t)
 	rep := ctxBudgetBuildReport(3, ctxBudgetBytesPerToken, false)
 
-	want := []string{"instructions", "index", "architecture", "decisions"}
+	want := []string{"instructions", "project", "index", "architecture", "decisions"}
 	if len(rep.Surfaces) != len(want) {
 		t.Fatalf("surfaces = %d, want %d: %+v", len(rep.Surfaces), len(want), rep.Surfaces)
 	}
@@ -80,6 +80,73 @@ func TestContextBudgetMeasuresDeclaredSurfaces(t *testing.T) {
 	}
 	if got := byName["decisions"].Files; got != 1 {
 		t.Errorf("decisions files = %d, want 1", got)
+	}
+}
+
+// TestContextBudgetProjectSurfaceIsTheAuthoredBlock pins F1's half of the report:
+// the project block is measured where it is, so the instructions line and this
+// one together are the whole every-turn file, and neither swallows the other.
+func TestContextBudgetProjectSurfaceIsTheAuthoredBlock(t *testing.T) {
+	budgetTree(t)
+	rep := ctxBudgetBuildReport(3, ctxBudgetBytesPerToken, false)
+
+	var project ctxBudgetSurface
+	started := 0
+	for _, s := range rep.Surfaces {
+		if s.Name == agentSectionNameProject {
+			project = s
+		}
+		if s.Group == ctxBudgetGroupStart {
+			started += s.Words
+		}
+	}
+	if project.Name == "" {
+		t.Fatal("the project block is missing from the report")
+	}
+	if project.Words == 0 {
+		t.Error("the project block carries words in the fixture: a zero count means it was not measured")
+	}
+	if project.Bytes >= ctxBudgetReadFile(agentTargetDefault).Bytes {
+		t.Errorf("project bytes = %d, want less than the whole file: the instructions block must be excluded", project.Bytes)
+	}
+	// The start subtotal is what a session pays before its first lookup, so it is
+	// the sum of the surfaces in that group — block, project block and essentials.
+	if rep.Start.Words != started {
+		t.Errorf("start subtotal = %d words, want the sum of its surfaces (%d)", rep.Start.Words, started)
+	}
+}
+
+// TestContextBudgetProjectSurfaceIgnoresAProseMention is the regression the real
+// AGENTS.md produced: its instructions block names the project marker in prose, and
+// a first-match search would start there and swallow the tail of the file — the
+// report then claimed a project block larger than the file it lives in.
+func TestContextBudgetProjectSurfaceIgnoresAProseMention(t *testing.T) {
+	dir := t.TempDir()
+	instructions := sectionBlock(agentSectionNameInstructions,
+		"the write-once `<!-- sdt:begin:project -->` block below holds the conventions\n")
+	project := sectionBlock(agentSectionNameProject, "stack and commands\n")
+	writeTestFile(t, filepath.Join(dir, agentTargetDefault), "# T\n\n"+instructions+"\n"+project+"\n")
+	t.Chdir(dir)
+
+	got := ctxBudgetProjectSurface(3)
+	if got.Name != agentSectionNameProject {
+		t.Fatalf("project surface = %q, want %q", got.Name, agentSectionNameProject)
+	}
+	if want := ctxBudgetMeasure(project).Words; got.Words != want {
+		t.Errorf("project words = %d, want %d: the prose mention is not the block", got.Words, want)
+	}
+}
+
+// TestContextBudgetWithoutAProjectBlock proves the absence is a zero surface, not an
+// error: a project that has not filled the block yet still gets a report.
+func TestContextBudgetWithoutAProjectBlock(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, agentTargetDefault), "# T\n\n"+
+		sectionBlock(agentSectionNameInstructions, "only the generated half\n")+"\n")
+	t.Chdir(dir)
+
+	if got := ctxBudgetProjectSurface(3); got.Name != "" {
+		t.Fatalf("a file without the project block must contribute no surface: %+v", got)
 	}
 }
 
