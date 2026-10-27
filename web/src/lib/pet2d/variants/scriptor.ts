@@ -263,6 +263,9 @@ export class ScriptorPet extends Pet2D {
     }
     for (const key of NUMBERS) this.cur[key] = STATES.idle[key];
     this.deriveInk();
+    // The loop is the pet: without it a 2D character paints only when a still frame or a
+    // state change asks, which leaves an animated idle blank.
+    this.start();
   }
 
   protected onTheme(): void {

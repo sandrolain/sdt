@@ -27,6 +27,11 @@ class Fake2D extends Pet2D {
 
   protected snap(): void {}
 
+  protected applyResize(w: number, h: number): void {
+    this.sizes++;
+    super.applyResize(w, h);
+  }
+
   get size(): { w: number; h: number } {
     return { w: this.canvas.width, h: this.canvas.height };
   }
@@ -35,9 +40,7 @@ class Fake2D extends Pet2D {
     this.themes++;
   }
 
-  protected onSize(): void {
-    this.sizes++;
-  }
+  protected onSize(): void {}
 
   go(): void {
     this.start();

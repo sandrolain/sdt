@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    The WebGL pets' harness: dot, sciame and trama at the band's stage size (418×164, the
+    2.55:1 box the panel now gives every pet), so a shape can be judged without the viewer's
+    dock layout. Serve with `bun run dev` and open /harness/pets-webgl.html.
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <title>Pets WebGL — stage harness</title>
+    <style>
+      :root {
+        --stage: #202422;
+        --line: #3a423d;
+        --fg: #e8efe9;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--stage);
+        color: var(--fg);
+        font:
+          13px/1.4 ui-monospace,
+          "SF Mono",
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      body {
+        padding: 16px;
+      }
+      h1 {
+        font-size: 14px;
+        font-weight: 500;
+        margin: 0 0 12px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .tile {
+        width: 418px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        overflow: hidden;
+        background: #070b09;
+      }
+      .tile > header {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+      }
+      .stage {
+        position: relative;
+        block-size: 164px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Pets WebGL — 418 × 164 (the panel's stage after the aspect fix)</h1>
+    <div class="row" id="row"></div>
+    <script type="module" src="./pets-webgl.ts"></script>
+  </body>
+</html>

@@ -59,12 +59,15 @@ export abstract class PetBase extends PetCore {
     // reads as squeezed horizontally. Reconcile here, so every frame draws at its size.
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
-    if (w >= 1 && h >= 1 && (w !== this.sizedW || h !== this.sizedH)) this.onResize(w, h);
+    if (w >= 1 && h >= 1 && (w !== this.sizedW || h !== this.sizedH)) {
+      this.applyResize(w, h);
+      this.onResize(w, h);
+    }
     this.tick(dt);
     this.renderer.render(this.scene, this.camera);
   }
 
-  protected onResize(w: number, h: number): void {
+  protected applyResize(w: number, h: number): void {
     this.sizedW = w;
     this.sizedH = h;
     this.renderer.setSize(w, h, false);

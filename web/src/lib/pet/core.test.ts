@@ -9,6 +9,7 @@ class FakeCore extends PetCore {
   paints: number[] = [];
   snaps = 0;
   disposed = 0;
+  calls: string[] = [];
 
   protected paint(dt: number): void {
     this.paints.push(dt);
@@ -16,6 +17,14 @@ class FakeCore extends PetCore {
 
   protected snap(): void {
     this.snaps++;
+  }
+
+  protected applyResize(_w: number, _h: number): void {
+    this.calls.push("size");
+  }
+
+  protected onResize(_w: number, _h: number): void {
+    this.calls.push("hook");
   }
 
   go(): void {
@@ -70,6 +79,14 @@ describe("PetCore", () => {
     expect(pet.energyValue).toBe(1.5);
     pet.lookAt(3, -3);
     expect(pet.lookValue).toEqual({ x: 1, y: -1 });
+  });
+
+  it("sizes the surface before the variant's resize hook", () => {
+    // A variant that overrides the hook must not be able to skip the sizing: that is how a
+    // scene ends up drawn for one viewport and stretched into another.
+    const pet = new FakeCore();
+    pet.resize(80, 40);
+    expect(pet.calls).toEqual(["size", "hook"]);
   });
 
   it("ignores a zero-size resize and repaints a still pet on a real one", () => {

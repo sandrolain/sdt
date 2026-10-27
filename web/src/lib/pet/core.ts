@@ -72,6 +72,10 @@ export abstract class PetCore implements PetController {
 
   resize(w: number, h: number): void {
     if (w < 1 || h < 1) return;
+    // The family sizes its surface first, then the variant's hook runs: a variant that
+    // overrides the hook must never be able to skip the sizing, which is how a scene ends
+    // up drawn for one viewport and stretched into another.
+    this.applyResize(w, h);
     this.onResize(w, h);
     if (this.still) this.renderOnce();
   }
@@ -115,6 +119,9 @@ export abstract class PetCore implements PetController {
 
   protected onEnter(_s: PetState): void {}
   protected onPulse(_amount: number): void {}
+  /** Sizes the family's surface for a viewport. Never overridden by a variant. */
+  protected abstract applyResize(w: number, h: number): void;
+  /** A viewport change, after the surface is sized: a variant invalidates what it must. */
   protected onResize(_w: number, _h: number): void {}
   /** Release whatever the family owns: registers, geometries, textures. */
   protected onDispose(): void {}

@@ -158,6 +158,9 @@ export class PossibilePet extends Pet2D {
       d: 0.1 + i * 0.06,
     }));
     this.deriveInk();
+    // The loop is the pet: without it a 2D character paints only when a still frame or a
+    // state change asks, which leaves an animated idle blank.
+    this.start();
   }
 
   protected onTheme(): void {

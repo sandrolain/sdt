@@ -44,7 +44,10 @@ export abstract class Pet2D extends PetCore {
     // every frame draws in the box it is in.
     const cssW = this.canvas.clientWidth;
     const cssH = this.canvas.clientHeight;
-    if (cssW >= 1 && cssH >= 1 && (cssW !== this.w || cssH !== this.h)) this.onResize(cssW, cssH);
+    if (cssW >= 1 && cssH >= 1 && (cssW !== this.w || cssH !== this.h)) {
+      this.applyResize(cssW, cssH);
+      this.onResize(cssW, cssH);
+    }
 
     const { ctx, canvas } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -53,7 +56,7 @@ export abstract class Pet2D extends PetCore {
     this.tick(_dt);
   }
 
-  protected onResize(w: number, h: number): void {
+  protected applyResize(w: number, h: number): void {
     this.w = w;
     this.h = h;
     this.canvas.width = Math.round(w * this.dpr);
