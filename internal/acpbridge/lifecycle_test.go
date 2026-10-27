@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -419,6 +420,73 @@ func TestStopEndsTheAgentWithoutRestartingIt(t *testing.T) {
 	}
 	if started := len(startedPIDs(t, scratch)); started != 2 {
 		t.Fatalf("the agent must be started again once: %d processes were started", started)
+	}
+}
+
+// TestLifecycleSurvivesAStormOfStartsAndStops drives the window the sequential tests
+// leave dark: a start asked for while the watcher is unwinding a death, a stop asked for
+// while a restart is scheduled, and a reader polling the posture throughout. The agent
+// dies on its own, so the restarts are the watcher's own, and the start a caller asks for
+// resets the bound under it — the two fields the todo named. Under -race this is the cell
+// that would report the unsynchronised access; without a report it is the negative result
+// the objective asks for.
+func TestLifecycleSurvivesAStormOfStartsAndStops(t *testing.T) {
+	restartDelayFor(t, 5*time.Millisecond)
+
+	dying := t.TempDir()
+	live := t.TempDir()
+	root := t.TempDir()
+	bridge := New(Options{Root: root})
+	t.Cleanup(func() { _ = bridge.Close() })
+
+	dyingCommand := spawnCommand(dying, spawnHelperDieMode)
+
+	// The child dies on its own after spawnHelperLife, so the storm runs past one death
+	// and into the restart it schedules; a storm shorter than that would never meet the
+	// window it exists for.
+	deadline := time.Now().Add(2 * spawnHelperLife)
+	var wg sync.WaitGroup
+	for worker := 0; worker < 9; worker++ {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			for time.Now().Before(deadline) {
+				switch worker % 3 {
+				case 0:
+					// A reader's own start, racing the watcher's bound reset.
+					_, _ = bridge.EnsureStarted(context.Background(), dyingCommand, root)
+				case 1:
+					// A reader's own stop, racing a scheduled restart.
+					_ = bridge.Stop()
+				default:
+					// A reader watching: the posture and the status must be readable at
+					// every moment without the state lock being held by a start.
+					_ = bridge.Posture()
+					_, _ = bridge.Status()
+				}
+				time.Sleep(2 * time.Millisecond)
+			}
+		}(worker)
+	}
+	wg.Wait()
+
+	// The window is only proven to have been met if the watcher really did start an agent
+	// again: one process would mean the children outlived the storm.
+	if started := len(startedPIDs(t, dying)); started < 2 {
+		t.Fatalf("the storm must outlast a death and its restart: %d processes were started", started)
+	}
+
+	// Nothing may be left wedged: a bridge after the storm still answers a start with a
+	// live agent, which is the whole property the panel depends on.
+	session, err := bridge.EnsureStarted(context.Background(), spawnCommand(live, ""), root)
+	if err != nil {
+		t.Fatalf("the bridge must start after the storm: %v", err)
+	}
+	if session != bridge.SessionID() {
+		t.Fatalf("the start after the storm must be the live session: %q", session)
+	}
+	if status, _ := bridge.Status(); status != StatusActive {
+		t.Fatalf("a start after the storm is active: status=%q", status)
 	}
 }
 
