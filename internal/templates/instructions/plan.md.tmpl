@@ -6,8 +6,7 @@ summary: "Plan documents: the implementation derived from an analysis, ending in
 
 `context/plan/<YYYYMMDD-HHMMSS>-<slug>.md` hold the plan for a piece of
 work, derived from the related analysis. Plans are **living documents**: they are
-updated during execution, not frozen. It is the execution ledger: its phases
-carry the checklist a task file would otherwise hold.
+updated during execution, not frozen.
 
 The plan carries the **"how"** — the implementation decisions worked out from the
 analysis. Reference the analysis through `sources`; do not repeat its context,
@@ -20,6 +19,9 @@ Create a new plan with the CLI (scaffolds the dated path and frontmatter):
 ```bash
 sdt context new --type plan --title "<title>" [--objective <slug>] [--source <analysis-ref>]
 ```
+
+When the source analysis carries `todos`, the plan inherits the ids and gets a
+`## Todo closure` item; `sdt context close` marks them done.
 
 
 When `--objective` is omitted and `--source` points to an analysis carrying an

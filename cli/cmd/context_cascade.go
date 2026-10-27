@@ -546,13 +546,14 @@ func outputCascadeChanges(cmd *cobra.Command, changes []cascadeChange) {
 
 // cascadeAfterWrite propagates a just-written document's state to its parents
 // (unless --no-cascade) and reports the flips.
-func cascadeAfterWrite(cmd *cobra.Command, path string) {
+func cascadeAfterWrite(cmd *cobra.Command, path string) []cascadeChange {
 	if !cascadeEnabled(cmd) {
-		return
+		return nil
 	}
 	changes, err := cascadeUp(path, true)
 	exitWithError(cmd, err)
 	outputCascadeChanges(cmd, changes)
+	return changes
 }
 
 func cascadeEnabled(cmd *cobra.Command) bool {

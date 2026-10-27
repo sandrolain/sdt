@@ -210,6 +210,7 @@ func init() {
 	contextNewCmd.Flags().String("objective", "", "Group key (kebab-case slug; analysis, notes or plan)")
 	contextNewCmd.Flags().String("status", "", "Initial status (validated against the type's vocabulary; default: the type's default)")
 	contextNewCmd.Flags().StringArray("source", nil, "Source reference(s) written to `sources` and `links` (repeatable; a plan defaults its objective from the first analysis source)")
+	contextNewCmd.Flags().StringArray("todo", nil, "Register id(s) this document answers, written to `todos` (repeatable; a plan inherits them from its analysis and gets the closing item)")
 	contextNewCmd.Flags().String("agent", "", "Provenance: agent/tool that produced the entry (notes/worklog)")
 	contextNewCmd.Flags().String("role", "", "Provenance: role that produced the entry (notes/worklog)")
 	contextNewCmd.Flags().String("note-type", "", "Notes subtype, e.g. dead-end (notes only)")

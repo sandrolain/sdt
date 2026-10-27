@@ -54,7 +54,16 @@ Examples:
 				outputString(cmd, "closeout slots to fill: none\n")
 			}
 		}
-		cascadeAfterWrite(cmd, doc.Path)
+		// The workflow ends here for the register too: the ids this document and the
+		// chain it completed carry are marked done, and the ids that changed are named
+		// so a reader sees the obligation settle.
+		paths := []string{doc.Path}
+		for _, change := range cascadeAfterWrite(cmd, doc.Path) {
+			paths = append(paths, change.Path)
+		}
+		if closed := closeTodosFor(cmd, paths); len(closed) > 0 {
+			outputString(cmd, "todos closed: "+strings.Join(closed, ", ")+"\n")
+		}
 	},
 }
 

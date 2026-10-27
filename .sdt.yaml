@@ -15,16 +15,8 @@ gate:
     run: 'golangci-lint run ./cli/... ./viewer/... ./internal/... .'
   - name: 'test'
     run: 'go test $(go list -e ./... | grep -v /context/ || echo __sdt_no_packages__)'
-  # The gate validates the surface that changed: the Go steps above always run, and
-  # this one costs nothing on Go-only work. "Changed" is the working tree against
-  # HEAD, untracked files included — the gate runs before the commit, which is this
-  # project's flow; a run on a clean tree says so instead of pretending.
   - name: 'web'
-    run: >-
-      if [ -z "$(git status --porcelain -- web)" ]; then
-      echo 'web: no change under web/, skipped (the gate validates the surface that changed)'; exit 0;
-      fi;
-      cd web && bun run lint && bun run test && bun run build
+    run: 'if [ -z "$(git status --porcelain -- web)" ]; then echo ''web: no change under web/, skipped (the gate validates the surface that changed)''; exit 0; fi; cd web && bun run lint && bun run test && bun run build'
 instructions:
   profiles: [core, knowledge, ui, vector, slides, mindmap, diagram, browser, roles]
   frontmatter: [maturity, warrant, evidence, verified, rigor, objectives]

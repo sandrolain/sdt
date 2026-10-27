@@ -12,20 +12,19 @@ implementation plans. They are important while open, less once implemented.
 Create a new analysis with the CLI (scaffolds the dated path and frontmatter):
 
 ```bash
-sdt context new --type analysis --title "<title>" [--objective <slug>] [--prior-art]
+sdt context new --type analysis --title "<title>" [--objective <slug>] [--prior-art] [--todo <id>]
 ```
 
 A new analysis is created **`draft`** — started, not yet concluded. Promote it to
-`active` when it is concluded and its recommendation is ready, whether or not a
-plan is expected; it is `categories`, never the status, that records
+`active` when concluded and its recommendation is ready, with or without a plan; it is `categories`, never the status, that records
 information-only (`research`) versus implementation. Set `completed` only when the
 user decides the analysis is closed (see `sdt context close`).
 
 
 ## Purpose
 
-- Record a reasoning/decision process: what was examined, what was decided, why.
-- Every analysis has a clear objective that triggered it.
+- Record a reasoning/decision process: what was examined, what was decided, why,
+  and the objective that triggered it.
 
 ## When to start here (intent first)
 
@@ -69,6 +68,7 @@ links:                    # optional related documents
   - decisions/0002-api-format
 sources:                  # optional: analysis/plan this derives from or extends
   - analysis/<date>-<slug>.md
+todos: [<todo-id>]        # optional: register ids this answers (--todo)
 project: <project>
 agent: <agent/tool>          # optional
 model: <model id>            # optional

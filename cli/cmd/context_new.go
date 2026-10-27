@@ -367,6 +367,19 @@ Examples:
 		summary := getStringFlag(cmd, "summary", false)
 		objective := getStringFlag(cmd, "objective", false)
 		sources := sanitizeReferenceList(getStringArrayFlag(cmd, "source", false))
+		// --todo records the register entries this work answers. A plan inherits them
+		// from its analysis source when it carries none of its own, so the obligation
+		// travels with the work rather than being retyped.
+		todoIDs := sanitizeSlugList(getStringArrayFlag(cmd, "todo", false))
+		if len(todoIDs) > 0 && typ != ctxTypeAnalysis && typ != ctxTypePlan {
+			exitWithError(cmd, fmt.Errorf("--todo is only supported for --type analysis or plan, got %q", typ))
+		}
+		if len(todoIDs) == 0 && typ == ctxTypePlan && len(sources) > 0 {
+			if abs, ok := ctxResolvePath(sdtWorkDir, sources[0]); ok {
+				todoIDs = sanitizeSlugList(todoIDsFromDocument(abs))
+			}
+		}
+		exitWithError(cmd, validateTodoIDs(todoIDs))
 		agent := getStringFlag(cmd, "agent", false)
 		role := getStringFlag(cmd, "role", false)
 		noteType := getStringFlag(cmd, "note-type", false)
@@ -495,6 +508,15 @@ Examples:
 			if len(sources) > 0 {
 				content = injectReferenceList(content, ctxFrontmatterLinks, sources)
 				content = injectReferenceList(content, ctxFrontmatterSources, sources)
+			}
+			// The ids are written on both halves, and the plan carries the item that
+			// closes them: the analysis records why the work exists, the plan carries
+			// the obligation while it runs.
+			if len(todoIDs) > 0 {
+				content = injectReferenceList(content, ctxFrontmatterTodos, todoIDs)
+				if typ == ctxTypePlan {
+					body += todoClosureSection(todoIDs)
+				}
 			}
 		}
 
