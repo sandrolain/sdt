@@ -758,11 +758,16 @@
     background: var(--bg-mantle);
     overflow: hidden;
   }
-  /* The canvas fills the band; the band itself is not hidden from assistive tech, because
-     its corner carries the state in words. */
+  /* The canvas fills the stage; the band itself is not hidden from assistive tech, because
+     its corner carries the state in words. The stage keeps the characters' own 760×300
+     ratio and centres itself: a wide panel would otherwise stretch a pet drawn for 2.5:1
+     across the whole band. */
   .agent-panel__pet-stage {
     position: absolute;
-    inset: 0;
+    inset-block: 0;
+    left: 50%;
+    inline-size: min(100%, calc(11rem * 760 / 300));
+    translate: -50% 0;
   }
   /* The conversation's state, in words: in the band's corner while the pet is on, beside the
      title while it is off. Same derivation, same vocabulary, two placements. */

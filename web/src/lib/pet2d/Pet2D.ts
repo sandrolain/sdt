@@ -38,6 +38,14 @@ export abstract class Pet2D extends PetCore {
   }
 
   protected paint(_dt: number): void {
+    // The element's box is the coordinate space: a mount during a layout change (the panel's
+    // entrance, a dock resize) can leave the stored size stale, and a stale size is exactly
+    // the "stretched" look — the backing store and the CSS box disagree. Reconcile here, so
+    // every frame draws in the box it is in.
+    const cssW = this.canvas.clientWidth;
+    const cssH = this.canvas.clientHeight;
+    if (cssW >= 1 && cssH >= 1 && (cssW !== this.w || cssH !== this.h)) this.onResize(cssW, cssH);
+
     const { ctx, canvas } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
