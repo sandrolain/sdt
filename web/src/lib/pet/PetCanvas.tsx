@@ -3,18 +3,27 @@
  * lifecycle around them.
  *
  * Vendored from `context/refs/react/pet-react/PetCanvas.tsx` (this project's own
- * material), with comments translated and two changes the panel needs:
+ * material), with comments translated and three changes the panel needs:
  *
- * - `onUnavailable` is called when the browser cannot give the canvas a WebGL context,
- *   instead of throwing out of React. The pet is the gloss on the panel, never a reason
- *   for the conversation to break.
+ * - `onUnavailable` is called when the browser cannot give the canvas a context, instead of
+ *   throwing out of React. The pet is the gloss on the panel, never a reason for the
+ *   conversation to break.
  * - the pointer listener takes a target element, so a caller can scope the gaze to its own
  *   surface rather than to the whole window.
+ * - `family` picks the factory and both factories are resolved through a dynamic import, so
+ *   a 2D choice never pulls the `three` chunk and a WebGL choice never pulls the 2D one.
  */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { CSSProperties } from "react";
-import { createPet } from "./createPet";
-import type { PetController, PetOptions, PetState, PetVariant } from "./types";
+import type {
+  Pet2DVariant,
+  PetController,
+  PetOptions,
+  PetState,
+  PetTheme,
+  PetVariant,
+  PetWebGLVariant,
+} from "../pet/types";
 
 /** The handle exposed through the ref: always safe to call, even before the pet exists. */
 export interface PetHandle {
@@ -24,10 +33,16 @@ export interface PetHandle {
   lookAt(x: number, y: number): void;
 }
 
+/** Which factory paints the variant: `webgl` for the three, `2d` for the three new ones. */
+export type PetFamily = "webgl" | "2d";
+
 export interface PetCanvasProps {
   variant?: PetVariant;
+  family?: PetFamily;
   /** Declarative state. Use the ref and `setState` instead if the caller owns a clock. */
   state?: PetState;
+  /** The panel's theme, for a controller that derives its ink per frame (`setTheme`). */
+  theme?: PetTheme;
   options?: PetOptions;
   /** The gaze follows the pointer over this element (default: the dialog it sits in, else
    *  the host). A panel-scoped surface, never the whole window. */
@@ -38,7 +53,7 @@ export interface PetCanvasProps {
   paused?: boolean;
   /** Whether the gaze follows the pointer at all (default true). */
   followPointer?: boolean;
-  /** Called when the canvas cannot get a WebGL context: the caller hides the pet. */
+  /** Called when the canvas cannot get a context: the caller hides the pet. */
   onUnavailable?: () => void;
   onStateChange?: (state: PetState) => void;
   className?: string;
@@ -50,7 +65,9 @@ export interface PetCanvasProps {
 export const PetCanvas = forwardRef<PetHandle, PetCanvasProps>(function PetCanvas(
   {
     variant = "sciame",
+    family = "webgl",
     state,
+    theme,
     options,
     pointerTarget,
     still = false,
@@ -68,6 +85,8 @@ export const PetCanvas = forwardRef<PetHandle, PetCanvasProps>(function PetCanva
   const pet = useRef<PetController | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const cbRef = useRef(onStateChange);
   cbRef.current = onStateChange;
   const unavailableRef = useRef(onUnavailable);
@@ -95,60 +114,88 @@ export const PetCanvas = forwardRef<PetHandle, PetCanvasProps>(function PetCanva
     if (!host) return;
 
     // The canvas is created here, so every mount (and every variant change) gets a fresh
-    // WebGL context.
+    // context.
     const canvas = document.createElement("canvas");
     canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block";
     host.appendChild(canvas);
 
-    let p: PetController;
-    try {
-      p = createPet(variant, canvas, options);
-    } catch {
-      // No context: a background tab, a browser without WebGL, a machine out of context
-      // slots. The caller decides what to paint; this module does not throw through React.
-      canvas.remove();
-      pet.current = null;
-      unavailableRef.current?.();
-      return;
-    }
-    pet.current = p;
-    if (stateRef.current) p.setState(stateRef.current);
-    p.setStill(stillRef.current);
-    p.setPaused(pausedRef.current);
-    const off = p.on("stateChange", (s) => cbRef.current?.(s));
+    let disposed = false;
+    let teardown: (() => void) | undefined;
 
-    const ro = new ResizeObserver(() => p.resize(host.clientWidth, host.clientHeight));
-    ro.observe(host);
-    p.resize(host.clientWidth, host.clientHeight);
+    const start = async () => {
+      let p: PetController;
+      try {
+        if (family === "2d") {
+          const { createPet2D } = await import("../pet2d/createPet");
+          p = createPet2D(variant as Pet2DVariant, canvas, options, themeRef.current ?? "dark");
+        } else {
+          const { createPet } = await import("./createPet");
+          p = createPet(variant as PetWebGLVariant, canvas, options);
+        }
+      } catch {
+        // No context: a background tab, a browser without the API, a machine out of context
+        // slots. The caller decides what to paint; this module does not throw through React.
+        if (!disposed) {
+          canvas.remove();
+          pet.current = null;
+          unavailableRef.current?.();
+        }
+        return;
+      }
+      if (disposed) {
+        p.dispose();
+        canvas.remove();
+        return;
+      }
 
-    const io = new IntersectionObserver(([e]) => p.setPaused(!e.isIntersecting));
-    io.observe(host);
+      pet.current = p;
+      if (stateRef.current) p.setState(stateRef.current);
+      p.setStill(stillRef.current);
+      p.setPaused(pausedRef.current);
+      p.setTheme?.(themeRef.current ?? "dark");
+      const off = p.on("stateChange", (s) => cbRef.current?.(s));
 
-    // The gaze is the panel's, not the page's: a cursor over the document behind the panel
-    // is not attention on the pet. The dialog is resolved once, at creation.
-    const surface = pointerTarget ?? host.closest('[role="dialog"]') ?? host;
-    const onMove = (e: PointerEvent) => {
-      const r = host.getBoundingClientRect();
-      if (r.width < 1 || r.height < 1) return;
-      p.lookAt(
-        ((e.clientX - r.left) / r.width) * 2 - 1,
-        -(((e.clientY - r.top) / r.height) * 2 - 1),
-      );
+      const ro = new ResizeObserver(() => p.resize(host.clientWidth, host.clientHeight));
+      ro.observe(host);
+      p.resize(host.clientWidth, host.clientHeight);
+
+      const io = new IntersectionObserver(([e]) => p.setPaused(!e.isIntersecting));
+      io.observe(host);
+
+      // The gaze is the panel's, not the page's: a cursor over the document behind the panel
+      // is not attention on the pet. The dialog is resolved once, at creation.
+      const surface = pointerTarget ?? host.closest('[role="dialog"]') ?? host;
+      const onMove = (e: PointerEvent) => {
+        const r = host.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) return;
+        p.lookAt(
+          ((e.clientX - r.left) / r.width) * 2 - 1,
+          -(((e.clientY - r.top) / r.height) * 2 - 1),
+        );
+      };
+      if (followPointer) surface.addEventListener("pointermove", onMove);
+
+      teardown = () => {
+        surface.removeEventListener("pointermove", onMove);
+        io.disconnect();
+        ro.disconnect();
+        off();
+        p.dispose();
+        pet.current = null;
+        canvas.remove();
+      };
     };
-    if (followPointer) surface.addEventListener("pointermove", onMove);
+    void start();
 
     return () => {
-      surface.removeEventListener("pointermove", onMove);
-      io.disconnect();
-      ro.disconnect();
-      off();
-      p.dispose();
-      pet.current = null;
+      disposed = true;
+      teardown?.();
       canvas.remove();
     };
     // Options are read only at creation: their primitive properties are the dependencies.
   }, [
     variant,
+    family,
     followPointer,
     options?.density,
     options?.pixelRatioCap,
@@ -159,6 +206,10 @@ export const PetCanvas = forwardRef<PetHandle, PetCanvasProps>(function PetCanva
   useEffect(() => {
     if (state) pet.current?.setState(state);
   }, [state]);
+
+  useEffect(() => {
+    if (theme) pet.current?.setTheme?.(theme);
+  }, [theme]);
 
   useEffect(() => {
     pet.current?.setStill(still);

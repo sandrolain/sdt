@@ -12,8 +12,8 @@
  * corner carries the same state as a word (`AgentStateWord`).
  */
 import { useEffect, useRef, useState } from "react";
-import { PetCanvas, type PetHandle } from "../lib/pet";
-import type { PetOptions, PetState, PetVariant } from "../lib/pet/types";
+import { PetCanvas, type PetFamily, type PetHandle } from "../lib/pet";
+import type { PetOptions, PetState, PetTheme, PetVariant } from "../lib/pet/types";
 import { petPulse, type PetPhase, type PetSignal } from "../lib/petState";
 import { AgentStateWord } from "./AgentStateWord";
 
@@ -25,11 +25,17 @@ export function PetStrip({
   signal,
   state,
   variant,
+  family = "webgl",
+  theme = "dark",
 }: {
   phase: PetPhase;
   signal: PetSignal;
   state: PetState;
   variant: PetVariant;
+  /** Which factory paints it (default `webgl`; the 2D ids need `2d`). */
+  family?: PetFamily;
+  /** The panel's theme, forwarded to a controller that repaints (default `dark`). */
+  theme?: PetTheme;
 }) {
   const pet = useRef<PetHandle>(null);
   const previous = useRef<PetSignal | null>(null);
@@ -56,6 +62,8 @@ export function PetStrip({
           <PetCanvas
             ref={pet}
             variant={variant}
+            family={family}
+            theme={theme}
             state={state}
             options={PET_OPTIONS}
             still={still}

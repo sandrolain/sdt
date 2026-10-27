@@ -4,13 +4,13 @@
  * Vendored from `context/refs/react/pet-react/createPet.ts`; the switch is the variant
  * vocabulary and is unchanged.
  */
-import type { PetController, PetOptions, PetVariant } from "./types";
+import type { PetController, PetOptions, PetWebGLVariant } from "./types";
 import { DotPet } from "./variants/dot";
 import { SciamePet } from "./variants/sciame";
 import { TramaPet } from "./variants/trama";
 
 export function createPet(
-  variant: PetVariant,
+  variant: PetWebGLVariant,
   canvas: HTMLCanvasElement,
   options: PetOptions = {},
 ): PetController {

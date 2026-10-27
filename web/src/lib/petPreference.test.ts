@@ -40,7 +40,7 @@ describe("the pet's variant preference", () => {
   });
 
   it("round-trips every variant the pet has", () => {
-    for (const variant of ["dot", "sciame", "trama"] as const) {
+    for (const variant of ["dot", "sciame", "trama", "fiamma", "scriptor", "possibile"] as const) {
       writePetVariant(variant);
       expect(localStorage.getItem(PET_VARIANT_KEY)).toBe(variant);
       expect(readPetVariant()).toBe(variant);
@@ -64,5 +64,12 @@ describe("effectiveVariant", () => {
     expect(effectiveVariant("trama", "dark")).toBe("trama");
     expect(effectiveVariant("trama", "light")).toBe("dot");
     expect(effectiveVariant("dot", "light")).toBe("dot");
+  });
+
+  it("keeps a 2D character on the light theme: only the additive two fall back", () => {
+    for (const variant of ["fiamma", "scriptor", "possibile"] as const) {
+      expect(effectiveVariant(variant, "light")).toBe(variant);
+    }
+    expect(effectiveVariant("sciame", "light")).toBe("dot");
   });
 });

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    The 2D pets' harness: the three Canvas characters at the band's real size (400×176,
+    the panel's 11rem stage) in both themes, with no agent and no runtime. Serve it with
+    `bun run dev` and open /harness/pets-2d.html. It is not an entry in the production
+    build, so the viewer's embedded SPA never carries this page.
+
+    It also answers the two questions a screenshot cannot: which modules the 2D path
+    actually loaded (no `three`), and how many frames per second the heaviest character
+    sustains at this size.
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <title>Pets 2D — band harness</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root {
+        --stage: #202422;
+        --panel: #070b09;
+        --fg: #e8efe9;
+        --line: #3a423d;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--stage);
+        color: var(--fg);
+        font:
+          13px/1.4 ui-monospace,
+          "SF Mono",
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      body {
+        padding: 16px;
+        background: var(--stage);
+        color: var(--fg);
+      }
+      h1 {
+        font-size: 14px;
+        font-weight: 500;
+        margin: 0 0 12px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .tile {
+        width: 400px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        overflow: hidden;
+        background: var(--panel);
+      }
+      .tile > header {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+      }
+      .stage {
+        position: relative;
+        block-size: 11rem;
+      }
+      .report {
+        white-space: pre;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 8px;
+        max-width: 820px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Pets 2D — 400 × 176 (the panel's 11rem band)</h1>
+    <div class="row" id="dark"></div>
+    <div class="row" id="light"></div>
+    <div class="report" id="report">measuring…</div>
+    <script type="module" src="./pets-2d.ts"></script>
+  </body>
+</html>

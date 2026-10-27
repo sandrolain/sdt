@@ -12,6 +12,7 @@ import {
   type PetFrame,
   type PetSignal,
 } from "./petState";
+import { petTimingFor } from "./petTimings";
 
 /** thread builds the wire shape the panel receives, with only what a test cares about. */
 function thread(messages: AgentMessage[], running?: boolean): AgentThread {
@@ -155,6 +156,16 @@ describe("nextPetState", () => {
     expect(frame.state).toBe("thinking");
     expect(frame.at).toBe(1_000);
     expect(frame.idleSince).toBe(0);
+  });
+
+  it("holds an ending for the variant's own timing", () => {
+    const signal = active({ running: false });
+    const frame: PetFrame = { signal, state: "success", at: 1_000, idleSince: 0 };
+    // 2 s after the ending, the WebGL default (1.8 s) would have expired; Scriptor's 2.6 s
+    // has not.
+    expect(nextPetState(frame, signal, 3_000, petTimingFor("scriptor")).state).toBe("success");
+    expect(nextPetState(frame, signal, 3_000, petTimingFor("dot")).state).toBe("idle");
+    expect(nextPetState(frame, signal, 3_600, petTimingFor("scriptor")).state).toBe("idle");
   });
 
   it("holds a change for the flicker guard", () => {

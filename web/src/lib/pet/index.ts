@@ -14,7 +14,16 @@
  * through a lazy import (the panel's strip), never from the entry chunk.
  */
 export { PetCanvas } from "./PetCanvas";
-export type { PetCanvasProps, PetHandle } from "./PetCanvas";
+export type { PetCanvasProps, PetFamily, PetHandle } from "./PetCanvas";
 export { createPet } from "./createPet";
 export { PET_STATES } from "./types";
-export type { PetController, PetOptions, PetState, PetVariant } from "./types";
+export type {
+  Pet2DVariant,
+  PetController,
+  PetOptions,
+  PetState,
+  PetTheme,
+  PetVariant,
+  PetWebGLVariant,
+} from "./types";
+export { is2DVariant, PET_2D_VARIANTS } from "./types";

@@ -40,7 +40,9 @@ import {
 } from "../lib/petPreference";
 import type { PetVariant } from "../lib/pet/types";
 import { petSignal, usePetState } from "../lib/petState";
+import { petTimingFor } from "../lib/petTimings";
 import { useDocumentTheme } from "../lib/themeAttr";
+import { is2DVariant } from "../lib/pet/types";
 import {
   Suspense,
   lazy,
@@ -262,6 +264,7 @@ export function AgentPanel({
   const [petOn, setPetOn] = useState(readPetEnabled);
   const [petVariant, setPetVariant] = useState(readPetVariant);
   const theme = useDocumentTheme();
+  const effectivePet = effectiveVariant(petVariant, theme);
 
   const togglePet = () => {
     const next = !petOn;
@@ -284,7 +287,7 @@ export function AgentPanel({
     () => petSignal(phase, envelope?.thread, running),
     [phase, envelope, running],
   );
-  const petState = usePetState(signal);
+  const petState = usePetState(signal, petTimingFor(effectivePet));
 
   const dragPanel = (next: number) => setWidth(clampPanelWidth(next));
 
@@ -509,7 +512,9 @@ export function AgentPanel({
                     phase={phase}
                     signal={signal}
                     state={petState}
-                    variant={effectiveVariant(petVariant, theme)}
+                    variant={effectivePet}
+                    family={is2DVariant(effectivePet) ? "2d" : "webgl"}
+                    theme={theme}
                   />
                 </Suspense>
               )}
@@ -643,11 +648,14 @@ function PanelResizeHandle({
   );
 }
 
-/** The pet's three names, in the reader's words; the vocabulary itself is the library's. */
+/** The pet's six names, in the reader's words; the vocabulary itself is the library's. */
 const PET_VARIANT_LABELS: Record<PetVariant, string> = {
   dot: "Dot",
   sciame: "Sciame",
   trama: "Trama",
+  fiamma: "Fiamma",
+  scriptor: "Scriptor",
+  possibile: "Possibile",
 };
 
 /**

@@ -18,7 +18,19 @@ export const PET_STATES = [
 ] as const;
 
 export type PetState = (typeof PET_STATES)[number];
-export type PetVariant = "dot" | "sciame" | "trama";
+export type PetVariant = "dot" | "sciame" | "trama" | "fiamma" | "scriptor" | "possibile";
+/** The three WebGL variants: the ones a `three` chunk can paint. */
+export type PetWebGLVariant = "dot" | "sciame" | "trama";
+/** The three Canvas 2D variants: the ones that must never load `three`. */
+export type Pet2DVariant = "fiamma" | "scriptor" | "possibile";
+
+export const PET_2D_VARIANTS: readonly Pet2DVariant[] = ["fiamma", "scriptor", "possibile"];
+
+export function is2DVariant(variant: PetVariant): variant is Pet2DVariant {
+  return (PET_2D_VARIANTS as readonly string[]).includes(variant);
+}
+/** The panel's theme, as a controller that repaints needs it. */
+export type PetTheme = "light" | "dark";
 
 export interface PetOptions {
   /** Ceiling for the canvas pixel ratio (default 2). */
@@ -48,5 +60,10 @@ export interface PetController {
   setStill(still: boolean): void;
   resize(width: number, height: number): void;
   on(event: "stateChange", cb: (state: PetState) => void): () => void;
+  /**
+   * Repaints for a theme, keeping the state and the clock. Optional: the WebGL variants mix
+   * their colour once, at construction, and a 2D character derives its ink per frame.
+   */
+  setTheme?(theme: PetTheme): void;
   dispose(): void;
 }

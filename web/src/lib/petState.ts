@@ -186,11 +186,11 @@ const clock = () => performance.now();
 /** dueAt is the next moment the frame could change on its own, or null when the next change
  *  needs a new signal. `held` is a frame the machine refused to leave yet: the flicker guard
  *  is what expires. */
-function dueAt(frame: PetFrame, held: boolean): number | null {
-  if (held) return frame.at + MIN_STATE_MS;
-  if (frame.state === "success") return frame.at + SUCCESS_MS;
-  if (frame.state === "error") return frame.at + ERROR_MS;
-  if (frame.state === "idle") return frame.idleSince + SLEEP_AFTER_MS;
+function dueAt(frame: PetFrame, held: boolean, timing: PetTiming = {}): number | null {
+  if (held) return frame.at + (timing.minMs ?? MIN_STATE_MS);
+  if (frame.state === "success") return frame.at + (timing.successMs ?? SUCCESS_MS);
+  if (frame.state === "error") return frame.at + (timing.errorMs ?? ERROR_MS);
+  if (frame.state === "idle") return frame.idleSince + (timing.sleepAfterMs ?? SLEEP_AFTER_MS);
   return null;
 }
 
@@ -240,7 +240,7 @@ export function stateWord(phase: PetPhase, state: PetState): string {
  * including while the pet itself is off: two clocks would let the band and the word
  * disagree about whether the agent is working.
  */
-export function usePetState(signal: PetSignal): PetState {
+export function usePetState(signal: PetSignal, timing: PetTiming = {}): PetState {
   const frame = useRef<PetFrame | null>(null);
   const [state, setState] = useState<PetState>("idle");
 
@@ -252,18 +252,20 @@ export function usePetState(signal: PetSignal): PetState {
     const step = () => {
       const now = clock();
       const before = frame.current;
-      const next = nextPetState(before, signal, now);
+      const next = nextPetState(before, signal, now, timing);
       if (next !== before) {
         frame.current = next;
         setState(next.state);
       }
       window.clearTimeout(timer);
-      const due = dueAt(next, next === before);
+      const due = dueAt(next, next === before, timing);
       if (due !== null) timer = window.setTimeout(step, Math.max(0, due - now));
     };
     step();
     return () => window.clearTimeout(timer);
-  }, [signal]);
+    // The timing is read field by field: a caller may build the object inline, and an
+    // object identity in the dependency list would restart the clock on every render.
+  }, [signal, timing.minMs, timing.sleepAfterMs, timing.successMs, timing.errorMs]);
 
   return state;
 }
