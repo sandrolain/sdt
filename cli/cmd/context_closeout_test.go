@@ -183,3 +183,14 @@ plan_id: `+cascadeUIDFor(plan)+`
 		}
 	}
 }
+
+// TestCloseoutIgnoresTheReviewLogPlaceholder: `## Review log` precedes the
+// verdicts and shares their prefix; a prefix match copied its `_No revisions
+// yet._` placeholder into the closeout as if it were a finding.
+func TestCloseoutIgnoresTheReviewLogPlaceholder(t *testing.T) {
+	body := "## Review log\n\n_No revisions yet._\n\n## Review\n\n- a verdict\n"
+	_, verdicts, _ := closeoutScanLedger(body)
+	if len(verdicts) != 1 || verdicts[0] != "- a verdict" {
+		t.Errorf("verdicts = %v, want the review line only", verdicts)
+	}
+}

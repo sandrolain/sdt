@@ -75,10 +75,12 @@ func closeoutScanLedger(body string) ([]closeoutItem, []string, string) {
 			continue
 		}
 		switch {
-		case strings.HasPrefix(trimmed, "### Gate"):
+		// The headings are matched exactly: `## Review log` precedes the
+		// verdicts and a prefix match would copy its placeholder as one.
+		case trimmed == "### Gate":
 			section = closeoutGateSection
 			continue
-		case strings.HasPrefix(trimmed, "## Review"):
+		case trimmed == "## Review":
 			section = ctxReviewVerb
 			continue
 		case strings.HasPrefix(trimmed, "## "), strings.HasPrefix(trimmed, "### "):

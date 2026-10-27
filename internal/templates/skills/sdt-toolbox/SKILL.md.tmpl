@@ -29,7 +29,8 @@ host. Pick the verb by the operation, not by the tool you already reach for.
 | JSON, API | `sdt http` into `sdt q` | `curl`/`jq` |
 | two files | `sdt diff <a> <b>` | `diff` |
 | append to corpus | `sdt context edit --append` | `cat >>` |
-| replace one literal | `sdt edit -p <f> --old/--new` | `python3`/`sed -i` |
+| literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
+| corpus table row or fence | `sdt context edit --row/--fence` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
 
 A flag is real only if `sdt schema --command <name>` prints it; `--help` is the

@@ -12,21 +12,21 @@ summary: "The agent's verbs: corpus read/write, the document lifecycle and the q
 - `sdt context new|path|list --type <t>` — create a work file ({{.NewTypes}}), print
   its path ({{.PathTypes}}), list one kind ({{.ListTypes}})
 - `sdt read -p <file|corpus-ref> [--section] [--lines a:b|-N:] [--numbered]`,
-  `context edit <doc> [--append]` — one reader with line numbers and a real
-  `--format json`, and a body writer that appends or replaces
+  `context edit <doc> [--append|--row|--fence]` — one reader with line numbers
+  and a real `--format json`, and a body writer (append, section, row, fence)
 - `sdt context get|set|unset <doc> [<key>] [<value>]` — a frontmatter key, bytes
   preserved; `status`/`updated` are CLI-owned
-- `sdt context status get|set|vocab|sync`, `deprecate|rename|rm` — lifecycle; a
-  terminal status plus `--reason` closes
+- `sdt context status get|set|vocab|sync`, `deprecate|rename|rm` — lifecycle; terminal
+  plus `--reason` closes
 - `sdt context task add`, `sdt context check <doc> [id] --state done|wip|block` —
   checklists (`--phase`/`--all`/`--grep`); never ticked by hand
 - `sdt context search`, `list` — the query engine
 - `sdt context relations parent|similar|rank|path` — parent, neighbours,
-  ranked candidates, chain
+  ranked, chain
 - `sdt context reindex`, `lint` — index, corpus
 - `sdt context budget` — the always-loaded surface; informational, never a gate
 - `sdt grep [-A/-B/-C] [--path <file>]`, `find [glob]`, `ls [--stat] [--depth]`,
-  `edit -p <f> --old/--new`, `diff <a> <b>`, `write -p <file>`, `sdt q` for
+  `edit -p <f> --old/--new [--regex|--lines a:b|--from-marker/--to-marker]`, `diff <a> <b>`, `write -p <file>`, `sdt q` for
   JSON — the working tree, bounded
 - `sdt agent doctor|verify|gate|refresh` — health, instruction contract, the
   project's `gate:` steps, a re-render
@@ -45,7 +45,7 @@ A verb is an interface to a budget:
   `sdt q`; a large result becomes a `context/tmp/` file and the line naming it.
 - **Batch what can be batched**: one command over several beats several; a
   repeated identical invocation is a missing flag.
-- **Read the tiered index once**, then open only what it points at. A short result
+- **Read the tiered index once**, then open only what it points at; a short result
   prints in full: nothing is capped for a rule's sake.
 
 ## Context queries

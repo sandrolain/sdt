@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -89,8 +90,13 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 	}
 	if newText == "" && !getBoolFlag(cmd, "force", false) {
 		target := "the document"
-		if section := getStringFlag(cmd, "section", false); section != "" {
-			target = fmt.Sprintf("section %q", section)
+		switch {
+		case getStringFlag(cmd, "section", false) != "":
+			target = fmt.Sprintf("section %q", getStringFlag(cmd, "section", false))
+		case getStringFlag(cmd, "row", false) != "":
+			target = fmt.Sprintf("row %q", getStringFlag(cmd, "row", false))
+		case getStringFlag(cmd, "fence", false) != "":
+			target = fmt.Sprintf("fence %q", getStringFlag(cmd, "fence", false))
 		}
 		exitWithError(cmd, fmt.Errorf("refusing an empty body for %s: an empty replacement removes %s; pass --force to do it", doc.Path, target))
 		return
@@ -101,10 +107,36 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 	}
 	text := ensureTrailingNewline(newText)
 	section := getStringFlag(cmd, "section", false)
+	row := getStringFlag(cmd, "row", false)
+	fence := getStringFlag(cmd, "fence", false)
+	if row != "" && fence != "" {
+		exitWithError(cmd, fmt.Errorf("--row and --fence address different structures: pass one"))
+		return
+	}
+	if getBoolFlag(cmd, "append", false) && (row != "" || fence != "") {
+		exitWithError(cmd, fmt.Errorf("--append adds text; it cannot be combined with --row or --fence, which replace one structure"))
+		return
+	}
+	if fence != "" && section != "" {
+		exitWithError(cmd, fmt.Errorf("--fence addresses the whole body: drop --section, or use --row for a table inside a section"))
+		return
+	}
 
 	fm, body := contextwiki.SplitFrontmatter(content)
 	var newBody string
 	switch {
+	case row != "":
+		newBody, err = replaceContextRow(body, section, row, text)
+		if err != nil {
+			exitWithError(cmd, fmt.Errorf("%s: %w", doc.Path, err))
+			return
+		}
+	case fence != "":
+		newBody, err = replaceContextFence(body, fence, text)
+		if err != nil {
+			exitWithError(cmd, fmt.Errorf("%s: %w", doc.Path, err))
+			return
+		}
 	case getBoolFlag(cmd, "append", false):
 		if strings.TrimSpace(newText) == "" {
 			exitWithError(cmd, fmt.Errorf("nothing to append to %s: pass the text through --input, --file or stdin", doc.Path))
@@ -322,9 +354,176 @@ func splitATXHeading(line string) (int, string, bool) {
 func init() {
 	addContextStatusRefFlags(contextEditCmd)
 	contextEditCmd.Flags().String("section", "", "Edit only this section (its stable id or its heading)")
+	contextEditCmd.Flags().String("row", "", "Replace the table row whose first cell is this literal")
+	contextEditCmd.Flags().String("fence", "", "Replace the fenced block by 1-based index or by its opening info string")
 	contextEditCmd.Flags().Bool("append", false, "Append the input after the body, or after --section, instead of replacing")
 	contextEditCmd.Flags().Bool("dry-run", false, "Print the diff without writing")
 	contextEditCmd.Flags().Bool("force", false, "Allow an empty body (empties the document, or removes the section)")
 	addProvenanceFlags(contextEditCmd)
 	contextCmd.AddCommand(contextEditCmd)
+}
+
+// splitBodyLines splits a body into lines, dropping the empty element a
+// terminating newline produces and reporting whether it was there.
+func splitBodyLines(body string) ([]string, bool) {
+	lines := strings.Split(body, "\n")
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		return lines[:n-1], true
+	}
+	return lines, false
+}
+
+// replaceContextRow replaces the one table row whose first cell equals the
+// literal, inside the named section when one is given. The row is one line: a
+// multi-line replacement would make the table unreadable, so it is refused.
+func replaceContextRow(body, sectionRef, firstCell, text string) (string, error) {
+	lines, trailing := splitBodyLines(body)
+	lo, hi := 1, len(lines)
+	if sectionRef != "" {
+		found := false
+		for _, s := range mdstruct.SplitSections(body) {
+			if !strings.EqualFold(s.ID, sectionRef) && !strings.EqualFold(s.Heading, sectionRef) {
+				continue
+			}
+			lo, hi, found = s.StartLine, s.EndLine, true
+			break
+		}
+		if !found {
+			return "", fmt.Errorf("section %q not found", sectionRef)
+		}
+	}
+	var rows []int
+	for i := lo - 1; i < hi && i < len(lines); i++ {
+		cells, ok := tableRowCells(lines[i])
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(cells[0]) == firstCell {
+			rows = append(rows, i)
+		}
+	}
+	if len(rows) == 0 {
+		return "", fmt.Errorf("no table row starts with %q", firstCell)
+	}
+	if len(rows) > 1 {
+		return "", fmt.Errorf("%d table rows start with %q: make the first cell unique", len(rows), firstCell)
+	}
+	replacement := strings.TrimSuffix(text, "\n")
+	if strings.Contains(replacement, "\n") {
+		return "", fmt.Errorf("a table row is one line: the replacement carries %d", strings.Count(replacement, "\n")+1)
+	}
+	lines[rows[0]] = replacement
+	return joinBodyLines(lines, trailing), nil
+}
+
+// tableRowCells splits a `| a | b |` row into its trimmed cells. A separator
+// row (all dashes and colons) is not a row.
+func tableRowCells(line string) ([]string, bool) {
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "|") || !strings.HasSuffix(trimmed, "|") {
+		return nil, false
+	}
+	parts := strings.Split(strings.Trim(trimmed, "|"), "|")
+	if len(parts) == 0 {
+		return nil, false
+	}
+	separator := true
+	for _, p := range parts {
+		cell := strings.TrimSpace(p)
+		if cell == "" || strings.Trim(cell, "-:") != "" {
+			separator = false
+			break
+		}
+	}
+	if separator {
+		return nil, false
+	}
+	return parts, true
+}
+
+// replaceContextFence replaces the inner content of one fenced block, keeping
+// its opening and closing fences. The selector is a 1-based index or the info
+// string on the opening fence.
+func replaceContextFence(body, selector, text string) (string, error) {
+	lines, trailing := splitBodyLines(body)
+	type fence struct {
+		open, close int
+		info        string
+	}
+	var fences []fence
+	for i := 0; i < len(lines); i++ {
+		marker, info, ok := fenceOpen(lines[i])
+		if !ok {
+			continue
+		}
+		for j := i + 1; j < len(lines); j++ {
+			if isFenceClose(lines[j], marker) {
+				fences = append(fences, fence{open: i, close: j, info: info})
+				i = j
+				break
+			}
+		}
+	}
+	var matches []int
+	if n, err := strconv.Atoi(selector); err == nil {
+		if n < 1 || n > len(fences) {
+			return "", fmt.Errorf("fence %d does not exist: the body has %d", n, len(fences))
+		}
+		matches = append(matches, n-1)
+	} else {
+		for i, f := range fences {
+			first := ""
+			if fields := strings.Fields(f.info); len(fields) > 0 {
+				first = fields[0]
+			}
+			if f.info == selector || first == selector {
+				matches = append(matches, i)
+			}
+		}
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("no fenced block matches %q", selector)
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("%d fenced blocks match %q: address one by its 1-based index", len(matches), selector)
+	}
+	f := fences[matches[0]]
+	repl := []string{}
+	if text != "" {
+		repl = strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	}
+	out := make([]string, 0, len(lines)+len(repl))
+	out = append(out, lines[:f.open+1]...)
+	out = append(out, repl...)
+	out = append(out, lines[f.close:]...)
+	return joinBodyLines(out, trailing), nil
+}
+
+// fenceOpen reads an opening fence and its info string.
+func fenceOpen(line string) (marker, info string, ok bool) {
+	trimmed := strings.TrimSpace(line)
+	for _, m := range []string{"```", "~~~"} {
+		if strings.HasPrefix(trimmed, m) {
+			run := 0
+			for run < len(trimmed) && trimmed[run] == m[0] {
+				run++
+			}
+			return trimmed[:run], strings.TrimSpace(trimmed[run:]), true
+		}
+	}
+	return "", "", false
+}
+
+// isFenceClose reports whether line closes the fence opened by marker.
+func isFenceClose(line, marker string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, marker) && strings.Trim(trimmed[len(marker):], " ") == ""
+}
+
+func joinBodyLines(lines []string, trailing bool) string {
+	res := strings.Join(lines, "\n")
+	if trailing {
+		res += "\n"
+	}
+	return res
 }

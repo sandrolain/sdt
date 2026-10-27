@@ -30,6 +30,7 @@ type ToolboxRow struct {
 const (
 	toolboxCmdContext = "context"
 	toolboxCmdRead    = "read"
+	toolboxSubEdit    = "edit"
 )
 
 // ToolboxRows is the ordered table. Order is by how often the operation comes
@@ -131,17 +132,27 @@ func ToolboxRows() []ToolboxRow {
 			Display:   "`sdt context edit --append`",
 			Command:   toolboxCmdContext,
 			Subcommands: []string{
-				"edit",
+				toolboxSubEdit,
 			},
 			Flags:    []string{"append"},
 			Replaces: "`cat >>`",
 		},
 		{
-			Operation: "replace one literal",
-			Display:   "`sdt edit -p <f> --old/--new`",
+			Operation: "literal, pattern, batch or block",
+			Display:   "`sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]`",
 			Command:   "edit",
-			Flags:     []string{"old", "new"},
+			Flags:     []string{"old", "new", "regex", "lines", "from-marker", "to-marker"},
 			Replaces:  "`python3`/`sed -i`",
+		},
+		{
+			Operation: "corpus table row or fence",
+			Display:   "`sdt context edit --row/--fence`",
+			Command:   toolboxCmdContext,
+			Subcommands: []string{
+				toolboxSubEdit,
+			},
+			Flags:    []string{"row", "fence"},
+			Replaces: "`python3`/`sed -i`",
 		},
 		{
 			Operation: "document state",

@@ -24,7 +24,8 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
 | JSON, API | `sdt http` into `sdt q` | `curl`/`jq` |
 | two files | `sdt diff <a> <b>` | `diff` |
 | append to corpus | `sdt context edit --append` | `cat >>` |
-| replace one literal | `sdt edit -p <f> --old/--new` | `python3`/`sed -i` |
+| literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
+| corpus table row or fence | `sdt context edit --row/--fence` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
 
 ### HARD RULES (apply always)
@@ -79,9 +80,9 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
     *Don't:* fetch a web page with a host tool, or cite an uncaptured page as fact.
 11. **Local file work: the corpus is SDT's, code is the host's.** Corpus
     documents, document state, web capture and structured data go through `sdt`
-    — the table above picks the verb. Code editing stays the host's, except one
-    literal replacement (`sdt edit`, guarded and atomic); interactive editing,
-    patches, git, builds and processes stay the host's. A corpus write goes
+    — the table picks the verb. Code editing stays the host's, except guarded
+    edits (`sdt edit`: literal, pattern or hash-pinned block); interactive
+    editing, patches, git, builds and processes stay the host's. A corpus write goes
     through `context edit`/`set`/`check`, never a hand-edited file; `sdt write`
     is for bytes SDT produced.
     Learn a flag from `sdt schema`, never from `--help`.
@@ -117,8 +118,7 @@ something is due, surface it and ask whether to run it before or after the reque
 |------|-------------|
 | `context/instructions/project.md` | First time on the project |
 | `context/instructions/analysis.md` | Creating or modifying an analysis |
-| `context/instructions/draft.md` | Raw notes as a draft (`>draft: <notes>`) |
-| `context/instructions/scope.md` | A vague goal into a complete analysis (`>scope: <goal>`) |
+| `context/instructions/draft.md`, `context/instructions/scope.md` | Raw notes or a vague goal into an analysis |
 | `context/instructions/plan.md` | Creating or modifying a plan |
 | `context/instructions/tasks.md` | Creating or modifying task files |
 | `context/instructions/tasks-handoff.md` | Another session picks the work up |
@@ -138,8 +138,7 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/reference.md` | Looking up a command |
 | `context/instructions/cli.md` | Looking up usage examples |
 | `sdt context get/set/unset`, `sdt q` | Frontmatter keys, JSON by gjson path |
-| `context/scripts/` | Running bundled scripts |
-| `context/instructions/scripts.md` | Adding a script to `context/scripts/` |
+| `context/scripts/`, `context/instructions/scripts.md` | Running or adding a bundled script |
 | `context/instructions/wiki.md` | Writing or updating wiki pages |
 | `context/instructions/learning.md` | Learning, quizzing or explaining a concept |
 | `context/instructions/briefing.md` | Writing or updating a briefing |
