@@ -60,30 +60,45 @@ func TestViewerConfigReadsTheAgentCommand(t *testing.T) {
 	}
 }
 
-// TestViewerConfigReadsTheAgentModel covers the other half of the same declaration: the
-// model is read when present, blank counts as absent (it names nothing, and passing it on
-// would ask the agent for something no reader wrote), and a missing one leaves the agent on
-// its own default.
-func TestViewerConfigReadsTheAgentModel(t *testing.T) {
+// TestViewerConfigReadsTheAgentModels covers the other half of the same declaration:
+// the list is tried in order, the single `model` key still works as its one-entry
+// form, blanks are dropped (they name nothing), duplicates are tried once, and a
+// missing declaration leaves the agent on its own default.
+func TestViewerConfigReadsTheAgentModels(t *testing.T) {
 	cases := []struct {
 		name   string
 		config string
-		want   string
+		want   []string
 	}{
 		{
-			name:   "declared",
+			name:   "the single-model alias",
 			config: "agent:\n  command: [\"opencode\", \"acp\"]\n  model: \"opencode/big-pickle\"\n",
-			want:   "opencode/big-pickle",
+			want:   []string{"opencode/big-pickle"},
+		},
+		{
+			name:   "a list, in order",
+			config: "agent:\n  command: [\"opencode\"]\n  models: [\"free/model\", \"paid/model\"]\n",
+			want:   []string{"free/model", "paid/model"},
+		},
+		{
+			name:   "the list wins over the alias",
+			config: "agent:\n  command: [\"opencode\"]\n  model: \"ignored/model\"\n  models: [\"first/model\"]\n",
+			want:   []string{"first/model"},
+		},
+		{
+			name:   "blanks and duplicates",
+			config: "agent:\n  command: [\"opencode\"]\n  models: [\"  \", \"a/model\", \"a/model\", \"\"]\n",
+			want:   []string{"a/model"},
 		},
 		{
 			name:   "declared beside the keys the viewer already reads",
-			config: "project: sdt_44f24890\nsearch:\n  semantic: true\nagent:\n  command: [\"opencode\"]\n  model: openrouter/meta/muse-spark-open\n",
-			want:   "openrouter/meta/muse-spark-open",
+			config: "project: sdt_44f24890\nsearch:\n  semantic: true\nagent:\n  command: [\"opencode\"]\n  models: [\"openrouter/meta/muse-spark-open\"]\n",
+			want:   []string{"openrouter/meta/muse-spark-open"},
 		},
 		{
 			name:   "an unknown key beside it is ignored",
 			config: "agent:\n  command: [\"opencode\"]\n  model: \"a/model\"\n  mystery: 1\n",
-			want:   "a/model",
+			want:   []string{"a/model"},
 		},
 		{name: "absent", config: "agent:\n  command: [\"opencode\", \"acp\"]\n"},
 		{name: "the section with no model", config: "agent: {}\n"},
@@ -98,8 +113,14 @@ func TestViewerConfigReadsTheAgentModel(t *testing.T) {
 			if tc.config != "" {
 				writeFixture(t, root, ".sdt.yaml", tc.config)
 			}
-			if got := loadViewerConfig(root).agentModel(); got != tc.want {
-				t.Fatalf("want %q, got %q", tc.want, got)
+			got := loadViewerConfig(root).agentModels()
+			if len(got) != len(tc.want) {
+				t.Fatalf("want %v, got %v", tc.want, got)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Fatalf("want %v, got %v", tc.want, got)
+				}
 			}
 		})
 	}

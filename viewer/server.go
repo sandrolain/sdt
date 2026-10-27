@@ -86,13 +86,13 @@ type server struct {
 	// loopback. agentMu guards the open streams and which conversation is current.
 	// agentCommand is the argv the project declared in .sdt.yaml, empty when it
 	// declared none: the viewer starts that command and never one a request names.
-	// agentModel is the model the same declaration names, empty when it names none;
-	// it is the bridge's, and is reported here so a panel can say which model a
+	// agentModels is the model list the same declaration names, empty when it names
+	// none; it is the bridge's, and is reported here so a panel can say which model a
 	// session starts on.
 	agent        *acpbridge.Bridge
 	agentReason  string
 	agentCommand []string
-	agentModel   string
+	agentModels  []string
 	// agentTrace is the viewer's wire-log sink, nil when the project declared no
 	// path or declared one this viewer refused; agentLogReason is the refusal's
 	// sentence. Both are set before the server serves, so they are read without a

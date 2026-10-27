@@ -29,7 +29,7 @@ func TestStatusListenerSeesEachChange(t *testing.T) {
 // TestPostureReportsTheSessionAndModel pins the two fields the frame carries
 // beyond the state itself.
 func TestPostureReportsTheSessionAndModel(t *testing.T) {
-	b := New(Options{Model: "opencode/example"})
+	b := New(Options{Models: []string{"opencode/example"}})
 	b.mu.Lock()
 	b.initial = "sess-7"
 	b.mu.Unlock()

@@ -189,7 +189,7 @@ func TestARestartAppliesTheDeclaredModelAgain(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			restartWith(t)
 			scratch, root := t.TempDir(), t.TempDir()
-			bridge := New(Options{Root: root, Model: spawnHelperModelDeclared})
+			bridge := New(Options{Root: root, Models: []string{spawnHelperModelDeclared}})
 			t.Cleanup(func() { _ = bridge.Close() })
 
 			session, err := bridge.EnsureStarted(context.Background(), spawnCommand(scratch, tc.mode), root)

@@ -354,7 +354,7 @@ func TestASetTheAgentAcceptsMovesTheSessionsConfig(t *testing.T) {
 // panel.
 func TestADeclaredModelTheAgentRefusesOpensTheSessionAnyway(t *testing.T) {
 	agent := newFakeAgent(t, setRefusingAgent("the provider has no such model"))
-	bridge := New(Options{Root: t.TempDir(), Version: "test", Model: "openrouter/no-such-model"})
+	bridge := New(Options{Root: t.TempDir(), Version: "test", Models: []string{"openrouter/no-such-model"}})
 	t.Cleanup(func() { _ = bridge.Close() })
 
 	if _, err := bridge.Activate(context.Background(), agent.Path()); err != nil {

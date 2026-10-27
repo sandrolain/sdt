@@ -218,7 +218,7 @@ func TestAgentStateReportsTheLiveAgent(t *testing.T) {
 	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
 	s.agentCommand = []string{"opencode", "acp"}
-	s.agentModel = "opencode/big-pickle"
+	s.agentModels = []string{"opencode/big-pickle"}
 	activateOnSocket(t, s, agent.Path())
 
 	if got, want := agent.Methods(), []string{"initialize", "session/new"}; len(got) != 2 || got[0] != want[0] || got[1] != want[1] {

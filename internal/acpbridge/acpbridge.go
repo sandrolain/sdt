@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -88,11 +89,12 @@ type Options struct {
 	// Version names the viewer build in the handshake, so the agent and its user
 	// can tell which client is talking.
 	Version string
-	// Model is the id of the model the project declared for its agent. It is applied
-	// to every session the bridge opens, so a reload or a restart does not silently
+	// Models are the model ids the project declared for its agent, in the order it
+	// wants them tried. Each session the bridge opens applies them with a config set,
+	// keeping the first the agent accepts, so a reload or a restart does not silently
 	// put the conversation back on the agent's own default. Empty means no
 	// declaration, which is the agent's own choice of model.
-	Model string
+	Models []string
 	// Log may be nil.
 	Log *slog.Logger
 }
@@ -102,10 +104,12 @@ type Options struct {
 type Bridge struct {
 	root    string
 	version string
-	// model is the declaration this bridge applies at every session open. It is set
+	// models is the declaration this bridge walks at every session open. It is set
 	// once, when the bridge is built from the project's own file, and never changes:
-	// the picker changes a session, not the project.
-	model string
+	// the picker changes a session, not the project. modelInUse is the one the agent
+	// accepted last, guarded by mu because a posture frame reads it.
+	models     []string
+	modelInUse string
 	perms   *PermissionQueue
 	elicits *ElicitationQueue
 	log     *slog.Logger
@@ -161,7 +165,7 @@ func New(opts Options) *Bridge {
 	bridge := &Bridge{
 		root:     opts.Root,
 		version:  opts.Version,
-		model:    opts.Model,
+		models:   opts.Models,
 		log:      log,
 		sessions: map[string]*Session{},
 		status:   StatusIdle,
@@ -355,13 +359,45 @@ const modelConfigID = "model"
 // The declaration is the user's, so a refusal is not retried: the next session open applies
 // it again.
 func (b *Bridge) applyDeclaredModel(ctx context.Context, session *Session) string {
-	if b.model == "" {
+	if len(b.models) == 0 {
 		return ""
 	}
-	if err := session.SetConfig(ctx, modelConfigID, b.model); err != nil {
-		b.log.Warn("the agent did not take the declared model", "model", b.model, "error", err)
+	var last error
+	for _, model := range b.models {
+		if err := session.SetConfig(ctx, modelConfigID, model); err != nil {
+			// A refusal is the reason to try the next one, not a reason to stop: a
+			// provider that is out of quota is exactly what a list is for.
+			last = err
+			b.log.Warn("the agent did not take a declared model", "model", model, "error", err)
+			continue
+		}
+		b.setModelInUse(model)
+		return ""
+	}
+	if len(b.models) == 1 {
 		return fmt.Sprintf("the agent would not take the declared model %q: %s",
-			b.model, RefusalSentence(err, "the model"))
+			b.models[0], RefusalSentence(last, "the model"))
+	}
+	return fmt.Sprintf("the agent would not take any of the declared models (%s): %s",
+		strings.Join(b.models, ", "), RefusalSentence(last, "the model"))
+}
+
+// setModelInUse records the model a session accepted, so the posture and the panel
+// name what is running rather than what was asked for first.
+func (b *Bridge) setModelInUse(model string) {
+	b.mu.Lock()
+	b.modelInUse = model
+	b.mu.Unlock()
+}
+
+// modelForPosture is the model a reader should see: the accepted one, or the first
+// declared before any session has accepted one.
+func (b *Bridge) modelForPosture() string {
+	if b.modelInUse != "" {
+		return b.modelInUse
+	}
+	if len(b.models) > 0 {
+		return b.models[0]
 	}
 	return ""
 }

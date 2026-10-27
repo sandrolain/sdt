@@ -141,6 +141,21 @@ func (s *server) broadcastAgentStatus(posture acpbridge.Posture) {
 	}
 }
 
+// agentModelInUse is the model a session actually runs on: the one the bridge
+// accepted, or the first declared one before a session has accepted any, so a panel
+// can name a model without inventing one.
+func (s *server) agentModelInUse() string {
+	if s.agent != nil {
+		if model := s.agent.Posture().Model; model != "" {
+			return model
+		}
+	}
+	if len(s.agentModels) > 0 {
+		return s.agentModels[0]
+	}
+	return ""
+}
+
 // agentState builds the response for the bridge's current posture. session names the one
 // a start just opened; empty means "whatever the bridge holds".
 func (s *server) agentState(session string) agentStateResponse {
@@ -149,7 +164,7 @@ func (s *server) agentState(session string) agentStateResponse {
 		Activated: s.agent.Activated(),
 		Status:    string(status),
 		Command:   s.agentCommand,
-		Model:     s.agentModel,
+		Model:     s.agentModelInUse(),
 	}
 	switch {
 	case s.agentReason != "":
@@ -619,10 +634,10 @@ func (s *server) enableAgent(host string) {
 		return
 	}
 	declared := loadViewerConfig(s.root)
-	s.agentCommand, s.agentModel = declared.agentCommand(), declared.agentModel()
+	s.agentCommand, s.agentModels = declared.agentCommand(), declared.agentModels()
 	// The model is the bridge's from birth, not applied afterwards: the declaration
 	// is what every session this bridge opens runs on, including the first.
-	s.agent = acpbridge.New(acpbridge.Options{Root: s.root, Version: version, Model: s.agentModel})
+	s.agent = acpbridge.New(acpbridge.Options{Root: s.root, Version: version, Models: s.agentModels})
 	// One subscription per bridge: a posture change is fanned out to every stream
 	// this viewer holds, and the bridge stays transport-agnostic.
 	s.agent.ListenStatus(s.broadcastAgentStatus)
@@ -649,5 +664,5 @@ func (s *server) enableAgent(host string) {
 		return
 	}
 	slog.Info("sdtviewer: agent bridge available", "root", s.root,
-		"agent", strings.Join(s.agentCommand, " "), "model", s.agentModel)
+		"agent", strings.Join(s.agentCommand, " "), "models", strings.Join(s.agentModels, ", "))
 }

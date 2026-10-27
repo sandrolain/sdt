@@ -47,11 +47,15 @@ type viewerAgentConfig struct {
 	// is nothing to quote and nothing to interpolate; the first element is either a
 	// program name, resolved at spawn time, or an explicit path.
 	Command []string `yaml:"command"`
-	// Model is the model the project runs its agent on, applied by the bridge
-	// whenever it opens a session — a fresh one, or the one a restart carries. It
-	// is the id the agent itself offers, taken verbatim: the viewer never maps a
-	// name, and an absent or blank one leaves the agent on its own default.
+	// Model is the single-model spelling, kept for existing projects. It is the
+	// one-entry form of Models and is read only when Models is absent, so a project
+	// that declares both gets the list, not a silent merge.
 	Model string `yaml:"model"`
+	// Models is the list the bridge tries in order at every session open — a fresh
+	// one, or the one a restart carries — and keeps the first the agent accepts. It
+	// is the id the agent itself offers, taken verbatim: the viewer never maps a
+	// name. A blank entry names nothing and is dropped; duplicates collapse.
+	Models []string `yaml:"models"`
 	// Log is the wire log's declared path, resolved against the project root. Its
 	// presence is what turns the capture on: absent or blank means off, so the key
 	// is additive and nothing has to be removed to stop logging. The path may
@@ -72,11 +76,25 @@ func (c viewerConfig) agentCommand() []string {
 	return c.Agent.Command
 }
 
-// agentModel returns the declared model, or the empty string when the project
-// declares none. A blank one counts as absent the way a blank argv does: it names
-// nothing, and passing it on would ask the agent for a model no reader wrote.
-func (c viewerConfig) agentModel() string {
-	return strings.TrimSpace(c.Agent.Model)
+// agentModels returns the declared models in the order the bridge should try
+// them, or nil when the project declares none. Blanks count as absent the way a
+// blank argv does — they name nothing — and a repeated id is tried once.
+func (c viewerConfig) agentModels() []string {
+	raw := c.Agent.Models
+	if len(raw) == 0 {
+		raw = []string{c.Agent.Model}
+	}
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, model := range raw {
+		model = strings.TrimSpace(model)
+		if model == "" || seen[model] {
+			continue
+		}
+		seen[model] = true
+		out = append(out, model)
+	}
+	return out
 }
 
 // agentLog returns the declared wire-log path, or the empty string when the

@@ -273,7 +273,7 @@ func (b *Bridge) Posture() Posture {
 
 // postureLocked builds the snapshot the caller must copy before unlocking.
 func (b *Bridge) postureLocked() Posture {
-	return Posture{Status: b.status, SessionID: b.initial, Model: b.model, Error: b.statusErr}
+	return Posture{Status: b.status, SessionID: b.initial, Model: b.modelForPosture(), Error: b.statusErr}
 }
 
 // setStatus records the process view under the state lock and tells the listener.
