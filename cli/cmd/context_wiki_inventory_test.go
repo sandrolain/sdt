@@ -481,3 +481,33 @@ func TestWikiInventoryLegacyInlineAccepted(t *testing.T) {
 		t.Fatalf("legacy inline was reported:\n%s", out)
 	}
 }
+
+// TestWikiInventoryAcceptsAPatternPage proves a pattern-typed page is a valid
+// page/merge target: it carries claims like a concept page, which is what the
+// inventory distils into. An entity page stays refused.
+func TestWikiInventoryAcceptsAPatternPage(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/pattern.md",
+		strings.NewReplacer("id: architecture/alpha", "id: architecture/pattern",
+			"type: concept", "type: pattern").Replace(inventoryPage))
+	writeCtxDoc(t, "context/notes/inv.md", inventoryNoteFixture(1, 1, 0, 0, 0, 0,
+		"| C1 | Pattern | page | architecture/pattern | claim-1 | refs/converted/book.md |\n"))
+	if out := execute(t, contextWikiInventoryCmd, nil, "context/notes/inv.md"); len(out) != 0 {
+		t.Fatalf("a pattern-typed target was refused:\n%s", out)
+	}
+}
+
+// TestWikiInventoriableTypeIsConceptOrPattern keeps the boundary as a predicate:
+// an entity indexes a source, so no claim can be distilled into it.
+func TestWikiInventoriableTypeIsConceptOrPattern(t *testing.T) {
+	if !wikiInventoriableType(wikiTypeConcept) || !wikiInventoriableType(wikiTypePattern) {
+		t.Error("a concept or pattern page must be inventoriable")
+	}
+	if wikiInventoriableType(wikiTypeEntity) {
+		t.Error("an entity page must not be inventoriable")
+	}
+	if wikiInventoriableType("") {
+		t.Error("a page without a type must not be inventoriable")
+	}
+}

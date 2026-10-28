@@ -620,8 +620,8 @@ func inventoryRowFindings(path string, rows []inventoryRow, source, inlineFormat
 				add("candidate %s targets missing page %q", row.ID, row.Target)
 				continue
 			}
-			if page.Type != wikiTypeConcept {
-				add("candidate %s targets %q, whose type is %q, not concept", row.ID, page.ID, page.Type)
+			if !wikiInventoriableType(page.Type) {
+				add("candidate %s targets %q, whose type is %q, not a concept or pattern page", row.ID, page.ID, page.Type)
 			}
 			if row.Claim == "" || !strings.Contains(page.Body, "{#"+row.Claim+"}") {
 				add("candidate %s names claim %q, which %q does not carry", row.ID, row.Claim, page.ID)
@@ -674,7 +674,7 @@ func inventoryScopeFindings(path string, rows []inventoryRow, source string, bld
 	}
 	var findings []inventoryFinding
 	for _, page := range bld.Pages {
-		if page.Type != wikiTypeConcept || !inventoryContainsString(page.Sources, source) {
+		if !wikiInventoriableType(page.Type) || !inventoryContainsString(page.Sources, source) {
 			continue
 		}
 		if !targeted[page.ID] {

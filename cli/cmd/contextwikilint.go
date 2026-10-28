@@ -388,10 +388,18 @@ func lintWikiBudget(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 // claims, 64-89 summary words) and are a SUGGESTION, never a target to pad.
 const (
 	wikiTypeConcept          = "concept"
+	wikiTypePattern          = "pattern"
 	wikiTypeEntity           = "entity"
 	wikiDepthMinClaims       = 8
 	wikiDepthMinSummaryWords = 50
 )
+
+// wikiInventoriableType reports whether a page can be named as an inventory
+// target: a concept page and a pattern page both carry claims a candidate can be
+// distilled into. An entity page indexes a source, not a claim, so it stays out.
+func wikiInventoriableType(t string) bool {
+	return t == wikiTypeConcept || t == wikiTypePattern
+}
 
 // lintWikiDepth flags a concept page below the density floor. Index pages (a
 // coverage block) and non-concept pages are exempt: the floor is about the

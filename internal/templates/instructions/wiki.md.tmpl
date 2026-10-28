@@ -30,6 +30,13 @@ read that for the full schema.
 - Wiki page `status` (`draft`/`active`/`archived`) is defined once in the type
   registry (`sdt context vocab` prints it); archive semantics stay in
   `context/instructions/ingestion.md`.
+- **`type` says what the page asserts**, and two checks branch on it. `concept`
+  explains a thing (a definition, a mechanism, a property); `pattern` a reusable
+  solution shape and the forces it answers — both carry claims, are inventory
+  targets and meet the density floor. `entity` indexes a referent (a system, an
+  organisation, a role) and asserts no claims, so it is neither; `decision` is a
+  choice and its rationale; `module` routes a reader across an area. A value
+  outside those five is a vocabulary defect, not a new kind of page.
 - **No H1 title** — see AGENTS.md (document conventions).
 - Body anatomy is **adaptive**: the page body takes the form that best fits the
   material (prose, procedure, comparison, timeline...). Summary / Claims / Notes
@@ -278,6 +285,12 @@ vault can read the same folder — the two models are close but not identical:
   doc path). `updated` dates the edit, not the check, so the stamp is the only
   field that says how fresh the claims are; `sdt context wiki lint` reports half
   a stamp as a WARNING.
+- A stamp **informs, it never gates**. `verified_at` is provenance, not validity: an
+  unstamped page is still readable, searchable, teachable and servable — no check
+  refuses it, no lint fails on it, no surface withholds it. A reader gets the note
+  instead (when the claims were last read), and a caller who wants a freshness
+  subset asks for it: `sdt learn check --verified-only`. Absence is not a defect to
+  backfill; it is a fact to state.
 - A page is **freshness-tracked**: set `verified` only after re-checking its
   claims against their `sources`; when a source changes, re-run
   `sdt context wiki lint` (the `refs/<file>@<sha>` citation check flags a stale

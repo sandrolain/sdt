@@ -202,7 +202,7 @@ X when Y"), never as a fact.
 | `kind` | yes | `wiki` |
 | `id` | yes | relative subpath of the file (`wiki/backend/auth.md` → `backend/auth`; flat `wiki/<slug>.md` → `<slug>`) |
 | `title` | yes | unique across all `wiki/` pages (ambiguity = lint error) |
-| `type` | yes | `concept` · `entity` · `decision` · `pattern` · `module` |
+| `type` | yes | `concept` · `entity` · `decision` · `pattern` · `module` (meaning: `wiki.md`) |
 | `status` | yes | `draft` · `active` · `archived` |
 | `summary` | yes | 1-2 lines: wiki list, search and lint read it |
 | `relations` | yes | ordered map: closed verbs → `[[id\|label]]` |
@@ -213,6 +213,8 @@ X when Y"), never as a fact.
 | `transformation` | when abstracting | the generalisation note: the level chosen and the substitution performed (prose, not lint-enforced) |
 | `confidence` | no | `high` · `medium` · `low` — graded confidence for a single claim, distinct from `verified` and from the document-level `maturity` |
 | `validity` | no | `stable` · `evolving` · `dated` — intrinsic time-sensitivity |
+
+
 | `valid_until` | no | date, used with `validity: evolving` |
 | `maturity` | no | `wip` · `provisional` · `established` · `canonical` · `superseded` · `retired` — cross-kind trust ladder, orthogonal to `status`; `established`/`canonical` want `warrant`, `superseded` wants `superseded_by` |
 | `warrant` | no | one compressed line of the evidence that earned a promotion |
