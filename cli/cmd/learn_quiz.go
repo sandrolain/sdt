@@ -25,13 +25,27 @@ import (
 // learnQuizVersion is the manifest schema version.
 const learnQuizVersion = 1
 
-// learnQuizEntry is one concept to be quizzed, with the evidence an answer cites.
+// learnQuizItem is one question, taken from the concept's lesson. It carries the
+// prompt and the claim it rests on, never the expected answer: a quiz that shipped
+// its answers would stop being zero-hint.
+type learnQuizItem struct {
+	ID        string `json:"id" yaml:"id"`
+	Type      string `json:"type" yaml:"type"`
+	Prompt    string `json:"prompt" yaml:"prompt"`
+	Objective int    `json:"objective" yaml:"objective"`
+	Claim     string `json:"claim" yaml:"claim"`
+}
+
+// learnQuizEntry is one concept to be quizzed, with the evidence an answer cites
+// and the questions its lesson already holds (none when no lesson exists).
 type learnQuizEntry struct {
-	Concept  string   `json:"concept" yaml:"concept"`
-	Wiki     string   `json:"wiki" yaml:"wiki"`
-	Title    string   `json:"title" yaml:"title"`
-	Evidence []string `json:"evidence,omitempty" yaml:"evidence,omitempty"`
-	Hint     string   `json:"hint,omitempty" yaml:"hint,omitempty"`
+	Concept  string          `json:"concept" yaml:"concept"`
+	Wiki     string          `json:"wiki" yaml:"wiki"`
+	Title    string          `json:"title" yaml:"title"`
+	Evidence []string        `json:"evidence,omitempty" yaml:"evidence,omitempty"`
+	Hint     string          `json:"hint,omitempty" yaml:"hint,omitempty"`
+	Items    []learnQuizItem `json:"items,omitempty" yaml:"items,omitempty"`
+	Note     string          `json:"note,omitempty" yaml:"note,omitempty"`
 }
 
 // learnQuizManifest is the generated or validated quiz set.
@@ -47,13 +61,15 @@ var learnQuizCmd = &cobra.Command{
 	Long: `Build a quiz manifest from the selected concepts, or validate one.
 
 WHEN — a quiz is about to be run, or a manifest must be checked before use.
-WHEN NOT — you want the concepts themselves: use sdt learn inspect. The manifest
-is a set of names and evidence; the questions are yours to write.
+WHEN NOT — you want the concepts themselves: use sdt learn inspect. A concept with
+a lesson carries that lesson's questions; one without a lesson carries evidence only
+and says so, and its questions are yours to write.
 
-RETURNS — a manifest (version, hinted flag, one entry per concept with its title
-and evidence) or, with ` + "`--validate <file>`" + `, the validation verdict. It
-carries no answer: zero-hint by default, and ` + "`--hint`" + ` opts into the page
-summary. An unknown concept fails rather than yielding a guess. Reads only.
+RETURNS — a manifest (version, hinted flag, one entry per concept with its title,
+evidence and — when the concept has a lesson — its items as prompt/type/claim) or,
+with ` + "`--validate <file>`" + `, the validation verdict. It carries no expected
+answer: zero-hint by default, and ` + "`--hint`" + ` opts into the page summary only.
+An unknown concept fails rather than yielding a guess. Reads only.
 
 EXAMPLE — sdt learn quiz backend/auth --format yaml
           sdt learn quiz --validate quiz.yaml`,
@@ -86,6 +102,12 @@ EXAMPLE — sdt learn quiz backend/auth --format yaml
 				outputString(cmd, fmt.Sprintf("%d. %-26s %s\n", i+1, e.Concept, e.Title))
 				if len(e.Evidence) > 0 {
 					outputString(cmd, "   evidence: "+strings.Join(e.Evidence, ", ")+"\n")
+				}
+				for _, it := range e.Items {
+					outputString(cmd, fmt.Sprintf("   [%s] %s\n", it.Type, it.Prompt))
+				}
+				if e.Note != "" {
+					outputString(cmd, "   note: "+e.Note+"\n")
 				}
 				if e.Hint != "" {
 					outputString(cmd, "   hint: "+e.Hint+"\n")
@@ -122,7 +144,30 @@ func learnQuizEntryFor(bld *contextwiki.Builder, st *learn.State, arg string, hi
 	if hinted {
 		entry.Hint = page.Summary
 	}
+	entry.Items = learnQuizItemsFor(page.ID)
+	if len(entry.Items) == 0 {
+		entry.Note = "no lesson for this concept: its questions are yours to write"
+	}
 	return entry, nil
+}
+
+// learnQuizItemsFor reads the questions a concept's lesson already carries. The
+// expected answer stays behind: the manifest is what the learner is asked.
+func learnQuizItemsFor(conceptID string) []learnQuizItem {
+	path := learnLessonPath(conceptID)
+	data, err := os.ReadFile(path) //#nosec G304 -- path built from the page id
+	if err != nil {
+		return nil
+	}
+	items := learnLessonItemsOf(sectionOf(string(data), "Assess"))
+	out := make([]learnQuizItem, 0, len(items))
+	for _, it := range items {
+		out = append(out, learnQuizItem{
+			ID: it.ID, Type: it.Type, Prompt: it.Prompt,
+			Objective: it.Objective, Claim: it.Claim,
+		})
+	}
+	return out
 }
 
 // learnQuizValidateRun checks a manifest on disk: the version, a non-empty and
@@ -174,6 +219,18 @@ func learnQuizValidate(m learnQuizManifest) error {
 		seen[e.Concept] = true
 		if e.Hint != "" && !m.Hinted {
 			return fmt.Errorf("concept %q carries a hint but the manifest claims zero-hint", e.Concept)
+		}
+		for _, it := range e.Items {
+			if strings.TrimSpace(it.Prompt) == "" {
+				return fmt.Errorf("concept %q has an item with no prompt", e.Concept)
+			}
+			if !containsItem(ctxLessonItemTypes, it.Type) {
+				return fmt.Errorf("item %q type %q is not one of %s", it.ID, it.Type, strings.Join(ctxLessonItemTypes, ", "))
+			}
+			if seen[e.Concept+"/"+it.ID] {
+				return fmt.Errorf("concept %q carries item %q twice", e.Concept, it.ID)
+			}
+			seen[e.Concept+"/"+it.ID] = true
 		}
 	}
 	return nil

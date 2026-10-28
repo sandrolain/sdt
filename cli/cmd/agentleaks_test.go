@@ -136,7 +136,17 @@ func citedPathUnproduced(path string, produced map[string]bool) bool {
 		return false
 	}
 	dir := path[:strings.LastIndexByte(path, '/')]
-	return !kindDirs[dir]
+	if kindDirs[dir] {
+		return false
+	}
+	// A subpath kind keeps its documents in nested directories, so a cited path
+	// belongs to the kind when its root is a registered document directory.
+	for root := range kindDirs {
+		if strings.HasPrefix(path, root+"/") {
+			return false
+		}
+	}
+	return true
 }
 
 // generatedContextDocs is the set of context paths `agent init` writes, plus the

@@ -3,9 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -30,26 +27,11 @@ func outputStringList(cmd *cobra.Command, items []string) {
 	}
 }
 
+// listContextFiles returns the documents of a type directory. It defers to the
+// registry-aware walk so a subpath kind (a lesson mirrors its concept) is listed
+// at any depth, while a flat type keeps exactly the previous behaviour.
 func listContextFiles(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var files []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		if filepath.Ext(e.Name()) != sdtMarkdownExt {
-			continue
-		}
-		files = append(files, filepath.Join(dir, e.Name()))
-	}
-	sort.Strings(files)
-	return files, nil
+	return dirFilesFor(dir)
 }
 
 var contextListCmd = &cobra.Command{

@@ -43,7 +43,9 @@ const (
 	// measured 4,380 words of 2026-10-27 (audit 20261025-154218, F1). The block
 	// ceiling alone left the authored half unguarded: it was 1,977 words, so the
 	// file a session actually pays for was 1.8x what the block budget named.
-	instructionFileBudget = 4380
+	// Raised to 4,390 on 2026-10-28: the lesson module's on-action row, five
+	// words for a contract a session reads whenever it writes teaching content.
+	instructionFileBudget = 4390
 )
 
 // instructionModuleRatchet is the exemption map: a module may not grow past the
@@ -60,13 +62,20 @@ var instructionModuleRatchet = map[string]int{
 	// ingestion rose to 3786 (2026-10-24): the receipt now carries the
 	// concept-coverage line and the summary-check verdict, the two halves of a
 	// book-scale run that the unit coverage alone could not report.
-	"ingestion":   3786,
+	// ingestion rose to 3790 (2026-10-28): the `type` cell points at `wiki.md` for
+	// what each page type asserts, which lived by implication only.
+	"ingestion":   3790,
 	"plan":        2645,
 	"analysis":    2496,
 	"development": 2455,
 	// wiki rose to 2443 (2026-10-24): the coverage record documents the
 	// `concepts:` block beside the unit block, its identity and its findings.
-	"wiki":         2443,
+	// Rose to 2495 (2026-10-28): the Verification section states that a stamp
+	// informs and never gates — the rule the readiness gate reads, which had no
+	// home outside a plan. Rose to 2590 the same day: the Page contract now says
+	// what each page `type` asserts, which is where the type was documented by
+	// implication only.
+	"wiki":         2590,
 	"distillation": 1763,
 }
 

@@ -30,6 +30,10 @@ const (
 	ctxTypeCommands     = "commands"
 	ctxTypeWiki         = "wiki"
 	ctxTypeBriefing     = "briefing"
+	// ctxTypeLesson is the teaching composition over one wiki concept: the
+	// worked example, the items and the curricular order. The page keeps the
+	// knowledge; the lesson never restates its objectives (`learning.md`).
+	ctxTypeLesson = "lesson"
 	// ctxTypeSupersedes is the forward-only relation field: a document names
 	// the older document it replaces (the reverse is computed, never written).
 	ctxTypeSupersedes = "supersedes"
@@ -126,10 +130,10 @@ func contextPath(typ, slug, phase, stream, plan string) (string, error) {
 		return filepath.Join(t.dir, slug), nil
 	case ctxSchemeSubpath:
 		if slug == "" {
-			return "", errors.New("--slug is required for type wiki")
+			return "", fmt.Errorf("--slug is required for type %s", t.kind)
 		}
 		if !ctxWikiIDRegexp.MatchString(slug) {
-			return "", fmt.Errorf("invalid wiki id %q (kebab-case segments joined by %q)", slug, string(filepath.Separator))
+			return "", fmt.Errorf("invalid %s id %q (kebab-case segments joined by %q)", t.kind, slug, string(filepath.Separator))
 		}
 		return filepath.Join(t.dir, filepath.FromSlash(slug)+sdtMarkdownExt), nil
 	case ctxSchemeDecision:

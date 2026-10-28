@@ -1,0 +1,123 @@
+---
+kind: instructions
+title: "Lesson — the teaching composition over one concept page"
+summary: "A lesson carries the worked example, the assessment items and the curricular order for one wiki concept, never a second copy of the page."
+---
+
+`context/learning/<concept-id>.md` is the **lesson** for one wiki concept: the
+composition that turns a page into something teachable and assessable. It is a
+document, not a runtime — `sdt learn lesson <concept>` composes it and
+`sdt learn record` is the only writer of what a learner demonstrated.
+
+Read it with `instructions/wiki.md` (the page it teaches) and
+`instructions/learning.md` (how a session runs). This module covers the artefact
+only.
+
+## What a lesson is
+
+- **One concept, one lesson, the same id.** The lesson id equals the wiki page id
+  (`context/learning/architecture/four-key-metrics.md` teaches
+  `wiki/architecture/four-key-metrics`), and its `concept` field repeats it so a
+  lesson read alone names its page.
+- **The page owns the knowledge.** Objectives, difficulty and pacing live in the
+  page's `learning:` block, and this is its whole shape:
+
+  ```yaml
+  learning:
+    objectives:
+      - "name the four metrics and the pipeline point each is measured at"
+      - "calculate a metric over its reporting window"
+    difficulty: intermediate   # introductory | intermediate | advanced
+    minutes: 12                # 5-60, the review time
+  ```
+
+  A lesson never restates them: an item points at one by its 1-based index, so
+  `objective: 2` means the second entry above and nothing else.
+- **The lesson's own frontmatter is written by `context new --type lesson`**:
+  `kind: lesson`, `uid`, `id` (equal to the concept id), `concept` (the same id,
+  repeated so the file names its page), `summary`, `status`, the timestamps,
+  `project`, and `links`/`sources` pointing at `wiki/<concept-id>.md`. The
+  lesson's `status` is its own lifecycle, not a teaching verdict: `sdt learn
+  check` judges the page.
+- **A lesson is not a page.** No claim is introduced here. Every item names the
+  claim it rests on (`<page-id>#claim-N`) and every example names the span it was
+  re-expressed from.
+
+## Sections, in this order and no others
+
+`## Prerequisites` · `## Worked example` · `## Assess` · `## Transfer`
+
+- **Prerequisites** — the curricular order, written as what to learn first and
+  why. This is not `relations.depends_on`, which is logical dependency; a lesson
+  states what a learner needs before this one.
+- **Worked example** — one example, carried through to its answer, with its
+  provenance in `source_span` (`refs/<file>@<sha>:<start>-<end>`: the sha pins the
+  converted refs file, and the numbers are **line** offsets in it). Re-express the
+  example in our words and cite the span; do not paste the source. This is the one
+  place where numbers, thresholds and arithmetic the page deliberately omits are
+  allowed, because they are the lesson's subject. **Cite and re-express is the
+  rule**: one single clause may be quoted verbatim where the exact wording carries
+  the meaning (a definition, a threshold), marked as a quote with the same span;
+  everything longer is re-expressed. The decision is the user's, 2026-10-28 —
+  `context/questions/20261028-070641-lesson-example-licensing.md`.
+- **Assess** — the item table, one row per item.
+- **Transfer** — one case the learner has not seen, posed without its solution.
+
+## The item table
+
+```markdown
+| id | objective | type | prompt | expected | rubric | distractor | claim |
+|---|---|---|---|---|---|---|---|
+| four-key-metrics-1 | 1 | recall | Name the four metrics. | deployment frequency; lead time for changes; change failure rate; time to restore service | all four, no extras | the four are individual performance targets | architecture/four-key-metrics#claim-1 |
+```
+
+- **`objective`** is 1-based against the page's `learning.objectives`; every
+  objective needs at least one item, and an index outside the list is a defect.
+- **`claim`** is `<page-id>#claim-N`, where `<page-id>` is the id **without** the
+  `wiki/` prefix (`architecture/four-key-metrics#claim-1`) — the same id the
+  lesson's own frontmatter carries.
+- **`type`** is `recall`, `diagnose`, `apply` or `transfer`, and it *is* the
+  item's difficulty ladder in that order. It is not restated as a number. An
+  `apply` item may rest on the worked example — that is what the example is for —
+  but its rubric says so, and a page-only evaluation excludes it.
+- **`expected`** is the answer, not a hint: precise for recall, with its tolerance
+  for a numeric apply (`2/36 = 5.56% (±0.1 percentage points)`). State the unit and
+  the rounding once; a rate over one day and the reported metric over its window
+  are two different numbers, so an item says which one it asks for. An answer the
+  page does not determine is marked **not in the corpus**, never filled from
+  recall. **Write the expected answer from the page, never from the span**: the
+  worked example may carry what the page leaves out, an item's key may not.
+- **`distractor`** is a real wrong model — the page's counter-case or a
+  boundary — never a random option. A distractor nobody holds teaches nothing.
+- **`claim`** is the page and claim the expected answer rests on. An item whose
+  claim does not support its expected answer is the defect this column exists to
+  surface.
+- At least one item per lesson is `transfer`: the same idea in a case the page did
+  not cover. The `## Transfer` **section** poses open work for a tutor to run; the
+  `transfer` **item** is the assessable form of it. A lesson has one section and
+  one such item — not two obligations.
+
+## Check before you ship
+
+```bash
+sdt learn lesson <concept>              # the composed bundle
+sdt learn lesson --validate             # every lesson: claim anchors, objective coverage, shape
+sdt learn lesson --coverage             # objective → item matrix
+sdt learn check <concept>               # is this concept teachable, and if not why
+```
+
+`sdt learn check` refuses a page that cannot carry a lesson — not `active`, fewer
+than four claims, `maturity: wip`, no `learning:` block, no lesson, an objective
+without an item. It judges the **page**; a lesson's own `status` is its lifecycle
+and is not part of the verdict. A **missing `verified_at` is not a refusal**: a
+stamp is provenance, not validity, and it is reported as a note. `--verified-only`
+filters on it when a caller wants a freshness subset.
+
+## Boundaries
+
+- One lesson per concept; a second lesson for the same page is a split signal, not
+  a variant.
+- No answers stored in the page, no objectives stored here, no learner state in
+  either: `context/learning/learner.yaml` holds what a learner demonstrated.
+- Never promote a page to `active` because a lesson needs it. The page is verified
+  against its spans first (`wiki.md`), and the lesson follows.

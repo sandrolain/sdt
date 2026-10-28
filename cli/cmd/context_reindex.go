@@ -75,7 +75,7 @@ func collectObjectiveBuckets(edges *ctxrel.Edges) (map[string][]string, []string
 	buckets := map[string][]string{}
 	var slugs []string
 	for _, dir := range ctxIndexDirs {
-		files, err := dirFiles(dir)
+		files, err := dirFilesFor(dir)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -145,7 +145,7 @@ func collectTierRows(tier string, edges *ctxrel.Edges) ([]string, error) {
 		if ctxTierForDir(dir) != tier {
 			continue
 		}
-		files, err := dirFiles(dir)
+		files, err := dirFilesFor(dir)
 		if err != nil {
 			return nil, err
 		}

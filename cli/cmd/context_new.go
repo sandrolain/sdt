@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -159,12 +160,7 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	b.WriteString("---\n")
 	b.WriteString("kind: " + typ + "\n")
 	b.WriteString("uid: " + newUID() + "\n")
-	if typ == ctxTypeWiki {
-		b.WriteString("id: " + yamlScalar(id) + "\n")
-	}
-	if (typ == ctxTypeAnalysis || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki) && title != "" {
-		b.WriteString("title: " + yamlScalar(title) + "\n")
-	}
+	writeFrontmatterIdentity(&b, typ, id, title)
 	b.WriteString("summary: " + yamlScalar(summary) + "\n")
 	if typ == ctxTypeResearch {
 		b.WriteString("subject: " + yamlScalar(ctxResearchSubjectPlaceholder) + "\n")
@@ -211,6 +207,28 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	}
 	b.WriteString("---\n")
 	return b.String()
+}
+
+// writeFrontmatterIdentity emits the identifying fields a kind carries: the
+// subpath `id` (wiki, lesson), the `concept` a lesson teaches, and the title for
+// every kind whose contract names one. It is one function so contextFrontmatter
+// stays under the complexity the linter allows.
+func writeFrontmatterIdentity(b *strings.Builder, typ, id, title string) {
+	if typ == ctxTypeWiki || typ == ctxTypeLesson {
+		b.WriteString("id: " + yamlScalar(id) + "\n")
+	}
+	// A lesson names the page it teaches in `concept`, next to its own id: the two
+	// are equal by construction, and the duplicate is what lets a lesson read
+	// alone say which concept it belongs to.
+	if typ == ctxTypeLesson {
+		b.WriteString(ctxFrontmatterConcept + ": " + yamlScalar(id) + "\n")
+	}
+	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson}, typ) {
+		return
+	}
+	if title != "" {
+		b.WriteString("title: " + yamlScalar(title) + "\n")
+	}
 }
 
 // writeFrontmatterList emits a YAML block-list field (topics/entities/…),
@@ -300,6 +318,8 @@ func contextDefaultBody(typ string) string {
 		return "## Subject\n\n## Method\n\n## Findings\n\n## Evidence\n\n## Limits and open points\n\n## Feeds\n"
 	case ctxTypeWiki:
 		return "## Summary\n\n## Claims\n\n## Notes\n"
+	case ctxTypeLesson:
+		return "## Prerequisites\n\n## Worked example\n\n## Assess\n\n| id | objective | type | prompt | expected | rubric | distractor | claim |\n|---|---|---|---|---|---|---|---|\n\n## Transfer\n"
 	case ctxTypeBriefing:
 		return "> Derive, don't trust: pair every volatile fact below with the command that derives it, so a reader re-derives it instead of trusting a copy. End with a dated, second-verified delta.\n\n## Artifacts\n\n## Map\n\n## Roles\n\n## Rules\n\n## Derived facts\n\n## Delta\n\n2026-10-11 — <replace this dated example with the first second-verified change>\n"
 	default:
@@ -311,7 +331,7 @@ var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a context/ work file with frontmatter",
 	Long: `Create a plan, analysis, worklog, notes, questions, proposal, prompt,
-research, architecture, decision or wiki
+research, architecture, decision, wiki or lesson
 file under context/ with the correct naming and the full per-type YAML
 frontmatter (kind, summary, context, status, created, updated, project plus
 per-type fields). The body comes from --input/--file or piped stdin. Existing
@@ -328,7 +348,9 @@ validated against the type's vocabulary (the type's default when omitted; a type
 without a status rejects the flag). --source records a derivation reference in
 ` + "`sources`" + ` and ` + "`links`" + ` (repeatable). Wiki pages
 accept subpath ids (` + "`--slug backend/auth`" + `) and carry ` + "`id`" + ` equal to that
-subpath. --agent and --role record who produced a notes/worklog entry;
+subpath; a lesson does the same, carries ` + "`concept`" + ` equal to its id and defaults
+` + "`--source`" + ` to ` + "`wiki/<id>.md`" + `. --agent and --role record who produced a
+notes/worklog entry;
 --note-type sets the notes subtype (e.g. ` + "`dead-end`" + `). The
 command prints the created file path (--format text|json|yaml).
 
@@ -351,7 +373,7 @@ Examples:
 		}
 		rawSlug := getStringFlag(cmd, "slug", false)
 		slug := sanitizeSlug(rawSlug)
-		if typ == ctxTypeWiki && rawSlug != "" {
+		if (typ == ctxTypeWiki || typ == ctxTypeLesson) && rawSlug != "" {
 			cleaned, err := ctxCleanSlug(rawSlug, true)
 			exitWithError(cmd, err)
 			slug = cleaned
@@ -360,13 +382,25 @@ Examples:
 		if slug == "" && title != "" {
 			slug = sanitizeSlug(title)
 		}
-		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki) && slug == "" {
+		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki || typ == ctxTypeLesson) && slug == "" {
 			exitWithError(cmd, fmt.Errorf("--title or --slug is required for type %s", typ))
 		}
 		note := getStringFlag(cmd, "context", false)
 		summary := getStringFlag(cmd, "summary", false)
 		objective := getStringFlag(cmd, "objective", false)
 		sources := sanitizeReferenceList(getStringArrayFlag(cmd, "source", false))
+		// A lesson is the teaching composition over exactly one wiki page: its id
+		// mirrors the concept and it cites that page. The source defaults to the
+		// page so the derivation is never a thing the author has to remember, and
+		// a --source naming another page is refused rather than silently kept.
+		if typ == ctxTypeLesson {
+			pageRef := "wiki/" + slug + sdtMarkdownExt
+			if len(sources) == 0 {
+				sources = []string{pageRef}
+			} else if !slices.Contains(sources, pageRef) {
+				exitWithError(cmd, fmt.Errorf("--type lesson cites its concept page: --source must include %q, got %s", pageRef, strings.Join(sources, ", ")))
+			}
+		}
 		// --todo records the register entries this work answers. A plan inherits them
 		// from its analysis source when it carries none of its own, so the obligation
 		// travels with the work rather than being retyped.

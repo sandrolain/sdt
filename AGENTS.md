@@ -143,8 +143,9 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/cli.md` | Looking up usage examples |
 | `sdt context get/set/unset`, `sdt q` | Frontmatter keys, JSON by gjson path |
 | `context/scripts/`, `context/instructions/scripts.md` | Running or adding a bundled script |
-| `context/instructions/wiki.md` | Writing or updating wiki pages |
-| `context/instructions/learning.md` | Learning, quizzing or explaining a concept |
+| `context/instructions/wiki.md` | Writing wiki pages |
+| `context/instructions/learning.md` | Learning, quizzing, explaining |
+| `context/instructions/lesson.md` | Writing a lesson and its items |
 | `context/instructions/briefing.md` | Writing or updating a briefing |
 | `context/instructions/debugging.md` | Diagnosing a failure or regression |
 | `context/instructions/development.md` | Writing code |

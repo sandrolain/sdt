@@ -291,6 +291,13 @@ export const STATUS_VALUES: Record<string, ValueLabel> = {
   "wiki.draft": { label: "Draft", meaning: "Being written", tone: "warn" },
   "wiki.active": { label: "Active", meaning: "Live page", tone: "ok" },
   "wiki.archived": { label: "Archived", meaning: "Retired", tone: "neutral" },
+  "lesson.draft": { label: "Draft", meaning: "Being written", tone: "warn" },
+  "lesson.active": {
+    label: "Active",
+    meaning: "The concept can be taught from it",
+    tone: "ok",
+  },
+  "lesson.archived": { label: "Archived", meaning: "Retired", tone: "neutral" },
   "briefing.draft": { label: "Draft", meaning: "Being written", tone: "warn" },
   "briefing.active": {
     label: "Active",

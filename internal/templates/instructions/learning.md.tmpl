@@ -10,7 +10,7 @@ general recall, and what the learner produces stays separate from wiki knowledge
 Read it with `context/instructions/wiki.md`; add `instructions/ingestion.md` when a
 source is involved and `instructions/research.md` only when the user asks to
 ground a gap. It names the deterministic helpers, never a tutor runtime. Their
-usage comes from `--help` (`sdt learn inspect|status|resume|quiz|review|record`),
+usage comes from `--help` (`sdt learn inspect|status|resume|quiz|review|check|record`),
 never from memory.
 
 **When this applies.** The user wants to **learn**, be **reviewed**, **quizzed** or
@@ -20,13 +20,32 @@ stop: a lesson is not a substitute for a page, and one written from recall is no
 knowledge here. Offer the research lane only when the user asks to ground the gap
 (`>research-learn`).
 
+## Readiness
+
+A concept is teachable when its page and its lesson can carry a complete lesson.
+`sdt learn check <concept>...` answers that, and the six rules are the whole
+policy — stated here once, applied in one function:
+
+1. the page `status` is `active`;
+2. the page carries at least **4 claims** (three items need three distinct claims,
+   the `transfer` item a fourth);
+3. `maturity` is not `wip`;
+4. the page carries a `learning:` block with 2–4 objectives;
+5. a lesson document exists for the concept (`context/learning/<concept-id>.md`);
+6. every objective has at least one item.
+
+A **stamp is not a rule**. A page without `verified_at` is teachable; the verdict
+reports `verified`/`unverified` beside itself, and `--verified-only` narrows the
+report to stamped concepts without changing any verdict. Never refuse to teach
+because a document is unstamped, and never stamp one to make it teachable.
+
 ## Classify the intent
 
 | Intent | The learner asks for | You give back |
 |---|---|---|
 | learn | the outcome they want | an explanation they can re-derive |
 | explain | a question | an answer grounded in named pages |
-| quiz | the concepts to cover | questions whose stored answer carries no hint |
+| quiz | the concepts to cover | questions from the lesson's item bank, with no stored answer shown |
 | practise | a task with a checkable result | the task, not the solution |
 | review | what is due or weak | the queue, worst first |
 | research | a gap the corpus cannot close | sources, through `research.md` |

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -100,6 +101,45 @@ func dirFiles(dir string) ([]string, error) {
 			continue
 		}
 		files = append(files, filepath.Join(dir, e.Name()))
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+// dirFilesFor is dirFiles for a registered directory, and recurses when that
+// type's path scheme is subpath: a kind whose ids are subpaths (a lesson mirrors
+// its concept) keeps its documents in nested directories, and a flat read would
+// silently index none of them. Every other type stays flat, so the walk of the
+// corpus is unchanged where it was.
+func dirFilesFor(dir string) ([]string, error) {
+	t, ok := ctxTypeForDir(dir)
+	if !ok || t.scheme != ctxSchemeSubpath {
+		return dirFiles(dir)
+	}
+	return walkMarkdownFiles(dir)
+}
+
+// walkMarkdownFiles returns every .md file under root, at any depth.
+func walkMarkdownFiles(root string) ([]string, error) {
+	var files []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() || filepath.Ext(path) != sdtMarkdownExt {
+			return nil
+		}
+		files = append(files, path)
+		return nil
+	})
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	sort.Strings(files)
 	return files, nil

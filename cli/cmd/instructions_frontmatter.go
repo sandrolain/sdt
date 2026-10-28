@@ -41,6 +41,8 @@ var frontmatterFamilyRegister = []frontmatterFamily{
 		Keys: []string{ctxFrontmatterRigor}},
 	{Slug: "objectives", Title: "Objectives", Summary: "the grouping key and the objective checklist",
 		Keys: []string{ctxFrontmatterObjective}},
+	{Slug: "learning", Title: "Learning block", Summary: "the objectives, difficulty and review time a concept page states",
+		Keys: []string{ctxFrontmatterLearning}},
 }
 
 // frontmatterFamilyBySlug resolves a slug against the register.

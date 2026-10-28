@@ -74,6 +74,7 @@ var contextTypeList = []ctxDocType{
 	{kind: ctxTypeTmp, dir: sdtTmpDir, tier: "", scheme: ctxSchemeTmpBySlug, pathSupported: true, statusRow: false},
 	{kind: ctxTypeCommands, dir: sdtCommandsDir, tier: ctxTierOperational, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusActive, statuses: []string{taskFileStatusLegacy}, listSupported: true, statusRow: true},
 	{kind: ctxTypeWiki, dir: sdtWikiDir, tier: "", scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, taskFileStatusLegacy, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "wiki.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: false},
+	{kind: ctxTypeLesson, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "lesson.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 	{kind: ctxTypeBriefing, dir: sdtBriefingDir, tier: ctxTierImportant, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "briefing.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 }
 

@@ -35,7 +35,10 @@ var ctxDeclaredKeys = map[string]bool{
 	// Provenance and annotations.
 	ctxFrontmatterAgent: true, "model": true, "session": true, "role": true, "note_type": true,
 	"claimed_by": true, "claimed_at": true, "inventory": true,
-	"via": true, "project": true, "group": true, "id": true, "tier": true,
+	// A lesson names the concept page it teaches; the key is written by
+	// `context new --type lesson`, so it is declared here.
+	ctxFrontmatterConcept: true,
+	"via":                 true, "project": true, "group": true, "id": true, "tier": true,
 	// Index/viewer generated markers.
 	"_generated": true, "position": true, "order": true,
 	// Document-type-specific fields used by existing templates/docs.

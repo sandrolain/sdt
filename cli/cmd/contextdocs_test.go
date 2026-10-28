@@ -236,13 +236,13 @@ func TestAgentBlockWikiInstruction(t *testing.T) {
 	}
 	hasRow := false
 	for _, line := range strings.Split(block, "\n") {
-		if strings.Contains(line, "context/instructions/wiki.md") && strings.Contains(line, "Writing or updating wiki pages") {
+		if strings.Contains(line, "context/instructions/wiki.md") && strings.Contains(line, "Writing wiki pages") {
 			hasRow = true
 			break
 		}
 	}
 	if !hasRow {
-		t.Error("expected trigger table row 'Writing or updating wiki pages' for wiki.md")
+		t.Error("expected trigger table row 'Writing wiki pages' for wiki.md")
 	}
 	found := false
 	for _, f := range instructionFiles("p", "g") {

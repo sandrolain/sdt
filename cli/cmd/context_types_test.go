@@ -15,10 +15,10 @@ import (
 // hand-written type lists in commands (stale-drift guard).
 
 const (
-	wantNewTypes      = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|wiki|briefing"
-	wantPathTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|briefing"
-	wantListTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|briefing"
-	wantTemplateTypes = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki|briefing"
+	wantNewTypes      = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|wiki|lesson|briefing"
+	wantPathTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|lesson|briefing"
+	wantListTypes     = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|lesson|briefing"
+	wantTemplateTypes = "plan|analysis|worklog|notes|questions|proposal|prompt|research|architecture|decision|tasks|wiki|lesson|briefing"
 )
 
 func TestContextTypeRegistry(t *testing.T) {

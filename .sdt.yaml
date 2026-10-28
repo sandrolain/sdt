@@ -19,7 +19,7 @@ gate:
     run: 'if [ -z "$(git status --porcelain -- web)" ]; then echo ''web: no change under web/, skipped (the gate validates the surface that changed)''; exit 0; fi; cd web && bun run lint && bun run test && bun run build'
 instructions:
   profiles: [core, knowledge, ui, vector, slides, mindmap, diagram, browser, roles]
-  frontmatter: [maturity, warrant, evidence, verified, rigor, objectives]
+  frontmatter: [maturity, warrant, evidence, verified, rigor, objectives, learning]
 
 agent:
   command: ["opencode", "acp"]

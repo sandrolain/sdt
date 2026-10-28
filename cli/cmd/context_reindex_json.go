@@ -37,7 +37,7 @@ const ctxIndexJSONPath = "context/index.json"
 func buildIndexJSON() (string, error) {
 	docs := make([]ctxIndexJSONDoc, 0)
 	for _, dir := range ctxIndexDirs {
-		files, err := dirFiles(dir)
+		files, err := dirFilesFor(dir)
 		if err != nil {
 			return "", err
 		}

@@ -2,6 +2,7 @@ import type { TreeEntry } from "./api";
 
 export type EntryKind =
   | "wiki"
+  | "lesson"
   | "instructions"
   | "analysis"
   | "notes"
@@ -22,6 +23,7 @@ export type EntryFilterKind = EntryKind | "canvas";
 /** Stable, deduped list of visible kinds, in corpus-sensible order. */
 export const KIND_ORDER: EntryKind[] = [
   "wiki",
+  "lesson",
   "instructions",
   "analysis",
   "notes",
@@ -42,6 +44,7 @@ export const KIND_ORDER: EntryKind[] = [
 /** Human plural labels for every kind's tree section header. */
 const KIND_LABELS: Record<EntryFilterKind, string> = {
   wiki: "Wiki",
+  lesson: "Lessons",
   instructions: "Instructions",
   analysis: "Analyses",
   notes: "Notes",
@@ -75,6 +78,7 @@ export function kindLabel(k: EntryFilterKind): string {
 /** Material Symbols glyph for a kind folder/entry. */
 const KIND_ICONS: Record<EntryFilterKind, string> = {
   wiki: "menu_book",
+  lesson: "school",
   instructions: "rule",
   analysis: "analytics",
   notes: "sticky_note_2",
@@ -96,6 +100,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
 /** Catppuccin token (CSS var reference) for a kind. */
 const KIND_COLORS: Record<EntryFilterKind, string> = {
   wiki: "var(--ctp-blue)",
+  lesson: "var(--ctp-teal)",
   instructions: "var(--ctp-rosewater)",
   analysis: "var(--ctp-mauve)",
   notes: "var(--ctp-green)",
@@ -124,6 +129,7 @@ export function kindColor(k: EntryFilterKind): string {
 
 /** Corpus folder names whose kind name differs (plural or renamed). */
 const FOLDER_KINDS: Record<string, EntryKind> = {
+  learning: "lesson",
   plans: "plan",
   decisions: "decision",
   proposals: "proposal",

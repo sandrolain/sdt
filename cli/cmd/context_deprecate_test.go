@@ -27,6 +27,7 @@ func TestDeprecateRegistryDeclaresARetiredStatus(t *testing.T) {
 		ctxTypeTasks:        taskFileStatusArchived,
 		ctxTypeWiki:         statusArchived,
 		ctxTypeBriefing:     statusArchived,
+		ctxTypeLesson:       statusArchived,
 	}
 	for _, tp := range contextTypeList {
 		got := tp.retiredStatus

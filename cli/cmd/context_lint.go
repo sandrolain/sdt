@@ -86,9 +86,15 @@ const (
 	ctxFrontmatterMaturity     = "maturity"
 	ctxFrontmatterSupersededBy = "superseded_by"
 	ctxFrontmatterWarrant      = "warrant"
-	ctxMaturitySuperseded      = "superseded"
-	ctxMaturityEstablished     = "established"
-	ctxMaturityCanonical       = "canonical"
+	// ctxFrontmatterLearning is the nested block a concept page carries: its
+	// objectives, difficulty and review time, the page's half of the teaching
+	// pair whose other half is the lesson document.
+	ctxFrontmatterLearning = "learning"
+	// ctxFrontmatterConcept is the key a lesson uses to name the page it teaches.
+	ctxFrontmatterConcept  = "concept"
+	ctxMaturitySuperseded  = "superseded"
+	ctxMaturityEstablished = "established"
+	ctxMaturityCanonical   = "canonical"
 )
 
 // ctxMaturityValues is the closed cross-kind maturity vocabulary. The ladder is
@@ -644,6 +650,9 @@ func lintDoc(path string) []ctxLintIssue {
 	issues = append(issues, lintOptionalFrontmatterFamilies(path, content, kind, prio)...)
 	issues = append(issues, lintQuestionsDeferredReason(path, content, kind)...)
 	issues = append(issues, lintBriefing(path, content, kind)...)
+	// A lesson's shape is mechanical (four ordered sections, one item table with
+	// fixed columns), so it is checked rather than described.
+	issues = append(issues, lintLesson(path, content, kind)...)
 	// Immutable identifier: presence (severity flips after the backfill) and
 	// canonical UUIDv7 form. Duplicate detection is corpus-wide (below).
 	issues = append(issues, lintUIDField(path, content, kind, prio)...)
@@ -826,7 +835,7 @@ func lintFixTargets(cmd *cobra.Command, args []string) {
 		}
 	} else {
 		for _, dir := range ctxIndexDirs {
-			files, err := dirFiles(dir)
+			files, err := dirFilesFor(dir)
 			exitWithError(cmd, err)
 			targets = append(targets, files...)
 		}
@@ -1830,7 +1839,7 @@ closed document. Every change is named on stdout.`,
 		} else {
 			var allFiles []string
 			for _, dir := range ctxIndexDirs {
-				files, err := dirFiles(dir)
+				files, err := dirFilesFor(dir)
 				exitWithError(cmd, err)
 				allFiles = append(allFiles, files...)
 				for _, f := range files {
@@ -1988,6 +1997,10 @@ func lintOptionalFrontmatterFamilies(path, content, kind string, prio func(strin
 	}
 	if families["rigor"] {
 		issues = append(issues, lintWaveVocabulary(path, content)...)
+	}
+	if families["learning"] {
+		// A concept page's objectives block: absent is normal, present is checked.
+		issues = append(issues, lintLearningBlock(path, content, kind)...)
 	}
 	return issues
 }
