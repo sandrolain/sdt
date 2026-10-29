@@ -7,6 +7,13 @@ export const THEME_KEY = "sdt-theme";
 export const THEME_LABEL = (p: ThemePreference) =>
   p === "light" ? "light" : p === "dark" ? "dark" : "system";
 
+/** The theme state as a Material Symbols ligature, the one icon idiom the shell uses. */
+export const THEME_ICON: Record<ThemePreference, string> = {
+  light: "light_mode",
+  dark: "dark_mode",
+  system: "contrast",
+};
+
 /** Resolve the applied theme from a preference and the OS preference. */
 export function pickTheme(pref: ThemePreference, systemDark: boolean): AppliedTheme {
   if (pref === "system") return systemDark ? "dark" : "light";

@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { Icon } from "../lib/icon";
-import { THEME_LABEL } from "../lib/theme";
+import { THEME_ICON, THEME_LABEL } from "../lib/theme";
 import { useTheme } from "../lib/useTheme";
 import { ReadingSettings } from "./ReadingSettings";
 
@@ -35,14 +35,6 @@ function isDocumentsRoute(pathname: string): boolean {
   if (!pathname.startsWith("/docs/")) return false;
   return !DOCS_VIEW_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
-
-/** One icon idiom (V3): the theme state is a Material Symbols ligature like
- *  every other icon in the shell, not a literal glyph. */
-const THEME_ICON: Record<string, string> = {
-  light: "light_mode",
-  dark: "dark_mode",
-  system: "contrast",
-};
 
 export function TopBar({ onOpenSearch, onOpenAgent }: TopBarProps) {
   const { pref, cycle } = useTheme();

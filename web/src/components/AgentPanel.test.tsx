@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AgentPanel } from "./AgentPanel";
+import { ThemeProvider } from "./ThemeProvider";
 import {
   DEFAULT_PANEL_WIDTH,
   MAX_PANEL_WIDTH,
@@ -991,6 +992,23 @@ describe("the pet's controls", () => {
     await userEvent.click(screen.getByRole("button", { name: "Hide the pet" }));
     expect(document.querySelector(".agent-panel__state-word--band")).toBeNull();
     expect(document.querySelector(".agent-panel__state-word--header")?.textContent).toBe("idle");
+  });
+
+  it("cycles the theme from the panel, where the top bar's control cannot be reached", async () => {
+    localStorage.removeItem("sdt-theme");
+    render(
+      <ThemeProvider>
+        <AgentPanel open onOpenChange={vi.fn()} />
+      </ThemeProvider>,
+    );
+    const control = await screen.findByRole("button", { name: /^Theme: / });
+    const before = control.getAttribute("aria-label");
+    await userEvent.click(control);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^Theme: / }).getAttribute("aria-label")).not.toBe(
+        before,
+      );
+    });
   });
 
   it("offers the style menu only while there is a pet to style", async () => {

@@ -41,7 +41,9 @@ import {
 import type { PetVariant } from "../lib/pet/types";
 import { petSignal, usePetState } from "../lib/petState";
 import { petTimingFor } from "../lib/petTimings";
+import { THEME_ICON, THEME_LABEL } from "../lib/theme";
 import { useDocumentTheme } from "../lib/themeAttr";
+import { useThemeOptional } from "../lib/useTheme";
 import { is2DVariant } from "../lib/pet/types";
 import {
   Suspense,
@@ -264,6 +266,10 @@ export function AgentPanel({
   const [petOn, setPetOn] = useState(readPetEnabled);
   const [petVariant, setPetVariant] = useState(readPetVariant);
   const theme = useDocumentTheme();
+  // The top bar's control sits behind the panel's own backdrop, so a reader who
+  // wants to see the pet in the other theme would close the surface they are
+  // checking. The panel carries the same control, with the same cycle.
+  const themeState = useThemeOptional();
   const effectivePet = effectiveVariant(petVariant, theme);
 
   const togglePet = () => {
@@ -389,6 +395,18 @@ export function AgentPanel({
                       onPress={() => void startOver()}
                     >
                       <Icon name="add_comment" />
+                    </TooltipButton>
+                  )}
+                  {/* The same control as the top bar's, repeated here because the modal's
+                      backdrop stands between a reader and that one. */}
+                  {themeState && (
+                    <TooltipButton
+                      className="agent-panel__icon-button"
+                      label={`Theme: ${THEME_LABEL(themeState.pref)}`}
+                      tooltip={`Theme: ${THEME_LABEL(themeState.pref)} — click to cycle`}
+                      onPress={themeState.cycle}
+                    >
+                      <Icon name={THEME_ICON[themeState.pref]} />
                     </TooltipButton>
                   )}
                   {/* The style menu exists only while there is a pet to style; the toggle is
