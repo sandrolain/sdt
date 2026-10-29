@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // cleanFixture puts one file in the trash and one in tmp, so every case can
@@ -160,5 +161,72 @@ func TestCleanBothTargetsInOneRun(t *testing.T) {
 		if tg.Count != 1 {
 			t.Errorf("%s: count = %d, want 1", tg.Dir, tg.Count)
 		}
+	}
+}
+
+// ageFile moves a file's mtime back so a cutoff can select it.
+func ageFile(t *testing.T, path string, age time.Duration) {
+	t.Helper()
+	when := time.Now().Add(-age)
+	if err := os.Chtimes(path, when, when); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestCleanOlderThanSparesFreshWork: a cutoff narrows the sweep to the files it
+// selects, and the fresh file the filter exists to spare survives.
+func TestCleanOlderThanSparesFreshWork(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, filepath.Join(sdtTmpDir, "old.txt"), "old\n")
+	writeTestFile(t, filepath.Join(sdtTmpDir, "fresh.txt"), "fresh\n")
+	ageFile(t, filepath.Join(sdtTmpDir, "old.txt"), 40*24*time.Hour)
+
+	out := string(execute(t, contextCleanCmd, nil, "--tmp", "--older-than", "30d", "--dry-run"))
+	if !strings.Contains(out, "old.txt") || strings.Contains(out, "fresh.txt") {
+		t.Fatalf("the cutoff did not narrow the plan:\n%s", out)
+	}
+
+	execute(t, contextCleanCmd, nil, "--tmp", "--older-than", "30d")
+	if _, err := os.Stat(filepath.Join(sdtTmpDir, "old.txt")); !os.IsNotExist(err) {
+		t.Errorf("the old file was not removed")
+	}
+	if _, err := os.Stat(filepath.Join(sdtTmpDir, "fresh.txt")); err != nil {
+		t.Errorf("the fresh file was removed: %v", err)
+	}
+}
+
+// TestCleanCensusReportsAnOrphanTask: a task file whose plan resolves to nothing
+// is residue, and the census reports it without deleting it.
+func TestCleanCensusReportsAnOrphanTask(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, filepath.Join(sdtTasksDir, "20260101-000000-gone-phase-1.md"),
+		"---\nkind: tasks\nstatus: completed\nsources:\n  - plan/20260101-000000-gone.md\n---\n\n- [x] step\n")
+	ageFile(t, filepath.Join(sdtTasksDir, "20260101-000000-gone-phase-1.md"), 40*24*time.Hour)
+
+	out := string(execute(t, contextCleanCmd, nil, "--census", "--older-than", "30d"))
+	if !strings.Contains(out, "orphan tasks") || !strings.Contains(out, "gone-phase-1") {
+		t.Fatalf("the census missed the orphan task:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(sdtTasksDir, "20260101-000000-gone-phase-1.md")); err != nil {
+		t.Errorf("the census deleted without --apply: %v", err)
+	}
+
+	execute(t, contextCleanCmd, nil, "--census", "--older-than", "30d", "--apply")
+	if _, err := os.Stat(filepath.Join(sdtTasksDir, "20260101-000000-gone-phase-1.md")); !os.IsNotExist(err) {
+		t.Errorf("--apply did not remove the orphan task")
+	}
+}
+
+// TestCleanCensusLeavesARecord: an old analysis is history, never a candidate,
+// even when it is older than every cutoff.
+func TestCleanCensusLeavesARecord(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, filepath.Join(sdtAnalysisDir, "20200101-000000-old.md"),
+		"---\nkind: analysis\nsummary: an old record\n---\n\n## Problem statement\n")
+	ageFile(t, filepath.Join(sdtAnalysisDir, "20200101-000000-old.md"), 900*24*time.Hour)
+
+	out := string(execute(t, contextCleanCmd, nil, "--census", "--older-than", "30d"))
+	if strings.Contains(out, "20200101-000000-old") {
+		t.Fatalf("a record was reported as residue:\n%s", out)
 	}
 }

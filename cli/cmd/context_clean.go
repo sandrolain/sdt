@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -50,16 +51,23 @@ func ctxCleanTargets(cmd *cobra.Command) []string {
 // ctxCleanPlan lists the files a target holds, sorted, relative to the corpus
 // root. A missing directory is an empty plan rather than an error: the caller
 // asked for it to be empty, and it already is.
-func ctxCleanPlan(dir string) ([]string, error) {
+func ctxCleanPlan(dir string, cutoff time.Time) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			//nolint:nilerr // an unreadable entry still leaves the rest to remove
 			return nil
 		}
-		if !d.IsDir() {
-			files = append(files, filepath.ToSlash(path))
+		if d.IsDir() {
+			return nil
 		}
+		if !cutoff.IsZero() {
+			info, ierr := d.Info()
+			if ierr != nil || !info.ModTime().Before(cutoff) {
+				return nil
+			}
+		}
+		files = append(files, filepath.ToSlash(path))
 		return nil
 	})
 	if os.IsNotExist(err) {
@@ -151,15 +159,21 @@ EXAMPLE — ` + "`sdt context clean --trash --dry-run`" + `
   sdt context clean --trash --tmp --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		if getBoolFlag(cmd, "census", false) {
+			runCleanCensus(cmd)
+			return
+		}
 		dirs := ctxCleanTargets(cmd)
 		if len(dirs) == 0 {
 			exitWithError(cmd, fmt.Errorf("a target is required: pass --trash, --tmp, or both — this command never empties a directory it was not asked to"))
 			return
 		}
 		dryRun := getBoolFlag(cmd, "dry-run", false)
+		cutoff, err := ctxCleanCutoff(getStringFlag(cmd, "older-than", false))
+		exitWithError(cmd, err)
 		res := ctxCleanResult{Targets: make([]ctxCleanTarget, 0, len(dirs)), DryRun: dryRun}
 		for _, dir := range dirs {
-			files, err := ctxCleanPlan(dir)
+			files, err := ctxCleanPlan(dir, cutoff)
 			exitWithError(cmd, err)
 			if files == nil {
 				files = []string{}
@@ -168,9 +182,20 @@ EXAMPLE — ` + "`sdt context clean --trash --dry-run`" + `
 			if dryRun {
 				continue
 			}
-			if err := ctxEmptyDir(dir); err != nil {
-				exitWithError(cmd, err)
-				return
+			// A cutoff narrows the sweep to the files it selected: emptying the
+			// directory would take the fresh work the filter exists to spare.
+			if cutoff.IsZero() {
+				if err := ctxEmptyDir(dir); err != nil {
+					exitWithError(cmd, err)
+					return
+				}
+				continue
+			}
+			for _, file := range files {
+				if err := os.Remove(file); err != nil {
+					exitWithError(cmd, err)
+					return
+				}
 			}
 		}
 		outputCleanResult(cmd, res)
@@ -182,4 +207,7 @@ func init() {
 	f.Bool("trash", false, "Empty context/trash")
 	f.Bool("tmp", false, "Empty context/tmp")
 	f.Bool("dry-run", false, "List what would be removed without removing it")
+	f.String("older-than", "", "Only files last modified before this: a duration (30d, 12h, 3w) or an RFC3339 timestamp")
+	f.Bool("census", false, "Report the residue classes (tmp, orphan tasks, stale generated) instead of emptying a target")
+	f.Bool("apply", false, "With --census: remove the files the census reported")
 }
