@@ -21,6 +21,12 @@ import {
   type AgentStateEnvelope,
 } from "../lib/agent";
 import { PET_ENABLED_KEY, PET_VARIANT_KEY } from "../lib/petPreference";
+import {
+  DEFAULT_PET_HEIGHT,
+  MAX_PET_HEIGHT,
+  MIN_PET_HEIGHT,
+  PET_HEIGHT_KEY,
+} from "../lib/petHeight";
 
 /** FakeEventSource is the browser side the panel talks to, driven by the test. */
 class FakeEventSource {
@@ -219,15 +225,17 @@ describe("AgentPanel", () => {
     expect(document.querySelector(".agent-thread__viewport")).toBeTruthy();
   });
 
-  it("shows the command the project declared and starts nothing until it is asked", async () => {
+  it("offers the start without printing the argv it will run", async () => {
     const calls = mockViewer();
     render(<AgentPanel open onOpenChange={vi.fn()} />);
 
     expect(await screen.findByRole("button", { name: "Start the agent" })).toBeTruthy();
     expect(calls[0].path).toBe(AGENT_STATE_PATH);
     expect(calls[0].init?.method).toBe("GET");
-    // What will run is on screen, and the reader never types it.
-    expect(screen.getByText("opencode acp")).toBeTruthy();
+    // A start is one click and the argv is the project's: the panel does not put what will
+    // run on screen, so a reader meets a state and a control, not a command line.
+    expect(screen.queryByText("opencode acp")).toBeNull();
+    expect(document.querySelector(".agent-panel__recipe")).toBeNull();
     expect(FakeEventSource.instances).toHaveLength(0);
     expect(calls.filter((call) => call.path === AGENT_ACTIVATE_PATH)).toHaveLength(0);
   });
@@ -1042,5 +1050,110 @@ describe("the pet's controls", () => {
       screen.getByRole("menuitemradio", { name: "Dot" }).getAttribute("aria-disabled"),
     ).toBeNull();
     expect(screen.getByText(/need the dark theme/)).toBeTruthy();
+  });
+
+  /**
+   * The band's height is a second browser preference with the width's whole shape: read on
+   * mount, written at the end of a gesture, bounded by the same numbers the stylesheet paints.
+   */
+  describe("the band's height", () => {
+    const handle = () => screen.getByRole("separator", { name: "Resize the pet band" });
+    const band = () => document.querySelector(".agent-panel__pet");
+    const panel = () => screen.getByRole("dialog", { name: "Agent chat" });
+    const height = () => Number(handle().getAttribute("aria-valuenow"));
+    const painted = () => panel().style.getPropertyValue("--agent-pet-h");
+
+    it("puts the band under the header, above the conversation", async () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      await waitFor(() => expect(band()).not.toBeNull());
+      const header = document.querySelector(".agent-panel__header");
+      const body = document.querySelector(".agent-panel__body");
+      expect(
+        header!.compareDocumentPosition(band()!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        band()!.compareDocumentPosition(body!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it("opens at the remembered height, and at the default when nothing is remembered", () => {
+      mockViewer();
+      const first = render(<AgentPanel open onOpenChange={vi.fn()} />);
+      expect(height()).toBe(DEFAULT_PET_HEIGHT);
+      expect(painted()).toBe(`${DEFAULT_PET_HEIGHT}px`);
+      first.unmount();
+
+      localStorage.setItem(PET_HEIGHT_KEY, "240");
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      expect(height()).toBe(240);
+      expect(painted()).toBe("240px");
+    });
+
+    it("drags the lower edge to a new height and remembers where the reader left it", () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+
+      fireEvent.pointerDown(handle(), { pointerId: 1, clientY: 200 });
+      expect(handle().hasAttribute("data-resizing")).toBe(true);
+      fireEvent.pointerMove(handle(), { pointerId: 1, clientY: 260 });
+      expect(height()).toBe(DEFAULT_PET_HEIGHT + 60);
+      expect(painted()).toBe(`${DEFAULT_PET_HEIGHT + 60}px`);
+      // Nothing is written while the pointer is down: the reader is still choosing.
+      expect(localStorage.getItem(PET_HEIGHT_KEY)).toBeNull();
+
+      fireEvent.pointerUp(handle(), { pointerId: 1, clientY: 260 });
+      expect(handle().hasAttribute("data-resizing")).toBe(false);
+      expect(localStorage.getItem(PET_HEIGHT_KEY)).toBe(String(DEFAULT_PET_HEIGHT + 60));
+    });
+
+    it("steps the height from the keyboard and remembers the step", () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+
+      fireEvent.keyDown(handle(), { key: "ArrowDown" });
+      expect(height()).toBe(DEFAULT_PET_HEIGHT + 24);
+      fireEvent.keyDown(handle(), { key: "ArrowDown", shiftKey: true });
+      expect(height()).toBe(DEFAULT_PET_HEIGHT + 32);
+      expect(localStorage.getItem(PET_HEIGHT_KEY)).toBe(String(DEFAULT_PET_HEIGHT + 32));
+
+      fireEvent.keyDown(handle(), { key: "ArrowUp" });
+      expect(height()).toBe(DEFAULT_PET_HEIGHT + 8);
+
+      fireEvent.keyDown(handle(), { key: "Home" });
+      expect(height()).toBe(DEFAULT_PET_HEIGHT);
+    });
+
+    it("bounds the height at both ends, however far the pointer travels", () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+
+      fireEvent.pointerDown(handle(), { pointerId: 1, clientY: 300 });
+      fireEvent.pointerMove(handle(), { pointerId: 1, clientY: 5000 });
+      expect(height()).toBe(MAX_PET_HEIGHT);
+
+      fireEvent.pointerMove(handle(), { pointerId: 1, clientY: -5000 });
+      expect(height()).toBe(MIN_PET_HEIGHT);
+
+      fireEvent.pointerUp(handle(), { pointerId: 1, clientY: -5000 });
+      expect(localStorage.getItem(PET_HEIGHT_KEY)).toBe(String(MIN_PET_HEIGHT));
+    });
+
+    it("leaves an unrelated key to the page", () => {
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      fireEvent.keyDown(handle(), { key: "Tab" });
+      expect(height()).toBe(DEFAULT_PET_HEIGHT);
+      expect(localStorage.getItem(PET_HEIGHT_KEY)).toBeNull();
+    });
+
+    it("offers no band and no handle with the pet off", async () => {
+      localStorage.setItem(PET_ENABLED_KEY, "off");
+      mockViewer();
+      render(<AgentPanel open onOpenChange={vi.fn()} />);
+      expect(await screen.findByRole("button", { name: "Show the pet" })).toBeTruthy();
+      expect(band()).toBeNull();
+      expect(screen.queryByRole("separator", { name: "Resize the pet band" })).toBeNull();
+    });
   });
 });

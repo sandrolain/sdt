@@ -1,10 +1,12 @@
 /**
- * The pet's band: a fixed-height strip above the composer that gives the agent panel a face.
+ * The pet's band: the strip under the panel's header that gives the agent a face.
  *
- * It is lazy-loaded (the panel `lazy()`s this module) so `three` never joins the entry
- * chunk. The state machine itself lives in `web/src/lib/petState.ts` (`usePetState`) and the
- * panel owns it, because the state is also said in words — this component only applies the
- * state it is handed and owns the pulse.
+ * Its height is the reader's (`--agent-pet-h`, set by the panel's lower-edge handle and
+ * remembered in `lib/petHeight.ts`); the band declares it, so the lazy chunk arriving never
+ * resizes the thread. It is lazy-loaded (the panel `lazy()`s this module) so `three` never
+ * joins the entry chunk. The state machine itself lives in `web/src/lib/petState.ts`
+ * (`usePetState`) and the panel owns it, because the state is also said in words — this
+ * component only applies the state it is handed and owns the pulse.
  *
  * Motion follows the doctrine: the loop rests when the agent rests (`idle`/`sleeping`), a
  * reduced-motion reader gets one settled frame per state change, and a hidden document

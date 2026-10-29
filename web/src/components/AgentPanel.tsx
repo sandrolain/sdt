@@ -13,7 +13,9 @@
  * guessed would disagree with it exactly when a restart is in flight.
  *
  * Its width is the reader's too: the handle on the panel's inline-start edge drags and
- * steps it, and the value is remembered across sessions.
+ * steps it, and the value is remembered across sessions. The pet band under the header
+ * carries the same idea on the other axis: its lower edge is a handle, and its height is a
+ * browser preference.
  */
 import {
   Button,
@@ -65,6 +67,14 @@ import {
   readPanelWidth,
   writePanelWidth,
 } from "../lib/agentPanelWidth";
+import {
+  clampPetHeight,
+  DEFAULT_PET_HEIGHT,
+  MAX_PET_HEIGHT,
+  MIN_PET_HEIGHT,
+  readPetHeight,
+  writePetHeight,
+} from "../lib/petHeight";
 import {
   activateAgent,
   cancelCommand,
@@ -284,6 +294,7 @@ export function AgentPanel({
   };
 
   const [width, setWidth] = useState(readPanelWidth);
+  const [petHeight, setPetHeight] = useState(readPetHeight);
 
   // One derivation for the band and the word: the panel owns the machine, because the state
   // must stay readable while the pet itself is off. The signal is the thread's own facts,
@@ -301,6 +312,14 @@ export function AgentPanel({
     const clamped = clampPanelWidth(next);
     setWidth(clamped);
     writePanelWidth(clamped);
+  };
+
+  const dragPet = (next: number) => setPetHeight(clampPetHeight(next));
+
+  const commitPet = (next: number) => {
+    const clamped = clampPetHeight(next);
+    setPetHeight(clamped);
+    writePetHeight(clamped);
   };
 
   const onPrompt = (event: FormEvent<HTMLFormElement>) => {
@@ -368,7 +387,12 @@ export function AgentPanel({
         <Dialog
           className="agent-panel"
           aria-label="Agent chat"
-          style={{ "--agent-panel-w": `${width}px` } as CSSProperties}
+          style={
+            {
+              "--agent-panel-w": `${width}px`,
+              "--agent-pet-h": `${petHeight}px`,
+            } as CSSProperties
+          }
         >
           {({ close }) => (
             <>
@@ -433,6 +457,25 @@ export function AgentPanel({
                   </TooltipButton>
                 </div>
               </header>
+              {/* The pet sits directly under the header, above the conversation, and its
+                  lower edge is the height control: the reader's band, with the state word
+                  it already carries. Both are absent while the pet is off, so no empty
+                  strip is left behind. */}
+              {petOn && (
+                <>
+                  <Suspense fallback={null}>
+                    <PetStrip
+                      phase={phase}
+                      signal={signal}
+                      state={petState}
+                      variant={effectivePet}
+                      family={is2DVariant(effectivePet) ? "2d" : "webgl"}
+                      theme={theme}
+                    />
+                  </Suspense>
+                  <PetBandResizeHandle height={petHeight} onDrag={dragPet} onCommit={commitPet} />
+                </>
+              )}
               <div
                 className={`agent-panel__body${
                   phase === "active" && envelope ? " agent-panel__body--thread" : ""
@@ -470,7 +513,6 @@ export function AgentPanel({
                         <p className="agent-panel__note">
                           {message === "" ? "The agent is not running." : message}
                         </p>
-                        <code className="agent-panel__recipe">{command.join(" ")}</code>
                         <button
                           type="button"
                           className="agent-panel__action"
@@ -524,18 +566,6 @@ export function AgentPanel({
                   <p className="agent-panel__note">Connected. Waiting for the agent…</p>
                 )}
               </div>
-              {petOn && (
-                <Suspense fallback={null}>
-                  <PetStrip
-                    phase={phase}
-                    signal={signal}
-                    state={petState}
-                    variant={effectivePet}
-                    family={is2DVariant(effectivePet) ? "2d" : "webgl"}
-                    theme={theme}
-                  />
-                </Suspense>
-              )}
               {phase === "active" && message !== "" && (
                 <p className="agent-panel__note agent-panel__note--error">{message}</p>
               )}
@@ -657,6 +687,83 @@ function PanelResizeHandle({
               ? width - step
               : event.key === "Home"
                 ? DEFAULT_PANEL_WIDTH
+                : null;
+        if (next === null) return;
+        event.preventDefault();
+        onCommit(next);
+      }}
+    />
+  );
+}
+
+/**
+ * PetBandResizeHandle is the pet band's lower edge as a control: a pointer drag and the
+ * keyboard on one focusable separator, on the other axis of the same ARIA window-splitter
+ * pattern `PanelResizeHandle` uses.
+ *
+ * Dragging downward opens the band toward the conversation; the preference is written at the
+ * end of a gesture, not on every move.
+ */
+function PetBandResizeHandle({
+  height,
+  onDrag,
+  onCommit,
+}: {
+  height: number;
+  onDrag: (next: number) => void;
+  onCommit: (next: number) => void;
+}) {
+  // The drag's origin, held across pointer moves: a move reports a position, not a delta.
+  const drag = useRef<{ y: number; height: number } | null>(null);
+  const [resizing, setResizing] = useState(false);
+
+  /** heightAt is the height a pointer's y asks for: the band grows downward. */
+  const heightAt = (clientY: number) => {
+    const start = drag.current;
+    return start ? clampPetHeight(start.height + (clientY - start.y)) : height;
+  };
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize the pet band"
+      aria-valuemin={MIN_PET_HEIGHT}
+      aria-valuemax={MAX_PET_HEIGHT}
+      aria-valuenow={height}
+      tabIndex={0}
+      className="agent-panel__pet-resize"
+      data-resizing={resizing ? "" : undefined}
+      onPointerDown={(event) => {
+        drag.current = { y: event.clientY, height };
+        setResizing(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (drag.current) onDrag(heightAt(event.clientY));
+      }}
+      onPointerUp={(event) => {
+        if (!drag.current) return;
+        const next = heightAt(event.clientY);
+        drag.current = null;
+        setResizing(false);
+        onCommit(next);
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+        setResizing(false);
+      }}
+      onKeyDown={(event) => {
+        // The width handle's vocabulary on the vertical axis: a step, a finer step, and the
+        // way back to the height the band opens at.
+        const step = event.shiftKey ? 8 : 24;
+        const next =
+          event.key === "ArrowDown"
+            ? height + step
+            : event.key === "ArrowUp"
+              ? height - step
+              : event.key === "Home"
+                ? DEFAULT_PET_HEIGHT
                 : null;
         if (next === null) return;
         event.preventDefault();

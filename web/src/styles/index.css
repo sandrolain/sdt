@@ -388,15 +388,6 @@
     flex-direction: column;
     gap: 0.6rem;
   }
-  .agent-panel__recipe {
-    display: block;
-    padding: 0.5rem;
-    background: var(--bg-rise);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    font-size: 0.75rem;
-    overflow-x: auto;
-  }
   .agent-panel__field {
     display: flex;
     flex-direction: column;
@@ -746,28 +737,47 @@
     resize: none;
     overflow-y: hidden;
   }
-  /* The pet's band: a declared height above the composer, so the lazy WebGL chunk arriving
-     never resizes the thread, and the pet's own surface — the additive variants need a
-     stable colour behind them, which is the panel's mantle. Decorative: the band is
-     aria-hidden in the markup, because the state is already words in the thread. */
+  /* The pet's band: directly under the header, its height the reader's (declared inline as
+     `--agent-pet-h` beside the panel's width, with the default as the fallback so the lazy
+     WebGL chunk arriving never resizes the thread; `lib/petHeight.ts` owns the same three
+     numbers). The pet's own surface is the panel's mantle, which the additive variants need
+     behind them. Decorative: the canvas is aria-hidden in the markup, because the state is
+     already words in the band's corner. */
   .agent-panel__pet {
     position: relative;
     flex: none;
-    block-size: 11rem;
-    border-top: 1px solid var(--border);
+    block-size: var(--agent-pet-h, 11rem);
+    border-bottom: 1px solid var(--border);
     background: var(--bg-mantle);
     overflow: hidden;
   }
   /* The canvas fills the stage; the band itself is not hidden from assistive tech, because
      its corner carries the state in words. The stage keeps the characters' own 760×300
-     ratio and centres itself: a wide panel would otherwise stretch a pet drawn for 2.5:1
-     across the whole band. */
+     ratio from the same height the band uses and centres itself: a wide panel would
+     otherwise stretch a pet drawn for 2.5:1 across the whole band. */
   .agent-panel__pet-stage {
     position: absolute;
     inset-block: 0;
     left: 50%;
-    inline-size: min(100%, calc(11rem * 760 / 300));
+    inline-size: min(100%, calc(var(--agent-pet-h, 11rem) * 760 / 300));
     translate: -50% 0;
+  }
+  /* The band's lower edge as a control: the width handle's pattern turned horizontal. The
+     target is wider than the line, invisible until it is hovered, dragged or focused (the
+     focus ring is the app's own global rule), and it overlays the band's last 10px — a
+     sibling, so the band's overflow cannot clip it and it adds no height. */
+  .agent-panel__pet-resize {
+    position: relative;
+    z-index: 1;
+    flex: none;
+    block-size: 10px;
+    margin-block-start: -10px;
+    cursor: row-resize;
+    touch-action: none;
+  }
+  .agent-panel__pet-resize:hover,
+  .agent-panel__pet-resize[data-resizing] {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
   }
   /* The conversation's state, in words: in the band's corner while the pet is on, beside the
      title while it is off. Same derivation, same vocabulary, two placements. */
