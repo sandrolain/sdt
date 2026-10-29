@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -265,12 +266,17 @@ func TestServeCommandRuns(t *testing.T) {
 		}
 		return nil
 	}
-	openBrowser = func(url string) error { return nil }
+	opened := false
+	openBrowser = func(url string) error { opened = true; return nil }
 	defer func() { listen, openBrowser = origListen, origOpen }()
 	root := newRootCmd()
 	root.SetArgs([]string{"serve", "--root", dir})
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
+	}
+	// The command's default is quiet: the flag is the only way to reach the launcher.
+	if opened {
+		t.Error("a bare serve command opened the browser")
 	}
 }
 
@@ -306,7 +312,7 @@ func TestServeFlagDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	noOpen, err := cmd.Flags().GetBool("no-open")
+	open, err := cmd.Flags().GetBool("open")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,8 +320,8 @@ func TestServeFlagDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if host != "127.0.0.1" || port != 8443 || noOpen || root != "" {
-		t.Errorf("defaults: host=%q port=%d noOpen=%v root=%q", host, port, noOpen, root)
+	if host != "127.0.0.1" || port != 8443 || open || root != "" {
+		t.Errorf("defaults: host=%q port=%d open=%v root=%q", host, port, open, root)
 	}
 }
 
@@ -351,7 +357,7 @@ func TestOpenBrowser(t *testing.T) {
 
 func TestServeError(t *testing.T) {
 	// no .sdt.yaml anywhere reachable and no --root → clear error
-	if err := serve("127.0.0.1", 1, true, "/does/not/exist", "", func(string, http.Handler) error { return nil }); err == nil {
+	if err := serve("127.0.0.1", 1, false, "/does/not/exist", "", func(string, http.Handler) error { return nil }); err == nil {
 		t.Error("expected error for bad root")
 	}
 }
@@ -361,11 +367,11 @@ func TestServeStarts(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, sdtConfigFile), []byte("project: p\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	var gotAddr string
+	var gotAddr, opened string
 	origOpen := openBrowser
-	openBrowser = func(url string) error { return nil }
+	openBrowser = func(url string) error { opened = url; return nil }
 	defer func() { openBrowser = origOpen }()
-	err := serve("127.0.0.1", 38443, false, dir, "", func(addr string, h http.Handler) error {
+	err := serve("127.0.0.1", 38443, true, dir, "", func(addr string, h http.Handler) error {
 		gotAddr = addr
 		return nil
 	})
@@ -374,6 +380,46 @@ func TestServeStarts(t *testing.T) {
 	}
 	if gotAddr != "127.0.0.1:38443" {
 		t.Errorf("addr = %q", gotAddr)
+	}
+	// --open asks once, at the address the server was told to bind.
+	if opened != "http://127.0.0.1:38443" {
+		t.Errorf("opened %q, want the served address", opened)
+	}
+}
+
+// TestServeDoesNotOpenByDefault pins the quiet default: the launcher is a seam, and a bare
+// serve must never reach for it.
+func TestServeDoesNotOpenByDefault(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, sdtConfigFile), []byte("project: p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origOpen := openBrowser
+	called := false
+	openBrowser = func(url string) error { called = true; return nil }
+	defer func() { openBrowser = origOpen }()
+	err := serve("127.0.0.1", 38444, false, dir, "", func(string, http.Handler) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Error("a bare serve opened the browser")
+	}
+}
+
+// TestServeServesWhenTheBrowserFails: --open is a convenience, not a condition, so a launcher
+// that cannot start must still leave a serving server behind.
+func TestServeServesWhenTheBrowserFails(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, sdtConfigFile), []byte("project: p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origOpen := openBrowser
+	openBrowser = func(url string) error { return errors.New("no launcher") }
+	defer func() { openBrowser = origOpen }()
+	err := serve("127.0.0.1", 38445, true, dir, "", func(string, http.Handler) error { return nil })
+	if err != nil {
+		t.Fatalf("a failing launcher must not stop the server: %v", err)
 	}
 }
 

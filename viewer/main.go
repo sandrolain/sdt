@@ -92,8 +92,8 @@ func newServeCmd() *cobra.Command {
   printf 'agent:\n  command: ["opencode", "acp"]\n  model: "opencode/big-pickle"\n' >> .sdt.yaml
   sdtviewer serve --port 8443
 
-  # the viewer alone
-  sdtviewer serve --port 8443 --no-open`,
+  # let the viewer open the page it serves
+  sdtviewer serve --port 8443 --open`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host, err := cmd.Flags().GetString("host")
 			if err != nil {
@@ -103,7 +103,7 @@ func newServeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			noOpen, err := cmd.Flags().GetBool("no-open")
+			open, err := cmd.Flags().GetBool("open")
 			if err != nil {
 				return err
 			}
@@ -137,12 +137,12 @@ func newServeCmd() *cobra.Command {
 					overrides.model = &m
 				}
 			}
-			return serve(host, port, noOpen, root, sdtBin, listen, overrides)
+			return serve(host, port, open, root, sdtBin, listen, overrides)
 		},
 	}
 	cmd.Flags().String("host", "127.0.0.1", "bind host")
 	cmd.Flags().Int("port", 8443, "bind port")
-	cmd.Flags().Bool("no-open", false, "do not open the browser")
+	cmd.Flags().Bool("open", false, "open the platform browser at the served address")
 	cmd.Flags().String("root", "", "project root; defaults to the nearest ancestor of CWD holding "+sdtConfigFile)
 	cmd.Flags().String("log-format", "text", "log format: text|json")
 	cmd.Flags().Bool("semantic", false, "enable the semantic search branch (overrides .sdt.yaml search.semantic); /api/search?semantic=1 then serves RRF-fused results")
@@ -151,12 +151,12 @@ func newServeCmd() *cobra.Command {
 	return cmd
 }
 
-// serve resolves the root, builds the handler, optionally opens the browser and
-// blocks serving. listen is injectable for tests; sdtBin is the explicit
+// serve resolves the root, builds the handler, opens the browser when `open` asks for it
+// and blocks serving. listen is injectable for tests; sdtBin is the explicit
 // --sdt-bin path used to resolve the sanctioned document-state mutator
 // (decision 0027); overrides carries explicit --semantic/--semantic-model flag
 // values that win over the project config.
-func serve(host string, port int, noOpen bool, rootFlag, sdtBin string, listen func(addr string, h http.Handler) error, overrides ...semanticOverrides) error {
+func serve(host string, port int, open bool, rootFlag, sdtBin string, listen func(addr string, h http.Handler) error, overrides ...semanticOverrides) error {
 	root, err := resolveRoot(rootFlag, "")
 	if err != nil {
 		return err
@@ -179,7 +179,7 @@ func serve(host string, port int, noOpen bool, rootFlag, sdtBin string, listen f
 		defer s.stopWatching()
 	}
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	if !noOpen {
+	if open {
 		if oerr := openBrowser("http://" + addr); oerr != nil {
 			slog.Warn("sdtviewer: browser open skipped", "err", oerr)
 		}
