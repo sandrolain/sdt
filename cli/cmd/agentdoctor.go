@@ -353,6 +353,11 @@ project root, so a step can expand its own package list. Nothing is assumed abou
 the toolchain: with no ` + "`gate:`" + ` declared the command reports "no gate declared"
 and exits 0, and a missing tool surfaces as that step failing.
 
+A failing step's console block is the tail of its output — the head is usually the
+echo of the command — and the whole output is written to
+context/tmp/gate-<step>-<timestamp>.log, named in the block and in the structured
+shape's ` + "`log`" + ` field. The console stays short; the evidence survives.
+
 With --record the run is appended to the task file's ` + "`## Review`" + ` block as a
 ` + "`### Gate`" + ` subsection, one line per step with its real status and duration.
 The record is written whether the run passed or failed, and a failing run is
@@ -369,6 +374,9 @@ Examples:
 			Step   string `json:"step" yaml:"step"`
 			Status string `json:"status" yaml:"status"`
 			Detail string `json:"detail,omitempty" yaml:"detail,omitempty"`
+			// Log is the path of the failing step's full output, written under
+			// context/tmp: the console keeps the tail, the evidence survives.
+			Log string `json:"log,omitempty" yaml:"log,omitempty"`
 		}
 		cfg, err := findProjectConfig()
 		exitWithError(cmd, err)
@@ -392,11 +400,8 @@ Examples:
 			out, err := runGateStep(step.Run)
 			elapsed := contextNow().Sub(started)
 			if err != nil {
-				detail := strings.TrimSpace(string(out))
-				if len(detail) > 400 {
-					detail = detail[:400] + "…"
-				}
-				results = append(results, gateResult{Step: step.Name, Status: doctorStatusFail, Detail: detail})
+				detail, logPath := gateFailureDetail(step.Name, out)
+				results = append(results, gateResult{Step: step.Name, Status: doctorStatusFail, Detail: detail, Log: logPath})
 				recorded = append(recorded, gateStepResult{Step: step.Name, Status: doctorStatusFail, Duration: elapsed})
 				failed = step.Name
 				break
@@ -415,6 +420,19 @@ Examples:
 			outputBytes(cmd, out)
 		default:
 			for _, r := range results {
+				// A failing step gets its own block: the tail of the output, then
+				// the path that carries all of it. The one-line shape would bury
+				// the error the reader needs.
+				if r.Status == doctorStatusFail && (r.Detail != "" || r.Log != "") {
+					outputString(cmd, fmt.Sprintf("[%s] %s\n", r.Status, r.Step))
+					for _, line := range strings.Split(r.Detail, "\n") {
+						outputString(cmd, "  "+line+"\n")
+					}
+					if r.Log != "" {
+						outputString(cmd, "  full output: "+r.Log+"\n")
+					}
+					continue
+				}
 				outputString(cmd, fmt.Sprintf("[%s] %s %s\n", r.Status, r.Step, r.Detail))
 			}
 		}
@@ -507,6 +525,54 @@ func gateStepNames(steps []GateStep) []string {
 // runGateStep runs one declared step through the shell: the command line is the
 // project's own, written in its own .sdt.yaml, so it may expand a package list
 // or pipe a result.
+// gateLogTailLines is how many lines of a failing step's output the console
+// shows. The first bytes of a failing suite are the echo of the command, not the
+// error, which is why the tail is the hint and the file is the record.
+const gateLogTailLines = 20
+
+// gateFailureDetail keeps what a reader needs from a failing step: the tail of
+// its output for the console, and the path of the file holding all of it. The
+// write is best-effort — a read-only tree degrades to the tail alone, never to a
+// lost gate result.
+func gateFailureDetail(step string, out []byte) (detail, logPath string) {
+	text := strings.TrimRight(string(out), "\n")
+	if text == "" {
+		return "", ""
+	}
+	lines := strings.Split(text, "\n")
+	if len(lines) > gateLogTailLines {
+		lines = lines[len(lines)-gateLogTailLines:]
+	}
+	return strings.Join(lines, "\n"), writeGateLog(step, text)
+}
+
+// writeGateLog stores a failing step's full output under the project's
+// context/tmp and returns the project-relative path, or "" when it cannot be
+// written.
+func writeGateLog(step, text string) string {
+	_, root, err := findProjectConfigAt()
+	if err != nil || root == "" {
+		return ""
+	}
+	dir := filepath.Join(root, "context", "tmp")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return ""
+	}
+	name := sanitizeSlug(step)
+	if name == "" {
+		name = "step"
+	}
+	path := filepath.Join(dir, fmt.Sprintf("gate-%s-%s.log", name, contextNow().UTC().Format("20060102-150405")))
+	//#nosec G306 -- a temp log inside the project, readable by its owner only
+	if err := os.WriteFile(path, []byte(text+"\n"), 0o600); err != nil {
+		return ""
+	}
+	if rel, rerr := filepath.Rel(root, path); rerr == nil {
+		return filepath.ToSlash(rel)
+	}
+	return path
+}
+
 func runGateStep(command string) ([]byte, error) {
 	//#nosec G204 -- the project's own declared command, executed from its config
 	return exec.Command("/bin/sh", "-c", command).CombinedOutput()

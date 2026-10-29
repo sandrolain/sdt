@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -351,5 +352,49 @@ func TestGateWithoutADeclarationSaysSoAndPasses(t *testing.T) {
 	out := string(execute(t, agentGateCmd, nil))
 	if !strings.Contains(out, "no gate declared") {
 		t.Fatalf("want the absent gate reported, got:\n%s", out)
+	}
+}
+
+// TestGateFailureKeepsTheFullOutputAndShowsTheTail: a failing step's console
+// block carries the tail — where the error is — and names the file that holds
+// every line, so the run can be diagnosed after the fact.
+func TestGateFailureKeepsTheFullOutputAndShowsTheTail(t *testing.T) {
+	dir := runInTempDir(t)
+	writeGateConfig(t, GateStep{Name: "web lint", Run: "for i in $(seq 1 30); do echo line $i; done; exit 3"})
+	var out string
+	shouldExitWithCode(t, 1, func() string { out = string(execute(t, agentGateCmd, nil)); return out })
+
+	if !strings.Contains(out, "full output: context/tmp/gate-web-lint-") {
+		t.Fatalf("the console does not name the log:\n%s", out)
+	}
+	if !strings.Contains(out, "  line 30") {
+		t.Errorf("the tail is missing the last line:\n%s", out)
+	}
+	if strings.Contains(out, "  line 1\n") {
+		t.Errorf("the console shows the head of the output:\n%s", out)
+	}
+
+	logs, err := filepath.Glob(filepath.Join(dir, "context", "tmp", "gate-*.log"))
+	if err != nil || len(logs) != 1 {
+		t.Fatalf("logs = %v (%v), want one", logs, err)
+	}
+	full := mustReadFile(t, logs[0])
+	if !strings.Contains(full, "line 1\n") || !strings.Contains(full, "line 30") {
+		t.Errorf("the log is not the full output:\n%s", full)
+	}
+}
+
+// TestGateFailureJSONCarriesTheLogPath: the structured shape names the same file,
+// so a caller that reads JSON does not lose the evidence either.
+func TestGateFailureJSONCarriesTheLogPath(t *testing.T) {
+	runInTempDir(t)
+	writeGateConfig(t, GateStep{Name: "test", Run: "echo boom; exit 3"})
+	var out string
+	shouldExitWithCode(t, 1, func() string { out = string(execute(t, agentGateCmd, nil, "--format", "json")); return out })
+	if !strings.Contains(out, `"log": "context/tmp/gate-test-`) {
+		t.Fatalf("json does not carry the log path:\n%s", out)
+	}
+	if !strings.Contains(out, `"detail": "boom"`) {
+		t.Errorf("json does not carry the tail:\n%s", out)
 	}
 }
