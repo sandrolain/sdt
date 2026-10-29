@@ -5,6 +5,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/distill"
 )
 
 // wikiPageFixture returns a valid dense wiki page for the given id/title.
@@ -984,4 +987,18 @@ func TestWikiLintConcepts(t *testing.T) {
 			t.Fatalf("an absent concepts block must not be a finding:\n%s", out)
 		}
 	})
+}
+
+// TestCoverageMismatchNamesTheDisagreement: a block that says gap 0 while the
+// citations open two gaps is the failure a claim edit leaves behind, and lint is
+// where it surfaces.
+func TestCoverageMismatchNamesTheDisagreement(t *testing.T) {
+	block := contextwiki.Coverage{Units: 215, OK: 142, Part: 21, Gap: 0, NoOp: 52}
+	if got := coverageMismatch(block, distill.Counts{Units: 215, OK: 142, Part: 21, Gap: 0, NoOp: 52}); got != "" {
+		t.Fatalf("an agreeing block reported a finding: %s", got)
+	}
+	msg := coverageMismatch(block, distill.Counts{Units: 215, OK: 140, Part: 21, Gap: 2, NoOp: 52})
+	if !strings.Contains(msg, "gap=0") || !strings.Contains(msg, "gap=2") {
+		t.Fatalf("the disagreement is not named both ways: %s", msg)
+	}
 }

@@ -140,6 +140,16 @@ func resolveContextDocFilePath(ref string) (ctxResolvedDoc, error) {
 
 	t, ok := ctxTypeForDir(ctxFirstSegmentDir(candidate))
 	if !ok {
+		// The scripts index is a corpus file with no document kind: its own
+		// `kind: scripts` is the register, and `context edit`/`set` are its only
+		// writers. Resolving it here is what makes a script registration a CLI
+		// edit instead of a host one; nothing else treats it as a work file.
+		if candidate == sdtScriptsIndex {
+			if _, err := os.Stat(candidate); err != nil {
+				return ctxResolvedDoc{}, fmt.Errorf("no such document: %s", candidate)
+			}
+			return ctxResolvedDoc{Path: candidate, Type: ctxDocType{kind: "scripts", dir: sdtScriptsDir, scheme: ctxSchemeBare}}, nil
+		}
 		return ctxResolvedDoc{}, fmt.Errorf("unknown context type for path %q", candidate)
 	}
 

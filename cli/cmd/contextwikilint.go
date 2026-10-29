@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/distill"
 )
 
 // ── wiki knowledge-graph lint (sdt context wiki lint) ──────────────────────────
@@ -466,7 +467,49 @@ func lintWikiCoverage(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 		if c.Gap > 0 {
 			b.add(p.Path, ctxLintWarning, "coverage leaves %d unit(s) as gap: the run is incomplete — distil them or disposition them", c.Gap)
 		}
+		// The block is a claim about the artifact as it is now. A claim edit
+		// that narrowed a citation span opens a gap the block cannot see, so the
+		// counters are recomputed and a disagreement is reported instead of
+		// leaving `gap: 0` standing over uncited units.
+		if artifact := coverageArtifactRef(p); artifact != "" {
+			report, _, _, err := buildCoverageReport(contextWikiCoverageCmd, p.Path, artifact)
+			if err == nil {
+				if msg := coverageMismatch(c, report.Counts); msg != "" {
+					b.add(p.Path, ctxLintWarning, "%s", msg)
+				}
+			}
+		}
 	}
+}
+
+// coverageMismatch names the disagreement between a page's coverage block and
+// the counters recomputed from the citations, or "" when they agree.
+func coverageMismatch(c contextwiki.Coverage, got distill.Counts) string {
+	if got == (distill.Counts{Units: c.Units, OK: c.OK, Part: c.Part, Gap: c.Gap, NoOp: c.NoOp}) {
+		return ""
+	}
+	return fmt.Sprintf("coverage block disagrees with the recomputed counters: block units=%d ok=%d part=%d gap=%d no_op=%d, recomputed units=%d ok=%d part=%d gap=%d no_op=%d — re-run `sdt context wiki coverage --write`",
+		c.Units, c.OK, c.Part, c.Gap, c.NoOp, got.Units, got.OK, got.Part, got.Gap, got.NoOp)
+}
+
+// coverageArtifactRef returns the converted artifact a page's coverage block
+// describes: the first `refs/converted/…` entry among its links and sources, or
+// "" when the page names none (a block without an artifact cannot be checked).
+func coverageArtifactRef(p *contextwiki.Page) string {
+	for _, ref := range p.Sources {
+		if strings.HasPrefix(ref, "refs/converted/") {
+			return ref
+		}
+	}
+	// A page may name the artifact only in `links`; the raw frontmatter is the
+	// one place both lists are visible as text.
+	for _, line := range strings.Split(p.Frontmatter, "\n") {
+		ref := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "- "))
+		if strings.HasPrefix(ref, "refs/converted/") {
+			return ref
+		}
+	}
+	return ""
 }
 
 // lintWikiConcepts checks the concept half of a book-scale run's coverage

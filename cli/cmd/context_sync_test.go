@@ -73,10 +73,10 @@ func TestSyncDocScope(t *testing.T) {
 	writeCascadeTask(t, dir, "20260101-000000-a-plan-phase-1", taskFileStatusCompleted, plan, "x")
 
 	out := execute(t, contextSyncCmd, nil, "--doc", plan)
-	if !strings.Contains(string(out), plan) {
-		t.Fatalf("scoped sync should report the plan flip, got %q", out)
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, plan)), ctxMapStatus); got != ctxWikiStatusActive {
+		t.Fatalf("sync must not complete a plan: close does, with the closeout (%q)", got)
 	}
-	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, plan)), ctxMapStatus); got != taskFileStatusCompleted {
-		t.Fatalf("plan status = %q", got)
+	if strings.Contains(string(out), "plan") {
+		t.Fatalf("scoped sync should report nothing for a plan, got %q", out)
 	}
 }

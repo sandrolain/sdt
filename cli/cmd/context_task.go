@@ -777,15 +777,17 @@ Examples:
 		phase, plan, err := taskTarget(cmd)
 		exitWithError(cmd, err)
 		stream := taskStreamFlag(cmd)
-		path := taskFileForRef(phase, stream, plan)
-		content, err := readTaskFile(phase, stream, plan)
+		path, planTarget := reviewTargetPath(phase, stream, plan)
+		content, err := readReviewTarget(path, plan, planTarget)
 		exitWithError(cmd, err)
 		findings, err := reviewFindings(cmd)
 		exitWithError(cmd, err)
 		body := getContextBody(cmd, args)
 		content = appendReviewFindings(content, body)
 		content = appendFindingItems(content, findings)
-		if !hasUnfinishedTaskItem(content) {
+		// An unsplit plan's review is evidence, not completion: `close` is the
+		// only writer of the plan's status.
+		if !planTarget && !hasUnfinishedTaskItem(content) {
 			content = setTaskFileStatus(content, taskFileStatusCompleted)
 		}
 		content = stampProvenance(content, cmd)
@@ -796,6 +798,46 @@ Examples:
 		outputString(cmd, path+"\n")
 		cascadeAfterWrite(cmd, path)
 	},
+}
+
+// reviewTargetPath resolves where a review belongs. A split plan's phase task
+// file is the ledger; a plan that was never split has no task file at all, so the
+// review block goes into the plan itself. It reports whether the target is the
+// plan, because a plan's status belongs to `close`.
+func reviewTargetPath(phase, stream, plan string) (string, bool) {
+	if sanitizeSlug(stream) != "" {
+		return taskFileForRef(phase, stream, plan), false
+	}
+	slug := taskSlugFromPlan(plan)
+	if sanitizeSlug(phase) != "" {
+		if matches, err := taskFilesForPhase(phase, slug); err == nil && len(matches) > 0 {
+			return newestTaskFile(matches), false
+		}
+	}
+	if matches, err := taskPlanFiles(slug); err == nil && len(matches) > 0 {
+		return newestTaskFile(matches), false
+	}
+	if path, err := resolveContextLintPath(plan); err == nil {
+		//#nosec G304 -- corpus document resolved above
+		if data, rerr := os.ReadFile(path); rerr == nil && parseFrontmatterField(string(data), ctxFrontmatterKind) == ctxTypePlan {
+			return path, true
+		}
+	}
+	return taskFileForPhaseOrPlan(phase, plan), false
+}
+
+// readReviewTarget reads the resolved review target, naming the missing task file
+// the way the split case always did.
+func readReviewTarget(path, plan string, planTarget bool) (string, error) {
+	//#nosec G304 -- corpus document resolved above
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) && !planTarget {
+			return "", fmt.Errorf("no task list at %s (create one with `sdt context task add \"<step>\" %s`)", path, planFlagForHint(plan))
+		}
+		return "", err
+	}
+	return string(data), nil
 }
 
 func reviewFindings(cmd *cobra.Command) ([]reviewFinding, error) {

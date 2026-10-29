@@ -65,7 +65,10 @@ var instructionModuleRatchet = map[string]int{
 	// ingestion rose to 3790 (2026-10-28): the `type` cell points at `wiki.md` for
 	// what each page type asserts, which lived by implication only.
 	"ingestion":   3790,
-	"plan":        2645,
+	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
+	// plan's `completed`, because a checklist that reaches its last item no longer
+	// flips the status — the closeout that belongs with it would be skipped.
+	"plan":        2675,
 	"analysis":    2496,
 	"development": 2455,
 	// wiki rose to 2443 (2026-10-24): the coverage record documents the

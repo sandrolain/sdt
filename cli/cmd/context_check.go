@@ -25,13 +25,21 @@ const ctxCheckPendingFlag = "pending"
 // ctxCheckStates is the closed set `--state` accepts: one flag for the four
 // checklist moves, so a state is a value rather than a growing family of
 // booleans. The old booleans stay as deprecated spellings.
-var ctxCheckStates = []string{taskStatusDone, taskStatusWip, taskStatusBlock, taskStatusTodo}
+var ctxCheckStates = []string{taskStatusDone, taskStatusWip, taskStatusBlock, taskStatusTodo, ctxCheckPendingFlag}
+
+// ctxCheckStateAliases maps a documented word to the status it stores. The reset
+// was documented as `pending` and stored as `todo`, so both spell the same move
+// and neither is refused.
+var ctxCheckStateAliases = map[string]string{ctxCheckPendingFlag: taskStatusTodo}
 
 func contextCheckStatus(cmd *cobra.Command) (string, error) {
 	state := strings.TrimSpace(getStringFlag(cmd, "state", false))
 	if state != "" {
 		if !slices.Contains(ctxCheckStates, state) {
 			return "", fmt.Errorf("invalid --state %q (use %s)", state, strings.Join(ctxCheckStates, "|"))
+		}
+		if alias, ok := ctxCheckStateAliases[state]; ok {
+			state = alias
 		}
 		for _, c := range []struct{ flag, status string }{
 			{taskStatusDone, taskStatusDone},

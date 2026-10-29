@@ -398,6 +398,13 @@ func cascadeUp(startRef string, apply bool) ([]cascadeChange, error) {
 		case ctxTypeAnalysis:
 			derived = store.deriveAnalysisStatus(node)
 		}
+		if node.kind == ctxTypePlan && derived == taskFileStatusCompleted {
+			// A plan is closed by `context close`, which writes its closeout in
+			// the same act: a finished checklist or task file leaves the plan
+			// active so the record cannot be skipped. The analysis above still
+			// cascades.
+			derived = ""
+		}
 		if derived != "" && derived != node.status && advances(node.kind, node.status, derived) {
 			changes = append(changes, cascadeChange{Path: node.path, Kind: node.kind, From: node.status, To: derived})
 			if apply {

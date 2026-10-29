@@ -75,7 +75,10 @@ sources:
 	return rel
 }
 
-func TestCascadeFullTreeCompletes(t *testing.T) {
+// TestCascadeFlipsTheTaskAndLeavesThePlanToClose: a finished task file flips
+// itself; the plan it belongs to stays active because `context close` is what
+// completes a plan and writes its closeout in the same act.
+func TestCascadeFlipsTheTaskAndLeavesThePlanToClose(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
 	analysis := writeCascadeAnalysis(t, dir, "20260101-000000-a", ctxWikiStatusActive)
@@ -86,17 +89,14 @@ func TestCascadeFullTreeCompletes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(changes) != 3 {
-		t.Fatalf("expected task→plan→analysis flips, got %+v", changes)
+	if len(changes) != 1 || changes[0].Kind != ctxTypeTasks || changes[0].To != taskFileStatusCompleted {
+		t.Fatalf("the cascade must flip the task and stop there, got %+v", changes)
 	}
-	if changes[0].To != taskFileStatusCompleted || changes[1].To != taskFileStatusCompleted || changes[2].To != taskFileStatusCompleted {
-		t.Fatalf("unexpected chain: %+v", changes)
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, plan)), ctxMapStatus); got != ctxWikiStatusActive {
+		t.Fatalf("plan status = %q, want active until close", got)
 	}
-	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, plan)), ctxMapStatus); got != taskFileStatusCompleted {
-		t.Fatalf("plan status = %q", got)
-	}
-	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, analysis)), ctxMapStatus); got != taskFileStatusCompleted {
-		t.Fatalf("analysis status = %q", got)
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, analysis)), ctxMapStatus); got != ctxWikiStatusActive {
+		t.Fatalf("analysis status = %q, want active", got)
 	}
 	again, err := cascadeUp(normalizeContextRef(task), true)
 	if err != nil {
@@ -140,8 +140,13 @@ func TestCascadePlanOwnChecklistIsReferenceOnly(t *testing.T) {
 	if _, err := cascadeUp(normalizeContextRef(task), true); err != nil {
 		t.Fatal(err)
 	}
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, plan)), ctxMapStatus); got != ctxWikiStatusActive {
+		t.Fatalf("the cascade must leave the plan active, got %q", got)
+	}
+	// The open own checklist is intent, so it does not stop the close either.
+	execute(t, contextCloseCmd, nil, plan)
 	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, plan)), ctxMapStatus); got != taskFileStatusCompleted {
-		t.Fatalf("plan must complete from its task file despite an open own checklist, got %q", got)
+		t.Fatalf("close must complete the plan despite an open own checklist, got %q", got)
 	}
 }
 
@@ -156,8 +161,8 @@ func TestCascadeSkipsNoChildrenAndAbandoned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(changes) != 2 {
-		t.Fatalf("a plan whose own checklist is done must complete, cascading to its analysis, got %+v", changes)
+	if len(changes) != 0 {
+		t.Fatalf("a finished own checklist must not complete the plan by cascade, got %+v", changes)
 	}
 	// A plan with no checklist at all has nothing to derive from: it keeps its
 	// declared status.

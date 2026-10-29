@@ -286,3 +286,21 @@ func TestContextCheckRecordsProvenance(t *testing.T) {
 		}
 	}
 }
+
+// TestContextCheckStatePendingIsTheReset: the documented reset word was refused
+// while the stored one worked. Both now spell the same move, so the help and the
+// binary agree.
+func TestContextCheckStatePendingIsTheReset(t *testing.T) {
+	for _, word := range []string{"pending", "todo"} {
+		dir := runInTempDir(t)
+		stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+		rel := checkDocFixture(t, dir)
+		execute(t, contextCheckCmd, nil, rel, "1", "--state", "done")
+		execute(t, contextCheckCmd, nil, rel, "1", "--state", word)
+
+		body := mustReadFile(t, filepath.Join(dir, rel))
+		if !strings.Contains(body, "- [ ] one") {
+			t.Errorf("--state %s did not reset the item:\n%s", word, body)
+		}
+	}
+}

@@ -380,3 +380,22 @@ func TestContextEditAppendRefusals(t *testing.T) {
 		})
 	}
 }
+
+// TestContextEditWritesTheScriptsIndex: the scripts index is a corpus file with
+// no document kind, and registering a script used to be a host edit. The route
+// resolves it, so the index is written by the CLI like any other body.
+func TestContextEditWritesTheScriptsIndex(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/scripts/index.md",
+		"---\nkind: scripts\nsummary: index\n---\n\n## Available scripts\n\n| name | purpose |\n|---|---|\n| old | row |\n")
+
+	execute(t, contextEditCmd, nil, "scripts/index", "--input", "## Available scripts\n\n| name | purpose |\n|---|---|\n| new | row |\n")
+
+	got := readDoc(t, "scripts/index.md")
+	if !strings.Contains(got, "| new | row |") || strings.Contains(got, "| old | row |") {
+		t.Errorf("the scripts index was not replaced:\n%s", got)
+	}
+	if !strings.Contains(got, "kind: scripts") {
+		t.Errorf("the frontmatter was lost:\n%s", got)
+	}
+}
