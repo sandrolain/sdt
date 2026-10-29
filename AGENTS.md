@@ -16,21 +16,19 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
 |---|---|---|
 | corpus, by meaning | `sdt context search <q>` | `grep` |
 | a book, by meaning, without an index | `sdt chunk search <artifact> <q>` | a throwaway search index |
-| corpus text | `sdt read -p <ref>` | `cat` |
-| line range | `sdt read --lines a:b` | `sed -n` |
-| numbered lines | `sdt read --numbered` | host reader |
+| corpus text, line range, numbered | `sdt read -p <ref> [--lines a:b] [--numbered]` | `cat`/`sed -n`/host reader |
 | listing, sizes | `sdt ls --stat` | `ls -la` |
 | ingestion queue | `sdt context ingest list` | `ls` of context/ingestion |
 | paths by glob | `sdt find <glob>` | `find` |
-| tree search | `sdt grep <p>` | `grep -r` |
-| one file | `sdt grep --path <f>` | `grep -n` |
+| tree search, one file | `sdt grep <p> [--path <f>]` | `grep -r`/`grep -n` |
 | web page | `sdt crawldown <url>` | fetcher |
 | JSON, API | `sdt http` into `sdt q` | `curl`/`jq` |
 | two files | `sdt diff <a> <b>` | `diff` |
-| append to corpus | `sdt context edit --append` | `cat >>` |
+| append, table row, fence | `sdt context edit --append/--row/--fence` | `cat >>`/`python3` |
 | literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
-| corpus table row or fence | `sdt context edit --row/--fence` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
+| colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
+| image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
 
 ### HARD RULES (apply always)
 

@@ -8,7 +8,8 @@ summary: "Choosing and using a browser-automation driver for navigation and layo
 fit SDT's protocol (`context/instructions/browser.md`) and how to choose between
 the shapes available. The profiles are **capability classes, not products**: a
 project may use any driver with the same capabilities, and the choice is recorded
-in its own `context/instructions/project.md` (library-first, see
+in the project's durable record — a decision record when the project keeps
+them, otherwise the `AGENTS.md` project block (library-first, see
 `context/instructions/development.md`).
 
 ## How to choose
@@ -45,6 +46,13 @@ command behind each one is the project's to record.
   scheme, so both schemes can be checked.
 - **Geometry and style reads**: the box and the computed styles of one element,
   which is what a layout assertion actually needs.
+- **Script evaluation**: a bounded, allow-listed `eval` for what a box read
+  cannot express — a frame cost, a WebGL context count, the app's own state.
+- **Media-feature emulation**: `prefers-color-scheme` and
+  `prefers-reduced-motion`, so both schemes and the reduced-motion form are
+  checkable rather than inferred.
+- **Page visibility**: `document.hidden` control, so "the loop pauses while the
+  tab is hidden" is a check and not a claim.
 - **Accessibility audit**: an axe-compatible scan without a CDN dependency.
 - **Performance vitals**: LCP/CLS/TTFB/FCP/INP when a budget is claimed.
 - **Bounded output and action policy**: a cap on returned bytes, an allowed-domain
@@ -60,6 +68,24 @@ An in-page or text-DOM agent can navigate and fill forms, but it cannot measure
 pixel geometry and it usually cannot inspect a page it did not author. For a
 layout claim the render step therefore stays **SKIPPED** (see `browser.md`), not
 PASSED.
+
+## What `sdt` supplies
+
+`browser.md` is the render protocol; the CLI is not the renderer. Know which
+half answers which question before reaching for a driver:
+
+- **Supplies** — corpus retrieval (`sdt context search`), a web page as Markdown
+  text (`sdt crawldown`), document conversion (`sdt doc2md`), source inspection
+  and guarded edits (`sdt grep`, `sdt read`, `sdt edit`), evidence records
+  (`sdt context new`), contrast arithmetic from two colour values
+  (`sdt color contrast`) and image inspection or pixel diff (`sdt image`).
+- **Cannot supply, and must come from the driver** — navigation and waiting,
+  screenshots (plain and annotated), box and computed styles, pixel or
+  structural diff against a baseline, the accessibility audit, Web Vitals, and
+  media or visibility emulation.
+- **The line** — `sdt color` measures two values, not a render; `sdt image diff`
+  compares two artefacts, not two renders. A visual claim still needs the
+  driver, and an absent driver still means **SKIPPED**, never PASSED.
 
 ## Version scope
 

@@ -78,7 +78,7 @@ var totpUriCmd = &cobra.Command{
 }
 
 var totpImageCmd = &cobra.Command{
-	Use:   "image",
+	Use:   imageCmdName,
 	Short: "Generate QR code Image",
 	Long:  `Generate QR code Image`,
 	Run: func(cmd *cobra.Command, args []string) {

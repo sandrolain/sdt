@@ -57,24 +57,11 @@ func ToolboxRows() []ToolboxRow {
 			Replaces: "a throwaway search index",
 		},
 		{
-			Operation: "corpus text",
-			Display:   "`sdt read -p <ref>`",
+			Operation: "corpus text, line range, numbered",
+			Display:   "`sdt read -p <ref> [--lines a:b] [--numbered]`",
 			Command:   toolboxCmdRead,
-			Replaces:  "`cat`",
-		},
-		{
-			Operation: "line range",
-			Display:   "`sdt read --lines a:b`",
-			Command:   toolboxCmdRead,
-			Flags:     []string{"lines"},
-			Replaces:  "`sed -n`",
-		},
-		{
-			Operation: "numbered lines",
-			Display:   "`sdt read --numbered`",
-			Command:   toolboxCmdRead,
-			Flags:     []string{"numbered"},
-			Replaces:  "host reader",
+			Flags:     []string{"lines", "numbered"},
+			Replaces:  "`cat`/`sed -n`/host reader",
 		},
 		{
 			Operation: "listing, sizes",
@@ -97,17 +84,11 @@ func ToolboxRows() []ToolboxRow {
 			Replaces:  "`find`",
 		},
 		{
-			Operation: "tree search",
-			Display:   "`sdt grep <p>`",
-			Command:   "grep",
-			Replaces:  "`grep -r`",
-		},
-		{
-			Operation: "one file",
-			Display:   "`sdt grep --path <f>`",
+			Operation: "tree search, one file",
+			Display:   "`sdt grep <p> [--path <f>]`",
 			Command:   "grep",
 			Flags:     []string{"path"},
-			Replaces:  "`grep -n`",
+			Replaces:  "`grep -r`/`grep -n`",
 		},
 		{
 			Operation: "web page",
@@ -128,14 +109,14 @@ func ToolboxRows() []ToolboxRow {
 			Replaces:  "`diff`",
 		},
 		{
-			Operation: "append to corpus",
-			Display:   "`sdt context edit --append`",
+			Operation: "append, table row, fence",
+			Display:   "`sdt context edit --append/--row/--fence`",
 			Command:   toolboxCmdContext,
 			Subcommands: []string{
 				toolboxSubEdit,
 			},
-			Flags:    []string{"append"},
-			Replaces: "`cat >>`",
+			Flags:    []string{"append", "row", "fence"},
+			Replaces: "`cat >>`/`python3`",
 		},
 		{
 			Operation: "literal, pattern, batch or block",
@@ -143,16 +124,6 @@ func ToolboxRows() []ToolboxRow {
 			Command:   "edit",
 			Flags:     []string{"old", "new", "regex", "lines", "from-marker", "to-marker"},
 			Replaces:  "`python3`/`sed -i`",
-		},
-		{
-			Operation: "corpus table row or fence",
-			Display:   "`sdt context edit --row/--fence`",
-			Command:   toolboxCmdContext,
-			Subcommands: []string{
-				toolboxSubEdit,
-			},
-			Flags:    []string{"row", "fence"},
-			Replaces: "`python3`/`sed -i`",
 		},
 		{
 			Operation: "document state",
@@ -164,6 +135,25 @@ func ToolboxRows() []ToolboxRow {
 				"close",
 			},
 			Replaces: "none",
+		},
+		{
+			Operation: "colour contrast from two values",
+			Display:   "`sdt color contrast <fg> <bg>`",
+			Command:   "color",
+			Subcommands: []string{
+				"contrast",
+			},
+			Replaces: "a calculator",
+		},
+		{
+			Operation: "image size and pixel diff",
+			Display:   "`sdt image inspect|diff`",
+			Command:   "image",
+			Subcommands: []string{
+				"inspect",
+				"diff",
+			},
+			Replaces: "`magick`/`sharp`",
 		},
 	}
 }
