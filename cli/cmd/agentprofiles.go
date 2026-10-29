@@ -39,7 +39,7 @@ var agentProfileRegister = []agentProfile{
 	{Slug: "knowledge", Title: "Knowledge", Guide: "briefings, distillation, learning and the wiki",
 		Modules: []string{"briefing", "distillation", "ingestion", "learning", "lesson", "wiki"}},
 	{Slug: "ui", Title: "UI/UX", Guide: "layout, components, tokens, motion and accessibility",
-		Modules: []string{"ui", "ui-accessibility", "ui-adapters", "ui-components", "ui-layout", "ui-motion", "ui-performance", "ui-taste", "ui-tokens"},
+		Modules: []string{"ui", "ui-accessibility", "ui-adapters", "ui-components", "ui-layout", "ui-motion", "ui-performance", "ui-review", "ui-taste", "ui-tokens"},
 		Skills:  []string{"sdt-ui-ux"}},
 	{Slug: "vector", Title: "Vector", Guide: "icons, logos and SVG authoring",
 		Modules: []string{"vector", "vector-svg", "vector-tools"},
@@ -55,6 +55,9 @@ var agentProfileRegister = []agentProfile{
 	{Slug: "browser", Title: "Browser", Guide: "navigation and rendered-layout verification",
 		Modules: []string{"browser", "browser-tools"},
 		Skills:  []string{"sdt-browser-verification"}},
+	{Slug: "security", Title: "Security", Guide: "audit vocabulary, severity anchors and the agent surface",
+		Modules: []string{"security"},
+		Skills:  []string{"sdt-security"}},
 	{Slug: "roles", Title: "Roles", Guide: "the role profiles under context/roles/"},
 }
 

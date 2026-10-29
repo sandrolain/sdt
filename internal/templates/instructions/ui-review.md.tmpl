@@ -1,0 +1,116 @@
+---
+kind: instructions
+title: "UI review — what a change did to the interface"
+summary: "How to review a change or a finished surface: the scope ladder, the blast radius, three statuses by cause, the coverage table that forbids a verdict, and the cold-read pass."
+---
+
+`context/instructions/ui-review.md` is the contract for answering "did this change
+break the interface?" — for a diff that touched a surface, or for a surface that is
+being declared finished. It reviews **evidence about the interface**, not the
+process that produced it: the verify-step and the phase verdicts belong to
+`context/instructions/tasks-review.md`, and this module says where the line is
+rather than repeating that procedure.
+
+**When this applies.** A change that alters what a reader sees, reads or can do —
+markup, styles, layout, copy, states, motion, focus order, an empty or error state.
+**No-op rule:** a change that touches no rendered surface (a build script, a
+fixture, a type rename with no visual consequence) has nothing to review here; say
+so in one line and continue.
+
+Read it with `context/instructions/ui.md` (the doctrine a change is judged
+against), `context/instructions/browser.md` (how a render is observed) and
+`context/instructions/ui-accessibility.md` (the interactive floor).
+
+## Scope, before the review
+
+- **The scope ladder.** Review what the request names and what the change actually
+  touches. When the range is unclear, **ask** — do not invent one, and do not
+  silently widen to "everything this file could affect". A review whose scope was
+  guessed is a review of a different change.
+- **The blast radius.** Name the surfaces the diff reaches, including the ones it
+  reaches indirectly (a shared token, a shared component, a shared class). State a
+  cutoff: the surfaces reviewed, and the ones deliberately left out with the reason.
+- **The removed lines.** Read what the diff **deletes**, not only what it adds: a
+  deleted rule, a dropped state, a removed focus handler is where a regression
+  usually lives.
+
+## Three statuses, by cause
+
+Every finding carries one of these, because the fix and the blame differ:
+
+- **`Introduced`** — this change created it. The fix belongs to this change.
+- **`Regression`** — it existed before and this change made it worse or brought it
+  back. The fix belongs here, and the cause is named.
+- **`Pre-existing`** — it was already there, unchanged. It is reported so it is not
+  mistaken for new, and it does not block this change unless the change made it
+  reachable.
+
+A finding without a status is an opinion.
+
+## The coverage table
+
+The review opens with what was inspected, per domain, and the verdict is bounded by
+it:
+
+| domain | inspected | status |
+|---|---|---|
+| layout | the page at two widths | `Clear` |
+| states | empty, loading, error | `Not reviewed` |
+| accessibility | focus order, names, contrast | `Clear` |
+
+- A domain is `Clear` (looked, nothing found), `Findings` (looked, see the rows) or
+  `Not reviewed` (did not look, with the reason).
+- **A verdict covers only what the table shows inspected.** `Approve` with a
+  `Not reviewed` domain is not a verdict — it is `Approve with gaps`, and the gaps
+  are named. This is the rule that makes "no findings" falsifiable.
+- A review with no table is a claim, not a review.
+
+## The intent-completeness check
+
+A change can be correct and still not be what was asked. Before the verdict, state
+in one line what the change was meant to do, then check it: every part of the
+intent is present, nothing extra arrived unasked, and the copy says what the change
+does. An unfinished half — a control with no handler, a state with no design — is a
+finding even when it renders.
+
+## Severity floor and the verdict
+
+- **The floor.** These block regardless of taste: a control that cannot be reached
+  or operated by keyboard, a state that cannot be seen, text below the contrast
+  floor, a layout that clips or overlaps at a supported width, a destructive action
+  with no confirmation or undo. A change that introduces one is not approvable.
+- **The verdict** is one of `Approve`, `Approve with gaps` (naming them) or
+  `Changes requested` (each row with its status and its evidence). Nothing else.
+- **Evidence per row**: the surface, the state, the width, and the artefact —
+  a screenshot path, a DOM assertion, a measurement. A row that says "looks fine"
+  is not evidence.
+
+## The cold-read pass
+
+After the findings, one pass with fresh eyes and no memory of the diff:
+
+- Open the surface and say what it is for, what the primary action is, and what
+  happens on the way to it — before reading the code or the change description.
+- Where that reading disagrees with the intent, the interface is wrong even when
+  the code is right; record it.
+- The pass has a **verification budget**: a bounded number of interactions (the
+  default is five) spent on the paths the intent names. A pass that wanders is a
+  different review.
+
+When no fresh reader is available, the pass is **deferred, not skipped**: record
+that it did not run and which claim stays unverified.
+
+## Boundary
+
+This module owns **change and finished-surface review** — scope, blast radius,
+status by cause, coverage, intent completeness, the severity floor and the
+cold-read pass. It does not own:
+
+- the **process** review of a phase — verify-step, verdicts on objectives, the
+  gate record: `context/instructions/tasks-review.md`;
+- the **doctrine** a change is judged against — priority, modes, refine versus
+  redesign: `context/instructions/ui.md`;
+- **how** a render is observed, and the `SKIPPED is never PASSED` rule:
+  `context/instructions/browser.md`;
+- whether something is **safe** — trust boundaries, severity anchors and the three
+  audit verdicts: `context/instructions/security.md`.

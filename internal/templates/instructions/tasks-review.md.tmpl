@@ -92,3 +92,7 @@ finding ends as one of the closed verdicts **CONFIRMED**, **DISPROVED**,
 verdict per claim, no second pass by default. `DISCREPANT` means a document and
 the implementation disagree and the user has not ruled: report it as
 `context/instructions/reconciliation.md` prescribes, and never resolve it here.
+
+## Boundary
+
+This module owns the **process** review of a phase: the verify-step, the verdict on each objective and the gate record. It does not review what a change did to an interface — scope, blast radius, the coverage table and the cold-read pass belong to `context/instructions/ui-review.md`; nor whether a boundary is safe, which is `context/instructions/security.md`.

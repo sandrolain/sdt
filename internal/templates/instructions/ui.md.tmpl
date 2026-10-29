@@ -128,6 +128,20 @@ icon) for real content.
 | Mapping a framework's idioms | `context/instructions/ui-adapters.md` |
 | Rendering the result to verify it | `context/instructions/browser.md` |
 
+## The cheapest fix first
+
+Before adding a mechanism, climb the ladder: **delete** what is not needed →
+**use the platform** (a native control, a built-in behaviour) → **reuse** what the
+project already has → **correct** the existing thing → **add** something new. A
+fix that lands higher up than it must is a cost the project pays forever.
+
+## Reproducing an existing surface
+
+Recreating another product's screen or a public page is a licence question before
+it is a design one: name the source's licence, its terms and its robots policy
+before extracting anything, and say which of them apply. Attribution is kept where
+the licence requires it; a brand asset is not copied because it renders well.
+
 ## Boundary
 
 - `development.md` owns the process: agree style/architecture first, library-first,

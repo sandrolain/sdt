@@ -95,20 +95,20 @@ something is due, surface it and ask whether to run it before or after the reque
 |------|-------------|
 | `context/instructions/project.md` | First time on the project |
 | `context/instructions/analysis.md` | Creating or modifying an analysis |
-| `context/instructions/draft.md`, `context/instructions/scope.md` | Raw notes or a vague goal into an analysis |
+| `context/instructions/draft.md`, `context/instructions/scope.md` | Notes or a vague goal into an analysis |
 | `context/instructions/plan.md` | Creating or modifying a plan |
 | `context/instructions/tasks.md` | Creating or modifying task files |
-| `context/instructions/tasks-handoff.md` | Another session picks the work up |
+| `context/instructions/tasks-handoff.md` | Handing the work over |
 | `context/instructions/tasks-review.md` | Closing a phase: verify-step, review |
 | `context/instructions/decision.md` | Writing a decision record |
 | `context/instructions/architecture.md` | Updating architecture docs |
-| `context/instructions/worklog.md` | Writing a final report |
-| `context/instructions/notes.md` | Writing a note |
+| `context/instructions/worklog.md` | A final report |
+| `context/instructions/notes.md` | A note |
 | `context/instructions/lessons.md` | Lessons, Do-Not-Repeat or a decision-log entry |
-| `context/instructions/questions.md` | Registering an open question |
-| `context/instructions/proposal.md` | Creating or reviewing a proposal |
-| `context/instructions/research.md` | Running research or writing a research note |
-| `context/instructions/sources.md` | Capturing and citing a source |
+| `context/instructions/questions.md` | An open question |
+| `context/instructions/proposal.md` | Writing a proposal |
+| `context/instructions/research.md` | Running research |
+| `context/instructions/sources.md` | Capturing a source |
 {{if .Profiles.knowledge}}| `context/instructions/ingestion.md` | The knowledge pipeline |{{end}}
 {{if .Profiles.knowledge}}| `context/instructions/distillation.md` | A source too large to read whole |{{end}}
 | `context/instructions/prompts.md` | Creating or running a tracked prompt |
@@ -117,16 +117,16 @@ something is due, surface it and ask whether to run it before or after the reque
 | `sdt context get/set/unset`, `sdt q` | Frontmatter keys, JSON by gjson path |
 | `context/scripts/`, `context/instructions/scripts.md` | Running or adding a bundled script |
 {{if .Profiles.knowledge}}| `context/instructions/wiki.md` | Writing wiki pages |{{end}}
-{{if .Profiles.knowledge}}| `context/instructions/learning.md` | Learning, quizzing, explaining |{{end}}
-{{if .Profiles.knowledge}}| `context/instructions/lesson.md` | Writing a lesson and its items |{{end}}
+{{if .Profiles.knowledge}}| `context/instructions/learning.md` | Quizzing and explaining |{{end}}
+{{if .Profiles.knowledge}}| `context/instructions/lesson.md` | Writing a lesson |{{end}}
 {{if .Profiles.knowledge}}| `context/instructions/briefing.md` | Writing or updating a briefing |{{end}}
-| `context/instructions/debugging.md` | Diagnosing a failure or regression |
+| `context/instructions/debugging.md` | Diagnosing a failure |
 | `context/instructions/development.md` | Writing code |
-| `context/instructions/authoring.md` | Instructions, skills or agent-facing rules |
+| `context/instructions/authoring.md` | Instructions and agent-facing rules |
 | `context/instructions/writing.md` | Editing or reviewing prose |
 | `context/instructions/git.md` | Committing or branching |
 {{if .Profiles.browser}}| `context/instructions/browser.md` | Navigating or verifying a rendered layout |{{end}}
-{{if .Profiles.browser}}| `context/instructions/browser-tools.md` | Choosing a browser-automation tool |{{end}}
+{{if .Profiles.browser}}| `context/instructions/browser-tools.md` | Choosing a browser tool |{{end}}
 {{if .Profiles.vector}}| `context/instructions/vector.md` | A vector artefact: icon, logo, illustration |{{end}}
 {{if .Profiles.vector}}| `context/instructions/vector-svg.md` | Writing or optimising SVG |{{end}}
 {{if .Profiles.vector}}| `context/instructions/vector-tools.md` | An SVG render/verification tool |{{end}}
@@ -136,9 +136,11 @@ something is due, surface it and ask whether to run it before or after the reque
 {{if .Profiles.ui}}| `context/instructions/ui-accessibility.md` | Any interactive or visual change |{{end}}
 {{if .Profiles.ui}}| `context/instructions/ui-taste.md` | Visual direction and copy review |{{end}}
 {{if .Profiles.ui}}| `context/instructions/ui-layout.md` | Arranging a surface, type scale |{{end}}
-{{if .Profiles.ui}}| `context/instructions/ui-performance.md` | Performance, budgets, measurement |{{end}}
+{{if .Profiles.ui}}| `context/instructions/ui-performance.md` | Performance and budgets |{{end}}
 {{if .Profiles.ui}}| `context/instructions/ui-motion.md` | Animating, or reviewing motion |{{end}}
 {{if .Profiles.ui}}| `context/instructions/ui-adapters.md` | A framework's idioms onto the doctrine |{{end}}
+{{if .Profiles.ui}}| `context/instructions/ui-review.md` | Reviewing a change or a surface |{{end}}
+{{if .Profiles.security}}| `context/instructions/security.md` | "Is this safe?" — the audit vocabulary |{{end}}
 {{if .Profiles.mindmap}}| `context/instructions/mindmap.md` | Authoring or reviewing a mind map |{{end}}
 {{if .Profiles.mindmap}}| `context/instructions/mindmap-markmap.md` | The map markdown dialect |{{end}}
 {{if .Profiles.slides}}| `context/instructions/slides.md` | Authoring or reviewing a slide deck |{{end}}

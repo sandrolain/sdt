@@ -122,20 +122,20 @@ something is due, surface it and ask whether to run it before or after the reque
 |------|-------------|
 | `context/instructions/project.md` | First time on the project |
 | `context/instructions/analysis.md` | Creating or modifying an analysis |
-| `context/instructions/draft.md`, `context/instructions/scope.md` | Raw notes or a vague goal into an analysis |
+| `context/instructions/draft.md`, `context/instructions/scope.md` | Notes or a vague goal into an analysis |
 | `context/instructions/plan.md` | Creating or modifying a plan |
 | `context/instructions/tasks.md` | Creating or modifying task files |
-| `context/instructions/tasks-handoff.md` | Another session picks the work up |
+| `context/instructions/tasks-handoff.md` | Handing the work over |
 | `context/instructions/tasks-review.md` | Closing a phase: verify-step, review |
 | `context/instructions/decision.md` | Writing a decision record |
 | `context/instructions/architecture.md` | Updating architecture docs |
-| `context/instructions/worklog.md` | Writing a final report |
-| `context/instructions/notes.md` | Writing a note |
+| `context/instructions/worklog.md` | A final report |
+| `context/instructions/notes.md` | A note |
 | `context/instructions/lessons.md` | Lessons, Do-Not-Repeat or a decision-log entry |
-| `context/instructions/questions.md` | Registering an open question |
-| `context/instructions/proposal.md` | Creating or reviewing a proposal |
-| `context/instructions/research.md` | Running research or writing a research note |
-| `context/instructions/sources.md` | Capturing and citing a source |
+| `context/instructions/questions.md` | An open question |
+| `context/instructions/proposal.md` | Writing a proposal |
+| `context/instructions/research.md` | Running research |
+| `context/instructions/sources.md` | Capturing a source |
 | `context/instructions/ingestion.md` | The knowledge pipeline |
 | `context/instructions/distillation.md` | A source too large to read whole |
 | `context/instructions/prompts.md` | Creating or running a tracked prompt |
@@ -144,16 +144,16 @@ something is due, surface it and ask whether to run it before or after the reque
 | `sdt context get/set/unset`, `sdt q` | Frontmatter keys, JSON by gjson path |
 | `context/scripts/`, `context/instructions/scripts.md` | Running or adding a bundled script |
 | `context/instructions/wiki.md` | Writing wiki pages |
-| `context/instructions/learning.md` | Learning, quizzing, explaining |
-| `context/instructions/lesson.md` | Writing a lesson and its items |
+| `context/instructions/learning.md` | Quizzing and explaining |
+| `context/instructions/lesson.md` | Writing a lesson |
 | `context/instructions/briefing.md` | Writing or updating a briefing |
-| `context/instructions/debugging.md` | Diagnosing a failure or regression |
+| `context/instructions/debugging.md` | Diagnosing a failure |
 | `context/instructions/development.md` | Writing code |
-| `context/instructions/authoring.md` | Instructions, skills or agent-facing rules |
+| `context/instructions/authoring.md` | Instructions and agent-facing rules |
 | `context/instructions/writing.md` | Editing or reviewing prose |
 | `context/instructions/git.md` | Committing or branching |
 | `context/instructions/browser.md` | Navigating or verifying a rendered layout |
-| `context/instructions/browser-tools.md` | Choosing a browser-automation tool |
+| `context/instructions/browser-tools.md` | Choosing a browser tool |
 | `context/instructions/vector.md` | A vector artefact: icon, logo, illustration |
 | `context/instructions/vector-svg.md` | Writing or optimising SVG |
 | `context/instructions/vector-tools.md` | An SVG render/verification tool |
@@ -163,9 +163,11 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/ui-accessibility.md` | Any interactive or visual change |
 | `context/instructions/ui-taste.md` | Visual direction and copy review |
 | `context/instructions/ui-layout.md` | Arranging a surface, type scale |
-| `context/instructions/ui-performance.md` | Performance, budgets, measurement |
+| `context/instructions/ui-performance.md` | Performance and budgets |
 | `context/instructions/ui-motion.md` | Animating, or reviewing motion |
 | `context/instructions/ui-adapters.md` | A framework's idioms onto the doctrine |
+| `context/instructions/ui-review.md` | Reviewing a change or a surface |
+| `context/instructions/security.md` | "Is this safe?" — the audit vocabulary |
 | `context/instructions/mindmap.md` | Authoring or reviewing a mind map |
 | `context/instructions/mindmap-markmap.md` | The map markdown dialect |
 | `context/instructions/slides.md` | Authoring or reviewing a slide deck |

@@ -106,6 +106,23 @@ tabular numerals in data. They are stack-neutral and high-signal.
 - Errors name the problem and the recovery.
 - Microcopy states what will happen; it does not hedge or decorate.
 
+## Anatomy and states, as a table
+
+For a component that carries more than one state, write the table before the
+component: one row per part, one column per state, a cell for what changes (and a
+dash for what does not). The empty cells are the design work — a part that has no
+error state, a row that never renders loading. A component built from the table
+cannot quietly omit the state nobody thought about.
+
+Two cases the table exposes:
+
+- **The fake-send.** A form that appears to submit but has no handler is a
+  defect, not a prototype; either the action runs or the control is disabled with
+  a reason.
+- **The same-named substitute.** A control that looks like the project's own but
+  is built from a different element (a styled `div` where the project uses `button`) drifts
+  from every shared behaviour — focus, keyboard, disabled. Use the project's part.
+
 ## Boundary
 
 - Visual direction, tone of voice and coherence live in

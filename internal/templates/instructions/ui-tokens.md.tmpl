@@ -72,6 +72,18 @@ role, variant and state; the value never appears in the name.
   in light, pure white at ~10% in dark), inset so it adds no layout. The project's
   own neutral wins.
 
+## Ramp and roles
+
+- **A ramp is steps; a role is a decision.** Name each step once (50…950) and map
+  every role to a step — surface, surface-raised, border, text, text-muted, accent,
+  on-accent. A colour that appears in the UI with no role is either a missing role
+  or a mistake; the role inventory is the completeness check, not the palette size.
+- **Both themes are tested, never inferred.** A token that resolves in one scheme
+  and not the other is a defect the dark/light swap exposes; look at both before
+  claiming the pair works.
+- **Compliance is shown as a pair.** When a change moves a value to a token, show
+  before and after on the same surface: the intent is the same, the literal is gone.
+
 ## Boundary
 
 - Choosing or adopting a design system is a library-first decision

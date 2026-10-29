@@ -16,8 +16,8 @@ import (
 // the open .agents/skills/<name>/SKILL.md layout, prefixed sdt-.
 func TestAgentInitGeneratesSkills(t *testing.T) {
 	dir := runInTempDir(t)
-	execute(t, agentInitCmd, nil, "--project", "p", "--group", "g", "--yes", "--gitignore", "none", "--with", "ui", "--with", "slides", "--with", "mindmap", "--with", "vector", "--with", "browser")
-	for _, name := range []string{"sdt-ui-ux", "sdt-slide-deck", "sdt-mind-map", "sdt-vector-svg", "sdt-browser-verification"} {
+	execute(t, agentInitCmd, nil, "--project", "p", "--group", "g", "--yes", "--gitignore", "none", "--with", "ui", "--with", "slides", "--with", "mindmap", "--with", "vector", "--with", "browser", "--with", "security")
+	for _, name := range []string{"sdt-ui-ux", "sdt-slide-deck", "sdt-mind-map", "sdt-vector-svg", "sdt-browser-verification", "sdt-security"} {
 		path := filepath.Join(dir, sdtSkillsDir, name, "SKILL.md")
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("skill %s not generated: %v", name, err)

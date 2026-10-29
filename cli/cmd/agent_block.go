@@ -321,7 +321,26 @@ func agentBlockInstructionsFor(project, group string, profiles []string) string 
 			data.Profiles[p.Slug] = true
 		}
 	}
-	return templates.Must("agents/instructions.md.tmpl", data, nil)
+	return collapseTableBlankLines(templates.Must("agents/instructions.md.tmpl", data, nil))
+}
+
+// collapseTableBlankLines removes the empty line a false profile conditional
+// leaves between two rows of the on-action table. A blank line inside a markdown
+// table ends it, so a project that selects a few profiles would otherwise read
+// three tables instead of one. Only a blank line whose neighbours are both rows
+// is dropped: prose keeps its spacing.
+func collapseTableBlankLines(block string) string {
+	lines := strings.Split(block, "\n")
+	out := make([]string, 0, len(lines))
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" && i > 0 && i+1 < len(lines) &&
+			strings.HasPrefix(strings.TrimSpace(lines[i-1]), "|") &&
+			strings.HasPrefix(strings.TrimSpace(lines[i+1]), "|") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
 }
 
 // agentBlockProject returns the write-once, single generic template placed in

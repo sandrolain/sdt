@@ -92,12 +92,8 @@ duration or an easing, use it; if it has none, say so rather than inventing one.
   from the focus — never all at the same instant. A stagger is for an
   **infrequent** staged entrance (commonly ~100 ms per step), never for a routine
   interaction; where the interaction is frequent, drop the stagger entirely.
-- **A stagger has a budget.** The whole cascade must finish well under a second;
-  anything longer makes the user wait for decoration. When a list outgrows the
-  budget, animate fewer items rather than slowing the stagger.
-- **Keep the motion vocabulary small.** A product whose every element moves
-  differently reads as unfinished; name the three constants at the end of this
-  file and hold to them.
+- **A stagger has a budget.** The cascade finishes well under a second; when a
+  list outgrows it, animate fewer items rather than slowing the stagger.
 
 ## Motion and reduced motion
 
@@ -115,9 +111,8 @@ principle substitutes:
 - **Never auto-play a loop.** A movement that starts by itself and never stops is
   a distraction and an accessibility failure. Anything long enough to need a pause
   control needs one.
-- **Avoid motion that provokes.** Large scale changes, full-screen movement,
-  spinning elements and stacked parallax can cause real discomfort. When one is
-  genuinely needed, provide an alternative.
+- **Avoid motion that provokes.** Large scale changes, full-screen movement and
+  stacked parallax cause real discomfort; when one is needed, offer an alternative.
 
 ## Symptom to fix
 
@@ -127,9 +122,8 @@ principle substitutes:
 | Slow | the movement is longer than the element deserves | shorten toward the project's shortest tier, keep only the decelerating half |
 | Cheap or flat | only the moved thing moves | let what supports it answer too — the shadow, the icon, the neighbour |
 | Distracting | too much moving at once | apply the one-hero rule, shorten the stagger budget |
-| Jarring | no settling beat | add a fraction of a second of stillness and let the eye land |
-| No personality | every screen picks its own timing | take the three constants below instead of choosing per screen |
-| Inconsistent | the same kind of change moves differently in two places | take the values from the project's own scale, not from the screen |
+| Jarring | no settling beat | add a fraction of a second of stillness |
+| No personality | every screen picks its own timing | take the three constants below |
 
 ## The product's motion identity
 
@@ -141,6 +135,16 @@ Name three things once, then hold to them:
 - **one way of arriving** for repeated elements.
 
 Record them where the project keeps conventions, not in this file.
+
+## What a motion imitates
+
+Classify the driver before choosing the curve: a **direct manipulation** (the
+finger is the animation — it must track without easing), a **state change** (a
+control acknowledged what happened), an **arrival** (something entered the
+surface), or a **transition** (the reader moved to another context). Each has its
+own duration class and easing; a direct manipulation that eases reads as lag, and
+an arrival that snaps reads as a glitch. A click imitation of a physical
+interaction is a different product, not a detail.
 
 ## Boundary
 

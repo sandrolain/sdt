@@ -26,6 +26,10 @@ to them and never restates them.
 5. Read `context/instructions/ui-motion.md` when animating; `ui-taste.md` for
    layout, visual direction and copy review; `ui-performance.md` for budgets;
    `ui-adapters.md` when mapping the framework's idioms.
+6. Read `context/instructions/ui-review.md` when reviewing a change or a finished
+   surface — scope, blast radius, the coverage table that forbids a verdict, and
+   the cold-read pass. `tasks-review.md` keeps the process review; this one judges
+   the interface.
 
 Verify a rendered result with `context/instructions/browser.md` before claiming a
 layout looks right. If a number in an instruction conflicts with the installed

@@ -62,6 +62,21 @@ licence to invent a design system (`ui-tokens.md`).
   structured; if everything collapses into one mass, the grouping is missing.
 - Run it at the real viewport, not a zoomed-out mock.
 
+## Grouping, and the type scale by role
+
+- **Grouping is a ratio, not a number.** The space between two groups must be
+  visibly larger than the space inside them — commonly 2× (a default, override it
+  with the project's scale). When inside and outside read the same, the grouping
+  is not there; add space between, not around.
+- **Line-height and tracking follow the role**, not the component: display and
+  title steps tighten (large type needs less leading and slightly negative
+  tracking), body keeps a comfortable leading, labels and captions tighten less
+  and never below the readable floor. State the pair per role, not per instance.
+- **A statement is not a headline.** A short declarative line above a section
+  ("Everything in one place.") is body copy at body size — promoting it to a
+  headline is a look, not a hierarchy. Hierarchy comes from one headline per
+  surface, not from every line competing.
+
 ## Boundary
 
 - Values come from `context/instructions/ui-tokens.md`.

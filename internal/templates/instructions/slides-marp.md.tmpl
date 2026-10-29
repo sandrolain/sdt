@@ -34,6 +34,10 @@ trusting a deck that "looks fine in the editor".
   `<v-clicks>`, `::right::` / `::left::` slots, `{monaco}`, `magic-move`, and
   absolute `/public/...` asset paths. Marp resolves images relative to the
   document; there is no public-folder rule.
+- **Hiding a slide's content with `display: none` can be undone by a later layout
+  class.** Marp applies its own layout rules after the author's; use `visibility`
+  or `opacity` for content that must appear or disappear, and reserve `display`
+  for elements no layout touches.
 - **Multiple, split and filtered backgrounds need inline-SVG mode**, which is
   experimental in Marpit and off by default. Without it only the last
   `![bg]` image of a slide is shown.

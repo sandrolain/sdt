@@ -208,3 +208,15 @@ func TestProfileSelectionIsIndependentOfTime(t *testing.T) {
 		t.Fatalf("core alone writes %d module(s), the full selection %d", len(core), len(all))
 	}
 }
+
+// TestOnActionTableIsOneTableUnderAnySelection: a profile the project did not
+// select leaves an empty line where its row would be, and a blank line inside a
+// markdown table ends it — the block would read as several tables.
+func TestOnActionTableIsOneTableUnderAnySelection(t *testing.T) {
+	for _, profiles := range [][]string{nil, {agentProfileCore}, {"ui"}, {"ui", "browser"}} {
+		block := agentBlockInstructionsFor("p", "g", profiles)
+		if strings.Contains(block, "|\n\n|") {
+			t.Errorf("selection %v splits the on-action table:\n%s", profiles, block)
+		}
+	}
+}
