@@ -26,10 +26,12 @@ completion to its parents. It refuses when the derived state disagrees
 override in the document body.
 
 Closing a plan also writes its crystallized closeout in the worklog directory: the
-checklist states, the ` + "`## Review`" + ` verdicts and the gate result are generated from
-the ledger, while the fields only the author knows (files affected, local
-decisions, lessons, signal review, deviations) stay marked for them. A rerun
-regenerates the derived part and keeps the hand-written one.
+checklist states, the ` + "`## Review`" + ` verdicts (findings included) and the gate result
+are generated from the ledger, while the fields only the author knows can be
+recorded in the same invocation with ` + "`--files`" + `, ` + "`--decisions`" + `, ` + "`--lessons`" + `,
+` + "`--signal`" + ` and ` + "`--deviations`" + `, so the worklog needs no hand edit. A field left
+out keeps its marker; a rerun regenerates the derived part and keeps what the
+author wrote.
 
 Supported kinds: tasks, plan, analysis.
 
@@ -43,7 +45,7 @@ Examples:
 		exitWithError(cmd, err)
 		allow := getBoolFlag(cmd, "allow-unfinished", false)
 		reason := strings.TrimSpace(getStringFlag(cmd, "reason", false))
-		entry, err := closeDocument(cmd, doc, allow, reason)
+		entry, err := closeDocument(cmd, doc, allow, reason, closeoutFieldFlags(cmd))
 		exitWithError(cmd, err)
 		outputString(cmd, "ok\n")
 		if entry != "" {
@@ -72,7 +74,7 @@ Examples:
 // the document is a plan or a stream of one. It is the one implementation behind
 // `context close` and `status set` with a terminal value and a `--reason`, so the
 // two cannot drift.
-func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason string) (string, error) {
+func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason string, closeout map[string]string) (string, error) {
 	terminal := closeTerminalStatus(doc.Type)
 	if terminal == "" {
 		return "", fmt.Errorf("type %s cannot be closed", ctxKindLabel(doc.Type))
@@ -104,7 +106,7 @@ func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason st
 	if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
 		return "", err
 	}
-	entry, err := closeoutWrite(doc)
+	entry, err := closeoutWrite(doc, closeout)
 	if err != nil {
 		// The status is already written: say the record failed rather than
 		// pretending the close produced one.

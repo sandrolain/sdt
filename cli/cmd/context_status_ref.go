@@ -644,7 +644,7 @@ Examples:
 		// recorded in the body (the same implementation `context close` uses), so
 		// an early close is never silent — one verb per job, no second command.
 		if reason := strings.TrimSpace(getStringFlag(cmd, "reason", false)); reason != "" && status == closeTerminalStatus(doc.Type) {
-			if _, err := closeDocument(cmd, doc, true, reason); err != nil {
+			if _, err := closeDocument(cmd, doc, true, reason, nil); err != nil {
 				exitWithError(cmd, err)
 			}
 			writeStatusResult(cmd, doc, status)

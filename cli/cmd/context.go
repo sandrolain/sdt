@@ -329,6 +329,9 @@ func init() {
 
 	contextCloseCmd.Flags().Bool("allow-unfinished", false, "Close despite unfinished children/tasks (requires --reason)")
 	contextCloseCmd.Flags().String("reason", "", "Why the document is closed early (required with --allow-unfinished)")
+	for _, fld := range closeoutHumanFields {
+		contextCloseCmd.Flags().String(fld.Flag, "", fld.Label+" recorded in the closeout")
+	}
 	addProvenanceFlags(contextCloseCmd)
 	addCascadeFlag(contextCloseCmd)
 

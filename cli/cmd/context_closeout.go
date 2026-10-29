@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 // The crystallized closeout is generated from the ledger: the checklist states,
@@ -83,6 +85,11 @@ func closeoutScanLedger(body string) ([]closeoutItem, []string, string) {
 		case trimmed == "## Review":
 			section = ctxReviewVerb
 			continue
+		case trimmed == "### Findings" && section == ctxReviewVerb:
+			// A finding belongs to the review block, not to a new section: its
+			// bullets carry the verdict token and are the record the closeout
+			// must import, so the section is kept.
+			continue
 		case strings.HasPrefix(trimmed, "## "), strings.HasPrefix(trimmed, "### "):
 			section = ""
 		}
@@ -135,16 +142,33 @@ func closeoutSlug(path string) string {
 }
 
 // closeoutHumanFields are the lines only the agent can fill. A rerun carries
-// them over; a first run leaves the marker that says so.
+// them over; a first run leaves the marker that says so. `Flag` is the
+// `sdt context close` option that records the value in one invocation, so the
+// author never edits the worklog by hand.
 var closeoutHumanFields = []struct {
 	Label  string
+	Flag   string
 	Marker string
 }{
-	{"Files affected", "fill with the paths touched by the delivery"},
-	{"Decisions", "small local ones here; an architectural one becomes a decision record, linked"},
-	{"Lessons / Do-Not-Repeat candidates", "→ the `context/notes/` lessons note, linked"},
-	{"Signal review", "routed capture per *Signal review*, or `none`"},
-	{"Deviations / blockers", "explicit, with resolution or open status"},
+	{"Files affected", "files", "fill with the paths touched by the delivery"},
+	{"Decisions", "decisions", "small local ones here; an architectural one becomes a decision record, linked"},
+	{"Lessons / Do-Not-Repeat candidates", "lessons", "→ the `context/notes/` lessons note, linked"},
+	{"Signal review", "signal", "routed capture per *Signal review*, or `none`"},
+	{"Deviations / blockers", "deviations", "explicit, with resolution or open status"},
+}
+
+// closeoutFieldFlags reads the author-supplied closeout fields from the close
+// command. A value is collapsed to one line: the closeout renders a field as a
+// single bold line, so a newline inside a value would break the record.
+func closeoutFieldFlags(cmd *cobra.Command) map[string]string {
+	fields := map[string]string{}
+	for _, fld := range closeoutHumanFields {
+		value := strings.Join(strings.Fields(getStringFlag(cmd, fld.Flag, false)), " ")
+		if value != "" {
+			fields[fld.Label] = value
+		}
+	}
+	return fields
 }
 
 // closeoutRenderBlock builds the closeout section. `carried` supplies the human
@@ -299,7 +323,7 @@ func closeoutRemainingSlots(entry, slug string) []string {
 // for that identity when one exists, and reports the path so the caller can say
 // where the record went. A non-plan document returns "" and no error: the
 // closeout belongs to the ledger, not to every close.
-func closeoutWrite(doc ctxResolvedDoc) (string, error) {
+func closeoutWrite(doc ctxResolvedDoc, fields map[string]string) (string, error) {
 	planPath, taskPath := doc.Path, ""
 	switch {
 	case doc.Type.kind == ctxTypeTasks:
@@ -353,6 +377,13 @@ func closeoutWrite(doc ctxResolvedDoc) (string, error) {
 		carried = closeoutCarriedFields(block)
 		if existingDate != "" {
 			date = existingDate
+		}
+	}
+	// A field passed to `close` wins over both the marker and the value a
+	// previous block carried: the author just said what it is.
+	for label, value := range fields {
+		if strings.TrimSpace(value) != "" {
+			carried[label] = value
 		}
 	}
 	rendered := closeoutFactsRender(facts, date, carried)

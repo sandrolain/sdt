@@ -194,3 +194,81 @@ func TestCloseoutIgnoresTheReviewLogPlaceholder(t *testing.T) {
 		t.Errorf("verdicts = %v, want the review line only", verdicts)
 	}
 }
+
+// TestCloseoutImportsFindingsUnderReview: `### Findings` is a subsection of the
+// review block, not a new section — its bullets carry the verdict tokens and are
+// the record the closeout must import. The scanner used to reset the section on
+// every `###` heading, so every finding disappeared from the closeout.
+func TestCloseoutImportsFindingsUnderReview(t *testing.T) {
+	body := "## Review\n\n### Findings\n\n" +
+		"- F1 — the panel closes with the icon. **CONFIRMED**\n" +
+		"  (evidence: AgentPanel.test.tsx)\n\n" +
+		"### Gate\n\n- gate ok\n"
+	_, verdicts, gate := closeoutScanLedger(body)
+	if len(verdicts) != 2 {
+		t.Fatalf("verdicts = %v, want the finding and its continuation", verdicts)
+	}
+	if !strings.Contains(verdicts[0], "F1") || !strings.Contains(verdicts[0], "CONFIRMED") {
+		t.Errorf("first verdict = %q, want the finding", verdicts[0])
+	}
+	if gate != "gate ok" {
+		t.Errorf("gate = %q, want the gate run", gate)
+	}
+}
+
+// TestContextCloseFillsTheAuthoredSlotsFromFlags: the close records the fields
+// only the author knows in the same invocation, so the worklog needs no hand
+// edit and the command reports no remaining slot.
+func TestContextCloseFillsTheAuthoredSlotsFromFlags(t *testing.T) {
+	dir := setupContextProject(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := closeoutPlanFixture(t, dir)
+
+	out := string(execute(t, contextCloseCmd, nil, rel,
+		"--files", "cli/cmd/context_close.go, cli/cmd/context_closeout.go",
+		"--decisions", "flags on close, no second verb",
+		"--lessons", "none",
+		"--signal", "routed: closeout-slots-are-filled-by-the-close",
+		"--deviations", "none"))
+	if !strings.Contains(out, "closeout slots to fill: none") {
+		t.Errorf("close still reports slots to fill:\n%s", out)
+	}
+
+	entries, err := dirFiles(sdtWorklogDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("worklog entries = %v (%v), want one", entries, err)
+	}
+	content := mustReadFile(t, entries[0])
+	for _, want := range []string{
+		"- **Files affected**: cli/cmd/context_close.go, cli/cmd/context_closeout.go",
+		"- **Decisions**: flags on close, no second verb",
+		"- **Signal review**: routed: closeout-slots-are-filled-by-the-close",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("closeout missing %q:\n%s", want, content)
+		}
+	}
+	if strings.Contains(content, "fill with the paths touched") {
+		t.Errorf("the filled slot kept its marker:\n%s", content)
+	}
+}
+
+// TestContextCloseRerunKeepsTheFlagValues: a second close without flags is a
+// refresh of the derived part, never a reset of what the author recorded.
+func TestContextCloseRerunKeepsTheFlagValues(t *testing.T) {
+	dir := setupContextProject(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := closeoutPlanFixture(t, dir)
+
+	execute(t, contextCloseCmd, nil, rel, "--decisions", "kept across a rerun")
+	execute(t, contextCloseCmd, nil, rel)
+
+	entries, err := dirFiles(sdtWorklogDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("worklog entries = %v (%v), want one", entries, err)
+	}
+	content := mustReadFile(t, entries[0])
+	if !strings.Contains(content, "- **Decisions**: kept across a rerun") {
+		t.Errorf("rerun reset the authored field:\n%s", content)
+	}
+}

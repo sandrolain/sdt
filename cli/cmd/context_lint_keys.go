@@ -38,7 +38,10 @@ var ctxDeclaredKeys = map[string]bool{
 	// A lesson names the concept page it teaches; the key is written by
 	// `context new --type lesson`, so it is declared here.
 	ctxFrontmatterConcept: true,
-	"via":                 true, "project": true, "group": true, "id": true, "tier": true,
+	// An analysis records the todos it answers and a plan inherits them; the
+	// key is written by `context new --todo` and closed by `context close`.
+	"todos": true,
+	"via":   true, "project": true, "group": true, "id": true, "tier": true,
 	// Index/viewer generated markers.
 	"_generated": true, "position": true, "order": true,
 	// Document-type-specific fields used by existing templates/docs.
