@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/goccy/go-yaml"
@@ -103,6 +105,7 @@ Examples:
 		query := getStringFlag(cmd, "query", true)
 		scope := getStringFlag(cmd, "scope", false)
 		objective := getStringFlag(cmd, "objective", false)
+		from := strings.TrimSpace(getStringFlag(cmd, "from", false))
 		if objective != "" && !ctxObjectiveRegexp.MatchString(objective) {
 			exitWithError(cmd, fmt.Errorf("--objective must be a kebab-case slug (lowercase alphanumeric and '-'), got %q", objective))
 			return
@@ -111,11 +114,75 @@ Examples:
 		exitWithError(cmd, err)
 
 		r := research.NewRun(query, scope, objective, time.Now())
+		// A known list seeds the run: the reader already has the sources, and a
+		// cold search would rediscover them at a cost and with less precision.
+		added, skipped := 0, 0
+		if from != "" {
+			entries, dupes, err := readSourceList(from)
+			exitWithError(cmd, err)
+			skipped = dupes
+			for _, e := range entries {
+				if r.AddSource(research.Source{CanonicalURL: e.URL, Title: e.Title, Status: research.StatusDiscovered}) {
+					added++
+				} else {
+					skipped++
+				}
+			}
+		}
 		if err := r.Save(root); err != nil {
 			exitWithError(cmd, err)
 		}
-		outputResearch(cmd, r, func() string { return r.RunID + "\n" })
+		outputResearch(cmd, r, func() string {
+			if from == "" {
+				return r.RunID + "\n"
+			}
+			return fmt.Sprintf("%s\nsources: %d added, %d duplicate(s) skipped\n", r.RunID, added, skipped)
+		})
 	},
+}
+
+// sourceEntry is one known source read from a list file.
+type sourceEntry struct {
+	URL   string
+	Title string
+}
+
+// readSourceList reads a list of known sources: one URL per line, a markdown
+// link, or a bullet carrying either. Lines without a URL are ignored, and a
+// repeated URL keeps its first title — a list of books is prose with links in it,
+// not a schema.
+func readSourceList(path string) ([]sourceEntry, int, error) {
+	//#nosec G304 -- a list the caller named
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, 0, fmt.Errorf("--from %s: %w", path, err)
+	}
+	link := regexp.MustCompile(`\[([^\]]*)\]\((https?://[^)\s]+)\)`)
+	plain := regexp.MustCompile(`https?://[^\s)<>"']+`)
+	var out []sourceEntry
+	seen := map[string]bool{}
+	dupes := 0
+	for _, line := range strings.Split(string(data), "\n") {
+		var entries []sourceEntry
+		if m := link.FindAllStringSubmatch(line, -1); len(m) > 0 {
+			for _, match := range m {
+				entries = append(entries, sourceEntry{URL: match[2], Title: strings.TrimSpace(match[1])})
+			}
+		} else if m := plain.FindAllString(line, -1); len(m) > 0 {
+			for _, url := range m {
+				entries = append(entries, sourceEntry{URL: url})
+			}
+		}
+		for _, e := range entries {
+			if seen[e.URL] {
+				dupes++
+				continue
+			}
+			seen[e.URL] = true
+			out = append(out, e)
+		}
+	}
+	return out, dupes, nil
 }
 
 // ── research inspect ──────────────────────────────────────────────────────────
@@ -222,6 +289,7 @@ func init() {
 	researchInitCmd.Flags().String("query", "", "The question the run answers")
 	researchInitCmd.Flags().String("scope", "", "Optional scope narrowing the run")
 	researchInitCmd.Flags().String("objective", "", "Kebab-case grouping key naming the archive directory (default: derived from the query)")
+	researchInitCmd.Flags().String("from", "", "Seed the run from a list of known sources (one URL per line, or `[title](url)`)")
 	researchInspectCmd.Flags().String("run", "", "Run id (default: the latest run)")
 	researchCmd.AddCommand(researchInitCmd, researchInspectCmd)
 	rootCmd.AddCommand(researchCmd)

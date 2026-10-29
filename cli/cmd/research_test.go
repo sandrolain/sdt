@@ -161,3 +161,35 @@ func TestResearchRootWalksUp(t *testing.T) {
 		t.Errorf("researchRoot = %q, want %q", got, root)
 	}
 }
+
+// TestResearchInitSeedsFromAKnownList: a reader who already has the sources
+// should not pay for a cold search. The list seeds the run as discovered
+// sources, duplicates collapse, and the existing fetch → verify → archive flow
+// takes over.
+func TestResearchInitSeedsFromAKnownList(t *testing.T) {
+	root := researchTestProject(t)
+	list := filepath.Join(t.TempDir(), "books.md")
+	writeTestFile(t, list, "- [Free books](https://example.com/books)\n- https://example.com/books\n- [A second](https://example.org/second)\nno link on this line\n")
+
+	out := string(execute(t, researchInitCmd, nil, "--query", "books", "--from", list))
+	if !strings.Contains(out, "sources: 2 added, 1 duplicate(s) skipped") {
+		t.Fatalf("the seed count is wrong:\n%s", out)
+	}
+
+	runID := strings.TrimSpace(strings.SplitN(out, "\n", 2)[0])
+	r, err := research.Load(root, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Sources) != 2 {
+		t.Fatalf("sources = %d, want 2", len(r.Sources))
+	}
+	for _, s := range r.Sources {
+		if s.Status != research.StatusDiscovered {
+			t.Errorf("%s has status %q, want discovered", s.CanonicalURL, s.Status)
+		}
+	}
+	if r.Sources[0].Title != "Free books" {
+		t.Errorf("the link title was lost: %q", r.Sources[0].Title)
+	}
+}

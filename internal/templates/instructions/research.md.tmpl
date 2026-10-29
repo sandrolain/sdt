@@ -128,8 +128,10 @@ left untouched.
 ### Run commands
 
 - `sdt research init --query "<q>" [--scope "<s>"] [--objective "<kebab-slug>"]`
-  — create a run; `--objective` names the archive directory and is derived from
-  the query when omitted.
+  — create a run; `--objective` names the archive directory (derived from the
+  query). `--from <file>` seeds the run from a known list — one URL per line or
+  `[title](url)` — as `discovered` sources, so a reader who has the references
+  pays for no cold search.
 - `sdt research search --query "<q>" --network --confirm [--limit N]
   [--max-credits N] [--api-url <url>]` — discover sources with the project's
   declared providers, tried in `.sdt.yaml` order. **Search is opt-in**: it
@@ -168,8 +170,8 @@ left untouched.
 
 - **Budget before the network.** Declare results/credits bounds; the run refuses
   to start when the remaining credits are below `--max-credits`.
-- **Provenance is data, not prose.** Every source carries URL, hash, size and
-  the raw path; a claim cites its source.
+- **Provenance is data.** Every source carries URL, hash, size and raw path; a
+  claim cites its source.
 - **Checkpoints.** Each stage records its completion; an interrupted run resumes
   without repeating completed work.
 - **Archiving is separate and gated.** A verified run is evidence; a wiki page is
@@ -184,7 +186,7 @@ left untouched.
   Summary`, atomic cited claims, typed `relations`), presents the write plan
   and writes only on approval. The `>populate-wiki` trigger drives this.
 - **Negatives are kept.** A failed fetch keeps its error and retry count and
-  stays retryable; rejected sources stay recorded.
+  stays retryable; a rejected source stays recorded.
 
 ### From a run to a note
 

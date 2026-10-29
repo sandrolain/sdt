@@ -218,14 +218,15 @@ session: <session id>        # optional
     An unstated gate is discovered at delivery, when it is expensive.
 - When this does not apply: a small, direct objective with no requirements
   document skips the decomposition and goes straight to phases.
-- **Good vs bad splitting** — bad: one "Implement feature" phase with 15 mixed
-  items (schema + backend + CLI + tests in one file). Good: split into phases,
-  each with a single deliverable and ≤ ~5 items: schema → backend → CLI → tests.
-- **Dependency graph** — only needed when there are more than ~3 tasks or
-  non-obvious ordering. Use a simple ASCII diagram.
-- **Wave dependencies are explicit.** A plan/wave's `depends_on` names the plans
-  it needs; an **absent** `depends_on` means **INDETERMINATE** (unknown), never
-  "independent" — state `depends_on: []` when there is genuinely no dependency.
+- **Good vs bad splitting** — bad: one phase with 15 mixed items; good: phases of
+  ≤ ~5 items, one deliverable each: schema → backend → CLI → tests.
+- **Dependency graph** — for more than ~3 tasks or non-obvious ordering; a simple
+  ASCII diagram.
+- **Wave dependencies are explicit.** `depends_on` names the plans a wave needs;
+  absent means **INDETERMINATE**, never "independent" — write `depends_on: []`
+  when there is genuinely none.
+- **A plan that changes a described surface names its architecture-page update as
+  a phase**; the verify-step is where that gap is found, which is too late.
 - **Completion criteria** — checkboxes for the global exit conditions (all
   phases completed — including the final Validation phase — full test suite
   green, etc.). State only what **this** plan delivers: a criterion that implies
