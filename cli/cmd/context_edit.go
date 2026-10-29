@@ -45,7 +45,9 @@ sdt context set.
 A SECTION IS THE HEADING AND ITS BODY — --section replaces the whole section, so
 the text must begin with that section's heading, at its own level (for example
 ## Claims). A body without the heading is refused rather than spliced in, which
-would delete the anchor a reader navigates by.
+would delete the anchor a reader navigates by. A subsection is a section of its
+own: --section Review leaves ### Gate untouched, and a body that repeats a
+surviving heading is refused instead of duplicating it.
 
 --append ADDS INSTEAD OF REPLACING — the text goes after the body's last line,
 or after the last line of --section, and carries no heading. It is the shape for
@@ -232,6 +234,11 @@ func ensureTrailingNewline(text string) string {
 // text. The section is matched by its stable id or its heading text — the same
 // selection `context show --section` makes — so a show → edit round trip names
 // the same section. An empty text removes the section.
+//
+// The unit is flat: `## Review` does not include `### Gate`, so a replacement
+// leaves the child in place. A replacement that repeats a heading the edit does
+// not consume would duplicate it — silently, which is how a section rewrite once
+// produced two review blocks — so the collision is refused instead.
 func replaceContextSection(body, sectionRef, text string) (string, error) {
 	lines := strings.Split(body, "\n")
 	// mdstruct drops the single empty element a terminating newline produces, so
@@ -241,13 +248,17 @@ func replaceContextSection(body, sectionRef, text string) (string, error) {
 		lines = lines[:n-1]
 		trailing = true
 	}
-	for _, s := range mdstruct.SplitSections(body) {
+	sections := mdstruct.SplitSections(body)
+	for i, s := range sections {
 		if !strings.EqualFold(s.ID, sectionRef) && !strings.EqualFold(s.Heading, sectionRef) {
 			continue
 		}
 		var repl []string
 		if text != "" {
 			if err := checkSectionReplacement(text, s); err != nil {
+				return "", err
+			}
+			if err := checkSectionCollision(text, sections, i); err != nil {
 				return "", err
 			}
 			repl = strings.Split(strings.TrimSuffix(text, "\n"), "\n")
@@ -316,6 +327,42 @@ func appendContextBody(body, sectionRef, text string) (string, error) {
 // heading it is replacing. mdstruct's section range is heading-inclusive by
 // design, so splicing a body without the heading would delete it — the anchor a
 // reader navigates by. Refusing is honest; auto-prepending would guess.
+// checkSectionCollision refuses a replacement whose text repeats a heading the
+// edit does not consume: the section's own subsections and the next section at
+// the same or a higher level survive a flat replacement, so repeating one of
+// their headings duplicates it — the corruption that reads as a splice.
+func checkSectionCollision(text string, sections []mdstruct.Section, idx int) error {
+	s := sections[idx]
+	var survivors []mdstruct.Section
+	for j := idx + 1; j < len(sections); j++ {
+		survivors = append(survivors, sections[j])
+		// The first heading at the same or a higher level ends the subtree: it is
+		// the next sibling, and it survives too.
+		if sections[j].Level <= s.Level {
+			break
+		}
+	}
+	if len(survivors) == 0 {
+		return nil
+	}
+	for _, line := range strings.Split(text, "\n")[1:] {
+		level, heading, ok := splitATXHeading(strings.TrimSpace(line))
+		if !ok {
+			continue
+		}
+		for _, survivor := range survivors {
+			if survivor.Level == level && strings.EqualFold(survivor.Heading, heading) {
+				return fmt.Errorf("replacing %q would duplicate %q: that section survives the edit — "+
+					"replace it in its own edit, or drop its heading from this body",
+					headingLine(s), headingLine(survivor))
+			}
+		}
+	}
+	return nil
+}
+
+// checkSectionReplacement validates that the text begins with the section's own
+// heading at its own level.
 func checkSectionReplacement(text string, s mdstruct.Section) error {
 	first := strings.TrimSpace(strings.SplitN(text, "\n", 2)[0])
 	level, heading, ok := splitATXHeading(first)
