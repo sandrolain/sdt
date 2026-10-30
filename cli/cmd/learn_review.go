@@ -83,7 +83,8 @@ WHEN — a review session starts, or you need the next concepts to revisit.
 WHEN NOT — you want goals and coverage: use sdt learn status.
 
 RETURNS — one row per queued concept: due first (review date reached), then weak
-(concept not yet solid or carrying a misconception), each ordered by review date.
+(concept not yet solid or carrying a misconception), each ordered by review date,
+with the distance in days and the reason the date was chosen (` + "`schedule_reason`" + `).
 --limit bounds the queue (0 = all). Deterministic; reads only.
 
 EXAMPLE — sdt learn review
@@ -115,6 +116,12 @@ EXAMPLE — sdt learn review
 				line := fmt.Sprintf("%-5s %-26s %s", r.Reason, r.Concept.ID, r.Concept.Title)
 				if r.Concept.Understanding != "" {
 					line += " (" + r.Concept.Understanding + ")"
+				}
+				if r.Concept.NextReview != "" {
+					line += fmt.Sprintf(" %+dd", r.DueIn)
+				}
+				if r.Concept.ScheduleReason != "" {
+					line += " · " + r.Concept.ScheduleReason
 				}
 				outputString(cmd, line+"\n")
 			}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -214,31 +215,19 @@ func learnLessonPath(conceptID string) string {
 }
 
 // learnLessonClaimRefs reads a lesson document and returns the objective index of
-// every item row.
+// every item row, header-keyed so the optional trailing columns never shift it.
 func learnLessonClaimRefs(path string) []string {
 	data, err := os.ReadFile(path) //#nosec G304 -- path built from the wiki id
 	if err != nil {
 		return nil
 	}
-	body := string(data)
-	if strings.HasPrefix(body, "---\n") {
-		body = string(frontmatterBody(data))
-	}
-	_, sections := markdownSections(body)
-	rows := markdownTableRows(sections["Assess"])
-	if len(rows) < 2 {
-		return nil
-	}
+	_, sections := markdownSections(documentBody(string(data)))
 	var out []string
-	for _, cells := range rows[1:] {
-		if len(cells) != len(ctxLessonItemColumns) {
+	for _, it := range learnLessonItemsOf(sections["Assess"]) {
+		if it.Objective < 1 {
 			continue
 		}
-		n := 0
-		if _, err := fmt.Sscanf(cells[1], "%d", &n); err != nil || n < 1 {
-			continue
-		}
-		out = append(out, cells[1])
+		out = append(out, strconv.Itoa(it.Objective))
 	}
 	return out
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/learn"
 )
 
 // ── sdt learn lesson (the composed bundle) ────────────────────────────────────
@@ -22,7 +23,9 @@ import (
 // page, the objective it points at must exist in the block, and every objective
 // must be represented.
 
-// learnLessonItem is one assessment item, as the bundle carries it.
+// learnLessonItem is one assessment item, as the bundle carries it. The first
+// eight fields are the base table; the last three are optional columns that state
+// how the item is graded, where it came from and when its key was frozen.
 type learnLessonItem struct {
 	ID         string `json:"id" yaml:"id"`
 	Objective  int    `json:"objective" yaml:"objective"`
@@ -32,7 +35,28 @@ type learnLessonItem struct {
 	Rubric     string `json:"rubric" yaml:"rubric"`
 	Distractor string `json:"distractor" yaml:"distractor"`
 	Claim      string `json:"claim" yaml:"claim"`
+	Grading    string `json:"grading" yaml:"grading"`
+	Provenance string `json:"provenance" yaml:"provenance"`
+	Frozen     string `json:"frozen,omitempty" yaml:"frozen,omitempty"`
 }
+
+// learnLessonGradingRules is the closed grading vocabulary. `auto` picks a rule
+// from the item's shape; `manual` never grades.
+var learnLessonGradingRules = learn.GradingRules()
+
+// learnLessonProvenances is the closed provenance vocabulary: where the expected
+// answer came from, never how good it is.
+var learnLessonProvenances = []string{"material", "ai_generated", "mixed", "unknown"}
+
+// learnLessonOptionalColumns is the optional trailing header, in order. A lesson
+// that carries none of them is still valid: every optional value has a default.
+var learnLessonOptionalColumns = []string{"grading", "provenance", "frozen"}
+
+// Defaults an absent optional cell takes.
+const (
+	learnGradingAuto       = learn.RuleAuto
+	learnProvenanceUnknown = "unknown"
+)
 
 // learnWorkedExample is the example section, with the span it was re-expressed
 // from: the citation is part of the value, not decoration.
@@ -172,6 +196,10 @@ func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) learnLessonBun
 	}
 	b.Transfer = strings.TrimSpace(sections["Transfer"])
 	b.Items = learnLessonItemsOf(sections["Assess"])
+	created := parseFrontmatterField(string(data), "created")
+	for i := range b.Items {
+		b.Items[i].Frozen = learnEffectiveFrozen(b.Items[i].Frozen, created)
+	}
 	if len(b.Items) == 0 {
 		b.Missing = append(b.Missing, "the Assess table has no readable item")
 	}
@@ -193,7 +221,8 @@ func (b learnLessonBundle) text() string {
 		fmt.Fprintf(&out, "  example span: %s\n", b.Example.SourceSpan)
 	}
 	for _, it := range b.Items {
-		fmt.Fprintf(&out, "  [%s] %s (%s, objective %d)\n", it.Type, it.Prompt, it.ID, it.Objective)
+		fmt.Fprintf(&out, "  [%s] %s (%s, objective %d, grading %s, provenance %s, frozen %s)\n",
+			it.Type, it.Prompt, it.ID, it.Objective, it.Grading, it.Provenance, it.Frozen)
 		fmt.Fprintf(&out, "        expected: %s\n", it.Expected)
 	}
 	for _, m := range b.Missing {
@@ -202,27 +231,106 @@ func (b learnLessonBundle) text() string {
 	return out.String()
 }
 
-// learnLessonItemsOf reads the item rows out of the Assess section.
+// learnLessonItemByID reads one item from a concept's lesson, with its effective
+// freeze date. It is the lookup the grader and the recorder share, so neither can
+// grade an item the lesson does not carry.
+func learnLessonItemByID(conceptID, itemID string) (learnLessonItem, bool) {
+	data, err := os.ReadFile(learnLessonPath(conceptID)) //#nosec G304 -- path built from the page id
+	if err != nil {
+		return learnLessonItem{}, false
+	}
+	created := parseFrontmatterField(string(data), "created")
+	for _, it := range learnLessonItemsOf(sectionOf(string(data), "Assess")) {
+		if it.ID != itemID {
+			continue
+		}
+		it.Frozen = learnEffectiveFrozen(it.Frozen, created)
+		return it, true
+	}
+	return learnLessonItem{}, false
+}
+
+// learnLessonItemsOf reads the item rows out of the Assess section. Parsing is
+// header-keyed: a column is read by name, so the three optional trailing columns
+// may be absent and every absent value takes its default. A table whose header
+// lacks a base column is not a lesson table and yields no items.
 func learnLessonItemsOf(assess string) []learnLessonItem {
 	rows := markdownTableRows(assess)
 	if len(rows) < 2 {
 		return nil
 	}
+	index := learnLessonHeaderIndex(rows[0])
+	if index == nil {
+		return nil
+	}
 	items := make([]learnLessonItem, 0, len(rows)-1)
 	for _, cells := range rows[1:] {
-		if len(cells) != len(ctxLessonItemColumns) {
-			continue
-		}
 		n := 0
-		if _, err := fmt.Sscanf(cells[1], "%d", &n); err != nil {
+		if _, err := fmt.Sscanf(learnLessonCell(cells, index, "objective"), "%d", &n); err != nil {
 			n = 0
 		}
 		items = append(items, learnLessonItem{
-			ID: cells[0], Objective: n, Type: cells[2], Prompt: cells[3],
-			Expected: cells[4], Rubric: cells[5], Distractor: cells[6], Claim: cells[7],
+			ID:         learnLessonCell(cells, index, "id"),
+			Objective:  n,
+			Type:       learnLessonCell(cells, index, "type"),
+			Prompt:     learnLessonCell(cells, index, "prompt"),
+			Expected:   learnLessonCell(cells, index, "expected"),
+			Rubric:     learnLessonCell(cells, index, "rubric"),
+			Distractor: learnLessonCell(cells, index, "distractor"),
+			Claim:      learnLessonCell(cells, index, ctxFrontmatterClaim),
+			Grading:    learnLessonDefault(learnLessonCell(cells, index, "grading"), learnGradingAuto),
+			Provenance: learnLessonDefault(learnLessonCell(cells, index, "provenance"), learnProvenanceUnknown),
+			Frozen:     learnLessonCell(cells, index, "frozen"),
 		})
 	}
 	return items
+}
+
+// learnLessonHeaderIndex maps every header cell to its column. It returns nil when
+// a base column is missing: such a table cannot be read as a lesson.
+func learnLessonHeaderIndex(header []string) map[string]int {
+	index := make(map[string]int, len(header))
+	for i, cell := range header {
+		index[strings.ToLower(strings.TrimSpace(cell))] = i
+	}
+	for _, column := range ctxLessonItemColumns {
+		if _, ok := index[column]; !ok {
+			return nil
+		}
+	}
+	return index
+}
+
+// learnLessonCell returns one named cell, or "" when the column is absent or the
+// row is shorter than its header.
+func learnLessonCell(cells []string, index map[string]int, column string) string {
+	i, ok := index[column]
+	if !ok || i < 0 || i >= len(cells) {
+		return ""
+	}
+	return strings.TrimSpace(cells[i])
+}
+
+// learnLessonDefault returns a value or its default when empty.
+func learnLessonDefault(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return strings.TrimSpace(value)
+}
+
+// learnEffectiveFrozen is the date an item's key was frozen: the item's own cell,
+// else the lesson document's `created` date. A lesson without either has no freeze
+// date and says so with an empty string.
+func learnEffectiveFrozen(itemFrozen, lessonCreated string) string {
+	if f := strings.TrimSpace(itemFrozen); f != "" {
+		return f
+	}
+	created := strings.TrimSpace(lessonCreated)
+	if len(created) > len(learn.DateLayout) {
+		return created[:len(learn.DateLayout)]
+	}
+	return created
 }
 
 // learnValidateAll is the cross-file check: for every lesson under
@@ -271,6 +379,8 @@ func learnValidateLesson(bld *contextwiki.Builder, path string) []string {
 		issues = append(issues, fmt.Sprintf("%s: page %q carries no `learning.objectives` to align items with", path, concept))
 	}
 	items := learnLessonItemsOf(sectionOf(content, "Assess"))
+	created := parseFrontmatterField(content, "created")
+	updated := parseFrontmatterField(content, "updated")
 	covered := map[int]bool{}
 	seen := map[string]bool{}
 	for _, it := range items {
@@ -278,6 +388,19 @@ func learnValidateLesson(bld *contextwiki.Builder, path string) []string {
 			issues = append(issues, fmt.Sprintf("%s: item id %q appears twice", path, it.ID))
 		}
 		seen[it.ID] = true
+		if !containsItem(learnLessonGradingRules, it.Grading) {
+			issues = append(issues, fmt.Sprintf("%s: item %q grading %q is not one of %s",
+				path, it.ID, it.Grading, strings.Join(learnLessonGradingRules, ", ")))
+		}
+		if !containsItem(learnLessonProvenances, it.Provenance) {
+			issues = append(issues, fmt.Sprintf("%s: item %q provenance %q is not one of %s",
+				path, it.ID, it.Provenance, strings.Join(learnLessonProvenances, ", ")))
+		}
+		if frozen := learnEffectiveFrozen(it.Frozen, created); frozen != "" && updated != "" &&
+			frozen > updated[:min(len(updated), len(learn.DateLayout))] {
+			issues = append(issues, fmt.Sprintf("%s: item %q is frozen at %s, after the lesson was last updated (%s)",
+				path, it.ID, frozen, updated))
+		}
 		if it.Objective < 1 || it.Objective > len(objectives) {
 			issues = append(issues, fmt.Sprintf("%s: item %q points at objective %d, the page has %d", path, it.ID, it.Objective, len(objectives)))
 		} else {

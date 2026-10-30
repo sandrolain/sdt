@@ -26,8 +26,10 @@ import (
 // File is the learner-state path, relative to the project root.
 const File = "context/learning/learner.yaml"
 
-// Version is the learner-state schema version.
-const Version = 1
+// Version is the learner-state schema version this build writes. Versions 0 and 1
+// stay readable: the added fields are optional, so an old file loads unchanged and
+// is rewritten as the current version on the next Save.
+const Version = 2
 
 // DateLayout is the calendar-date format the state stores.
 const DateLayout = "2006-01-02"
@@ -49,6 +51,26 @@ const (
 	UnderstandingWeak    = "weak"
 	UnderstandingPartial = "partial"
 	UnderstandingSolid   = "solid"
+)
+
+// Grades are the closed vocabulary of a graded answer. A grade is a fact about one
+// attempt; understanding is the standing that attempt leaves behind.
+const (
+	GradeCorrect          = "correct"
+	GradePartiallyCorrect = "partially_correct"
+	GradeIncorrect        = "incorrect"
+	GradeUngradable       = "ungradable"
+)
+
+// Schedule reasons are the closed vocabulary of why a review date was chosen. The
+// reason is stored beside the date so a reader can audit the interval.
+const (
+	ReasonNewOrFragile       = "new_or_fragile"
+	ReasonCorrectButHesitant = "correct_but_hesitant"
+	ReasonIndependentSuccess = "independent_success"
+	ReasonTransferSuccess    = "transfer_success"
+	ReasonDurableSuccess     = "durable_success"
+	ReasonFailure            = "failure"
 )
 
 // Profile is who is learning and since when.
@@ -77,6 +99,19 @@ type Assessment struct {
 	Understanding string `yaml:"understanding,omitempty"`
 }
 
+// Attempt is the last graded answer on a concept: which item, what grade, how much
+// hint it needed and where the grade came from. It is the evidence behind the
+// standing, kept beside it rather than folded into it.
+type Attempt struct {
+	// At is an RFC3339 UTC stamp.
+	At    string `yaml:"at,omitempty"`
+	Item  string `yaml:"item,omitempty"`
+	Grade string `yaml:"grade,omitempty"`
+	Hint  int    `yaml:"hint,omitempty"`
+	// Basis is observed or inferred; empty means inferred (the weaker claim).
+	Basis string `yaml:"basis,omitempty"`
+}
+
 // Concept is one concept record: the wiki page it maps to, its prerequisites,
 // the evidence behind it, the last assessment, an open misconception and the day
 // it is next due for review.
@@ -90,6 +125,12 @@ type Concept struct {
 	Misconception string      `yaml:"misconception,omitempty"`
 	// NextReview is a YYYY-MM-DD calendar date.
 	NextReview string `yaml:"next_review,omitempty"`
+	// HintLevel is the hint rung the last answer needed, 0 for none.
+	HintLevel int `yaml:"hint_level,omitempty"`
+	// ScheduleReason is why NextReview sits where it does.
+	ScheduleReason string `yaml:"schedule_reason,omitempty"`
+	// LastAttempt is the last graded answer, when one was recorded.
+	LastAttempt *Attempt `yaml:"last_attempt,omitempty"`
 }
 
 // Session is one session-log entry: what was covered, what stayed weak and what
@@ -150,11 +191,16 @@ func Load(root string) (*State, error) {
 }
 
 // Save validates and writes the state atomically (a temp file renamed into
-// place). It creates the parent directory when absent.
+// place). It creates the parent directory when absent, and always writes the
+// current schema version: an old file is upgraded, never downgraded.
 func Save(root string, st *State) error {
 	if st == nil {
 		st = &State{}
 	}
+	if st.Version > Version {
+		return fmt.Errorf("unsupported learner-state version %d (want %d or lower)", st.Version, Version)
+	}
+	st.Version = Version
 	if err := st.Validate(); err != nil {
 		return err
 	}
@@ -184,8 +230,8 @@ func (s *State) Validate() error {
 	if s == nil {
 		return fmt.Errorf("nil state")
 	}
-	if s.Version != 0 && s.Version != Version {
-		return fmt.Errorf("unsupported learner-state version %d (want %d)", s.Version, Version)
+	if s.Version != 0 && s.Version != 1 && s.Version != Version {
+		return fmt.Errorf("unsupported learner-state version %d (want 0, 1 or %d)", s.Version, Version)
 	}
 	if err := s.validateProfile(); err != nil {
 		return err
@@ -276,6 +322,39 @@ func (c *Concept) validate() error {
 		if _, err := time.Parse(DateLayout, c.NextReview); err != nil {
 			return fmt.Errorf("concept %q: next_review %q is not a %s date", c.ID, c.NextReview, DateLayout)
 		}
+	}
+	if c.HintLevel < 0 {
+		return fmt.Errorf("concept %q: hint_level %d cannot be negative", c.ID, c.HintLevel)
+	}
+	if c.ScheduleReason != "" && !KnownScheduleReason(c.ScheduleReason) {
+		return fmt.Errorf("concept %q: schedule_reason %q is not a known reason", c.ID, c.ScheduleReason)
+	}
+	if c.LastAttempt != nil {
+		if err := c.LastAttempt.validate(c.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validate checks one attempt: a parseable stamp, a known grade and basis, and a
+// non-negative hint rung.
+func (a *Attempt) validate(id string) error {
+	if a.At != "" {
+		if _, err := time.Parse(TimeLayout, a.At); err != nil {
+			return fmt.Errorf("concept %q: last_attempt.at %q is not an %s stamp", id, a.At, TimeLayout)
+		}
+	}
+	if a.Grade != "" && !KnownGrade(a.Grade) {
+		return fmt.Errorf("concept %q: last_attempt.grade %q is not a known grade", id, a.Grade)
+	}
+	switch a.Basis {
+	case "", BasisObserved, BasisInferred:
+	default:
+		return fmt.Errorf("concept %q: last_attempt.basis %q is not observed or inferred", id, a.Basis)
+	}
+	if a.Hint < 0 {
+		return fmt.Errorf("concept %q: last_attempt.hint %d cannot be negative", id, a.Hint)
 	}
 	return nil
 }

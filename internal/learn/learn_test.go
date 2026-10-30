@@ -93,11 +93,54 @@ func TestLoadValidState(t *testing.T) {
 	}
 }
 
+// TestVersionOneUpgradesOnSave proves the additive migration: a version-1 file
+// loads unchanged, keeps its evidence, and is rewritten as version 2 with the new
+// fields carried when they are set.
+func TestVersionOneUpgradesOnSave(t *testing.T) {
+	root := writeState(t, VALID)
+	st, err := Load(root)
+	if err != nil {
+		t.Fatalf("a version-1 state must load: %v", err)
+	}
+	if st.Version != 1 {
+		t.Fatalf("version = %d, want the file's 1", st.Version)
+	}
+	before := st.Concepts[0]
+	st.Concepts[0].ScheduleReason = ReasonIndependentSuccess
+	st.Concepts[0].HintLevel = 1
+	st.Concepts[0].LastAttempt = &Attempt{
+		At: "2026-10-12T10:00:00Z", Item: "a-1",
+		Grade: GradeCorrect, Hint: 1, Basis: BasisObserved,
+	}
+	if err := Save(root, st); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	raw, err := os.ReadFile(Path(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "version: 2") {
+		t.Errorf("the saved file must carry version 2:\n%s", raw)
+	}
+	again, err := Load(root)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	c := again.Concepts[0]
+	if c.LastAttempt == nil || c.LastAttempt.Grade != GradeCorrect || c.HintLevel != 1 {
+		t.Errorf("the upgrade lost the new fields: %+v", c)
+	}
+	if len(c.Evidence) != len(before.Evidence) || c.LastAssessed == nil ||
+		c.LastAssessed.Understanding != before.LastAssessed.Understanding {
+		t.Errorf("the upgrade lost the evidence: %+v", c)
+	}
+}
+
 // TestLoadRejectsInvalidStates covers the validator: every refusal names what is
 // wrong, so a malformed learner state is never half-loaded.
 func TestLoadRejectsInvalidStates(t *testing.T) {
 	cases := []struct{ name, body, want string }{
-		{"version", "version: 2\n", "unsupported learner-state version"},
+		{"version", "version: 3\n", "unsupported learner-state version"},
 		{"profile date", "profile:\n  since: 13/10/2026\n", "is not a 2006-01-02 date"},
 		{"goal id missing", "goals:\n  - concept: a\n    outcome: b\n", "goal: id is required"},
 		{"goal id shape", "goals:\n  - id: Goal 1\n    concept: a\n    outcome: b\n", "id must be kebab-case"},
@@ -196,7 +239,7 @@ func TestSaveRoundTrip(t *testing.T) {
 	if got.Profile.Name != want.Profile.Name || got.Sessions == nil && len(want.Sessions) != 0 {
 		t.Errorf("round trip mismatch: %+v", got)
 	}
-	if err := Save(root, &State{Version: 2}); err == nil {
+	if err := Save(root, &State{Version: 3}); err == nil {
 		t.Error("Save must refuse an unsupported version")
 	}
 }

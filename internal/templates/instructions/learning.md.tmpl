@@ -9,16 +9,15 @@ agent teaches from the **local wiki** and the learner's own evidence, never from
 general recall, and what the learner produces stays separate from wiki knowledge.
 Read it with `context/instructions/wiki.md`; add `instructions/ingestion.md` when a
 source is involved and `instructions/research.md` only when the user asks to
-ground a gap. It names the deterministic helpers, never a tutor runtime. Their
-usage comes from `--help` (`sdt learn inspect|status|resume|quiz|review|check|record`),
-never from memory.
+ground a gap. Their usage comes from `--help`
+(`sdt learn inspect|status|resume|quiz|answer|review|check|record|eval`), never from
+memory.
 
 **When this applies.** The user wants to **learn**, be **reviewed**, **quizzed** or
 **practised**, or asks for an **explanation** of a corpus concept — never to ingest
 a source or answer a question about code. With no page for the topic, say so and
-stop: a lesson is not a substitute for a page, and one written from recall is not
-knowledge here. Offer the research lane only when the user asks to ground the gap
-(`>research-learn`).
+stop: a lesson is not a substitute for a page. Offer the research lane only when
+the user asks to ground the gap (`>research-learn`).
 
 ## Readiness
 
@@ -50,8 +49,35 @@ because a document is unstamped, and never stamp one to make it teachable.
 | review | what is due or weak | the queue, worst first |
 | research | a gap the corpus cannot close | sources, through `research.md` |
 
-Two intents that fit equally: **ask**. Never promote a request to `learn` when
-`practise` or `explain` was meant.
+Two intents that fit equally: **ask**; never promote a request to `learn`.
+
+## Modes and the question budget
+
+| Mode | Questions per concept | Hints | Never |
+|---|---|---|---|
+| learn | one retrieval, then one transfer | the ladder below | reveal the key before the first attempt |
+| review | one per due concept | none by default | re-teach a concept the queue did not name |
+| quiz | every item the lesson carries | none | ship the key in the manifest |
+| practise | one task with a checkable result | at most one rung | hand over the solution |
+| explain | none | not applicable | answer past the pages |
+
+The budget is **at most three questions per concept per session**: a retrieval, an
+application and a transfer. A session that spends it has taught one concept — stop
+there rather than widening the topic.
+
+## The hint ladder
+
+A hint is **earned by an attempt**: never before a try, never two rungs at once.
+
+| Rung | What you give | What you never give |
+|---|---|---|
+| 0 | the question exactly as the lesson states it | a hint |
+| 1 | the page and the section to reread | the answer |
+| 2 | the shape of the answer (order, units, count) | the content |
+| 3 | the first step of the worked example | the whole solution |
+
+Record the rung that was needed with `--hint <n>`; it caps the standing, because an
+answer that needed help is not independent evidence.
 
 ## Resolve the scope
 
@@ -70,15 +96,59 @@ Two intents that fit equally: **ask**. Never promote a request to `learn` when
 Per concept: **explain** in terms the learner already owns → **show one worked
 example** → **ask the learner to retrieve or apply it** → **check the answer
 against the page** → **ask for the transfer** (the same idea in a case they have
-not seen). Never skip the retrieval step with a leading question: it is the only
-step that shows understanding.
+not seen). Never skip the retrieval step: it is the only step that shows
+understanding.
+
+## The state card
+
+Before teaching, state the standing in five lines, each from a read verb — never
+from memory:
+
+1. the learner and since when (`sdt learn resume`);
+2. the due count and the first due concept;
+3. the weak count and the misconception, when one is open;
+4. coverage and mastery, as the two separate lines `sdt learn status` prints;
+5. the next action and its why (`sdt learn resume` reports at most two).
+
+## Coverage and mastery
+
+**Coverage** is exposure: how many wiki pages are `unseen`, `covered` (recorded
+but never assessed) or `assessed`. **Mastery** is standing: how many recorded
+concepts are `solid`, `partial`, `weak` or `unknown`. Two facts, two lines; a page
+can be covered without being known.
 
 ## No-solution mode
 
 Verification is read-only: do not reveal the answer first, do not call a partial
 answer correct, and do not write a page. A check becomes learner state only on an
-explicit `sdt learn record` the user asked for — ask once, at the close — never as
-a side effect.
+explicit `sdt learn record` — ask once, at the close — never as a side effect.
+
+## Grade, then record
+
+The key is **frozen**: the lesson's `created` date, or the item's `frozen` column
+when it states one. Never edit a key to make an answer right: a wrong key is a
+lesson defect, fixed in the lesson, not in the state.
+
+1. Ask the question; do not show the key. `sdt learn quiz <concept>` is key-free by
+   default and `--with-key` is the only way the key enters a manifest.
+2. Grade the answer with `sdt learn answer --concept <c> --item <i> --answer
+   "<text>"`. It returns the grade, the rule that decided it, the key and the
+   rubric. Exit `0` is correct or partially correct, `1` incorrect, `4` ungradable.
+3. On an explicit request only, record it: `sdt learn record --concept <c> --item
+   <i> --grade <g> --hint <n>`. The verb applies the ceiling (`incorrect` → weak,
+   `partially_correct` → partial, `correct` → partial, or solid only after an
+   earlier demonstration) and computes the review date with its reason:
+   `failure` 1d, `correct_but_hesitant` 3d, `independent_success` 7d,
+   `transfer_success` 14d, `durable_success` 30d; a success after a failure loses
+   one rung.
+4. `ungradable` writes nothing: hand the answer back and say why. Never invent a
+   verdict, and never record an answer the learner did not give.
+
+## No score
+
+Never report a score, a percentage, a streak or an XP total. A grade is a fact
+about one attempt, understanding is the standing it leaves, coverage is exposure:
+report those three, never a composite that pretends to summarise them.
 
 ## Cite
 
@@ -96,3 +166,7 @@ lives in `context/learning/learner.yaml` and is **not** wiki knowledge: profile,
 goals, concept records and a session log, none of it authoritative for the
 corpus. The first explicit `record` creates the file; every other verb only reads
 it, and an absent state is an empty state, never a failure.
+
+End by naming the next verb, never by asking what to do next: `sdt learn review`
+for the queue, `sdt learn resume` for the standing, `sdt learn status` for the
+whole picture.

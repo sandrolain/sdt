@@ -42,15 +42,18 @@ EXAMPLE — sdt learn inspect "resolution order"
 
 // learnView pairs one learner-state concept record with the wiki page it maps to.
 type learnView struct {
-	ID            string `json:"id" yaml:"id"`
-	Wiki          string `json:"wiki" yaml:"wiki"`
-	Title         string `json:"title,omitempty" yaml:"title,omitempty"`
-	Recorded      bool   `json:"recorded" yaml:"recorded"`
-	Understanding string `json:"understanding,omitempty" yaml:"understanding,omitempty"`
-	Basis         string `json:"basis,omitempty" yaml:"basis,omitempty"`
-	Misconception string `json:"misconception,omitempty" yaml:"misconception,omitempty"`
-	NextReview    string `json:"next_review,omitempty" yaml:"next_review,omitempty"`
-	LastAssessed  string `json:"last_assessed,omitempty" yaml:"last_assessed,omitempty"`
+	ID             string `json:"id" yaml:"id"`
+	Wiki           string `json:"wiki" yaml:"wiki"`
+	Title          string `json:"title,omitempty" yaml:"title,omitempty"`
+	Recorded       bool   `json:"recorded" yaml:"recorded"`
+	Understanding  string `json:"understanding,omitempty" yaml:"understanding,omitempty"`
+	Basis          string `json:"basis,omitempty" yaml:"basis,omitempty"`
+	Misconception  string `json:"misconception,omitempty" yaml:"misconception,omitempty"`
+	NextReview     string `json:"next_review,omitempty" yaml:"next_review,omitempty"`
+	ScheduleReason string `json:"schedule_reason,omitempty" yaml:"schedule_reason,omitempty"`
+	HintLevel      int    `json:"hint_level,omitempty" yaml:"hint_level,omitempty"`
+	LastGrade      string `json:"last_grade,omitempty" yaml:"last_grade,omitempty"`
+	LastAssessed   string `json:"last_assessed,omitempty" yaml:"last_assessed,omitempty"`
 }
 
 // loadLearnState loads the learner state; an absent state is empty, not an error.
@@ -92,11 +95,15 @@ func learnViewOf(c *learn.Concept) learnView {
 	v := learnView{
 		ID: c.ID, Wiki: c.Wiki, Recorded: true,
 		Misconception: c.Misconception, NextReview: c.NextReview,
+		ScheduleReason: c.ScheduleReason, HintLevel: c.HintLevel,
 	}
 	if a := c.LastAssessed; a != nil {
 		v.Understanding = a.Understanding
 		v.Basis = a.Basis
 		v.LastAssessed = a.At
+	}
+	if a := c.LastAttempt; a != nil {
+		v.LastGrade = a.Grade
 	}
 	return v
 }

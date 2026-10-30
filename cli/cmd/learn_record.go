@@ -23,14 +23,26 @@ import (
 
 // learnRecordResult is what one explicit call wrote.
 type learnRecordResult struct {
-	Concept       string `json:"concept,omitempty" yaml:"concept,omitempty"`
-	Understanding string `json:"understanding,omitempty" yaml:"understanding,omitempty"`
-	Basis         string `json:"basis,omitempty" yaml:"basis,omitempty"`
-	Created       bool   `json:"created,omitempty" yaml:"created,omitempty"`
-	Profile       bool   `json:"profile,omitempty" yaml:"profile,omitempty"`
-	Goals         int    `json:"goals,omitempty" yaml:"goals,omitempty"`
-	Session       string `json:"session,omitempty" yaml:"session,omitempty"`
-	Path          string `json:"path" yaml:"path"`
+	Concept        string `json:"concept,omitempty" yaml:"concept,omitempty"`
+	Understanding  string `json:"understanding,omitempty" yaml:"understanding,omitempty"`
+	Basis          string `json:"basis,omitempty" yaml:"basis,omitempty"`
+	Item           string `json:"item,omitempty" yaml:"item,omitempty"`
+	Grade          string `json:"grade,omitempty" yaml:"grade,omitempty"`
+	Hint           int    `json:"hint,omitempty" yaml:"hint,omitempty"`
+	NextReview     string `json:"next_review,omitempty" yaml:"next_review,omitempty"`
+	ScheduleReason string `json:"schedule_reason,omitempty" yaml:"schedule_reason,omitempty"`
+	Created        bool   `json:"created,omitempty" yaml:"created,omitempty"`
+	Profile        bool   `json:"profile,omitempty" yaml:"profile,omitempty"`
+	Goals          int    `json:"goals,omitempty" yaml:"goals,omitempty"`
+	Session        string `json:"session,omitempty" yaml:"session,omitempty"`
+	Path           string `json:"path" yaml:"path"`
+}
+
+// learnRecordGrade is the graded-answer input of one record call.
+type learnRecordGrade struct {
+	Grade string
+	Item  string
+	Hint  int
 }
 
 var learnRecordCmd = &cobra.Command{
@@ -48,13 +60,26 @@ RETURNS — what was written to context/learning/learner.yaml. Provenance is exp
 capped at ` + "`partial`" + ` — reaching ` + "`solid`" + ` needs a second
 demonstration, so one answer never implies mastery. An unknown concept fails.
 
+A graded call (` + "`--grade --item`" + `) is the state machine: the grade sets the
+standing (` + "`incorrect`" + ` → weak, ` + "`partially_correct`" + ` → partial,
+` + "`correct`" + ` → partial, or solid only after an earlier demonstration), ` + "`--hint`" + `
+caps it at partial when above 0, and the review date is computed with its reason
+(` + "`failure`" + ` 1d, ` + "`correct_but_hesitant`" + ` 3d, ` + "`independent_success`" + ` 7d,
+` + "`transfer_success`" + ` 14d, ` + "`durable_success`" + ` 30d) unless ` + "`--next-review`" + `
+names one. ` + "`ungradable`" + ` writes nothing and exits 4. ` + "`--grade`" + ` and
+` + "`--understanding`" + ` are mutually exclusive.
+
 EXAMPLE — sdt learn record --concept backend/auth --understanding partial --basis observed
+          sdt learn record --concept architecture/four-key-metrics --item fkm-3 --grade correct --hint 0
           sdt learn record --profile "a learner" --since 2026-10-13
           sdt learn record --concept backend/auth --session --covered backend-auth`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
 		wikiID := strings.TrimSpace(getStringFlag(cmd, "concept", false))
 		level := strings.TrimSpace(getStringFlag(cmd, "understanding", false))
+		gradeValue := strings.TrimSpace(getStringFlag(cmd, "grade", false))
+		itemID := strings.TrimSpace(getStringFlag(cmd, "item", false))
+		hint := getIntFlag(cmd, "hint", false)
 		goalArgs := getStringArrayFlag(cmd, "goal", false)
 		profile := strings.TrimSpace(getStringFlag(cmd, "profile", false))
 		session := getBoolFlag(cmd, "session", false)
@@ -69,6 +94,14 @@ EXAMPLE — sdt learn record --concept backend/auth --understanding partial --ba
 		}
 		if err := learnRecordCheckLevel(level); err != nil {
 			exitWithError(cmd, err)
+			return
+		}
+		if err := learnRecordCheckGrade(level, gradeValue, itemID, hint, wikiID); err != nil {
+			exitWithError(cmd, err)
+			return
+		}
+		if gradeValue == learn.GradeUngradable {
+			learnExitWith(fmt.Errorf("grade %q writes nothing: the item has no deterministic key", gradeValue), 4)
 			return
 		}
 
@@ -103,13 +136,16 @@ EXAMPLE — sdt learn record --concept backend/auth --understanding partial --ba
 					"a learner record anchors to a page, never to recall", wikiID))
 				return
 			}
-			rec, created, err := learnRecordAssess(st, bld, page, level, cmd, now)
+			grade := learnRecordGrade{Grade: gradeValue, Item: itemID, Hint: hint}
+			rec, created, err := learnRecordAssess(st, bld, page, level, grade, cmd, now)
 			if err != nil {
 				exitWithError(cmd, err)
 				return
 			}
 			result.Concept, result.Understanding, result.Basis, result.Created =
 				rec.ID, rec.LastAssessed.Understanding, rec.LastAssessed.Basis, created
+			result.Item, result.Grade, result.Hint = itemID, gradeValue, hint
+			result.NextReview, result.ScheduleReason = rec.NextReview, rec.ScheduleReason
 		}
 
 		if session {
@@ -142,6 +178,17 @@ EXAMPLE — sdt learn record --concept backend/auth --understanding partial --ba
 				}
 				outputString(cmd, fmt.Sprintf("concept: %s (%s, %s, basis %s)\n",
 					result.Concept, verb, result.Understanding, result.Basis))
+				if result.Grade != "" {
+					outputString(cmd, fmt.Sprintf("  grade: %s on %s, hint %d\n",
+						result.Grade, result.Item, result.Hint))
+				}
+				if result.NextReview != "" {
+					line := "  next review: " + result.NextReview
+					if result.ScheduleReason != "" {
+						line += " (" + result.ScheduleReason + ")"
+					}
+					outputString(cmd, line+"\n")
+				}
 			}
 			if result.Session != "" {
 				outputString(cmd, "session: appended at "+result.Session+"\n")
@@ -171,11 +218,63 @@ func learnRecordCheckLevel(level string) error {
 		level, strings.Join(learnLevels, ", "))
 }
 
+// learnRecordCheckGrade refuses a graded call that cannot be applied: a grade and
+// an understanding are two ways to say the same thing, an item belongs to a graded
+// answer, and a hint rung without a grade has nothing to cap.
+func learnRecordCheckGrade(level, grade, item string, hint int, concept string) error {
+	if level != "" && grade != "" {
+		return fmt.Errorf("--grade and --understanding are mutually exclusive: a grade is what an understanding is derived from")
+	}
+	if item != "" && grade == "" {
+		return fmt.Errorf("--item belongs to a graded answer: pass --grade %s",
+			strings.Join(learn.Grades(), "|"))
+	}
+	if hint < 0 {
+		return fmt.Errorf("--hint cannot be negative")
+	}
+	if hint > 0 && grade == "" {
+		return fmt.Errorf("--hint belongs to a graded answer: pass --grade")
+	}
+	if grade == "" {
+		return nil
+	}
+	if !learn.KnownGrade(grade) {
+		return fmt.Errorf("--grade %q is not a known grade (%s)", grade, strings.Join(learn.Grades(), ", "))
+	}
+	if concept == "" {
+		return fmt.Errorf("--grade belongs to a concept: pass --concept <wiki-id>")
+	}
+	if item == "" {
+		return fmt.Errorf("--grade belongs to an item: pass --item <id> from the lesson's `## Assess` table")
+	}
+	return nil
+}
+
+// learnUnderstandingFor maps a grade to the standing it may claim. The ceiling is
+// the point: a correct answer that needed a hint is at most partial, and a first
+// answer is never solid, so one answer never implies mastery.
+func learnUnderstandingFor(grade string, hint int, prior *learn.Assessment) string {
+	switch grade {
+	case learn.GradeIncorrect:
+		return learn.UnderstandingWeak
+	case learn.GradePartiallyCorrect:
+		return learn.UnderstandingPartial
+	case learn.GradeCorrect:
+		if hint > 0 || prior == nil {
+			return learn.UnderstandingPartial
+		}
+		return learn.UnderstandingSolid
+	default:
+		return ""
+	}
+}
+
 // learnRecordAssess upserts the concept record and stamps the assessment. A first
 // assessment is capped at partial: reaching solid needs a prior demonstration, so
-// one answer never implies mastery.
+// one answer never implies mastery. A graded answer additionally stores the
+// attempt, the hint rung and the reason-coded review date.
 func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki.Page,
-	level string, cmd *cobra.Command, now time.Time) (*learn.Concept, bool, error) {
+	level string, grade learnRecordGrade, cmd *cobra.Command, now time.Time) (*learn.Concept, bool, error) {
 
 	rec := learnRecord(st, p.ID)
 	created := rec == nil
@@ -183,16 +282,37 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 		rec = &learn.Concept{ID: learn.ConceptID(p.ID), Wiki: p.ID}
 		st.Concepts = append(st.Concepts, *rec)
 	}
+	basis := getStringFlag(cmd, "basis", false)
+	if basis != learn.BasisObserved {
+		basis = learn.BasisInferred // the weaker claim is the default
+	}
+	if grade.Grade != "" {
+		item, ok := learnLessonItemByID(p.ID, grade.Item)
+		if !ok {
+			return nil, false, fmt.Errorf("concept %q has no item %q in its lesson: an attempt cites an item, never a guess",
+				p.ID, grade.Item)
+		}
+		level = learnUnderstandingFor(grade.Grade, grade.Hint, rec.LastAssessed)
+		rec.LastAttempt = &learn.Attempt{
+			At: now.Format(learn.TimeLayout), Item: grade.Item,
+			Grade: grade.Grade, Hint: grade.Hint, Basis: basis,
+		}
+		rec.HintLevel = grade.Hint
+		if nr := strings.TrimSpace(getStringFlag(cmd, "next-review", false)); nr != "" {
+			rec.NextReview = nr
+			rec.ScheduleReason = ""
+		} else {
+			days, reason := learn.Schedule(grade.Grade, grade.Hint, item.Type, rec.ScheduleReason)
+			rec.NextReview = learn.ScheduleDate(now, days)
+			rec.ScheduleReason = reason
+		}
+	}
 	if level != "" {
 		if created && level == learn.UnderstandingSolid {
 			return nil, false, fmt.Errorf(
 				"concept %q has no earlier demonstration: one answer never implies mastery — "+
 					"record %q now, %q after a second demonstration",
 				rec.ID, learn.UnderstandingPartial, learn.UnderstandingSolid)
-		}
-		basis := getStringFlag(cmd, "basis", false)
-		if basis != learn.BasisObserved {
-			basis = learn.BasisInferred // the weaker claim is the default
 		}
 		rec.LastAssessed = &learn.Assessment{
 			At:            now.Format(learn.TimeLayout),
@@ -310,6 +430,9 @@ func init() {
 	f := learnRecordCmd.Flags()
 	f.String("concept", "", "Wiki page id of the concept being assessed")
 	f.String("understanding", "", "Level demonstrated: "+strings.Join(learnLevels, ", "))
+	f.String("grade", "", "Graded answer: "+strings.Join(learn.Grades(), ", ")+" (derives --understanding)")
+	f.String("item", "", "Item id the answer was given on (required with --grade)")
+	f.Int("hint", 0, "Hint rung the answer needed, 0 for none (caps the standing)")
 	f.String("basis", "", "Provenance of the rating: observed or inferred (default inferred)")
 	f.String("misconception", "", "Open misconception to record")
 	f.StringArray("evidence", nil, "Evidence locator backing the record (repeatable)")

@@ -137,7 +137,7 @@ func TestQuizCarriesTheLessonItems(t *testing.T) {
 	writeLesson(t, checkLessonBody)
 	bld := contextwiki.Builder{ByID: map[string]*contextwiki.Page{}}
 	bld.ByID["architecture/x"] = bundlePage()
-	entry, err := learnQuizEntryFor(&bld, &learn.State{}, "architecture/x", false)
+	entry, err := learnQuizEntryFor(&bld, &learn.State{}, "architecture/x", false, false)
 	if err != nil {
 		t.Fatalf("entry: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestQuizWithoutALessonSaysSo(t *testing.T) {
 	t.Chdir(root)
 	bld := contextwiki.Builder{ByID: map[string]*contextwiki.Page{}}
 	bld.ByID["architecture/x"] = bundlePage()
-	entry, err := learnQuizEntryFor(&bld, &learn.State{}, "architecture/x", false)
+	entry, err := learnQuizEntryFor(&bld, &learn.State{}, "architecture/x", false, false)
 	if err != nil {
 		t.Fatalf("entry: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestQuizManifestRoundTrips(t *testing.T) {
 	writeLesson(t, checkLessonBody)
 	bld := contextwiki.Builder{ByID: map[string]*contextwiki.Page{}}
 	bld.ByID["architecture/x"] = bundlePage()
-	entry, err := learnQuizEntryFor(&bld, &learn.State{}, "architecture/x", false)
+	entry, err := learnQuizEntryFor(&bld, &learn.State{}, "architecture/x", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}

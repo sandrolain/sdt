@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/sandrolain/sdt/internal/learn"
 )
 
 // ── lesson body checks ────────────────────────────────────────────────────────
@@ -28,11 +30,11 @@ const ctxFrontmatterClaim = "claim"
 
 // ctxLessonItemTypes is the closed item vocabulary; the order is the difficulty
 // ladder and is not restated as a number anywhere.
-var ctxLessonItemTypes = []string{"recall", "diagnose", "apply", ctxLessonItemTransfer}
+var ctxLessonItemTypes = []string{learn.ItemTypeRecall, learn.ItemTypeDiagnose, learn.ItemTypeApply, ctxLessonItemTransfer}
 
 // ctxLessonItemTransfer is the item type every lesson carries at least one of:
 // the same idea asked in a case the page did not cover.
-const ctxLessonItemTransfer = "transfer"
+const ctxLessonItemTransfer = learn.ItemTypeTransfer
 
 // ctxLessonClaimRefRegexp is the claim reference grammar an item row carries:
 // a page id, then the anchor the page stamps on the claim.
@@ -63,15 +65,53 @@ func lintLesson(path, content, kind string) []ctxLintIssue {
 		add(ctxLintWarning, "lesson has no `## Assess` table (an item per row, columns "+strings.Join(ctxLessonItemColumns, " | ")+")")
 		return issues
 	}
-	if got := rows[0]; !sameCells(got, ctxLessonItemColumns) {
-		add(ctxLintWarning, fmt.Sprintf("item table header is `%s`, want `%s`", strings.Join(got, " | "), strings.Join(ctxLessonItemColumns, " | ")))
-	}
+	issues = append(issues, lintLessonHeader(path, rows[0])...)
+	index := lessonColumnIndex(rows[0])
 	items := rows[1:]
 	if len(items) == 0 {
 		add(ctxLintWarning, "item table has a header and no rows")
 		return issues
 	}
-	return append(issues, lintLessonItems(path, items)...)
+	return append(issues, lintLessonItems(path, index, items)...)
+}
+
+// lintLessonHeader checks the item table header: the eight base columns in order,
+// then zero or more of the optional trailing columns, also in order. Any other
+// column is refused, because the parser would silently ignore it.
+func lintLessonHeader(path string, header []string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	add := func(msg string) {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: msg})
+	}
+	for i, want := range ctxLessonItemColumns {
+		switch {
+		case i >= len(header):
+			add(fmt.Sprintf("item table header is missing column %q", want))
+		case !strings.EqualFold(strings.TrimSpace(header[i]), want):
+			add(fmt.Sprintf("item table header column %d is %q, want %q", i+1, header[i], want))
+		}
+	}
+	seen := 0
+	for i := len(ctxLessonItemColumns); i < len(header); i++ {
+		cell := strings.ToLower(strings.TrimSpace(header[i]))
+		if seen < len(learnLessonOptionalColumns) && cell == learnLessonOptionalColumns[seen] {
+			seen++
+			continue
+		}
+		add(fmt.Sprintf("item table column %q is not an optional trailing column (%s, in that order)",
+			header[i], strings.Join(learnLessonOptionalColumns, ", ")))
+	}
+	return issues
+}
+
+// lessonColumnIndex maps every header cell to its column, so a row is read by
+// name and an optional column can never shift a base one.
+func lessonColumnIndex(header []string) map[string]int {
+	index := make(map[string]int, len(header))
+	for i, cell := range header {
+		index[strings.ToLower(strings.TrimSpace(cell))] = i
+	}
+	return index
 }
 
 // lintLessonSections checks the closed, ordered section list.
@@ -93,22 +133,30 @@ func lintLessonSections(path string, headings []string) []ctxLintIssue {
 
 // lintLessonItems checks every item row: addressable fields, a claim the page can
 // resolve, and at least one `transfer` item.
-func lintLessonItems(path string, items [][]string) []ctxLintIssue {
+func lintLessonItems(path string, index map[string]int, items [][]string) []ctxLintIssue {
 	var issues []ctxLintIssue
 	add := func(sev, msg string) {
 		issues = append(issues, ctxLintIssue{Path: path, Priority: sev, Message: msg})
 	}
 	seenID := map[string]bool{}
 	hasTransfer := false
+	maxCells := len(ctxLessonItemColumns) + len(learnLessonOptionalColumns)
 	for i, cells := range items {
 		row := i + 1
-		if len(cells) != len(ctxLessonItemColumns) {
-			add(ctxLintWarning, fmt.Sprintf("item row %d has %d cell(s), want %d", row, len(cells), len(ctxLessonItemColumns)))
+		if len(cells) < len(ctxLessonItemColumns) || len(cells) > maxCells {
+			add(ctxLintWarning, fmt.Sprintf("item row %d has %d cell(s), want %d to %d",
+				row, len(cells), len(ctxLessonItemColumns), maxCells))
 			continue
 		}
 		it := lessonItem{
-			id: cells[0], objective: cells[1], typ: cells[2], prompt: cells[3],
-			expected: cells[4], rubric: cells[5], distractor: cells[6], claim: cells[7],
+			id:         learnLessonCell(cells, index, "id"),
+			objective:  learnLessonCell(cells, index, "objective"),
+			typ:        learnLessonCell(cells, index, "type"),
+			prompt:     learnLessonCell(cells, index, "prompt"),
+			expected:   learnLessonCell(cells, index, "expected"),
+			rubric:     learnLessonCell(cells, index, "rubric"),
+			distractor: learnLessonCell(cells, index, "distractor"),
+			claim:      learnLessonCell(cells, index, ctxFrontmatterClaim),
 		}
 		issues = append(issues, lintLessonItem(path, it, seenID)...)
 		if it.typ == ctxLessonItemTransfer {
@@ -239,18 +287,6 @@ func lessonTableCells(line string) []string {
 		out = append(out, strings.TrimSpace(p))
 	}
 	return out
-}
-
-func sameCells(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !strings.EqualFold(strings.TrimSpace(a[i]), b[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 func containsItem(list []string, want string) bool {

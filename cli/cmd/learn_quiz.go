@@ -25,15 +25,21 @@ import (
 // learnQuizVersion is the manifest schema version.
 const learnQuizVersion = 1
 
-// learnQuizItem is one question, taken from the concept's lesson. It carries the
-// prompt and the claim it rests on, never the expected answer: a quiz that shipped
-// its answers would stop being zero-hint.
+// learnQuizItem is one question, taken from the concept's lesson. By default it
+// carries the prompt and the claim it rests on, never the expected answer: a quiz
+// that shipped its answers would stop being zero-hint. `--with-key` is the one
+// opt-in that adds the frozen key and its grading rule.
 type learnQuizItem struct {
-	ID        string `json:"id" yaml:"id"`
-	Type      string `json:"type" yaml:"type"`
-	Prompt    string `json:"prompt" yaml:"prompt"`
-	Objective int    `json:"objective" yaml:"objective"`
-	Claim     string `json:"claim" yaml:"claim"`
+	ID         string `json:"id" yaml:"id"`
+	Type       string `json:"type" yaml:"type"`
+	Prompt     string `json:"prompt" yaml:"prompt"`
+	Objective  int    `json:"objective" yaml:"objective"`
+	Claim      string `json:"claim" yaml:"claim"`
+	Expected   string `json:"expected,omitempty" yaml:"expected,omitempty"`
+	Rubric     string `json:"rubric,omitempty" yaml:"rubric,omitempty"`
+	Grading    string `json:"grading,omitempty" yaml:"grading,omitempty"`
+	Provenance string `json:"provenance,omitempty" yaml:"provenance,omitempty"`
+	Frozen     string `json:"frozen,omitempty" yaml:"frozen,omitempty"`
 }
 
 // learnQuizEntry is one concept to be quizzed, with the evidence an answer cites
@@ -52,6 +58,7 @@ type learnQuizEntry struct {
 type learnQuizManifest struct {
 	Version  int              `json:"version" yaml:"version"`
 	Hinted   bool             `json:"hinted" yaml:"hinted"`
+	Keyed    bool             `json:"keyed,omitempty" yaml:"keyed,omitempty"`
 	Concepts []learnQuizEntry `json:"concepts" yaml:"concepts"`
 }
 
@@ -65,13 +72,17 @@ WHEN NOT — you want the concepts themselves: use sdt learn inspect. A concept 
 a lesson carries that lesson's questions; one without a lesson carries evidence only
 and says so, and its questions are yours to write.
 
-RETURNS — a manifest (version, hinted flag, one entry per concept with its title,
-evidence and — when the concept has a lesson — its items as prompt/type/claim) or,
-with ` + "`--validate <file>`" + `, the validation verdict. It carries no expected
-answer: zero-hint by default, and ` + "`--hint`" + ` opts into the page summary only.
-An unknown concept fails rather than yielding a guess. Reads only.
+RETURNS — a manifest (version, hinted and keyed flags, one entry per concept with
+its title, evidence and — when the concept has a lesson — its items as
+prompt/type/claim) or, with ` + "`--validate <file>`" + `, the validation verdict. It
+carries no expected answer: zero-hint by default, and ` + "`--hint`" + ` opts into the
+page summary only. ` + "`--with-key`" + ` adds the frozen key, its grading rule and its
+provenance, which is what ` + "`sdt learn answer`" + ` grades against and the only way the
+key enters a manifest. An unknown concept fails rather than yielding a guess. Reads
+only.
 
 EXAMPLE — sdt learn quiz backend/auth --format yaml
+          sdt learn quiz backend/auth --with-key --format json
           sdt learn quiz --validate quiz.yaml`,
 	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -87,10 +98,11 @@ EXAMPLE — sdt learn quiz backend/auth --format yaml
 		bld := loadLearnWiki(cmd)
 		st := loadLearnState(cmd)
 		hinted := getBoolFlag(cmd, "hint", false)
-		manifest := learnQuizManifest{Version: learnQuizVersion, Hinted: hinted,
+		withKey := getBoolFlag(cmd, "with-key", false)
+		manifest := learnQuizManifest{Version: learnQuizVersion, Hinted: hinted, Keyed: withKey,
 			Concepts: make([]learnQuizEntry, 0, len(args))}
 		for _, arg := range args {
-			entry, err := learnQuizEntryFor(bld, st, arg, hinted)
+			entry, err := learnQuizEntryFor(bld, st, arg, hinted, withKey)
 			if err != nil {
 				exitWithError(cmd, err)
 				return
@@ -118,13 +130,18 @@ EXAMPLE — sdt learn quiz backend/auth --format yaml
 			} else {
 				outputString(cmd, "hint: "+learnHintNone+" (zero-hint by default)\n")
 			}
+			if withKey {
+				outputString(cmd, "key: included (--with-key)\n")
+			} else {
+				outputString(cmd, "key: none (--with-key to include the frozen key)\n")
+			}
 		})
 	},
 }
 
 // learnQuizEntryFor resolves one requested concept to a manifest entry. The
 // argument may be a wiki page id or a recorded concept id.
-func learnQuizEntryFor(bld *contextwiki.Builder, st *learn.State, arg string, hinted bool) (learnQuizEntry, error) {
+func learnQuizEntryFor(bld *contextwiki.Builder, st *learn.State, arg string, hinted, withKey bool) (learnQuizEntry, error) {
 	page := bld.Resolve(arg)
 	if page == nil {
 		if rec := learnRecord(st, learn.ConceptID(arg)); rec != nil {
@@ -144,28 +161,39 @@ func learnQuizEntryFor(bld *contextwiki.Builder, st *learn.State, arg string, hi
 	if hinted {
 		entry.Hint = page.Summary
 	}
-	entry.Items = learnQuizItemsFor(page.ID)
+	entry.Items = learnQuizItemsFor(page.ID, withKey)
 	if len(entry.Items) == 0 {
 		entry.Note = "no lesson for this concept: its questions are yours to write"
 	}
 	return entry, nil
 }
 
-// learnQuizItemsFor reads the questions a concept's lesson already carries. The
-// expected answer stays behind: the manifest is what the learner is asked.
-func learnQuizItemsFor(conceptID string) []learnQuizItem {
+// learnQuizItemsFor reads the questions a concept's lesson already carries. By
+// default the expected answer stays behind: the manifest is what the learner is
+// asked. `withKey` adds the frozen key, its grading rule and its provenance, which
+// is what a grading caller needs and the only way the key enters a manifest.
+func learnQuizItemsFor(conceptID string, withKey bool) []learnQuizItem {
 	path := learnLessonPath(conceptID)
 	data, err := os.ReadFile(path) //#nosec G304 -- path built from the page id
 	if err != nil {
 		return nil
 	}
+	created := parseFrontmatterField(string(data), "created")
 	items := learnLessonItemsOf(sectionOf(string(data), "Assess"))
 	out := make([]learnQuizItem, 0, len(items))
 	for _, it := range items {
-		out = append(out, learnQuizItem{
+		item := learnQuizItem{
 			ID: it.ID, Type: it.Type, Prompt: it.Prompt,
 			Objective: it.Objective, Claim: it.Claim,
-		})
+		}
+		if withKey {
+			item.Expected = it.Expected
+			item.Rubric = it.Rubric
+			item.Grading = it.Grading
+			item.Provenance = it.Provenance
+			item.Frozen = learnEffectiveFrozen(it.Frozen, created)
+		}
+		out = append(out, item)
 	}
 	return out
 }
@@ -193,8 +221,16 @@ func learnQuizValidateRun(cmd *cobra.Command, path string) {
 		exitWithError(cmd, fmt.Errorf("manifest %s: %w", path, err))
 		return
 	}
-	outputString(cmd, fmt.Sprintf("manifest %s: valid (%d concept(s), hint %s)\n", path,
-		len(manifest.Concepts), learnHintWord(manifest.Hinted)))
+	outputString(cmd, fmt.Sprintf("manifest %s: valid (%d concept(s), hint %s, key %s)\n", path,
+		len(manifest.Concepts), learnHintWord(manifest.Hinted), learnKeyWord(manifest.Keyed)))
+}
+
+// learnKeyWord renders whether a manifest carries the frozen key.
+func learnKeyWord(keyed bool) string {
+	if keyed {
+		return learnHintIncluded
+	}
+	return learnHintNone
 }
 
 // learnQuizValidate returns the first defect in a manifest, or nil.
@@ -227,6 +263,9 @@ func learnQuizValidate(m learnQuizManifest) error {
 			if !containsItem(ctxLessonItemTypes, it.Type) {
 				return fmt.Errorf("item %q type %q is not one of %s", it.ID, it.Type, strings.Join(ctxLessonItemTypes, ", "))
 			}
+			if it.Expected != "" && !m.Keyed {
+				return fmt.Errorf("item %q carries an answer but the manifest claims no key", it.ID)
+			}
 			if seen[e.Concept+"/"+it.ID] {
 				return fmt.Errorf("concept %q carries item %q twice", e.Concept, it.ID)
 			}
@@ -254,5 +293,6 @@ func learnHintWord(hinted bool) string {
 func init() {
 	learnQuizCmd.Flags().String("validate", "", "Validate an existing manifest file instead of generating one")
 	learnQuizCmd.Flags().Bool("hint", false, "Include the page summary as a hint (zero-hint by default)")
+	learnQuizCmd.Flags().Bool("with-key", false, "Include each item's frozen key, grading rule and provenance")
 	learnCmd.AddCommand(learnQuizCmd)
 }
