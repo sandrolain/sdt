@@ -32,7 +32,7 @@ describe("the thread converter", () => {
     expect("status" in converted).toBe(false);
   });
 
-  it("maps a turn's outcome, and the wait before it, where the reader is looking", () => {
+  it("states a turn in flight once, at the end of the thread, not on the reader's message", () => {
     // A refusal: the agent's own sentence, as the data part the panel renders.
     expect(partLike({ kind: PART_ERROR, text: "the provider refused it" })).toEqual({
       type: "data-error",
@@ -43,22 +43,39 @@ describe("the thread converter", () => {
       data: { reason: "max_tokens" },
     });
 
-    // The wait is not on the wire: it is what the bridge's flag means to a reader, and it
-    // goes last, after the words the reader sent. Absent means answered.
-    const [waiting, answered] = threadMessages(
+    // The wait is the thread's own fact, not a part of the reader's message: the message is
+    // over, the turn is not, so the state goes last and the reader's text stands alone.
+    const sent = {
+      ...message("user", [{ kind: PART_TEXT, text: "how big?" }]),
+      provisional: true,
+    };
+    const [only] = threadMessages(thread([sent]));
+    expect(only.content).toEqual([{ type: "text", text: "how big?" }]);
+
+    const running = { ...thread([sent]), running: true };
+    const whileRunning = threadMessages(running);
+    expect(whileRunning.at(-1)).toEqual({
+      id: "waiting",
+      role: "assistant",
+      content: [{ type: "data-waiting", data: {} }],
+    });
+    expect(whileRunning.at(-2)?.content).toEqual([{ type: "text", text: "how big?" }]);
+  });
+
+  it("drops a part with nothing to say, and a message left with nothing", () => {
+    const messages = threadMessages(
       thread([
-        {
-          ...message("user", [{ kind: PART_TEXT, text: "how big?" }]),
-          provisional: true,
-        },
-        message("user", [{ kind: PART_TEXT, text: "and the panel?" }]),
+        // A streamed answer opens with an empty chunk: a bubble with no text is not a state.
+        message("assistant", [
+          { kind: PART_TEXT, text: "" },
+          { kind: PART_THOUGHT, text: "   " },
+          { kind: PART_TEXT, text: "ecco" },
+        ]),
+        message("assistant", [{ kind: PART_TEXT, text: "\n" }]),
       ]),
     );
-    expect(waiting.content).toEqual([
-      { type: "text", text: "how big?" },
-      { type: "data-waiting", data: {} },
-    ]);
-    expect(answered.content).toEqual([{ type: "text", text: "and the panel?" }]);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].content).toEqual([{ type: "text", text: "ecco" }]);
   });
 
   it("maps a question to the data part the panel answers in place", () => {
@@ -181,7 +198,37 @@ describe("the thread converter", () => {
       ],
     });
 
-    expect(threadMessages(thread([message("assistant", [])], { entries: [] }))).toHaveLength(1);
+    expect(
+      threadMessages(
+        thread([message("assistant", [{ kind: PART_TEXT, text: "done" }])], { entries: [] }),
+      ).map((converted) => converted.id),
+    ).toEqual(["msg-assistant"]);
+  });
+
+  it("marks an unanswered question as waiting on the reader, and an answered one as done", () => {
+    const question: AgentPart = {
+      kind: PART_ELICITATION,
+      elicitation: {
+        requestId: "elicit-1",
+        sessionId: "sess-1",
+        mode: "form",
+        message: "Which branch?",
+      },
+    };
+    const [pending] = threadMessages(thread([message("assistant", [question])]));
+    expect(pending.status).toEqual({ type: "requires-action", reason: "tool-calls" });
+
+    const [answered] = threadMessages(
+      thread([
+        message("assistant", [
+          {
+            ...question,
+            elicitation: { ...question.elicitation!, decision: "accepted", content: {} },
+          },
+        ]),
+      ]),
+    );
+    expect(answered.status).toEqual({ type: "complete" });
   });
 
   it("shows a part kind this build does not know rather than dropping it", () => {

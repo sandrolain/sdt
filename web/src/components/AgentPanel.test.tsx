@@ -303,7 +303,7 @@ describe("AgentPanel", () => {
     ).toBeTruthy();
   });
 
-  it("shows a message with no answer yet as waiting, and the outcome takes the wait away", async () => {
+  it("shows a turn in flight as waiting, and the outcome takes the wait away", async () => {
     mockViewer({ activated: true });
     render(<AgentPanel open onOpenChange={vi.fn()} />);
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
@@ -314,7 +314,7 @@ describe("AgentPanel", () => {
       parts: [{ kind: "text", text: "how big is the corpus?" }],
     };
     source.emit("message", {
-      data: JSON.stringify(state({ messages: [{ ...message, provisional: true }] })),
+      data: JSON.stringify(state({ running: true, messages: [{ ...message, provisional: true }] })),
     });
     expect(await screen.findByText("waiting for the agent…")).toBeTruthy();
 
@@ -322,6 +322,7 @@ describe("AgentPanel", () => {
     source.emit("message", {
       data: JSON.stringify(
         state({
+          running: false,
           messages: [
             { ...message, parts: [...message.parts, { kind: "stop", text: "max_tokens" }] },
           ],
@@ -441,6 +442,65 @@ describe("AgentPanel", () => {
     );
     // The draft clears once the viewer accepted it.
     expect(input.value).toBe("");
+  });
+
+  it("walks the prompts already sent with the arrow keys and restores the draft", async () => {
+    mockViewer();
+    const source = await open();
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [
+            { id: "user-1", role: "user", parts: [{ kind: "text", text: "primo prompt" }] },
+            { id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "fatto" }] },
+            { id: "user-2", role: "user", parts: [{ kind: "text", text: "secondo prompt" }] },
+          ],
+        }),
+      ),
+    });
+    expect(await screen.findByText("fatto")).toBeTruthy();
+
+    const input = screen.getByLabelText("Message") as HTMLTextAreaElement;
+    await userEvent.type(input, "bozza");
+    await userEvent.keyboard("{ArrowUp}");
+    expect(input.value).toBe("secondo prompt");
+    await userEvent.keyboard("{ArrowUp}");
+    expect(input.value).toBe("primo prompt");
+    // The oldest is where the walk stops: the field does not cycle.
+    await userEvent.keyboard("{ArrowUp}");
+    expect(input.value).toBe("primo prompt");
+
+    await userEvent.keyboard("{ArrowDown}");
+    expect(input.value).toBe("secondo prompt");
+    await userEvent.keyboard("{ArrowDown}");
+    expect(input.value).toBe("bozza");
+  });
+
+  it("leaves the arrow keys to a multi-line draft unless the caret is on its edge line", async () => {
+    mockViewer();
+    const source = await open();
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [
+            { id: "user-1", role: "user", parts: [{ kind: "text", text: "primo prompt" }] },
+            { id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "fatto" }] },
+          ],
+        }),
+      ),
+    });
+    expect(await screen.findByText("fatto")).toBeTruthy();
+
+    const input = screen.getByLabelText("Message") as HTMLTextAreaElement;
+    await userEvent.type(input, "prima riga{enter}seconda riga");
+    expect(input.value).toBe("prima riga\nseconda riga");
+    // The caret is on the last line: ArrowUp belongs to the draft, not to the history.
+    await userEvent.keyboard("{ArrowUp}");
+    expect(input.value).toBe("prima riga\nseconda riga");
+
+    input.setSelectionRange(0, 0);
+    await userEvent.keyboard("{ArrowUp}");
+    expect(input.value).toBe("primo prompt");
   });
 
   it("keeps the draft when the viewer refuses the send", async () => {

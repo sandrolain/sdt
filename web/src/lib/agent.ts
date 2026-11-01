@@ -159,8 +159,9 @@ export interface AgentPart {
 export interface AgentMessage {
   id: string;
   role: string;
-  /** The message has no answer yet: the panel shows the turn as waiting. Absent means
-   *  answered, so a browser older than the field reads a message it understands. */
+  /** The bridge's own mark that this message has not been answered yet. The panel reads the
+   *  turn's state from the thread's `running` instead, so the flag is no longer rendered;
+   *  it is kept here because the wire carries it. */
   provisional?: boolean;
   parts: AgentPart[];
 }

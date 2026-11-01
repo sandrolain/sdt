@@ -94,20 +94,31 @@ export interface ConvertedMessage {
 }
 
 export function messageStatus(parts: AgentPart[]): MessageStatus {
-  return parts.some((part) => part.permission && !part.permission.decision)
+  return parts.some(
+    (part) =>
+      (part.permission && !part.permission.decision) ||
+      (part.elicitation && !part.elicitation.decision),
+  )
     ? { type: "requires-action", reason: "tool-calls" }
     : { type: "complete" };
 }
 
 export function threadMessages(thread: AgentThread): ConvertedMessage[] {
-  const messages: ConvertedMessage[] = thread.messages.map((message) => ({
-    id: message.id,
-    role: message.role === ROLE_USER ? "user" : "assistant",
-    content: messageContent(message),
-    // Only an assistant message carries a status, and only a message waiting on the user
-    // is unfinished: the card is part of the turn, and the turn is not done.
-    ...(message.role === ROLE_USER ? {} : { status: messageStatus(message.parts) }),
-  }));
+  const messages: ConvertedMessage[] = [];
+  for (const message of thread.messages) {
+    const content = messageContent(message);
+    // A message with nothing to show is not a message: the reader would meet an empty
+    // bubble that says nothing about the turn it belongs to.
+    if (content.length === 0) continue;
+    messages.push({
+      id: message.id,
+      role: message.role === ROLE_USER ? "user" : "assistant",
+      content,
+      // Only an assistant message carries a status, and only a message waiting on the user
+      // is unfinished: the card is part of the turn, and the turn is not done.
+      ...(message.role === ROLE_USER ? {} : { status: messageStatus(message.parts) }),
+    });
+  }
   if (thread.plan?.entries?.length) {
     messages.push({
       id: "plan",
@@ -115,18 +126,37 @@ export function threadMessages(thread: AgentThread): ConvertedMessage[] {
       content: [{ type: "data-plan", data: thread.plan }],
     });
   }
+  // The turn's own state, stated once and in words, at the end of the thread: a reader
+  // whose prompt has been sent but not yet answered sees that the agent is working instead
+  // of an empty box. It is not the reader's message that says so, because their message is
+  // over and the turn is not.
+  if (thread.running) {
+    messages.push({ id: WAITING_ID, role: "assistant", content: [{ type: "data-waiting", data: {} }] });
+  }
   return messages;
 }
 
+/** WAITING_ID is the synthetic message that states a turn in flight. */
+export const WAITING_ID = "waiting";
+
 /**
- * messageContent is a message's parts, plus the panel's waiting marker. The bridge marks a
- * message it has not been answered about — no echo, no failure, no stop — and the wait is
- * shown where the reader is looking. The flag clears with the outcome, so a message is never
- * both waiting and answered.
+ * messageContent is a message's parts that render something. A chunk whose text is empty
+ * (a streamed answer opens with one) carries no information about the turn, so it is not
+ * drawn; a message left with no parts is dropped by the caller.
  */
 function messageContent(message: AgentMessage): PartLike[] {
-  const parts = message.parts.map(partLike);
-  return message.provisional ? [...parts, { type: "data-waiting", data: {} }] : parts;
+  return message.parts.map(partLike).filter(isVisible);
+}
+
+/** isVisible says whether a part produces anything a reader can see or read. */
+function isVisible(part: PartLike): boolean {
+  switch (part.type) {
+    case "text":
+    case "reasoning":
+      return part.text.trim() !== "";
+    default:
+      return true;
+  }
 }
 
 /** partLike maps one part; a kind this build does not know is shown, not dropped. */

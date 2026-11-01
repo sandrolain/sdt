@@ -26,6 +26,7 @@ import type {
 } from "@assistant-ui/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { renderMarkdown, highlightCode } from "../lib/markdown";
+import { Select } from "./ui/Select";
 import { renderMermaid } from "../lib/mermaidRender";
 import { markdownControlAction } from "../lib/markdownActions";
 import { highlightedToolOutput } from "../lib/toolOutput";
@@ -140,7 +141,9 @@ const ReasoningPart: ReasoningMessagePartComponent = ({ text }) => (
  * without parsing it again.
  */
 function MarkdownPart({ markdown }: { markdown: string }) {
-  const html = useMemo(() => renderMarkdown(markdown), [markdown]);
+  // `breaks` is on for the chat and off for a document: here the newline is the reader's
+  // own, and prose typed or written in lines must keep them.
+  const html = useMemo(() => renderMarkdown(markdown, { breaks: true }), [markdown]);
   const host = useRef<HTMLDivElement | null>(null);
   // The document page's own mount: a mermaid fence becomes a placeholder here, and the
   // renderer is what turns it into a diagram. It returns before importing mermaid when the
@@ -403,48 +406,64 @@ function ElicitationPart({ data }: { data: AgentElicitation }) {
           ) : null}
           {fields.length > 0 ? (
             <div className="agent-panel__elicitation-fields">
-              {fields.map((field) => (
-                <label key={field.name} className="agent-panel__field">
+              {fields.map((field) => {
+                const title = (
                   <span>
                     {field.title}
                     {field.required ? " *" : ""}
                   </span>
-                  {field.kind === "boolean" ? (
-                    <input
-                      type="checkbox"
-                      checked={Boolean(values[field.name])}
-                      onChange={(event) =>
-                        setValues((current) => ({ ...current, [field.name]: event.target.checked }))
+                );
+                // A choice is the app's own control, and a button-based control is not a
+                // form field a <label> can wrap: the control carries its own label, which is
+                // also what names the trigger for a reader who cannot see it.
+                if (field.kind === "enum") {
+                  return (
+                    <Select
+                      key={field.name}
+                      label={`${field.title}${field.required ? " *" : ""}`}
+                      ariaLabel={field.title}
+                      options={[
+                        { id: "", label: "Choose…" },
+                        ...(field.choices ?? []).map((choice) => ({
+                          id: choice,
+                          label: choice,
+                        })),
+                      ]}
+                      selectedKey={String(values[field.name] ?? "")}
+                      onSelectionChange={(key) =>
+                        setValues((current) => ({ ...current, [field.name]: String(key) }))
                       }
                     />
-                  ) : field.kind === "enum" ? (
-                    <select
-                      aria-required={field.required}
-                      value={String(values[field.name] ?? "")}
-                      onChange={(event) =>
-                        setValues((current) => ({ ...current, [field.name]: event.target.value }))
-                      }
-                    >
-                      <option value="">Choose…</option>
-                      {(field.choices ?? []).map((choice) => (
-                        <option key={choice} value={choice}>
-                          {choice}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={field.kind === "number" ? "number" : "text"}
-                      aria-required={field.required}
-                      disabled={field.kind === "unknown"}
-                      value={String(values[field.name] ?? "")}
-                      onChange={(event) =>
-                        setValues((current) => ({ ...current, [field.name]: event.target.value }))
-                      }
-                    />
-                  )}
-                </label>
-              ))}
+                  );
+                }
+                return (
+                  <label key={field.name} className="agent-panel__field">
+                    {title}
+                    {field.kind === "boolean" ? (
+                      <input
+                        type="checkbox"
+                        checked={Boolean(values[field.name])}
+                        onChange={(event) =>
+                          setValues((current) => ({
+                            ...current,
+                            [field.name]: event.target.checked,
+                          }))
+                        }
+                      />
+                    ) : (
+                      <input
+                        type={field.kind === "number" ? "number" : "text"}
+                        aria-required={field.required}
+                        disabled={field.kind === "unknown"}
+                        value={String(values[field.name] ?? "")}
+                        onChange={(event) =>
+                          setValues((current) => ({ ...current, [field.name]: event.target.value }))
+                        }
+                      />
+                    )}
+                  </label>
+                );
+              })}
             </div>
           ) : null}
           <div className="agent-panel__card-actions">
@@ -470,8 +489,10 @@ function ElicitationPart({ data }: { data: AgentElicitation }) {
   );
 }
 
+/** isBlank is a field with nothing in it. A boolean is never blank: `false` is an answer,
+ *  and a required checkbox must not be able to block the form it belongs to. */
 function isBlank(value: string | boolean | undefined): boolean {
-  return value === undefined || value === "" || value === false;
+  return value === undefined || value === "";
 }
 
 /** ErrorPart is a turn that produced no answer: the agent's own sentence, unedited. */

@@ -380,7 +380,7 @@
   }
   .agent-panel__note {
     color: var(--fg-dim);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     margin: 0;
   }
   .agent-panel__activation {
@@ -392,7 +392,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--fg-dim);
   }
   .agent-panel__field input,
@@ -462,7 +462,7 @@
     padding: 0.5rem 0.6rem;
     border-radius: var(--radius-sm, 4px);
     background: var(--bg-rise);
-    font-size: 0.85rem;
+    font-size: 0.95rem;
   }
   .agent-panel__message--user {
     background: color-mix(in srgb, var(--accent) 12%, var(--bg-rise));
@@ -472,7 +472,7 @@
     white-space: pre-wrap;
   }
   .agent-panel__reasoning {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--fg-dim);
   }
   .agent-panel__reasoning summary {
@@ -503,7 +503,7 @@
   .agent-panel__markdown h5,
   .agent-panel__markdown h6 {
     margin-block: 0.5rem 0.25rem;
-    font-size: 0.92rem;
+    font-size: 1rem;
   }
   .agent-panel__markdown ul,
   .agent-panel__markdown ol {
@@ -511,7 +511,7 @@
   }
   .agent-panel__markdown code {
     font-family: ui-monospace, "SF Mono", monospace;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     background: var(--bg-base);
     border-radius: var(--radius-xs);
     padding: 0 0.2rem;
@@ -546,7 +546,7 @@
     position: relative;
     border-inline-start: 2px solid var(--border);
     padding-inline-start: 0.5rem;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
   }
   .agent-panel__tool.is-error {
     border-inline-start-color: var(--danger, var(--fg-dim));
@@ -569,7 +569,7 @@
     border-radius: var(--radius-pill);
     background: var(--bg-base);
     color: var(--fg-dim);
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
@@ -594,13 +594,13 @@
   .agent-panel__tool-output summary {
     cursor: pointer;
     color: var(--fg-dim);
-    font-size: 0.72rem;
+    font-size: 0.8rem;
   }
   .agent-panel__tool-args,
   .agent-panel__tool-result {
     margin: 0.2rem 0 0;
     overflow-x: auto;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     color: var(--fg-dim);
   }
   /* An expanded output scrolls inside a bounded block, so opening a 400-line command
@@ -624,7 +624,7 @@
   }
   .agent-panel__decision {
     color: var(--fg-dim);
-    font-size: 0.8rem;
+    font-size: 0.85rem;
   }
   .agent-panel__card-actions {
     display: flex;
@@ -638,6 +638,16 @@
     flex-direction: column;
     gap: 0.4rem;
   }
+  /* A choice is the app's own Select, so its label is the app's too — the toolbar's
+     uppercase micro-label, one step larger and sentence-case here, where it labels a
+     field of the card and sits in the same column as the plain fields. */
+  .agent-panel__elicitation-fields .ui-field__label {
+    font-size: 0.85rem;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--fg-dim);
+    padding: 0 0 0.25rem;
+  }
   /* A boolean is one box, not a stretched field: the row's label is the control's name. */
   .agent-panel__elicitation-fields input[type="checkbox"] {
     align-self: flex-start;
@@ -645,7 +655,7 @@
   }
   .agent-panel__elicitation-values {
     margin: 0;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--fg-dim);
   }
   .agent-panel__elicitation-values dt {
@@ -657,7 +667,7 @@
   .agent-panel__plan {
     margin: 0;
     padding-inline-start: 1.2rem;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--fg-dim);
   }
   .agent-panel__error {
@@ -665,14 +675,14 @@
     padding-inline-start: 0.5rem;
     border-inline-start: 2px solid var(--danger, var(--fg-dim));
     color: var(--danger);
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     white-space: pre-wrap;
   }
   .agent-panel__stop,
   .agent-panel__waiting {
     margin: 0.3rem 0 0;
     color: var(--fg-dim);
-    font-size: 0.78rem;
+    font-size: 0.85rem;
     font-style: italic;
   }
   /* The pet's style menu: a short list on the popover's own surface. The additive
@@ -693,7 +703,7 @@
   .agent-panel__pet-item {
     padding: 0.3rem 0.5rem;
     border-radius: var(--radius-sm);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     cursor: pointer;
   }
   .agent-panel__pet-item[data-hovered] {
@@ -708,7 +718,7 @@
   }
   .agent-panel__pet-note {
     padding: 0.3rem 0.5rem 0.2rem;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
   }
   .agent-panel__model {
     display: flex;
@@ -784,7 +794,7 @@
   .agent-panel__state-word {
     margin: 0;
     color: var(--fg-dim);
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     letter-spacing: 0.02em;
   }
   .agent-panel__state-word--band {

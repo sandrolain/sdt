@@ -76,6 +76,12 @@ export interface RenderOptions {
   basePath?: string;
   /** wiki id/title index used to resolve `[[…]]` links */
   wikiIndex?: WikiIndex;
+  /**
+   * Render a single newline as a line break. Off by default, because a document's source is
+   * hard-wrapped and a `<br>` per line would fight the page's own rhythm; a chat turns it on,
+   * because there the reader typed the newline on purpose.
+   */
+  breaks?: boolean;
 }
 
 /** Boundary markers: inline `[B]`/`[B1]` tokens and `[Bn]: title` lines. */
@@ -128,7 +134,7 @@ export function slugify(text: string): string {
 }
 
 /** Build a marked instance whose link renderer knows the base path. */
-function buildMarked(basePath?: string): Marked {
+function buildMarked(basePath?: string, breaks = false): Marked {
   // per-document slug counter so duplicate headings get unique ids
   const slugs = new Map<string, number>();
   const uniqueSlug = (text: string): string => {
@@ -140,7 +146,7 @@ function buildMarked(basePath?: string): Marked {
 
   const marked = new Marked({
     gfm: true,
-    breaks: false,
+    breaks,
     extensions: [...mathExtensions(), ...deflistExtension()],
     renderer: {
       heading(this: { parser: { parseInline(tokens: unknown): string } }, token: Tokens.Heading) {
@@ -254,7 +260,7 @@ function buildMarked(basePath?: string): Marked {
 /** Render markdown to sanitized HTML: wikilink rewrite, marker strip, sanitize. */
 export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
   const prepared = stripBoundaryMarkers(rewriteWikiLinks(stripLeadingH1(md), opts.wikiIndex));
-  const raw = buildMarked(opts.basePath).parse(prepared);
+  const raw = buildMarked(opts.basePath, opts.breaks).parse(prepared);
   return DOMPurify.sanitize(raw as string, SANITIZE_CONFIG) as unknown as string;
 }
 

@@ -83,8 +83,10 @@ import {
   modelOption,
   newAgentChat,
   elicitationCommand,
+  PART_TEXT,
   permissionCommand,
   promptCommand,
+  ROLE_USER,
   sendAgentCommand,
   streamAgent,
   type AgentState,
@@ -92,6 +94,7 @@ import {
   type AgentStatusFrame,
   type AgentStream,
 } from "../lib/agent";
+import { caretAtEdge, NO_WALK, recall, type ComposerWalk } from "../lib/composerHistory";
 
 /**
  * The pet is lazy for the same reason the canvas is: its library imports `three`, and a
@@ -138,6 +141,8 @@ export function AgentPanel({
   const [state, setState] = useState<AgentState | null>(null);
   const [message, setMessage] = useState("");
   const [draft, setDraft] = useState("");
+  // Where the reader is in the prompts already sent; the texts themselves are the thread's.
+  const [walk, setWalk] = useState<ComposerWalk>(NO_WALK);
   const composer = useRef<HTMLTextAreaElement>(null);
   const [envelope, setEnvelope] = useState<AgentStateEnvelope | null>(null);
   const [session, setSession] = useState("");
@@ -261,6 +266,7 @@ export function AgentPanel({
       const next = await newAgentChat();
       setEnvelope(null);
       setSession("");
+      setWalk(NO_WALK);
       apply(next);
     } catch (error) {
       setPhase("active");
@@ -322,6 +328,24 @@ export function AgentPanel({
     writePetHeight(clamped);
   };
 
+  /**
+   * sentPrompts is the composer's history: the reader's own messages, in the order the
+   * bridge wrote them. It is derived from the thread rather than kept in a list of its own,
+   * so it survives a closed panel and cannot disagree with what was actually sent.
+   */
+  const sentPrompts = useMemo(() => {
+    const messages = envelope?.thread.messages ?? [];
+    return messages
+      .filter((entry) => entry.role === ROLE_USER)
+      .map((entry) =>
+        entry.parts
+          .filter((part) => part.kind === PART_TEXT)
+          .map((part) => part.text ?? "")
+          .join(""),
+      )
+      .filter((text) => text.trim() !== "");
+  }, [envelope]);
+
   const onPrompt = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (draft.trim() === "") return;
@@ -330,13 +354,40 @@ export function AgentPanel({
     sendAgentCommand(promptCommand(draft, session))
       .then(() => {
         setDraft("");
+        // The prompt just sent is the newest entry of the history the next walk reads.
+        setWalk(NO_WALK);
         setMessage("");
       })
       .catch((error: Error) => setMessage(error.message));
   };
 
-  /** The composer's chord: Enter is a newline, Cmd/Ctrl+Enter is the send. */
+  /**
+   * onComposerKeyDown is the composer's vocabulary: the arrows walk the prompts already
+   * sent (from the edge line, so a multi-line draft keeps its own line movement), and
+   * Cmd/Ctrl+Enter sends. An IME owns the arrows while it is composing, so it is left alone.
+   */
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    const direction: -1 | 1 | null =
+      event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : null;
+    if (direction !== null) {
+      const field = event.currentTarget;
+      if (field.selectionStart !== field.selectionEnd) return;
+      if (!caretAtEdge(draft, field.selectionStart, direction)) return;
+      const next = recall(sentPrompts, walk, direction, draft);
+      if (!next) return;
+      event.preventDefault();
+      setDraft(next.draft);
+      setWalk(next.walk);
+      // The caret goes after what was recalled, once the new text is in the field.
+      requestAnimationFrame(() => {
+        const el = composer.current;
+        if (!el) return;
+        const end = el.value.length;
+        el.setSelectionRange(end, end);
+      });
+      return;
+    }
     if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
@@ -593,7 +644,11 @@ export function AgentPanel({
                     rows={1}
                     name="prompt"
                     value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => {
+                      setDraft(event.target.value);
+                      // Typing ends the walk: the next ArrowUp stashes this draft.
+                      setWalk(NO_WALK);
+                    }}
                     onKeyDown={onComposerKeyDown}
                     placeholder="Ask the agent…"
                     aria-label="Message"

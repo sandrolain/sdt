@@ -63,6 +63,15 @@ describe("AgentThread", () => {
     ).toBe("https://example.com");
   });
 
+  it("keeps the newlines of what was typed or written", () => {
+    show([{ kind: PART_TEXT, text: "prima riga\nseconda riga" }]);
+
+    // The chat renders through the corpus renderer, with its `breaks` option on: a single
+    // newline is the reader's own line break, not a space.
+    const html = document.querySelector(".agent-panel__markdown")?.innerHTML ?? "";
+    expect(html).toContain("prima riga<br>seconda riga");
+  });
+
   it("gives a fenced block the document renderer's chrome, and its copy control works", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
@@ -329,6 +338,47 @@ describe("the agent's question", () => {
     expect(onElicitation).toHaveBeenCalledWith("elicit-1", ACTION_CANCEL);
   });
 
+  it("lets a required boolean be answered: false is an answer, not a missing field", () => {
+    const onElicitation = questionCard({
+      schema: {
+        type: "object",
+        properties: { push: { type: "boolean", title: "Push it" } },
+        required: ["push"],
+      },
+    });
+
+    const accept = screen.getByRole("button", { name: "Accept" }) as HTMLButtonElement;
+    expect(accept.disabled).toBe(false);
+    fireEvent.click(accept);
+    expect(onElicitation).toHaveBeenCalledWith("elicit-1", ACTION_ACCEPT, { push: false });
+  });
+
+  it("renders a choice field as the app's own select, carrying the agent's options", () => {
+    questionCard({
+      schema: {
+        type: "object",
+        properties: {
+          approccio: {
+            type: "string",
+            title: "Approccio",
+            enum: ["riassumi", "dettaglia", "confronta"],
+          },
+        },
+        required: ["approccio"],
+      },
+    });
+
+    // Not the browser's own dropdown: the panel's control, the same one the model picker is.
+    // (React Aria keeps a hidden native <select> for form semantics; what the reader sees and
+    // operates is the app's button.)
+    const control = screen.getByRole("button", { name: /Approccio/ });
+    expect(control.className).toContain("ui-select__button");
+    expect(document.querySelector("select[tabindex='-1']")).toBeTruthy();
+
+    fireEvent.click(control);
+    expect(screen.getByRole("option", { name: "dettaglia" })).toBeTruthy();
+  });
+
   it("declines a question whose fields this panel cannot render", () => {
     questionCard({
       schema: {
@@ -341,5 +391,27 @@ describe("the agent's question", () => {
       true,
     );
     expect(screen.getByRole("button", { name: "Decline" })).toBeTruthy();
+  });
+
+  it("states a turn in flight as one line at the end, and draws no empty bubble", () => {    render(
+      <AgentThread
+        thread={{
+          sessionId: "sess-1",
+          running: true,
+          messages: [
+            { id: "user-1", role: "user", parts: [{ kind: PART_TEXT, text: "prima riga" }] },
+            // A streamed answer opens with an empty chunk; a message with nothing to show
+            // is not a bubble, and the wait is a word rather than a blank surface.
+            { id: "msg-1", role: "assistant", parts: [{ kind: PART_TEXT, text: "" }] },
+          ],
+        }}
+        onAnswer={() => undefined}
+        onElicitation={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("waiting for the agent…")).toBeTruthy();
+    // Exactly two surfaces: the reader's message and the wait's. The empty one is absent.
+    expect(document.querySelectorAll(".agent-panel__message")).toHaveLength(2);
   });
 });

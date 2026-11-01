@@ -29,6 +29,18 @@ describe("renderMarkdown", () => {
     expect(html).toContain("<strong>world</strong>");
   });
 
+  it("keeps a document's soft line breaks soft, and makes a chat's a line break", () => {
+    const source = "prima riga\nseconda riga\n\n- uno\n- due";
+    // A document is hard-wrapped: its source lines are not the author's line breaks.
+    expect(renderMarkdown(source)).not.toContain("<br>");
+    // A chat's newline is the reader's own, and marked's option is the one switch for it.
+    const chat = renderMarkdown(source, { breaks: true });
+    expect(chat).toContain("prima riga<br>seconda riga");
+    // The option does not reach a list: its items stay items.
+    expect(chat).toContain("<li>uno</li>");
+    expect(chat).toContain("<li>due</li>");
+  });
+
   it("keeps real headings and adds a copy button to code blocks", () => {
     const html = renderMarkdown("# Title\n\n## Section\n\n```js\nconst x = 1;\n```");
     expect(html).not.toContain("<h1>");
