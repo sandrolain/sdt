@@ -131,7 +131,11 @@ export function threadMessages(thread: AgentThread): ConvertedMessage[] {
   // of an empty box. It is not the reader's message that says so, because their message is
   // over and the turn is not.
   if (thread.running) {
-    messages.push({ id: WAITING_ID, role: "assistant", content: [{ type: "data-waiting", data: {} }] });
+    messages.push({
+      id: WAITING_ID,
+      role: "assistant",
+      content: [{ type: "data-waiting", data: {} }],
+    });
   }
   return messages;
 }
