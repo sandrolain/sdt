@@ -112,8 +112,12 @@ type agentStateResponse struct {
 	Status    string   `json:"status,omitempty"`
 	Session   string   `json:"session,omitempty"`
 	Command   []string `json:"command,omitempty"`
-	Model     string   `json:"model,omitempty"`
-	Error     string   `json:"error,omitempty"`
+	// Models is the list the project declares, in its own order: the models a session
+	// may run on, and the only ones the panel's picker offers. Absent means nothing was
+	// declared, and the agent's own list is what the reader sees.
+	Models []string `json:"models,omitempty"`
+	Model  string   `json:"model,omitempty"`
+	Error  string   `json:"error,omitempty"`
 }
 
 // broadcastAgentStatus puts one posture frame on every open stream. The frame is
@@ -164,6 +168,7 @@ func (s *server) agentState(session string) agentStateResponse {
 		Activated: s.agent.Activated(),
 		Status:    string(status),
 		Command:   s.agentCommand,
+		Models:    s.agentModels,
 		Model:     s.agentModelInUse(),
 	}
 	switch {

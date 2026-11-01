@@ -178,6 +178,9 @@ func TestAgentStateIsReachableAndInert(t *testing.T) {
 	if state.Activated || state.Connected || state.Session != "" || state.Error != "" {
 		t.Fatalf("an inert bridge reported %+v", state)
 	}
+	if len(state.Models) != 0 {
+		t.Fatalf("a project that declares no models sent %v", state.Models)
+	}
 	if got := agent.Connections(); got != 0 {
 		t.Fatalf("the agent accepted %d connections before activation", got)
 	}
@@ -249,6 +252,11 @@ func TestAgentStateReportsTheLiveAgent(t *testing.T) {
 	// declaration is the only place that can come from.
 	if state.Model != "opencode/big-pickle" {
 		t.Fatalf("the state must carry the model the project declared, got %q", state.Model)
+	}
+	// The panel's picker offers the declared models and nothing else, so the list has to
+	// reach the browser: it is the project's own order, not the agent's.
+	if len(state.Models) != 1 || state.Models[0] != "opencode/big-pickle" {
+		t.Fatalf("the state must carry the declared model list, got %v", state.Models)
 	}
 }
 

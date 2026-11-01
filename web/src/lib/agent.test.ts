@@ -16,6 +16,8 @@ import {
   fetchAgentState,
   permissionCommand,
   promptCommand,
+  offeredModels,
+  type AgentConfigOption,
   sendAgentCommand,
   streamAgent,
   type AgentStateEnvelope,
@@ -168,5 +170,60 @@ describe("the agent stream", () => {
 
     expect(source.closed).toBe(true);
     expect(reasons).toEqual(["the agent stream ended"]);
+  });
+});
+
+describe("offeredModels", () => {
+  const option: AgentConfigOption = {
+    id: "model",
+    category: "model",
+    type: "select",
+    currentValue: "agent/one",
+    options: [
+      { value: "agent/one", name: "One" },
+      { value: "agent/two", name: "Two" },
+      { value: "agent/three", name: "Three" },
+    ],
+  };
+
+  it("keeps the agent's whole list when the project declares nothing", () => {
+    const offered = offeredModels(option, undefined, "agent/one");
+    expect(offered.declared).toBe(false);
+    expect(offered.matched).toBe(true);
+    expect(offered.rows.map((row) => row.value)).toEqual(["agent/one", "agent/two", "agent/three"]);
+  });
+
+  it("follows the declaration's order, not the agent's", () => {
+    const offered = offeredModels(option, ["agent/three", "agent/one"], "agent/one");
+    expect(offered.declared).toBe(true);
+    expect(offered.matched).toBe(true);
+    expect(offered.rows.map((row) => row.value)).toEqual(["agent/three", "agent/one"]);
+    // A row carries the agent's own name: the declaration names an id, never a label.
+    expect(offered.rows[0].name).toBe("Three");
+  });
+
+  it("leaves out a declared model the agent does not offer, and collapses a repeat", () => {
+    const offered = offeredModels(option, ["gone/away", "agent/two", "agent/two"], "agent/two");
+    expect(offered.rows.map((row) => row.value)).toEqual(["agent/two"]);
+    expect(offered.matched).toBe(true);
+  });
+
+  it("offers nothing when no declared model is one the agent offers", () => {
+    const offered = offeredModels(option, ["gone/away"], "agent/one");
+    expect(offered.declared).toBe(true);
+    expect(offered.matched).toBe(false);
+    expect(offered.rows).toEqual([]);
+  });
+
+  it("keeps the model in use visible when the declaration leaves it out", () => {
+    const offered = offeredModels(option, ["agent/two"], "agent/one");
+    // First, so the control shows what is running rather than an empty value.
+    expect(offered.rows.map((row) => row.value)).toEqual(["agent/one", "agent/two"]);
+    expect(offered.rows[0].name).toBe("One");
+  });
+
+  it("does not add the model in use when the declaration matched nothing", () => {
+    // There is no picker in that case: the panel states the model in its note instead.
+    expect(offeredModels(option, ["gone/away"], "agent/one").rows).toEqual([]);
   });
 });

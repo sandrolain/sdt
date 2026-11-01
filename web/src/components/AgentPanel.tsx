@@ -82,6 +82,7 @@ import {
   fetchAgentState,
   modelOption,
   newAgentChat,
+  offeredModels,
   elicitationCommand,
   PART_TEXT,
   permissionCommand,
@@ -170,6 +171,9 @@ export function AgentPanel({
       model: frame.model,
       error: frame.error,
       command: state?.command,
+      // A posture frame carries no declaration: it is config, and it does not change while
+      // a stream is open.
+      models: state?.models,
     });
   };
 
@@ -411,10 +415,18 @@ export function AgentPanel({
 
   // Derived during render from the thread, which is the only truth about the model in use: the
   // control reads the agent's own answer, so an accepted choice moves it when the agent says so
-  // and a refused one does not move it at all. An agent that offers no model option gets no
-  // control — the panel it had before, and not a disabled box a reader would try.
+  // and a refused one does not move it at all. What it may offer is the project's business:
+  // the agent's choices narrowed to the models `.sdt.yaml` declares, in the declared order.
+  // An agent that offers no model option gets no control — the panel it had before, and not a
+  // disabled box a reader would try.
   const model = modelOption(envelope?.thread.config);
-  const modelChoices: UiComboOption[] = (model?.options ?? []).map((choice) => ({
+  const offered = useMemo(
+    // The value in use is the agent's own, from the option it advertised: the posture can
+    // lag it after a switch, and the control must show what the thread says.
+    () => (model ? offeredModels(model, state?.models, model.currentValue) : undefined),
+    [model, state],
+  );
+  const modelChoices: UiComboOption[] = (offered?.rows ?? []).map((choice) => ({
     id: choice.value,
     label: choice.name ?? choice.value,
   }));
@@ -620,7 +632,7 @@ export function AgentPanel({
               {phase === "active" && message !== "" && (
                 <p className="agent-panel__note agent-panel__note--error">{message}</p>
               )}
-              {phase === "active" && model && (
+              {phase === "active" && model && modelChoices.length > 0 && (
                 <div className="agent-panel__model">
                   <ComboBox
                     ariaLabel="Model"
@@ -635,6 +647,17 @@ export function AgentPanel({
                       tell(configCommand(model.id, key, session));
                     }}
                   />
+                </div>
+              )}
+              {/* The declaration named nothing this agent offers — a stale id, or a list
+                  written for another agent. No picker instead of an empty one, and the
+                  model the session is on, so the reader is not left guessing either. */}
+              {phase === "active" && offered?.declared && !offered.matched && (
+                <div className="agent-panel__model">
+                  <p className="agent-panel__note agent-panel__model-note">
+                    No model this agent offers is one this project declares
+                    {model?.currentValue ? ` — the session is on ${model.currentValue}` : ""}.
+                  </p>
                 </div>
               )}
               {phase === "active" && (

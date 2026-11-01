@@ -101,6 +101,7 @@ function mockViewer(
     activated?: boolean;
     error?: string;
     command?: string[];
+    models?: string[];
     commandError?: string;
     newChatError?: string;
   } = {},
@@ -116,6 +117,7 @@ function mockViewer(
           connected: options.activated ?? false,
           status: options.activated ? "active" : "stopped",
           command,
+          models: options.models,
           error: options.error,
         }),
         { status: 200 },
@@ -131,6 +133,7 @@ function mockViewer(
           status: "active",
           session: "sess-1",
           command,
+          models: options.models,
         }),
         { status: 200 },
       );
@@ -673,8 +676,55 @@ describe("AgentPanel", () => {
     await waitFor(() => expect(control.value).toBe("opencode/big-pickle"));
   });
 
-  it("shows the agent's refusal where the control is, and leaves the session on its model", async () => {
-    const calls = mockViewer({ commandError: "the provider has no such model" });
+  it("offers only the models the project declares, in the declared order", async () => {
+    // Three models reach the browser; the project sanctions two, in its own order.
+    mockViewer({ models: ["opencode/big-pickle", "openrouter/meta/muse-spark-open"] });
+    const source = await open();
+    source.emit("message", { data: JSON.stringify(fixtureThread()) });
+
+    const control = (await screen.findByRole("combobox", { name: "Model" })) as HTMLInputElement;
+    await userEvent.click(control);
+    await userEvent.keyboard("{ArrowDown}");
+    const rows = await screen.findAllByRole("option");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "opencode/big-pickle",
+      "openrouter/meta/muse-spark-open",
+    ]);
+  });
+
+  it("renders no picker and says why when no declared model is one the agent offers", async () => {
+    mockViewer({ models: ["openai/gpt-5"] });
+    const source = await open();
+    source.emit("message", { data: JSON.stringify(fixtureThread()) });
+
+    // The declaration is stale or written for another agent: no empty dropdown, and the
+    // model the session is on is named instead.
+    expect(
+      await screen.findByText(/No model this agent offers is one this project declares/),
+    ).toBeTruthy();
+    expect(screen.getByText(/muse-spark-open/)).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "Model" })).toBeNull();
+  });
+
+  it("keeps the model in use visible when the declaration does not cover it", async () => {
+    // Only one model is declared, but the session is on another the agent offers: the row
+    // stays so the picker never hides what is running.
+    mockViewer({ models: ["opencode/big-pickle"] });
+    const source = await open();
+    source.emit("message", { data: JSON.stringify(fixtureThread()) });
+
+    const control = (await screen.findByRole("combobox", { name: "Model" })) as HTMLInputElement;
+    expect(control.value).toBe("openrouter/meta/muse-spark-open");
+    await userEvent.click(control);
+    await userEvent.keyboard("{ArrowDown}");
+    const rows = await screen.findAllByRole("option");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "openrouter/meta/muse-spark-open",
+      "opencode/big-pickle",
+    ]);
+  });
+
+  it("shows the agent's refusal where the control is, and leaves the session on its model", async () => {    const calls = mockViewer({ commandError: "the provider has no such model" });
     const source = await open();
     source.emit("message", { data: JSON.stringify(fixtureThread()) });
     const control = (await screen.findByRole("combobox", {

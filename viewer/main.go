@@ -84,10 +84,11 @@ func newServeCmd() *cobra.Command {
 			"loopback and an sdt binary resolves, and the agent chat panel is available under\n" +
 			"the same loopback rule. The panel starts the agent this project declares in\n" +
 			".sdt.yaml (agent.command, an argv list executed directly, with no shell) and runs it\n" +
-			"on the model the same file names (agent.model, optional: absent means the agent's\n" +
-			"own default, and the panel offers the agent's own list to switch it for the session):\n" +
-			"nothing is started before a reader asks for it, and nothing a browser sends can\n" +
-			"name a command.",
+			"on the models the same file lists (agent.models, tried in order; agent.model is its\n" +
+			"one-entry form). Those models are also all the panel's picker offers: a project that\n" +
+			"declares none keeps the agent's own list, and the picker says so when none of the\n" +
+			"declared ids is one the agent advertises. Nothing is started before a reader asks\n" +
+			"for it, and nothing a browser sends can name a command.",
 		Example: `  # the agent chat: declare the agent in the project, then open the panel (⌘J)
   printf 'agent:\n  command: ["opencode", "acp"]\n  model: "opencode/big-pickle"\n' >> .sdt.yaml
   sdtviewer serve --port 8443

@@ -75,6 +75,9 @@ export interface AgentState {
   status?: string;
   session?: string;
   command?: string[];
+  /** The models the project declares, in its own order: the session may run on these, and
+   *  the panel's picker offers only these. Absent means nothing was declared. */
+  models?: string[];
   model?: string;
   error?: string;
 }
@@ -240,6 +243,57 @@ export function modelOption(config: unknown[] | undefined): AgentConfigOption | 
     return option;
   }
   return undefined;
+}
+
+/**
+ * OfferedModels is what the picker may show: the rows, and whether the project's
+ * declaration narrowed them.
+ */
+export interface OfferedModels {
+  /** The rows to offer, in the declaration's order (the agent's own order when nothing
+   *  is declared). */
+  rows: AgentConfigChoice[];
+  /** Whether a declaration narrowed the agent's list at all. */
+  declared: boolean;
+  /** Whether the declaration matched anything. False with `declared` true is the "no
+   *  model this agent offers is one this project declares" case. */
+  matched: boolean;
+}
+
+/**
+ * offeredModels intersects the agent's choices with the models the project declares.
+ *
+ * `agent.models` is the list the project sanctions, in its own preference order: when it
+ * is declared the picker offers exactly those the agent also advertises, and nothing else.
+ * An undeclared project keeps the agent's whole list — the declaration is additive, never
+ * a restriction nobody asked for.
+ *
+ * The model the session is on is always a row when the list is otherwise non-empty: a
+ * picker that hid what is running would be lying about the one thing it exists to say. It
+ * is not added when the declaration matched nothing, because then there is no picker to
+ * put it in — the panel states it in the note instead.
+ */
+export function offeredModels(
+  option: AgentConfigOption,
+  declared: string[] | undefined,
+  current?: string,
+): OfferedModels {
+  const choices = option.options ?? [];
+  if (!declared || declared.length === 0) {
+    return { rows: choices, declared: false, matched: true };
+  }
+  const byID = new Map(choices.map((choice) => [choice.value, choice]));
+  const rows: AgentConfigChoice[] = [];
+  for (const id of declared) {
+    const choice = byID.get(id);
+    // The declaration may name a model this agent does not offer (a stale id, another
+    // agent): it is left out rather than shown as a row the agent would refuse.
+    if (choice && !rows.some((row) => row.value === choice.value)) rows.push(choice);
+  }
+  if (rows.length > 0 && current && !rows.some((row) => row.value === current)) {
+    rows.unshift(byID.get(current) ?? { value: current });
+  }
+  return { rows, declared: true, matched: rows.length > 0 };
 }
 
 /** AgentStateEnvelope is one whole-thread state, one JSON message. */
