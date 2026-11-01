@@ -412,9 +412,10 @@ func (s *server) handleAgentCommand(w http.ResponseWriter, r *http.Request) {
 		}
 	case acpbridge.EnvelopePermission:
 		// The card is resolved first, so the browser sees the decision in place, and
-		// the answer is handed to the agent second, which releases its wait.
-		session.State().ResolvePermission(command.RequestID, agentDecision(command.Allow))
-		s.agent.Permissions().Answer(command.RequestID, command.Allow)
+		// the answer is handed to the agent second, which releases its wait. Both carry
+		// the option's own id: the bridge never chooses one for the reader.
+		session.State().ResolvePermission(command.RequestID, command.OptionID)
+		s.agent.Permissions().Answer(command.RequestID, command.OptionID)
 	case acpbridge.EnvelopeElicitation:
 		// The same order the permission card keeps: the decision is recorded in place so
 		// the browser sees it, then the answer releases the agent's wait.
@@ -546,13 +547,6 @@ func agentElicitationDecision(action string) string {
 	default:
 		return acpbridge.DecisionCancelled
 	}
-}
-
-func agentDecision(allow bool) string {
-	if allow {
-		return acpbridge.DecisionAllowed
-	}
-	return acpbridge.DecisionDenied
 }
 
 // writeAgentFrame writes one SSE frame and reports whether the browser is still

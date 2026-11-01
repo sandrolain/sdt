@@ -29,11 +29,8 @@ const (
 	PartStop       = "stop"       // the turn stopped, for a reason worth telling
 )
 
-// The user's answer to a permission card.
-const (
-	DecisionAllowed = "allowed"
-	DecisionDenied  = "denied"
-)
+// The user's answer to a permission card is the id of the option they chose, which is
+// the agent's own word for it; the bridge records it verbatim and never translates it.
 
 // Thread is the accumulated state of one ACP session: what the browser renders,
 // and nothing else. The plan is thread-level rather than a part of a message,

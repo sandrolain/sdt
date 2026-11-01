@@ -277,7 +277,7 @@ func TestPermissionSuspendsUntilTheUserAnswers(t *testing.T) {
 	default:
 	}
 
-	if !c.perms.Answer(card.RequestID, true) {
+	if !c.perms.Answer(card.RequestID, "yes") {
 		t.Fatal("answering the current request reported nothing waiting")
 	}
 	result := <-done
@@ -286,6 +286,46 @@ func TestPermissionSuspendsUntilTheUserAnswers(t *testing.T) {
 	}
 	if result.response.Outcome.Selected == nil || result.response.Outcome.Selected.OptionId != "yes" {
 		t.Fatalf("the approval did not select the agent's allow option: %+v", result.response.Outcome)
+	}
+}
+
+// The reported case: an agent that asks a question by offering several options of the
+// same kind. The answer is the id the reader chose, not the first option of that kind.
+func TestAChoiceBetweenOptionsofTheSameKindAnswersTheChosenOne(t *testing.T) {
+	sink := &recordingSink{}
+	cards := make(chan Permission, 4)
+	sink.onPermission = func(request Permission) { cards <- request }
+	c := newTestClient(t, t.TempDir(), sink)
+
+	options := []acp.PermissionOption{
+		{OptionId: "riassumi", Kind: acp.PermissionOptionKindAllowOnce, Name: "Riassumi"},
+		{OptionId: "dettaglia", Kind: acp.PermissionOptionKindAllowOnce, Name: "Dettaglia"},
+		{OptionId: "confronta", Kind: acp.PermissionOptionKindAllowOnce, Name: "Confronta"},
+	}
+	responses := make(chan acp.RequestPermissionResponse, 1)
+	go func() {
+		response, _ := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+			SessionId: "sess-1",
+			ToolCall:  acp.ToolCallUpdate{ToolCallId: "call-1"},
+			Options:   options,
+		})
+		responses <- response
+	}()
+
+	card := <-cards
+	if len(card.Options) != 3 {
+		t.Fatalf("the card carries %d options, want the agent's three", len(card.Options))
+	}
+	if card.Options[1].Name != "Dettaglia" || card.Options[1].Kind != "allow_once" {
+		t.Fatalf("the card's second option is %+v, want the agent's own", card.Options[1])
+	}
+
+	if !c.perms.Answer(card.RequestID, "dettaglia") {
+		t.Fatal("answering the current request reported nothing waiting")
+	}
+	response := <-responses
+	if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "dettaglia" {
+		t.Fatalf("the choice did not answer the option the reader picked: %+v", response.Outcome)
 	}
 }
 
@@ -310,7 +350,7 @@ func TestDeniedPermissionSelectsTheAgentsRejectOption(t *testing.T) {
 	}()
 
 	card := <-cards
-	c.perms.Answer(card.RequestID, false)
+	c.perms.Answer(card.RequestID, "no")
 	response := <-responses
 	if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "no" {
 		t.Fatalf("the denial did not select the agent's reject option: %+v", response.Outcome)
@@ -325,11 +365,11 @@ func TestASecondPermissionWaitsItsTurn(t *testing.T) {
 	sink.onPermission = func(request Permission) { cards <- request }
 	c := newTestClient(t, t.TempDir(), sink)
 
-	ask := func(title string) chan bool {
-		done := make(chan bool, 1)
+	ask := func(title string) chan string {
+		done := make(chan string, 1)
 		go func() {
-			allow, _ := c.perms.Ask(context.Background(), Permission{Title: title})
-			done <- allow
+			optionID, _ := c.perms.Ask(context.Background(), Permission{Title: title})
+			done <- optionID
 		}()
 		return done
 	}
@@ -343,22 +383,22 @@ func TestASecondPermissionWaitsItsTurn(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 	}
 
-	if !c.perms.Answer(firstCard.RequestID, true) {
+	if !c.perms.Answer(firstCard.RequestID, "yes") {
 		t.Fatal("the first request was not waiting")
 	}
-	if !<-first {
-		t.Fatal("the first request was denied")
+	if got := <-first; got != "yes" {
+		t.Fatalf("the first request answered %q, want the id that was sent", got)
 	}
 	select {
 	case secondCard := <-cards:
 		if secondCard.Title != "second" {
 			t.Fatalf("the promoted card is %q, want the second request", secondCard.Title)
 		}
-		if !c.perms.Answer(secondCard.RequestID, false) {
+		if !c.perms.Answer(secondCard.RequestID, "no") {
 			t.Fatal("the second request was not waiting")
 		}
-		if <-second {
-			t.Fatal("the second request was allowed")
+		if got := <-second; got != "no" {
+			t.Fatalf("the second request answered %q, want the id that was sent", got)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the second request never became current after the first was answered")
@@ -413,7 +453,7 @@ func TestPermissionWithoutAMatchingOptionIsCancelled(t *testing.T) {
 		responses <- response
 	}()
 	card := <-cards
-	c.perms.Answer(card.RequestID, true)
+	c.perms.Answer(card.RequestID, "not-an-option-the-request-named")
 	response := <-responses
 	if response.Outcome.Cancelled == nil {
 		t.Fatalf("an unmatched answer returned %+v, want cancellation", response.Outcome)

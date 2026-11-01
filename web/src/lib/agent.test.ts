@@ -9,7 +9,6 @@ import {
   activateAgent,
   cancelCommand,
   deactivateAgent,
-  DECISION_ALLOWED,
   ENVELOPE_CANCEL,
   ENVELOPE_PERMISSION,
   ENVELOPE_PROMPT,
@@ -72,12 +71,11 @@ describe("the agent wire", () => {
     });
     expect(cancelCommand()).toEqual({ type: ENVELOPE_CANCEL });
     expect(cancelCommand("sess-2")).toEqual({ type: ENVELOPE_CANCEL, sessionId: "sess-2" });
-    expect(permissionCommand("perm-1", true)).toEqual({
+    expect(permissionCommand("perm-1", "allow_once")).toEqual({
       type: ENVELOPE_PERMISSION,
       requestId: "perm-1",
-      allow: true,
+      optionId: "allow_once",
     });
-    expect(DECISION_ALLOWED).toBe("allowed");
   });
 
   it("reads the state with a GET and starts the declared agent with an empty POST", async () => {

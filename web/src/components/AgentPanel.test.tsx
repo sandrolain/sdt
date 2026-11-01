@@ -563,7 +563,7 @@ describe("AgentPanel", () => {
     );
   });
 
-  it("resolves a permission card in place with the answer the user gives", async () => {
+  it("resolves a permission card in place with the option the user picks", async () => {
     const calls = mockViewer();
     const source = await open();
 
@@ -582,6 +582,10 @@ describe("AgentPanel", () => {
                     sessionId: "sess-1",
                     title: "Write context/notes/x.md",
                     toolKind: "edit",
+                    options: [
+                      { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+                      { optionId: "reject_once", name: "Reject once", kind: "reject_once" },
+                    ],
                   },
                 },
               ],
@@ -592,11 +596,12 @@ describe("AgentPanel", () => {
     });
     expect(await screen.findByText(/Write context\/notes\/x.md/)).toBeTruthy();
 
-    await userEvent.click(screen.getByRole("button", { name: "Allow" }));
+    // The card is the agent's own options, not a yes/no: the second one is answered.
+    await userEvent.click(screen.getByRole("button", { name: "Reject once" }));
     expect(commands(calls).at(-1)).toEqual({
       type: "permission",
       requestId: "perm-1",
-      allow: true,
+      optionId: "reject_once",
       sessionId: "sess-1",
     });
 
@@ -616,7 +621,11 @@ describe("AgentPanel", () => {
                     sessionId: "sess-1",
                     title: "Write context/notes/x.md",
                     toolKind: "edit",
-                    decision: "allowed",
+                    options: [
+                      { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+                      { optionId: "reject_once", name: "Reject once", kind: "reject_once" },
+                    ],
+                    decision: "reject_once",
                   },
                 },
               ],
@@ -625,8 +634,11 @@ describe("AgentPanel", () => {
         }),
       ),
     });
-    expect(await screen.findByText("allowed")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Allow" })).toBeNull();
+    // The card records the choice as its name, and the buttons give way to it.
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Reject once" })).toBeNull(),
+    );
+    expect(document.querySelector(".agent-panel__decision")?.textContent).toBe("Reject once");
   });
 
   it("shows the model the session is on and posts the reader's choice from the agent's list", async () => {

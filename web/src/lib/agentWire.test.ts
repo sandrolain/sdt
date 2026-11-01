@@ -113,7 +113,11 @@ describe("the wire the Go side writes", () => {
       toolCallId: "call-2",
       toolKind: "edit",
       title: "Write context/notes/x.md",
-      decision: "allowed",
+      decision: "allow_once",
+      options: [
+        { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+        { optionId: "reject_once", name: "Reject once", kind: "reject_once" },
+      ],
     });
 
     // The two shapes a question can end in: a form answered with its values, and a url
@@ -169,7 +173,7 @@ describe("the wire the Go side writes", () => {
       fixture("commands", "prompt.json"),
     );
     expect(cancelCommand("sess-1")).toEqual(fixture("commands", "cancel.json"));
-    expect(permissionCommand("perm-1", true, "sess-1")).toEqual(
+    expect(permissionCommand("perm-1", "allow_once", "sess-1")).toEqual(
       fixture("commands", "permission.json"),
     );
     expect(configCommand("model", "opencode/big-pickle", "sess-1")).toEqual(

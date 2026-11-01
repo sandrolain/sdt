@@ -30,13 +30,13 @@ func TestDecodeCommandAcceptsTheBrowserVocabulary(t *testing.T) {
 		{"a cancel", `{"type":"cancel"}`, Command{Kind: EnvelopeCancel}},
 		{
 			"a permission answer",
-			`{"type":"permission","requestId":"perm-1","allow":true}`,
-			Command{Kind: EnvelopePermission, RequestID: "perm-1", Allow: true},
+			`{"type":"permission","requestId":"perm-1","optionId":"allow_once"}`,
+			Command{Kind: EnvelopePermission, RequestID: "perm-1", OptionID: "allow_once"},
 		},
 		{
 			"a permission answer naming its session",
-			`{"type":"permission","requestId":"perm-2","allow":false,"sessionId":"sess-3"}`,
-			Command{Kind: EnvelopePermission, RequestID: "perm-2", Allow: false, SessionID: "sess-3"},
+			`{"type":"permission","requestId":"perm-2","optionId":"reject_once","sessionId":"sess-3"}`,
+			Command{Kind: EnvelopePermission, RequestID: "perm-2", OptionID: "reject_once", SessionID: "sess-3"},
 		},
 		{
 			"a question accepted with its values",
@@ -81,6 +81,8 @@ func TestDecodeCommandRefusesWhatTheWireDoesNotDefine(t *testing.T) {
 		`{"type":"prompt"}`,
 		`{"type":"prompt","text":""}`,
 		`{"type":"permission","allow":true}`,
+		`{"type":"permission","requestId":"perm-1"}`,
+		`{"type":"permission","requestId":"perm-1","optionId":""}`,
 		`{"type":"cancel","sessionId":42}`,
 		`{"type":"config","value":"opencode/big-pickle"}`,
 		`{"type":"config","configId":"model"}`,

@@ -97,8 +97,12 @@ func wireSession(t *testing.T) *ThreadState {
 		ToolKind:   "edit",
 		Title:      "Write context/notes/x.md",
 		Input:      map[string]any{"path": "context/notes/x.md"},
+		Options: []PermissionOption{
+			{OptionID: "allow_once", Name: "Allow once", Kind: "allow_once"},
+			{OptionID: "reject_once", Name: "Reject once", Kind: "reject_once"},
+		},
 	})
-	state.ResolvePermission("perm-1", DecisionAllowed)
+	state.ResolvePermission("perm-1", "allow_once")
 	// A question answered, and a URL question the protocol completed: both shapes a card
 	// can end in, so the browser's test reads them from one frame.
 	state.Elicitation(t.Context(), Elicitation{
@@ -254,7 +258,7 @@ func wireFixtureBytes(t *testing.T) (map[string][]byte, error) {
 	commands := map[string]any{
 		"prompt":     PromptEnvelope{Type: EnvelopePrompt, Text: "how big is the corpus?", SessionID: "sess-1"},
 		"cancel":     CancelEnvelope{Type: EnvelopeCancel, SessionID: "sess-1"},
-		"permission": PermissionEnvelope{Type: EnvelopePermission, RequestID: "perm-1", Allow: true, SessionID: "sess-1"},
+		"permission": PermissionEnvelope{Type: EnvelopePermission, RequestID: "perm-1", OptionID: "allow_once", SessionID: "sess-1"},
 		"config":     ConfigEnvelope{Type: EnvelopeConfig, ConfigID: "model", Value: "opencode/big-pickle", SessionID: "sess-1"},
 		"elicitation": ElicitationEnvelope{
 			Type: EnvelopeElicitation, RequestID: "elicit-1", Action: ActionAccept,

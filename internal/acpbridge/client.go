@@ -38,7 +38,8 @@ type Sink interface {
 }
 
 // Permission is one permission request as the browser renders it: which tool, its
-// title and its raw input, under the id the answer travels with.
+// title and its raw input, and the options the agent offered, under the id the answer
+// travels with.
 type Permission struct {
 	RequestID  string `json:"requestId"`
 	SessionID  string `json:"sessionId"`
@@ -46,9 +47,22 @@ type Permission struct {
 	ToolKind   string `json:"toolKind,omitempty"`
 	Title      string `json:"title,omitempty"`
 	Input      any    `json:"input,omitempty"`
-	// Decision is the user's answer, recorded on the card in place when it arrives
-	// (DecisionAllowed or DecisionDenied); empty while the request is waiting.
+	// Options is what the agent offered, in its own order and its own words. It is the
+	// card: a request that asks a question carries one option per answer, and the answer
+	// is the id of the one the reader chose.
+	Options []PermissionOption `json:"options,omitempty"`
+	// Decision is the chosen option's id, recorded on the card in place when it arrives;
+	// empty while the request is waiting.
 	Decision string `json:"decision,omitempty"`
+}
+
+// PermissionOption is one choice a request offered. The kind is the protocol's hint
+// (allow or reject, once or always) and is used for the card's hierarchy, never to pick
+// the answer: two options can share a kind, and only the agent knows what each means.
+type PermissionOption struct {
+	OptionID string `json:"optionId"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind,omitempty"`
 }
 
 // askWait is one request waiting for its answer. `dropped` is closed when the wait is
@@ -210,14 +224,14 @@ func (q *askQueue[Req, Ans]) forget(wait *askWait[Req, Ans]) {
 
 // PermissionQueue brokers the permission requests of one connection.
 type PermissionQueue struct {
-	q *askQueue[Permission, bool]
+	q *askQueue[Permission, string]
 }
 
 // NewPermissionQueue returns a queue that announces the current request through
 // publish. A nil publish keeps the queue silent, which is what a test that only
 // exercises the answers needs.
 func NewPermissionQueue(publish func(context.Context, Permission)) *PermissionQueue {
-	return &PermissionQueue{q: newAskQueue[Permission, bool]("perm", publish,
+	return &PermissionQueue{q: newAskQueue[Permission, string]("perm", publish,
 		func(request Permission) string { return request.RequestID },
 		func(request Permission) string { return request.SessionID },
 		func(request Permission, id string) Permission { request.RequestID = id; return request },
@@ -225,14 +239,15 @@ func NewPermissionQueue(publish func(context.Context, Permission)) *PermissionQu
 }
 
 // Ask makes the request current — or queues it behind one already waiting — and
-// blocks until the user answers or ctx ends. The error is ctx's.
-func (q *PermissionQueue) Ask(ctx context.Context, request Permission) (bool, error) {
+// blocks until the user answers or ctx ends. The error is ctx's; the answer is the
+// option id the reader chose.
+func (q *PermissionQueue) Ask(ctx context.Context, request Permission) (string, error) {
 	return q.q.ask(ctx, request)
 }
 
 // Answer resolves the request with this id and reports whether it was waiting.
-func (q *PermissionQueue) Answer(requestID string, allow bool) bool {
-	return q.q.answer(requestID, allow)
+func (q *PermissionQueue) Answer(requestID, optionID string) bool {
+	return q.q.answer(requestID, optionID)
 }
 
 // CancelSession drops every wait of one session and reports how many it dropped.
@@ -470,7 +485,7 @@ func (c *client) WriteTextFile(_ context.Context, params acp.WriteTextFileReques
 // the sink (one at a time) and the wait ends with the browser's decision, or with
 // the protocol's own cancellation when the wait's context ends.
 func (c *client) RequestPermission(ctx context.Context, params acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
-	allow, err := c.perms.Ask(ctx, permissionFrom(params))
+	optionID, err := c.perms.Ask(ctx, permissionFrom(params))
 	if err != nil {
 		// The connection died or the request was cancelled: the protocol has a word
 		// for that, and the agent must not be left waiting for a card nobody will
@@ -480,29 +495,16 @@ func (c *client) RequestPermission(ctx context.Context, params acp.RequestPermis
 			Outcome: acp.NewRequestPermissionOutcomeCancelled(),
 		}, nil
 	}
-	return acp.RequestPermissionResponse{Outcome: outcomeFor(params.Options, allow)}, nil
+	return acp.RequestPermissionResponse{Outcome: outcomeFor(params.Options, optionID)}, nil
 }
 
-// outcomeFor maps the user's answer onto the vocabulary the *agent* chose. The
-// bridge picks the allow or the reject option the agent named, and answers
-// cancelled when it named none — it never invents an option id, because the agent
-// is the one that can carry the decision out.
-func outcomeFor(options []acp.PermissionOption, allow bool) acp.RequestPermissionOutcome {
-	preferred := []acp.PermissionOptionKind{
-		acp.PermissionOptionKindAllowOnce,
-		acp.PermissionOptionKindAllowAlways,
-	}
-	if !allow {
-		preferred = []acp.PermissionOptionKind{
-			acp.PermissionOptionKindRejectOnce,
-			acp.PermissionOptionKindRejectAlways,
-		}
-	}
-	for _, kind := range preferred {
-		for _, option := range options {
-			if option.Kind == kind {
-				return acp.NewRequestPermissionOutcomeSelected(option.OptionId)
-			}
+// outcomeFor answers with the option the reader chose. The id comes from the card, which
+// took it from this same request, so the only thing to check is that it is still one of
+// the options: an id the request did not name is never invented, and answers cancelled.
+func outcomeFor(options []acp.PermissionOption, optionID string) acp.RequestPermissionOutcome {
+	for _, option := range options {
+		if string(option.OptionId) == optionID {
+			return acp.NewRequestPermissionOutcomeSelected(option.OptionId)
 		}
 	}
 	return acp.NewRequestPermissionOutcomeCancelled()
@@ -513,6 +515,14 @@ func permissionFrom(params acp.RequestPermissionRequest) Permission {
 		SessionID:  string(params.SessionId),
 		ToolCallID: string(params.ToolCall.ToolCallId),
 		Input:      params.ToolCall.RawInput,
+		Options:    make([]PermissionOption, 0, len(params.Options)),
+	}
+	for _, option := range params.Options {
+		request.Options = append(request.Options, PermissionOption{
+			OptionID: string(option.OptionId),
+			Name:     option.Name,
+			Kind:     string(option.Kind),
+		})
 	}
 	if params.ToolCall.Kind != nil {
 		request.ToolKind = string(*params.ToolCall.Kind)

@@ -143,7 +143,7 @@ func TestCancellingASessionReleasesItsWaits(t *testing.T) {
 	if promoted.SessionID != "sess-2" {
 		t.Fatalf("the promoted card belongs to %q", promoted.SessionID)
 	}
-	if !queue.Answer(promoted.RequestID, true) {
+	if !queue.Answer(promoted.RequestID, "allow_once") {
 		t.Fatal("the promoted card was not waiting")
 	}
 	if err := <-waiting; err != nil {

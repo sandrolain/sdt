@@ -61,11 +61,12 @@ type CancelEnvelope struct {
 	SessionID string `json:"sessionId,omitempty"`
 }
 
-// PermissionEnvelope is the user's answer to a pending request.
+// PermissionEnvelope is the user's answer to a pending request: the id of the option
+// they chose, which the request itself named.
 type PermissionEnvelope struct {
 	Type      string `json:"type"`
 	RequestID string `json:"requestId"`
-	Allow     bool   `json:"allow"`
+	OptionID  string `json:"optionId"`
 	SessionID string `json:"sessionId,omitempty"`
 }
 
@@ -95,7 +96,9 @@ type Command struct {
 	Kind      string
 	Text      string
 	RequestID string
-	Allow     bool
+	// OptionID is the permission option the reader chose: the request named it, and the
+	// bridge answers with it verbatim.
+	OptionID  string
 	ConfigID  string
 	Value     string
 	SessionID string
@@ -165,10 +168,13 @@ func DecodeCommand(data []byte) (Command, error) {
 		if permission.RequestID == "" {
 			return Command{}, fmt.Errorf("%w: an answer names no request", ErrCommand)
 		}
+		if permission.OptionID == "" {
+			return Command{}, fmt.Errorf("%w: an answer names no option", ErrCommand)
+		}
 		return Command{
 			Kind:      EnvelopePermission,
 			RequestID: permission.RequestID,
-			Allow:     permission.Allow,
+			OptionID:  permission.OptionID,
 			SessionID: permission.SessionID,
 		}, nil
 	case EnvelopeElicitation:

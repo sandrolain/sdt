@@ -258,7 +258,7 @@ func TestAPermissionCardResolvesInPlace(t *testing.T) {
 		t.Fatalf("a fresh card already carries a decision: %q", card.Permission.Decision)
 	}
 
-	if !state.ResolvePermission("perm-1", DecisionAllowed) {
+	if !state.ResolvePermission("perm-1", "allow_once") {
 		t.Fatal("the card was not found by its request id")
 	}
 	after := state.Snapshot()
@@ -266,10 +266,10 @@ func TestAPermissionCardResolvesInPlace(t *testing.T) {
 		t.Fatalf("resolving the card moved the thread: %+v", after.Messages[0].Parts)
 	}
 	resolved := after.Messages[0].Parts[0].Permission
-	if resolved.Decision != DecisionAllowed || resolved.Title != card.Permission.Title || resolved.ToolKind != "edit" {
+	if resolved.Decision != "allow_once" || resolved.Title != card.Permission.Title || resolved.ToolKind != "edit" {
 		t.Fatalf("the resolved card = %+v", resolved)
 	}
-	if state.ResolvePermission("perm-not-a-request", DecisionDenied) {
+	if state.ResolvePermission("perm-not-a-request", "reject_once") {
 		t.Fatal("an unknown request id was reported as resolved")
 	}
 }

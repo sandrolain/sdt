@@ -605,8 +605,8 @@ export function AgentPanel({
                 {phase === "active" && envelope && (
                   <AgentThread
                     thread={envelope.thread}
-                    onAnswer={(requestId, allow) =>
-                      tell(permissionCommand(requestId, allow, session))
+                    onAnswer={(requestId, optionId) =>
+                      tell(permissionCommand(requestId, optionId, session))
                     }
                     onElicitation={(requestId, action, content) =>
                       tell(elicitationCommand(requestId, action, content, session))

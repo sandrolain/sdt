@@ -1,6 +1,6 @@
 {
   "type": "permission",
   "requestId": "perm-1",
-  "allow": true,
+  "optionId": "allow_once",
   "sessionId": "sess-1"
 }

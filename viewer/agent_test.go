@@ -709,20 +709,24 @@ func TestAgentPermissionAnswerReleasesTheAgent(t *testing.T) {
 	sessionID := stream.next(t).SessionID
 
 	// What the agent does when it needs the user: it asks, and it waits.
-	answered := make(chan bool, 1)
+	answered := make(chan string, 1)
 	go func() {
-		allow, err := s.agent.Permissions().Ask(context.Background(), acpbridge.Permission{
+		optionID, err := s.agent.Permissions().Ask(context.Background(), acpbridge.Permission{
 			SessionID:  sessionID,
 			ToolCallID: "call-1",
 			ToolKind:   "edit",
 			Title:      "Write context/notes/x.md",
 			Input:      map[string]any{"path": "context/notes/x.md"},
+			Options: []acpbridge.PermissionOption{
+				{OptionID: "allow_once", Name: "Allow once", Kind: "allow_once"},
+				{OptionID: "reject_once", Name: "Reject once", Kind: "reject_once"},
+			},
 		})
 		if err != nil {
-			answered <- false
+			answered <- ""
 			return
 		}
-		answered <- allow
+		answered <- optionID
 	}()
 
 	card := stream.nextUntil(t, "carrying the permission card", func(state acpbridge.StateEnvelope) bool {
@@ -732,22 +736,25 @@ func TestAgentPermissionAnswerReleasesTheAgent(t *testing.T) {
 	if permission.ToolKind != "edit" || permission.Decision != "" {
 		t.Fatalf("the card is %+v", permission)
 	}
+	if len(permission.Options) != 2 || permission.Options[0].Name != "Allow once" {
+		t.Fatalf("the card's options are %+v, want the agent's own", permission.Options)
+	}
 
 	response := command(t, ts, acpbridge.PermissionEnvelope{
 		Type:      acpbridge.EnvelopePermission,
 		RequestID: permission.RequestID,
-		Allow:     true,
+		OptionID:  "reject_once",
 		SessionID: sessionID,
 	})
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("the answer answered %d", response.StatusCode)
 	}
-	if !<-answered {
-		t.Fatal("the agent's wait was released with a denial")
+	if got := <-answered; got != "reject_once" {
+		t.Fatalf("the agent's wait was released with %q, want the option the browser named", got)
 	}
 	stream.nextUntil(t, "showing the decision", func(state acpbridge.StateEnvelope) bool {
 		resolved := findPermission(state)
-		return resolved != nil && resolved.Decision == acpbridge.DecisionAllowed
+		return resolved != nil && resolved.Decision == "reject_once"
 	})
 }
 
@@ -970,10 +977,6 @@ func TestAgentHelperBranches(t *testing.T) {
 	pushLatest(out, []byte("second"))
 	if got := string(<-out); got != "second" {
 		t.Fatalf("the writer would send %q", got)
-	}
-
-	if agentDecision(true) != acpbridge.DecisionAllowed || agentDecision(false) != acpbridge.DecisionDenied {
-		t.Fatal("the answer does not map onto the card's vocabulary")
 	}
 }
 

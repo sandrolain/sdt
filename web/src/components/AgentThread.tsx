@@ -37,12 +37,16 @@ import {
   ACTION_DECLINE,
   type AgentElicitation,
   type AgentPermission,
+  type AgentPermissionOption,
   type AgentPlan,
   type AgentThread as AgentThreadState,
 } from "../lib/agent";
 
-/** The answer to a card travels up through a context: a part cannot take a prop. */
-const AnswerContext = createContext<(requestId: string, allow: boolean) => void>(() => undefined);
+/** The answer to a card travels up through a context: a part cannot take a prop. The
+ *  answer is the id of the option the reader chose. */
+const AnswerContext = createContext<(requestId: string, optionId: string) => void>(
+  () => undefined,
+);
 const ElicitationContext = createContext<
   (requestId: string, action: string, content?: Record<string, unknown>) => void
 >(() => undefined);
@@ -53,7 +57,7 @@ export function AgentThread({
   onElicitation,
 }: {
   thread: AgentThreadState;
-  onAnswer: (requestId: string, allow: boolean) => void;
+  onAnswer: (requestId: string, optionId: string) => void;
   onElicitation: (requestId: string, action: string, content?: Record<string, unknown>) => void;
 }) {
   // The converter is where the runtime expects one: `messages` are the bridge's own
@@ -523,12 +527,17 @@ function PlanPart({ data }: { data: AgentPlan }) {
 }
 
 /**
- * PermissionPart is the approve/deny card as a `data-permission` part: nothing runs
- * unasked, so the agent blocks here until the user answers, and the answer replaces the
- * buttons with the decision the bridge records — the card resolves where it stands.
+ * PermissionPart is the card the agent asked with: one control per option the agent
+ * offered, labelled in the agent's own words, so a request that offers several answers is
+ * a choice rather than a yes/no. Nothing runs unasked, so the agent blocks here until the
+ * reader answers, and the answer replaces the buttons with the choice the bridge records.
  */
 function PermissionPart({ data }: { data: AgentPermission }) {
   const answer = useContext(AnswerContext);
+  const options = data.options ?? [];
+  // The recorded decision is an option id; the name the reader met comes from the same
+  // request, so the card is the record of what was asked and what was chosen.
+  const chosen = options.find((option) => option.optionId === data.decision);
   return (
     <div className="agent-panel__card">
       <p className="agent-panel__part">
@@ -536,25 +545,37 @@ function PermissionPart({ data }: { data: AgentPermission }) {
         {data.toolKind ? ` (${data.toolKind})` : ""}
       </p>
       {data.decision ? (
-        <p className="agent-panel__part agent-panel__decision">{data.decision}</p>
+        <p className="agent-panel__part agent-panel__decision">
+          {chosen?.name ?? data.decision}
+        </p>
+      ) : options.length === 0 ? (
+        <p className="agent-panel__note">
+          This request names no option this panel can show. Stop the turn and ask the agent
+          another way.
+        </p>
       ) : (
         <div className="agent-panel__card-actions">
-          <button
-            type="button"
-            className="agent-panel__action"
-            onClick={() => answer(data.requestId, true)}
-          >
-            Allow
-          </button>
-          <button
-            type="button"
-            className="agent-panel__action agent-panel__action--secondary"
-            onClick={() => answer(data.requestId, false)}
-          >
-            Deny
-          </button>
+          {options.map((option) => (
+            <button
+              key={option.optionId}
+              type="button"
+              className={`agent-panel__action${
+                isRefusal(option) ? " agent-panel__action--secondary" : ""
+              }`}
+              onClick={() => answer(data.requestId, option.optionId)}
+            >
+              {option.name}
+            </button>
+          ))}
         </div>
       )}
     </div>
   );
+}
+
+/** isRefusal says whether an option refuses, which the card renders as the secondary
+ *  control. The kind is the protocol's hint, and a question's options are all allow_*: the
+ *  hierarchy never decides the answer. */
+function isRefusal(option: AgentPermissionOption): boolean {
+  return option.kind === "reject_once" || option.kind === "reject_always";
 }

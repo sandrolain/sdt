@@ -37,9 +37,8 @@ export const PART_ELICITATION = "elicitation";
 export const PART_ERROR = "error";
 export const PART_STOP = "stop";
 
-/** The user's answer to a permission card, as the bridge records it. */
-export const DECISION_ALLOWED = "allowed";
-export const DECISION_DENIED = "denied";
+/** The user's answer to a permission card is the chosen option's id, which the request
+ *  itself named; the bridge records it verbatim, so there is no translated vocabulary. */
 
 /** The user's answer to a question, as the bridge records it. */
 export const DECISION_ACCEPTED = "accepted";
@@ -103,8 +102,19 @@ export interface AgentPermission {
   toolKind?: string;
   title?: string;
   input?: unknown;
-  /** Set when the answer arrives, so the card resolves in place. */
+  /** The options the agent offered, in its own order: the card is one control per option,
+   *  and the answer is the id of the one the reader chose. */
+  options?: AgentPermissionOption[];
+  /** Set when the answer arrives (the chosen option's id), so the card resolves in place. */
   decision?: string;
+}
+
+/** AgentPermissionOption is one choice a request offered. The kind is the protocol's hint
+ *  (allow or reject, once or always) and drives the card's hierarchy, never the answer. */
+export interface AgentPermissionOption {
+  optionId: string;
+  name: string;
+  kind?: string;
 }
 
 /** Elicitation is one question the agent asks, as the bridge sends it. */
@@ -247,7 +257,7 @@ export interface AgentStateEnvelope {
 export type AgentCommand =
   | { type: typeof ENVELOPE_PROMPT; text: string; sessionId?: string }
   | { type: typeof ENVELOPE_CANCEL; sessionId?: string }
-  | { type: typeof ENVELOPE_PERMISSION; requestId: string; allow: boolean; sessionId?: string }
+  | { type: typeof ENVELOPE_PERMISSION; requestId: string; optionId: string; sessionId?: string }
   | {
       type: typeof ENVELOPE_ELICITATION;
       requestId: string;
@@ -267,15 +277,16 @@ export function cancelCommand(sessionId?: string): AgentCommand {
   return sessionId ? { type: ENVELOPE_CANCEL, sessionId } : { type: ENVELOPE_CANCEL };
 }
 
-/** permissionCommand is the user's answer to a card. */
+/** permissionCommand is the user's answer to a card: the id of the option they chose, which
+ *  the request itself named. The bridge answers the agent with it verbatim. */
 export function permissionCommand(
   requestId: string,
-  allow: boolean,
+  optionId: string,
   sessionId?: string,
 ): AgentCommand {
   return sessionId
-    ? { type: ENVELOPE_PERMISSION, requestId, allow, sessionId }
-    : { type: ENVELOPE_PERMISSION, requestId, allow };
+    ? { type: ENVELOPE_PERMISSION, requestId, optionId, sessionId }
+    : { type: ENVELOPE_PERMISSION, requestId, optionId };
 }
 
 /** elicitationCommand is the user's answer to a question the agent asked. */

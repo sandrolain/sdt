@@ -53,7 +53,19 @@
               "input": {
                 "path": "context/notes/x.md"
               },
-              "decision": "allowed"
+              "options": [
+                {
+                  "optionId": "allow_once",
+                  "name": "Allow once",
+                  "kind": "allow_once"
+                },
+                {
+                  "optionId": "reject_once",
+                  "name": "Reject once",
+                  "kind": "reject_once"
+                }
+              ],
+              "decision": "allow_once"
             }
           },
           {
