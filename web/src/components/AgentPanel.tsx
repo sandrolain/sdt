@@ -27,6 +27,7 @@ import {
   ModalOverlay,
   Popover,
 } from "react-aria-components";
+import { ComposerPrimitive, useAui } from "@assistant-ui/react";
 import { AgentThread } from "./AgentThread";
 import { AgentStateWord } from "./AgentStateWord";
 import { ComboBox, type UiComboOption } from "./ui/ComboBox";
@@ -51,12 +52,10 @@ import {
   Suspense,
   lazy,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
-  type FormEvent,
   type KeyboardEvent,
 } from "react";
 import {
@@ -107,8 +106,11 @@ const PetStrip = lazy(() => import("./PetStrip"));
 /** What the panel is showing, as one value rather than a set of booleans. */
 type Phase = "loading" | "starting" | "active" | "restarting" | "stopped" | "error";
 
-/** The composer's ceiling before it scrolls inside: roughly eight lines of the panel's type. */
-const COMPOSER_MAX_HEIGHT = 176;
+/**
+ * AgentCommand is one command the agent advertises, as the bridge folds it
+ * (`thread.commands`): the name the reader types and the sentence that explains it.
+ */
+type AgentCommand = { name: string; description?: string };
 
 /**
  * phaseFrom reads the phase from the viewer's account of the process. A failure and a stop
@@ -141,10 +143,6 @@ export function AgentPanel({
   const [phase, setPhase] = useState<Phase>("loading");
   const [state, setState] = useState<AgentState | null>(null);
   const [message, setMessage] = useState("");
-  const [draft, setDraft] = useState("");
-  // Where the reader is in the prompts already sent; the texts themselves are the thread's.
-  const [walk, setWalk] = useState<ComposerWalk>(NO_WALK);
-  const composer = useRef<HTMLTextAreaElement>(null);
   const [envelope, setEnvelope] = useState<AgentStateEnvelope | null>(null);
   const [session, setSession] = useState("");
   const stream = useRef<AgentStream | null>(null);
@@ -270,7 +268,6 @@ export function AgentPanel({
       const next = await newAgentChat();
       setEnvelope(null);
       setSession("");
-      setWalk(NO_WALK);
       apply(next);
     } catch (error) {
       setPhase("active");
@@ -350,65 +347,21 @@ export function AgentPanel({
       .filter((text) => text.trim() !== "");
   }, [envelope]);
 
-  const onPrompt = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (draft.trim() === "") return;
-    // The draft clears only once the viewer accepted it: a refused send must not cost the
-    // reader the prompt they just wrote.
-    sendAgentCommand(promptCommand(draft, session))
-      .then(() => {
-        setDraft("");
-        // The prompt just sent is the newest entry of the history the next walk reads.
-        setWalk(NO_WALK);
-        setMessage("");
-      })
-      .catch((error: Error) => setMessage(error.message));
-  };
-
   /**
-   * onComposerKeyDown is the composer's vocabulary: the arrows walk the prompts already
-   * sent (from the edge line, so a multi-line draft keeps its own line movement), and
-   * Cmd/Ctrl+Enter sends. An IME owns the arrows while it is composing, so it is left alone.
+   * sendPrompt is the runtime's send path: it posts the one prompt command and, on a
+   * refusal, puts the sentence on the panel and throws — the runtime turns that throw into
+   * a `MessageNotSentError` and restores the draft it cleared, so a refused send never
+   * costs the reader the prompt they wrote.
    */
-  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.nativeEvent.isComposing) return;
-    const direction: -1 | 1 | null =
-      event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : null;
-    if (direction !== null) {
-      const field = event.currentTarget;
-      if (field.selectionStart !== field.selectionEnd) return;
-      if (!caretAtEdge(draft, field.selectionStart, direction)) return;
-      const next = recall(sentPrompts, walk, direction, draft);
-      if (!next) return;
-      event.preventDefault();
-      setDraft(next.draft);
-      setWalk(next.walk);
-      // The caret goes after what was recalled, once the new text is in the field.
-      requestAnimationFrame(() => {
-        const el = composer.current;
-        if (!el) return;
-        const end = el.value.length;
-        el.setSelectionRange(end, end);
-      });
-      return;
+  const sendPrompt = async (text: string) => {
+    setMessage("");
+    try {
+      await sendAgentCommand(promptCommand(text, session));
+    } catch (error) {
+      setMessage((error as Error).message);
+      throw error;
     }
-    if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
-    event.preventDefault();
-    event.currentTarget.form?.requestSubmit();
   };
-
-  // The composer grows with its draft up to a cap and then scrolls inside. The height is
-  // measured because `field-sizing: content` is not available in every browser this app
-  // runs in; the effect writes style, never state, so it cannot re-render on its own. jsdom
-  // reports no layout, and the guard leaves the element alone there.
-  useLayoutEffect(() => {
-    const el = composer.current;
-    if (!el) return;
-    el.style.height = "auto";
-    if (el.scrollHeight === 0) return;
-    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
-    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_HEIGHT ? "auto" : "hidden";
-  }, [draft]);
 
   const command = state?.command ?? [];
   const configured = command.length > 0;
@@ -614,80 +567,62 @@ export function AgentPanel({
                   </p>
                 )}
 
-                {phase === "active" && envelope && (
+                {phase === "active" && (
+                  // The thread renders from the first active frame: an empty one is the
+                  // converter's own state, so the composer is usable before the bridge has
+                  // sent anything and the reader is never met by a dead panel.
                   <AgentThread
-                    thread={envelope.thread}
+                    thread={envelope?.thread ?? { sessionId: session, messages: [] }}
                     onAnswer={(requestId, optionId) =>
                       tell(permissionCommand(requestId, optionId, session))
                     }
                     onElicitation={(requestId, action, content) =>
                       tell(elicitationCommand(requestId, action, content, session))
                     }
-                  />
-                )}
-                {phase === "active" && !envelope && (
-                  <p className="agent-panel__note">Connected. Waiting for the agent…</p>
+                    onSend={sendPrompt}
+                    onCancel={() => tell(cancelCommand(session))}
+                  >
+                    {/* The footer reads the same state the panel does, and it lives inside
+                        the runtime because the composer is a runtime primitive now. */}
+                    {message !== "" && (
+                      <p className="agent-panel__note agent-panel__note--error">{message}</p>
+                    )}
+                    {model && modelChoices.length > 0 && (
+                      <div className="agent-panel__model">
+                        <ComboBox
+                          ariaLabel="Model"
+                          label="Model"
+                          options={modelChoices}
+                          selectedKey={model.currentValue ?? null}
+                          onSelectionChange={(key) => {
+                            // The choice is sent and the control waits for the agent to confirm
+                            // it: nothing moves here until the thread says the agent took it, and
+                            // a refusal leaves the sentence above this control and the model
+                            // unchanged.
+                            if (typeof key !== "string" || key === model.currentValue) return;
+                            tell(configCommand(model.id, key, session));
+                          }}
+                        />
+                      </div>
+                    )}
+                    {/* The declaration named nothing this agent offers — a stale id, or a list
+                        written for another agent. No picker instead of an empty one, and the
+                        model the session is on, so the reader is not left guessing either. */}
+                    {offered?.declared && !offered.matched && (
+                      <div className="agent-panel__model">
+                        <p className="agent-panel__note agent-panel__model-note">
+                          No model this agent offers is one this project declares
+                          {model?.currentValue ? ` — the session is on ${model.currentValue}` : ""}.
+                        </p>
+                      </div>
+                    )}
+                    <AgentComposer
+                      sentPrompts={sentPrompts}
+                      commands={envelope?.thread.commands ?? []}
+                    />
+                  </AgentThread>
                 )}
               </div>
-              {phase === "active" && message !== "" && (
-                <p className="agent-panel__note agent-panel__note--error">{message}</p>
-              )}
-              {phase === "active" && model && modelChoices.length > 0 && (
-                <div className="agent-panel__model">
-                  <ComboBox
-                    ariaLabel="Model"
-                    label="Model"
-                    options={modelChoices}
-                    selectedKey={model.currentValue ?? null}
-                    onSelectionChange={(key) => {
-                      // The choice is sent and the control waits for the agent to confirm it:
-                      // nothing moves here until the thread says the agent took it, and a
-                      // refusal leaves the sentence above this control and the model unchanged.
-                      if (typeof key !== "string" || key === model.currentValue) return;
-                      tell(configCommand(model.id, key, session));
-                    }}
-                  />
-                </div>
-              )}
-              {/* The declaration named nothing this agent offers — a stale id, or a list
-                  written for another agent. No picker instead of an empty one, and the
-                  model the session is on, so the reader is not left guessing either. */}
-              {phase === "active" && offered?.declared && !offered.matched && (
-                <div className="agent-panel__model">
-                  <p className="agent-panel__note agent-panel__model-note">
-                    No model this agent offers is one this project declares
-                    {model?.currentValue ? ` — the session is on ${model.currentValue}` : ""}.
-                  </p>
-                </div>
-              )}
-              {phase === "active" && (
-                <form className="agent-panel__composer" onSubmit={onPrompt}>
-                  <textarea
-                    ref={composer}
-                    rows={1}
-                    name="prompt"
-                    value={draft}
-                    onChange={(event) => {
-                      setDraft(event.target.value);
-                      // Typing ends the walk: the next ArrowUp stashes this draft.
-                      setWalk(NO_WALK);
-                    }}
-                    onKeyDown={onComposerKeyDown}
-                    placeholder="Ask the agent…"
-                    aria-label="Message"
-                  />
-                  <button type="submit" className="agent-panel__action">
-                    Send
-                  </button>
-                  <button
-                    type="button"
-                    className="agent-panel__action agent-panel__action--quiet"
-                    onClick={() => tell(cancelCommand(session))}
-                  >
-                    Stop
-                  </button>
-                </form>
-              )}
             </>
           )}
         </Dialog>
@@ -906,4 +841,147 @@ function AgentPetMenu({
       </Popover>
     </MenuTrigger>
   );
+}
+
+/**
+ * AgentComposer is the composer as the runtime's own primitive: the runtime owns the text,
+ * the send and the stop, so the panel has one send path instead of two, and the send it
+ * refuses restores the draft through the runtime's own error path.
+ *
+ * What stays here is the reading vocabulary the panel already had — Enter is a newline and
+ * Cmd/Ctrl+Enter sends (`submitMode`), the input grows to eight lines and then scrolls
+ * (`maxRows`), the arrows walk the prompts already sent (`composerHistory`) — plus the `/`
+ * palette over the commands the agent advertises: the bridge folds them already
+ * (`thread.commands`), and nothing rendered them.
+ */
+function AgentComposer({
+  sentPrompts,
+  commands,
+}: {
+  sentPrompts: string[];
+  commands: AgentCommand[];
+}) {
+  const aui = useAui();
+  const input = useRef<HTMLTextAreaElement | null>(null);
+  // Where the reader is in the prompts already sent; the texts themselves are the thread's.
+  const [walk, setWalk] = useState<ComposerWalk>(NO_WALK);
+  // A history that changed — a prompt sent, a conversation started over — puts the walk back
+  // at the newest entry. Derived during render, React's own pattern for a reset.
+  const [history, setHistory] = useState(sentPrompts);
+  if (history !== sentPrompts) {
+    setHistory(sentPrompts);
+    setWalk(NO_WALK);
+  }
+
+  // The adapter is the agent's commands as the popover wants them: one category, because a
+  // slash command has no second dimension, and the same list for a search.
+  const adapter = useMemo(
+    () => ({
+      categories: () => (commands.length === 0 ? [] : [{ id: "commands", label: "Commands" }]),
+      categoryItems: () => commandItems(commands),
+      search: () => commandItems(commands),
+    }),
+    [commands],
+  );
+
+  /**
+   * onKeyDown is the composer's vocabulary. While the `/` palette is open it owns the
+   * arrows — the input says so itself, with the `aria-expanded` the primitive writes — so
+   * the history is only the fallback, never a second owner of the same key.
+   */
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.currentTarget.getAttribute("aria-expanded") === "true") return;
+    if (event.nativeEvent.isComposing) return;
+    const direction: -1 | 1 | null =
+      event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : null;
+    if (direction === null) return;
+    const field = event.currentTarget;
+    if (field.selectionStart !== field.selectionEnd) return;
+    const draft = field.value;
+    if (!caretAtEdge(draft, field.selectionStart, direction)) return;
+    const next = recall(sentPrompts, walk, direction, draft);
+    if (!next) return;
+    event.preventDefault();
+    aui.composer.setText(next.draft);
+    setWalk(next.walk);
+    // The caret goes after what was recalled, once the new text is in the field.
+    requestAnimationFrame(() => {
+      const el = input.current;
+      if (!el) return;
+      const end = el.value.length;
+      el.setSelectionRange(end, end);
+    });
+  };
+
+  return (
+    <ComposerPrimitive.TriggerPopoverRoot>
+      <ComposerPrimitive.Root className="agent-panel__composer">
+        <ComposerPrimitive.Input
+          ref={input}
+          rows={1}
+          minRows={1}
+          maxRows={8}
+          submitMode="ctrlEnter"
+          placeholder="Ask the agent…"
+          aria-label="Message"
+          onKeyDown={onKeyDown}
+        />
+        <ComposerPrimitive.Send className="agent-panel__action">Send</ComposerPrimitive.Send>
+        <ComposerPrimitive.Cancel className="agent-panel__action agent-panel__action--quiet">
+          Stop
+        </ComposerPrimitive.Cancel>
+        {/* Only when the agent advertises a command: a palette with nothing in it is the
+            control that looks live and does nothing. */}
+        {commands.length > 0 ? (
+          <ComposerPrimitive.TriggerPopover
+            char="/"
+            adapter={adapter}
+            className="agent-panel__commands"
+          >
+            <ComposerPrimitive.TriggerPopover.Directive />
+            <ComposerPrimitive.TriggerPopoverCategories>
+              {(categories) =>
+                categories.map((category) => (
+                  <ComposerPrimitive.TriggerPopoverCategoryItem
+                    key={category.id}
+                    categoryId={category.id}
+                    className="agent-panel__command"
+                  >
+                    {category.label}
+                  </ComposerPrimitive.TriggerPopoverCategoryItem>
+                ))
+              }
+            </ComposerPrimitive.TriggerPopoverCategories>
+            <ComposerPrimitive.TriggerPopoverItems>
+              {(items) =>
+                items.map((item, index) => (
+                  <ComposerPrimitive.TriggerPopoverItem
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    className="agent-panel__command"
+                  >
+                    <span className="agent-panel__command-name">{item.label}</span>
+                    {item.description ? (
+                      <span className="agent-panel__command-note">{item.description}</span>
+                    ) : null}
+                  </ComposerPrimitive.TriggerPopoverItem>
+                ))
+              }
+            </ComposerPrimitive.TriggerPopoverItems>
+          </ComposerPrimitive.TriggerPopover>
+        ) : null}
+      </ComposerPrimitive.Root>
+    </ComposerPrimitive.TriggerPopoverRoot>
+  );
+}
+
+/** commandItems is the agent's commands as the popover's own item shape. */
+function commandItems(commands: AgentCommand[]) {
+  return commands.map((command) => ({
+    id: command.name,
+    type: "command",
+    label: command.name,
+    description: command.description,
+  }));
 }

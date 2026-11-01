@@ -402,6 +402,10 @@ describe("AgentPanel", () => {
     expect(await screen.findByText("224 analyses.")).toBeTruthy();
     expect(screen.getByText("how big is the corpus?")).toBeTruthy();
 
+    // Nothing is running, so there is nothing to stop: the control is there, disabled, and it
+    // answers once a turn is in flight.
+    expect((screen.getByRole("button", { name: "Stop" }) as HTMLButtonElement).disabled).toBe(true);
+
     await userEvent.type(screen.getByLabelText("Message"), "and the plans?");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(commands(calls).at(-1)).toEqual({
@@ -410,7 +414,19 @@ describe("AgentPanel", () => {
       sessionId: "sess-1",
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    // The bridge owns whether a turn is in flight, and Stop answers that fact: the frame says
+    // the turn is running, and the control posts the cancel.
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          running: true,
+          messages: [
+            { id: "msg-2", role: "assistant", parts: [{ kind: "text", text: "224 analyses." }] },
+          ],
+        }),
+      ),
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
     expect(commands(calls).at(-1)).toEqual({ type: "cancel", sessionId: "sess-1" });
   });
 
@@ -510,7 +526,7 @@ describe("AgentPanel", () => {
     mockViewer({ commandError: "the bridge is not listening" });
     await open();
 
-    const input = screen.getByLabelText("Message") as HTMLTextAreaElement;
+    const input = (await screen.findByLabelText("Message")) as HTMLTextAreaElement;
     await userEvent.type(input, "keep me");
     fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
 
@@ -638,9 +654,7 @@ describe("AgentPanel", () => {
       ),
     });
     // The card records the choice as its name, and the buttons give way to it.
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Reject once" })).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Reject once" })).toBeNull());
     expect(document.querySelector(".agent-panel__decision")?.textContent).toBe("Reject once");
   });
 
@@ -724,7 +738,8 @@ describe("AgentPanel", () => {
     ]);
   });
 
-  it("shows the agent's refusal where the control is, and leaves the session on its model", async () => {    const calls = mockViewer({ commandError: "the provider has no such model" });
+  it("shows the agent's refusal where the control is, and leaves the session on its model", async () => {
+    const calls = mockViewer({ commandError: "the provider has no such model" });
     const source = await open();
     source.emit("message", { data: JSON.stringify(fixtureThread()) });
     const control = (await screen.findByRole("combobox", {
@@ -742,8 +757,20 @@ describe("AgentPanel", () => {
     expect(await screen.findByText("the provider has no such model")).toBeTruthy();
     expect(control.value).toBe("openrouter/meta/muse-spark-open");
 
+    // The fixture is a thread with a turn in flight, and the runtime does not send while one
+    // runs: the next prompt is the point here, so the turn is brought to its end first.
+    const fixture = fixtureThread();
+    source.emit("message", {
+      data: JSON.stringify({ ...fixture, thread: { ...fixture.thread, running: false } }),
+    });
+
     // A refused choice is not the end of the conversation: the next turn is posted as usual.
-    await userEvent.type(screen.getByLabelText("Message"), "still there?");
+    await userEvent.type(await screen.findByLabelText("Message"), "still there?");
+    await waitFor(() =>
+      expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(commands(calls).at(-1)).toEqual({
       type: "prompt",
@@ -1051,11 +1078,12 @@ describe("AgentPanel", () => {
       mockViewer();
       await open();
 
+      // Send is the runtime's own control: it is present once there is something to send.
+      const input = screen.getByLabelText("Message");
+      await userEvent.type(input, "a prompt");
       const send = screen.getByRole("button", { name: "Send" });
-      const stop = screen.getByRole("button", { name: "Stop" });
       expect(send.className).toContain("agent-panel__action");
       expect(send.className).not.toContain("agent-panel__action--");
-      expect(stop.className).toContain("agent-panel__action--quiet");
     });
 
     it("keeps the first start control primary and the retry secondary", async () => {
@@ -1277,5 +1305,63 @@ describe("the pet's controls", () => {
       expect(band()).toBeNull();
       expect(screen.queryByRole("separator", { name: "Resize the pet band" })).toBeNull();
     });
+  });
+});
+
+describe("the agent's commands", () => {
+  /** withCommands opens the panel on a thread that advertises one command. */
+  async function withCommands() {
+    const calls = mockViewer();
+    const source = await open();
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [{ id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "ready" }] }],
+          commands: [{ name: "/compact", description: "Compact the session" }],
+        }),
+      ),
+    });
+    await screen.findByText("ready");
+    return calls;
+  }
+
+  it("opens the palette on `/`, inserts the command and sends nothing", async () => {
+    const calls = await withCommands();
+    const before = commands(calls).length;
+
+    const input = screen.getByLabelText("Message") as HTMLTextAreaElement;
+    await userEvent.type(input, "/");
+
+    // The palette is the agent's own list, not a second menu of the panel's invention.
+    expect(document.querySelector(".agent-panel__commands")).toBeTruthy();
+
+    // The agent's commands have one dimension, so the popover opens on its one category and
+    // the list is a click behind it: the primitive's own model, not a second menu.
+    await userEvent.click(
+      document.querySelector<HTMLButtonElement>(".agent-panel__command") as Element,
+    );
+    await userEvent.click(await screen.findByRole("option", { name: /compact/i }));
+
+    // The command is written into the draft for the agent to expand: choosing is not sending.
+    expect(input.value).toContain("/compact");
+    expect(commands(calls)).toHaveLength(before);
+  });
+
+  it("has no palette when the agent advertises no command", async () => {
+    mockViewer();
+    const source = await open();
+    source.emit("message", {
+      data: JSON.stringify(
+        state({
+          messages: [{ id: "msg-1", role: "assistant", parts: [{ kind: "text", text: "ready" }] }],
+        }),
+      ),
+    });
+    await screen.findByText("ready");
+
+    await userEvent.type(screen.getByLabelText("Message"), "/");
+
+    // No control that could not be answered: there is nothing to offer.
+    expect(document.querySelector(".agent-panel__commands")).toBeNull();
   });
 });

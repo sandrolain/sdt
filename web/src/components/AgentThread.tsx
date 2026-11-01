@@ -13,9 +13,15 @@
  * accumulator.
  */
 import {
+  ActionBarPrimitive,
+  AuiIf,
   AssistantRuntimeProvider,
+  MessageNotSentError,
   MessagePrimitive,
   ThreadPrimitive,
+  groupPartByType,
+  useAui,
+  useAuiState,
   useExternalStoreRuntime,
 } from "@assistant-ui/react";
 import type {
@@ -24,9 +30,21 @@ import type {
   TextMessagePartComponent,
   ReasoningMessagePartComponent,
 } from "@assistant-ui/react";
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
+import { Icon } from "../lib/icon";
+import { TooltipButton } from "./ui/Tooltip";
 import { renderMarkdown, highlightCode } from "../lib/markdown";
 import { Select } from "./ui/Select";
+import { MultiSelect } from "./ui/MultiSelect";
 import { renderMermaid } from "../lib/mermaidRender";
 import { markdownControlAction } from "../lib/markdownActions";
 import { highlightedToolOutput } from "../lib/toolOutput";
@@ -44,9 +62,7 @@ import {
 
 /** The answer to a card travels up through a context: a part cannot take a prop. The
  *  answer is the id of the option the reader chose. */
-const AnswerContext = createContext<(requestId: string, optionId: string) => void>(
-  () => undefined,
-);
+const AnswerContext = createContext<(requestId: string, optionId: string) => void>(() => undefined);
 const ElicitationContext = createContext<
   (requestId: string, action: string, content?: Record<string, unknown>) => void
 >(() => undefined);
@@ -55,10 +71,19 @@ export function AgentThread({
   thread,
   onAnswer,
   onElicitation,
+  onSend,
+  onCancel,
+  children,
 }: {
   thread: AgentThreadState;
   onAnswer: (requestId: string, optionId: string) => void;
   onElicitation: (requestId: string, action: string, content?: Record<string, unknown>) => void;
+  /** Sends one prompt through the bridge; a rejection is the refusal the reader must see. */
+  onSend: (text: string) => Promise<void>;
+  /** Stops the turn in flight. */
+  onCancel: () => void;
+  /** The panel's own footer (the composer among it), which has to live inside the runtime. */
+  children?: ReactNode;
 }) {
   // The converter is where the runtime expects one: `messages` are the bridge's own
   // shape and the runtime normalises them (metadata included) on the way into its store.
@@ -67,9 +92,22 @@ export function AgentThread({
     // The one cast the library's union forces: the converter states its own part shapes and
     // the runtime normalises them on the way into its store.
     convertMessage: (message) => message as unknown as ThreadMessageLike,
-    // The panel owns the composer, so the runtime's own send path is not used; it still
-    // has to exist, because the adapter has no shape without it.
-    onNew: async () => undefined,
+    // The runtime owns send and stop, so the panel has one send path rather than two: the
+    // text is what the reader typed, and a refusal is handed back as `MessageNotSentError`
+    // — the runtime's own way of restoring the draft it cleared at dispatch.
+    onNew: async (message) => {
+      const text = message.content
+        .map((part) => (part.type === "text" ? part.text : ""))
+        .filter((chunk) => chunk.trim() !== "")
+        .join("\n\n");
+      if (text === "") return;
+      try {
+        await onSend(text);
+      } catch (error) {
+        throw new MessageNotSentError((error as Error).message);
+      }
+    },
+    onCancel: async () => onCancel(),
     // The bridge knows whether a turn is in flight and says so on the thread: the runtime
     // reads the same field the panel does, so the two cannot disagree about whether the
     // agent is working.
@@ -82,12 +120,65 @@ export function AgentThread({
         <AssistantRuntimeProvider runtime={runtime}>
           <ThreadPrimitive.Root className="agent-thread">
             <ThreadPrimitive.Viewport className="agent-thread__viewport">
+              {/* Empty is the converter's emptiness: a turn in flight carries its own
+                  waiting message, so this never appears over a starting turn. */}
+              <AuiIf condition={(state) => state.thread.messages.length === 0}>
+                <EmptyThread />
+              </AuiIf>
               <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
             </ThreadPrimitive.Viewport>
+            {/* The runtime knows whether the viewport is at the bottom, so the chip's
+                disabled state is its own answer rather than a scroll listener here. */}
+            <ThreadPrimitive.ScrollToBottom className="agent-thread__to-bottom">
+              Jump to the latest message
+            </ThreadPrimitive.ScrollToBottom>
           </ThreadPrimitive.Root>
+          {children}
         </AssistantRuntimeProvider>
       </ElicitationContext.Provider>
     </AnswerContext.Provider>
+  );
+}
+
+/**
+ * STARTER_PROMPTS is what an empty thread offers: three sentences about this corpus, each
+ * one a question the agent can answer by reading it. They are fixed strings rather than
+ * generated suggestions, because the bridge has no suggestion source to generate from.
+ */
+const STARTER_PROMPTS = [
+  "Summarise the plan that is in progress.",
+  "Search the corpus for the decisions about this area.",
+  "Where does this document live, and what links to it?",
+];
+
+/**
+ * EmptyThread is the thread with nothing in it: one sentence that names the surface and
+ * three starters. A starter goes through the runtime's own send path, so the empty state
+ * and the composer can never take two different roads to the bridge.
+ */
+function EmptyThread() {
+  const aui = useAui();
+  return (
+    <div className="agent-thread__empty">
+      <p className="agent-thread__empty-lede">
+        The agent this project declares, over the corpus you are reading.
+      </p>
+      <div className="agent-thread__starters">
+        {STARTER_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            className="agent-thread__starter"
+            onClick={() => {
+              aui.composer.setText(prompt);
+              aui.composer.send();
+            }}
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -99,31 +190,169 @@ export function AgentThread({
 const UserMessage = () => <MessageRow role="user" />;
 const AssistantMessage = () => <MessageRow role="assistant" />;
 
+/**
+ * CHAT_GROUPS is how a turn's parts fold: reasoning and tool calls share one chain
+ * (`group-chain`), and the tools inside it keep their own group (`group-tool`) so a run of
+ * commands reads as one row rather than as one block per call. `groupPartByType` carries a
+ * stable fingerprint, so the tree survives the frames that arrive for another part.
+ */
+const CHAT_GROUPS = groupPartByType({
+  reasoning: ["group-chain"],
+  "tool-call": ["group-chain", "group-tool"],
+});
+
+/** RenderInfo is the library's own render signature, derived rather than restated. */
+type RenderInfo = Parameters<
+  NonNullable<ComponentProps<typeof MessagePrimitive.GroupedParts>["children"]>
+>[0];
+
+/** GroupLike is what a group node carries that this panel reads. */
+type GroupLike = {
+  readonly indices: readonly number[];
+  readonly status: { readonly type: string };
+};
+
 /** MessageRow renders one message; the runtime fills the parts. */
 function MessageRow({ role }: { role: "user" | "assistant" }) {
   return (
     <MessagePrimitive.Root className={`agent-panel__message agent-panel__message--${role}`}>
-      <MessagePrimitive.Parts
-        components={{
-          // The runtime's primitives are headless: the styled surface is a package
-          // this wave deliberately did not take, so the parts this project renders are
-          // written here, with its own tokens.
-          Text: TextPart,
-          Reasoning: ReasoningPart,
-          tools: { Fallback: ToolCallPart },
-          data: {
-            by_name: {
-              permission: PermissionPart,
-              elicitation: ElicitationPart,
-              plan: PlanPart,
-              error: ErrorPart,
-              stop: StopPart,
-              waiting: WaitingPart,
-            },
-          },
-        }}
-      />
+      <MessagePrimitive.GroupedParts groupBy={CHAT_GROUPS}>
+        {renderPart}
+      </MessagePrimitive.GroupedParts>
+      {role === "assistant" ? <MessageActions /> : null}
     </MessagePrimitive.Root>
+  );
+}
+
+/**
+ * renderPart is the one switch over what a part is: a group wraps its children, a leaf is
+ * the renderer this panel already had, and a data part is the card its name asks for. It
+ * lives at module scope because a function created during render would be a new value on
+ * every frame.
+ */
+function renderPart({ part, children }: RenderInfo) {
+  switch (part.type) {
+    case "group-chain":
+      return <ChainGroup part={part}>{children}</ChainGroup>;
+    case "group-tool":
+      return <div className="agent-panel__tool-group">{children}</div>;
+    case "text":
+      return <TextPart {...part} />;
+    case "reasoning":
+      return <ReasoningPart {...part} />;
+    case "tool-call":
+      return <ToolCallPart {...part} />;
+    case "data":
+      return <DataPart part={part} />;
+    default:
+      return null;
+  }
+}
+
+/**
+ * ChainGroup is one turn's work behind a single line that says how much of it there is.
+ * It opens while the turn is in flight and collapses when it ends, and a click is the
+ * reader's own answer for as long as the turn lasts: the state is reset during render when
+ * the run starts or ends, React's own pattern for a value derived from a prop.
+ */
+function ChainGroup({ part, children }: { part: GroupLike; children: ReactNode }) {
+  // The turn is the reader's unit: a chain is open while the turn runs, even when every part
+  // inside it has already finished — the agent is still working, and the work is what is
+  // happening. The group's own status is the fallback for a transcript rendered without a run.
+  const turnRunning = useAuiState((state) => state.thread.isRunning);
+  const running = turnRunning || part.status.type === "running";
+  const [open, setOpen] = useState(running);
+  const [wasRunning, setWasRunning] = useState(running);
+  if (wasRunning !== running) {
+    setWasRunning(running);
+    setOpen(running);
+  }
+  const steps = part.indices.length;
+  return (
+    <div className="agent-panel__chain">
+      <button
+        type="button"
+        className="agent-panel__chain-head"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="agent-panel__chain-count">
+          Worked through {steps} {steps === 1 ? "step" : "steps"}
+        </span>
+        <span className="agent-panel__chain-state" data-state={running ? "running" : "completed"}>
+          {running ? "Running" : "Completed"}
+        </span>
+      </button>
+      {open ? <div className="agent-panel__chain-body">{children}</div> : null}
+    </div>
+  );
+}
+
+/** DataPart is the card a `data-` part asks for, by the name the bridge gave it. */
+function DataPart({ part }: { part: { readonly name: string; readonly data: unknown } }) {
+  switch (part.name) {
+    case "permission":
+      return <PermissionPart data={part.data as AgentPermission} />;
+    case "elicitation":
+      return <ElicitationPart data={part.data as AgentElicitation} />;
+    case "plan":
+      return <PlanPart data={part.data as AgentPlan} />;
+    case "error":
+      return <ErrorPart data={part.data as { text: string }} />;
+    case "stop":
+      return <StopPart data={part.data as { reason: string }} />;
+    case "waiting":
+      return <WaitingPart />;
+    default:
+      return null;
+  }
+}
+
+/**
+ * MessageActions is what a reader can do with an answer: copy its text, or copy the same
+ * thing as the markdown the agent wrote. The text copy is the runtime's own (it knows what
+ * a message's copyable content is); the markdown copy is the message's text parts joined,
+ * which is the source the renderer was given — not a re-serialisation of the HTML.
+ */
+function MessageActions() {
+  const parts = useAuiState((state) => state.message.parts);
+  // The copied state is a word: the runtime says when the message is on the clipboard, and the
+  // control repeats it rather than changing an icon the reader has to interpret.
+  const copied = useAuiState((state) => state.message.isCopied);
+  const [markdownCopied, setMarkdownCopied] = useState(false);
+  const markdown = useMemo(
+    () =>
+      parts
+        .map((part) => (part.type === "text" ? part.text : ""))
+        .filter((chunk) => chunk.trim() !== "")
+        .join("\n\n"),
+    [parts],
+  );
+  return (
+    <ActionBarPrimitive.Root className="agent-panel__actions">
+      <ActionBarPrimitive.Copy
+        render={
+          <TooltipButton
+            label={copied ? "Copied" : "Copy"}
+            tooltip={copied ? "Copied" : "Copy this answer"}
+            className="agent-panel__icon"
+          />
+        }
+      >
+        <Icon name="content_copy" />
+      </ActionBarPrimitive.Copy>
+      <TooltipButton
+        label={markdownCopied ? "Copied as markdown" : "Copy as markdown"}
+        tooltip={markdownCopied ? "Copied as markdown" : "Copy this answer as markdown"}
+        className="agent-panel__icon"
+        onPress={() => {
+          void navigator.clipboard.writeText(markdown);
+          setMarkdownCopied(true);
+        }}
+      >
+        <Icon name="code" />
+      </TooltipButton>
+    </ActionBarPrimitive.Root>
   );
 }
 
@@ -291,22 +520,32 @@ const ELICITATION_LABELS: Record<string, string> = {
 
 interface ElicitationField {
   name: string;
-  kind: "string" | "number" | "boolean" | "enum" | "unknown";
+  kind: "string" | "number" | "boolean" | "enum" | "multi-enum" | "unknown";
   title: string;
   required: boolean;
   choices?: string[];
 }
+
+/** ElicitationValue is what a field's draft holds: a boolean, an array of choices, or text. */
+type ElicitationValue = string | boolean | string[];
 
 function elicitationFields(request: AgentElicitation): ElicitationField[] {
   const properties = request.schema?.properties ?? {};
   const required = new Set(request.schema?.required ?? []);
   return Object.entries(properties).map(([name, value]) => {
     const spec = (value ?? {}) as Record<string, unknown>;
+    // An array of enums is a set of answers, not an unknown: the choices are the items it
+    // names, and the card renders one control per choice.
+    const items = (spec.items ?? {}) as Record<string, unknown>;
     const choices = Array.isArray(spec.enum)
       ? spec.enum.map((choice) => String(choice))
-      : undefined;
+      : spec.type === "array" && Array.isArray(items.enum)
+        ? items.enum.map((choice) => String(choice))
+        : undefined;
     const kind: ElicitationField["kind"] = choices
-      ? "enum"
+      ? spec.type === "array"
+        ? "multi-enum"
+        : "enum"
       : spec.type === "number" || spec.type === "integer"
         ? "number"
         : spec.type === "boolean"
@@ -326,9 +565,11 @@ function elicitationFields(request: AgentElicitation): ElicitationField[] {
 
 /** initialValues is the draft a reader starts from: a boolean is false, everything else
  *  empty, so an untouched required field is visibly missing. */
-function initialValues(fields: ElicitationField[]): Record<string, string | boolean> {
-  const values: Record<string, string | boolean> = {};
-  for (const field of fields) values[field.name] = field.kind === "boolean" ? false : "";
+function initialValues(fields: ElicitationField[]): Record<string, ElicitationValue> {
+  const values: Record<string, ElicitationValue> = {};
+  for (const field of fields) {
+    values[field.name] = field.kind === "boolean" ? false : field.kind === "multi-enum" ? [] : "";
+  }
   return values;
 }
 
@@ -336,13 +577,14 @@ function initialValues(fields: ElicitationField[]): Record<string, string | bool
  *  numbers, booleans as booleans, everything else as typed. */
 function elicitedContent(
   fields: ElicitationField[],
-  values: Record<string, string | boolean>,
+  values: Record<string, ElicitationValue>,
 ): Record<string, unknown> {
   const content: Record<string, unknown> = {};
   for (const field of fields) {
     const value = values[field.name];
     if (field.kind === "unknown") continue;
     if (field.kind === "boolean") content[field.name] = Boolean(value);
+    else if (field.kind === "multi-enum") content[field.name] = Array.isArray(value) ? value : [];
     else if (field.kind === "number") content[field.name] = value === "" ? 0 : Number(value);
     else content[field.name] = String(value ?? "");
   }
@@ -420,6 +662,25 @@ function ElicitationPart({ data }: { data: AgentElicitation }) {
                 // A choice is the app's own control, and a button-based control is not a
                 // form field a <label> can wrap: the control carries its own label, which is
                 // also what names the trigger for a reader who cannot see it.
+                if (field.kind === "multi-enum") {
+                  return (
+                    <MultiSelect
+                      key={field.name}
+                      label={`${field.title}${field.required ? " *" : ""}`}
+                      ariaLabel={field.title}
+                      options={(field.choices ?? []).map((choice) => ({
+                        id: choice,
+                        label: choice,
+                      }))}
+                      selected={
+                        Array.isArray(values[field.name]) ? (values[field.name] as string[]) : []
+                      }
+                      onChange={(ids) =>
+                        setValues((current) => ({ ...current, [field.name]: ids }))
+                      }
+                    />
+                  );
+                }
                 if (field.kind === "enum") {
                   return (
                     <Select
@@ -495,7 +756,8 @@ function ElicitationPart({ data }: { data: AgentElicitation }) {
 
 /** isBlank is a field with nothing in it. A boolean is never blank: `false` is an answer,
  *  and a required checkbox must not be able to block the form it belongs to. */
-function isBlank(value: string | boolean | undefined): boolean {
+function isBlank(value: ElicitationValue | undefined): boolean {
+  if (Array.isArray(value)) return value.length === 0;
   return value === undefined || value === "";
 }
 
@@ -545,13 +807,11 @@ function PermissionPart({ data }: { data: AgentPermission }) {
         {data.toolKind ? ` (${data.toolKind})` : ""}
       </p>
       {data.decision ? (
-        <p className="agent-panel__part agent-panel__decision">
-          {chosen?.name ?? data.decision}
-        </p>
+        <p className="agent-panel__part agent-panel__decision">{chosen?.name ?? data.decision}</p>
       ) : options.length === 0 ? (
         <p className="agent-panel__note">
-          This request names no option this panel can show. Stop the turn and ask the agent
-          another way.
+          This request names no option this panel can show. Stop the turn and ask the agent another
+          way.
         </p>
       ) : (
         <div className="agent-panel__card-actions">

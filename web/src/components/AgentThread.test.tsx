@@ -35,11 +35,21 @@ function threadOf(parts: AgentPart[]): AgentThreadState {
 function show(parts: AgentPart[]) {
   return render(
     <AgentThread
+      onSend={async () => undefined}
+      onCancel={() => undefined}
       thread={threadOf(parts)}
       onAnswer={() => undefined}
       onElicitation={() => undefined}
     />,
   );
+}
+
+/** openChain opens the turn's own disclosure: a finished turn leaves it closed, so a test
+ *  that reads what the turn ran has to open it first — the reader does the same. */
+function openChain() {
+  const head = document.querySelector<HTMLButtonElement>(".agent-panel__chain-head");
+  if (head && head.getAttribute("aria-expanded") === "false") fireEvent.click(head);
+  return head;
 }
 
 /** parses counts the parses of one exact string, so a second part cannot pass for it. */
@@ -102,6 +112,8 @@ describe("AgentThread", () => {
     // changed keeps the HTML it already has rather than being parsed again.
     view.rerender(
       <AgentThread
+        onSend={async () => undefined}
+        onCancel={() => undefined}
         onAnswer={() => undefined}
         onElicitation={() => undefined}
         thread={{
@@ -149,12 +161,14 @@ describe("AgentThread", () => {
       },
     ]);
 
+    openChain();
+
     // The command line is the agent's own command, highlighted — not the bold ACP title.
     const command = document.querySelector(".agent-panel__tool-command");
     expect(command?.textContent).toBe("go test ./...");
     expect(command?.classList.contains("hljs")).toBe(true);
     expect(document.querySelector(".agent-panel__tool-name")).toBeNull();
-    expect(screen.getByText("Completed")).toBeTruthy();
+    expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
 
     // The output is the disclosure's body, closed until the reader opens it, and the summary
     // says what opening it costs — the reader's own unit, not a character count.
@@ -185,6 +199,8 @@ describe("AgentThread", () => {
       },
     ]);
 
+    openChain();
+
     const body = document.querySelector<HTMLDetailsElement>(".agent-panel__tool-output");
     expect(body?.open).toBe(false);
     const code = body?.querySelector(".agent-panel__tool-result code");
@@ -200,6 +216,7 @@ describe("AgentThread", () => {
       },
     ]);
 
+    openChain();
     expect(document.querySelector(".agent-panel__tool-output summary")?.textContent).toBe(
       "Output · 3 lines",
     );
@@ -213,6 +230,7 @@ describe("AgentThread", () => {
         toolCall: { id: "t2", title: "bash: printf", status: "completed", content: "a\nb\nc\nd\n" },
       },
     ]);
+    openChain();
     expect(document.querySelector(".agent-panel__tool-output summary")?.textContent).toBe(
       "Output · 4 lines",
     );
@@ -225,14 +243,16 @@ describe("AgentThread", () => {
         toolCall: { id: "t1", title: "edit", status: "failed", output: "no" },
       },
     ]);
-    expect(screen.getByText("Failed")).toBeTruthy();
+    openChain();
+    expect(screen.getAllByText("Failed").length).toBeGreaterThan(0);
     const failedBadge = document.querySelector(".agent-panel__tool-state");
     expect(failedBadge?.getAttribute("data-state")).toBe("failed");
     expect(failedBadge?.closest(".agent-panel__tool")).toBeTruthy();
 
     cleanup();
     show([{ kind: PART_TOOL_CALL, toolCall: { id: "t2", title: "read", status: "in_progress" } }]);
-    expect(screen.getByText("Running")).toBeTruthy();
+    openChain();
+    expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
     expect(document.querySelector(".agent-panel__tool-state")?.getAttribute("data-state")).toBe(
       "running",
     );
@@ -240,6 +260,7 @@ describe("AgentThread", () => {
 
   it("shows a call with no output at all as the command alone", () => {
     show([{ kind: PART_TOOL_CALL, toolCall: { id: "t1", title: "read a file" } }]);
+    openChain();
 
     expect(screen.getByText("read a file")).toBeTruthy();
     expect(document.querySelector(".agent-panel__tool-output")).toBeNull();
@@ -249,6 +270,7 @@ describe("AgentThread", () => {
 
   it("keeps the agent's thinking collapsed behind its own word", () => {
     show([{ kind: PART_THOUGHT, text: "weighing the options" }]);
+    openChain();
 
     expect(screen.getByText("Reasoning")).toBeTruthy();
     expect(screen.getByText("weighing the options")).toBeTruthy();
@@ -263,6 +285,8 @@ describe("the agent's question", () => {
     const onElicitation = vi.fn();
     render(
       <AgentThread
+        onSend={async () => undefined}
+        onCancel={() => undefined}
         thread={threadOf([
           {
             kind: PART_ELICITATION,
@@ -393,8 +417,11 @@ describe("the agent's question", () => {
     expect(screen.getByRole("button", { name: "Decline" })).toBeTruthy();
   });
 
-  it("states a turn in flight as one line at the end, and draws no empty bubble", () => {    render(
+  it("states a turn in flight as one line at the end, and draws no empty bubble", () => {
+    render(
       <AgentThread
+        onSend={async () => undefined}
+        onCancel={() => undefined}
         thread={{
           sessionId: "sess-1",
           running: true,
@@ -413,5 +440,219 @@ describe("the agent's question", () => {
     expect(screen.getByText("waiting for the agent…")).toBeTruthy();
     // Exactly two surfaces: the reader's message and the wait's. The empty one is absent.
     expect(document.querySelectorAll(".agent-panel__message")).toHaveLength(2);
+  });
+});
+
+describe("the thread's own affordances", () => {
+  /** empty renders a thread with no messages, handing back the send spy. */
+  function empty() {
+    const onSend = vi.fn(async () => undefined);
+    render(
+      <AgentThread
+        thread={{ sessionId: "sess-1", messages: [] }}
+        onAnswer={() => undefined}
+        onElicitation={() => undefined}
+        onSend={onSend}
+        onCancel={() => undefined}
+      />,
+    );
+    return onSend;
+  }
+
+  it("states what an empty thread is and offers three starters", () => {
+    empty();
+
+    expect(document.querySelector(".agent-thread__empty")).toBeTruthy();
+    expect(screen.getByText(/The agent this project declares/)).toBeTruthy();
+    expect(document.querySelectorAll(".agent-thread__starter")).toHaveLength(3);
+  });
+
+  it("sends a starter through the runtime's own send path", async () => {
+    const onSend = empty();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Summarise the plan that is in progress." }),
+    );
+
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith("Summarise the plan that is in progress."),
+    );
+  });
+
+  it("keeps the empty state out of a turn that is starting", () => {
+    // A turn in flight has its own message (`WAITING_ID`), so the thread is not empty: the
+    // starters must not appear over a turn the reader just started.
+    render(
+      <AgentThread
+        thread={{ sessionId: "sess-1", running: true, messages: [] }}
+        onAnswer={() => undefined}
+        onElicitation={() => undefined}
+        onSend={async () => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+
+    expect(document.querySelector(".agent-thread__empty")).toBeNull();
+    expect(screen.getByText(/waiting for the agent/)).toBeTruthy();
+  });
+
+  it("offers the way back to the latest message", () => {
+    show([{ kind: PART_TEXT, text: "an answer" }]);
+
+    expect(screen.getByRole("button", { name: "Jump to the latest message" })).toBeTruthy();
+  });
+});
+
+describe("what a reader can do with an answer", () => {
+  it("offers copy and copy-as-markdown on an assistant message only", () => {
+    render(
+      <AgentThread
+        thread={{
+          sessionId: "sess-1",
+          messages: [
+            { id: "u1", role: "user", parts: [{ kind: PART_TEXT, text: "the question" }] },
+            { id: "m1", role: "assistant", parts: [{ kind: PART_TEXT, text: "the answer" }] },
+          ],
+        }}
+        onAnswer={() => undefined}
+        onElicitation={() => undefined}
+        onSend={async () => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy as markdown" })).toBeTruthy();
+    // One row for the assistant reply, and none under the reader's own message.
+    expect(document.querySelectorAll(".agent-panel__actions")).toHaveLength(1);
+  });
+
+  it("copies the message's markdown source, not its rendered HTML", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+
+    show([{ kind: PART_TEXT, text: "a **bold** claim" }]);
+    fireEvent.click(screen.getByRole("button", { name: "Copy as markdown" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("a **bold** claim"));
+  });
+});
+
+describe("a turn's chain", () => {
+  const call = (id: string, command: string): AgentPart => ({
+    kind: PART_TOOL_CALL,
+    toolCall: {
+      id,
+      title: `bash: ${command}`,
+      status: "completed",
+      input: { command },
+      content: "ok",
+    },
+  });
+
+  it("folds a run of calls into one chain that states how many", () => {
+    show([call("t1", "go build ./..."), call("t2", "go test ./..."), call("t3", "go vet ./...")]);
+
+    expect(screen.getByText("Worked through 3 steps")).toBeTruthy();
+    expect(document.querySelectorAll(".agent-panel__chain")).toHaveLength(1);
+    // A finished turn is closed: the commands are behind the one line, not stacked beside it.
+    expect(document.querySelector(".agent-panel__tool")).toBeNull();
+
+    openChain();
+    expect(document.querySelector(".agent-panel__tool-group")).toBeTruthy();
+    expect(document.querySelectorAll(".agent-panel__tool")).toHaveLength(3);
+  });
+
+  it("keeps a finished turn closed and opens it on a click", () => {
+    show([call("t1", "go build ./...")]);
+
+    const head = document.querySelector<HTMLButtonElement>(".agent-panel__chain-head");
+    expect(head?.getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector(".agent-panel__tool")).toBeNull();
+
+    fireEvent.click(head as HTMLButtonElement);
+
+    expect(head?.getAttribute("aria-expanded")).toBe("true");
+    expect(document.querySelector(".agent-panel__tool")).toBeTruthy();
+  });
+
+  it("opens while the turn is in flight and closes when it ends", () => {
+    const parts = [call("t1", "go build ./...")];
+    const view = render(
+      <AgentThread
+        thread={{
+          sessionId: "sess-1",
+          running: true,
+          messages: [{ id: "m1", role: "assistant", parts }],
+        }}
+        onAnswer={() => undefined}
+        onElicitation={() => undefined}
+        onSend={async () => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(document.querySelector(".agent-panel__tool")).toBeTruthy();
+
+    view.rerender(
+      <AgentThread
+        thread={{ sessionId: "sess-1", messages: [{ id: "m1", role: "assistant", parts }] }}
+        onAnswer={() => undefined}
+        onElicitation={() => undefined}
+        onSend={async () => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+
+    expect(document.querySelector(".agent-panel__chain-head")?.getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+  });
+
+  it("states the step in the singular for one call", () => {
+    show([call("t1", "go build ./...")]);
+
+    expect(screen.getByText("Worked through 1 step")).toBeTruthy();
+  });
+});
+
+describe("a question with several answers", () => {
+  it("renders an array of enums as a choice instead of declining it", async () => {
+    const onElicitation = vi.fn();
+    render(
+      <AgentThread
+        thread={threadOf([
+          {
+            kind: PART_ELICITATION,
+            elicitation: {
+              requestId: "elicit-1",
+              sessionId: "sess-1",
+              mode: "form",
+              message: "Which files?",
+              schema: {
+                type: "object",
+                properties: {
+                  files: {
+                    type: "array",
+                    title: "Files",
+                    items: { type: "string", enum: ["a.ts", "b.ts"] },
+                  },
+                },
+                required: ["files"],
+              },
+            },
+          },
+        ])}
+        onAnswer={() => undefined}
+        onElicitation={onElicitation}
+        onSend={async () => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+
+    // The field is renderable, so the card explains nothing away and Accept waits for a choice.
+    expect(screen.queryByText(/cannot render/)).toBeNull();
+    const accept = screen.getByRole("button", { name: "Accept" }) as HTMLButtonElement;
+    expect(accept.disabled).toBe(true);
+    expect(document.querySelector(".agent-panel__elicitation .ui-select--multi")).toBeTruthy();
   });
 });

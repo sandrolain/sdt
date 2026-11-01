@@ -810,6 +810,157 @@
     margin-inline-start: auto;
     margin-inline-end: 0.5rem;
   }
+  /* The empty thread is a surface, not a gap: one sentence and three starters, each of
+     which goes through the runtime's own send path. */
+  .agent-thread {
+    position: relative;
+  }
+  .agent-thread__empty {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 0.25rem;
+  }
+  .agent-thread__empty-lede {
+    margin: 0;
+    color: var(--fg-dim);
+    font-size: 0.9rem;
+  }
+  .agent-thread__starters {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    align-items: stretch;
+  }
+  .agent-thread__starter {
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--bg-rise);
+    color: var(--fg);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .agent-thread__starter:hover {
+    border-color: var(--accent);
+  }
+  /* The way back to the latest message: the runtime decides when it is needed, and its own
+     disabled state is what hides it — no scroll listener here. */
+  .agent-thread__to-bottom {
+    position: absolute;
+    inset-block-end: 0.6rem;
+    inset-inline-end: 0.9rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--bg-mantle);
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .agent-thread__to-bottom[disabled] {
+    display: none;
+  }
+  /* A turn's work behind one line: the count and the state are words, and the body is the
+     parts themselves — the same renderers, just folded. */
+  .agent-panel__chain {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .agent-panel__chain-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+    border: 0;
+    background: none;
+    color: var(--fg-dim);
+    font: inherit;
+    font-size: 0.82rem;
+    text-align: start;
+    cursor: pointer;
+  }
+  .agent-panel__chain-count {
+    color: var(--fg);
+  }
+  .agent-panel__chain-state {
+    color: var(--fg-dim);
+  }
+  .agent-panel__chain-state[data-state="running"] {
+    color: var(--accent);
+  }
+  .agent-panel__chain-body,
+  .agent-panel__tool-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  /* The action row is always visible: a hover-only control is unreachable on touch. */
+  .agent-panel__actions {
+    display: flex;
+    gap: 0.15rem;
+    margin-block-start: 0.2rem;
+    justify-content: flex-end;
+  }
+  .agent-panel__icon {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem;
+    border: 0;
+    border-radius: var(--radius-sm, 4px);
+    background: none;
+    color: var(--fg-dim);
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  .agent-panel__icon:hover {
+    color: var(--fg);
+  }
+  /* The `/` palette: the agent's own commands, above the composer it belongs to. */
+  .agent-panel__composer {
+    position: relative;
+  }
+  .agent-panel__commands {
+    position: absolute;
+    inset-block-end: calc(100% + 0.3rem);
+    inset-inline: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    max-height: 12rem;
+    overflow-y: auto;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-mantle);
+    box-shadow: 0 8px 24px var(--shadow-color);
+  }
+  .agent-panel__command {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.3rem 0.45rem;
+    border: 0;
+    border-radius: var(--radius-sm, 4px);
+    background: none;
+    color: var(--fg);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .agent-panel__command[data-highlighted] {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .agent-panel__command-name {
+    font-size: 0.85rem;
+  }
+  .agent-panel__command-note {
+    color: var(--fg-dim);
+    font-size: 0.75rem;
+  }
   .search-palette__overlay {
     position: fixed;
     inset: 0;
