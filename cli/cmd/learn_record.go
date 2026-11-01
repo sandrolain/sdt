@@ -56,27 +56,26 @@ WHEN NOT — you are about to check an answer: the check is read-only, and only 
 you decide afterwards is recorded here.
 
 RETURNS — what was written to context/learning/learner.yaml. Provenance is explicit:
-` + "`--basis`" + ` defaults to inferred (the weaker claim). A first assessment is
-capped at ` + "`partial`" + ` — reaching ` + "`solid`" + ` needs a second
-demonstration, so one answer never implies mastery. An unknown concept fails.
+` + "`--basis`" + ` defaults to inferred (the weaker claim). An unknown concept fails.
 
-A graded call (` + "`--grade --item`" + `) is the state machine: the grade sets the
+A graded call (` + "`--grade --item`" + `) is the only way an assessment is written,
+because it is the only one that carries the attempt and the date: the grade sets the
 standing (` + "`incorrect`" + ` → weak, ` + "`partially_correct`" + ` → partial,
 ` + "`correct`" + ` → partial, or solid only after an earlier demonstration), ` + "`--hint`" + `
 caps it at partial when above 0, and the review date is computed with its reason
 (` + "`failure`" + ` 1d, ` + "`correct_but_hesitant`" + ` 3d, ` + "`independent_success`" + ` 7d,
 ` + "`transfer_success`" + ` 14d, ` + "`durable_success`" + ` 30d) unless ` + "`--next-review`" + `
-names one. ` + "`ungradable`" + ` writes nothing and exits 4. ` + "`--grade`" + ` and
-` + "`--understanding`" + ` are mutually exclusive.
+names one. ` + "`ungradable`" + ` writes nothing and exits 4. A call with no grade
+records exposure — the record, its evidence, its misconception — and leaves the
+standing untouched.
 
-EXAMPLE — sdt learn record --concept backend/auth --understanding partial --basis observed
-          sdt learn record --concept architecture/four-key-metrics --item fkm-3 --grade correct --hint 0
+EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-3 --grade correct --hint 0
+          sdt learn record --concept backend/auth --evidence refs/auth.md@abcd1234:9-10 --basis observed
           sdt learn record --profile "a learner" --since 2026-10-13
           sdt learn record --concept backend/auth --session --covered backend-auth`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
 		wikiID := strings.TrimSpace(getStringFlag(cmd, "concept", false))
-		level := strings.TrimSpace(getStringFlag(cmd, "understanding", false))
 		gradeValue := strings.TrimSpace(getStringFlag(cmd, "grade", false))
 		itemID := strings.TrimSpace(getStringFlag(cmd, "item", false))
 		hint := getIntFlag(cmd, "hint", false)
@@ -88,15 +87,7 @@ EXAMPLE — sdt learn record --concept backend/auth --understanding partial --ba
 			exitWithError(cmd, fmt.Errorf("nothing to record: pass --concept, --goal, --profile or --session"))
 			return
 		}
-		if level != "" && wikiID == "" {
-			exitWithError(cmd, fmt.Errorf("--understanding belongs to a concept: pass --concept <wiki-id>"))
-			return
-		}
-		if err := learnRecordCheckLevel(level); err != nil {
-			exitWithError(cmd, err)
-			return
-		}
-		if err := learnRecordCheckGrade(level, gradeValue, itemID, hint, wikiID); err != nil {
+		if err := learnRecordCheckGrade(gradeValue, itemID, hint, wikiID); err != nil {
 			exitWithError(cmd, err)
 			return
 		}
@@ -137,13 +128,15 @@ EXAMPLE — sdt learn record --concept backend/auth --understanding partial --ba
 				return
 			}
 			grade := learnRecordGrade{Grade: gradeValue, Item: itemID, Hint: hint}
-			rec, created, err := learnRecordAssess(st, bld, page, level, grade, cmd, now)
+			rec, created, err := learnRecordAssess(st, bld, page, grade, cmd, now)
 			if err != nil {
 				exitWithError(cmd, err)
 				return
 			}
-			result.Concept, result.Understanding, result.Basis, result.Created =
-				rec.ID, rec.LastAssessed.Understanding, rec.LastAssessed.Basis, created
+			result.Concept, result.Created = rec.ID, created
+			if rec.LastAssessed != nil {
+				result.Understanding, result.Basis = rec.LastAssessed.Understanding, rec.LastAssessed.Basis
+			}
 			result.Item, result.Grade, result.Hint = itemID, gradeValue, hint
 			result.NextReview, result.ScheduleReason = rec.NextReview, rec.ScheduleReason
 		}
@@ -176,8 +169,13 @@ EXAMPLE — sdt learn record --concept backend/auth --understanding partial --ba
 				if result.Created {
 					verb = "created"
 				}
-				outputString(cmd, fmt.Sprintf("concept: %s (%s, %s, basis %s)\n",
-					result.Concept, verb, result.Understanding, result.Basis))
+				if result.Understanding == "" {
+					outputString(cmd, fmt.Sprintf("concept: %s (%s, no assessment)\n",
+						result.Concept, verb))
+				} else {
+					outputString(cmd, fmt.Sprintf("concept: %s (%s, %s, basis %s)\n",
+						result.Concept, verb, result.Understanding, result.Basis))
+				}
 				if result.Grade != "" {
 					outputString(cmd, fmt.Sprintf("  grade: %s on %s, hint %d\n",
 						result.Grade, result.Item, result.Hint))
@@ -198,33 +196,9 @@ EXAMPLE — sdt learn record --concept backend/auth --understanding partial --ba
 	},
 }
 
-// learnLevels is the vocabulary a rating must come from, weakest first.
-var learnLevels = []string{
-	learn.UnderstandingUnknown, learn.UnderstandingWeak,
-	learn.UnderstandingPartial, learn.UnderstandingSolid,
-}
-
-// learnRecordCheckLevel refuses an unknown level, and the empty one.
-func learnRecordCheckLevel(level string) error {
-	if level == "" {
-		return nil
-	}
-	for _, known := range learnLevels {
-		if level == known {
-			return nil
-		}
-	}
-	return fmt.Errorf("--understanding %q is not a known level (%s)",
-		level, strings.Join(learnLevels, ", "))
-}
-
-// learnRecordCheckGrade refuses a graded call that cannot be applied: a grade and
-// an understanding are two ways to say the same thing, an item belongs to a graded
-// answer, and a hint rung without a grade has nothing to cap.
-func learnRecordCheckGrade(level, grade, item string, hint int, concept string) error {
-	if level != "" && grade != "" {
-		return fmt.Errorf("--grade and --understanding are mutually exclusive: a grade is what an understanding is derived from")
-	}
+// learnRecordCheckGrade refuses a graded call that cannot be applied: an item
+// belongs to a graded answer, and a hint rung without a grade has nothing to cap.
+func learnRecordCheckGrade(grade, item string, hint int, concept string) error {
 	if item != "" && grade == "" {
 		return fmt.Errorf("--item belongs to a graded answer: pass --grade %s",
 			strings.Join(learn.Grades(), "|"))
@@ -269,12 +243,14 @@ func learnUnderstandingFor(grade string, hint int, prior *learn.Assessment) stri
 	}
 }
 
-// learnRecordAssess upserts the concept record and stamps the assessment. A first
-// assessment is capped at partial: reaching solid needs a prior demonstration, so
-// one answer never implies mastery. A graded answer additionally stores the
-// attempt, the hint rung and the reason-coded review date.
+// learnRecordAssess upserts the concept record and stamps the assessment. An
+// assessment comes from a graded answer alone: the grade sets the standing —
+// capped at partial on a first or hinted answer, so one answer never implies
+// mastery — and additionally stores the attempt, the hint rung and the
+// reason-coded review date. A call with no grade records the concept and its
+// evidence and leaves the standing untouched.
 func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki.Page,
-	level string, grade learnRecordGrade, cmd *cobra.Command, now time.Time) (*learn.Concept, bool, error) {
+	grade learnRecordGrade, cmd *cobra.Command, now time.Time) (*learn.Concept, bool, error) {
 
 	rec := learnRecord(st, p.ID)
 	created := rec == nil
@@ -292,7 +268,7 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 			return nil, false, fmt.Errorf("concept %q has no item %q in its lesson: an attempt cites an item, never a guess",
 				p.ID, grade.Item)
 		}
-		level = learnUnderstandingFor(grade.Grade, grade.Hint, rec.LastAssessed)
+		level := learnUnderstandingFor(grade.Grade, grade.Hint, rec.LastAssessed)
 		rec.LastAttempt = &learn.Attempt{
 			At: now.Format(learn.TimeLayout), Item: grade.Item,
 			Grade: grade.Grade, Hint: grade.Hint, Basis: basis,
@@ -305,14 +281,6 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 			days, reason := learn.Schedule(grade.Grade, grade.Hint, item.Type, rec.ScheduleReason)
 			rec.NextReview = learn.ScheduleDate(now, days)
 			rec.ScheduleReason = reason
-		}
-	}
-	if level != "" {
-		if created && level == learn.UnderstandingSolid {
-			return nil, false, fmt.Errorf(
-				"concept %q has no earlier demonstration: one answer never implies mastery — "+
-					"record %q now, %q after a second demonstration",
-				rec.ID, learn.UnderstandingPartial, learn.UnderstandingSolid)
 		}
 		rec.LastAssessed = &learn.Assessment{
 			At:            now.Format(learn.TimeLayout),
@@ -429,8 +397,7 @@ func learnRecordSession(st *learn.State, cmd *cobra.Command, now time.Time) (lea
 func init() {
 	f := learnRecordCmd.Flags()
 	f.String("concept", "", "Wiki page id of the concept being assessed")
-	f.String("understanding", "", "Level demonstrated: "+strings.Join(learnLevels, ", "))
-	f.String("grade", "", "Graded answer: "+strings.Join(learn.Grades(), ", ")+" (derives --understanding)")
+	f.String("grade", "", "Graded answer: "+strings.Join(learn.Grades(), ", ")+" (the standing is derived from it)")
 	f.String("item", "", "Item id the answer was given on (required with --grade)")
 	f.Int("hint", 0, "Hint rung the answer needed, 0 for none (caps the standing)")
 	f.String("basis", "", "Provenance of the rating: observed or inferred (default inferred)")

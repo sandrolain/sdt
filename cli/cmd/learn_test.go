@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -414,14 +415,16 @@ func loadRecorded(t *testing.T) *learn.State {
 
 // TestLearnRecordUpsertsConceptAndCapturesProvenance covers append-then-update:
 // one record per concept, the page's relations and sources captured on creation,
-// and the rating's provenance explicit (inferred unless observed is claimed).
+// and an exposure-only call that records the concept with no standing — an
+// assessment is written by a graded answer and by nothing else.
 func TestLearnRecordUpsertsConceptAndCapturesProvenance(t *testing.T) {
 	runInTempDir(t)
 	learnWikiFixture(t)
 	stubContextNow(t, time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC))
 
 	out := string(execute(t, learnRecordCmd, nil,
-		"--concept", "backend/auth", "--understanding", "partial"))
+		"--concept", "backend/auth", "--evidence", "refs/auth.md@abcd1234:9-10",
+		"--misconception", "thought resolution used fuzzy matching"))
 	if !strings.Contains(out, "created") {
 		t.Errorf("the first record creates the concept, got:\n%s", out)
 	}
@@ -433,22 +436,24 @@ func TestLearnRecordUpsertsConceptAndCapturesProvenance(t *testing.T) {
 	if c.ID != "backend-auth" || c.Wiki != "backend/auth" {
 		t.Errorf("the record must carry the stable id of its page, got %+v", c)
 	}
-	if c.LastAssessed.Basis != learn.BasisInferred {
-		t.Errorf("an unclaimed basis must stay inferred (the weaker claim), got %q", c.LastAssessed.Basis)
+	if c.LastAssessed != nil || c.LastAttempt != nil {
+		t.Errorf("a call with no grade must not write a standing or an attempt, got %+v / %+v",
+			c.LastAssessed, c.LastAttempt)
 	}
 	if len(c.Prerequisites) != 1 || c.Prerequisites[0] != "backend-registry" {
 		t.Errorf("the record must capture the page prerequisites, got %+v", c.Prerequisites)
 	}
-	if len(c.Evidence) != 1 || c.Evidence[0] != "refs/auth.md@abcd1234:1-2" {
-		t.Errorf("the record must capture the page evidence, got %+v", c.Evidence)
+	if len(c.Evidence) != 2 || !slices.Contains(c.Evidence, "refs/auth.md@abcd1234:1-2") ||
+		!slices.Contains(c.Evidence, "refs/auth.md@abcd1234:9-10") {
+		t.Errorf("the record must capture the page evidence and the explicit locator, got %+v", c.Evidence)
 	}
-	if c.LastAssessed.At != "2026-10-13T09:00:00Z" {
-		t.Errorf("the assessment must be stamped, got %q", c.LastAssessed.At)
+	if c.Misconception != "thought resolution used fuzzy matching" {
+		t.Errorf("the open misconception must be kept, got %q", c.Misconception)
 	}
 
-	// A second call updates the same record and may claim observed provenance.
+	// A second call updates the same record rather than appending a copy.
 	out = string(execute(t, learnRecordCmd, nil,
-		"--concept", "backend/auth", "--understanding", "solid", "--basis", "observed",
+		"--concept", "backend/auth", "--basis", "observed",
 		"--next-review", "2026-10-27"))
 	if !strings.Contains(out, "updated") {
 		t.Errorf("a second record updates the concept, got:\n%s", out)
@@ -458,39 +463,38 @@ func TestLearnRecordUpsertsConceptAndCapturesProvenance(t *testing.T) {
 		t.Fatalf("a concept must hold one record, got %d", len(st.Concepts))
 	}
 	c = st.Concepts[0]
-	if c.LastAssessed.Understanding != learn.UnderstandingSolid || c.LastAssessed.Basis != learn.BasisObserved {
-		t.Errorf("the update must be kept, got %+v", c.LastAssessed)
-	}
 	if c.NextReview != "2026-10-27" {
 		t.Errorf("next_review must be recorded, got %q", c.NextReview)
 	}
+	if c.LastAssessed != nil {
+		t.Errorf("an explicit review date is not an assessment, got %+v", c.LastAssessed)
+	}
 }
 
-// TestLearnRecordNeverImpliesMastery is the ceiling: a first assessment cannot
-// claim the top level, and the refusal writes nothing.
+// TestLearnRecordNeverImpliesMastery is the ceiling: a first correct answer is
+// capped at partial, and only a success after an earlier demonstration reaches
+// solid — so one answer never implies mastery.
 func TestLearnRecordNeverImpliesMastery(t *testing.T) {
 	runInTempDir(t)
-	learnWikiFixture(t)
+	learnV2Fixture(t)
 	stubContextNow(t, time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC))
 
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, learnRecordCmd, nil,
-			"--concept", "backend/auth", "--understanding", learn.UnderstandingSolid))
-	})
-	if _, err := os.Stat(learn.Path(".")); !os.IsNotExist(err) {
-		t.Fatalf("a refused record must write nothing, got %v", err)
+	execute(t, learnRecordCmd, nil,
+		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct")
+	if got := loadRecorded(t).Concepts[0].LastAssessed.Understanding; got != learn.UnderstandingPartial {
+		t.Errorf("a first correct answer must stay partial, got %q", got)
 	}
 
-	// After a real demonstration, the top level is reachable.
-	execute(t, learnRecordCmd, nil, "--concept", "backend/auth", "--understanding", "partial")
-	execute(t, learnRecordCmd, nil, "--concept", "backend/auth", "--understanding", "solid")
+	execute(t, learnRecordCmd, nil,
+		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct")
 	if got := loadRecorded(t).Concepts[0].LastAssessed.Understanding; got != learn.UnderstandingSolid {
-		t.Errorf("a second demonstration may reach solid, got %q", got)
+		t.Errorf("a second independent success may reach solid, got %q", got)
 	}
 }
 
-// TestLearnRecordWritesOnlyWhenAsked proves the verb refuses a content-free call
-// and an unknown concept, writing nothing in either case.
+// TestLearnRecordWritesOnlyWhenAsked proves the verb refuses a content-free call,
+// an unknown concept and an incomplete graded call, writing nothing in either
+// case — and that the removed --understanding door stays removed.
 func TestLearnRecordWritesOnlyWhenAsked(t *testing.T) {
 	runInTempDir(t)
 	learnWikiFixture(t)
@@ -498,14 +502,22 @@ func TestLearnRecordWritesOnlyWhenAsked(t *testing.T) {
 
 	shouldExitWithCode(t, 1, func() string { return string(execute(t, learnRecordCmd, nil)) })
 	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, learnRecordCmd, nil, "--concept", "invented-concept", "--understanding", "weak"))
+		return string(execute(t, learnRecordCmd, nil, "--concept", "invented-concept",
+			"--evidence", "refs/auth.md@abcd1234:1-2"))
 	})
 	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, learnRecordCmd, nil, "--concept", "backend/auth", "--understanding", "expert"))
+		return string(execute(t, learnRecordCmd, nil, "--concept", "backend/auth", "--item", "fkm-3"))
 	})
-	shouldExitWithCode(t, 1, func() string {
-		return string(execute(t, learnRecordCmd, nil, "--understanding", "weak"))
-	})
+	// An assessment is written by a graded answer alone: the ungraded level flag
+	// was a second door into the state machine and is not part of the surface.
+	if learnRecordCmd.Flags().Lookup("understanding") != nil {
+		t.Errorf("--understanding must not be registered: an assessment comes from --grade")
+	}
+	resetCmdFlags(rootCmd)
+	rootCmd.SetArgs([]string{"learn", "record", "--concept", "backend/auth", "--understanding", "solid"})
+	if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), "unknown flag: --understanding") {
+		t.Errorf("--understanding must be refused as an unknown flag, got %v", err)
+	}
 	if _, err := os.Stat(learn.Path(".")); !os.IsNotExist(err) {
 		t.Errorf("a refused record must leave no state, got %v", err)
 	}
@@ -515,12 +527,12 @@ func TestLearnRecordWritesOnlyWhenAsked(t *testing.T) {
 // asked, with covered and weak derived from what was just recorded.
 func TestLearnRecordSessionClosesTheLoop(t *testing.T) {
 	runInTempDir(t)
-	learnWikiFixture(t)
+	learnV2Fixture(t)
 	stubContextNow(t, time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC))
 
 	execute(t, learnRecordCmd, nil, "--profile", "a learner", "--since", "2026-10-01")
 	execute(t, learnRecordCmd, nil,
-		"--concept", "backend/auth", "--understanding", "partial", "--session")
+		"--concept", "architecture/v2", "--item", "v-1", "--grade", "partially_correct", "--session")
 
 	st := loadRecorded(t)
 	if st.Profile.Name != "a learner" || st.Profile.Since != "2026-10-01" {
@@ -530,10 +542,10 @@ func TestLearnRecordSessionClosesTheLoop(t *testing.T) {
 		t.Fatalf("want one session entry, got %d", len(st.Sessions))
 	}
 	s := st.Sessions[0]
-	if len(s.Covered) != 1 || s.Covered[0] != "backend-auth" {
+	if len(s.Covered) != 1 || s.Covered[0] != "architecture-v2" {
 		t.Errorf("the session must cover the assessed concept, got %+v", s.Covered)
 	}
-	if len(s.Weak) != 1 || s.Weak[0] != "backend-auth" {
+	if len(s.Weak) != 1 || s.Weak[0] != "architecture-v2" {
 		t.Errorf("a partial concept must be logged as weak, got %+v", s.Weak)
 	}
 
@@ -614,7 +626,7 @@ func TestLearnLaneLeavesTheWikiUntouched(t *testing.T) {
 	execute(t, learnRecordCmd, nil,
 		"--profile", "a learner", "--since", "2026-10-13",
 		"--goal", "backend/auth=explain the resolution order")
-	execute(t, learnRecordCmd, nil, "--concept", "backend/auth", "--understanding", "partial",
+	execute(t, learnRecordCmd, nil, "--concept", "backend/auth",
 		"--misconception", "thought resolution used fuzzy matching",
 		"--evidence", "refs/auth.md@abcd1234:9-10", "--session")
 

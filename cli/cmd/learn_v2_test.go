@@ -314,6 +314,12 @@ func TestLearnRecordGradeTransition(t *testing.T) {
 		c.LastAttempt.Item != "v-1" || c.LastAttempt.Hint != 0 {
 		t.Errorf("the attempt was not stored: %+v", c.LastAttempt)
 	}
+	if c.LastAssessed.Basis != learn.BasisInferred || c.LastAttempt.Basis != learn.BasisInferred {
+		t.Errorf("an unclaimed basis must stay inferred (the weaker claim), got %+v", c.LastAssessed)
+	}
+	if c.LastAssessed.At != now.Format(learn.TimeLayout) {
+		t.Errorf("the assessment must be stamped, got %q", c.LastAssessed.At)
+	}
 
 	// A second independent success reaches solid and earns the durable interval.
 	execute(t, learnRecordCmd, nil,
@@ -393,7 +399,6 @@ func TestLearnRecordGradeRefusals(t *testing.T) {
 	}
 
 	for _, args := range [][]string{
-		{"--concept", "architecture/v2", "--grade", "correct", "--understanding", "partial", "--item", "v-1"},
 		{"--concept", "architecture/v2", "--item", "v-1"},
 		{"--concept", "architecture/v2", "--grade", "correct"},
 		{"--concept", "architecture/v2", "--grade", "mastered", "--item", "v-1"},
