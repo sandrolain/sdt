@@ -98,6 +98,36 @@
   --motion-panel-easing: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+/* Diagram theming: Pele reads these names from the diagram's ancestors and
+   writes them into the SVG, so a theme flip restyles every diagram without a
+   re-render. They are aliases of the semantic tokens above — the raw values
+   stay in this file's palette, and a diagram never carries a second palette. */
+:root {
+  --pele-bg: var(--bg-mantle);
+  --pele-fg: var(--fg);
+  --pele-muted: var(--fg-dim);
+  --pele-line: var(--fg-faint);
+  --pele-surface: var(--bg-rise);
+  --pele-surface-alt: var(--bg-hover);
+  --pele-border: var(--accent);
+  --pele-accent: var(--accent);
+  --pele-critical: var(--danger);
+  --pele-error: var(--danger);
+  --pele-font: inherit;
+  --pele-radius: var(--radius-sm);
+  /* Categorical series for the chart diagrams (pie, xy, sankey). A series
+     colour is an identity, not a semantic role: it names a data series, so it
+     keeps a fixed hue per index across themes. */
+  --pele-series-1: var(--ctp-mauve);
+  --pele-series-2: var(--ctp-blue);
+  --pele-series-3: var(--ctp-green);
+  --pele-series-4: var(--ctp-yellow);
+  --pele-series-5: var(--ctp-peach);
+  --pele-series-6: var(--ctp-red);
+  --pele-series-7: var(--ctp-teal);
+  --pele-series-8: var(--ctp-pink);
+}
+
 /* Corner-radius scale. A radius that is a semantic role (card, chip, control,
    pill) uses one of these; a categorical or one-off radius stays raw at its
    surface with a one-line comment. */

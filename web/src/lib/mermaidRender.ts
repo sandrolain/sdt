@@ -1,66 +1,50 @@
-import { destroyMermaidZoom, enhanceMermaid } from "./mermaidZoom";
+import { sanitizeDiagramSvg } from "./diagramSanitize";
+import { enhanceMermaid } from "./mermaidZoom";
 
-type MermaidModule = typeof import("mermaid");
+type PeleModule = typeof import("pele");
 
-let loader: Promise<MermaidModule> | null = null;
+let loader: Promise<PeleModule> | null = null;
 
-/** Lazy-load Mermaid (large dependency) only when a document has diagrams. */
-function loadMermaid(): Promise<MermaidModule> {
-  if (!loader) loader = import("mermaid");
+/** Lazy-load Pele (the diagram renderer) only when a document has diagrams. */
+function loadPele(): Promise<PeleModule> {
+  if (!loader) loader = import("pele");
   return loader;
 }
 
 /** Test/reset helper. */
 export function resetMermaidLoader(): void {
   loader = null;
-  lastSignature = "";
-}
-
-let lastSignature = "";
-
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 /**
- * Catppuccin-token theme variables so diagrams match the app theme. The hex
- * values are fallbacks for a missing custom property, not a second palette
- * (phase 9): the resolved token is what a diagram uses.
+ * Serialize a rendered diagram for download with its theme resolved. Pele's
+ * SVG paints through `var(--pele-…)` names declared in `tokens.css`; a file
+ * outside the app has no such declarations, so every colour would fall back to
+ * Pele's own defaults. The resolved values are copied onto the clone, which
+ * keeps the downloaded file looking like the diagram on screen.
  */
-function themeVariables(): Record<string, string> {
-  return {
-    background: cssVar("--bg-base") || "#1e1e2e",
-    primaryColor: cssVar("--ctp-surface0") || "#313244",
-    primaryTextColor: cssVar("--fg") || "#cdd6f4",
-    primaryBorderColor: cssVar("--ctp-mauve") || "#cba6f7",
-    lineColor: cssVar("--ctp-overlay0") || "#6c7086",
-    textColor: cssVar("--fg") || "#cdd6f4",
-    nodeBorder: cssVar("--ctp-mauve") || "#cba6f7",
-    clusterBkg: cssVar("--bg-mantle") || "#181825",
-    clusterBorder: cssVar("--border") || "#45475a",
-    fontFamily: "inherit",
-  };
-}
-
-function signature(): string {
-  return `${cssVar("--bg-base")}|${cssVar("--fg")}`;
-}
-
-/** Reset rendered nodes so a theme change re-renders every diagram. */
-function resetRendered(root: HTMLElement): void {
-  for (const node of root.querySelectorAll<HTMLElement>(".md-mermaid[data-rendered]")) {
-    destroyMermaidZoom(node);
-    node.removeAttribute("data-rendered");
-    node.classList.remove("md-mermaid--error");
-    node.innerHTML = "";
+export function serializeDiagramSvg(svg: SVGSVGElement): string {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  const computed = getComputedStyle(svg);
+  const names = new Set<string>();
+  for (const match of clone.outerHTML.matchAll(/var\((--pele-[\w-]+)/g)) names.add(match[1]);
+  for (const name of names) {
+    const value = computed.getPropertyValue(name).trim();
+    if (value !== "") clone.style.setProperty(name, value);
   }
+  return new XMLSerializer().serializeToString(clone);
 }
 
-let renderSeq = 0;
+/** The document's own font, so Pele measures text with the font it draws. */
+function documentFont(): string | undefined {
+  const font = getComputedStyle(document.documentElement).fontFamily.trim();
+  return font === "" ? undefined : font;
+}
 
 /**
- * Render every un-rendered `.md-mermaid` placeholder inside `root`. Re-initializes
- * and re-renders when the resolved theme changes; a failing diagram falls back to
+ * Render every un-rendered `.md-mermaid` placeholder inside `root`. Pele is
+ * synchronous and themes through CSS variables, so a theme flip restyles the
+ * diagrams in place — nothing is re-rendered. A failing diagram falls back to
  * its source.
  */
 export async function renderMermaid(root: HTMLElement | null): Promise<void> {
@@ -68,30 +52,16 @@ export async function renderMermaid(root: HTMLElement | null): Promise<void> {
   const nodes = Array.from(root.querySelectorAll<HTMLElement>(".md-mermaid"));
   if (nodes.length === 0) return;
 
-  const current = signature();
-  const mermaid = await loadMermaid();
-  if (current !== lastSignature) {
-    lastSignature = current;
-    resetRendered(root);
-  }
-  // Mermaid 12 defaults to the ELK layout and the `neo` look; pinning dagre and
-  // classic keeps every corpus diagram rendering as before the upgrade.
-  mermaid.default.initialize({
-    startOnLoad: false,
-    securityLevel: "strict",
-    theme: "base",
-    layout: "dagre",
-    look: "classic",
-    themeVariables: themeVariables(),
-  });
+  const pele = await loadPele();
+  const fontFamily = documentFont();
 
   for (const node of nodes) {
     if (node.dataset.rendered === "1") continue;
     const source = decodeURIComponent(node.dataset.src ?? "");
     node.dataset.rendered = "1";
     try {
-      const { svg } = await mermaid.default.render(`sdt-mermaid-${renderSeq++}`, source);
-      node.innerHTML = svg;
+      const { svg } = pele.render(source, fontFamily ? { fontFamily } : undefined);
+      node.innerHTML = sanitizeDiagramSvg(svg);
       if (!node.querySelector(".md-mermaid__download")) {
         const button = document.createElement("button");
         button.type = "button";

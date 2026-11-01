@@ -3765,9 +3765,13 @@
     margin: 0;
   }
   .doc-rendered .md-mermaid {
-    display: flex;
-    justify-content: center;
-    margin: 1.1rem 0;
+    display: block;
+    /* Pele's SVG carries `width`/`height` plus inline `max-width:100%;height:auto`;
+       a block box sized to the diagram keeps that aspect ratio, where a flex
+       parent stretched the SVG to the line. */
+    width: fit-content;
+    max-width: 100%;
+    margin: 1.1rem auto;
     padding: 0.75rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
@@ -3881,6 +3885,10 @@
   .mermaid-fullscreen__stage {
     flex: 1;
     overflow: hidden;
+    /* breathing room for the fitted diagram: the fit maps the viewBox onto the
+       stage exactly, so without padding the outer stroke sits on the edge */
+    padding: 1rem;
+    box-sizing: border-box;
   }
   .mermaid-fullscreen__stage svg {
     width: 100%;

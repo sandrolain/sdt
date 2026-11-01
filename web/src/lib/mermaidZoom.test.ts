@@ -7,6 +7,7 @@ interface Api {
   zoomIn: ReturnType<typeof vi.fn>;
   zoomOut: ReturnType<typeof vi.fn>;
   reset: ReturnType<typeof vi.fn>;
+  resize: ReturnType<typeof vi.fn>;
   destroy: ReturnType<typeof vi.fn>;
 }
 
@@ -18,6 +19,7 @@ vi.mock("svg-pan-zoom", () => ({
       zoomIn: vi.fn(),
       zoomOut: vi.fn(),
       reset: vi.fn(),
+      resize: vi.fn(),
       destroy: vi.fn(),
     };
     panZoom.instances.push(api);
@@ -125,6 +127,24 @@ describe("openFullscreen", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(document.querySelector(".mermaid-fullscreen")).toBeNull();
     expect(apiAt(0).destroy).toHaveBeenCalledOnce();
+  });
+
+  it("re-measures the overlay before fitting, and drops the inline box", () => {
+    const node = svgNode();
+    const svg = node.querySelector("svg") as SVGSVGElement;
+    svg.setAttribute("width", "413");
+    svg.setAttribute("height", "240");
+    svg.setAttribute("style", "max-width:100%;height:auto;--_bg:var(--pele-bg,#fff)");
+    openFullscreen(svg);
+    const api = apiAt(0);
+    expect(api.resize).toHaveBeenCalledOnce();
+    expect(api.reset).toHaveBeenCalledOnce();
+    const clone = document.querySelector(".mermaid-fullscreen__stage svg") as SVGSVGElement;
+    expect(clone.hasAttribute("width")).toBe(false);
+    expect(clone.style.maxWidth).toBe("");
+    expect(clone.style.height).toBe("");
+    // the theme bindings survive the box reset
+    expect(clone.getAttribute("style")).toContain("var(--pele-bg");
   });
 
   it("closes when the close control is clicked", () => {

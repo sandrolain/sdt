@@ -25,7 +25,7 @@ import {
   renderMarkdown,
   slugify,
 } from "../lib/markdown";
-import { renderMermaid } from "../lib/mermaidRender";
+import { renderMermaid, serializeDiagramSvg } from "../lib/mermaidRender";
 import { useOpenDocsOptional } from "../lib/openDocsContext";
 import { flushReading, recordReading, restoreScrollOffset } from "../lib/readingState";
 import {
@@ -46,11 +46,11 @@ import { HoverPreview } from "./HoverPreview";
 const MindmapView = lazy(() => import("./MindmapView").then((m) => ({ default: m.MindmapView })));
 const SlidesView = lazy(() => import("./SlidesView").then((m) => ({ default: m.SlidesView })));
 
-/** Serialize a rendered diagram's SVG and download it. */
+/** Serialize a rendered diagram's SVG (theme resolved) and download it. */
 function downloadDiagramSvg(button: Element): void {
   const svg = button.closest(".md-mermaid")?.querySelector("svg");
   if (!svg) return;
-  const markup = new XMLSerializer().serializeToString(svg);
+  const markup = serializeDiagramSvg(svg);
   const url = URL.createObjectURL(new Blob([markup], { type: "image/svg+xml" }));
   const link = document.createElement("a");
   link.href = url;

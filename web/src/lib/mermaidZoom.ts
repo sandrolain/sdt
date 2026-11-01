@@ -164,6 +164,13 @@ export function openFullscreen(svg: SVGSVGElement): void {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.removeAttribute("width");
   clone.removeAttribute("height");
+  // The renderer's SVG carries inline `max-width:100%;height:auto`, which beats
+  // the stage's `width/height:100%` rule and leaves svg-pan-zoom measuring the
+  // diagram's natural box in the corner. Only those three declarations go: the
+  // inline `--_*` theme bindings must survive.
+  clone.style.removeProperty("max-width");
+  clone.style.removeProperty("width");
+  clone.style.removeProperty("height");
   stage.append(clone);
   overlay.append(stage);
 
@@ -178,6 +185,11 @@ export function openFullscreen(svg: SVGSVGElement): void {
   document.body.append(overlay);
 
   const api = svgPanZoom(clone, { ...ZOOM_OPTIONS });
+  // The overlay is appended and laid out after the clone was measured, so the
+  // initial fit can use a stale (or zero) box — a narrow stage then draws the
+  // diagram at natural size and clips it. Re-measure once the overlay is live.
+  api.resize();
+  api.reset();
   controls.append(
     controlButton("zoom_in", "Zoom in", () => api.zoomIn()),
     controlButton("zoom_out", "Zoom out", () => api.zoomOut()),
