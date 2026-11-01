@@ -119,8 +119,8 @@ func TestVersionOneUpgradesOnSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), "version: 2") {
-		t.Errorf("the saved file must carry version 2:\n%s", raw)
+	if !strings.Contains(string(raw), "version: 3") {
+		t.Errorf("the saved file must carry version 3:\n%s", raw)
 	}
 	again, err := Load(root)
 	if err != nil {
@@ -140,7 +140,7 @@ func TestVersionOneUpgradesOnSave(t *testing.T) {
 // wrong, so a malformed learner state is never half-loaded.
 func TestLoadRejectsInvalidStates(t *testing.T) {
 	cases := []struct{ name, body, want string }{
-		{"version", "version: 3\n", "unsupported learner-state version"},
+		{"version", "version: 4\n", "unsupported learner-state version"},
 		{"profile date", "profile:\n  since: 13/10/2026\n", "is not a 2006-01-02 date"},
 		{"goal id missing", "goals:\n  - concept: a\n    outcome: b\n", "goal: id is required"},
 		{"goal id shape", "goals:\n  - id: Goal 1\n    concept: a\n    outcome: b\n", "id must be kebab-case"},
@@ -239,7 +239,7 @@ func TestSaveRoundTrip(t *testing.T) {
 	if got.Profile.Name != want.Profile.Name || got.Sessions == nil && len(want.Sessions) != 0 {
 		t.Errorf("round trip mismatch: %+v", got)
 	}
-	if err := Save(root, &State{Version: 3}); err == nil {
+	if err := Save(root, &State{Version: 4}); err == nil {
 		t.Error("Save must refuse an unsupported version")
 	}
 }

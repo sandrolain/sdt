@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -33,12 +34,60 @@ type learnStatusReport struct {
 	Learner  string              `json:"learner,omitempty" yaml:"learner,omitempty"`
 	Since    string              `json:"since,omitempty" yaml:"since,omitempty"`
 	Goals    int                 `json:"goals" yaml:"goals"`
+	GoalList []learnGoalView     `json:"goal_list,omitempty" yaml:"goal_list,omitempty"`
 	Concepts int                 `json:"concepts" yaml:"concepts"`
 	Pages    int                 `json:"pages" yaml:"pages"`
 	Coverage learnCoverageCounts `json:"coverage" yaml:"coverage"`
 	Mastery  learnMasteryCounts  `json:"mastery" yaml:"mastery"`
 	Weak     []learnView         `json:"weak,omitempty" yaml:"weak,omitempty"`
 	Due      []learnView         `json:"due,omitempty" yaml:"due,omitempty"`
+}
+
+// learnGoalView is one goal as the learner state reports it: its lifecycle, its
+// audience and the sessions that worked it.
+type learnGoalView struct {
+	ID       string   `json:"id" yaml:"id"`
+	Concept  string   `json:"concept" yaml:"concept"`
+	Outcome  string   `json:"outcome" yaml:"outcome"`
+	Status   string   `json:"status" yaml:"status"`
+	Audience string   `json:"audience,omitempty" yaml:"audience,omitempty"`
+	Closed   string   `json:"closed,omitempty" yaml:"closed,omitempty"`
+	Sessions []string `json:"sessions,omitempty" yaml:"sessions,omitempty"`
+}
+
+// learnGoalViews renders the goals in declaration order. An empty status is open:
+// that is what a version-2 file means.
+func learnGoalViews(st *learn.State) []learnGoalView {
+	out := make([]learnGoalView, 0, len(st.Goals))
+	for i := range st.Goals {
+		g := &st.Goals[i]
+		status := g.Status
+		if status == "" {
+			status = learn.GoalOpen
+		}
+		out = append(out, learnGoalView{
+			ID: g.ID, Concept: g.Concept, Outcome: g.Outcome,
+			Status: status, Audience: g.Audience, Closed: g.Closed,
+			Sessions: g.Sessions,
+		})
+	}
+	return out
+}
+
+// learnGoalLines prints one line per goal with its lifecycle and session count.
+func learnGoalLines(goals []learnGoalView) string {
+	var b strings.Builder
+	for _, g := range goals {
+		line := fmt.Sprintf("  %s (%s, %d session(s))", g.Concept, g.Status, len(g.Sessions))
+		if g.Audience != "" {
+			line += ", for " + g.Audience
+		}
+		if g.Closed != "" {
+			line += ", closed " + g.Closed
+		}
+		b.WriteString(line + "\n")
+	}
+	return b.String()
 }
 
 var learnStatusCmd = &cobra.Command{
@@ -67,6 +116,7 @@ EXAMPLE — sdt learn status
 			Learner:  st.Profile.Name,
 			Since:    st.Profile.Since,
 			Goals:    len(st.Goals),
+			GoalList: learnGoalViews(st),
 			Concepts: len(st.Concepts),
 			Pages:    len(bld.Pages),
 			Coverage: learnCoverageOf(bld, st),
@@ -79,6 +129,7 @@ EXAMPLE — sdt learn status
 				Learner: report.Learner, Since: report.Since,
 			})))
 			outputString(cmd, fmt.Sprintf("goals: %d\n", report.Goals))
+			outputString(cmd, learnGoalLines(report.GoalList))
 			outputString(cmd, fmt.Sprintf("concepts: %d recorded of %d wiki page(s)\n",
 				report.Concepts, report.Pages))
 			outputString(cmd, fmt.Sprintf("coverage: %d assessed, %d covered, %d unseen of %d page(s)\n",

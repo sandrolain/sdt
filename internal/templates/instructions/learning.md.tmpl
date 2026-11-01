@@ -6,12 +6,10 @@ summary: "Learning a topic, reviewing it, being quizzed on it, practising it, or
 
 `context/instructions/learning.md` is the contract for the learning lane: the
 agent teaches from the **local wiki** and the learner's own evidence, never from
-general recall, and what the learner produces stays separate from wiki knowledge.
+general recall.
 Read it with `context/instructions/wiki.md`; add `instructions/ingestion.md` when a
 source is involved and `instructions/research.md` only when the user asks to
-ground a gap. Their usage comes from `--help`
-(`sdt learn inspect|status|resume|quiz|answer|review|check|record|eval`), never from
-memory.
+ground a gap. Their usage comes from `sdt learn --help`, never from memory.
 
 **When this applies.** The user wants to **learn**, be **reviewed**, **quizzed** or
 **practised**, or asks for an **explanation** of a corpus concept — never to ingest
@@ -33,10 +31,9 @@ policy — stated here once, applied in one function:
 5. a lesson document exists for the concept (`context/learning/<concept-id>.md`);
 6. every objective has at least one item.
 
-A **stamp is not a rule**. A page without `verified_at` is teachable; the verdict
-reports `verified`/`unverified` beside itself, and `--verified-only` narrows the
-report to stamped concepts without changing any verdict. Never refuse to teach
-because a document is unstamped, and never stamp one to make it teachable.
+A **stamp is not a rule**: a page without `verified_at` is teachable, the verdict
+reports `verified`/`unverified` beside itself, `--verified-only` narrows the report to
+those stamped, and stamping a page to make it teachable is never allowed.
 
 ## Classify the intent
 
@@ -47,7 +44,6 @@ because a document is unstamped, and never stamp one to make it teachable.
 | quiz | the concepts to cover | questions from the lesson's item bank, with no stored answer shown |
 | practise | a task with a checkable result | the task, not the solution |
 | review | what is due or weak | the queue, worst first |
-| research | a gap the corpus cannot close | sources, through `research.md` |
 
 Two intents that fit equally: **ask**; never promote a request to `learn`.
 
@@ -61,8 +57,8 @@ Two intents that fit equally: **ask**; never promote a request to `learn`.
 | practise | one task with a checkable result | at most one rung | hand over the solution |
 | explain | none | not applicable | answer past the pages |
 
-The budget is **at most three questions per concept per session**: a retrieval, an
-application and a transfer. A session that spends it has taught one concept — stop
+The budget is **at most three questions per concept per session** — a retrieval, an
+application and a transfer; a session that spends it has taught one concept, so stop
 there rather than widening the topic.
 
 ## The hint ladder
@@ -96,19 +92,14 @@ answer that needed help is not independent evidence.
 Per concept: **explain** in terms the learner already owns → **show one worked
 example** → **ask the learner to retrieve or apply it** → **check the answer
 against the page** → **ask for the transfer** (the same idea in a case they have
-not seen). Never skip the retrieval step: it is the only step that shows
-understanding.
+not seen). Never skip the retrieval: it is the step that shows understanding.
 
 ## The state card
 
 Before teaching, state the standing in five lines, each from a read verb — never
-from memory:
-
-1. the learner and since when (`sdt learn resume`);
-2. the due count and the first due concept;
-3. the weak count and the misconception, when one is open;
-4. coverage and mastery, as the two separate lines `sdt learn status` prints;
-5. the next action and its why (`sdt learn resume` reports at most two).
+from memory: the learner and since when; the due count and the first due concept;
+the weak count and the open misconception; coverage and mastery as `sdt learn
+status` prints them, never as one number; and the next action with its why.
 
 ## Coverage and mastery
 
@@ -136,13 +127,18 @@ lesson defect, fixed in the lesson, not in the state.
    rubric. Exit `0` is correct or partially correct, `1` incorrect, `4` ungradable.
 3. On an explicit request only, record it: `sdt learn record --concept <c> --item
    <i> --grade <g> --hint <n>`. The verb applies the ceiling (`incorrect` → weak,
-   `partially_correct` → partial, `correct` → partial, or solid only after an
-   earlier demonstration) and computes the review date with its reason:
-   `failure` 1d, `correct_but_hesitant` 3d, `independent_success` 7d,
-   `transfer_success` 14d, `durable_success` 30d; a success after a failure loses
-   one rung.
+   `partially_correct` → partial, `correct` → partial; solid needs an earlier
+   demonstration) and computes the review date with its reason — the ladder is in
+   `sdt learn record --help`, and a success after a failure loses one rung.
 4. `ungradable` writes nothing: hand the answer back and say why. Never invent a
    verdict, and never record an answer the learner did not give.
+
+## Two rules the flags carry
+
+Type a misconception's kind when the same failure recurs, keeping the learner's
+sentence beside it, and name the concept it was mistaken for. Close a goal when a
+retrieval and a transfer showed its outcome, never when the session ended. The flags
+are in `sdt learn record --help`.
 
 ## No score
 

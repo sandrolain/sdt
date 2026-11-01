@@ -30,6 +30,8 @@ type learnResumeReport struct {
 	Since       string        `json:"since,omitempty" yaml:"since,omitempty"`
 	LastSession string        `json:"last_session,omitempty" yaml:"last_session,omitempty"`
 	Goals       int           `json:"goals" yaml:"goals"`
+	GoalsOpen   int           `json:"goals_open" yaml:"goals_open"`
+	GoalsClosed int           `json:"goals_closed" yaml:"goals_closed"`
 	Due         []learnView   `json:"due,omitempty" yaml:"due,omitempty"`
 	Next        []learnView   `json:"upcoming,omitempty" yaml:"upcoming,omitempty"`
 	Actions     []learnAction `json:"next_actions,omitempty" yaml:"next_actions,omitempty"`
@@ -60,6 +62,13 @@ EXAMPLE — sdt learn resume
 			Since:   st.Profile.Since,
 			Goals:   len(st.Goals),
 		}
+		for _, g := range learnGoalViews(st) {
+			if g.Status == learn.GoalClosed {
+				report.GoalsClosed++
+			} else {
+				report.GoalsOpen++
+			}
+		}
 		if n := len(st.Sessions); n > 0 {
 			report.LastSession = st.Sessions[n-1].At
 		}
@@ -72,7 +81,8 @@ EXAMPLE — sdt learn resume
 			} else {
 				outputString(cmd, "last session: "+report.LastSession+"\n")
 			}
-			outputString(cmd, fmt.Sprintf("goals: %d\n", report.Goals))
+			outputString(cmd, fmt.Sprintf("goals: %d (%d open, %d closed)\n",
+				report.Goals, report.GoalsOpen, report.GoalsClosed))
 			outputString(cmd, learnQueueLines("due", report.Due))
 			outputString(cmd, learnQueueLines("upcoming", report.Next))
 			outputString(cmd, learnActionLines(report.Actions))
@@ -102,7 +112,9 @@ func learnNextActions(st *learn.State, bld *contextwiki.Builder, now time.Time) 
 			continue
 		}
 		why := "standing is " + learnStatusWord(v)
-		if strings.TrimSpace(v.Misconception) != "" {
+		if strings.TrimSpace(v.MisconceptionKind) != "" {
+			why = "misconception: " + v.MisconceptionKind
+		} else if strings.TrimSpace(v.Misconception) != "" {
 			why = "open misconception"
 		}
 		add(v.ID, "revisit", why)

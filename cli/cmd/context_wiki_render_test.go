@@ -43,7 +43,8 @@ func TestWikiRenderStatusVocabulary(t *testing.T) {
 	}
 }
 
-func TestWikiRenderFreshAndStale(t *testing.T) {	setupContextProject(t)
+func TestWikiRenderFreshAndStale(t *testing.T) {
+	setupContextProject(t)
 	stubWikiExit(t)
 	writeRenderPage(t, "architecture/alpha", "2026-10-20T10:00:00Z")
 	writeRenderPage(t, "architecture/beta", "2026-10-21T10:00:00Z")

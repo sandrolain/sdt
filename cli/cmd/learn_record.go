@@ -23,19 +23,22 @@ import (
 
 // learnRecordResult is what one explicit call wrote.
 type learnRecordResult struct {
-	Concept        string `json:"concept,omitempty" yaml:"concept,omitempty"`
-	Understanding  string `json:"understanding,omitempty" yaml:"understanding,omitempty"`
-	Basis          string `json:"basis,omitempty" yaml:"basis,omitempty"`
-	Item           string `json:"item,omitempty" yaml:"item,omitempty"`
-	Grade          string `json:"grade,omitempty" yaml:"grade,omitempty"`
-	Hint           int    `json:"hint,omitempty" yaml:"hint,omitempty"`
-	NextReview     string `json:"next_review,omitempty" yaml:"next_review,omitempty"`
-	ScheduleReason string `json:"schedule_reason,omitempty" yaml:"schedule_reason,omitempty"`
-	Created        bool   `json:"created,omitempty" yaml:"created,omitempty"`
-	Profile        bool   `json:"profile,omitempty" yaml:"profile,omitempty"`
-	Goals          int    `json:"goals,omitempty" yaml:"goals,omitempty"`
-	Session        string `json:"session,omitempty" yaml:"session,omitempty"`
-	Path           string `json:"path" yaml:"path"`
+	Concept        string   `json:"concept,omitempty" yaml:"concept,omitempty"`
+	Understanding  string   `json:"understanding,omitempty" yaml:"understanding,omitempty"`
+	Basis          string   `json:"basis,omitempty" yaml:"basis,omitempty"`
+	Item           string   `json:"item,omitempty" yaml:"item,omitempty"`
+	Grade          string   `json:"grade,omitempty" yaml:"grade,omitempty"`
+	Hint           int      `json:"hint,omitempty" yaml:"hint,omitempty"`
+	Kind           string   `json:"misconception_kind,omitempty" yaml:"misconception_kind,omitempty"`
+	ConfusedWith   []string `json:"confused_with,omitempty" yaml:"confused_with,omitempty"`
+	NextReview     string   `json:"next_review,omitempty" yaml:"next_review,omitempty"`
+	ScheduleReason string   `json:"schedule_reason,omitempty" yaml:"schedule_reason,omitempty"`
+	Created        bool     `json:"created,omitempty" yaml:"created,omitempty"`
+	Profile        bool     `json:"profile,omitempty" yaml:"profile,omitempty"`
+	Goals          int      `json:"goals,omitempty" yaml:"goals,omitempty"`
+	GoalStatus     string   `json:"goal_status,omitempty" yaml:"goal_status,omitempty"`
+	Session        string   `json:"session,omitempty" yaml:"session,omitempty"`
+	Path           string   `json:"path" yaml:"path"`
 }
 
 // learnRecordGrade is the graded-answer input of one record call.
@@ -80,6 +83,10 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 		itemID := strings.TrimSpace(getStringFlag(cmd, "item", false))
 		hint := getIntFlag(cmd, "hint", false)
 		goalArgs := getStringArrayFlag(cmd, "goal", false)
+		goalStatus := strings.TrimSpace(getStringFlag(cmd, "goal-status", false))
+		goalAudience := strings.TrimSpace(getStringFlag(cmd, "goal-audience", false))
+		kindValue := strings.TrimSpace(getStringFlag(cmd, "misconception-kind", false))
+		confusedWith := getStringArrayFlag(cmd, "confused-with", false)
 		profile := strings.TrimSpace(getStringFlag(cmd, "profile", false))
 		session := getBoolFlag(cmd, "session", false)
 
@@ -88,6 +95,14 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 			return
 		}
 		if err := learnRecordCheckGrade(gradeValue, itemID, hint, wikiID); err != nil {
+			exitWithError(cmd, err)
+			return
+		}
+		if err := learnRecordCheckTyped(wikiID, kindValue, confusedWith); err != nil {
+			exitWithError(cmd, err)
+			return
+		}
+		if err := learnRecordCheckGoal(goalStatus, goalAudience, goalArgs); err != nil {
 			exitWithError(cmd, err)
 			return
 		}
@@ -113,12 +128,13 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 		}
 
 		for _, g := range goalArgs {
-			if err := learnRecordAddGoal(st, g, now); err != nil {
+			if err := learnRecordAddGoal(st, g, goalStatus, goalAudience, now); err != nil {
 				exitWithError(cmd, err)
 				return
 			}
 			result.Goals++
 		}
+		result.GoalStatus = goalStatus
 
 		if wikiID != "" {
 			page := bld.Resolve(wikiID)
@@ -138,6 +154,7 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 				result.Understanding, result.Basis = rec.LastAssessed.Understanding, rec.LastAssessed.Basis
 			}
 			result.Item, result.Grade, result.Hint = itemID, gradeValue, hint
+			result.Kind, result.ConfusedWith = rec.MisconceptionKind, rec.ConfusedWith
 			result.NextReview, result.ScheduleReason = rec.NextReview, rec.ScheduleReason
 		}
 
@@ -162,7 +179,11 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 				outputString(cmd, fmt.Sprintf("profile: %s (since %s)\n", st.Profile.Name, st.Profile.Since))
 			}
 			for range result.Goals {
-				outputString(cmd, "goal: recorded\n")
+				line := "goal: recorded"
+				if result.GoalStatus != "" {
+					line += " (" + result.GoalStatus + ")"
+				}
+				outputString(cmd, line+"\n")
 			}
 			if result.Concept != "" {
 				verb := "updated"
@@ -180,6 +201,12 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 					outputString(cmd, fmt.Sprintf("  grade: %s on %s, hint %d\n",
 						result.Grade, result.Item, result.Hint))
 				}
+				if result.Kind != "" {
+					outputString(cmd, "  misconception: "+result.Kind+"\n")
+				}
+				if len(result.ConfusedWith) > 0 {
+					outputString(cmd, "  confused with: "+strings.Join(result.ConfusedWith, ", ")+"\n")
+				}
 				if result.NextReview != "" {
 					line := "  next review: " + result.NextReview
 					if result.ScheduleReason != "" {
@@ -194,6 +221,45 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 			outputString(cmd, "written: "+result.Path+"\n")
 		})
 	},
+}
+
+// learnRecordCheckTyped refuses a typed misconception on a call that has no
+// concept, and a kind the vocabulary does not name: the kind and the relation
+// describe one concept record and must be countable.
+func learnRecordCheckTyped(concept, kind string, confused []string) error {
+	if concept == "" {
+		if kind != "" {
+			return fmt.Errorf("--misconception-kind belongs to a concept: pass --concept <wiki-id>")
+		}
+		if len(confused) > 0 {
+			return fmt.Errorf("--confused-with belongs to a concept: pass --concept <wiki-id>")
+		}
+		return nil
+	}
+	if kind != "" && !learn.KnownMisconceptionKind(kind) {
+		return fmt.Errorf("--misconception-kind %q is not a known kind (%s)",
+			kind, strings.Join(learn.MisconceptionKinds(), ", "))
+	}
+	return nil
+}
+
+// learnRecordCheckGoal refuses a goal attribute on a call that declares no goal,
+// and a status the lifecycle does not name.
+func learnRecordCheckGoal(status, audience string, goals []string) error {
+	if status != "" && !learn.KnownGoalStatus(status) {
+		return fmt.Errorf("--goal-status %q is not a known status (%s)",
+			status, strings.Join(learn.GoalStatuses(), ", "))
+	}
+	if len(goals) > 0 {
+		return nil
+	}
+	if status != "" {
+		return fmt.Errorf("--goal-status belongs to a goal: pass --goal \"<wiki-id>=<outcome>\"")
+	}
+	if audience != "" {
+		return fmt.Errorf("--goal-audience belongs to a goal: pass --goal \"<wiki-id>=<outcome>\"")
+	}
+	return nil
 }
 
 // learnRecordCheckGrade refuses a graded call that cannot be applied: an item
@@ -303,6 +369,17 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 	if m := strings.TrimSpace(getStringFlag(cmd, "misconception", false)); m != "" {
 		rec.Misconception = m
 	}
+	if kind := strings.TrimSpace(getStringFlag(cmd, "misconception-kind", false)); kind != "" {
+		rec.MisconceptionKind = kind
+	}
+	if confused := getStringArrayFlag(cmd, "confused-with", false); len(confused) > 0 {
+		ids, err := learnConfusedWithIDs(bld, p.ID, confused)
+		if err != nil {
+			return nil, false, err
+		}
+		rec.ConfusedWith = learnEvidenceAdd(rec.ConfusedWith, ids...)
+		sort.Strings(rec.ConfusedWith)
+	}
 	if nr := strings.TrimSpace(getStringFlag(cmd, "next-review", false)); nr != "" {
 		rec.NextReview = nr
 	}
@@ -343,8 +420,32 @@ func learnPrerequisiteIDs(bld *contextwiki.Builder, p *contextwiki.Page) []strin
 	return out
 }
 
-// learnRecordAddGoal upserts one goal from a "<wiki-id>=<outcome>" argument.
-func learnRecordAddGoal(st *learn.State, arg string, now time.Time) error {
+// learnConfusedWithIDs resolves the pages a concept was mistaken for into concept
+// record ids. A confusion names another concept, so the page must exist and it
+// cannot be the concept itself.
+func learnConfusedWithIDs(bld *contextwiki.Builder, id string, targets []string) ([]string, error) {
+	out := make([]string, 0, len(targets))
+	for _, raw := range targets {
+		target := strings.TrimSpace(raw)
+		if target == "" {
+			continue
+		}
+		page := bld.Resolve(target)
+		if page == nil {
+			return nil, fmt.Errorf("--confused-with %q matches no wiki page: a confusion names another concept, never a guess", target)
+		}
+		if page.ID == id {
+			return nil, fmt.Errorf("--confused-with %q is the concept itself", target)
+		}
+		out = append(out, learn.ConceptID(page.ID))
+	}
+	return out, nil
+}
+
+// learnRecordAddGoal upserts one goal from a "<wiki-id>=<outcome>" argument, and
+// applies the lifecycle the same call declares: a new goal starts today and is
+// open, a status of closed stamps the date it closed.
+func learnRecordAddGoal(st *learn.State, arg, status, audience string, now time.Time) error {
 	wikiID, outcome, ok := strings.Cut(strings.TrimSpace(arg), "=")
 	if !ok || strings.TrimSpace(wikiID) == "" || strings.TrimSpace(outcome) == "" {
 		return fmt.Errorf("--goal %q must be \"<wiki-id>=<outcome>\"", arg)
@@ -352,22 +453,46 @@ func learnRecordAddGoal(st *learn.State, arg string, now time.Time) error {
 	id := "g" + learn.ConceptID(wikiID)
 	created := now.Format(learn.DateLayout)
 	for i := range st.Goals {
-		if st.Goals[i].ID == id || st.Goals[i].Concept == wikiID {
-			st.Goals[i].Outcome = strings.TrimSpace(outcome)
-			return nil
+		if st.Goals[i].ID != id && st.Goals[i].Concept != wikiID {
+			continue
 		}
+		g := &st.Goals[i]
+		g.Outcome = strings.TrimSpace(outcome)
+		if audience != "" {
+			g.Audience = audience
+		}
+		learnGoalSetStatus(g, status, created)
+		return nil
 	}
-	st.Goals = append(st.Goals, learn.Goal{
+	goal := learn.Goal{
 		ID: id, Concept: strings.TrimSpace(wikiID),
 		Outcome: strings.TrimSpace(outcome), Created: created,
-	})
+		Started: created, Audience: audience,
+	}
+	learnGoalSetStatus(&goal, status, created)
+	st.Goals = append(st.Goals, goal)
 	return nil
 }
 
-// learnRecordSession appends one session-log entry, defaulting the covered and
-// weak lists to the concept just recorded.
+// learnGoalSetStatus applies a lifecycle move, leaving an empty status alone so the
+// goal keeps whatever it had (a new one is open, which Save writes explicitly).
+func learnGoalSetStatus(g *learn.Goal, status, today string) {
+	if status == "" {
+		return
+	}
+	g.Status = status
+	if status == learn.GoalClosed {
+		g.Closed = today
+	}
+}
+
+// learnRecordSession appends one session-log entry. The entry's id is derived from
+// its own stamp, and the entry links itself to every goal it covered: the goal's
+// concept resolves to the same record id the session lists, so the relation needs
+// no extra flag. Re-running the same stamp updates that entry instead of appending
+// a twin.
 func learnRecordSession(st *learn.State, cmd *cobra.Command, now time.Time) (learn.Session, error) {
-	entry := learn.Session{At: now.Format(learn.TimeLayout)}
+	entry := learn.Session{At: now.Format(learn.TimeLayout), ID: learn.SessionID(now)}
 	entry.Covered = getStringArrayFlag(cmd, "covered", false)
 	entry.Weak = getStringArrayFlag(cmd, "weak", false)
 	entry.Due = getStringArrayFlag(cmd, "due", false)
@@ -390,8 +515,42 @@ func learnRecordSession(st *learn.State, cmd *cobra.Command, now time.Time) (lea
 			}
 		}
 	}
-	st.Sessions = append(st.Sessions, entry)
+	st.Sessions, entry = learnAppendOrMergeSession(st.Sessions, entry)
+	learnLinkGoalsToSession(st, entry)
 	return entry, nil
+}
+
+// learnAppendOrMergeSession keeps one entry per stamp: the same second is the same
+// session, so a repeated call extends its lists instead of adding a twin.
+func learnAppendOrMergeSession(sessions []learn.Session, entry learn.Session) ([]learn.Session, learn.Session) {
+	for i := range sessions {
+		if sessions[i].At != entry.At {
+			continue
+		}
+		existing := &sessions[i]
+		existing.ID = entry.ID
+		existing.Covered = learnEvidenceAdd(existing.Covered, entry.Covered...)
+		existing.Weak = learnEvidenceAdd(existing.Weak, entry.Weak...)
+		existing.Due = learnEvidenceAdd(existing.Due, entry.Due...)
+		return sessions, *existing
+	}
+	return append(sessions, entry), entry
+}
+
+// learnLinkGoalsToSession records the session on every goal it covered. Re-running
+// is a no-op: a goal holds each session id once.
+func learnLinkGoalsToSession(st *learn.State, entry learn.Session) {
+	covered := make(map[string]bool, len(entry.Covered))
+	for _, id := range entry.Covered {
+		covered[id] = true
+	}
+	for i := range st.Goals {
+		g := &st.Goals[i]
+		if !covered[learn.ConceptID(g.Concept)] {
+			continue
+		}
+		g.Sessions = learnEvidenceAdd(g.Sessions, entry.ID)
+	}
 }
 
 func init() {
@@ -401,13 +560,17 @@ func init() {
 	f.String("item", "", "Item id the answer was given on (required with --grade)")
 	f.Int("hint", 0, "Hint rung the answer needed, 0 for none (caps the standing)")
 	f.String("basis", "", "Provenance of the rating: observed or inferred (default inferred)")
-	f.String("misconception", "", "Open misconception to record")
+	f.String("misconception", "", "Open misconception to record, as the learner stated it")
+	f.String("misconception-kind", "", "Typed half of the misconception: "+strings.Join(learn.MisconceptionKinds(), ", "))
+	f.StringArray("confused-with", nil, "Wiki id of the concept it was mistaken for (repeatable)")
 	f.StringArray("evidence", nil, "Evidence locator backing the record (repeatable)")
 	f.StringArray("prerequisite", nil, "Prerequisite record id (repeatable; defaults to the page's relations)")
 	f.String("next-review", "", "Next review date (YYYY-MM-DD)")
 	f.String("profile", "", "Learner name to record")
 	f.String("since", "", "Learning start date (YYYY-MM-DD)")
 	f.StringArray("goal", nil, "Goal as \"<wiki-id>=<outcome>\" (repeatable)")
+	f.String("goal-status", "", "Goal lifecycle: "+strings.Join(learn.GoalStatuses(), ", ")+" (closed stamps the date)")
+	f.String("goal-audience", "", "Who the goal's outcome is declared for")
 	f.Bool("session", false, "Append a session-log entry")
 	f.StringArray("covered", nil, "Concept record id covered in the session (repeatable)")
 	f.StringArray("weak", nil, "Concept record id that stayed weak (repeatable)")

@@ -37,6 +37,45 @@ func KnownGrade(grade string) bool {
 	return false
 }
 
+// MisconceptionKinds returns the closed kind vocabulary. The sentence stays the
+// observation; the kind is what a reader can count.
+func MisconceptionKinds() []string {
+	return []string{
+		MisconceptionOvergeneralized,
+		MisconceptionConflatedTerms,
+		MisconceptionWrongPrecondition,
+		MisconceptionMissingDistinction,
+		MisconceptionFalseCausality,
+		MisconceptionStaleModel,
+	}
+}
+
+// KnownMisconceptionKind reports whether a kind is in the vocabulary.
+func KnownMisconceptionKind(kind string) bool {
+	for _, k := range MisconceptionKinds() {
+		if k == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// GoalStatuses returns the closed goal-lifecycle vocabulary, in order.
+func GoalStatuses() []string {
+	return []string{GoalOpen, GoalWorking, GoalClosed}
+}
+
+// KnownGoalStatus reports whether a status is in the vocabulary. An empty status
+// is not: it means `open`, which Load normalizes.
+func KnownGoalStatus(status string) bool {
+	for _, s := range GoalStatuses() {
+		if s == status {
+			return true
+		}
+	}
+	return false
+}
+
 // ScheduleReasons returns the closed reason vocabulary, shortest interval first.
 func ScheduleReasons() []string {
 	out := make([]string, 0, len(scheduleRungs))

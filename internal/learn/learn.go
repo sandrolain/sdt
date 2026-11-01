@@ -26,10 +26,12 @@ import (
 // File is the learner-state path, relative to the project root.
 const File = "context/learning/learner.yaml"
 
-// Version is the learner-state schema version this build writes. Versions 0 and 1
-// stay readable: the added fields are optional, so an old file loads unchanged and
-// is rewritten as the current version on the next Save.
-const Version = 2
+// Version is the learner-state schema version this build writes. Versions 0, 1 and
+// 2 stay readable: every added field is optional, so an old file loads unchanged
+// and is rewritten as the current version on the next Save. Version 3 carries the
+// typed misconception (kind plus the concept it was confused with) and the goal's
+// own record (dates, audience, status, session ids) in one bump.
+const Version = 3
 
 // DateLayout is the calendar-date format the state stores.
 const DateLayout = "2006-01-02"
@@ -62,6 +64,35 @@ const (
 	GradeUngradable       = "ungradable"
 )
 
+// Misconception kinds are the closed vocabulary of a typed misconception: one
+// failure shape each, never a topic. The observed sentence stays in
+// Concept.Misconception; the kind is the half a reader can count and a lesson can
+// target.
+const (
+	// MisconceptionOvergeneralized applies a rule past the precondition that makes
+	// it true.
+	MisconceptionOvergeneralized = "overgeneralized"
+	// MisconceptionConflatedTerms merges two concepts the domain keeps apart.
+	MisconceptionConflatedTerms = "conflated_terms"
+	// MisconceptionWrongPrecondition names the right mechanism under the wrong
+	// condition for using it.
+	MisconceptionWrongPrecondition = "wrong_precondition"
+	// MisconceptionMissingDistinction leaves out a distinction the domain requires.
+	MisconceptionMissingDistinction = "missing_distinction"
+	// MisconceptionFalseCausality reads a sequence or a correlation as a cause.
+	MisconceptionFalseCausality = "false_causality"
+	// MisconceptionStaleModel keeps a model the design has already left behind.
+	MisconceptionStaleModel = "stale_model"
+)
+
+// Goal statuses are the closed vocabulary of a goal's lifecycle. A goal with no
+// status is `open`: that is what a version-2 file means.
+const (
+	GoalOpen    = "open"
+	GoalWorking = "working"
+	GoalClosed  = "closed"
+)
+
 // Schedule reasons are the closed vocabulary of why a review date was chosen. The
 // reason is stored beside the date so a reader can audit the interval.
 const (
@@ -80,13 +111,25 @@ type Profile struct {
 	Since string `yaml:"since,omitempty"`
 }
 
-// Goal is one declared learning outcome.
+// Goal is one declared learning outcome. It owns its record: when it started, when
+// it closed, for whom it is declared, where it stands, and which sessions worked
+// it. A goal with no status is open.
 type Goal struct {
 	ID      string `yaml:"id"`
 	Concept string `yaml:"concept"`
 	Outcome string `yaml:"outcome"`
 	// Created is a YYYY-MM-DD calendar date.
 	Created string `yaml:"created,omitempty"`
+	// Started is a YYYY-MM-DD calendar date, stamped when the goal is declared.
+	Started string `yaml:"started,omitempty"`
+	// Closed is a YYYY-MM-DD calendar date, stamped when the status becomes closed.
+	Closed string `yaml:"closed,omitempty"`
+	// Audience is who the outcome is declared for, empty when unspecified.
+	Audience string `yaml:"audience,omitempty"`
+	// Status is open, working or closed.
+	Status string `yaml:"status,omitempty"`
+	// Sessions are the ids of the session entries that worked this goal.
+	Sessions []string `yaml:"sessions,omitempty"`
 }
 
 // Assessment is the last rating of one concept, with its provenance.
@@ -113,8 +156,9 @@ type Attempt struct {
 }
 
 // Concept is one concept record: the wiki page it maps to, its prerequisites,
-// the evidence behind it, the last assessment, an open misconception and the day
-// it is next due for review.
+// the evidence behind it, the last assessment, an open misconception — observed as
+// a sentence and, once it is typed, as its kind — the concepts it was confused
+// with, and the day it is next due for review.
 type Concept struct {
 	// ID is the stable record id, always ConceptID(Wiki).
 	ID            string      `yaml:"id"`
@@ -122,7 +166,12 @@ type Concept struct {
 	Prerequisites []string    `yaml:"prerequisites,omitempty"`
 	Evidence      []string    `yaml:"evidence,omitempty"`
 	LastAssessed  *Assessment `yaml:"last_assessed,omitempty"`
-	Misconception string      `yaml:"misconception,omitempty"`
+	// Misconception is the observation as the learner stated it, verbatim.
+	Misconception string `yaml:"misconception,omitempty"`
+	// MisconceptionKind is the typed half: one of the closed kind vocabulary.
+	MisconceptionKind string `yaml:"misconception_kind,omitempty"`
+	// ConfusedWith names the concept record ids this concept was mistaken for.
+	ConfusedWith []string `yaml:"confused_with,omitempty"`
 	// NextReview is a YYYY-MM-DD calendar date.
 	NextReview string `yaml:"next_review,omitempty"`
 	// HintLevel is the hint rung the last answer needed, 0 for none.
@@ -133,9 +182,11 @@ type Concept struct {
 	LastAttempt *Attempt `yaml:"last_attempt,omitempty"`
 }
 
-// Session is one session-log entry: what was covered, what stayed weak and what
-// became due. Concept references are stable record ids.
+// Session is one session-log entry: when it happened, what it covered, what stayed
+// weak and what became due. Concept and goal references are stable record ids.
 type Session struct {
+	// ID is the stable session id, derived from At by SessionID.
+	ID string `yaml:"id,omitempty"`
 	// At is an RFC3339 UTC stamp.
 	At      string   `yaml:"at"`
 	Covered []string `yaml:"covered,omitempty"`
@@ -162,6 +213,33 @@ var nonID = regexp.MustCompile(`[^a-z0-9]+`)
 // duplicate id, never by silently merging.
 func ConceptID(wiki string) string {
 	return strings.Trim(nonID.ReplaceAllString(strings.ToLower(strings.TrimSpace(wiki)), "-"), "-")
+}
+
+// SessionID derives the stable id of a session entry from its own stamp. It is
+// deterministic on purpose: the log stays readable in a diff, and two entries in
+// the same second are refused by Validate rather than silently merged.
+func SessionID(at time.Time) string {
+	return "s" + at.UTC().Format("20060102T150405")
+}
+
+// normalize fills what a version-2 file leaves implicit, on the write path only:
+// a goal with no status is open, and a session with no id gets the one derived
+// from its own stamp. Load never promotes anything, so an old file reads exactly
+// as it was written until the next Save upgrades it.
+func (st *State) normalize() {
+	for i := range st.Goals {
+		if st.Goals[i].Status == "" {
+			st.Goals[i].Status = GoalOpen
+		}
+	}
+	for i := range st.Sessions {
+		if st.Sessions[i].ID != "" {
+			continue
+		}
+		if at, err := time.Parse(TimeLayout, st.Sessions[i].At); err == nil {
+			st.Sessions[i].ID = SessionID(at)
+		}
+	}
 }
 
 // Path returns the learner-state path for a project root.
@@ -201,6 +279,7 @@ func Save(root string, st *State) error {
 		return fmt.Errorf("unsupported learner-state version %d (want %d or lower)", st.Version, Version)
 	}
 	st.Version = Version
+	st.normalize()
 	if err := st.Validate(); err != nil {
 		return err
 	}
@@ -230,8 +309,8 @@ func (s *State) Validate() error {
 	if s == nil {
 		return fmt.Errorf("nil state")
 	}
-	if s.Version != 0 && s.Version != 1 && s.Version != Version {
-		return fmt.Errorf("unsupported learner-state version %d (want 0, 1 or %d)", s.Version, Version)
+	if s.Version < 0 || s.Version > Version {
+		return fmt.Errorf("unsupported learner-state version %d (want 0 to %d, both inclusive)", s.Version, Version)
 	}
 	if err := s.validateProfile(); err != nil {
 		return err
@@ -270,10 +349,29 @@ func (s *State) validateGoals() error {
 		if strings.TrimSpace(g.Outcome) == "" {
 			return fmt.Errorf("goal %q: outcome is required", g.ID)
 		}
-		if g.Created != "" {
-			if _, err := time.Parse(DateLayout, g.Created); err != nil {
-				return fmt.Errorf("goal %q: created %q is not a %s date", g.ID, g.Created, DateLayout)
+		for _, date := range []struct{ name, value string }{
+			{"created", g.Created}, {"started", g.Started}, {"closed", g.Closed},
+		} {
+			if date.value == "" {
+				continue
 			}
+			if _, err := time.Parse(DateLayout, date.value); err != nil {
+				return fmt.Errorf("goal %q: %s %q is not a %s date", g.ID, date.name, date.value, DateLayout)
+			}
+		}
+		if g.Status != "" && !KnownGoalStatus(g.Status) {
+			return fmt.Errorf("goal %q: status %q is not a known status (%s)",
+				g.ID, g.Status, strings.Join(GoalStatuses(), ", "))
+		}
+		sessions := map[string]bool{}
+		for j, id := range g.Sessions {
+			if strings.TrimSpace(id) == "" {
+				return fmt.Errorf("goal %q: sessions[%d] is empty", g.ID, j)
+			}
+			if sessions[id] {
+				return fmt.Errorf("goal %q: sessions[%d] %q repeats", g.ID, j, id)
+			}
+			sessions[id] = true
 		}
 	}
 	return nil
@@ -334,6 +432,20 @@ func (c *Concept) validate() error {
 			return err
 		}
 	}
+	if c.MisconceptionKind != "" && !KnownMisconceptionKind(c.MisconceptionKind) {
+		return fmt.Errorf("concept %q: misconception_kind %q is not a known kind (%s)",
+			c.ID, c.MisconceptionKind, strings.Join(MisconceptionKinds(), ", "))
+	}
+	confused := map[string]bool{}
+	for j, other := range c.ConfusedWith {
+		if !idPattern.MatchString(other) {
+			return fmt.Errorf("concept %q: confused_with[%d] %q is not a concept record id", c.ID, j, other)
+		}
+		if confused[other] {
+			return fmt.Errorf("concept %q: confused_with[%d] %q repeats", c.ID, j, other)
+		}
+		confused[other] = true
+	}
 	return nil
 }
 
@@ -359,11 +471,30 @@ func (a *Attempt) validate(id string) error {
 	return nil
 }
 
-// validateSessions checks that every session-log entry carries a stamp.
+// validateSessions checks that every session-log entry carries a stamp and a
+// unique id, and that its `covered` list has no repeated concept.
 func (s *State) validateSessions() error {
+	seen := map[string]bool{}
 	for i := range s.Sessions {
-		if _, err := time.Parse(TimeLayout, s.Sessions[i].At); err != nil {
-			return fmt.Errorf("session %d: at %q is not an %s stamp", i, s.Sessions[i].At, TimeLayout)
+		entry := &s.Sessions[i]
+		if _, err := time.Parse(TimeLayout, entry.At); err != nil {
+			return fmt.Errorf("session %d: at %q is not an %s stamp", i, entry.At, TimeLayout)
+		}
+		if entry.ID != "" {
+			if seen[entry.ID] {
+				return fmt.Errorf("session %d: id %q repeats", i, entry.ID)
+			}
+			seen[entry.ID] = true
+		}
+		covered := map[string]bool{}
+		for j, id := range entry.Covered {
+			if strings.TrimSpace(id) == "" {
+				return fmt.Errorf("session %d: covered[%d] is empty", i, j)
+			}
+			if covered[id] {
+				return fmt.Errorf("session %d: covered[%d] %q repeats", i, j, id)
+			}
+			covered[id] = true
 		}
 	}
 	return nil
