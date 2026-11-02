@@ -6,6 +6,7 @@ export type EntryKind =
   | "instructions"
   | "analysis"
   | "notes"
+  | "source"
   | "tasks"
   | "plan"
   | "worklog"
@@ -27,6 +28,7 @@ export const KIND_ORDER: EntryKind[] = [
   "instructions",
   "analysis",
   "notes",
+  "source",
   "plan",
   "tasks",
   "worklog",
@@ -48,6 +50,7 @@ const KIND_LABELS: Record<EntryFilterKind, string> = {
   instructions: "Instructions",
   analysis: "Analyses",
   notes: "Notes",
+  source: "Sources",
   tasks: "Tasks",
   plan: "Plans",
   worklog: "Work log",
@@ -82,6 +85,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
   instructions: "rule",
   analysis: "analytics",
   notes: "sticky_note_2",
+  source: "bookmark",
   tasks: "checklist",
   plan: "map",
   worklog: "history",
@@ -104,6 +108,7 @@ const KIND_COLORS: Record<EntryFilterKind, string> = {
   instructions: "var(--ctp-rosewater)",
   analysis: "var(--ctp-mauve)",
   notes: "var(--ctp-green)",
+  source: "var(--ctp-subtext1)",
   tasks: "var(--ctp-yellow)",
   plan: "var(--ctp-peach)",
   worklog: "var(--ctp-overlay1)",
@@ -130,6 +135,7 @@ export function kindColor(k: EntryFilterKind): string {
 /** Corpus folder names whose kind name differs (plural or renamed). */
 const FOLDER_KINDS: Record<string, EntryKind> = {
   learning: "lesson",
+  sources: "source",
   plans: "plan",
   decisions: "decision",
   proposals: "proposal",

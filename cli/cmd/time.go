@@ -62,7 +62,7 @@ var timeIsoCmd = &cobra.Command{
 }
 
 var timeHttpCmd = &cobra.Command{
-	Use:     "http",
+	Use:     cmdNameHTTP,
 	Aliases: []string{"gmt", "utc", "header"},
 	Short:   "HTTP time",
 	Long:    `Format HTTP time`,

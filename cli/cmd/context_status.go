@@ -230,6 +230,7 @@ func ctxStatusRows() []ctxStatusEntry {
 		{kind: ctxTypeProposal, next: "review or draft", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypePrompt, next: "run or review", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeResearch, next: "read findings", ifClean: gitIgnoreModeNone},
+		{kind: ctxTypeSource, next: read, ifClean: read},
 		{kind: ctxTypeQuestions, next: "answer open questions", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeTasks, next: "sdt context resume", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeCommands, next: "review triggers", ifClean: gitIgnoreModeNone},

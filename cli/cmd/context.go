@@ -30,6 +30,16 @@ const (
 	ctxTypeCommands     = "commands"
 	ctxTypeWiki         = "wiki"
 	ctxTypeBriefing     = "briefing"
+	// ctxTypeSource is one external source — a repository, article, spec, book,
+	// dataset or package — with its pin, licence and custody status
+	// (`source.md`). It is a document, not a second store: the catalogue is the
+	// corpus (`analysis/20261102-155254-…`).
+	ctxTypeSource = "source"
+	// ctxSourceStatusGone is the terminal custody word of a source sheet: the
+	// material is no longer at its address, or no longer on disk, and `restore`
+	// says how it returns. Named once because the registry, the deprecate verb and
+	// the sheet lint all read the same word.
+	ctxSourceStatusGone = "gone"
 	// ctxTypeLesson is the teaching composition over one wiki concept: the
 	// worked example, the items and the curricular order. The page keeps the
 	// knowledge; the lesson never restates its objectives (`learning.md`).

@@ -633,7 +633,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 // ensureWorkDirs creates the context/ working directory layout.
 
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtTrashDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir, sdtBriefingDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtTrashDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir, sdtBriefingDir, sdtSourcesDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}

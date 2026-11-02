@@ -1,0 +1,76 @@
+---
+kind: instructions
+title: "Sources"
+summary: "Sources: one sheet per external reference — repository, article, specification, book, dataset — with its pin, its licence and its custody state."
+---
+
+`context/sources/<slug>.md` hold one **source**: a repository, an article, a
+specification, a book, a dataset, a package. The sheet is the catalogue entry,
+not the material: the corpus is the catalogue, and the bytes stay where they
+were captured or stay absent.
+
+A source is **recoverable or it is not a source**: the sheet says where it lived,
+the commit or the hash it sat on, and the command that brings it back. A URL
+alone is a bookmark; a sheet with a pin is provenance.
+
+## Create
+
+```bash
+sdt context new --type source --title "vectorize-io/hindsight" --slug vectorize-io-hindsight
+sdt context set sources/vectorize-io-hindsight.md url https://github.com/vectorize-io/hindsight
+```
+
+`--slug` is `<owner>-<name>` for a repository and `<host>-<topic>` for a page.
+Keys are written with `sdt context set`, never typed into the frontmatter by
+hand.
+
+## Status is custody
+
+| Status | Means |
+|--------|-------|
+| `candidate` | known, not yet read: the minimum sheet |
+| `curated` | read, judged relevant, not yet used by a document |
+| `used` | at least one document rests on it (`used_by` names them) |
+| `retired` | superseded or no longer worth reading; the finding survives |
+| `gone` | no longer at its URL, or deleted from disk — `restore` says how it returns |
+
+`sdt context status set <ref> --status gone` — never a second `custody` key.
+
+## The keys
+
+| Group | Keys | Notes |
+|-------|------|-------|
+| identity | `url`, `resource`, `publisher`, `authors`, `year`, `language` | `resource` is `repo`, `article`, `spec`, `book`, `dataset`, `package` or `video`: it decides whether the pin is a commit or an edition |
+| pin | `commit`, `tag`, `sha256`, `bytes`, `captured_at`, `capture_path`, `extract`, `swhid` | a commit pins a repository, `sha256` pins bytes (the `.source.yaml` shape), `extract` points at the `refs/converted/` rendering the corpus actually cites |
+| licence | `license`, `license_marker`, `attribution` | `license` is an **SPDX identifier** (`MIT`, `Apache-2.0`, `AGPL-3.0-or-later`), `license_marker` the ✅⚠️⛔🚫❓ of the inventory, `attribution` the line to copy when its text enters a template |
+| custody | `restore`, `checked_at`, `check`, `acquired_by`, `acquired_for` | `restore` is a command (`git clone … && git checkout <sha>`); `check` is the last result (`200`, `404`, `timeout`) |
+| use | `used_by`, `verdict` | `used_by` lists the documents that rest on it; `verdict` is `adopted`, `rejected` or `out-of-scope` plus the reason in the body |
+| access | `access` | `open`, `auth`, `paywall`, `rate-limited` — the field that stops a session from hitting a wall mid-task |
+| quality | `evidence_class`, `primary`, `superseded_by`, `duplicate_of` | primary vs a page about it; `superseded_by` points at the sheet that replaces this one |
+
+**Minimum sheet**: `url`, `resource`, and the default `status: candidate`. Every
+other key is optional and omitted when unknown — an empty `sha256` lies, an
+absent one does not.
+
+## The body
+
+Four sections, all prose, each answering a question a table cannot:
+
+- **Why it matters** — what it is the source *of*, in one paragraph.
+- **What was taken** — the claims, anchors or lines that entered the corpus, and
+  which document carries them.
+- **What was rejected** — what looked useful and was not, so the next session
+  does not re-read it.
+- **Custody notes** — why it is `gone`, what a `restore` needs, what would
+  retire it.
+
+## Rules
+
+- **No H1 title** — the frontmatter `title` is the title.
+- Never store the bytes, the clone or copied paragraphs: the sheet is an index of
+  provenance, and `capture_path` / `extract` / `restore` point at the material.
+- A `gone` sheet stays while a document cites it; with no citation it may be
+  deleted (`context deprecate` writes `gone`, it does not remove the file).
+- Licence is a snapshot read at `checked_at`, not a guarantee: re-check before
+  reusing text in a shipped template.
+- Tier: **medium**; `sdt context status vocab` reports every kind's tier.

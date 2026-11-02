@@ -17,6 +17,10 @@ const (
 	pemTypePrivateKey    = "PRIVATE KEY"
 	pemTypePublicKey     = "PUBLIC KEY"
 
+	// cmdNameHTTP is the `Use:` token two commands share: `sdt http` and
+	// `sdt time http`. Named once so the same token is not three string literals.
+	cmdNameHTTP = "http"
+
 	// SDT project config file name.
 	sdtConfigFile = ".sdt.yaml"
 
@@ -49,6 +53,7 @@ const (
 	sdtWikiDir         = "context/wiki"
 	sdtLearningDir     = "context/learning"
 	sdtBriefingDir     = "context/briefing"
+	sdtSourcesDir      = "context/sources"
 	sdtIngestionDir    = "context/ingestion"
 	sdtRefsDir         = "context/refs"
 	sdtConvertedDir    = "context/refs/converted"

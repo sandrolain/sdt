@@ -223,7 +223,7 @@ func writeFrontmatterIdentity(b *strings.Builder, typ, id, title string) {
 	if typ == ctxTypeLesson {
 		b.WriteString(ctxFrontmatterConcept + ": " + yamlScalar(id) + "\n")
 	}
-	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson}, typ) {
+	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson, ctxTypeSource}, typ) {
 		return
 	}
 	if title != "" {
@@ -322,6 +322,8 @@ func contextDefaultBody(typ string) string {
 		return "## Prerequisites\n\n## Worked example\n\n## Assess\n\n| id | objective | type | prompt | expected | rubric | distractor | claim |\n|---|---|---|---|---|---|---|---|\n\n## Transfer\n"
 	case ctxTypeBriefing:
 		return "> Derive, don't trust: pair every volatile fact below with the command that derives it, so a reader re-derives it instead of trusting a copy. End with a dated, second-verified delta.\n\n## Artifacts\n\n## Map\n\n## Roles\n\n## Rules\n\n## Derived facts\n\n## Delta\n\n2026-10-11 — <replace this dated example with the first second-verified change>\n"
+	case ctxTypeSource:
+		return "## Why it matters\n\n## What was taken\n\n## What was rejected\n\n## Custody notes\n"
 	default:
 		return ""
 	}

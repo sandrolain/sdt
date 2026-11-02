@@ -653,6 +653,8 @@ func lintDoc(path string) []ctxLintIssue {
 	issues = append(issues, lintOptionalFrontmatterFamilies(path, content, kind, prio)...)
 	issues = append(issues, lintQuestionsDeferredReason(path, content, kind)...)
 	issues = append(issues, lintBriefing(path, content, kind)...)
+	// A source sheet's three shaped keys: the address, the digest, the licence id.
+	issues = append(issues, lintSourceSheet(path, content, kind)...)
 	// A lesson's shape is mechanical (four ordered sections, one item table with
 	// fixed columns), so it is checked rather than described.
 	issues = append(issues, lintLesson(path, content, kind)...)

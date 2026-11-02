@@ -11,7 +11,7 @@ import (
 )
 
 var httpCmd = &cobra.Command{
-	Use:     "http",
+	Use:     cmdNameHTTP,
 	Aliases: []string{"request", "req"},
 	Short:   "HTTP client",
 	Long:    `Make an HTTP request`,

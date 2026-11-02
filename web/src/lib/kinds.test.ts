@@ -64,6 +64,7 @@ describe("kindLabel", () => {
   it("labels kinds with human plurals", () => {
     expect(kindLabel("analysis")).toBe("Analyses");
     expect(kindLabel("notes")).toBe("Notes");
+    expect(kindLabel("source")).toBe("Sources");
     expect(kindLabel("instructions")).toBe("Instructions");
     expect(kindLabel("plan")).toBe("Plans");
     expect(kindLabel("worklog")).toBe("Work log");

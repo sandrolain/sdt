@@ -52,6 +52,15 @@ var ctxDeclaredKeys = map[string]bool{
 	// declared here so the set is complete for any caller).
 	"url": true, "saved_at": true, "sha256": true, "converter": true, "converted_at": true,
 	"date": true, "description": true, "keywords": true, "author": true,
+	// Source sheets (`kind: source`, `context/instructions/source.md`): the pin,
+	// licence, custody, access and quality fields of a catalogue entry. Declared
+	// as one block because the kind's contract names them as its schema.
+	"resource": true, "publisher": true, "authors": true, "year": true, "language": true,
+	"commit": true, "tag": true, "bytes": true, "captured_at": true, "capture_path": true,
+	"extract": true, "swhid": true,
+	"license": true, "license_marker": true, "attribution": true,
+	"restore": true, "checked_at": true, "check": true, "acquired_by": true, "acquired_for": true,
+	"used_by": true, "verdict": true, "access": true, "primary": true, "duplicate_of": true,
 }
 
 // lintUndeclaredFrontmatterKeys raises an advisory SUGGESTION for every
