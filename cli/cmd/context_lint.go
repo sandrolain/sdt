@@ -95,12 +95,13 @@ const (
 	ctxMaturitySuperseded  = "superseded"
 	ctxMaturityEstablished = "established"
 	ctxMaturityCanonical   = "canonical"
+	ctxMaturityRetired     = "retired"
 )
 
 // ctxMaturityValues is the closed cross-kind maturity vocabulary. The ladder is
 // ordered trust, not lifecycle: a canonical document may still be `status:
 // active`, and a retired one may have been `active` until today.
-var ctxMaturityValues = []string{"wip", "provisional", ctxMaturityEstablished, ctxMaturityCanonical, ctxMaturitySuperseded, "retired"}
+var ctxMaturityValues = []string{"wip", "provisional", ctxMaturityEstablished, ctxMaturityCanonical, ctxMaturitySuperseded, ctxMaturityRetired}
 
 // ctxMaturityWarranted lists the stages a promotion reaches: reaching one
 // without the compressed evidence that earned it is the failure this axis exists
@@ -438,6 +439,7 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"slide separator `---`", "put a blank line before the ruler (or use `***`, `___` or `- - -`) so the slides split instead of parsing as a setext heading and merging"},
 	{"unknown directive", "fix the directive name (see the built-in set in `context/instructions/slides-marp.md`); the engine ignores an unknown directive silently"},
 	{"relative asset path does not resolve", "fix the path so it resolves relative to the deck, or remove the image; a broken path ships a missing image"},
+	{"security: third-party", "a third party's instruction or agent configuration file must not sit under a loadable name inside the source tree: store it as <name>.source (or keep it outside `context/refs/`); `sdt context ingest archive` applies the rename at archive time"},
 	{"security: possible", "review the flagged content, redact or remove it, and re-ingest from a trusted source before it can influence the agent"},
 	{"security: invisible", "strip the invisible/zero-width Unicode characters from the document; they can hide instructions from human review"},
 }
@@ -1848,6 +1850,9 @@ closed document. Every change is named on stdout.`,
 						issues = append(issues, lintSecurity(f)...)
 					}
 				}
+			}
+			if security {
+				issues = append(issues, lintSourceInstructionFiles()...)
 			}
 			// Corpus-wide `uid` uniqueness (a copied file duplicates the id).
 			issues = append(issues, lintUIDDuplicates(allFiles)...)

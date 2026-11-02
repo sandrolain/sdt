@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -110,4 +112,116 @@ func invisibleRuneNames(content string) []string {
 		names = append(names, fmt.Sprintf("U+%04X %s", r, n))
 	}
 	return names
+}
+
+// ctxSourceInstructionFindingCap bounds the per-file findings this walk emits.
+// The names are the point when there are a few; a corpus that lost its rename
+// would otherwise print thousands of identical lines, so the count survives as
+// one finding of its own.
+const ctxSourceInstructionFindingCap = 20
+
+// sourceInstructionScan accumulates what the source-tree walk finds.
+type sourceInstructionScan struct {
+	issues   []ctxLintIssue
+	files    int
+	dirCount map[string]int
+	dirOrder []string
+}
+
+// lintSourceInstructionFiles reports the source tree's loadable instruction
+// files and the runtimes' configuration directories. It walks context/ingestion/
+// and context/refs/ because the corpus scan never visits the immutable sources,
+// and it is part of the opt-in `--security` pass only: the default lint is
+// unchanged.
+//
+// A file finding is WARNING when a runtime resolves that name on its own, and
+// SUGGESTION for SKILL.md, which only a configured skill directory loads. The
+// configuration directories are one finding with their counts rather than one
+// per directory: the corpus holds 91 of them at the time of writing, and a line
+// per directory would bury the file findings it exists to surface.
+func lintSourceInstructionFiles() []ctxLintIssue {
+	scan := &sourceInstructionScan{dirCount: map[string]int{}}
+	for _, root := range []string{sdtIngestionDir, sdtRefsDir} {
+		if walkErr := filepath.WalkDir(root, scan.walk); walkErr != nil {
+			continue // an absent or unreadable source root is not a lint failure
+		}
+	}
+	return scan.findings()
+}
+
+// walk visits one source-tree entry. An unreadable entry never fails the lint.
+func (s *sourceInstructionScan) walk(path string, d fs.DirEntry, err error) error {
+	if err != nil {
+		return nil
+	}
+	if d.IsDir() {
+		return s.enterDir(d.Name())
+	}
+	s.addFile(path, d.Name())
+	return nil
+}
+
+// enterDir records a runtime configuration directory and skips its contents: the
+// files inside it are agent, command and rule definitions, and counting the
+// directory is what keeps the report one line instead of hundreds.
+func (s *sourceInstructionScan) enterDir(base string) error {
+	if base == ".git" {
+		return filepath.SkipDir
+	}
+	for _, cfg := range sourceInstructionConfigDirs {
+		if base == cfg {
+			if _, known := s.dirCount[cfg]; !known {
+				s.dirOrder = append(s.dirOrder, cfg)
+			}
+			s.dirCount[cfg]++
+			return filepath.SkipDir
+		}
+	}
+	return nil
+}
+
+// addFile records one loadable instruction name, up to the cap.
+func (s *sourceInstructionScan) addFile(path, base string) {
+	file, ok := sourceInstructionFor(base)
+	if !ok {
+		return
+	}
+	s.files++
+	if s.files > ctxSourceInstructionFindingCap {
+		return
+	}
+	priority := ctxLintWarning
+	if !file.loaded {
+		priority = ctxLintSuggestion
+	}
+	s.issues = append(s.issues, ctxLintIssue{
+		Path:     corpusRelative(path),
+		Priority: priority,
+		Message:  fmt.Sprintf("security: third-party instruction file %q under the source tree — an agent runtime loads it as instructions", base),
+	})
+}
+
+// findings appends the two summary lines: the files beyond the cap and the
+// configuration directories, with their counts in discovery order.
+func (s *sourceInstructionScan) findings() []ctxLintIssue {
+	issues := s.issues
+	if s.files > ctxSourceInstructionFindingCap {
+		issues = append(issues, ctxLintIssue{
+			Path:     sdtRefsDir,
+			Priority: ctxLintWarning,
+			Message:  fmt.Sprintf("security: third-party instruction files under the source tree: %d (%d shown)", s.files, ctxSourceInstructionFindingCap),
+		})
+	}
+	if len(s.dirOrder) == 0 {
+		return issues
+	}
+	parts := make([]string, 0, len(s.dirOrder))
+	for _, cfg := range s.dirOrder {
+		parts = append(parts, fmt.Sprintf("%s %d", cfg, s.dirCount[cfg]))
+	}
+	return append(issues, ctxLintIssue{
+		Path:     sdtRefsDir,
+		Priority: ctxLintSuggestion,
+		Message:  "security: third-party agent configuration directories under the source tree (" + strings.Join(parts, ", ") + ") — their agent, command and rule files are loaded by the matching runtime",
+	})
 }

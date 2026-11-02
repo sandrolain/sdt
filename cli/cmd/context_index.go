@@ -174,6 +174,14 @@ func ctxResolvePath(base, ref string) (string, bool) {
 	}
 	abs := filepath.Join(base, ref)
 	if !strings.HasSuffix(abs, sdtMarkdownExt) {
+		// A corpus file that is not markdown but is cited by its exact path — an
+		// archived source stored as `<name>.source` after the third-party
+		// instruction rename, an asset, a sidecar — resolves as itself. Without
+		// this, the rename would make the file uncitable in `sources` and the
+		// provenance it exists to carry would be lost.
+		if info, err := os.Stat(abs); err == nil && !info.IsDir() { //#nosec G703 -- validated against context/ tree
+			return abs, true
+		}
 		abs += sdtMarkdownExt
 	}
 	if _, err := os.Stat(abs); err != nil { //#nosec G703 -- validated against context/ tree

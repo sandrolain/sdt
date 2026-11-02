@@ -38,6 +38,9 @@ type learnLessonItem struct {
 	Grading    string `json:"grading" yaml:"grading"`
 	Provenance string `json:"provenance" yaml:"provenance"`
 	Frozen     string `json:"frozen,omitempty" yaml:"frozen,omitempty"`
+	// Hash is the claim digest the item was written against (Phase 3 of the
+	// pipeline plan); absent means the item never pinned one.
+	Hash string `json:"hash,omitempty" yaml:"hash,omitempty"`
 }
 
 // learnLessonGradingRules is the closed grading vocabulary. `auto` picks a rule
@@ -50,7 +53,7 @@ var learnLessonProvenances = []string{"material", "ai_generated", "mixed", "unkn
 
 // learnLessonOptionalColumns is the optional trailing header, in order. A lesson
 // that carries none of them is still valid: every optional value has a default.
-var learnLessonOptionalColumns = []string{"grading", "provenance", "frozen"}
+var learnLessonOptionalColumns = []string{"grading", "provenance", "frozen", "hash"}
 
 // Defaults an absent optional cell takes.
 const (
@@ -83,9 +86,6 @@ type learnLessonBundle struct {
 // ctxLessonSpanRegexp finds the provenance of a worked example.
 var ctxLessonSpanRegexp = regexp.MustCompile(`refs/[^\s@]+@[0-9a-f]{8}:[0-9]+-[0-9]+`)
 
-// ctxWikiClaimAnchorRegexp finds a page's claim anchors.
-var ctxWikiClaimAnchorRegexp = regexp.MustCompile(`\{#claim-([0-9]+)\}`)
-
 var learnLessonCmd = &cobra.Command{
 	Use:   "lesson [concept]",
 	Short: "Compose a lesson from its page and its lesson document (read-only)",
@@ -111,15 +111,15 @@ EXAMPLE — sdt learn lesson architecture/four-key-metrics --format json
 		bld := loadLearnWiki(cmd)
 		switch {
 		case getBoolFlag(cmd, "validate", false):
-			issues := learnValidateAll(bld)
+			issues, counts := learnValidateAll(bld)
 			learnEmit(cmd, issues, func() {
 				if len(issues) == 0 {
 					outputString(cmd, "every lesson is usable\n")
-					return
 				}
 				for _, i := range issues {
 					outputString(cmd, i+"\n")
 				}
+				outputString(cmd, counts.line()+"\n")
 			})
 			if len(issues) > 0 {
 				exitWithError(cmd, fmt.Errorf("%d lesson finding(s)", len(issues)))
@@ -281,6 +281,7 @@ func learnLessonItemsOf(assess string) []learnLessonItem {
 			Grading:    learnLessonDefault(learnLessonCell(cells, index, "grading"), learnGradingAuto),
 			Provenance: learnLessonDefault(learnLessonCell(cells, index, "provenance"), learnProvenanceUnknown),
 			Frozen:     learnLessonCell(cells, index, "frozen"),
+			Hash:       learnLessonCell(cells, index, "hash"),
 		})
 	}
 	return items
@@ -333,27 +334,92 @@ func learnEffectiveFrozen(itemFrozen, lessonCreated string) string {
 	return created
 }
 
+// learnClaimCounts is the per-run tally of claim references: how many items
+// resolve to a live claim, how many pin a digest that no longer matches, how
+// many never pinned one, how many point at an id the page does not carry, and
+// how many still cite the positional anchor.
+type learnClaimCounts struct {
+	OK         int
+	Stale      int
+	Unverified int
+	Broken     int
+	Legacy     int
+}
+
+// line renders the tally for the validate report. It is a report, not a finding:
+// an `unverified` item is not an error, it is an item nobody re-read.
+func (c learnClaimCounts) line() string {
+	return fmt.Sprintf("claims: ok=%d stale=%d unverified=%d broken=%d legacy=%d", c.OK, c.Stale, c.Unverified, c.Broken, c.Legacy)
+}
+
+// learnResolveItemClaim resolves one item's claim reference: the stable id first,
+// the positional anchor only as the legacy form the migration has not touched.
+func learnResolveItemClaim(path, concept string, it learnLessonItem, byID map[string]contextwiki.Claim, anchorSet map[int]bool) ([]string, learnClaimCounts) {
+	var issues []string
+	var counts learnClaimCounts
+	pageID, ref, ok := strings.Cut(it.Claim, "#")
+	if !ok || pageID != concept {
+		return []string{fmt.Sprintf("%s: item %q cites %q, want %q", path, it.ID, it.Claim, concept+"#c-<id>")}, counts
+	}
+	switch {
+	case strings.HasPrefix(ref, "c-"):
+		claim, live := byID[ref]
+		if !live {
+			counts.Broken++
+			return []string{fmt.Sprintf("%s: item %q cites claim %s, which page %q does not carry (broken)", path, it.ID, ref, concept)}, counts
+		}
+		switch it.Hash {
+		case "":
+			counts.Unverified++
+			issues = append(issues, fmt.Sprintf("%s: item %q pins no claim digest (the `hash` cell); a new item must record the claim it was written against", path, it.ID))
+		case claim.Digest:
+			counts.OK++
+		default:
+			counts.Stale++
+			issues = append(issues, fmt.Sprintf("%s: item %q is stale: claim %s now reads a different statement (item hash %s, page %s)", path, it.ID, ref, it.Hash, claim.Digest))
+		}
+	case strings.HasPrefix(ref, "claim-"):
+		number, convErr := strconv.Atoi(strings.TrimPrefix(ref, "claim-"))
+		if convErr != nil || !anchorSet[number] {
+			return []string{fmt.Sprintf("%s: item %q cites claim %s, which page %q does not carry", path, it.ID, ref, concept)}, counts
+		}
+		counts.Legacy++
+		issues = append(issues, fmt.Sprintf("%s: item %q still cites the positional anchor %q — migrate it to the stable id", path, it.ID, it.Claim))
+	default:
+		issues = append(issues, fmt.Sprintf("%s: item %q cites %q, want %q", path, it.ID, it.Claim, concept+"#c-<id>"))
+	}
+	return issues, counts
+}
+
 // learnValidateAll is the cross-file check: for every lesson under
 // context/learning, the shape is linted and the references are resolved against
-// the page it teaches.
-func learnValidateAll(bld *contextwiki.Builder) []string {
+// the page it teaches. The counts are returned beside the findings.
+func learnValidateAll(bld *contextwiki.Builder) ([]string, learnClaimCounts) {
 	files, err := walkMarkdownFiles(sdtLearningDir)
 	if err != nil {
-		return []string{fmt.Sprintf("%s: %s", sdtLearningDir, err)}
+		return []string{fmt.Sprintf("%s: %s", sdtLearningDir, err)}, learnClaimCounts{}
 	}
 	sort.Strings(files)
 	var issues []string
+	var counts learnClaimCounts
 	for _, path := range files {
-		issues = append(issues, learnValidateLesson(bld, path)...)
+		found, c := learnValidateLesson(bld, path)
+		issues = append(issues, found...)
+		counts.OK += c.OK
+		counts.Stale += c.Stale
+		counts.Unverified += c.Unverified
+		counts.Broken += c.Broken
+		counts.Legacy += c.Legacy
 	}
-	return issues
+	return issues, counts
 }
 
 // learnValidateLesson checks one lesson document against its page.
-func learnValidateLesson(bld *contextwiki.Builder, path string) []string {
+func learnValidateLesson(bld *contextwiki.Builder, path string) ([]string, learnClaimCounts) {
+	var counts learnClaimCounts
 	data, err := os.ReadFile(path) //#nosec G304 -- path from the corpus walk
 	if err != nil {
-		return []string{fmt.Sprintf("%s: %s", path, err)}
+		return []string{fmt.Sprintf("%s: %s", path, err)}, counts
 	}
 	content := string(data)
 	var issues []string
@@ -363,16 +429,23 @@ func learnValidateLesson(bld *contextwiki.Builder, path string) []string {
 	// The lesson's id is its path under context/learning; that id is the concept.
 	rel, err := filepath.Rel(sdtLearningDir, path)
 	if err != nil {
-		return append(issues, fmt.Sprintf("%s: %s", path, err))
+		return append(issues, fmt.Sprintf("%s: %s", path, err)), counts
 	}
 	concept := strings.TrimSuffix(filepath.ToSlash(rel), sdtMarkdownExt)
 	page := bld.Resolve(concept)
 	if page == nil {
-		return append(issues, fmt.Sprintf("%s: no wiki page %q for this lesson", path, concept))
+		return append(issues, fmt.Sprintf("%s: no wiki page %q for this lesson", path, concept)), counts
 	}
-	anchorSet := map[string]bool{}
-	for _, m := range ctxWikiClaimAnchorRegexp.FindAllStringSubmatch(page.Body, -1) {
-		anchorSet[m[1]] = true
+	// Claims are resolved by the stable id; the positional number is accepted
+	// only as a legacy reference, and reported so it gets migrated.
+	claims := page.Claims()
+	byID := map[string]contextwiki.Claim{}
+	anchorSet := map[int]bool{}
+	for _, c := range claims {
+		if c.ID != "" {
+			byID[c.ID] = c
+		}
+		anchorSet[c.Number] = true
 	}
 	objectives := learningObjectivesOf(page.Frontmatter)
 	if len(objectives) == 0 {
@@ -406,21 +479,20 @@ func learnValidateLesson(bld *contextwiki.Builder, path string) []string {
 		} else {
 			covered[it.Objective] = true
 		}
-		pageID, anchor, ok := strings.Cut(it.Claim, "#claim-")
-		if !ok || pageID != concept {
-			issues = append(issues, fmt.Sprintf("%s: item %q cites %q, want %q", path, it.ID, it.Claim, concept+"#claim-N"))
-			continue
-		}
-		if !anchorSet[anchor] {
-			issues = append(issues, fmt.Sprintf("%s: item %q cites claim %s, which page %q does not carry", path, it.ID, anchor, concept))
-		}
+		found, c := learnResolveItemClaim(path, concept, it, byID, anchorSet)
+		issues = append(issues, found...)
+		counts.OK += c.OK
+		counts.Stale += c.Stale
+		counts.Unverified += c.Unverified
+		counts.Broken += c.Broken
+		counts.Legacy += c.Legacy
 	}
 	for i := 1; i <= len(objectives); i++ {
 		if !covered[i] {
 			issues = append(issues, fmt.Sprintf("%s: objective %d has no item", path, i))
 		}
 	}
-	return issues
+	return issues, counts
 }
 
 // sectionOf returns one `##` section of a document body, frontmatter stripped.

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,5 +105,75 @@ func TestInvisibleRuneNamesDetectsZeroWidth(t *testing.T) {
 	}
 	if names[0] != "U+200D ZERO WIDTH JOINER" || names[1] != "U+FEFF ZERO WIDTH NO-BREAK SPACE" {
 		t.Errorf("unexpected names: %v", names)
+	}
+}
+
+func TestLintSourceInstructionFilesTiersAndDirs(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/refs/repo/AGENTS.md", "third-party rules")
+	writeCtxDoc(t, "context/refs/repo/SKILL.md", "third-party skill")
+	writeCtxDoc(t, "context/refs/repo/.claude/agents/reviewer.md", "agent definition")
+	writeCtxDoc(t, "context/refs/repo/AGENTS.md.source", "already archived")
+
+	issues := lintSourceInstructionFiles()
+	byPath := map[string]ctxLintIssue{}
+	for _, it := range issues {
+		byPath[it.Path] = it
+	}
+
+	agents, ok := byPath["refs/repo/AGENTS.md"]
+	if !ok || agents.Priority != ctxLintWarning {
+		t.Errorf("a loadable AGENTS.md must be a warning, got %+v", issues)
+	}
+	if !strings.Contains(agents.Message, "third-party instruction file") {
+		t.Errorf("unexpected message: %q", agents.Message)
+	}
+	if hint := ctxLintHint(agents.Message); hint == "" {
+		t.Errorf("a third-party instruction finding must carry a remediation hint")
+	}
+	skill, ok := byPath["refs/repo/SKILL.md"]
+	if !ok || skill.Priority != ctxLintSuggestion {
+		t.Errorf("SKILL.md must be a suggestion, got %+v", issues)
+	}
+	if _, ok := byPath["refs/repo/AGENTS.md.source"]; ok {
+		t.Errorf("a renamed file must not be reported again")
+	}
+	if _, ok := byPath["AGENTS.md"]; ok {
+		t.Errorf("the repository's own root AGENTS.md is not under refs/ and must not be reported")
+	}
+	dirs := 0
+	for _, it := range issues {
+		if strings.Contains(it.Message, "configuration directories") {
+			dirs++
+			if !strings.Contains(it.Message, ".claude 1") {
+				t.Errorf("the directory summary must count .claude once: %q", it.Message)
+			}
+		}
+	}
+	if dirs != 1 {
+		t.Errorf("expected one directory summary, got %d: %+v", dirs, issues)
+	}
+}
+
+func TestLintSourceInstructionFilesCapsTheList(t *testing.T) {
+	setupContextProject(t)
+	for i := 0; i < ctxSourceInstructionFindingCap+2; i++ {
+		writeCtxDoc(t, filepath.Join("context/refs", fmt.Sprintf("repo%d", i), "AGENTS.md"), "rules")
+	}
+	issues := lintSourceInstructionFiles()
+	files, capped := 0, false
+	for _, it := range issues {
+		switch {
+		case strings.Contains(it.Message, "instruction files under the source tree"):
+			capped = true
+		case strings.Contains(it.Message, "third-party instruction file"):
+			files++
+		}
+	}
+	if files != ctxSourceInstructionFindingCap {
+		t.Errorf("expected %d file findings, got %d", ctxSourceInstructionFindingCap, files)
+	}
+	if !capped {
+		t.Errorf("expected a summary finding counting the files beyond the cap")
 	}
 }

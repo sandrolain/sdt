@@ -73,9 +73,15 @@ only.
 
 - **`objective`** is 1-based against the page's `learning.objectives`; every
   objective needs at least one item, and an index outside the list is a defect.
-- **`claim`** is `<page-id>#claim-N`, where `<page-id>` is the id **without** the
-  `wiki/` prefix (`architecture/four-key-metrics#claim-1`) — the same id the
-  lesson's own frontmatter carries.
+- **`claim`** is `<page-id>#c-<id>`, where `<page-id>` is the id **without** the
+  `wiki/` prefix and `c-<id>` is the claim's stable id
+  (`architecture/four-key-metrics#c-ab12cd34`) — the same id the lesson's own
+  frontmatter carries. The positional `#claim-N` is the legacy form, reported
+  until migrated.
+- **`hash`** (an optional trailing column) pins the claim's digest, the
+  fingerprint of the text the item was written against. `sdt learn lesson
+  --validate` reports `stale` when the claim now says something else, `unverified`
+  when no digest was pinned, and `broken` when the id is gone.
 - **`type`** is `recall`, `diagnose`, `apply` or `transfer`, and it *is* the
   item's difficulty ladder in that order. It is not restated as a number. An
   `apply` item may rest on the worked example — that is what the example is for —

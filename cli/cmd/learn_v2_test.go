@@ -30,8 +30,8 @@ V2.
 
 ## Claims
 
-1. {#claim-1} it is named (refs/v2.md@abcd1234:1-2)
-2. {#claim-2} it is applied (refs/v2.md@abcd1234:3-4)
+1. {#claim-1} <!-- c-11111111 --> it is named (refs/v2.md@abcd1234:1-2)
+2. {#claim-2} <!-- c-22222222 --> it is applied (refs/v2.md@abcd1234:3-4)
 
 ## Notes
 
@@ -67,10 +67,10 @@ const learnV2LessonOptional = learnV2LessonFM + `## Assess
 
 | id | objective | type | prompt | expected | rubric | distractor | claim | grading | provenance | frozen |
 |---|---|---|---|---|---|---|---|---|---|---|
-| v-1 | 1 | recall | name it | alpha; beta | both | gamma | architecture/v2#claim-1 | exact | material | 2026-10-01 |
-| v-2 | 2 | apply | apply it | 2/4 = 50% | the ratio | 2 per day | architecture/v2#claim-2 | numeric | material | 2026-10-01 |
-| v-3 | 2 | transfer | apply it here | names the window and the zero days | names both | the raw count | architecture/v2#claim-2 | keywords | ai_generated | 2026-10-01 |
-| v-4 | 2 | transfer | explain it | any defensible answer | judged | a guess | architecture/v2#claim-2 | manual | unknown | 2026-10-01 |
+| v-1 | 1 | recall | name it | alpha; beta | both | gamma | architecture/v2#c-11111111 | exact | material | 2026-10-01 |
+| v-2 | 2 | apply | apply it | 2/4 = 50% | the ratio | 2 per day | architecture/v2#c-22222222 | numeric | material | 2026-10-01 |
+| v-3 | 2 | transfer | apply it here | names the window and the zero days | names both | the raw count | architecture/v2#c-22222222 | keywords | ai_generated | 2026-10-01 |
+| v-4 | 2 | transfer | explain it | any defensible answer | judged | a guess | architecture/v2#c-22222222 | manual | unknown | 2026-10-01 |
 
 ## Transfer
 
@@ -81,9 +81,9 @@ const learnV2LessonBase = learnV2LessonFM + `## Assess
 
 | id | objective | type | prompt | expected | rubric | distractor | claim |
 |---|---|---|---|---|---|---|---|
-| v-1 | 1 | recall | name it | alpha; beta | both | gamma | architecture/v2#claim-1 |
-| v-2 | 2 | apply | apply it | 2/4 = 50% | the ratio | 2 per day | architecture/v2#claim-2 |
-| v-3 | 2 | transfer | apply it here | names the window and the zero days | names both | the raw count | architecture/v2#claim-2 |
+| v-1 | 1 | recall | name it | alpha; beta | both | gamma | architecture/v2#c-11111111 |
+| v-2 | 2 | apply | apply it | 2/4 = 50% | the ratio | 2 per day | architecture/v2#c-22222222 |
+| v-3 | 2 | transfer | apply it here | names the window and the zero days | names both | the raw count | architecture/v2#c-22222222 |
 
 ## Transfer
 
@@ -194,7 +194,8 @@ func TestLearnValidateRejectsBadOptionalValues(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			joined := strings.Join(learnValidateAll(bld), "\n")
+			issues, _ := learnValidateAll(bld)
+			joined := strings.Join(issues, "\n")
 			if !strings.Contains(joined, tc.want) {
 				t.Errorf("findings do not mention %q:\n%s", tc.want, joined)
 			}

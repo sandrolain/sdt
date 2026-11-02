@@ -131,6 +131,14 @@ A book-scale source keeps its coverage **on its index page**.
 - Never overwrite an existing claim silently. Corrections refine
   `refines #claim-<n>`; conflicting claims stay visible with source, scope,
   and date until reviewed.
+- **Never renumber to close a gap.** A deleted claim leaves its number unused: a
+  hole is legal, and renumbering moves every anchor after it — an item that cites
+  `#claim-7` would silently follow a different fact.
+- **A claim carries a stable id beside its anchor.** `{#claim-7}` is a position
+  and moves; `<!-- c-ab12cd34 -->` on the same claim does not, and an item cites
+  `<page-id>#c-ab12cd34`. The lint requires one per claim and refuses the same id
+  twice on a page; a split, merge or retirement is recorded in `claim_lineage`
+  only where the event happened.
 - A source too large to read whole is distilled first with
   `context/instructions/distillation.md` (structure over summary, fold-in
   merge); the page model here is unchanged.

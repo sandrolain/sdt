@@ -19,7 +19,7 @@ func bundlePage() *contextwiki.Page {
 		Title:       "X",
 		Status:      ctxWikiStatusActive,
 		Frontmatter: "---\n" + checkPageFM + "---\n",
-		Body:        "## Claims\n\n1. {#claim-1} a\n2. {#claim-2} b\n",
+		Body:        "## Claims\n\n1. {#claim-1} <!-- c-aaaaaaaa --> a\n2. {#claim-2} <!-- c-bbbbbbbb --> b\n",
 	}
 }
 
@@ -69,7 +69,7 @@ func TestLearnValidateAcceptsAUsableLesson(t *testing.T) {
 	bld := &contextwiki.Builder{Pages: nil, ByID: map[string]*contextwiki.Page{}}
 	bld.ByID[bundlePage().ID] = bundlePage()
 	bld.Pages = append(bld.Pages, bundlePage())
-	if issues := learnValidateAll(bld); len(issues) != 0 {
+	if issues, _ := learnValidateAll(bld); len(issues) != 0 {
 		t.Fatalf("a usable lesson produced %d finding(s): %v", len(issues), issues)
 	}
 }
@@ -84,8 +84,8 @@ func TestLearnValidateRejectsEachFailureMode(t *testing.T) {
 		wantSub string
 	}{
 		{"no page", checkLessonBody, nil, "no wiki page"},
-		{"unknown claim", strings.Replace(checkLessonBody, "architecture/x#claim-2", "architecture/x#claim-9", 1), bundlePage(), "does not carry"},
-		{"claim of another page", strings.Replace(checkLessonBody, "architecture/x#claim-2", "architecture/y#claim-2", 1), bundlePage(), "want"},
+		{"unknown claim", strings.Replace(checkLessonBody, "architecture/x#c-bbbbbbbb", "architecture/x#c-99999999", 1), bundlePage(), "does not carry"},
+		{"claim of another page", strings.Replace(checkLessonBody, "architecture/x#c-bbbbbbbb", "architecture/y#c-bbbbbbbb", 1), bundlePage(), "want"},
 		{"objective out of range", strings.Replace(checkLessonBody, "| a-2 | 2 |", "| a-2 | 7 |", 1), bundlePage(), "the page has 2"},
 		{"objective without item", strings.Replace(checkLessonBody, "| a-2 | 2 |", "| a-2 | 1 |", 1), bundlePage(), "objective 2 has no item"},
 		{"duplicate id", strings.Replace(checkLessonBody, "| a-2 | 2 |", "| a-1 | 2 |", 1), bundlePage(), "appears twice"},
@@ -103,7 +103,7 @@ func TestLearnValidateRejectsEachFailureMode(t *testing.T) {
 				bld.ByID[tc.page.ID] = tc.page
 				bld.Pages = append(bld.Pages, tc.page)
 			}
-			issues := learnValidateAll(bld)
+			issues, _ := learnValidateAll(bld)
 			joined := strings.Join(issues, "\n")
 			if !strings.Contains(joined, tc.wantSub) {
 				t.Errorf("findings do not mention %q:\n%s", tc.wantSub, joined)

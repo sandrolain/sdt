@@ -30,6 +30,7 @@ func lessonFixture(t *testing.T, pageFM, lessonBody string, withLesson bool) *co
 		Status:      ctxWikiStatusActive,
 		ClaimCount:  ctxLessonMinClaims,
 		Frontmatter: fm,
+		Body:        "## Claims\n\n1. {#claim-1} <!-- c-aaaaaaaa --> a\n2. {#claim-2} <!-- c-bbbbbbbb --> b\n",
 	}
 }
 
@@ -44,10 +45,10 @@ const checkLessonBody = `## Prerequisites
 
 ## Assess
 
-| id | objective | type | prompt | expected | rubric | distractor | claim |
-|---|---|---|---|---|---|---|---|
-| a-1 | 1 | recall | name them | the parts | all parts | one part | architecture/x#claim-1 |
-| a-2 | 2 | transfer | apply it here | the answer | matches | the wrong rule | architecture/x#claim-2 |
+| id | objective | type | prompt | expected | rubric | distractor | claim | hash |
+|---|---|---|---|---|---|---|---|---|
+| a-1 | 1 | recall | name them | the parts | all parts | one part | architecture/x#c-aaaaaaaa | ca978112ca1b |
+| a-2 | 2 | transfer | apply it here | the answer | matches | the wrong rule | architecture/x#c-bbbbbbbb | 3e23e8160039 |
 
 ## Transfer
 

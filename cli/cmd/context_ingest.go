@@ -47,11 +47,15 @@ type ingestManifest struct {
 }
 
 type ingestArchiveRecord struct {
-	Source     string `yaml:"source"`
-	Bytes      int64  `yaml:"bytes"`
-	SHA256     string `yaml:"sha256"`
-	Converted  string `yaml:"converted,omitempty"`
-	ArchivedAt string `yaml:"archived_at"`
+	Source string `yaml:"source"`
+	// OriginalName is set only when the archived file carried a name an agent
+	// runtime resolves as instructions: the stored file then ends in
+	// `.source`, and this field keeps the name it arrived with.
+	OriginalName string `yaml:"original_name,omitempty"`
+	Bytes        int64  `yaml:"bytes"`
+	SHA256       string `yaml:"sha256"`
+	Converted    string `yaml:"converted,omitempty"`
+	ArchivedAt   string `yaml:"archived_at"`
 }
 
 var contextIngestCmd = &cobra.Command{
@@ -117,7 +121,11 @@ The destination must not exist. The source's sha256 is checked before the move;
 an unconverted source is refused unless --force is set, because archiving is the
 step after distillation. A sidecar <basename>.source.yaml records the hash and
 the converted artifact, so the archive is auditable without frontmatter on the
-binary. --dry-run prints the plan and writes nothing.`,
+binary. A source whose name an agent runtime resolves as instructions (AGENTS.md,
+CLAUDE.md, GEMINI.md, SKILL.md and the other names in the closed list) is stored
+as <basename>.source and the sidecar records original_name: a third party's
+instructions must not arrive loadable. --dry-run prints the plan and writes
+nothing.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		path, err := resolveIngestSource(args[0], false)
@@ -144,6 +152,11 @@ binary. --dry-run prints the plan and writes nothing.`,
 			return
 		}
 		dest := filepath.Join(sdtRefsDir, filepath.Base(path))
+		originalName := ""
+		if isSourceInstructionName(filepath.Base(dest)) {
+			originalName = filepath.Base(dest)
+			dest += sourceInstructionArchiveSuffix
+		}
 		if _, statErr := os.Stat(dest); statErr == nil {
 			exitWithError(cmd, fmt.Errorf("archive destination %s already exists", corpusRelative(dest)))
 			return
@@ -157,18 +170,23 @@ binary. --dry-run prints the plan and writes nothing.`,
 			return
 		}
 		record := ingestArchiveRecord{
-			Source:     corpusRelative(path),
-			Bytes:      bytes,
-			SHA256:     sha,
-			Converted:  converted,
-			ArchivedAt: time.Now().UTC().Format(time.RFC3339),
+			Source:       corpusRelative(path),
+			OriginalName: originalName,
+			Bytes:        bytes,
+			SHA256:       sha,
+			Converted:    converted,
+			ArchivedAt:   time.Now().UTC().Format(time.RFC3339),
 		}
 		out, merr := yaml.Marshal(record)
 		if merr != nil {
 			exitWithError(cmd, merr)
 			return
 		}
-		sidecar := dest + ingestSidecarSuffix
+		sidecarBase := filepath.Base(dest)
+		if originalName != "" {
+			sidecarBase = originalName
+		}
+		sidecar := filepath.Join(filepath.Dir(dest), sidecarBase+ingestSidecarSuffix)
 		if werr := os.WriteFile(sidecar, out, 0o600); werr != nil { //#nosec G306 -- provenance, not a secret but 0600 is the project convention
 			exitWithError(cmd, werr)
 			return

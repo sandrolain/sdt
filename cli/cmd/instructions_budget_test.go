@@ -64,7 +64,11 @@ var instructionModuleRatchet = map[string]int{
 	// book-scale run that the unit coverage alone could not report.
 	// ingestion rose to 3790 (2026-10-28): the `type` cell points at `wiki.md` for
 	// what each page type asserts, which lived by implication only.
-	"ingestion": 3790,
+	// ingestion rose to 3896 (2026-11-02): a source whose name an agent runtime
+	// loads as instructions is archived under `<name>.source`, and the rule belongs
+	// to the archive contract rather than to a CLI doc — a third party's
+	// instructions must never arrive loadable.
+	"ingestion": 3896,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.
@@ -77,8 +81,12 @@ var instructionModuleRatchet = map[string]int{
 	// informs and never gates — the rule the readiness gate reads, which had no
 	// home outside a plan. Rose to 2590 the same day: the Page contract now says
 	// what each page `type` asserts, which is where the type was documented by
-	// implication only.
-	"wiki":         2590,
+	// implication only. Rose to 2620 (2026-11-02): the anchor numbering is
+	// append-only — never renumber to close a gap — because renumbering moves
+	// every later anchor and an item citing `#claim-7` would follow another fact.
+	// Rose to 2679 (2026-11-02): a claim carries a stable id beside its anchor, the
+	// key a lesson item cites, and the rule that the lint requires one per claim.
+	"wiki":         2679,
 	"distillation": 1763,
 }
 

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"strconv"
 	"strings"
@@ -20,9 +22,17 @@ func denseWikiBody(prefix string) string {
 	b.WriteString(summary)
 	b.WriteString("\n## Claims\n")
 	for i := 1; i <= 8; i++ {
-		b.WriteString("1. {#claim-" + strconv.Itoa(i) + "} fact " + strconv.Itoa(i) + " (refs/spec.md@abc:1)\n")
+		b.WriteString("1. {#claim-" + strconv.Itoa(i) + "} <!-- c-" + claimTestID(prefix, i) + " --> fact " + strconv.Itoa(i) + " (refs/spec.md@abc:1)\n")
 	}
 	return b.String()
+}
+
+// claimTestID is a deterministic 8-character claim id for fixtures. The page
+// prefix keeps ids unique across pages, so a fixture set never trips the
+// duplicate-id rule.
+func claimTestID(prefix string, n int) string {
+	sum := sha256.Sum256([]byte(prefix + ":" + strconv.Itoa(n)))
+	return hex.EncodeToString(sum[:])[:8]
 }
 
 func wikiPageFixture(id, title, typ, status string) string {
@@ -231,16 +241,23 @@ A claim {#claim-1} (refs/spec.md@a:1).
 	}
 }
 
-// TestWikiLintClaimAnchorGap is the WARNING side: a missing number is residue, not
-// a lie, and the finding names what is missing.
-func TestWikiLintClaimAnchorGap(t *testing.T) {
+// TestWikiLintClaimAnchorGapIsLegal is the removed contiguity rule: a hole in the
+// numbering is the residue of a deleted claim, and closing it would move every
+// later anchor — so the page passes with no claim-anchor finding at all.
+func TestWikiLintClaimAnchorGapIsLegal(t *testing.T) {
 	setupContextProject(t)
 	enableFrontmatterFamilies(t, "maturity", "verified")
 	wikiSourceDirs(t)
-	writeCtxDoc(t, "context/wiki/gap.md", firstPageFixture("gap", "Gap Page")+fileBody([]int{1, 2, 4}))
-	out := wikiLintWarning(t)
-	if !strings.Contains(out, "claim anchors are not contiguous: missing claim anchor {#claim-3}") {
-		t.Errorf("expected the missing anchor, got:\n%s", out)
+	writeCtxDoc(t, "context/wiki/gap.md", firstPageFixture("gap", "Gap Page")+
+		"## Claims\n\n1. a {#claim-1} <!-- c-aaaaaaaa --> (refs/spec.md@a:1)\n"+
+		"2. b {#claim-2} <!-- c-bbbbbbbb --> (refs/spec.md@a:1)\n"+
+		"3. d {#claim-4} <!-- c-cccccccc --> (refs/spec.md@a:1)\n")
+	out := string(execute(t, contextWikiLintCmd, nil))
+	if strings.Contains(out, "contiguous") {
+		t.Errorf("a gap in the numbering must not be a finding:\n%s", out)
+	}
+	if strings.Contains(out, "duplicate claim anchor") {
+		t.Errorf("a gapped page is not a duplicate:\n%s", out)
 	}
 }
 
@@ -1000,5 +1017,73 @@ func TestCoverageMismatchNamesTheDisagreement(t *testing.T) {
 	msg := coverageMismatch(block, distill.Counts{Units: 215, OK: 140, Part: 21, Gap: 2, NoOp: 52})
 	if !strings.Contains(msg, "gap=0") || !strings.Contains(msg, "gap=2") {
 		t.Fatalf("the disagreement is not named both ways: %s", msg)
+	}
+}
+
+// TestWikiLintClaimWithoutStableID is the Phase 3 warning: a claim anchor with no
+// `<!-- c-… -->` beside it cannot be cited by an item, so it is reported.
+func TestWikiLintClaimWithoutStableID(t *testing.T) {
+	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
+	wikiSourceDirs(t)
+	writeCtxDoc(t, "context/wiki/noid.md", firstPageFixture("noid", "No Id")+
+		"## Claims\n\n1. a {#claim-1} (refs/spec.md@a:1)\n")
+	out := wikiLintWarning(t)
+	if !strings.Contains(out, "carries no stable id") {
+		t.Errorf("expected the missing-id warning, got:\n%s", out)
+	}
+}
+
+// TestWikiLintDuplicateClaimIDOnOnePage: an id is page-scoped, so the same id
+// twice on one page is ambiguous and CRITICAL; the same id on two pages is not.
+func TestWikiLintDuplicateClaimIDOnOnePage(t *testing.T) {
+	setupContextProject(t)
+	enableFrontmatterFamilies(t, "maturity", "verified")
+	wikiSourceDirs(t)
+	writeCtxDoc(t, "context/wiki/dup.md", firstPageFixture("dup", "Dup Page")+
+		"## Claims\n\n1. a {#claim-1} <!-- c-aaaaaaaa --> (refs/spec.md@a:1)\n"+
+		"2. b {#claim-2} <!-- c-aaaaaaaa --> (refs/spec.md@a:2)\n")
+	out := wikiLintError(t)
+	if !strings.Contains(out, "duplicate claim id c-aaaaaaaa") {
+		t.Errorf("expected the duplicate-id finding, got:\n%s", out)
+	}
+}
+
+// TestWikiLintClaimLineage covers the optional block: silent when coherent, and a
+// warning for each incoherence.
+func TestWikiLintClaimLineage(t *testing.T) {
+	cases := []struct {
+		name    string
+		lineage string
+		want    string
+	}{
+		{"coherent split", "claim_lineage:\n  - from: c-99999999\n    outcome: split\n    into: [c-aaaaaaaa]\n", ""},
+		{"retired", "claim_lineage:\n  - from: c-99999999\n    outcome: retired\n", ""},
+		{"from still live", "claim_lineage:\n  - from: c-aaaaaaaa\n    outcome: retired\n", "still live"},
+		{"successor missing", "claim_lineage:\n  - from: c-99999999\n    outcome: split\n    into: [c-ffffffff]\n", "does not resolve"},
+		{"unknown outcome", "claim_lineage:\n  - from: c-99999999\n    outcome: vanished\n", "is not one of"},
+		{"retired with successor", "claim_lineage:\n  - from: c-99999999\n    outcome: retired\n    into: [c-aaaaaaaa]\n", "names successors"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupContextProject(t)
+			enableFrontmatterFamilies(t, "maturity", "verified")
+			wikiSourceDirs(t)
+			page := firstPageFixture("lin", "Lineage Page")
+			page = strings.Replace(page, "---\n", "---\n"+tc.lineage, 1)
+			writeCtxDoc(t, "context/wiki/lin.md", page+
+				"## Claims\n\n1. a {#claim-1} <!-- c-aaaaaaaa --> (refs/spec.md@a:1)\n")
+			if tc.want == "" {
+				out := string(execute(t, contextWikiLintCmd, nil))
+				if strings.Contains(out, "claim_lineage") {
+					t.Errorf("a coherent lineage must be silent, got:\n%s", out)
+				}
+				return
+			}
+			out := wikiLintWarning(t)
+			if !strings.Contains(out, tc.want) {
+				t.Errorf("expected %q, got:\n%s", tc.want, out)
+			}
+		})
 	}
 }

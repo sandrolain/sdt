@@ -50,6 +50,7 @@ func lintWikiLint() []ctxLintIssue {
 	lintWikiSchema(b, bld.Pages)
 	lintWikiDuplicateKeys(b, bld.Pages)
 	lintWikiClaims(b, bld.Pages)
+	lintClaimLineage(b, bld.Pages)
 	for _, p := range bld.Pages {
 		// Wiki pages intentionally stay out of lintDoc's corpus route; apply only
 		// the cross-kind axes promised to this dedicated loader using the source
@@ -243,10 +244,11 @@ func claimAnchors(p *contextwiki.Page) []claimAnchor {
 	return anchors
 }
 
-// lintWikiClaims flags claim anchors that are repeated (CRITICAL: a citation to
-// that number is ambiguous) or that leave a gap in the numbering (WARNING: the
-// residue of a deleted claim, a hint rather than a lie). A page with a duplicate
-// reports only the duplicate — the gap it implies adds nothing.
+// lintWikiClaims flags a claim anchor repeated within one page (CRITICAL: a
+// citation to that number is ambiguous) and a claim that carries no stable id
+// (WARNING: an item cites the id, so a claim without one cannot be referenced
+// safely). A hole in the numbering is legal: deleting a claim leaves its number
+// unused, and renumbering to close the hole would move every later anchor.
 func lintWikiClaims(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 	for _, p := range pages {
 		byNumber := map[int][]int{}
@@ -257,30 +259,101 @@ func lintWikiClaims(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 			}
 			byNumber[a.Number] = append(byNumber[a.Number], a.Line)
 		}
-		duplicated := false
 		for _, n := range order {
 			if lines := byNumber[n]; len(lines) > 1 {
-				duplicated = true
 				b.add(p.Path, ctxLintCritical, "duplicate claim anchor {#claim-%d} %s", n, ctxLineList(lines))
 			}
 		}
-		if duplicated || len(order) == 0 {
+		// An id is page-scoped: an item cites `<page-id>#c-…`, so the same id on
+		// two pages is not ambiguous. Twice on one page is.
+		byID := map[string][]int{}
+		var idOrder []string
+		for _, c := range p.Claims() {
+			if c.ID == "" {
+				b.add(p.Path, ctxLintWarning, "claim {#claim-%d} carries no stable id; add `<!-- c-… -->` beside the anchor (an item cites the id, not the number)", c.Number)
+				continue
+			}
+			if _, known := byID[c.ID]; !known {
+				idOrder = append(idOrder, c.ID)
+			}
+			byID[c.ID] = append(byID[c.ID], c.Line)
+		}
+		for _, id := range idOrder {
+			if lines := byID[id]; len(lines) > 1 {
+				b.add(p.Path, ctxLintCritical, "duplicate claim id %s %s", id, ctxLineList(lines))
+			}
+		}
+	}
+}
+
+// claimLineageEntry is one `claim_lineage` record: a claim that no longer exists
+// and what became of it. The block is written only where an event happened.
+type claimLineageEntry struct {
+	From    string   `yaml:"from"`
+	Outcome string   `yaml:"outcome"`
+	Into    []string `yaml:"into"`
+}
+
+// claimLineageDoc reads the optional block off a page's frontmatter.
+type claimLineageDoc struct {
+	ClaimLineage []claimLineageEntry `yaml:"claim_lineage"`
+}
+
+// ctxClaimOutcomeRetired is the lineage outcome that ends a claim with no
+// successor; split and merged name theirs.
+const ctxClaimOutcomeRetired = "retired"
+
+// ctxClaimLineageOutcomes is the closed vocabulary of a claim's fate.
+var ctxClaimLineageOutcomes = []string{"split", "merged", ctxClaimOutcomeRetired}
+
+// lintClaimLineageEntry validates one lineage record against the live ids.
+func lintClaimLineageEntry(b *wikiIssueBuilder, path string, e claimLineageEntry, live map[string]bool) {
+	if e.From == "" {
+		b.add(path, ctxLintWarning, "`claim_lineage` entry names no `from` id")
+		return
+	}
+	if !containsItem(ctxClaimLineageOutcomes, e.Outcome) {
+		b.add(path, ctxLintWarning, "`claim_lineage` outcome %q is not one of %s", e.Outcome, strings.Join(ctxClaimLineageOutcomes, ", "))
+	}
+	if live[e.From] {
+		b.add(path, ctxLintWarning, "`claim_lineage` names %s as gone, but the claim is still live", e.From)
+	}
+	if e.Outcome == ctxClaimOutcomeRetired && len(e.Into) > 0 {
+		b.add(path, ctxLintWarning, "`claim_lineage` retires %s but names successors", e.From)
+	}
+	if e.Outcome != ctxClaimOutcomeRetired && len(e.Into) == 0 {
+		b.add(path, ctxLintWarning, "`claim_lineage` %s %s names no successor", e.Outcome, e.From)
+	}
+	for _, into := range e.Into {
+		if !live[into] {
+			b.add(path, ctxLintWarning, "`claim_lineage` successor %s does not resolve to a live claim", into)
+		}
+	}
+}
+
+// lintClaimLineage validates the optional `claim_lineage` block: a retired id is
+// not live any more, a split or merged id names its successors, and every
+// successor resolves. Absence is the normal case and is silent.
+func lintClaimLineage(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	live := map[string]bool{}
+	for _, p := range pages {
+		for _, c := range p.Claims() {
+			if c.ID != "" {
+				live[c.ID] = true
+			}
+		}
+	}
+	for _, p := range pages {
+		if !strings.Contains(p.Frontmatter, "claim_lineage:") {
 			continue
 		}
-		highest := order[0]
-		for _, n := range order[1:] {
-			if n > highest {
-				highest = n
-			}
+		var doc claimLineageDoc
+		if err := yaml.Unmarshal([]byte(p.Frontmatter), &doc); err != nil {
+			b.add(p.Path, ctxLintWarning, "`claim_lineage` does not parse: %v", err)
+			continue
 		}
-		var missing []int
-		for n := 1; n <= highest; n++ {
-			if _, present := byNumber[n]; !present {
-				missing = append(missing, n)
-			}
-		}
-		if len(missing) > 0 {
-			b.add(p.Path, ctxLintWarning, "claim anchors are not contiguous: %s", ctxAnchorList(missing))
+		for _, e := range doc.ClaimLineage {
+			lintClaimLineageEntry(b, p.Path, e, live)
 		}
 	}
 }
@@ -299,19 +372,6 @@ func ctxLineList(lines []int) string {
 		return "at line " + parts[0]
 	}
 	return "at lines " + strings.Join(parts[:len(parts)-1], ", ") + " and " + parts[len(parts)-1]
-}
-
-// ctxAnchorList names the missing claim numbers.
-func ctxAnchorList(numbers []int) string {
-	parts := make([]string, len(numbers))
-	for i, n := range numbers {
-		parts[i] = fmt.Sprintf("{#claim-%d}", n)
-	}
-	noun := "missing claim anchor"
-	if len(parts) > 1 {
-		noun = "missing claim anchors"
-	}
-	return noun + " " + strings.Join(parts, ", ")
 }
 
 // lintWikiTitleUniqueness flags duplicate explicit titles across wiki pages.

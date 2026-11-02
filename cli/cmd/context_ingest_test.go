@@ -224,3 +224,74 @@ func TestContextIngestListIgnoresRuns(t *testing.T) {
 		t.Fatalf("list included a run manifest:\n%s", out)
 	}
 }
+
+func TestContextIngestArchiveRenamesInstructionNames(t *testing.T) {
+	setupContextProject(t)
+	source := "context/ingestion/repo/AGENTS.md"
+	writeCtxDoc(t, source, "third-party rules")
+	sha, _, err := fileSHA256(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeCtxDoc(t, "context/refs/converted/agents-"+sha[:12]+".md",
+		"---\nsource: "+source+"\nsha256: "+sha+"\n---\n\n# Repo\n")
+
+	out := string(execute(t, contextIngestArchiveCmd, nil, "repo/AGENTS.md"))
+	if !strings.Contains(out, "archived: ingestion/repo/AGENTS.md -> refs/AGENTS.md"+sourceInstructionArchiveSuffix) {
+		t.Fatalf("archive did not rename the instruction file:\n%s", out)
+	}
+	if _, err := os.Stat(source); !os.IsNotExist(err) {
+		t.Errorf("source still exists after archive: %v", err)
+	}
+	dest := filepath.Join("context/refs", "AGENTS.md"+sourceInstructionArchiveSuffix)
+	if _, err := os.Stat(dest); err != nil {
+		t.Errorf("renamed destination missing: %v", err)
+	}
+	sidecar := filepath.Join("context/refs", "AGENTS.md"+ingestSidecarSuffix)
+	data, err := os.ReadFile(sidecar)
+	if err != nil {
+		t.Fatalf("sidecar missing at %s: %v", sidecar, err)
+	}
+	for _, want := range []string{"original_name: AGENTS.md", "sha256: " + sha, "source: ingestion/repo/AGENTS.md"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("sidecar is missing %q:\n%s", want, data)
+		}
+	}
+}
+
+func TestContextIngestArchiveRefusesRenamedCollision(t *testing.T) {
+	setupContextProject(t)
+	source := "context/ingestion/CLAUDE.md"
+	writeCtxDoc(t, source, "third-party rules")
+	writeCtxDoc(t, "context/refs/CLAUDE.md"+sourceInstructionArchiveSuffix, "already archived")
+
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextIngestArchiveCmd, nil, "context/ingestion/CLAUDE.md", "--force"))
+	})
+	if _, err := os.Stat(source); err != nil {
+		t.Errorf("a refused archive must leave the source in place: %v", err)
+	}
+}
+
+func TestSourceInstructionNamesCoverTheCorpusRename(t *testing.T) {
+	// The rename of 2026-11-01 used this pattern; the closed list must resolve
+	// every name it touched, in both cases.
+	pattern := []string{
+		"AGENTS.md", "AGENT.md", "AGENTS.override.md", "CLAUDE.md", "CLAUDE.local.md",
+		"GEMINI.md", "QWEN.md", "SKILL.md", "copilot-instructions.md",
+		"NAME.instructions.md", ".cursorrules", ".windsurfrules", ".clinerules", "rule.mdc",
+	}
+	for _, name := range pattern {
+		if !isSourceInstructionName(name) {
+			t.Errorf("%q is not in the closed list", name)
+		}
+		if !isSourceInstructionName(strings.ToLower(name)) {
+			t.Errorf("%q is not matched case-insensitively", name)
+		}
+	}
+	for _, name := range []string{"README.md", "AGENTS.md.source", "notes.txt", "skill.md.source"} {
+		if isSourceInstructionName(name) {
+			t.Errorf("%q must not be renamed: it is not a loadable instruction name", name)
+		}
+	}
+}

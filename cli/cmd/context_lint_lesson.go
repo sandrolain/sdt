@@ -38,7 +38,7 @@ const ctxLessonItemTransfer = learn.ItemTypeTransfer
 
 // ctxLessonClaimRefRegexp is the claim reference grammar an item row carries:
 // a page id, then the anchor the page stamps on the claim.
-var ctxLessonClaimRefRegexp = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*#claim-[0-9]+$`)
+var ctxLessonClaimRefRegexp = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*#(?:claim-[0-9]+|c-[a-z0-9]{8})$`)
 
 // lintLesson validates a lesson document's body: the four sections in order, and
 // an item table whose every row is addressable. An empty body is the template's
@@ -91,17 +91,30 @@ func lintLessonHeader(path string, header []string) []ctxLintIssue {
 			add(fmt.Sprintf("item table header column %d is %q, want %q", i+1, header[i], want))
 		}
 	}
+	// The optional columns are a trailing *subsequence*: an item table may carry
+	// `hash` without the three that precede it, but may never go back in order.
 	seen := 0
 	for i := len(ctxLessonItemColumns); i < len(header); i++ {
 		cell := strings.ToLower(strings.TrimSpace(header[i]))
-		if seen < len(learnLessonOptionalColumns) && cell == learnLessonOptionalColumns[seen] {
-			seen++
+		if match := optionalColumnAtOrAfter(cell, seen); match >= 0 {
+			seen = match + 1
 			continue
 		}
 		add(fmt.Sprintf("item table column %q is not an optional trailing column (%s, in that order)",
 			header[i], strings.Join(learnLessonOptionalColumns, ", ")))
 	}
 	return issues
+}
+
+// optionalColumnAtOrAfter returns the index of an optional column at or after
+// `from`, or -1 when the cell is not one of them.
+func optionalColumnAtOrAfter(cell string, from int) int {
+	for j := from; j < len(learnLessonOptionalColumns); j++ {
+		if cell == learnLessonOptionalColumns[j] {
+			return j
+		}
+	}
+	return -1
 }
 
 // lessonColumnIndex maps every header cell to its column, so a row is read by
@@ -206,7 +219,7 @@ func lintLessonItem(path string, it lessonItem, seenID map[string]bool) []ctxLin
 		add(fmt.Sprintf("item %q has no distractor (a wrong model, not a random option)", it.id))
 	}
 	if !ctxLessonClaimRefRegexp.MatchString(it.claim) {
-		add(fmt.Sprintf("item %q claim %q is not `<page-id>#claim-N`", it.id, it.claim))
+		add(fmt.Sprintf("item %q claim %q is not `<page-id>#c-<id>` (the positional `#claim-N` is the legacy form)", it.id, it.claim))
 	}
 	return issues
 }
