@@ -7,7 +7,7 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/blevesearch/bleve/v2 v2.6.1
 	github.com/coder/acp-go-sdk v0.13.5
-	github.com/firecrawl/firecrawl/apps/go-sdk v1.16.4
+	github.com/firecrawl/firecrawl/apps/go-sdk v1.16.8
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gocolly/colly/v2 v2.3.0
@@ -28,8 +28,8 @@ require (
 	github.com/tidwall/sjson v1.2.5
 	github.com/trengrj/go-potion v0.1.2
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	github.com/yuin/goldmark/v2 v2.1.6
-	go.yaml.in/yaml/v3 v3.0.5
+	github.com/yuin/goldmark/v2 v2.1.15
+	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/crypto v0.58.0
 	golang.org/x/text v0.43.0
 )
