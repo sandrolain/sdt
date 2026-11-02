@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -76,6 +77,12 @@ func runContextSet(cmd *cobra.Command, args []string) {
 	if err := checkSetKey(cmd, key); err != nil {
 		exitWithError(cmd, err)
 		return
+	}
+	if key == ctxFrontmatterUID {
+		if err := guardRelationUID(doc, value); err != nil {
+			exitWithError(cmd, err)
+			return
+		}
 	}
 	if err := checkProvenanceCollision(cmd, key); err != nil {
 		exitWithError(cmd, err)
@@ -209,6 +216,58 @@ func checkSetKey(cmd *cobra.Command, key string) error {
 	}
 	if hint, owned := ctxCLIOwnedKeys[key]; owned && !getBoolFlag(cmd, "force", false) {
 		return fmt.Errorf("%q is managed by the CLI: use %q (or pass --force)", key, hint)
+	}
+	return nil
+}
+
+// guardRelationUID refuses a uid the parent relation does not record.
+//
+// `context new --source` writes the child's uid into the parent's reverse list
+// at creation. Replacing the child's uid afterwards — a hand-written
+// frontmatter, a file re-created from a template — leaves that list pointing at
+// an id no document carries, and lint reports it later as a one-sided relation.
+// The write is the moment to catch it: the parent is resolved by the uid the
+// child names, and the new value is refused unless that parent's list holds it.
+// The error names the recorded id, which is the value the caller almost always
+// meant.
+func guardRelationUID(doc ctxResolvedDoc, value string) error {
+	childField := ctxParentField(doc.Type.kind)
+	if childField == "" {
+		return nil
+	}
+	content, err := os.ReadFile(doc.Path) //#nosec G304 -- a resolved context work file
+	if err != nil {
+		return nil
+	}
+	parentID := strings.TrimSpace(parseFrontmatterField(string(content), childField))
+	if parentID == "" {
+		return nil
+	}
+	parentKind := ctxParentKind(doc.Type.kind)
+	parentType, ok := ctxTypeLookup(parentKind)
+	if !ok {
+		return nil
+	}
+	files, err := dirFiles(parentType.dir)
+	if err != nil {
+		return nil
+	}
+	parentField := ctxChildrenField(parentKind)
+	for _, path := range files {
+		data, readErr := os.ReadFile(path) //#nosec G304 -- a file of the parent kind's dir
+		if readErr != nil {
+			continue
+		}
+		parent := string(data)
+		if strings.TrimSpace(parseFrontmatterField(parent, ctxFrontmatterUID)) != parentID {
+			continue
+		}
+		recorded := parseFrontmatterList(parent, parentField)
+		if len(recorded) == 0 || slices.Contains(recorded, value) {
+			return nil
+		}
+		return fmt.Errorf("uid %q is not the one the %s records in %s (%s); write that value, or update the parent first",
+			value, parentKind, parentField, strings.Join(recorded, ", "))
 	}
 	return nil
 }
