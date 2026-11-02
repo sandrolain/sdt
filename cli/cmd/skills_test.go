@@ -122,13 +122,12 @@ func TestSkillViewerFree(t *testing.T) {
 	}
 }
 
-// TestCommittedSkillsMatchTemplates guards against drift between the skill
-// templates and the generated .agents/skills/ (like the AGENTS.md block guard).
-// context/ and .agents/skills/ are one workspace: `sdt agent init` writes both,
-// and context/ is gitignored, so a fresh CI checkout carries neither. The guard is
-// local-only and skips there, exactly as TestGeneratedRolesMatchTemplates does —
-// the five skill files the index happens to carry must not decide the outcome.
-func TestCommittedSkillsMatchTemplates(t *testing.T) {
+// TestGeneratedSkillsMatchTemplates guards against drift between the skill
+// templates and the locally generated .agents/skills/. `sdt agent init` writes
+// both the skills and context/, and both are gitignored, so a fresh checkout
+// carries neither and the guard skips there, exactly as
+// TestGeneratedRolesMatchTemplates does.
+func TestGeneratedSkillsMatchTemplates(t *testing.T) {
 	root := filepath.Join("..", "..")
 	if _, err := os.Stat(filepath.Join(root, "context")); errors.Is(err, os.ErrNotExist) {
 		t.Skipf("context/ not present (gitignored); the generated workspace is local-only")

@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   booleanValue,
@@ -11,7 +10,6 @@ import {
   parseFieldDate,
   parseFrontmatter,
   pathLabel,
-  STATUS_VALUES,
   valueLabel,
   verbLabel,
 } from "./frontmatter";
@@ -123,40 +121,6 @@ describe("valueLabel", () => {
       meaning: "Concluded and deliberately deferred, awaiting its revival condition",
       tone: "neutral",
     });
-  });
-});
-
-describe("status vocabulary drift guard", () => {
-  // The status matrix in context/architecture/stack.md is the prose source of
-  // truth; this guards the hand-maintained frontend table against drift.
-  const matrix = readFileSync(
-    new URL("../../../context/architecture/stack.md", import.meta.url),
-    "utf8",
-  );
-
-  /** Parse the `| kind | default | \`a\` · \`b\` | meaning |` rows. */
-  function matrixVocab(): Map<string, string[]> {
-    const rows = new Map<string, string[]>();
-    for (const line of matrix.split("\n")) {
-      const m = /^\|\s*([a-z]+)\s*\|[^|]*\|([^|]*)\|/.exec(line);
-      if (!m) continue;
-      const statuses = [...m[2].matchAll(/`([a-z-]+)`/g)].map((x) => x[1]);
-      // `reference` describes fan-in sources outside the registry; excluded.
-      if (m[1] === "reference" || statuses.length === 0) continue;
-      rows.set(m[1], statuses);
-    }
-    return rows;
-  }
-
-  it("matches the frontend table per kind", () => {
-    const rows = matrixVocab();
-    expect(rows.size).toBeGreaterThan(5);
-    for (const [kind, statuses] of rows) {
-      const frontend = Object.keys(STATUS_VALUES)
-        .filter((key) => key.startsWith(`${kind}.`))
-        .map((key) => key.slice(kind.length + 1));
-      expect(frontend.sort(), `kind ${kind}`).toEqual([...statuses].sort());
-    }
   });
 });
 

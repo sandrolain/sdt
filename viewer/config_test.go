@@ -25,7 +25,7 @@ func TestViewerConfigReadsTheAgentCommand(t *testing.T) {
 		},
 		{
 			name:   "declared beside the keys the viewer already reads",
-			config: "project: sdt_44f24890\nsearch:\n  semantic: true\nagent:\n  command: [\"opencode\", \"acp\", \"--stdio\"]\n",
+			config: "project: sdt_0123abcd\nsearch:\n  semantic: true\nagent:\n  command: [\"opencode\", \"acp\", \"--stdio\"]\n",
 			want:   []string{"opencode", "acp", "--stdio"},
 		},
 		{
@@ -33,7 +33,7 @@ func TestViewerConfigReadsTheAgentCommand(t *testing.T) {
 			config: "agent:\n  command: [\"opencode\"]\n  mystery: 1\nskipDirs: [dist]\n",
 			want:   []string{"opencode"},
 		},
-		{name: "absent", config: "project: sdt_44f24890\n"},
+		{name: "absent", config: "project: sdt_0123abcd\n"},
 		{name: "no file at all"},
 		{name: "malformed", config: "agent:\n  command: [\"opencode\"\n"},
 		{name: "the section with no command", config: "agent: {}\n"},
@@ -92,7 +92,7 @@ func TestViewerConfigReadsTheAgentModels(t *testing.T) {
 		},
 		{
 			name:   "declared beside the keys the viewer already reads",
-			config: "project: sdt_44f24890\nsearch:\n  semantic: true\nagent:\n  command: [\"opencode\"]\n  models: [\"openrouter/meta/muse-spark-open\"]\n",
+			config: "project: sdt_0123abcd\nsearch:\n  semantic: true\nagent:\n  command: [\"opencode\"]\n  models: [\"openrouter/meta/muse-spark-open\"]\n",
 			want:   []string{"openrouter/meta/muse-spark-open"},
 		},
 		{

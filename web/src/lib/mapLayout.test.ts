@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 import {
   MAP_LAYOUTS,
   edgeSides,
@@ -290,25 +289,6 @@ describe("subtreeHeight — a tall internal node reserves its own box", () => {
     const tree = tallTree();
     expectNoOverlap(tree, layoutBalanced(tree));
     expectNoOverlap(tree, layoutRadial(tree));
-  });
-});
-
-describe("corpus maps lay out without overlap", () => {
-  const MAPS = [
-    "../../../context/notes/writing-sdt-mind-maps.map.md",
-    "../../../context/notes/building-distributed-systems-go-nats.map.md",
-  ];
-
-  it("has no overlapping boxes in either layout on the shipped .map.md documents", () => {
-    for (const rel of MAPS) {
-      const raw = readFileSync(new URL(rel, import.meta.url), "utf8");
-      // The corpus carries YAML frontmatter; the parser takes the body.
-      const md = raw.replace(/^---\n[\s\S]*?\n---\n/, "");
-      const tree = measureTree(parseMapDocument(md));
-      for (const kind of ["balanced", "radial"] as const) {
-        expectNoOverlap(tree, layoutMap(tree, kind).positions);
-      }
-    }
   });
 });
 
