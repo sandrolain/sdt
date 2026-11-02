@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-11-02T14:00:00Z",
+  "pages": [
+    {
+      "id": "architecture/four-key-metrics",
+      "title": "Four key metrics",
+      "type": "concept",
+      "status": "active",
+      "summary": "The four delivery metrics and the pipeline point each is measured at.",
+      "tags": ["architecture/delivery"],
+      "sources": ["refs/converted/softwarearchitecturemetrics-1bf7546b243d.md"],
+      "classification": "internal",
+      "license": "all-rights-reserved",
+      "reuse": { "audience": "engineering-managers", "level": "intermediate", "diataxis": "explanation" },
+      "claims": [
+        {
+          "id": "c-az0hncye",
+          "number": 1,
+          "digest": "f3681bb57f8b",
+          "text": "The four metrics are deployment frequency, lead time for changes, change failure rate and time to restore service."
+        },
+        {
+          "id": "c-b77cy9md",
+          "number": 2,
+          "digest": "98e91733dff6",
+          "text": "Each metric is reported over a window, and the window is part of the metric."
+        }
+      ],
+      "items": [
+        {
+          "id": "fkm-1",
+          "objective": 1,
+          "type": "recall",
+          "prompt": "Name the four key metrics.",
+          "expected": "deployment frequency; lead time for changes; change failure rate; time to restore service",
+          "rubric": "all four, no extras",
+          "distractor": "the four are individual performance targets",
+          "claim": "architecture/four-key-metrics#c-az0hncye",
+          "grading": "exact",
+          "provenance": "material",
+          "frozen": "2026-10-28",
+          "hash": "f3681bb57f8b"
+        }
+      ],
+      "relations": [
+        { "verb": "depends_on", "target": "architecture/architecture-measurement", "label": "measurement" }
+      ],
+      "sequence": ["c-az0hncye", "c-b77cy9md"]
+    }
+  ]
+}

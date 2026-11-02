@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sdt.dev/schema/release/1.0.json",
+  "title": "SDT corpus release",
+  "description": "A derived, immutable dump of the corpus (decision 0035). It carries pages with their claims, the lesson items that teach them, declared sequences, reuse metadata and the classification inherited from the sources.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "pages"],
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "description": "The schema version this document was written with; a consumer refuses a version it does not know."
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "RFC3339 UTC stamp of the dump, not of the corpus: the content has no single date."
+    },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/page" }
+    }
+  },
+  "definitions": {
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "type", "status", "summary", "claims"],
+      "properties": {
+        "id": { "type": "string", "description": "Relative subpath under wiki/, the page identity." },
+        "title": { "type": "string" },
+        "type": { "enum": ["concept", "entity", "decision", "pattern", "module"] },
+        "status": { "enum": ["draft", "active", "archived"] },
+        "summary": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "sources": { "type": "array", "items": { "type": "string" } },
+        "claims": { "type": "array", "items": { "$ref": "#/definitions/claim" } },
+        "items": { "type": "array", "items": { "$ref": "#/definitions/item" } },
+        "relations": { "type": "array", "items": { "$ref": "#/definitions/relation" } },
+        "sequence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered claim ids a procedure declares; every id must exist on this page."
+        },
+        "classification": { "type": "string", "description": "Inherited from the sources, the strictest winning." },
+        "license": { "type": "string", "description": "Inherited from the sources, the strictest winning." },
+        "reuse": { "$ref": "#/definitions/reuse" }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "digest", "text"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^c-[a-z0-9]{8}$" },
+        "number": { "type": "integer", "minimum": 1, "description": "The readable anchor number; a position, never an identity." },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{12}$", "description": "Fingerprint of the normalized claim text, the version evidence binds to." },
+        "text": { "type": "string", "description": "The normalized statement, so a consumer can show what was assessed." }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "objective", "type", "prompt", "expected", "rubric", "distractor", "claim"],
+      "properties": {
+        "id": { "type": "string" },
+        "objective": { "type": "integer", "minimum": 1 },
+        "type": { "enum": ["recall", "diagnose", "apply", "transfer"] },
+        "prompt": { "type": "string" },
+        "expected": { "type": "string" },
+        "rubric": { "type": "string" },
+        "distractor": { "type": "string" },
+        "claim": { "type": "string", "description": "<page-id>#c-<id>" },
+        "grading": { "enum": ["auto", "exact", "numeric", "keywords", "manual"] },
+        "provenance": { "enum": ["material", "ai_generated", "mixed", "unknown"] },
+        "frozen": { "type": "string", "description": "Calendar date the key was frozen at." },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{12}$", "description": "The claim digest the item was written against; absent means unverified." }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verb", "target"],
+      "properties": {
+        "verb": {
+          "enum": ["supersedes", "depends_on", "refers_to", "refines", "implements", "conflicts_with", "part_of", "contains", "specializes", "generalizes"]
+        },
+        "target": { "type": "string" },
+        "label": { "type": "string" }
+      }
+    },
+    "reuse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "audience": { "type": "string" },
+        "level": { "enum": ["introductory", "intermediate", "advanced"] },
+        "diataxis": { "enum": ["explanation", "reference", "how-to", "tutorial"] }
+      }
+    }
+  }
+}

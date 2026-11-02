@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-11-02T14:00:00Z",
+  "pages": [
+    {
+      "id": "architecture/four-key-metrics",
+      "title": "Four key metrics",
+      "type": "concept",
+      "status": "active",
+      "summary": "A claim with no digest cannot be cited: nothing says which version of the text it is.",
+      "claims": [
+        { "id": "c-az0hncye", "number": 1, "text": "A statement whose digest is missing." }
+      ]
+    }
+  ]
+}
