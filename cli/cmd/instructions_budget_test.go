@@ -69,8 +69,11 @@ var instructionModuleRatchet = map[string]int{
 	// to the archive contract rather than to a CLI doc — a third party's
 	// instructions must never arrive loadable. Rose to 3980 (2026-11-02): the
 	// receipt carries the three judgement lines (fidelity, route verdict,
-	// scaffolding), which the reviewer writes and no command can check.
-	"ingestion": 3980,
+	// scaffolding), which the reviewer writes and no command can check. Rose to
+	// 4150 (2026-11-02): the feedback lane — the aggregate's shape, the sample
+	// floor, and the register the lint checks. 4172 when the lane stopped naming a
+	// projection file no command writes: a cited path must be generated.
+	"ingestion": 4172,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.

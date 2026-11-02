@@ -17,6 +17,7 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
+	"github.com/sandrolain/sdt/internal/feedback"
 	"github.com/spf13/cobra"
 	"github.com/yuin/goldmark/v2/ast"
 	"github.com/yuin/goldmark/v2/parser"
@@ -1824,6 +1825,9 @@ closed document. Every change is named on stdout.`,
 		}
 		if todoErr := validateTodoRegister(); todoErr != nil {
 			issues = append(issues, ctxLintIssue{Path: ctxTodoFilePath, Priority: ctxLintWarning, Message: todoErr.Error()})
+		}
+		if fbErr := validateFeedbackRegister(); fbErr != nil {
+			issues = append(issues, ctxLintIssue{Path: feedback.File, Priority: ctxLintWarning, Message: fbErr.Error()})
 		}
 		// The frontmatter families are declared by hand in `.sdt.yaml`; an
 		// unknown name is one CRITICAL configuration finding rather than a

@@ -147,7 +147,10 @@ nothing.`,
 			exitWithError(cmd, err)
 			return
 		}
-		if converted == "" && !getBoolFlag(cmd, "force", false) {
+		// A markdown source is its own artifact: there is nothing to convert, and
+		// demanding one would only teach the caller to pass --force.
+		markdownSource := strings.HasSuffix(strings.ToLower(path), sdtMarkdownExt)
+		if converted == "" && !markdownSource && !getBoolFlag(cmd, "force", false) {
 			exitWithError(cmd, fmt.Errorf("%s has no matching converted artifact; archive it with --force only after the run is dispositioned", corpusRelative(path)))
 			return
 		}
@@ -163,6 +166,11 @@ nothing.`,
 		}
 		if getBoolFlag(cmd, "dry-run", false) {
 			outputString(cmd, fmt.Sprintf("would archive: %s -> %s (sha256 %s)\n", corpusRelative(path), corpusRelative(dest), sha[:12]))
+			return
+		}
+		// A project may archive before it ever had a refs/ directory.
+		if err := os.MkdirAll(filepath.Dir(dest), 0o750); err != nil {
+			exitWithError(cmd, fmt.Errorf("archive %s: %w", corpusRelative(dest), err))
 			return
 		}
 		if err := os.Rename(path, dest); err != nil {
