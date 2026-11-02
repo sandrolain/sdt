@@ -15,6 +15,7 @@ import (
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/distill"
+	"github.com/sandrolain/sdt/internal/sourceclass"
 )
 
 // ── ingestion queue (sdt context ingest) ─────────────────────────────────────
@@ -55,7 +56,11 @@ type ingestArchiveRecord struct {
 	Bytes        int64  `yaml:"bytes"`
 	SHA256       string `yaml:"sha256"`
 	Converted    string `yaml:"converted,omitempty"`
-	ArchivedAt   string `yaml:"archived_at"`
+	// Classification and License are what the source declares about its own use.
+	// A page inherits them (strictest wins), and the release respects them.
+	Classification string `yaml:"classification,omitempty"`
+	License        string `yaml:"license,omitempty"`
+	ArchivedAt     string `yaml:"archived_at"`
 }
 
 var contextIngestCmd = &cobra.Command{
@@ -154,6 +159,13 @@ nothing.`,
 			exitWithError(cmd, fmt.Errorf("%s has no matching converted artifact; archive it with --force only after the run is dispositioned", corpusRelative(path)))
 			return
 		}
+		// Validate before touching the filesystem: a refused flag must leave the
+		// source where it is.
+		classification := getStringFlag(cmd, "classification", false)
+		if classification != "" && !sourceclass.Known(classification) {
+			exitWithError(cmd, fmt.Errorf("--classification %q is not one of %s", classification, strings.Join(sourceclass.Tiers(), ", ")))
+			return
+		}
 		dest := filepath.Join(sdtRefsDir, filepath.Base(path))
 		originalName := ""
 		if isSourceInstructionName(filepath.Base(dest)) {
@@ -178,12 +190,14 @@ nothing.`,
 			return
 		}
 		record := ingestArchiveRecord{
-			Source:       corpusRelative(path),
-			OriginalName: originalName,
-			Bytes:        bytes,
-			SHA256:       sha,
-			Converted:    converted,
-			ArchivedAt:   time.Now().UTC().Format(time.RFC3339),
+			Source:         corpusRelative(path),
+			OriginalName:   originalName,
+			Classification: classification,
+			License:        getStringFlag(cmd, "license", false),
+			Bytes:          bytes,
+			SHA256:         sha,
+			Converted:      converted,
+			ArchivedAt:     time.Now().UTC().Format(time.RFC3339),
 		}
 		out, merr := yaml.Marshal(record)
 		if merr != nil {
@@ -622,6 +636,8 @@ func emptyDash(s string) string {
 func init() {
 	contextIngestListCmd.Flags().Bool("write", false, "Write the derived manifest to context/ingestion/manifest.yaml")
 	contextIngestArchiveCmd.Flags().Bool("force", false, "Archive even when no converted artifact matches")
+	contextIngestArchiveCmd.Flags().String("classification", "", "What the source declares about its use: "+strings.Join(sourceclass.Tiers(), "|"))
+	contextIngestArchiveCmd.Flags().String("license", "", "The source's licence (recorded as declared, never interpreted)")
 	contextIngestArchiveCmd.Flags().Bool("dry-run", false, "Print the archive plan without moving the file")
 	contextIngestPlanCmd.Flags().String("artifact", "", "Converted artifact to measure (optional)")
 	contextIngestPlanCmd.Flags().String("inventory", "", "Concept-inventory note to name in the plan (optional)")

@@ -295,3 +295,32 @@ func TestSourceInstructionNamesCoverTheCorpusRename(t *testing.T) {
 		}
 	}
 }
+
+// TestContextIngestArchiveRecordsClassification: what a source declares about its
+// own use is recorded on the sidecar, and the tier list is closed.
+func TestContextIngestArchiveRecordsClassification(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/ingestion/paper.md", "# A paper\n")
+	out := string(execute(t, contextIngestArchiveCmd, nil, "paper.md",
+		"--classification", "internal", "--license", "CC-BY-4.0"))
+	if !strings.Contains(out, "archived:") {
+		t.Fatalf("archive failed:\n%s", out)
+	}
+	data, err := os.ReadFile("context/refs/paper.md" + ingestSidecarSuffix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"classification: internal", "license: CC-BY-4.0"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("sidecar is missing %q:\n%s", want, data)
+		}
+	}
+
+	writeCtxDoc(t, "context/ingestion/other.md", "# Another\n")
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextIngestArchiveCmd, nil, "other.md", "--classification", "secret"))
+	})
+	if _, err := os.Stat("context/ingestion/other.md"); err != nil {
+		t.Errorf("a refused classification must leave the source in place: %v", err)
+	}
+}

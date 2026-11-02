@@ -31,6 +31,20 @@ profile.
 - A source you did not capture is not evidence: mark the claim UNVERIFIED
   (`tasks-review.md`).
 
+## Classify
+
+- A source may declare what its use allows, on its archive sidecar
+  (`<file>.source.yaml`): `classification: public|internal|confidential` and
+  `license: <as declared>`. `sdt context ingest archive` records both; it never
+  interprets a licence.
+- A page **inherits** them from its `sources`: the strictest classification wins
+  and one licence is inherited. A page may declare a stricter value, never a
+  weaker one, and a set that does not agree must be stated on the page.
+  `sdt context lint` reports a weaker declaration, an unstated mixed set and two
+  licences that disagree.
+- Silence is not permission: a source that declares nothing states nothing, and a
+  release refuses to publish it until someone does.
+
 ## When the work is larger
 
 Distilling sources into pages, a book-scale run, a coverage ledger: select the

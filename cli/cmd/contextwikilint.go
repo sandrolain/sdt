@@ -15,6 +15,7 @@ import (
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/distill"
+	"github.com/sandrolain/sdt/internal/sourceclass"
 )
 
 // ── wiki knowledge-graph lint (sdt context wiki lint) ──────────────────────────
@@ -51,6 +52,7 @@ func lintWikiLint() []ctxLintIssue {
 	lintWikiDuplicateKeys(b, bld.Pages)
 	lintWikiClaims(b, bld.Pages)
 	lintClaimLineage(b, bld.Pages)
+	lintSourceClassification(b, bld.Pages)
 	for _, p := range bld.Pages {
 		// Wiki pages intentionally stay out of lintDoc's corpus route; apply only
 		// the cross-kind axes promised to this dedicated loader using the source
@@ -282,6 +284,20 @@ func lintWikiClaims(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 			if lines := byID[id]; len(lines) > 1 {
 				b.add(p.Path, ctxLintCritical, "duplicate claim id %s %s", id, ctxLineList(lines))
 			}
+		}
+	}
+}
+
+// lintSourceClassification checks what a page inherits from its sources: the
+// strictest classification wins, a page may be stricter than its sources but
+// never weaker, and a mixed set must be stated instead of flattened silently.
+func lintSourceClassification(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	for _, p := range pages {
+		inherited := sourceclass.ForSources(p.Sources)
+		declared := parseFrontmatterField(p.Frontmatter, "classification")
+		license := parseFrontmatterField(p.Frontmatter, "license")
+		for _, finding := range sourceclass.CheckPage(declared, license, inherited) {
+			b.add(p.Path, ctxLintWarning, "%s", finding)
 		}
 	}
 }
