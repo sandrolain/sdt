@@ -443,6 +443,14 @@ the source**: a summary that only names the topic fails, and the summary or the
 prose is rewritten until the sentence is possible. The failing page ids stay in
 the line so the review is visible after the fact; no tool reads comprehension.
 
+Three judgement lines sit beside it, all optional and all the reviewer's:
+`fidelity: pass|fail (claims: <page>#<id> …)` names the claims the cited span
+does not support; `route_verdict: ok|under|over|pending` says whether the route
+matched what the source turned out to be, beside the two counts already recorded;
+`scaffolding: pass|fail (pages: …)` records the check that a derived lesson or
+guide adds no fact its claims do not carry. `receipt lint` checks the vocabulary,
+never the judgement — and a receipt left `pending` says so honestly.
+
 ## Verification
 
 - `sdt context wiki lint` — schema/graph checks on `wiki/` (scanned

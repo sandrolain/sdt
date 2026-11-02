@@ -329,7 +329,7 @@ func routeFor(stats distill.Stats) string {
 // The two counts are deliberately separate: route_headings is the levels 2-3
 // routing proxy, coverage_units is the levels 1-3 coverage denominator.
 func receiptBlock(r wikiCoverageReport) string {
-	out := fmt.Sprintf("source: %s\nroute: %s\nroute_headings: %d\nlines: %d\ncoverage_units: %d\ncoverage: ok=%d part=%d gap=%d no_op=%d\n",
+	out := fmt.Sprintf("source: %s\nroute: %s\nroute_headings: %d\nlines: %d\nroute_verdict: pending\ncoverage_units: %d\ncoverage: ok=%d part=%d gap=%d no_op=%d\n",
 		r.Artifact, r.Route, r.Stats.Headings23, r.Stats.Lines, r.Counts.Units,
 		r.Counts.OK, r.Counts.Part, r.Counts.Gap, r.Counts.NoOp)
 	if r.Concepts != nil {

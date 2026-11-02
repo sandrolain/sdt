@@ -14,6 +14,7 @@ func TestWikiAuditPrintsReceiptPagesAndClaims(t *testing.T) {
 	for _, want := range []string{
 		"source: refs/converted/book-abcdef123456.md",
 		"route: single-pass",
+		"route_verdict: pending",
 		"route_headings: 4",
 		"coverage_units: 5",
 		"coverage: ok=1 part=1 gap=1 no_op=2",
@@ -172,5 +173,54 @@ func TestWikiReceiptLintRejectsNoBlock(t *testing.T) {
 	})
 	if !strings.Contains(out, "no fenced receipt block found") {
 		t.Errorf("missing no-block finding:\n%s", out)
+	}
+}
+
+// TestWikiReceiptLintJudgementLines covers the three optional judgement lines:
+// accepted with their closed vocabulary, refused with a value outside it, and
+// silent when absent (a judgement the reviewer did not record is not a defect).
+func TestWikiReceiptLintJudgementLines(t *testing.T) {
+	setupContextProject(t)
+	valid := strings.Replace(goodReceiptNote, "route: single-pass",
+		"route: single-pass\nroute_verdict: under\nfidelity: pass (claims: a#c-aaaaaaaa)\n"+
+			"scaffolding: fail (pages: a)", 1)
+	writeCtxDoc(t, "context/notes/valid.md", valid)
+	if out := string(execute(t, contextWikiReceiptLintCmd, nil, "notes/valid.md")); !strings.Contains(out, "receipt: clean") {
+		t.Fatalf("judgement lines were rejected:\n%s", out)
+	}
+
+	bad := strings.Replace(goodReceiptNote, "route: single-pass",
+		"route: single-pass\nroute_verdict: maybe\nfidelity: mostly", 1)
+	writeCtxDoc(t, "context/notes/bad.md", bad)
+	var out string
+	shouldExitWithCode(t, 1, func() string {
+		out = string(execute(t, contextWikiReceiptLintCmd, nil, "notes/bad.md"))
+		return out
+	})
+	for _, want := range []string{`route_verdict "maybe"`, `fidelity "mostly"`, "ok, under, over, pending"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("receipt lint is missing %q:\n%s", want, out)
+		}
+	}
+
+	// Absent lines stay silent: goodReceiptNote carries none of them.
+	writeCtxDoc(t, "context/notes/plain.md", goodReceiptNote)
+	if out := string(execute(t, contextWikiReceiptLintCmd, nil, "notes/plain.md")); !strings.Contains(out, "receipt: clean") {
+		t.Fatalf("a receipt without judgement lines must stay clean:\n%s", out)
+	}
+}
+
+// TestWikiReceiptLintRefusesEmptyVerdict: the key with no value says nothing.
+func TestWikiReceiptLintRefusesEmptyVerdict(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/notes/empty.md",
+		strings.Replace(goodReceiptNote, "route: single-pass", "route: single-pass\nfidelity:", 1))
+	var out string
+	shouldExitWithCode(t, 1, func() string {
+		out = string(execute(t, contextWikiReceiptLintCmd, nil, "notes/empty.md"))
+		return out
+	})
+	if !strings.Contains(out, "fidelity carries no verdict") {
+		t.Errorf("an empty judgement line must be refused:\n%s", out)
 	}
 }

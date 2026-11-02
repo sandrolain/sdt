@@ -67,8 +67,10 @@ var instructionModuleRatchet = map[string]int{
 	// ingestion rose to 3896 (2026-11-02): a source whose name an agent runtime
 	// loads as instructions is archived under `<name>.source`, and the rule belongs
 	// to the archive contract rather than to a CLI doc — a third party's
-	// instructions must never arrive loadable.
-	"ingestion": 3896,
+	// instructions must never arrive loadable. Rose to 3980 (2026-11-02): the
+	// receipt carries the three judgement lines (fidelity, route verdict,
+	// scaffolding), which the reviewer writes and no command can check.
+	"ingestion": 3980,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.

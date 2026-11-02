@@ -231,7 +231,43 @@ func lintReceiptBlock(path string, receiptNo int, block string) []receiptFinding
 	}
 	checkReceiptLine(block, "coverage:", "coverage", []string{"ok=", "part=", "gap=", "no_op="}, bookScale, add)
 	checkReceiptLine(block, "concepts:", "concepts", []string{"candidates=", "paged=", "merged=", "inline=", "declined=", "pending="}, bookScale, add)
+	// The three judgement lines are optional: absent means the reviewer did not
+	// record that judgement, and this lint checks shape, never the judgement
+	// itself. A line that is present must use the closed vocabulary, so a receipt
+	// cannot answer "sort of".
+	checkReceiptVerdict(block, "route_verdict:", []string{routeVerdictOK, routeVerdictUnder, routeVerdictOver, receiptVerdictPending}, add)
+	checkReceiptVerdict(block, "fidelity:", []string{receiptVerdictPass, receiptVerdictFail}, add)
+	checkReceiptVerdict(block, "scaffolding:", []string{receiptVerdictPass, receiptVerdictFail}, add)
 	return findings
+}
+
+// The receipt judgements use a closed vocabulary each: a routing verdict answers
+// whether the route was right, the other two answer pass or fail.
+const (
+	receiptVerdictPass    = "pass"
+	receiptVerdictFail    = "fail"
+	receiptVerdictPending = "pending"
+	routeVerdictOK        = "ok"
+	routeVerdictUnder     = "under"
+	routeVerdictOver      = "over"
+)
+
+// checkReceiptVerdict validates one optional judgement line: the first token
+// after the key must be in the vocabulary; the parenthesised detail is free
+// prose, because it names the pages or claims the reviewer looked at.
+func checkReceiptVerdict(block, key string, vocab []string, add func(string)) {
+	line := strings.TrimSpace(receiptLine(block, key))
+	if line == "" {
+		return
+	}
+	fields := strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, key)))
+	if len(fields) == 0 {
+		add(key[:len(key)-1] + " carries no verdict")
+		return
+	}
+	if !containsItem(vocab, fields[0]) {
+		add(fmt.Sprintf("%s %q is not one of %s", key[:len(key)-1], fields[0], strings.Join(vocab, ", ")))
+	}
 }
 
 func checkReceiptLine(block, lineKey, label string, keys []string, required bool, add func(string)) {
