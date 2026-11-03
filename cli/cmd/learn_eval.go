@@ -102,6 +102,7 @@ EXAMPLE — sdt learn eval
 				outputString(cmd, line+"\n")
 			}
 			outputString(cmd, fmt.Sprintf("%d case(s), %d failed\n", len(results), failed))
+			learnSuggestNext(cmd, loadLearnState(cmd), "")
 		})
 		if failed > 0 {
 			exitWithError(cmd, fmt.Errorf("%d eval case(s) failed", failed))

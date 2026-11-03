@@ -341,6 +341,17 @@ func ctxFirstSegmentDir(path string) string {
 	return filepath.Join(sdtWorkDir, ctxFirstSegment(path))
 }
 
+// ctxIdentitySlug turns the --slug flag into the slug a kind addresses: a subpath
+// kind keeps its segments (a lesson or an assessment is its concept id), every
+// other kind is flattened into one slug. Flattening a concept id would resolve
+// `<concept>/<name>` to a file that cannot exist.
+func ctxIdentitySlug(raw string, t ctxDocType) (string, error) {
+	if t.scheme != ctxSchemeSubpath || raw == "" {
+		return sanitizeSlug(raw), nil
+	}
+	return ctxCleanSlug(raw, true)
+}
+
 func resolveContextDocIdentity(cmd *cobra.Command) (ctxResolvedDoc, error) {
 	typ := getStringFlag(cmd, "type", false)
 	if typ == ctxDocAliasDecision {
@@ -353,7 +364,11 @@ func resolveContextDocIdentity(cmd *cobra.Command) (ctxResolvedDoc, error) {
 	if !ok {
 		return ctxResolvedDoc{}, fmt.Errorf("unknown type %q (use %s)", typ, ctxTypeHelpText(ctxPathTypes()))
 	}
-	slug := sanitizeSlug(getStringFlag(cmd, "slug", false))
+	rawSlug := getStringFlag(cmd, "slug", false)
+	slug, err := ctxIdentitySlug(rawSlug, t)
+	if err != nil {
+		return ctxResolvedDoc{}, err
+	}
 
 	var path string
 	switch t.scheme {
@@ -403,7 +418,7 @@ func resolveContextDocIdentity(cmd *cobra.Command) (ctxResolvedDoc, error) {
 		if slug == "" {
 			return ctxResolvedDoc{}, errors.New("--slug is required for type " + typ)
 		}
-		path = filepath.Join(t.dir, slug+sdtMarkdownExt)
+		path = filepath.Join(t.dir, filepath.FromSlash(slug)+t.suffix+sdtMarkdownExt)
 	default:
 		return ctxResolvedDoc{}, fmt.Errorf("type %q cannot be addressed by identity", typ)
 	}

@@ -110,6 +110,7 @@ EXAMPLE — sdt learn review
 		learnEmit(cmd, rows, func() {
 			if len(rows) == 0 {
 				outputString(cmd, "nothing due and nothing weak\n")
+				learnSuggestNext(cmd, st, "")
 				return
 			}
 			for _, r := range rows {
@@ -125,6 +126,7 @@ EXAMPLE — sdt learn review
 				}
 				outputString(cmd, line+"\n")
 			}
+			learnSuggestNext(cmd, st, "")
 		})
 	},
 }

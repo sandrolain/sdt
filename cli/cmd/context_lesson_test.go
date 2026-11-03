@@ -92,18 +92,11 @@ id: architecture/four-key-metrics
 
 ` + "`source_span`" + `: refs/x.md@5772ca09:305-347
 
-## Assess
-
-| id | objective | type | prompt | expected | rubric | distractor | claim |
-|---|---|---|---|---|---|---|---|
-| m-1 | 1 | recall | Name the four metrics. | frequency, lead time, failure rate, restore time | all four | the four are targets | architecture/four-key-metrics#claim-1 |
-| m-2 | 2 | transfer | A team reports 36 deploys last month. Is that the metric? | no, frequency is per period | names the period | the raw count is the metric | architecture/four-key-metrics#claim-4 |
-
 ## Transfer
 `
 
-// TestLessonLintAcceptsAShapedLesson is the green case: four ordered sections and
-// an item table whose every row is addressable.
+// TestLessonLintAcceptsAShapedLesson is the green case: three ordered sections and
+// no item table — the items live in the concept's assessment document.
 func TestLessonLintAcceptsAShapedLesson(t *testing.T) {
 	if issues := lintLesson("context/learning/x.md", lessonGoodBody, ctxTypeLesson); len(issues) != 0 {
 		t.Fatalf("a well-shaped lesson produced %d finding(s): %+v", len(issues), issues)
@@ -123,28 +116,13 @@ func TestLessonLintRejectsShapeDrift(t *testing.T) {
 		}, "missing"},
 		{"reordered sections", func(s string) string {
 			return strings.Replace(s, "## Prerequisites\n\n## Worked example", "## Worked example\n\n## Prerequisites", 1)
-		}, "the four sections are ordered"},
+		}, "the sections are ordered"},
 		{"extra section", func(s string) string {
 			return strings.Replace(s, "## Transfer\n", "## Objectives\n\n## Transfer\n", 1)
 		}, "unexpected lesson section"},
-		{"bad header", func(s string) string {
-			return strings.Replace(s, "| id | objective | type |", "| id | goal | type |", 1)
-		}, "item table header"},
-		{"unknown type", func(s string) string {
-			return strings.Replace(s, "| 1 | recall |", "| 1 | recite |", 1)
-		}, "type"},
-		{"objective out of range", func(s string) string {
-			return strings.Replace(s, "| m-1 | 1 |", "| m-1 | zero |", 1)
-		}, "1-based index"},
-		{"bad claim ref", func(s string) string {
-			return strings.Replace(s, "architecture/four-key-metrics#claim-1", "claim 1", 1)
-		}, "#claim-N"},
-		{"missing expected", func(s string) string {
-			return strings.Replace(s, "| frequency, lead time, failure rate, restore time |", "| |", 1)
-		}, "expected answer"},
-		{"duplicate id", func(s string) string {
-			return strings.Replace(s, "| m-2 | 2 |", "| m-1 | 2 |", 1)
-		}, "twice"},
+		{"item table left behind", func(s string) string {
+			return strings.Replace(s, "## Transfer\n", "## Assess\n\n| id | objective |\n|---|---|\n\n## Transfer\n", 1)
+		}, "unexpected lesson section"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

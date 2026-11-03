@@ -26,6 +26,11 @@ type ctxDocType struct {
 	dir    string
 	tier   string // relevance tier; "" when not part of the reindexed tree
 	scheme ctxPathScheme
+	// suffix is appended to the id a subpath kind derives from its slug, and to
+	// the file name that holds it. Empty for every kind whose id is the slug
+	// itself (wiki, lesson); `.assessment` for a kind that lives beside another
+	// kind's document (`assessment` beside `lesson`).
+	suffix string
 
 	defaultStatus string   // initial `status` written by new; "" when the type carries none
 	statuses      []string // per-type status vocabulary
@@ -76,6 +81,7 @@ var contextTypeList = []ctxDocType{
 	{kind: ctxTypeCommands, dir: sdtCommandsDir, tier: ctxTierOperational, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusActive, statuses: []string{taskFileStatusLegacy}, listSupported: true, statusRow: true},
 	{kind: ctxTypeWiki, dir: sdtWikiDir, tier: "", scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, taskFileStatusLegacy, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "wiki.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: false},
 	{kind: ctxTypeLesson, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "lesson.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
+	{kind: ctxTypeAssessment, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, suffix: ctxAssessmentSuffix, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "lesson.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 	{kind: ctxTypeBriefing, dir: sdtBriefingDir, tier: ctxTierImportant, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "briefing.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 }
 
@@ -95,6 +101,22 @@ func ctxTypeForDir(dir string) (ctxDocType, bool) {
 		}
 	}
 	return ctxDocType{}, false
+}
+
+// ctxTypeID returns the document id a subpath kind derives from a slug: the slug
+// itself, plus the kind's suffix where the kind lives beside another kind's
+// document (`<concept>.assessment`). One function, because the path, the
+// frontmatter id and the frontmatter concept must agree.
+func ctxTypeID(t ctxDocType, slug string) string {
+	return slug + t.suffix
+}
+
+// ctxTypeTakesSubpathSlug reports whether a type's --slug is a subpath id
+// (`architecture/four-key-metrics`) rather than one flattened segment. Every
+// subpath kind takes one, so the registry answers and no caller enumerates.
+func ctxTypeTakesSubpathSlug(kind string) bool {
+	t, ok := ctxTypeLookup(kind)
+	return ok && t.scheme == ctxSchemeSubpath
 }
 
 // ctxTypeFilter returns the registry entries whose surface flag is set.

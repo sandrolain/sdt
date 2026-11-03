@@ -100,12 +100,10 @@ func learnV2Fixture(t *testing.T) {
 // learnV2Lesson writes a lesson body for the v2 page.
 func learnV2Lesson(t *testing.T, body string) {
 	t.Helper()
-	path := learnLessonPath("architecture/v2")
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatal(err)
+	lessonBody, items := splitAssessSection(body)
+	writeLearningDoc(t, learnLessonPath("architecture/v2"), lessonBody)
+	if items != "" {
+		writeAssessmentFor(t, "architecture/v2", items)
 	}
 }
 
@@ -150,8 +148,8 @@ func TestLearnLessonReadsOptionalColumns(t *testing.T) {
 		if it.Grading != learn.RuleAuto || it.Provenance != "unknown" {
 			t.Errorf("defaults not applied: %+v", it)
 		}
-		if it.Frozen != "2026-10-01" {
-			t.Errorf("freeze must fall back to the lesson created date, got %q", it.Frozen)
+		if it.Frozen != "2026-10-28" {
+			t.Errorf("freeze must fall back to the assessment document's created date, got %q", it.Frozen)
 		}
 	}
 }
@@ -161,13 +159,15 @@ func TestLearnLessonReadsOptionalColumns(t *testing.T) {
 func TestLearnLessonLintAcceptsOptionalColumns(t *testing.T) {
 	runInTempDir(t)
 	learnV2Fixture(t)
-	if issues := lintLesson("lesson.md", learnV2LessonOptional, ctxTypeLesson); len(issues) != 0 {
-		t.Fatalf("a lesson with the optional columns produced findings: %+v", issues)
+	_, items := splitAssessSection(learnV2LessonOptional)
+	bank := "## Items\n\n" + freezeTable(items) + "\n"
+	if issues := lintAssessment("assessment.md", bank, ctxTypeAssessment); len(issues) != 0 {
+		t.Fatalf("an assessment with the optional columns produced findings: %+v", issues)
 	}
-	unknown := strings.Replace(learnV2LessonOptional,
+	unknown := strings.Replace(bank,
 		"| claim | grading | provenance | frozen |",
 		"| claim | grading | provenance | notes |", 1)
-	issues := lintLesson("lesson.md", unknown, ctxTypeLesson)
+	issues := lintAssessment("assessment.md", unknown, ctxTypeAssessment)
 	joined := ""
 	for _, i := range issues {
 		joined += i.Message + "\n"
@@ -183,7 +183,7 @@ func TestLearnValidateRejectsBadOptionalValues(t *testing.T) {
 	cases := []struct{ name, body, want string }{
 		{"grading", strings.Replace(learnV2LessonOptional, "| exact | material |", "| fuzzy | material |", 1), "grading \"fuzzy\""},
 		{"provenance", strings.Replace(learnV2LessonOptional, "| exact | material |", "| exact | synthetic |", 1), "provenance \"synthetic\""},
-		{"frozen after update", strings.Replace(learnV2LessonOptional, "| material | 2026-10-01 |", "| material | 2026-10-09 |", 1), "after the lesson was last updated"},
+		{"frozen after update", strings.Replace(learnV2LessonOptional, "| material | 2026-10-01 |", "| material | 2026-10-09 |", 1), "after the document was last updated"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

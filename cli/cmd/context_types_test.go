@@ -15,10 +15,10 @@ import (
 // hand-written type lists in commands (stale-drift guard).
 
 const (
-	wantNewTypes      = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|wiki|lesson|briefing"
-	wantPathTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|lesson|briefing"
-	wantListTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|lesson|briefing"
-	wantTemplateTypes = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|wiki|lesson|briefing"
+	wantNewTypes      = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|wiki|lesson|assessment|briefing"
+	wantPathTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|lesson|assessment|briefing"
+	wantListTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|lesson|assessment|briefing"
+	wantTemplateTypes = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|wiki|lesson|assessment|briefing"
 )
 
 func TestContextTypeRegistry(t *testing.T) {
@@ -27,6 +27,7 @@ func TestContextTypeRegistry(t *testing.T) {
 	// TestContextTypeHelpTexts are the drift lock on what a change may alter.
 	// No hand-written kind slice mirrors the registry here.
 	seen := map[string]string{}
+	kindOfDir := map[string]string{} // the kind ctxTypeForDir must resolve, i.e. the first entry
 	for _, e := range contextTypeList {
 		if e.kind == "" {
 			t.Error("registry has an entry with an empty kind")
@@ -35,9 +36,17 @@ func TestContextTypeRegistry(t *testing.T) {
 			t.Errorf("registry entry %q has an empty dir", e.kind)
 		}
 		if prev, ok := seen[e.dir]; ok {
-			t.Errorf("dir %q claimed by both %q and %q", e.dir, prev, e.kind)
+			// Two kinds may share a directory only when they are deliberately
+			// co-located documents: same scheme, same tier, an id suffix telling
+			// them apart (an assessment beside its lesson). Anything else is the
+			// accidental collision this test exists to catch.
+			if !ctxKindsShareDirDeliberately(ctxMustType(t, prev), ctxMustType(t, e.kind)) {
+				t.Errorf("dir %q claimed by both %q and %q", e.dir, prev, e.kind)
+			}
+			continue
 		}
 		seen[e.dir] = e.kind
+		kindOfDir[e.dir] = e.kind
 	}
 
 	// Every entry resolves through the lookups the CLI drives off the registry.
@@ -45,8 +54,8 @@ func TestContextTypeRegistry(t *testing.T) {
 		if got, ok := ctxTypeLookup(e.kind); !ok || got.dir != e.dir {
 			t.Errorf("ctxTypeLookup(%q) did not resolve its own registry entry", e.kind)
 		}
-		if got, ok := ctxTypeForDir(e.dir); !ok || got.kind != e.kind {
-			t.Errorf("ctxTypeForDir(%q) did not resolve kind %q", e.dir, e.kind)
+		if got, ok := ctxTypeForDir(e.dir); !ok || got.kind != kindOfDir[e.dir] {
+			t.Errorf("ctxTypeForDir(%q) resolved %q, want %q", e.dir, got.kind, kindOfDir[e.dir])
 		}
 	}
 
@@ -302,4 +311,25 @@ func TestStatusRowsRegistryLabels(t *testing.T) {
 	if got["tmp"] || got["wiki"] {
 		t.Errorf("status summary must not include tmp/wiki rows")
 	}
+}
+
+// ctxMustType returns the registry entry for a kind, failing the test when the
+// kind is unregistered.
+func ctxMustType(t *testing.T, kind string) ctxDocType {
+	t.Helper()
+	typ, ok := ctxTypeLookup(kind)
+	if !ok {
+		t.Fatalf("kind %q is not registered", kind)
+	}
+	return typ
+}
+
+// ctxKindsShareDirDeliberately reports whether two kinds are co-located by
+// design: both subpath documents in one directory, at the same tier, told apart
+// by their id suffix (an assessment beside its lesson). Anything else sharing a
+// directory is the accidental collision the registry test refuses.
+func ctxKindsShareDirDeliberately(a, b ctxDocType) bool {
+	return a.dir == b.dir &&
+		a.scheme == ctxSchemeSubpath && b.scheme == ctxSchemeSubpath &&
+		a.tier == b.tier && a.suffix != b.suffix
 }

@@ -115,6 +115,7 @@ EXAMPLE — sdt learn check architecture/four-key-metrics
 		learnEmit(cmd, out, func() {
 			if len(out) == 0 {
 				outputString(cmd, "no concept reported (--verified-only filtered every page out)\n")
+				learnSuggestNext(cmd, loadLearnState(cmd), "")
 				return
 			}
 			for _, e := range out {
@@ -124,6 +125,11 @@ EXAMPLE — sdt learn check architecture/four-key-metrics
 					outputString(cmd, "           - "+r+"\n")
 				}
 			}
+			concept := ""
+			if len(out) == 1 {
+				concept = out[0].Concept
+			}
+			learnSuggestNext(cmd, loadLearnState(cmd), concept)
 		})
 		if refused > 0 {
 			exitWithError(cmd, fmt.Errorf("%d concept(s) refused", refused))
@@ -136,9 +142,9 @@ func learnReadinessOf(p *contextwiki.Page) learnCheckEntry {
 	lessonPath := learnLessonPath(p.ID)
 	objectives := learningObjectivesOf(p.Frontmatter)
 	r := learnReadiness{Page: p, Lesson: lessonPath, Objectives: objectives}
-	if _, err := os.Stat(lessonPath); err == nil {
-		r.Items = learnLessonClaimRefs(lessonPath)
-	} else {
+	// The items live in the concept's bank, which exists with or without a lesson.
+	r.Items = learnAssessmentObjectiveRefs(p.ID)
+	if _, err := os.Stat(lessonPath); err != nil {
 		r.Lesson = ""
 	}
 
@@ -214,16 +220,14 @@ func learnLessonPath(conceptID string) string {
 	return filepath.Join(sdtLearningDir, filepath.FromSlash(conceptID)+sdtMarkdownExt)
 }
 
-// learnLessonClaimRefs reads a lesson document and returns the objective index of
-// every item row, header-keyed so the optional trailing columns never shift it.
-func learnLessonClaimRefs(path string) []string {
-	data, err := os.ReadFile(path) //#nosec G304 -- path built from the wiki id
-	if err != nil {
-		return nil
-	}
-	_, sections := markdownSections(documentBody(string(data)))
+// learnAssessmentObjectiveRefs reads a concept's item bank and returns the
+// objective index of every item, header-keyed so the optional trailing columns
+// never shift it. It is the readiness rule's input: an objective no item points
+// at cannot be assessed, and the bank is where the items live.
+func learnAssessmentObjectiveRefs(conceptID string) []string {
+	items, _ := learnAssessmentItems(conceptID)
 	var out []string
-	for _, it := range learnLessonItemsOf(sections["Assess"]) {
+	for _, it := range items {
 		if it.Objective < 1 {
 			continue
 		}

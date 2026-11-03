@@ -138,6 +138,7 @@ EXAMPLE — sdt learn status
 				report.Mastery.Solid, report.Mastery.Partial, report.Mastery.Weak, report.Mastery.Unknown))
 			outputString(cmd, learnQueueLines("weak", report.Weak))
 			outputString(cmd, learnQueueLines("due", report.Due))
+			learnSuggestNext(cmd, st, "")
 		})
 	},
 }

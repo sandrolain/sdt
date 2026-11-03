@@ -52,6 +52,7 @@ EXAMPLE — sdt learn inspect "resolution order"
 		learnEmit(cmd, out, func() {
 			if len(out) == 0 {
 				outputString(cmd, "no wiki page matches the topic\n")
+				learnSuggestNext(cmd, loadLearnState(cmd), "")
 				return
 			}
 			for _, e := range out {
@@ -61,6 +62,11 @@ EXAMPLE — sdt learn inspect "resolution order"
 					outputString(cmd, "          prerequisites: "+strings.Join(e.Prerequisites, ", ")+"\n")
 				}
 			}
+			concept := ""
+			if len(out) == 1 {
+				concept = out[0].Concept.ID
+			}
+			learnSuggestNext(cmd, loadLearnState(cmd), concept)
 		})
 	},
 }

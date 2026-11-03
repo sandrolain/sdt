@@ -23,12 +23,89 @@ func bundlePage() *contextwiki.Page {
 	}
 }
 
-// writeLesson writes a lesson document into a temp corpus and returns its path.
+// writeLesson writes a concept's lesson into a temp corpus and returns its path.
+// A body that still carries an `## Assess` table is split: the table is the
+// concept's item bank, so it lands in the assessment companion beside the lesson
+// (`instructions/lesson.md`). The split keeps every fixture written before the
+// split readable as the shape the reader now expects.
 func writeLesson(t *testing.T, body string) string {
 	t.Helper()
 	root := t.TempDir()
 	t.Chdir(root)
-	path := learnLessonPath("architecture/x")
+	lessonBody, items := splitAssessSection(body)
+	path := writeLearningDoc(t, learnLessonPath("architecture/x"), lessonBody)
+	if items != "" {
+		writeAssessmentFor(t, "architecture/x", items)
+	}
+	return path
+}
+
+// writeAssessmentFor writes the item bank of one concept under the temp corpus.
+func writeAssessmentFor(t *testing.T, conceptID, items string) string {
+	t.Helper()
+	fm := "---\nkind: assessment\nid: " + conceptID + ".assessment\nconcept: " + conceptID + "\n" +
+		"summary: the item bank of " + conceptID + "\nstatus: draft\n" +
+		"created: 2026-10-28T00:00:00Z\nupdated: 2026-10-28T00:00:00Z\n---\n\n"
+	return writeLearningDoc(t, learnAssessmentPath(conceptID), fm+"## Items\n\n"+freezeTable(items)+"\n")
+}
+
+// writeAssessment writes an item bank for the concept the bundle page names,
+// without a lesson: the shape a page quizzed before it is taught takes.
+func writeAssessment(t *testing.T, items string) string {
+	t.Helper()
+	t.Chdir(t.TempDir())
+	return writeAssessmentFor(t, "architecture/x", items)
+}
+
+// freezeTable appends the `key_hash` column to an item table that lacks it and
+// fills each row with the digest of the four cells that decide a verdict. The
+// freeze date is left alone: a fixture that carries none exercises the fallback to
+// the document's `created`, and a fixture that carries one keeps its own date.
+func freezeTable(table string) string {
+	rows := markdownTableRows(table)
+	if len(rows) < 2 {
+		return table
+	}
+	header := rows[0]
+	for _, cell := range header {
+		if strings.EqualFold(strings.TrimSpace(cell), "key_hash") {
+			return table
+		}
+	}
+	col := func(name string) int {
+		for i, cell := range header {
+			if strings.EqualFold(strings.TrimSpace(cell), name) {
+				return i
+			}
+		}
+		return -1
+	}
+	cell := func(cells []string, i int) string {
+		if i < 0 || i >= len(cells) {
+			return ""
+		}
+		return strings.TrimSpace(cells[i])
+	}
+	gradingCol := col("grading")
+	expectedCol, rubricCol, distractorCol := col("expected"), col("rubric"), col("distractor")
+	var out strings.Builder
+	out.WriteString("| " + strings.Join(header, " | ") + " | key_hash |\n")
+	out.WriteString("|" + strings.Repeat(" --- |", len(header)+1) + "\n")
+	for _, cells := range rows[1:] {
+		grading := cell(cells, gradingCol)
+		if grading == "" {
+			grading = learnGradingAuto
+		}
+		digest := learn.KeyDigest(cell(cells, expectedCol), cell(cells, rubricCol), grading, cell(cells, distractorCol))
+		out.WriteString("| " + strings.Join(cells, " | ") + " | " + digest + " |\n")
+	}
+	return out.String()
+}
+
+// writeLearningDoc writes one document under the temp corpus, creating its
+// directories, and returns the path.
+func writeLearningDoc(t *testing.T, path, body string) string {
+	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -36,6 +113,24 @@ func writeLesson(t *testing.T, body string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+// splitAssessSection removes the `## Assess` section from a lesson body and
+// returns it as the table the assessment document carries. A body without the
+// section comes back untouched with no items.
+func splitAssessSection(body string) (string, string) {
+	start := strings.Index(body, "## Assess")
+	if start < 0 {
+		return body, ""
+	}
+	rest := body[start:]
+	end := len(rest)
+	if next := strings.Index(rest[len("## Assess"):], "\n## "); next >= 0 {
+		end = len("## Assess") + next + 1
+	}
+	section := strings.TrimSpace(rest[:end])
+	table := strings.TrimSpace(strings.TrimPrefix(section, "## Assess"))
+	return strings.TrimRight(body[:start], "\n") + "\n\n" + strings.TrimLeft(rest[end:], "\n"), table
 }
 
 // TestLearnBundleComposesALesson proves the bundle carries what a tutor needs:

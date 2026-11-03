@@ -337,7 +337,7 @@ func resolveBatchKindAndSlug(idx int, e contextNewBatchEntry) (typ, title, slug 
 		return "", "", "", fmt.Errorf("entry %d: a decision is numbered on write; create it with `context new --type decision` outside a batch", idx)
 	}
 	slug = sanitizeSlug(e.Slug)
-	if (typ == ctxTypeWiki || typ == ctxTypeLesson) && e.Slug != "" {
+	if ctxTypeTakesSubpathSlug(typ) && e.Slug != "" {
 		cleaned, cerr := ctxCleanSlug(e.Slug, true)
 		if cerr != nil {
 			return "", "", "", fmt.Errorf("entry %d: %w", idx, cerr)

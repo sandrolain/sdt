@@ -63,7 +63,12 @@ EXAMPLE — sdt learn answer --concept architecture/four-key-metrics --item fkm-
 		}
 		item, ok := learnLessonItemByID(page.ID, itemID)
 		if !ok {
-			learnExitWith(fmt.Errorf("concept %q has no item %q in its lesson", page.ID, itemID), 4)
+			learnExitWith(fmt.Errorf("concept %q has no item %q in its assessment", page.ID, itemID), 4)
+			return
+		}
+		if learnItemKeyStale(item) {
+			learnExitWith(fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before grading",
+				learnAssessmentPath(page.ID), item.ID, item.KeyHash, item.KeyDigest), 4)
 			return
 		}
 		verdict := learn.GradeAnswer(item.Grading, item.Expected, answer, item.Type)
@@ -82,6 +87,7 @@ EXAMPLE — sdt learn answer --concept architecture/four-key-metrics --item fkm-
 			if item.Rubric != "" {
 				outputString(cmd, "  rubric: "+item.Rubric+"\n")
 			}
+			learnSuggestNext(cmd, loadLearnState(cmd), page.ID)
 		})
 		switch verdict.Grade {
 		case learn.GradeIncorrect:
@@ -106,7 +112,7 @@ func learnExitWith(err error, code int) {
 func init() {
 	f := learnAnswerCmd.Flags()
 	f.String("concept", "", "Wiki page id (or title) of the concept")
-	f.String("item", "", "Item id from the lesson's `## Assess` table")
+	f.String("item", "", "Item id from the concept's assessment (`## Items`)")
 	f.String("answer", "", "The answer to grade")
 	learnCmd.AddCommand(learnAnswerCmd)
 }

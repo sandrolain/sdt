@@ -54,7 +54,7 @@ Examples:
 		typ := getStringFlag(cmd, "type", true)
 		rawSlug := getStringFlag(cmd, "slug", false)
 		slug := sanitizeSlug(rawSlug)
-		if typ == ctxTypeWiki && rawSlug != "" {
+		if ctxTypeTakesSubpathSlug(typ) && rawSlug != "" {
 			cleaned, err := ctxCleanSlug(rawSlug, true)
 			exitWithError(cmd, err)
 			slug = cleaned

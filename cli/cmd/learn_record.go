@@ -285,7 +285,7 @@ func learnRecordCheckGrade(grade, item string, hint int, concept string) error {
 		return fmt.Errorf("--grade belongs to a concept: pass --concept <wiki-id>")
 	}
 	if item == "" {
-		return fmt.Errorf("--grade belongs to an item: pass --item <id> from the lesson's `## Assess` table")
+		return fmt.Errorf("--grade belongs to an item: pass --item <id> from the concept's assessment (`## Items`)")
 	}
 	return nil
 }
@@ -331,8 +331,12 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 	if grade.Grade != "" {
 		item, ok := learnLessonItemByID(p.ID, grade.Item)
 		if !ok {
-			return nil, false, fmt.Errorf("concept %q has no item %q in its lesson: an attempt cites an item, never a guess",
+			return nil, false, fmt.Errorf("concept %q has no item %q in its assessment: an attempt cites an item, never a guess",
 				p.ID, grade.Item)
+		}
+		if learnItemKeyStale(item) {
+			return nil, false, fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before recording an attempt",
+				learnAssessmentPath(p.ID), item.ID, item.KeyHash, item.KeyDigest)
 		}
 		level := learnUnderstandingFor(grade.Grade, grade.Hint, rec.LastAssessed)
 		rec.LastAttempt = &learn.Attempt{

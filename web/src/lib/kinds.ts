@@ -3,6 +3,7 @@ import type { TreeEntry } from "./api";
 export type EntryKind =
   | "wiki"
   | "lesson"
+  | "assessment"
   | "instructions"
   | "analysis"
   | "notes"
@@ -25,6 +26,7 @@ export type EntryFilterKind = EntryKind | "canvas";
 export const KIND_ORDER: EntryKind[] = [
   "wiki",
   "lesson",
+  "assessment",
   "instructions",
   "analysis",
   "notes",
@@ -47,6 +49,7 @@ export const KIND_ORDER: EntryKind[] = [
 const KIND_LABELS: Record<EntryFilterKind, string> = {
   wiki: "Wiki",
   lesson: "Lessons",
+  assessment: "Assessments",
   instructions: "Instructions",
   analysis: "Analyses",
   notes: "Notes",
@@ -82,6 +85,7 @@ export function kindLabel(k: EntryFilterKind): string {
 const KIND_ICONS: Record<EntryFilterKind, string> = {
   wiki: "menu_book",
   lesson: "school",
+  assessment: "fact_check",
   instructions: "rule",
   analysis: "analytics",
   notes: "sticky_note_2",
@@ -105,6 +109,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
 const KIND_COLORS: Record<EntryFilterKind, string> = {
   wiki: "var(--ctp-blue)",
   lesson: "var(--ctp-teal)",
+  assessment: "var(--ctp-teal)",
   instructions: "var(--ctp-rosewater)",
   analysis: "var(--ctp-mauve)",
   notes: "var(--ctp-green)",
@@ -146,6 +151,9 @@ const FOLDER_KINDS: Record<string, EntryKind> = {
 /** Best-effort kind from a corpus path alone (`context/<folder>/…`). */
 export function kindFromPath(path: string): EntryFilterKind {
   if (path.endsWith(".mmd")) return "mermaid";
+  // An assessment shares the learning folder with the lesson it serves; only the
+  // file name tells the two apart, so the suffix decides before the folder does.
+  if (path.endsWith(".assessment.md")) return "assessment";
   const segments = path.split("/").filter(Boolean);
   if (segments.length < 3) return "other";
   const folder = segments[1];

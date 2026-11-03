@@ -44,6 +44,16 @@ const (
 	// worked example, the items and the curricular order. The page keeps the
 	// knowledge; the lesson never restates its objectives (`learning.md`).
 	ctxTypeLesson = "lesson"
+	// ctxTypeAssessment is the item bank of one concept: the frozen questions and
+	// their keys, kept out of the lesson that is served from it. Its id carries
+	// the concept id plus the kind suffix (`architecture/four-key-metrics.assessment`),
+	// and its `concept` field repeats the concept, which is what a reader resolves
+	// when it wants the items of a page.
+	ctxTypeAssessment = "assessment"
+	// ctxAssessmentSuffix is the extension an assessment id carries after its
+	// concept id. The file it names sits beside the lesson, so the two documents of
+	// one concept are neighbours rather than a directory apart.
+	ctxAssessmentSuffix = ".assessment"
 	// ctxTypeSupersedes is the forward-only relation field: a document names
 	// the older document it replaces (the reverse is computed, never written).
 	ctxTypeSupersedes = "supersedes"
@@ -145,7 +155,7 @@ func contextPath(typ, slug, phase, stream, plan string) (string, error) {
 		if !ctxWikiIDRegexp.MatchString(slug) {
 			return "", fmt.Errorf("invalid %s id %q (kebab-case segments joined by %q)", t.kind, slug, string(filepath.Separator))
 		}
-		return filepath.Join(t.dir, filepath.FromSlash(slug)+sdtMarkdownExt), nil
+		return filepath.Join(t.dir, filepath.FromSlash(slug)+t.suffix+sdtMarkdownExt), nil
 	case ctxSchemeDecision:
 		return "", errors.New("decision type is append-only; create via `sdt context new --type decision`")
 	}

@@ -38,6 +38,10 @@ describe("entryKind", () => {
     expect(entryKind(entry({ kind: "instructions" }))).toBe("instructions");
   });
 
+  it("uses the assessment kind for an item bank", () => {
+    expect(entryKind(entry({ kind: "assessment" }))).toBe("assessment");
+  });
+
   it("treats mermaid entries as their own kind", () => {
     expect(entryKind(entry({ mermaid: true, kind: "mermaid" }))).toBe("mermaid");
     expect(entryKind(entry({ mermaid: true }))).toBe("mermaid");
@@ -57,6 +61,11 @@ describe("kindFromPath", () => {
 
   it("maps .mmd paths to the mermaid kind", () => {
     expect(kindFromPath("context/wiki/flow.mmd")).toBe("mermaid");
+  });
+
+  it("tells an assessment from the lesson it shares a folder with", () => {
+    expect(kindFromPath("context/learning/architecture/four-key-metrics.assessment.md")).toBe("assessment");
+    expect(kindFromPath("context/learning/architecture/four-key-metrics.md")).toBe("lesson");
   });
 });
 

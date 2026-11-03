@@ -135,6 +135,11 @@ EXAMPLE — sdt learn quiz backend/auth --format yaml
 			} else {
 				outputString(cmd, "key: none (--with-key to include the frozen key)\n")
 			}
+			concept := ""
+			if len(manifest.Concepts) == 1 {
+				concept = manifest.Concepts[0].Wiki
+			}
+			learnSuggestNext(cmd, loadLearnState(cmd), concept)
 		})
 	},
 }
@@ -161,25 +166,28 @@ func learnQuizEntryFor(bld *contextwiki.Builder, st *learn.State, arg string, hi
 	if hinted {
 		entry.Hint = page.Summary
 	}
+	// A bank whose key moved since it was frozen is refused rather than served:
+	// the manifest would otherwise carry questions nobody can grade honestly.
+	if stale, ok := learnAssessmentStaleItem(page.ID); ok {
+		return learnQuizEntry{}, fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before serving the quiz",
+			learnAssessmentPath(page.ID), stale.ID, stale.KeyHash, stale.KeyDigest)
+	}
 	entry.Items = learnQuizItemsFor(page.ID, withKey)
 	if len(entry.Items) == 0 {
-		entry.Note = "no lesson for this concept: its questions are yours to write"
+		entry.Note = "no assessment for this concept: its questions are yours to write"
 	}
 	return entry, nil
 }
 
-// learnQuizItemsFor reads the questions a concept's lesson already carries. By
+// learnQuizItemsFor reads the questions a concept's bank already carries. By
 // default the expected answer stays behind: the manifest is what the learner is
 // asked. `withKey` adds the frozen key, its grading rule and its provenance, which
 // is what a grading caller needs and the only way the key enters a manifest.
 func learnQuizItemsFor(conceptID string, withKey bool) []learnQuizItem {
-	path := learnLessonPath(conceptID)
-	data, err := os.ReadFile(path) //#nosec G304 -- path built from the page id
-	if err != nil {
+	items, ok := learnAssessmentItems(conceptID)
+	if !ok {
 		return nil
 	}
-	created := parseFrontmatterField(string(data), "created")
-	items := learnLessonItemsOf(sectionOf(string(data), "Assess"))
 	out := make([]learnQuizItem, 0, len(items))
 	for _, it := range items {
 		item := learnQuizItem{
@@ -191,7 +199,7 @@ func learnQuizItemsFor(conceptID string, withKey bool) []learnQuizItem {
 			item.Rubric = it.Rubric
 			item.Grading = it.Grading
 			item.Provenance = it.Provenance
-			item.Frozen = learnEffectiveFrozen(it.Frozen, created)
+			item.Frozen = it.Frozen
 		}
 		out = append(out, item)
 	}

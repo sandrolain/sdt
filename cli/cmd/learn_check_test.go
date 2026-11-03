@@ -20,8 +20,10 @@ func lessonFixture(t *testing.T, pageFM, lessonBody string, withLesson bool) *co
 	}
 	fm := "---\n" + pageFM + "---\n\n## Summary\n\nx\n"
 	if withLesson {
-		if err := os.WriteFile(learnLessonPath("architecture/x"), []byte(lessonBody), 0o600); err != nil {
-			t.Fatal(err)
+		lessonBody, items := splitAssessSection(lessonBody)
+		writeLearningDoc(t, learnLessonPath("architecture/x"), lessonBody)
+		if items != "" {
+			writeAssessmentFor(t, "architecture/x", items)
 		}
 	}
 	return &contextwiki.Page{

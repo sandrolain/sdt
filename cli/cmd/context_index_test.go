@@ -7,10 +7,18 @@ import (
 
 func TestContextIndexDirsDerivedFromRegistry(t *testing.T) {
 	var want []string
+	seen := map[string]bool{}
 	for _, typ := range contextTypeList {
-		if typ.tier != "" || typ.statusRow {
-			want = append(want, typ.dir)
+		if typ.tier == "" && !typ.statusRow {
+			continue
 		}
+		if seen[typ.dir] {
+			// Two kinds may share a directory (an assessment beside its lesson):
+			// the walk lists the directory once.
+			continue
+		}
+		seen[typ.dir] = true
+		want = append(want, typ.dir)
 	}
 
 	got := ctxIndexDirsForTypes(contextTypeList)

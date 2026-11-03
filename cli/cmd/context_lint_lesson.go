@@ -18,8 +18,13 @@ import (
 // claim the row names, and on the verification pass that stamped the page.
 
 // ctxLessonSections is the ordered section list a lesson body carries, and no
-// other: this slice is the contract.
-var ctxLessonSections = []string{"Prerequisites", "Worked example", "Assess", "Transfer"}
+// other: this slice is the contract. The items live in the concept's assessment
+// document, so `## Assess` is no longer a lesson section.
+var ctxLessonSections = []string{"Prerequisites", "Worked example", "Transfer"}
+
+// ctxAssessmentSections is the ordered section list an assessment body carries:
+// one section, the item table.
+var ctxAssessmentSections = []string{learnAssessmentSection}
 
 // ctxLessonItemColumns is the exact `## Assess` table header, in order.
 var ctxLessonItemColumns = []string{"id", "objective", "type", "prompt", "expected", "rubric", "distractor", ctxFrontmatterClaim}
@@ -40,11 +45,26 @@ const ctxLessonItemTransfer = learn.ItemTypeTransfer
 // a page id, then the anchor the page stamps on the claim.
 var ctxLessonClaimRefRegexp = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*#(?:claim-[0-9]+|c-[a-z0-9]{8})$`)
 
-// lintLesson validates a lesson document's body: the four sections in order, and
-// an item table whose every row is addressable. An empty body is the template's
-// scaffold and is not a finding beyond a missing item.
+// lintLesson validates a lesson document's body: the three sections in order, no
+// item table of its own. An empty body is the template's scaffold and is not a
+// finding beyond a missing section.
 func lintLesson(path, content, kind string) []ctxLintIssue {
 	if kind != ctxTypeLesson {
+		return nil
+	}
+	var issues []ctxLintIssue
+
+	body := documentBody(content)
+	headings, _ := markdownSections(body)
+	return append(issues, lintLessonSections(path, headings)...)
+}
+
+// lintAssessment validates an assessment document's body: the `## Items` section
+// and an item table whose every row is addressable and whose key is frozen. The
+// checks that only need the table are the lesson's own, because one table format
+// serves both documents.
+func lintAssessment(path, content, kind string) []ctxLintIssue {
+	if kind != ctxTypeAssessment {
 		return nil
 	}
 	var issues []ctxLintIssue
@@ -54,25 +74,64 @@ func lintLesson(path, content, kind string) []ctxLintIssue {
 
 	body := documentBody(content)
 	headings, sections := markdownSections(body)
-	issues = append(issues, lintLessonSections(path, headings)...)
+	issues = append(issues, lintSections(path, headings, ctxAssessmentSections, "assessment")...)
 
-	assess, ok := sections["Assess"]
+	items, ok := sections[learnAssessmentSection]
 	if !ok {
 		return issues
 	}
-	rows := markdownTableRows(assess)
+	rows := markdownTableRows(items)
 	if len(rows) == 0 {
-		add(ctxLintWarning, "lesson has no `## Assess` table (an item per row, columns "+strings.Join(ctxLessonItemColumns, " | ")+")")
+		add(ctxLintWarning, "assessment has no item table (an item per row, columns "+strings.Join(ctxLessonItemColumns, " | ")+")")
 		return issues
 	}
 	issues = append(issues, lintLessonHeader(path, rows[0])...)
 	index := lessonColumnIndex(rows[0])
-	items := rows[1:]
-	if len(items) == 0 {
+	if len(rows) < 2 {
 		add(ctxLintWarning, "item table has a header and no rows")
 		return issues
 	}
-	return append(issues, lintLessonItems(path, index, items)...)
+	issues = append(issues, lintLessonItems(path, index, rows[1:])...)
+	return append(issues, lintAssessmentKeys(path, index, rows[1:])...)
+}
+
+// lintAssessmentKeys checks the half of an item the lesson's lint cannot see: the
+// grading rule it names, the day its key was frozen, a distractor that is not the
+// answer, and the freeze digest that makes the freeze mechanical. A row whose
+// key_hash disagrees with its cells is the defect the column exists for: the key
+// moved after it was signed.
+func lintAssessmentKeys(path string, index map[string]int, items [][]string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	add := func(msg string) {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: msg})
+	}
+	for i, cells := range items {
+		row := i + 1
+		id := learnLessonCell(cells, index, "id")
+		if id == "" {
+			id = fmt.Sprintf("row %d", row)
+		}
+		grading := learnLessonDefault(learnLessonCell(cells, index, "grading"), learnGradingAuto)
+		if !containsItem(learnLessonGradingRules, grading) {
+			add(fmt.Sprintf("item %q grading %q is not one of %s", id, grading, strings.Join(learnLessonGradingRules, ", ")))
+		}
+		if _, declared := index["frozen"]; declared && strings.TrimSpace(learnLessonCell(cells, index, "frozen")) == "" {
+			add(fmt.Sprintf("item %q has no frozen date: a key is frozen on the day it is written", id))
+		}
+		expected := learnLessonCell(cells, index, "expected")
+		distractor := learnLessonCell(cells, index, "distractor")
+		if expected != "" && strings.EqualFold(strings.TrimSpace(expected), strings.TrimSpace(distractor)) {
+			add(fmt.Sprintf("item %q uses its expected answer as the distractor", id))
+		}
+		computed := learn.KeyDigest(expected, learnLessonCell(cells, index, "rubric"), grading, distractor)
+		switch stored := learnLessonCell(cells, index, "key_hash"); {
+		case stored == "":
+			add(fmt.Sprintf("item %q carries no key_hash: its key is not frozen (the row now hashes to %s)", id, computed))
+		case stored != computed:
+			add(fmt.Sprintf("item %q key_hash %s disagrees with its row (%s): the key moved after it was frozen", id, stored, computed))
+		}
+	}
+	return issues
 }
 
 // lintLessonHeader checks the item table header: the eight base columns in order,
@@ -127,21 +186,26 @@ func lessonColumnIndex(header []string) map[string]int {
 	return index
 }
 
-// lintLessonSections checks the closed, ordered section list.
-func lintLessonSections(path string, headings []string) []ctxLintIssue {
+// lintSections checks the closed, ordered section list of one document kind.
+func lintSections(path string, headings, want []string, kind string) []ctxLintIssue {
 	var issues []ctxLintIssue
-	for i, want := range ctxLessonSections {
+	for i, w := range want {
 		switch {
 		case i >= len(headings):
-			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("lesson section `## %s` is missing", want)})
-		case headings[i] != want:
-			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("lesson section %d is `## %s`, want `## %s` (the four sections are ordered)", i+1, headings[i], want)})
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("%s section `## %s` is missing", kind, w)})
+		case headings[i] != w:
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("%s section %d is `## %s`, want `## %s` (the sections are ordered)", kind, i+1, headings[i], w)})
 		}
 	}
-	for _, got := range headings[min(len(headings), len(ctxLessonSections)):] {
-		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("unexpected lesson section `## %s` (a lesson carries %s and no more)", got, strings.Join(ctxLessonSections, ", "))})
+	for _, got := range headings[min(len(headings), len(want)):] {
+		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("unexpected %s section `## %s` (a %s carries %s and no more)", kind, got, kind, strings.Join(want, ", "))})
 	}
 	return issues
+}
+
+// lintLessonSections checks the closed, ordered section list of a lesson body.
+func lintLessonSections(path string, headings []string) []ctxLintIssue {
+	return lintSections(path, headings, ctxLessonSections, "lesson")
 }
 
 // lintLessonItems checks every item row: addressable fields, a claim the page can

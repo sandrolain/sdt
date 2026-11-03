@@ -214,16 +214,20 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 // every kind whose contract names one. It is one function so contextFrontmatter
 // stays under the complexity the linter allows.
 func writeFrontmatterIdentity(b *strings.Builder, typ, id, title string) {
-	if typ == ctxTypeWiki || typ == ctxTypeLesson {
-		b.WriteString("id: " + yamlScalar(id) + "\n")
+	// A subpath kind's id is the concept id, plus the kind suffix where the kind
+	// lives beside another kind's document: `<concept>.assessment` sits next to
+	// `<concept>.md`, and both name the same concept.
+	if t, ok := ctxTypeLookup(typ); ok && t.scheme == ctxSchemeSubpath {
+		b.WriteString("id: " + yamlScalar(ctxTypeID(t, id)) + "\n")
 	}
 	// A lesson names the page it teaches in `concept`, next to its own id: the two
 	// are equal by construction, and the duplicate is what lets a lesson read
-	// alone say which concept it belongs to.
-	if typ == ctxTypeLesson {
+	// alone say which concept it belongs to. An assessment repeats the concept the
+	// same way, which is the lookups a reader uses to find the items of a page.
+	if typ == ctxTypeLesson || typ == ctxTypeAssessment {
 		b.WriteString(ctxFrontmatterConcept + ": " + yamlScalar(id) + "\n")
 	}
-	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson, ctxTypeSource}, typ) {
+	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson, ctxTypeAssessment, ctxTypeSource}, typ) {
 		return
 	}
 	if title != "" {
@@ -319,7 +323,9 @@ func contextDefaultBody(typ string) string {
 	case ctxTypeWiki:
 		return "## Summary\n\n## Claims\n\n## Notes\n"
 	case ctxTypeLesson:
-		return "## Prerequisites\n\n## Worked example\n\n## Assess\n\n| id | objective | type | prompt | expected | rubric | distractor | claim |\n|---|---|---|---|---|---|---|---|\n\n## Transfer\n"
+		return "## Prerequisites\n\n## Worked example\n\n## Transfer\n"
+	case ctxTypeAssessment:
+		return "## Items\n\n| id | objective | type | prompt | expected | rubric | distractor | claim | grading | provenance | frozen | hash | key_hash |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"
 	case ctxTypeBriefing:
 		return "> Derive, don't trust: pair every volatile fact below with the command that derives it, so a reader re-derives it instead of trusting a copy. End with a dated, second-verified delta.\n\n## Artifacts\n\n## Map\n\n## Roles\n\n## Rules\n\n## Derived facts\n\n## Delta\n\n2026-10-11 — <replace this dated example with the first second-verified change>\n"
 	case ctxTypeSource:
@@ -333,7 +339,7 @@ var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a context/ work file with frontmatter",
 	Long: `Create a plan, analysis, worklog, notes, questions, proposal, prompt,
-research, architecture, decision, wiki or lesson
+research, architecture, decision, wiki, lesson or assessment
 file under context/ with the correct naming and the full per-type YAML
 frontmatter (kind, summary, context, status, created, updated, project plus
 per-type fields). The body comes from --input/--file or piped stdin. Existing
@@ -379,7 +385,7 @@ Examples:
 		}
 		rawSlug := getStringFlag(cmd, "slug", false)
 		slug := sanitizeSlug(rawSlug)
-		if (typ == ctxTypeWiki || typ == ctxTypeLesson) && rawSlug != "" {
+		if ctxTypeTakesSubpathSlug(typ) && rawSlug != "" {
 			cleaned, err := ctxCleanSlug(rawSlug, true)
 			exitWithError(cmd, err)
 			slug = cleaned
@@ -388,7 +394,7 @@ Examples:
 		if slug == "" && title != "" {
 			slug = sanitizeSlug(title)
 		}
-		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki || typ == ctxTypeLesson) && slug == "" {
+		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki || typ == ctxTypeLesson || typ == ctxTypeAssessment) && slug == "" {
 			exitWithError(cmd, fmt.Errorf("--title or --slug is required for type %s", typ))
 		}
 		note := getStringFlag(cmd, "context", false)

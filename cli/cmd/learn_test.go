@@ -134,9 +134,10 @@ func TestLearnInspectResolvesScope(t *testing.T) {
 		t.Errorf("an unresolved topic must say so, got:\n%s", out)
 	}
 
-	// --limit bounds the report.
+	// --limit bounds the report. The closing step is not part of the report.
 	out = string(execute(t, learnInspectCmd, nil, "backend", "--limit", "1"))
-	if strings.Count(out, "\n") > 2 {
+	report := strings.Join(strings.Split(out, "📍 next:")[:1], "")
+	if strings.Count(report, "\n") > 2 {
 		t.Errorf("--limit must bound the report, got:\n%s", out)
 	}
 }

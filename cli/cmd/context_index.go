@@ -65,13 +65,20 @@ func ctxIndexRouteForType(t ctxDocType) string {
 }
 
 // ctxIndexDirsForTypes derives the corpus-wide index/lint walk from the type
-// registry, in registry order.
+// registry, in registry order. Two kinds may share a directory — an assessment
+// lives beside its lesson — so a directory is listed once: the walk would
+// otherwise read every document twice and report each one against itself.
 func ctxIndexDirsForTypes(types []ctxDocType) []string {
 	dirs := make([]string, 0, len(types))
+	seen := make(map[string]bool, len(types))
 	for _, t := range types {
 		if ctxIndexRouteForType(t) != ctxIndexRouteCorpus {
 			continue
 		}
+		if seen[t.dir] {
+			continue
+		}
+		seen[t.dir] = true
 		dirs = append(dirs, t.dir)
 	}
 	return dirs
