@@ -145,6 +145,7 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/development.md` | Writing code |
 | `context/instructions/authoring.md` | Instructions and agent-facing rules |
 | `context/instructions/writing.md` | Editing or reviewing prose |
+| `context/instructions/conversation.md` | A decision ask |
 | `context/instructions/git.md` | Committing or branching |
 | `context/instructions/browser.md` | Navigating or verifying a rendered layout |
 | `context/instructions/browser-tools.md` | Choosing a browser tool |
@@ -234,12 +235,11 @@ Code work: concise, direct, no filler or hedging, technical terms exact. Pattern
 - **Restate state in one line** across turns (done, next).
 - **No preamble, no recap, no closer**: run the first-and-last-line test before
   sending. Keep a hedge that carries real uncertainty.
-- **When to break it**: an explain request, a destructive action, a debug spiral,
-  real ambiguity, or a rule that fights the task or the harness.
+- **When to break it**: an explain request, a decision ask, a destructive action, a
+  debug spiral, real ambiguity, or a rule that fights the task or the harness.
 
-A turn the reader must decide from is its own register: what happened, what it
-means, the choice, your recommendation, one question, in the user's language.
-Documents stay technical (`writing.md`); the recipe is in
+A turn the reader must decide from is its own register, in the user's language;
+documents stay technical (`writing.md`) and the recipe is in
 `context/instructions/conversation.md`.
 
 ### Open points (no open questions in analysis/plans)

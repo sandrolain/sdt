@@ -236,6 +236,8 @@ var agentCommandStubs = []commandStub{
 		">draft: three ideas about phase splitting, see the open question"),
 	docTrigger("scope", "scope", "the objective to scope",
 		">scope: give the linter a closed schema for command payloads", ">scope: replace two overlapping entry points with one filter engine"),
+	docTrigger("decide", "conversation", "the decision to put to the user",
+		">decide: the retry wording after three attempts", ">decide: whether the new wording replaces the timeout"),
 	workflowTrigger(ctxTypePlan, ctxTypePlan, ctxTypeAnalysis, "the analysis the plan is built from",
 		">plan: analysis/<analysis-file>.md", ">plan: the analysis just discussed"),
 	workflowTrigger("execute", ctxTypePlan, ctxTypePlan, "the plan (and phase) to execute",

@@ -143,13 +143,10 @@ session: <session id>        # optional
   the coverage check skips it in both directions rather than reporting a gap.
   When it is present, the check reports a plan phase covering an undeclared id
   (WARNING), a declared id no derived plan phase covers (SUGGESTION), and a
-  **status that disagrees with the checklist** (SUGGESTION, both ways): every
-  objective ticked while the analysis is still `active` — delivered work that
-  reads as in progress, closed with `sdt context close` — or `active`-to-
-  `completed` with objectives unticked, where the document asserts it is finished
-  and the checklist disagrees. The second is not proof of failure: an objective
-  may have been delivered by a sibling wave or dropped, so the finding asks a
-  reader to tick what was delivered or record why not.
+  **status that disagrees with the checklist** (SUGGESTION, both ways — ticked
+  while `active`, or `completed` with items unticked). The second is not proof of
+  failure: an objective may have been delivered by a sibling wave or dropped, so
+  the finding asks a reader to tick what was delivered or record why not.
 - **Plans** — the ordered list of wave plans derived from this analysis, one line
   each (number, slug, one-sentence scope, analysis objectives covered) when the
   analysis feeds more than one plan (R2).
@@ -195,7 +192,9 @@ session: <session id>        # optional
   reason; found later, it is a `note_type: dead-end` note), or **postponed** (a
   new analysis, below). Record `- **Outcome:** <verdict> (<reason>)` in its
   subsection; `sdt context lint` flags a missing outcome, and an `accepted` line
-  naming no user.
+  naming no user. The option's explanation belongs in the turn that asks the user
+  to accept it, not only in this section
+  (`context/instructions/conversation.md`).
 - **A postponed option becomes its own analysis, not a footnote.** Create one
   analysis per origin (split further only when the options belong to different
   domains, each then its own umbrella linking to the origin) with
