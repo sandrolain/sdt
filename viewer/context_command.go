@@ -27,8 +27,14 @@ const (
 	contextCommandPath = "/api/context/command"
 	// commandTimeout bounds one mutator run; the CLI is a local subprocess.
 	commandTimeout = 30 * time.Second
+	// probeTimeout bounds the liveness probe of one candidate CLI. `sdt version`
+	// answers in a few milliseconds; the budget only has to outlast a cold start.
+	probeTimeout = 5 * time.Second
 	// sdtBinaryName is the CLI looked up on PATH and beside this binary.
 	sdtBinaryName = "sdt"
+	// noCLIReason is the capability sentence when no candidate ran; a
+	// resolution that failed for a reason carries it instead.
+	noCLIReason = "no sdt CLI found for this root"
 )
 
 // contextCommandRequest is the closed request shape: a document, an allowlisted
@@ -84,35 +90,90 @@ type delegator struct {
 }
 
 // newDelegator resolves the CLI (explicit path, then PATH, then a sibling of
-// the running binary) and returns nil when none is found.
-func newDelegator(root, explicit string, self string) *delegator {
-	bin := resolveSdtBinary(explicit, self)
+// the running binary) and returns nil with the reason no CLI resolved.
+func newDelegator(root, explicit string, self string) (*delegator, string) {
+	bin, reason := resolveSdtBinary(explicit, self)
 	if bin == "" {
-		return nil
+		return nil, reason
 	}
-	return &delegator{bin: bin, root: root, run: runMutator}
+	return &delegator{bin: bin, root: root, run: runMutator}, ""
 }
 
-// resolveSdtBinary returns the first usable CLI path as an absolute path, or an
-// empty string. An explicit path must exist and is resolved to an absolute one:
-// the mutator runs with Dir set to the served root, so a relative name would be
-// looked up there rather than next to the viewer. PATH and the sibling of this
-// binary are already absolute.
-func resolveSdtBinary(explicit, self string) string {
+// resolveSdtBinary returns the first candidate CLI that actually runs, as an
+// absolute path, and the reason nothing resolved.
+//
+// A candidate must be executable *and* answer `sdt version`. The probe is what
+// makes this resolve the CLI instead of the first file with an execute bit: an
+// asdf/mise shim is executable, but with no version for the current project it
+// exits 126 with a sentence about tool versions (the shim is regenerated when
+// `sdt` is installed under a Go version). Without the probe such a shim wins the
+// lookup and every document action fails with that sentence, even though a
+// working CLI sits further down PATH or beside this binary.
+//
+// An explicit path that cannot run disables editing rather than falling through
+// to another CLI: the user named that binary (decision 0027, point 5). PATH and
+// the sibling of this binary are already absolute.
+func resolveSdtBinary(explicit, self string) (bin, reason string) {
 	if explicit != "" {
 		abs, err := filepath.Abs(explicit)
-		if err != nil || !isExecutableFile(abs) {
-			return ""
+		if err != nil {
+			return "", fmt.Sprintf("--sdt-bin %q is not a usable path: %v", explicit, err)
 		}
-		return abs
+		if !isExecutableFile(abs) {
+			return "", fmt.Sprintf("--sdt-bin %s is not an executable file", abs)
+		}
+		if err := probeSdtBinary(abs); err != nil {
+			return "", fmt.Sprintf("--sdt-bin %s cannot run: %v", abs, err)
+		}
+		return abs, ""
 	}
+	var misses []string
 	if p, err := exec.LookPath(sdtBinaryName); err == nil {
-		return p
+		perr := probeSdtBinary(p)
+		if perr == nil {
+			return p, ""
+		}
+		misses = append(misses, fmt.Sprintf("%s cannot run: %v", p, perr))
 	}
 	if self != "" {
 		candidate := filepath.Join(filepath.Dir(self), sdtBinaryName)
 		if isExecutableFile(candidate) {
-			return candidate
+			perr := probeSdtBinary(candidate)
+			if perr == nil {
+				return candidate, ""
+			}
+			misses = append(misses, fmt.Sprintf("%s cannot run: %v", candidate, perr))
+		}
+	}
+	if len(misses) == 0 {
+		return "", noCLIReason
+	}
+	return "", noCLIReason + ": " + strings.Join(misses, "; ")
+}
+
+// probeSdtBinary reports whether path runs as the sanctioned CLI. It asks for
+// `version`, the cheapest verb that touches nothing, and keeps the CLI's own
+// first line of output as the reason it could not.
+func probeSdtBinary(path string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+	defer cancel()
+	//#nosec G204 -- path is a candidate CLI resolved from PATH or the viewer's
+	// own directory, and the argv is the fixed {"version"}.
+	out, err := exec.CommandContext(ctx, path, "version").CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	if line := firstLine(string(out)); line != "" {
+		return errors.New(line)
+	}
+	return err
+}
+
+// firstLine returns the first non-empty line of s, trimmed.
+func firstLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			return line
 		}
 	}
 	return ""
@@ -238,7 +299,7 @@ func (s *server) capability() contextCommandCapability {
 	if s.cmd == nil {
 		reason := s.writeReason
 		if reason == "" {
-			reason = "no sdt CLI found for this root"
+			reason = noCLIReason
 		}
 		return contextCommandCapability{Reason: reason}
 	}
@@ -258,13 +319,17 @@ func (s *server) enableWrites(host, sdtBin string) {
 	if err != nil {
 		self = ""
 	}
-	if d := newDelegator(s.root, sdtBin, self); d != nil {
+	d, toolReason := newDelegator(s.root, sdtBin, self)
+	if d != nil {
 		s.cmd = d
 		slog.Info("sdtviewer: document editing enabled", "sdt", d.bin)
 		return
 	}
-	s.writeReason = "no sdt CLI found for this root"
-	slog.Info("sdtviewer: document editing disabled", "reason", "no sdt CLI found for this root")
+	if toolReason == "" {
+		toolReason = noCLIReason
+	}
+	s.writeReason = toolReason
+	slog.Info("sdtviewer: document editing disabled", "reason", toolReason)
 }
 
 // isLoopbackHost reports whether a bind host keeps the server on this machine.

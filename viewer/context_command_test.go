@@ -258,6 +258,29 @@ func TestEnableWritesWithAnExplicitCLI(t *testing.T) {
 	}
 }
 
+// The capability answer must carry the shim's own sentence: the control renders
+// disabled with a reason a reader can act on, instead of enabling and failing on
+// the click.
+func TestEnableWritesSurfacesTheReasonNoCLIRan(t *testing.T) {
+	root := analysisCorpus(t)
+	shimDir := t.TempDir()
+	shim := filepath.Join(shimDir, "sdt")
+	body := "#!/bin/sh\necho 'No version is set for command sdt' >&2\nexit 126\n"
+	if err := os.WriteFile(shim, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shimDir)
+
+	s, _ := newServer(root)
+	s.enableWrites("127.0.0.1", "")
+	if s.cmd != nil {
+		t.Fatalf("delegator = %+v, want none", s.cmd)
+	}
+	if !strings.Contains(s.writeReason, "No version is set for command sdt") {
+		t.Fatalf("writeReason = %q, want the shim's own sentence", s.writeReason)
+	}
+}
+
 func TestResolveSdtBinaryMakesAnExplicitPathAbsolute(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "sdt")
@@ -267,17 +290,21 @@ func TestResolveSdtBinaryMakesAnExplicitPathAbsolute(t *testing.T) {
 	// the mutator runs with Dir set to the served root, so a relative name
 	// would be looked up there; an explicit path is resolved first
 	t.Chdir(dir)
-	got := resolveSdtBinary("sdt", "")
+	got, reason := resolveSdtBinary("sdt", "")
 	if !filepath.IsAbs(got) {
-		t.Fatalf("resolveSdtBinary = %q, want an absolute path", got)
+		t.Fatalf("resolveSdtBinary = %q, want an absolute path (reason %q)", got, reason)
 	}
 }
 
 func TestResolveSdtBinaryRejectsAnExplicitMissingPath(t *testing.T) {
 	// an explicit path that does not exist disables editing rather than
 	// silently falling back to some other CLI (decision 0027, point 5)
-	if got := resolveSdtBinary("/definitely/not/here/sdt", ""); got != "" {
+	got, reason := resolveSdtBinary("/definitely/not/here/sdt", "")
+	if got != "" {
 		t.Fatalf("resolveSdtBinary = %q, want empty", got)
+	}
+	if reason == "" {
+		t.Fatal("a refused explicit path must say why")
 	}
 }
 
@@ -292,8 +319,80 @@ func TestResolveSdtBinaryFindsASiblingBinary(t *testing.T) {
 	}
 	// PATH is emptied so only the sibling can answer
 	t.Setenv("PATH", dir)
-	if got := resolveSdtBinary("", self); got != filepath.Join(dir, "sdt") {
+	if got, _ := resolveSdtBinary("", self); got != filepath.Join(dir, "sdt") {
 		t.Fatalf("resolveSdtBinary = %q, want the sibling CLI", got)
+	}
+}
+
+// A shim that cannot start — an asdf/mise shim with no version for the current
+// project exits 126 and names the tool versions — is executable, so the exec
+// bit alone lets it win the lookup and every document action fails with its
+// sentence while a working CLI sits beside the viewer.
+func TestResolveSdtBinarySkipsAShimThatCannotRun(t *testing.T) {
+	shimDir, selfDir := t.TempDir(), t.TempDir()
+	shim := filepath.Join(shimDir, "sdt")
+	body := "#!/bin/sh\necho 'No version is set for command sdt' >&2\nexit 126\n"
+	if err := os.WriteFile(shim, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	self := filepath.Join(selfDir, "sdtviewer")
+	if err := os.WriteFile(self, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sibling := filepath.Join(selfDir, "sdt")
+	if err := os.WriteFile(sibling, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shimDir)
+
+	got, reason := resolveSdtBinary("", self)
+	if got != sibling {
+		t.Fatalf("resolveSdtBinary = %q, want the working sibling %q (reason %q)", got, sibling, reason)
+	}
+	if reason != "" {
+		t.Errorf("a resolved CLI must carry no reason, got %q", reason)
+	}
+}
+
+func TestResolveSdtBinaryReportsWhyEveryCandidateFailed(t *testing.T) {
+	shimDir := t.TempDir()
+	shim := filepath.Join(shimDir, "sdt")
+	body := "#!/bin/sh\necho 'No version is set for command sdt' >&2\nexit 126\n"
+	if err := os.WriteFile(shim, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shimDir)
+
+	got, reason := resolveSdtBinary("", "")
+	if got != "" {
+		t.Fatalf("resolveSdtBinary = %q, want empty", got)
+	}
+	if !strings.Contains(reason, shim) || !strings.Contains(reason, "No version is set for command sdt") {
+		t.Fatalf("reason = %q, want the shim path and its own sentence", reason)
+	}
+}
+
+func TestResolveSdtBinaryDoesNotFallBackFromABrokenExplicitPath(t *testing.T) {
+	// the user named this binary, so a candidate that cannot run disables
+	// editing instead of quietly running another CLI (decision 0027, point 5)
+	dir := t.TempDir()
+	explicit := filepath.Join(dir, "sdt")
+	if err := os.WriteFile(explicit, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pathDir := t.TempDir()
+	working := filepath.Join(pathDir, "sdt")
+	if err := os.WriteFile(working, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", pathDir)
+
+	got, reason := resolveSdtBinary(explicit, "")
+	if got != "" {
+		t.Fatalf("resolveSdtBinary = %q, want empty", got)
+	}
+	if !strings.Contains(reason, "--sdt-bin") {
+		t.Fatalf("reason = %q, want it to name --sdt-bin", reason)
 	}
 }
 
