@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -61,6 +62,10 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		artifactRef := getStringFlag(cmd, "artifact", true)
+		if getStringFlag(cmd, "dispositions", false) != "" && !getBoolFlag(cmd, "write", false) {
+			exitWithError(cmd, fmt.Errorf("--dispositions applies to the regenerated table: pass --write (optionally with --dry-run)"))
+			return
+		}
 		report, pagePath, pageContent, err := buildCoverageReport(cmd, args[0], artifactRef)
 		if err != nil {
 			exitWithError(cmd, err)
@@ -138,6 +143,13 @@ func buildCoverageReport(cmd *cobra.Command, pageRef, artifactRef string) (wikiC
 
 	units, stats := distill.Parse(string(source), distill.Options{})
 	dispositions := readStructureDispositions(pageContent)
+	overrides, err := readDispositionMap(cmd, units)
+	if err != nil {
+		return wikiCoverageReport{}, "", nil, err
+	}
+	for line, d := range overrides {
+		dispositions[line] = d
+	}
 	for i := range units {
 		if d, ok := dispositions[units[i].Line]; ok {
 			units[i].Disposition = d
@@ -253,6 +265,59 @@ func readStructureDispositions(content []byte) map[int]string {
 		}
 	}
 	return out
+}
+
+// readDispositionMap reads the `--dispositions` input: a line-keyed map of
+// `no-op` / `not-conceptual` that overrides the rows it names. It never sets
+// `ok`/`part`, which stay derived from citations, and it is an input, not a
+// file kept beside the page.
+func readDispositionMap(cmd *cobra.Command, units []distill.Unit) (map[int]string, error) {
+	if cmd.Flags().Lookup("dispositions") == nil {
+		return nil, nil // a caller other than `coverage` has no such flag
+	}
+	ref := getStringFlag(cmd, "dispositions", false)
+	if ref == "" {
+		return nil, nil
+	}
+	data, err := os.ReadFile(ref) //#nosec G304 -- path named by the caller
+	if err != nil {
+		return nil, fmt.Errorf("read dispositions %s: %w", ref, err)
+	}
+	var raw map[string]string
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parse dispositions %s: %w", ref, err)
+	}
+	known := map[int]bool{}
+	for _, u := range units {
+		if u.Kind != distill.UnitContainer {
+			known[u.Line] = true
+		}
+	}
+	out := make(map[int]string, len(raw))
+	for key, value := range raw {
+		line, err := parseDispositionLine(key)
+		if err != nil {
+			return nil, err
+		}
+		if !known[line] {
+			return nil, fmt.Errorf("dispositions: L%d names no unit", line)
+		}
+		if value != distill.DispositionNoOp && value != distill.DispositionNotConceptual {
+			return nil, fmt.Errorf("dispositions: L%d value %q must be %s or %s", line, value, distill.DispositionNoOp, distill.DispositionNotConceptual)
+		}
+		out[line] = value
+	}
+	return out, nil
+}
+
+// parseDispositionLine accepts `L<n>` or `<n>`.
+func parseDispositionLine(key string) (int, error) {
+	trimmed := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(key), "L"))
+	n, err := strconv.Atoi(trimmed)
+	if err != nil || n < 1 {
+		return 0, fmt.Errorf("dispositions: key %q is not a line number (use L<n> or <n>)", key)
+	}
+	return n, nil
 }
 
 // parseStructureLine parses one `## Structure` row from the right, so a title
@@ -502,5 +567,6 @@ func init() {
 	contextWikiCoverageCmd.Flags().Bool("receipt", false, "Print the ingestion receipt's routing block")
 	contextWikiCoverageCmd.Flags().Bool("write", false, "Regenerate the coverage block and ## Structure")
 	contextWikiCoverageCmd.Flags().Bool("dry-run", false, "With --write, print the result without writing")
+	contextWikiCoverageCmd.Flags().String("dispositions", "", "With --write, a YAML map of L<n>: no-op|not-conceptual overriding the Structure rows")
 	contextWikiCmd.AddCommand(contextWikiCoverageCmd)
 }

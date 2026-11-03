@@ -238,6 +238,8 @@ func init() {
 	contextNewCmd.Flags().String("number", "", "Override for the decision number (default: next NNNN from decisions/)")
 	contextNewCmd.Flags().Bool("force", false, "Overwrite existing file")
 	contextNewCmd.Flags().Bool("edit", false, "Open the file in $EDITOR after creation")
+	contextNewCmd.Flags().String("batch", "", "Create every document in a YAML list (one entry per page)")
+	contextNewCmd.Flags().Bool("dry-run", false, "With --batch, validate and print the paths without writing")
 
 	contextListCmd.Flags().String("type", "", "Type: "+ctxListHelpText())
 	contextListCmd.Flags().String("agent", "", "Filter by frontmatter `agent` provenance")

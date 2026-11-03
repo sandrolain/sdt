@@ -271,3 +271,94 @@ func TestWikiCoverageRefusesAnInventoryForAnotherSource(t *testing.T) {
 		"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
 		"--inventory", "notes/book-inventory.md", "--write")
 }
+
+// writeDispositions writes the line-keyed map B1 applies.
+func writeDispositions(t *testing.T, body string) string {
+	t.Helper()
+	path := "dispositions.yaml"
+	writeTestFile(t, path, body)
+	return path
+}
+
+func TestWikiCoverageDispositionsOverrideTheTable(t *testing.T) {
+	setupContextProject(t)
+	writeCovRunFixture(t)
+	path := writeDispositions(t, "L20: no-op\n15: not-conceptual\n")
+	execute(t, contextWikiCoverageCmd, nil,
+		"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
+		"--write", "--dispositions", path)
+	content, err := os.ReadFile("context/wiki/sources/book.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(content)
+	for _, want := range []string{
+		"- L20 · Gamma · CLOSED · no-op",
+		"- L15 · Beta · PART · not-conceptual",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page is missing %q:\n%s", want, page)
+		}
+	}
+	// The override closes a GAP but never declares it OK: the citation stays
+	// the authority.
+	if strings.Contains(page, "- L20 · Gamma · OK") {
+		t.Error("a disposition override must not set the classification")
+	}
+}
+
+func TestWikiCoverageDispositionsRequireWrite(t *testing.T) {
+	setupContextProject(t)
+	writeCovRunFixture(t)
+	path := writeDispositions(t, "L20: no-op\n")
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextWikiCoverageCmd, nil,
+			"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
+			"--dispositions", path))
+	})
+}
+
+func TestWikiCoverageDispositionsRefuseAnUnknownLine(t *testing.T) {
+	setupContextProject(t)
+	writeCovRunFixture(t)
+	path := writeDispositions(t, "L9999: no-op\n")
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextWikiCoverageCmd, nil,
+			"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
+			"--write", "--dispositions", path))
+	})
+}
+
+func TestWikiCoverageDispositionsRefuseAnInvalidToken(t *testing.T) {
+	setupContextProject(t)
+	writeCovRunFixture(t)
+	path := writeDispositions(t, "L20: covered\n")
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextWikiCoverageCmd, nil,
+			"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
+			"--write", "--dispositions", path))
+	})
+}
+
+func TestWikiCoverageDispositionsDryRunWritesNothing(t *testing.T) {
+	setupContextProject(t)
+	writeCovRunFixture(t)
+	before, err := os.ReadFile("context/wiki/sources/book.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := writeDispositions(t, "L20: no-op\n")
+	out := execute(t, contextWikiCoverageCmd, nil,
+		"sources/book", "--artifact", "refs/converted/book-abcdef123456.md",
+		"--write", "--dry-run", "--dispositions", path)
+	if !strings.Contains(string(out), "no-op") || !strings.Contains(string(out), "Gamma") {
+		t.Errorf("dry run does not show the override:\n%s", out)
+	}
+	after, err := os.ReadFile("context/wiki/sources/book.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Error("dry run wrote the page")
+	}
+}

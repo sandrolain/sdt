@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/distill"
 )
 
@@ -161,4 +162,72 @@ sources:
 	if !strings.Contains(out, want) {
 		t.Fatalf("whole citation did not use the artifact lines (%s):\n%s", want, out)
 	}
+}
+
+// budgetPage renders a page carrying n claim anchors.
+func budgetPage(id string, n int) string {
+	var b strings.Builder
+	b.WriteString("---\nkind: wiki\nid: " + id + "\ntitle: " + id + "\ntype: concept\nstatus: active\nsummary: Budget fixture.\ntags: [test]\nsources:\n  - refs/converted/book.md\n---\n\n## Claims\n\n")
+	for i := 1; i <= n; i++ {
+		b.WriteString(strconv.Itoa(i) + ". {#claim-" + strconv.Itoa(i) + "} claim (refs/converted/book.md@abcdef12:9)\n")
+	}
+	return b.String()
+}
+
+func TestWikiClaimsBudgetDefaultsToTheLintConstant(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/wiki/architecture/at-limit.md", budgetPage("architecture/at-limit", contextwiki.BudgetClaims))
+	writeCtxDoc(t, "context/wiki/architecture/over.md", budgetPage("architecture/over", contextwiki.BudgetClaims+1))
+	out := string(execute(t, contextWikiClaimsCmd, nil, "--budget"))
+	if !strings.Contains(out, "architecture/over.md") {
+		t.Errorf("a page over the lint constant is not reported:\n%s", out)
+	}
+	if strings.Contains(out, "architecture/at-limit.md") {
+		t.Errorf("a page at the lint constant must not be reported:\n%s", out)
+	}
+	if contextwiki.BudgetClaims != 20 {
+		t.Fatalf("the lint constant moved to %d; the test binds the default to it", contextwiki.BudgetClaims)
+	}
+}
+
+func TestWikiClaimsBudgetSortsWorstFirst(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/wiki/architecture/twenty-two.md", budgetPage("architecture/twenty-two", 22))
+	writeCtxDoc(t, "context/wiki/architecture/twenty-five.md", budgetPage("architecture/twenty-five", 25))
+	out := string(execute(t, contextWikiClaimsCmd, nil, "--budget"))
+	if strings.Index(out, "twenty-five.md") > strings.Index(out, "twenty-two.md") {
+		t.Errorf("the worst page is not first:\n%s", out)
+	}
+}
+
+func TestWikiClaimsBudgetAtLowersThreshold(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/wiki/architecture/at-limit.md", budgetPage("architecture/at-limit", contextwiki.BudgetClaims))
+	if out := string(execute(t, contextWikiClaimsCmd, nil, "--budget")); strings.Contains(out, "at-limit.md") {
+		t.Errorf("the page is at the default threshold and must not be reported:\n%s", out)
+	}
+	out := string(execute(t, contextWikiClaimsCmd, nil, "--budget", "--at", "15"))
+	if !strings.Contains(out, "at-limit.md") || !strings.Contains(out, "over budget by 5") {
+		t.Errorf("--at 15 did not lower the threshold:\n%s", out)
+	}
+}
+
+func TestWikiClaimsBudgetJSON(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/wiki/architecture/over.md", budgetPage("architecture/over", 23))
+	out := execute(t, contextWikiClaimsCmd, nil, "--budget", "--format", "json")
+	var findings []claimBudgetFinding
+	if err := json.Unmarshal(out, &findings); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out)
+	}
+	if len(findings) != 1 || findings[0].Claims != 23 || findings[0].Over != 3 {
+		t.Errorf("unexpected findings: %+v", findings)
+	}
+}
+
+func TestWikiClaimsBudgetAtRequiresBudget(t *testing.T) {
+	setupContextProject(t)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextWikiClaimsCmd, nil, "--at", "5"))
+	})
 }

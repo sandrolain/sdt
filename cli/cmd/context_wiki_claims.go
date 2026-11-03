@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -55,6 +56,14 @@ Examples:
   sdt context wiki claims --format json`,
 	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		if getBoolFlag(cmd, "budget", false) {
+			runClaimBudget(cmd, args)
+			return
+		}
+		if cmd.Flags().Changed("at") {
+			exitWithError(cmd, fmt.Errorf("--at lowers the budget threshold and is only valid with --budget"))
+			return
+		}
 		paths, err := claimPages(args)
 		if err != nil {
 			exitWithError(cmd, err)
@@ -200,6 +209,97 @@ func claimSpan(cite distill.Citation, span artifactSpan) (lines, covered int) {
 	return lines, covered
 }
 
+// claimBudgetFinding is one page over the claim budget.
+type claimBudgetFinding struct {
+	Page   string `json:"page" yaml:"page"`
+	Claims int    `json:"claims" yaml:"claims"`
+	Budget int    `json:"budget" yaml:"budget"`
+	Over   int    `json:"over" yaml:"over"`
+}
+
+// runClaimBudget reports pages over the claim budget. The default threshold is
+// the lint's own constant, so the report and `wiki lint` cannot disagree.
+func runClaimBudget(cmd *cobra.Command, args []string) {
+	threshold := contextwiki.BudgetClaims
+	if cmd.Flags().Changed("at") {
+		threshold = getIntFlag(cmd, "at", false)
+		if threshold < 1 {
+			exitWithError(cmd, fmt.Errorf("--at must be positive"))
+			return
+		}
+	}
+	pages, err := claimBudgetPages(args)
+	if err != nil {
+		exitWithError(cmd, err)
+		return
+	}
+	outputClaimBudget(cmd, budgetFindings(pages, threshold))
+}
+
+// claimBudgetPages resolves the pages the budget report reads.
+func claimBudgetPages(args []string) ([]*contextwiki.Page, error) {
+	if len(args) == 0 {
+		bld, _, err := contextwiki.LoadWiki(sdtWikiDir)
+		if err != nil {
+			return nil, fmt.Errorf("load wiki: %w", err)
+		}
+		return bld.Pages, nil
+	}
+	out := make([]*contextwiki.Page, 0, len(args))
+	for _, ref := range args {
+		path, err := resolveWikiPage(ref)
+		if err != nil {
+			return nil, err
+		}
+		page, err := contextwiki.ParsePage(sdtWikiDir, path)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, page)
+	}
+	return out, nil
+}
+
+// budgetFindings keeps the pages over the threshold, worst first.
+func budgetFindings(pages []*contextwiki.Page, threshold int) []claimBudgetFinding {
+	var out []claimBudgetFinding
+	for _, p := range pages {
+		if p.ClaimCount <= threshold {
+			continue
+		}
+		out = append(out, claimBudgetFinding{
+			Page:   p.Path,
+			Claims: p.ClaimCount,
+			Budget: threshold,
+			Over:   p.ClaimCount - threshold,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Over != out[j].Over {
+			return out[i].Over > out[j].Over
+		}
+		return out[i].Page < out[j].Page
+	})
+	return out
+}
+
+func outputClaimBudget(cmd *cobra.Command, findings []claimBudgetFinding) {
+	switch getFormat(cmd) {
+	case fmtJSON:
+		out, err := json.MarshalIndent(findings, "", "  ")
+		exitWithError(cmd, err)
+		outputBytes(cmd, out)
+	case fmtYAML:
+		out, err := yaml.Marshal(findings)
+		exitWithError(cmd, err)
+		outputBytes(cmd, out)
+	default:
+		for _, f := range findings {
+			outputString(cmd, fmt.Sprintf("[WARNING] %s: page has %d claims (budget ~%d): over budget by %d\n", f.Page, f.Claims, f.Budget, f.Over))
+		}
+	}
+}
+
 func outputClaimFindings(cmd *cobra.Command, findings []claimFinding) {
 	switch getFormat(cmd) {
 	case fmtJSON:
@@ -225,5 +325,7 @@ func outputClaimFindings(cmd *cobra.Command, findings []claimFinding) {
 func init() {
 	contextWikiClaimsCmd.Flags().Int("max-lines", 40, "Flag a citation longer than this many artifact lines")
 	contextWikiClaimsCmd.Flags().Int("max-units", 2, "Flag a citation overlapping more than this many artifact units")
+	contextWikiClaimsCmd.Flags().Bool("budget", false, "Report pages over the claim budget, worst first")
+	contextWikiClaimsCmd.Flags().Int("at", 0, "With --budget, lower the threshold (default: the lint's constant)")
 	contextWikiCmd.AddCommand(contextWikiClaimsCmd)
 }

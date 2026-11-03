@@ -369,6 +369,10 @@ Examples:
 	sdt context new --type research --title "deepsearch vector backends"`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		if batch := getStringFlag(cmd, "batch", false); batch != "" {
+			runContextNewBatch(cmd, batch)
+			return
+		}
 		typ := getStringFlag(cmd, "type", true)
 		if t, ok := ctxTypeLookup(typ); !ok || !t.newSupported {
 			exitWithError(cmd, fmt.Errorf("new supports type %s, got %q", ctxTypeHelpText(ctxNewTypes()), typ))

@@ -86,43 +86,14 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 	content := string(data)
 
 	newText := getContextBody(cmd, nil)
-	if newText == "" && !contextBodyFlagSet(cmd) {
-		exitWithError(cmd, fmt.Errorf("no replacement body: pass --input, --file or --inb64, or pipe it on stdin"))
-		return
-	}
-	if newText == "" && !getBoolFlag(cmd, "force", false) {
-		target := "the document"
-		switch {
-		case getStringFlag(cmd, "section", false) != "":
-			target = fmt.Sprintf("section %q", getStringFlag(cmd, "section", false))
-		case getStringFlag(cmd, "row", false) != "":
-			target = fmt.Sprintf("row %q", getStringFlag(cmd, "row", false))
-		case getStringFlag(cmd, "fence", false) != "":
-			target = fmt.Sprintf("fence %q", getStringFlag(cmd, "fence", false))
-		}
-		exitWithError(cmd, fmt.Errorf("refusing an empty body for %s: an empty replacement removes %s; pass --force to do it", doc.Path, target))
-		return
-	}
-	if fm, _ := contextwiki.SplitFrontmatter(newText); fm != "" {
-		exitWithError(cmd, fmt.Errorf("the input carries a frontmatter block; context edit writes the body only: use sdt context set <doc> <key> <value> for frontmatter keys"))
+	if err := validateContextEditInput(cmd, doc, newText); err != nil {
+		exitWithError(cmd, err)
 		return
 	}
 	text := ensureTrailingNewline(newText)
 	section := getStringFlag(cmd, "section", false)
 	row := getStringFlag(cmd, "row", false)
 	fence := getStringFlag(cmd, "fence", false)
-	if row != "" && fence != "" {
-		exitWithError(cmd, fmt.Errorf("--row and --fence address different structures: pass one"))
-		return
-	}
-	if getBoolFlag(cmd, "append", false) && (row != "" || fence != "") {
-		exitWithError(cmd, fmt.Errorf("--append adds text; it cannot be combined with --row or --fence, which replace one structure"))
-		return
-	}
-	if fence != "" && section != "" {
-		exitWithError(cmd, fmt.Errorf("--fence addresses the whole body: drop --section, or use --row for a table inside a section"))
-		return
-	}
 
 	fm, body := contextwiki.SplitFrontmatter(content)
 	var newBody string
@@ -177,12 +148,51 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 		Diff:    diff,
 	})
 	if dryRun {
+		if reportDryRunReferences(cmd, doc.Path, fm, newBody) {
+			exit(1)
+			return
+		}
 		return
 	}
 	if err := writeContextDocFile(doc.Path, newContent); err != nil {
 		exitWithError(cmd, err)
 		return
 	}
+}
+
+// validateContextEditInput enforces the body-source and selector rules before
+// anything is spliced.
+func validateContextEditInput(cmd *cobra.Command, doc ctxResolvedDoc, newText string) error {
+	if newText == "" && !contextBodyFlagSet(cmd) {
+		return fmt.Errorf("no replacement body: pass --input, --file or --inb64, or pipe it on stdin")
+	}
+	if newText == "" && !getBoolFlag(cmd, "force", false) {
+		target := "the document"
+		switch {
+		case getStringFlag(cmd, "section", false) != "":
+			target = fmt.Sprintf("section %q", getStringFlag(cmd, "section", false))
+		case getStringFlag(cmd, "row", false) != "":
+			target = fmt.Sprintf("row %q", getStringFlag(cmd, "row", false))
+		case getStringFlag(cmd, "fence", false) != "":
+			target = fmt.Sprintf("fence %q", getStringFlag(cmd, "fence", false))
+		}
+		return fmt.Errorf("refusing an empty body for %s: an empty replacement removes %s; pass --force to do it", doc.Path, target)
+	}
+	if fm, _ := contextwiki.SplitFrontmatter(newText); fm != "" {
+		return fmt.Errorf("the input carries a frontmatter block; context edit writes the body only: use sdt context set <doc> <key> <value> for frontmatter keys")
+	}
+	row := getStringFlag(cmd, "row", false)
+	fence := getStringFlag(cmd, "fence", false)
+	if row != "" && fence != "" {
+		return fmt.Errorf("--row and --fence address different structures: pass one")
+	}
+	if getBoolFlag(cmd, "append", false) && (row != "" || fence != "") {
+		return fmt.Errorf("--append adds text; it cannot be combined with --row or --fence, which replace one structure")
+	}
+	if fence != "" && getStringFlag(cmd, "section", false) != "" {
+		return fmt.Errorf("--fence addresses the whole body: drop --section, or use --row for a table inside a section")
+	}
+	return nil
 }
 
 // contextEditResult is the machine-readable outcome of an edit: the text form
