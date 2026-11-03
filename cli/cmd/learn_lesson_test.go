@@ -222,3 +222,56 @@ func TestQuizManifestRoundTrips(t *testing.T) {
 		t.Fatalf("generated manifest does not validate: %v", err)
 	}
 }
+
+// TestLearnBundleCarriesClaimDigests proves the author can read the value the
+// `hash` cell needs from the bundle instead of computing it separately.
+func TestLearnBundleCarriesClaimDigests(t *testing.T) {
+	writeLesson(t, checkLessonBody)
+	page := bundlePage()
+	bld := &contextwiki.Builder{Pages: []*contextwiki.Page{page}, ByID: map[string]*contextwiki.Page{page.ID: page}}
+	b := learnBundleOf(bld, page)
+	if len(b.Claims) != 2 {
+		t.Fatalf("claims = %d, want 2", len(b.Claims))
+	}
+	want := contextwiki.Claims(page.Body)
+	for i, c := range b.Claims {
+		if c.ID != want[i].ID || c.Digest != want[i].Digest {
+			t.Errorf("claim %d = %+v, want id %s digest %s", i, c, want[i].ID, want[i].Digest)
+		}
+		if c.Digest == "" {
+			t.Errorf("claim %d has no digest", i)
+		}
+	}
+}
+
+// TestLearnBundleTextPrintsClaimDigests proves the text form carries the value
+// without a JSON reader.
+func TestLearnBundleTextPrintsClaimDigests(t *testing.T) {
+	writeLesson(t, checkLessonBody)
+	page := bundlePage()
+	bld := &contextwiki.Builder{Pages: []*contextwiki.Page{page}, ByID: map[string]*contextwiki.Page{page.ID: page}}
+	text := learnBundleOf(bld, page).text()
+	for _, c := range contextwiki.Claims(page.Body) {
+		if !strings.Contains(text, "claim "+c.ID+" "+c.Digest) {
+			t.Errorf("text does not carry claim %s digest %s:\n%s", c.ID, c.Digest, text)
+		}
+	}
+}
+
+// TestLearnBundleWithoutClaims proves a page with no anchors adds no claims.
+func TestLearnBundleWithoutClaims(t *testing.T) {
+	writeLesson(t, checkLessonBody)
+	page := &contextwiki.Page{
+		ID: "architecture/x", Status: ctxWikiStatusActive,
+		Frontmatter: "---\n" + checkPageFM + "---\n",
+		Body:        "## Claims\n\nNo anchors here.\n",
+	}
+	bld := &contextwiki.Builder{Pages: []*contextwiki.Page{page}, ByID: map[string]*contextwiki.Page{page.ID: page}}
+	b := learnBundleOf(bld, page)
+	if len(b.Claims) != 0 {
+		t.Errorf("claims = %v, want none", b.Claims)
+	}
+	if strings.Contains(b.text(), "  claim ") {
+		t.Error("the text form printed a claim line for a page with no claims")
+	}
+}

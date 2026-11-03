@@ -68,6 +68,16 @@ type learnWorkedExample struct {
 	Text       string `json:"text" yaml:"text"`
 }
 
+// learnLessonClaim is the page claim an item can cite, with the digest the
+// `hash` cell carries. The bundle publishes it so an author fills the cell from
+// the same command that composes the lesson.
+type learnLessonClaim struct {
+	ID     string `json:"id" yaml:"id"`
+	Number int    `json:"number" yaml:"number"`
+	Digest string `json:"digest" yaml:"digest"`
+	Text   string `json:"text,omitempty" yaml:"text,omitempty"`
+}
+
 // learnLessonBundle is the composed lesson: what a portal renders and asks.
 type learnLessonBundle struct {
 	Concept       string             `json:"concept" yaml:"concept"`
@@ -78,9 +88,21 @@ type learnLessonBundle struct {
 	Prerequisites []string           `json:"prerequisites,omitempty" yaml:"prerequisites,omitempty"`
 	Example       learnWorkedExample `json:"worked_example" yaml:"worked_example"`
 	Items         []learnLessonItem  `json:"items" yaml:"items"`
+	Claims        []learnLessonClaim `json:"claims,omitempty" yaml:"claims,omitempty"`
 	Transfer      string             `json:"transfer,omitempty" yaml:"transfer,omitempty"`
 	Missing       []string           `json:"missing,omitempty" yaml:"missing,omitempty"`
 	_             struct{}           `json:"-" yaml:"-"`
+}
+
+// learnLessonClaimsOf publishes the page's claims with the digest the validator
+// compares, so the author copies a value rather than computing one.
+func learnLessonClaimsOf(p *contextwiki.Page) []learnLessonClaim {
+	claims := p.Claims()
+	out := make([]learnLessonClaim, 0, len(claims))
+	for _, c := range claims {
+		out = append(out, learnLessonClaim{ID: c.ID, Number: c.Number, Digest: c.Digest, Text: c.Text})
+	}
+	return out
 }
 
 // ctxLessonSpanRegexp finds the provenance of a worked example.
@@ -196,6 +218,7 @@ func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) learnLessonBun
 	}
 	b.Transfer = strings.TrimSpace(sections["Transfer"])
 	b.Items = learnLessonItemsOf(sections["Assess"])
+	b.Claims = learnLessonClaimsOf(p)
 	created := parseFrontmatterField(string(data), "created")
 	for i := range b.Items {
 		b.Items[i].Frozen = learnEffectiveFrozen(b.Items[i].Frozen, created)
@@ -219,6 +242,9 @@ func (b learnLessonBundle) text() string {
 	}
 	if b.Example.SourceSpan != "" {
 		fmt.Fprintf(&out, "  example span: %s\n", b.Example.SourceSpan)
+	}
+	for _, c := range b.Claims {
+		fmt.Fprintf(&out, "  claim %s %s\n", c.ID, c.Digest)
 	}
 	for _, it := range b.Items {
 		fmt.Fprintf(&out, "  [%s] %s (%s, objective %d, grading %s, provenance %s, frozen %s)\n",
