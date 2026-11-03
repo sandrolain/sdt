@@ -72,8 +72,10 @@ var instructionModuleRatchet = map[string]int{
 	// scaffolding), which the reviewer writes and no command can check. Rose to
 	// 4150 (2026-11-02): the feedback lane — the aggregate's shape, the sample
 	// floor, and the register the lint checks. 4172 when the lane stopped naming a
-	// projection file no command writes: a cited path must be generated.
-	"ingestion": 4172,
+	// projection file no command writes: a cited path must be generated. Rose to
+	// 4210 (2026-11-03): batch conversion gained `--glob`, and `--keep` states
+	// that its destination resolves against the project root, never the CWD.
+	"ingestion": 4210,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.
@@ -91,8 +93,10 @@ var instructionModuleRatchet = map[string]int{
 	// every later anchor and an item citing `#claim-7` would follow another fact.
 	// Rose to 2679 (2026-11-02): a claim carries a stable id beside its anchor, the
 	// key a lesson item cites, and the rule that the lint requires one per claim.
-	"wiki":         2679,
-	"distillation": 1763,
+	"wiki": 2679,
+	// distillation rose to 1790 (2026-11-03): the extraction ledger names
+	// `units --match`, the read-only candidate list the fold-in reconciles.
+	"distillation": 1790,
 }
 
 // countWords is the one definition the budgets are measured with.

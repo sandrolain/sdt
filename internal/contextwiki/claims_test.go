@@ -1,6 +1,9 @@
 package contextwiki
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestClaimsReadsNumberIDLineAndDigest(t *testing.T) {
 	body := "## Claims\n\n1. One fact. (refs/spec.md@abc12345:3) {#claim-1} <!-- c-aaaaaaaa -->\n2. Two fact. {#claim-2} <!-- c-bbbbbbbb -->\n"
@@ -75,5 +78,30 @@ func TestClaimDigestIsStableAndShort(t *testing.T) {
 	}
 	if a == ClaimDigest("the same text ") {
 		t.Errorf("callers must normalize before hashing; the digest itself must not trim")
+	}
+}
+
+func TestMintClaimIDsStampsMissingAndKeepsExisting(t *testing.T) {
+	body := "1. {#claim-1} one fact (refs/x.md@abc123:1)\n" +
+		"2. {#claim-2} <!-- c-keepme12 --> two (refs/x.md@abc123:2)\n"
+	got := MintClaimIDs(body, func() string { return "c-minted99" })
+	if !strings.Contains(got, "{#claim-1} <!-- c-minted99 --> one fact") {
+		t.Fatalf("missing id was not stamped:\n%s", got)
+	}
+	if !strings.Contains(got, "{#claim-2} <!-- c-keepme12 --> two") {
+		t.Fatalf("existing id was disturbed:\n%s", got)
+	}
+	if again := MintClaimIDs(got, func() string { return "c-other000" }); again != got {
+		t.Fatalf("minting is not idempotent:\n%s", again)
+	}
+}
+
+func TestMintClaimIDsSkipsAnEmptyGenerator(t *testing.T) {
+	body := "1. {#claim-1} a fact\n"
+	if got := MintClaimIDs(body, func() string { return "" }); got != body {
+		t.Fatalf("an empty id must be skipped, got:\n%s", got)
+	}
+	if got := MintClaimIDs(body, nil); got != body {
+		t.Fatalf("a nil generator must leave the body alone, got:\n%s", got)
 	}
 }

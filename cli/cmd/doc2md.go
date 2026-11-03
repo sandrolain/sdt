@@ -13,6 +13,7 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/sandrolain/sdt/cli/utils/converter"
 	"github.com/sandrolain/sdt/internal/doc2md"
+	"github.com/sandrolain/sdt/internal/search"
 	"github.com/spf13/cobra"
 )
 
@@ -113,6 +114,7 @@ func runDoc2md(cmd *cobra.Command, args []string) {
 	tool := getStringFlag(cmd, "tool", false)
 	keep := getBoolFlag(cmd, "keep", false)
 	dir := getStringFlag(cmd, "dir", false)
+	glob := getStringFlag(cmd, "glob", false)
 	name := getStringFlag(cmd, "name", false)
 	outputFile := getStringFlag(cmd, "output-file", false)
 	if keep && outputFile != "" {
@@ -123,7 +125,11 @@ func runDoc2md(cmd *cobra.Command, args []string) {
 		exitWithError(cmd, fmt.Errorf("--dir cannot be combined with --output-file; use --keep or JSON/YAML"))
 		return
 	}
-	inputs, err := doc2mdInputs(args, dir, keep, getFormat(cmd))
+	if glob != "" && dir == "" {
+		exitWithError(cmd, fmt.Errorf("--glob filters --dir; name the directory"))
+		return
+	}
+	inputs, err := doc2mdInputs(args, dir, keep, getFormat(cmd), glob)
 	if err != nil {
 		exitWithError(cmd, err)
 		return
@@ -139,7 +145,7 @@ func runDoc2md(cmd *cobra.Command, args []string) {
 
 // doc2mdInputs expands --dir and enforces the batch guard: a text run without
 // --keep would concatenate unrelated markdown on stdout.
-func doc2mdInputs(args []string, dir string, keep bool, format string) ([]string, error) {
+func doc2mdInputs(args []string, dir string, keep bool, format, glob string) ([]string, error) {
 	if dir == "" && len(args) == 0 {
 		return nil, fmt.Errorf("name a file or use --dir")
 	}
@@ -149,9 +155,12 @@ func doc2mdInputs(args []string, dir string, keep bool, format string) ([]string
 	if !keep && format == formatText {
 		return nil, fmt.Errorf("--dir needs --keep or --format json|yaml; a text run would concatenate markdown")
 	}
-	files, err := doc2mdDirInputs(dir)
+	files, skipped, err := doc2mdDirInputs(dir, glob)
 	if err != nil {
 		return nil, err
+	}
+	if skipped > 0 {
+		slog.Info("documents skipped by --glob", "count", skipped)
 	}
 	return append(args, files...), nil
 }
@@ -257,14 +266,24 @@ func outputDoc2mdSingle(cmd *cobra.Command, results []doc2md.Result, keep bool, 
 func writeDoc2mdFile(input string, res doc2md.Result, keep bool, outputFile, name string, force bool) (string, error) {
 	doc := doc2md.Document{Source: input, Name: name, Converter: res.Converter, Markdown: res.Markdown, Force: force}
 	if keep {
-		path, created, err := doc2md.Keep(doc, sdtConvertedDir)
+		dir, root, err := doc2mdKeepDir()
+		if err != nil {
+			return "", err
+		}
+		if err := doc2mdSourceInsideRoot(root, input); err != nil {
+			return "", err
+		}
+		path, created, err := doc2md.Keep(doc, dir)
 		if err != nil {
 			return "", err
 		}
 		if created {
-			if _, _, err := doc2md.Reindex(sdtConvertedDir); err != nil {
+			if _, _, err := doc2md.Reindex(dir); err != nil {
 				return "", err
 			}
+		}
+		if rel, relErr := filepath.Rel(root, path); relErr == nil {
+			return filepath.ToSlash(rel), nil
 		}
 		return path, nil
 	}
@@ -276,6 +295,37 @@ func writeDoc2mdFile(input string, res doc2md.Result, keep bool, outputFile, nam
 		return "", fmt.Errorf("write %s: %w", outputFile, err)
 	}
 	return outputFile, nil
+}
+
+// doc2mdKeepDir resolves --keep's destination against the project root — the
+// directory that owns .sdt.yaml — never against the working directory. A
+// relative destination is how an artifact once landed inside the immutable
+// ingestion tree when the command ran from a subdirectory: the printed path was
+// project-relative and the write was not.
+func doc2mdKeepDir() (dir, root string, err error) {
+	root = sdtProjectRoot()
+	if root == "" {
+		return "", "", fmt.Errorf("--keep writes into a project's %s; no %s found above the working directory", sdtConvertedDir, sdtConfigFile)
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", "", fmt.Errorf("resolve project root %s: %w", root, err)
+	}
+	return filepath.Join(abs, sdtConvertedDir), abs, nil
+}
+
+// doc2mdSourceInsideRoot refuses a kept source outside the project: its
+// provenance would name a path the corpus cannot resolve.
+func doc2mdSourceInsideRoot(root, input string) error {
+	abs, err := filepath.Abs(input)
+	if err != nil {
+		return fmt.Errorf("resolve source %s: %w", input, err)
+	}
+	rel, err := filepath.Rel(root, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("--keep refuses a source outside the project root %s: %s", root, input)
+	}
+	return nil
 }
 
 type doc2mdBatchEntry struct {
@@ -298,9 +348,12 @@ func doc2mdBatchEntries(inputs []string, results []doc2md.Result) []doc2mdBatchE
 	return out
 }
 
-func doc2mdDirInputs(dir string) ([]string, error) {
-	var files []string
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
+func doc2mdDirInputs(dir, glob string) (files []string, skipped int, err error) {
+	match, err := search.GlobMatcher(glob)
+	if err != nil {
+		return nil, 0, fmt.Errorf("--glob: %w", err)
+	}
+	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -310,10 +363,15 @@ func doc2mdDirInputs(dir string) ([]string, error) {
 		if strings.HasPrefix(d.Name(), ".") || converter.DocumentExtension(d.Name()) == "" {
 			return nil
 		}
+		rel, relErr := filepath.Rel(dir, path)
+		if relErr != nil || !match(filepath.ToSlash(rel)) {
+			skipped++
+			return nil
+		}
 		files = append(files, path)
 		return nil
 	})
-	return files, err
+	return files, skipped, err
 }
 
 func exitWithDoc2mdStatus(results []doc2md.Result) {
@@ -454,6 +512,7 @@ func init() {
 	doc2mdSetCmd.Flags().Bool("force", false, "Allow a byte-changing frontmatter rewrite of a cited artifact (the citing documents are named either way)")
 	doc2mdCmd.Flags().String("tool", "", "Pin one converter (anydoc, docling, markitdown)")
 	doc2mdCmd.Flags().Bool("keep", false, "Keep the document under context/refs/converted/ with provenance frontmatter")
+	doc2mdCmd.Flags().String("glob", "", "With --dir, convert only the documents matching this glob (the sdt find dialect)")
 	doc2mdCmd.Flags().String("name", "", "Override the kept filename stem (with --keep)")
 	doc2mdCmd.Flags().String("output-file", "", "Write the document to an explicit path instead of stdout")
 	doc2mdCmd.Flags().String("dir", "", "Convert every supported document under this directory")

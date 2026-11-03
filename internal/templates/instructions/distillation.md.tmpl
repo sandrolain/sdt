@@ -51,8 +51,11 @@ State the mode before extracting — it decides the budget and the output:
 - **Keep a cumulative extraction ledger.** Alongside each segment, record a
   concise source-level summary and the concepts, claims, definitions and
   unresolved questions already extracted; carry it forward so later segments see
-  prior context and repeated or evolving ideas surface. When this does not apply:
-  a single-pass source needs no ledger.
+  prior context and repeated or evolving ideas surface.
+  `sdt context wiki units <artifact> --match <wiki-dir>` lists the existing
+  pages each section may touch, with the words they share as the evidence;
+  the command proposes candidates and the fold-in decides. When this does not
+  apply: a single-pass source needs no ledger.
 - **Separate local extraction from global reconciliation.** First record
   candidates against the current segment; only after all relevant segments are
   covered, reconcile them against the whole source and the existing corpus before

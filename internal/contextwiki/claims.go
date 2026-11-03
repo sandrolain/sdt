@@ -115,6 +115,36 @@ func NormalizeClaimBlock(block string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
+// MintClaimIDs stamps a stable id after every claim anchor that lacks one,
+// leaving an existing id untouched. gen supplies the id, so the caller owns the
+// alphabet and a test can pin it; an empty id is skipped rather than written.
+//
+// The rule mirrors the checklist anchors `sdt context check` stamps on write: a
+// written claim never arrives without an identity, and an id already present is
+// never regenerated — a rewritten claim keeps its id and its digest changes,
+// which is what `learn lesson --validate` reports as stale.
+func MintClaimIDs(body string, gen func() string) string {
+	if gen == nil {
+		return body
+	}
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		loc := ClaimRegexp.FindStringIndex(line)
+		if loc == nil {
+			continue
+		}
+		if ClaimIDRegexp.MatchString(line[loc[1]:]) {
+			continue
+		}
+		id := gen()
+		if id == "" {
+			continue
+		}
+		lines[i] = line[:loc[1]] + " <!-- " + id + " -->" + line[loc[1]:]
+	}
+	return strings.Join(lines, "\n")
+}
+
 // ClaimDigest is the first ClaimIDLength hex characters of the sha256 of a
 // normalized claim block.
 func ClaimDigest(normalized string) string {

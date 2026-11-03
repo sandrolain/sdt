@@ -586,3 +586,32 @@ func TestDeclaredScopeCannotUnpruneTheVCSResidues(t *testing.T) {
 		}
 	}
 }
+
+func TestGlobMatcherFollowsTheFindDialect(t *testing.T) {
+	basename, err := GlobMatcher("*.md")
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	if !basename("a.md") || !basename("deep/dir/a.md") {
+		t.Errorf("a pattern without a separator must match a basename at any depth")
+	}
+	if basename("a.txt") {
+		t.Errorf("a basename pattern matched another extension")
+	}
+
+	wholePath, err := GlobMatcher("docs/*.md")
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	if !wholePath("docs/a.md") {
+		t.Errorf("a path pattern must match its own path")
+	}
+	if wholePath("other/docs/a.md") {
+		t.Errorf("a path pattern must be anchored at the root")
+	}
+
+	all, err := GlobMatcher("")
+	if err != nil || !all("anything") {
+		t.Errorf("an empty pattern must match everything: %v", err)
+	}
+}

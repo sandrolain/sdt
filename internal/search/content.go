@@ -798,6 +798,21 @@ var errOutsideRoot = errors.New("path is outside the root")
 // finds every markdown file, the way `find -name` behaves — while a pattern
 // containing `/` is matched against the whole root-relative path. The rule is
 // stated rather than implied so a caller can predict it without a test.
+// GlobMatcher compiles a pattern with the `sdt find` dialect — a pattern
+// without a separator matches a basename at any depth, one with a separator
+// matches the whole slash-separated path — so a caller filtering its own walk
+// answers the same way `sdt find` would.
+func GlobMatcher(pattern string) (func(string) bool, error) {
+	re, err := globRegexp(pattern)
+	if err != nil {
+		return nil, err
+	}
+	if re == nil {
+		return func(string) bool { return true }, nil
+	}
+	return re.MatchString, nil
+}
+
 func globRegexp(pattern string) (*regexp.Regexp, error) {
 	if pattern == "" {
 		return nil, nil

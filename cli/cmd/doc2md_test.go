@@ -191,7 +191,7 @@ func TestDoc2mdEpubReachesTheChain(t *testing.T) {
 }
 
 func TestDoc2mdKeepWritesCorpus(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := setupContextProject(t)
 	writeTestFile(t, "report.csv", "a,b\n1,2\n")
 	captureLogs(t)
 	withDoc2mdSeams(t, func(_ context.Context, _ doc2md.Options) doc2md.Result {
@@ -232,6 +232,71 @@ func TestDoc2mdKeepWritesCorpus(t *testing.T) {
 	}
 }
 
+func TestDoc2mdKeepFromNestedDirWritesUnderRoot(t *testing.T) {
+	dir := setupContextProject(t)
+	writeCtxDoc(t, "context/ingestion/book.epub", "epub")
+	captureLogs(t)
+	withDoc2mdSeams(t, func(_ context.Context, _ doc2md.Options) doc2md.Result {
+		return doc2md.Result{Status: doc2md.StatusSuccess, Converter: "anydoc", Markdown: "# Book\n\nbody\n"}
+	}, nil)
+
+	nested := filepath.Join(dir, "context", "ingestion")
+	if err := os.Chdir(nested); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(dir) })
+
+	out := execute(t, doc2mdCmd, nil, "book.epub", "--keep")
+	rel := strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
+	if !strings.HasPrefix(rel, sdtConvertedDir+"/") {
+		t.Fatalf("kept path = %q, want a project-relative path under %s", rel, sdtConvertedDir)
+	}
+	if _, err := os.Stat(filepath.Join(dir, rel)); err != nil {
+		t.Fatalf("artifact not under the project root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(nested, "context")); !os.IsNotExist(err) {
+		t.Fatalf("a context/ directory was written beside the source (err=%v)", err)
+	}
+}
+
+func TestDoc2mdKeepWithoutProjectRootFails(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, "book.epub", "epub")
+	logs := captureCmdErr(t)
+	withDoc2mdSeams(t, func(_ context.Context, _ doc2md.Options) doc2md.Result {
+		return doc2md.Result{Status: doc2md.StatusSuccess, Converter: "anydoc", Markdown: "# B\n"}
+	}, nil)
+
+	shouldExitWithCode(t, 1, func() string {
+		execute(t, doc2mdCmd, nil, "book.epub", "--keep")
+		return ""
+	})
+	if !strings.Contains(logs.String(), "--keep writes into a project") {
+		t.Errorf("error does not name the missing project root: %s", logs.String())
+	}
+}
+
+func TestDoc2mdKeepRefusesSourceOutsideRoot(t *testing.T) {
+	setupContextProject(t)
+	outside := t.TempDir()
+	source := filepath.Join(outside, "book.epub")
+	if err := os.WriteFile(source, []byte("epub"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	logs := captureCmdErr(t)
+	withDoc2mdSeams(t, func(_ context.Context, _ doc2md.Options) doc2md.Result {
+		return doc2md.Result{Status: doc2md.StatusSuccess, Converter: "anydoc", Markdown: "# B\n"}
+	}, nil)
+
+	shouldExitWithCode(t, 1, func() string {
+		execute(t, doc2mdCmd, nil, source, "--keep")
+		return ""
+	})
+	if !strings.Contains(logs.String(), "refuses a source outside the project root") {
+		t.Errorf("error does not name the outside source: %s", logs.String())
+	}
+}
+
 func TestDoc2mdOutputFile(t *testing.T) {
 	dir := runInTempDir(t)
 	writeTestFile(t, "report.csv", "a\n")
@@ -263,7 +328,7 @@ func TestDoc2mdKeepOutputFileConflict(t *testing.T) {
 }
 
 func TestDoc2mdKeepJSONEnvelope(t *testing.T) {
-	runInTempDir(t)
+	setupContextProject(t)
 	writeTestFile(t, "report.csv", "a\n")
 	captureLogs(t)
 	withDoc2mdSeams(t, func(_ context.Context, _ doc2md.Options) doc2md.Result {

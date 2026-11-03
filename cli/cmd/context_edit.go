@@ -158,6 +158,9 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 	default:
 		newBody = text
 	}
+	// A written claim never arrives without an identity: the write path stamps
+	// the same HTML-comment id the corpus uses, and an existing id is untouched.
+	newBody = contextwiki.MintClaimIDs(newBody, newClaimID)
 	if newBody == body {
 		outputContextEdit(cmd, contextEditResult{Path: doc.Path, Section: getStringFlag(cmd, "section", false), DryRun: getBoolFlag(cmd, "dry-run", false)})
 		return

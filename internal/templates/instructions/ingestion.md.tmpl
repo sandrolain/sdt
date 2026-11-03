@@ -138,15 +138,18 @@ Sources are frequently not plain markdown — convert first, then distil.
   (availability means the tool launches, not that it is on PATH) and prints
   markdown to stdout to read. Use `--tool <name>` to pin one converter;
   `sdt doc2md tools` probes the chain.
-- **Batch convert** with `sdt doc2md --dir <path> --keep` (per-source statuses).
+- **Batch convert** with `sdt doc2md --dir <path> [--glob <pattern>] --keep`
+  (per-source statuses; a document the glob excludes is counted as skipped,
+  never reported as a failure).
 - **Reference lane:** `refs/reference/<dir>/` is mandatory once a page cites a
   file; `wiki reference` reports missing files, optional bundles.
 - **Keep a document** with `sdt doc2md <file> --keep`: it stores a
   content-addressed, provenance-stamped file under `context/refs/converted/`
   and regenerates the index there (`list`, `set`, `reindex` are the read /
-  mutate / repair verbs). A document no longer needs to round-trip through
-  `context/tmp/`; `--output-file <path>` writes the stamped document to an
-  explicit path instead.
+  mutate / repair verbs). The destination resolves against the project root that
+  owns `.sdt.yaml`, never the working directory, and a source outside the project
+  is refused. A document no longer needs to round-trip through `context/tmp/`;
+  `--output-file <path>` writes the stamped document to an explicit path instead.
 - A PDF whose pages need OCR is reported as `needs_ocr` (its own status and
   exit code), never an empty file reported as success. Raw binaries stay
   untouched in `context/ingestion/` until the archive step; never convert
