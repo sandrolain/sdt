@@ -171,6 +171,13 @@ session: <session id>        # optional
 - Dated files: integrate/modify the current analysis while it is the active one;
   a materially new line of investigation gets a new dated file (and sets
   `sources` back to the analysis it extends).
+- **Draw when the material is structural.** A flow, a relation between parts, a
+  tree of options or a state change is drawn in the section that carries it,
+  where prose would spell it out — one diagram per idea, never a decorative
+  opener; three bullets restated are furniture. Shape defers to
+  `instructions/diagram.md` when the project has it; without it the fence reads
+  as text and the prose carries the structure.
+  `sdt context edit --fence mermaid` writes one.
 - **R1 — split a too-broad analysis into siblings, but only after asking.**
   Split when **any** of: it would carry more than one `## Options considered`
   group belonging to different domains; it would need more than one conclusion;

@@ -157,7 +157,11 @@ Sources are frequently not plain markdown — convert first, then distil.
 - **Images** (diagrams, screenshots, scans): interpret via a vision-capable
   model; distil the facts into the wiki page; optionally archive the original
   in `context/refs/` on approval. Never embed binaries in wiki pages — point
-  to `refs/<file>@<sha>` instead.
+  to `refs/<file>@<sha>` instead. A diagram carrying a flow, a relation or a
+  sequence is re-expressed as a Mermaid fence in the page distillation produces,
+  cited like any other evidence, and the figure itself is never embedded there.
+  Shape defers to `instructions/diagram.md` when the project has it; without it
+  the fence reads as text and the prose carries the structure.
 
 ## Feedback from a consumer
 

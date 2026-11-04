@@ -74,13 +74,20 @@ var instructionModuleRatchet = map[string]int{
 	// floor, and the register the lint checks. 4172 when the lane stopped naming a
 	// projection file no command writes: a cited path must be generated. Rose to
 	// 4210 (2026-11-03): batch conversion gained `--glob`, and `--keep` states
-	// that its destination resolves against the project root, never the CWD.
-	"ingestion": 4210,
+	// that its destination resolves against the project root, never the CWD. Rose
+	// to 4266 (2026-11-04): a diagram carrying a flow, a relation or a sequence is
+	// re-expressed as a Mermaid fence in the page distillation produces, the figure
+	// itself never embedded there.
+	"ingestion": 4266,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.
 	"plan":        2675,
-	"analysis":    2496,
+	// analysis rose to 2563 (2026-11-04): an analysis draws the shape its prose
+	// would spell out — a flow, a relation between parts, an option tree, a state
+	// change — the half of the diagram doctrine that lived only in the
+	// profile-gated module no analysis-reading project has.
+	"analysis":    2563,
 	"development": 2455,
 	// wiki rose to 2443 (2026-10-24): the coverage record documents the
 	// `concepts:` block beside the unit block, its identity and its findings.
@@ -93,10 +100,19 @@ var instructionModuleRatchet = map[string]int{
 	// every later anchor and an item citing `#claim-7` would follow another fact.
 	// Rose to 2679 (2026-11-02): a claim carries a stable id beside its anchor, the
 	// key a lesson item cites, and the rule that the lint requires one per claim.
-	"wiki": 2679,
+	// Rose to 2757 (2026-11-04): a page whose mechanism is structural draws it with
+	// the page's own provenance — the diagram is the claim's shape, not decoration.
+	"wiki": 2757,
 	// distillation rose to 1790 (2026-11-03): the extraction ledger names
-	// `units --match`, the read-only candidate list the fold-in reconciles.
-	"distillation": 1790,
+	// `units --match`, the read-only candidate list the fold-in reconciles. Rose to
+	// 1882 (2026-11-04): a section that is a diagram is extracted as one, its dropped
+	// figures are listed with the run's other losses, and the form defers to the
+	// diagram module.
+	"distillation": 1882,
+	// research joins the map at 1457 (2026-11-04): a finding whose meaning is a
+	// shape is drawn beside it, the drawing showing the shape and never the
+	// conclusion.
+	"research": 1457,
 }
 
 // countWords is the one definition the budgets are measured with.

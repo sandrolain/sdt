@@ -86,9 +86,17 @@ Each distilled section is the fold-in unit and follows one output shape:
   source locator (`refs/<file>@<sha>:<lines>` or the chapter/section/page), so
   every section is traceable without re-reading the source.
 - **A per-content-type extraction checklist** — by section, deliberately walk
-  definitions, claims, algorithms, equations and remarks; never let one content
-  type (usually prose) crowd out the others. Equations keep their numbering
-  (`\tag{}`); LaTeX fidelity is a known conversion loss point — re-check it.
+  definitions, claims, algorithms, equations, diagrams and remarks; never let one
+  content type (usually prose) crowd out the others. Equations keep their
+  numbering (`\tag{}`); LaTeX fidelity is a known conversion loss point — re-check
+  it.
+- **A section that is a diagram is extracted as a diagram.** Re-express its
+  structure — from a vision model for a figure, from the source's own fence for a
+  text source — and cite it to its own span; never let the binary stand in place
+  of the structure. A figure the conversion dropped is listed with the run's
+  other losses (`## Quality gates`), never redrawn from memory. Shape defers to
+  `instructions/diagram.md` when the project has it; without it the fence reads
+  as text and the prose carries the structure.
 - **The lossless-vs-curated stance, stated once**: the reference is lossless
   where content is load-bearing (definitions, numbered results) and curated
   where it is not (narrative); never present a curated section as complete.
