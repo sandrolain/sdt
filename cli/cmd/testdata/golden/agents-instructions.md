@@ -140,6 +140,7 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/wiki.md` | Writing wiki pages |
 | `context/instructions/learning.md` | Quizzing and explaining |
 | `context/instructions/lesson.md` | Writing a lesson |
+| `context/instructions/course.md` | Themes and syllabi |
 | `context/instructions/briefing.md` | Writing or updating a briefing |
 | `context/instructions/debugging.md` | Diagnosing a failure |
 | `context/instructions/development.md` | Writing code |
@@ -276,6 +277,5 @@ architecture, dependency or workflow is written back into the
 
 ### Keep the chain
 
-Non-trivial intent → the **analysis** first, then plan → execution inside that
-objective; HARD RULE 1 states the chain and its gates once; every file links
-there.
+Non-trivial intent → the **analysis** first, then plan → execution; HARD RULE 1
+owns the chain and its gates.

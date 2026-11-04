@@ -615,6 +615,9 @@ func learnCoverage(bld *contextwiki.Builder) []learnCoverageRow {
 	rows := make([]learnCoverageRow, 0, len(files))
 	seen := map[string]bool{}
 	for _, path := range files {
+		if learnIsLevelPath(path) {
+			continue
+		}
 		concept := ""
 		if c, ok := learnConceptOfAssessmentPath(path); ok {
 			concept = c

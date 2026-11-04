@@ -31,6 +31,13 @@ type ctxDocType struct {
 	// itself (wiki, lesson); `.assessment` for a kind that lives beside another
 	// kind's document (`assessment` beside `lesson`).
 	suffix string
+	// suffixInID says whether that suffix is part of the document id as well as of
+	// its file name. It is true for a kind that lives beside another kind's
+	// document (`<concept>.assessment`), where the suffix is the only thing telling
+	// the two ids apart, and false for a kind whose own directory already names the
+	// level (`themes/<slug>` in `themes/<slug>.theme.md`), where an id carrying the
+	// suffix would repeat it.
+	suffixInID bool
 
 	defaultStatus string   // initial `status` written by new; "" when the type carries none
 	statuses      []string // per-type status vocabulary
@@ -81,7 +88,9 @@ var contextTypeList = []ctxDocType{
 	{kind: ctxTypeCommands, dir: sdtCommandsDir, tier: ctxTierOperational, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusActive, statuses: []string{taskFileStatusLegacy}, listSupported: true, statusRow: true},
 	{kind: ctxTypeWiki, dir: sdtWikiDir, tier: "", scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, taskFileStatusLegacy, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "wiki.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: false},
 	{kind: ctxTypeLesson, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "lesson.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
-	{kind: ctxTypeAssessment, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, suffix: ctxAssessmentSuffix, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "lesson.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
+	{kind: ctxTypeAssessment, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, suffix: ctxAssessmentSuffix, suffixInID: true, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "lesson.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
+	{kind: ctxTypeTheme, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, suffix: ctxThemeSuffix, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "course.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
+	{kind: ctxTypeSyllabus, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, suffix: ctxSyllabusSuffix, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "course.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 	{kind: ctxTypeBriefing, dir: sdtBriefingDir, tier: ctxTierImportant, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "briefing.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 }
 
@@ -105,9 +114,14 @@ func ctxTypeForDir(dir string) (ctxDocType, bool) {
 
 // ctxTypeID returns the document id a subpath kind derives from a slug: the slug
 // itself, plus the kind's suffix where the kind lives beside another kind's
-// document (`<concept>.assessment`). One function, because the path, the
-// frontmatter id and the frontmatter concept must agree.
+// document (`<concept>.assessment`) and the suffix is what tells the two ids
+// apart. A kind that owns a directory (`themes/<slug>`) keeps its id bare: the
+// suffix stays on the file name. One function, because the path, the frontmatter
+// id and the frontmatter concept must agree.
 func ctxTypeID(t ctxDocType, slug string) string {
+	if !t.suffixInID {
+		return slug
+	}
 	return slug + t.suffix
 }
 

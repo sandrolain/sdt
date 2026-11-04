@@ -27,7 +27,7 @@ type ctxResolveCandidate struct {
 // then path. An empty --status ranks every candidate by recency. The ranking is
 // a hint the agent shows the user; it is never a silent decision.
 func resolveCandidates(t ctxDocType, status string) ([]ctxResolveCandidate, error) {
-	files, err := listContextFiles(t.dir)
+	files, err := listContextFiles(t)
 	if err != nil {
 		return nil, err
 	}

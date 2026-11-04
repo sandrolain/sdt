@@ -1,0 +1,122 @@
+---
+kind: instructions
+title: "Course — the theme and the syllabus above the lesson"
+summary: "A theme groups lessons and a syllabus groups themes; both reference what exists, own the order, and restate no objective, claim or item key."
+---
+
+`context/learning/themes/<slug>.theme.md` and
+`context/learning/syllabi/<slug>.syllabus.md` are the two levels above the
+lesson: a **theme** puts the concepts that belong together in one document, and a
+**syllabus** is the course document — it puts themes in the order a learner meets
+them and says who it is for. Both are documents, not a runtime — `sdt learn
+course` reads them and `sdt learn record` remains the only writer of what a
+learner demonstrated.
+
+The three things a level sits above, named once: a **page**
+(`context/wiki/<concept-id>.md`) owns the claims and the objectives, a **lesson**
+(`context/learning/<concept-id>.md`) owns the worked example and the curriculum
+order, and its **assessment** (`<concept-id>.assessment.md`) owns the items and
+their keys.
+
+Read it with `instructions/lesson.md` (the unit a level groups) and
+`instructions/learning.md` (how a session runs). This module covers the two
+artefacts only.
+
+## The two levels
+
+| Level | Id | File | Lists |
+|---|---|---|---|
+| theme | `themes/<slug>` | `context/learning/themes/<slug>.theme.md` | lessons |
+| syllabus | `syllabi/<slug>` | `context/learning/syllabi/<slug>.syllabus.md` | themes |
+
+- **The directory names the level and the suffix names it on the file.** The id
+  stays bare — `themes/delivery-metrics`, not `themes/delivery-metrics.theme` —
+  because the level already occupies its own directory; the suffix tells a
+  listing, a walk and a reader what a file is. Both are written by `sdt context
+  new --type theme|syllabus --slug themes/<slug>`, and `<id>` in every command
+  below means that bare id.
+- **A level's `status` is its own lifecycle.** `draft` · `active` · `archived`
+  says where the document is, never whether its members can be taught: the
+  readiness verdict belongs to the page (`sdt learn check`). A `draft` level is
+  shippable as a document and visibly unfinished as a course.
+- **A level references; it never restates.** No claim, no objective, no item, no
+  key. A theme that lists `architecture/four-key-metrics` says nothing about the
+  four metrics: the page states them and the lesson asks them. A level carrying a
+  claim anchor or an item table is a defect the lint reports.
+- **Membership is many-to-many and the container owns the order.** A theme lists
+  its lessons and a syllabus lists its themes; position is the order, and no
+  child carries a reverse field. One lesson may appear in two themes — a concept
+  that matters to a messaging theme and to a resilience theme belongs in both —
+  and a theme may be reused by two syllabi without a second copy.
+- **A lesson stays one concept.** A level never merges lessons into one document.
+  The item→claim→own-page binding is the reason: a merged lesson would cite
+  another page's claims, which is exactly what the lesson contract forbids.
+
+## The theme
+
+Two sections and no others:
+
+- **`## Thread`** — why these concepts belong together: one short paragraph, not
+  a list and not an essay. It is the one thing a theme knows that its members do
+  not — the argument for reading them as a set.
+- **`## Lessons`** — the membership, one bare id per bullet, first to last. The
+  list is the order a learner walks; an id that is not a lesson, an archived
+  lesson and a repeated id are each refused.
+
+## The syllabus
+
+The same two sections — `## Thread` as one short paragraph, and `## Themes`
+carrying the membership as bare ids, one per bullet, first to last — plus its
+**intake** in frontmatter, because a course that cannot say who it is for cannot
+be taught, sold or assessed:
+
+```yaml
+audience: "senior developers moving into an architect role"
+from_level: intermediate   # introductory | intermediate | advanced
+to_level: advanced
+outcome: "decide which measure drives a decision, and defend its reporting window"
+```
+
+- **The level vocabulary is the page's.** `from_level` and `to_level` use the same
+  three words as a page's `learning.difficulty`, so the two never drift; an
+  unknown level and a pair that ends below where it starts are refused.
+- **An outcome is not a list of objectives.** It is one sentence about what the
+  learner can do at the end. The objectives stay on the concept page each lesson
+  teaches, which is beside the lesson and not a level of this hierarchy.
+- **`## Thread` says who it is for and why this order.** The intake states the
+  facts; the section states the argument for the sequence.
+
+## Check before you ship
+
+```bash
+sdt learn course <id>              # membership, readiness verdicts, order conflicts
+sdt learn course <id> --coverage   # objective → item → claim, then the two facts
+sdt learn course --validate        # every level: refusals and conflicts counted
+```
+
+- **A refusal exits 1**: a dangling member, an archived one, a duplicate, a
+  member of the wrong kind, and — for a syllabus — an intake that cannot address
+  its reader. Reading one level refuses the same way; `--validate` reads every
+  level, counts the refusals and the conflicts, and exits 1 when the count is not
+  zero.
+- **An order conflict is reported and never resolved.** The verb compares the
+  order with each member's `relations.depends_on` and the ids its
+  `## Prerequisites` section names; a prerequisite that appears later is printed
+  with both positions. The document is the author's, the graph is the corpus's,
+  and neither is silently rewritten to agree with the other.
+
+## Two facts, never a score
+
+A course reports **lessons ready** and **objectives covered**, side by side. It
+never reports a percentage, a composite progress number or a course-level grade:
+exposure and mastery are different facts, and a course that collapses them lies
+about both (`learning.md`, *No score*).
+
+## Boundaries
+
+- A level is not a page: it carries no claim, and it is not a concept.
+- A level is not a lesson: it carries no example, no item and no key.
+- Learner state is not a level's field: `context/learning/learner.yaml` holds what
+  a learner demonstrated, and a theme or a syllabus never records completion.
+- This module makes a course **declarable and checkable**. Writing one by a
+  pipeline is a different job.

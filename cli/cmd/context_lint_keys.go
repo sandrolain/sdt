@@ -42,6 +42,10 @@ var ctxDeclaredKeys = map[string]bool{
 	// key is written by `context new --todo` and closed by `context close`.
 	"todos": true,
 	"via":   true, "project": true, "group": true, "id": true, "tier": true,
+	// A syllabus states its intake in frontmatter — who it is for, the level pair
+	// it moves the learner between, and the outcome it promises — because a course
+	// that cannot say who it addresses cannot be taught or checked (`course.md`).
+	"audience": true, "from_level": true, "to_level": true, "outcome": true,
 	// Index/viewer generated markers.
 	"_generated": true, "position": true, "order": true,
 	// Document-type-specific fields used by existing templates/docs.

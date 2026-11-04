@@ -225,6 +225,8 @@ func ctxStatusRows() []ctxStatusEntry {
 		{kind: ctxTypeBriefing, next: read, ifClean: read},
 		{kind: ctxTypeLesson, next: read, ifClean: read},
 		{kind: ctxTypeAssessment, next: read, ifClean: read},
+		{kind: ctxTypeTheme, next: read, ifClean: read},
+		{kind: ctxTypeSyllabus, next: read, ifClean: read},
 		{kind: ctxTypeAnalysis, next: "read if current", ifClean: taskStatusDone},
 		{kind: ctxTypePlan, next: "active plan", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeNotes, next: ctxReviewVerb, ifClean: gitIgnoreModeNone},
@@ -243,11 +245,16 @@ func ctxStatusRows() []ctxStatusEntry {
 		if !ok || !t.statusRow {
 			continue
 		}
-		files, err := dirFiles(t.dir)
+		files, err := dirFilesFor(t.dir)
 		if err != nil {
 			continue
 		}
-		count := len(files)
+		count := 0
+		for _, f := range files {
+			if ctxFileMatchesKind(t, f) {
+				count++
+			}
+		}
 		next := d.next
 		switch {
 		case t.kind == ctxTypeQuestions:
@@ -279,6 +286,26 @@ func ctxStatusRows() []ctxStatusEntry {
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// ctxFileMatchesKind reports whether a file found under a type's directory
+// belongs to that type. Kinds that share a directory are told apart by their file
+// name suffix — the same discriminator the path builder uses — so one row counts
+// its own documents instead of the whole tree: the learning directory holds
+// lessons, their item banks, themes and syllabi side by side.
+func ctxFileMatchesKind(t ctxDocType, path string) bool {
+	for _, sibling := range contextTypeList {
+		if sibling.dir != t.dir || sibling.suffix == "" {
+			continue
+		}
+		if sibling.kind == t.kind {
+			return strings.HasSuffix(path, sibling.suffix+sdtMarkdownExt)
+		}
+		if strings.HasSuffix(path, sibling.suffix+sdtMarkdownExt) {
+			return false
+		}
+	}
+	return true
 }
 
 // ctxQuestionsUnresolved counts open-questions files still awaiting an answer:

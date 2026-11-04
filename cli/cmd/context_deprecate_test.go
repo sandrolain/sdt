@@ -29,6 +29,8 @@ func TestDeprecateRegistryDeclaresARetiredStatus(t *testing.T) {
 		ctxTypeBriefing:     statusArchived,
 		ctxTypeLesson:       statusArchived,
 		ctxTypeAssessment:   statusArchived,
+		ctxTypeTheme:        statusArchived,
+		ctxTypeSyllabus:     statusArchived,
 		ctxTypeSource:       "gone",
 	}
 	for _, tp := range contextTypeList {

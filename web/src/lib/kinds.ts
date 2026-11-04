@@ -4,6 +4,8 @@ export type EntryKind =
   | "wiki"
   | "lesson"
   | "assessment"
+  | "theme"
+  | "syllabus"
   | "instructions"
   | "analysis"
   | "notes"
@@ -27,6 +29,8 @@ export const KIND_ORDER: EntryKind[] = [
   "wiki",
   "lesson",
   "assessment",
+  "theme",
+  "syllabus",
   "instructions",
   "analysis",
   "notes",
@@ -50,6 +54,8 @@ const KIND_LABELS: Record<EntryFilterKind, string> = {
   wiki: "Wiki",
   lesson: "Lessons",
   assessment: "Assessments",
+  theme: "Themes",
+  syllabus: "Syllabi",
   instructions: "Instructions",
   analysis: "Analyses",
   notes: "Notes",
@@ -86,6 +92,8 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
   wiki: "menu_book",
   lesson: "school",
   assessment: "fact_check",
+  theme: "workspaces",
+  syllabus: "route",
   instructions: "rule",
   analysis: "analytics",
   notes: "sticky_note_2",
@@ -110,6 +118,8 @@ const KIND_COLORS: Record<EntryFilterKind, string> = {
   wiki: "var(--ctp-blue)",
   lesson: "var(--ctp-teal)",
   assessment: "var(--ctp-teal)",
+  theme: "var(--ctp-teal)",
+  syllabus: "var(--ctp-sapphire)",
   instructions: "var(--ctp-rosewater)",
   analysis: "var(--ctp-mauve)",
   notes: "var(--ctp-green)",
@@ -154,6 +164,10 @@ export function kindFromPath(path: string): EntryFilterKind {
   // An assessment shares the learning folder with the lesson it serves; only the
   // file name tells the two apart, so the suffix decides before the folder does.
   if (path.endsWith(".assessment.md")) return "assessment";
+  // A theme and a syllabus live under the learning folder too, in their own
+  // directories; the suffix on the file name is what the reader resolves.
+  if (path.endsWith(".theme.md")) return "theme";
+  if (path.endsWith(".syllabus.md")) return "syllabus";
   const segments = path.split("/").filter(Boolean);
   if (segments.length < 3) return "other";
   const folder = segments[1];

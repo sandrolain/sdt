@@ -165,6 +165,14 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 	if typ == ctxTypeResearch {
 		b.WriteString("subject: " + yamlScalar(ctxResearchSubjectPlaceholder) + "\n")
 	}
+	// A syllabus states its intake in frontmatter: who it is for, the level pair
+	// it moves the learner between, and the outcome it promises (`course.md`).
+	if typ == ctxTypeSyllabus {
+		b.WriteString("audience: " + yamlScalar(ctxSyllabusAudiencePlaceholder) + "\n")
+		b.WriteString("from_level: " + ctxSyllabusLevelPlaceholder + "\n")
+		b.WriteString("to_level: " + ctxSyllabusLevelPlaceholder + "\n")
+		b.WriteString("outcome: " + yamlScalar(ctxSyllabusOutcomePlaceholder) + "\n")
+	}
 	if note != "" {
 		b.WriteString("context: " + yamlScalar(note) + "\n")
 	}
@@ -227,7 +235,7 @@ func writeFrontmatterIdentity(b *strings.Builder, typ, id, title string) {
 	if typ == ctxTypeLesson || typ == ctxTypeAssessment {
 		b.WriteString(ctxFrontmatterConcept + ": " + yamlScalar(id) + "\n")
 	}
-	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson, ctxTypeAssessment, ctxTypeSource}, typ) {
+	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson, ctxTypeAssessment, ctxTypeTheme, ctxTypeSyllabus, ctxTypeSource}, typ) {
 		return
 	}
 	if title != "" {
@@ -324,6 +332,10 @@ func contextDefaultBody(typ string) string {
 		return "## Summary\n\n## Claims\n\n## Notes\n"
 	case ctxTypeLesson:
 		return "## Prerequisites\n\n## Worked example\n\n## Transfer\n"
+	case ctxTypeTheme:
+		return "## Thread\n\n## Lessons\n\n"
+	case ctxTypeSyllabus:
+		return "## Themes\n\n"
 	case ctxTypeAssessment:
 		return "## Items\n\n| id | objective | type | prompt | expected | rubric | distractor | claim | grading | provenance | frozen | hash | key_hash |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"
 	case ctxTypeBriefing:
@@ -339,7 +351,7 @@ var contextNewCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a context/ work file with frontmatter",
 	Long: `Create a plan, analysis, worklog, notes, questions, proposal, prompt,
-research, architecture, decision, wiki, lesson or assessment
+research, architecture, decision, wiki, lesson, assessment, theme or syllabus
 file under context/ with the correct naming and the full per-type YAML
 frontmatter (kind, summary, context, status, created, updated, project plus
 per-type fields). The body comes from --input/--file or piped stdin. Existing
@@ -357,7 +369,11 @@ without a status rejects the flag). --source records a derivation reference in
 ` + "`sources`" + ` and ` + "`links`" + ` (repeatable). Wiki pages
 accept subpath ids (` + "`--slug backend/auth`" + `) and carry ` + "`id`" + ` equal to that
 subpath; a lesson does the same, carries ` + "`concept`" + ` equal to its id and defaults
-` + "`--source`" + ` to ` + "`wiki/<id>.md`" + `. --agent and --role record who produced a
+` + "`--source`" + ` to ` + "`wiki/<id>.md`" + `. A theme and a syllabus take a subpath slug too
+and keep the bare id (` + "`--slug themes/delivery-metrics`" + ` lands at
+` + "`context/learning/themes/delivery-metrics.theme.md`" + ` with id
+` + "`themes/delivery-metrics`" + `); the suffix names the level on the file, the directory
+already names it. --agent and --role record who produced a
 notes/worklog entry;
 --note-type sets the notes subtype (e.g. ` + "`dead-end`" + `). The
 command prints the created file path (--format text|json|yaml).
@@ -394,7 +410,7 @@ Examples:
 		if slug == "" && title != "" {
 			slug = sanitizeSlug(title)
 		}
-		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki || typ == ctxTypeLesson || typ == ctxTypeAssessment) && slug == "" {
+		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki || typ == ctxTypeLesson || typ == ctxTypeAssessment || typ == ctxTypeTheme || typ == ctxTypeSyllabus) && slug == "" {
 			exitWithError(cmd, fmt.Errorf("--title or --slug is required for type %s", typ))
 		}
 		note := getStringFlag(cmd, "context", false)

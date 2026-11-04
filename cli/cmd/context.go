@@ -54,6 +54,20 @@ const (
 	// concept id. The file it names sits beside the lesson, so the two documents of
 	// one concept are neighbours rather than a directory apart.
 	ctxAssessmentSuffix = ".assessment"
+	// ctxTypeTheme is the thematic grouping above the lesson: one document listing
+	// the lessons whose concepts belong together, and saying why. It carries no
+	// claim, no objective and no item — it references what exists (`course.md`).
+	ctxTypeTheme = "theme"
+	// ctxTypeSyllabus is the level above the theme: who the course is for, from
+	// which level to which level, to what outcome, and in what order the themes run.
+	ctxTypeSyllabus = "syllabus"
+	// ctxThemeSuffix and ctxSyllabusSuffix are file-name modifiers that tell the
+	// two levels apart from a lesson inside the same directory tree. They are not
+	// part of the id: the directory (`themes/`, `syllabi/`) already names the level,
+	// which is what separates them from `assessment`, whose id carries its suffix
+	// because it sits beside its lesson.
+	ctxThemeSuffix    = ".theme"
+	ctxSyllabusSuffix = ".syllabus"
 	// ctxTypeSupersedes is the forward-only relation field: a document names
 	// the older document it replaces (the reverse is computed, never written).
 	ctxTypeSupersedes = "supersedes"
@@ -78,6 +92,16 @@ var ctxWikiIDRegexp = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a
 // it in.
 
 const ctxSummaryPlaceholder = "<one-line summary — MANDATORY, fill in>"
+
+// The two intake values a syllabus must state in prose: who the course is for,
+// and what the learner can do at its end. They are MANDATORY-fill for the same
+// reason the summary is — a course nobody addresses and nothing concludes is a
+// level that cannot be sold, checked or taught.
+const (
+	ctxSyllabusAudiencePlaceholder = "<who this course is for — MANDATORY, fill in>"
+	ctxSyllabusOutcomePlaceholder  = "<what the learner can do at the end — MANDATORY, fill in>"
+	ctxSyllabusLevelPlaceholder    = "<introductory|intermediate|advanced>"
+)
 
 // ctxResearchSubjectPlaceholder is emitted as the `subject` value for a new
 // research document (the question the research run answers).

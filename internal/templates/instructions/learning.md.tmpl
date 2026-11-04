@@ -7,9 +7,10 @@ summary: "Learning a topic, reviewing it, being quizzed on it, practising it, or
 `context/instructions/learning.md` is the contract for the learning lane: the
 agent teaches from the **local wiki** and the learner's own evidence, never from
 general recall.
-Read it with `context/instructions/wiki.md`; add `instructions/ingestion.md` when a
-source is involved and `instructions/research.md` only when the user asks to
-ground a gap. Their usage comes from `sdt learn --help`, never from memory.
+Read it with `context/instructions/wiki.md`; add `instructions/ingestion.md` for a
+source, `instructions/course.md` for a theme or a syllabus, and
+`instructions/research.md` only when the user asks to ground a gap. Their usage
+comes from `sdt learn --help`, never from memory.
 
 **When this applies.** The user wants to **learn**, be **reviewed**, **quizzed** or
 **practised**, or asks for an **explanation** of a corpus concept — never to ingest
@@ -161,8 +162,8 @@ session entry on request or stop (`sdt learn record --session`). Learner state
 lives in `context/learning/learner.yaml` and is **not** wiki knowledge: profile,
 goals, concept records and a session log, none of it authoritative for the
 corpus. The first explicit `record` creates the file; every other verb only reads
-it, and an absent state is an empty state, never a failure.
+it; an absent state is empty, not a failure.
 
-End by naming the next verb, never by asking what to do next: `sdt learn review`
+End by naming the next verb: `sdt learn review`
 for the queue, `sdt learn resume` for the standing, `sdt learn status` for the
 whole picture.

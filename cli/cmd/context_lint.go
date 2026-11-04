@@ -659,6 +659,9 @@ func lintDoc(path string) []ctxLintIssue {
 	// fixed columns), so it is checked rather than described.
 	issues = append(issues, lintLesson(path, content, kind)...)
 	issues = append(issues, lintAssessment(path, content, kind)...)
+	// A course level's shape is mechanical too (one prose section and one
+	// membership section), and its membership resolves against the corpus.
+	issues = append(issues, lintCourse(path, content, kind)...)
 	// Immutable identifier: presence (severity flips after the backfill) and
 	// canonical UUIDv7 form. Duplicate detection is corpus-wide (below).
 	issues = append(issues, lintUIDField(path, content, kind, prio)...)

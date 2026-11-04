@@ -42,6 +42,11 @@ describe("entryKind", () => {
     expect(entryKind(entry({ kind: "assessment" }))).toBe("assessment");
   });
 
+  it("uses the theme and syllabus kinds for the two levels above the lesson", () => {
+    expect(entryKind(entry({ kind: "theme" }))).toBe("theme");
+    expect(entryKind(entry({ kind: "syllabus" }))).toBe("syllabus");
+  });
+
   it("treats mermaid entries as their own kind", () => {
     expect(entryKind(entry({ mermaid: true, kind: "mermaid" }))).toBe("mermaid");
     expect(entryKind(entry({ mermaid: true }))).toBe("mermaid");
@@ -65,6 +70,12 @@ describe("kindFromPath", () => {
 
   it("tells an assessment from the lesson it shares a folder with", () => {
     expect(kindFromPath("context/learning/architecture/four-key-metrics.assessment.md")).toBe("assessment");
+    expect(kindFromPath("context/learning/architecture/four-key-metrics.md")).toBe("lesson");
+  });
+
+  it("tells the two course levels from the lessons and from each other", () => {
+    expect(kindFromPath("context/learning/themes/delivery-metrics.theme.md")).toBe("theme");
+    expect(kindFromPath("context/learning/syllabi/software-architect.syllabus.md")).toBe("syllabus");
     expect(kindFromPath("context/learning/architecture/four-key-metrics.md")).toBe("lesson");
   });
 });

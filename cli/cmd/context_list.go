@@ -27,11 +27,23 @@ func outputStringList(cmd *cobra.Command, items []string) {
 	}
 }
 
-// listContextFiles returns the documents of a type directory. It defers to the
-// registry-aware walk so a subpath kind (a lesson mirrors its concept) is listed
-// at any depth, while a flat type keeps exactly the previous behaviour.
-func listContextFiles(dir string) ([]string, error) {
-	return dirFilesFor(dir)
+// listContextFiles returns the documents of one type: the registry-aware walk
+// reaches a subpath kind at any depth (a lesson mirrors its concept), and the
+// suffix filter keeps co-located kinds apart (the learning directory holds
+// lessons, item banks, themes and syllabi), while a flat type keeps exactly the
+// previous behaviour.
+func listContextFiles(t ctxDocType) ([]string, error) {
+	all, err := dirFilesFor(t.dir)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]string, 0, len(all))
+	for _, f := range all {
+		if ctxFileMatchesKind(t, f) {
+			files = append(files, f)
+		}
+	}
+	return files, nil
 }
 
 var contextListCmd = &cobra.Command{
@@ -56,7 +68,7 @@ Examples:
 		if !ok || !t.listSupported {
 			exitWithError(cmd, fmt.Errorf("list supports type %s, got %q", ctxListHelpText(), typ))
 		}
-		files, err := listContextFiles(t.dir)
+		files, err := listContextFiles(t)
 		exitWithError(cmd, err)
 
 		var terms []ctxquery.Term
