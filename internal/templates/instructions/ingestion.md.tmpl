@@ -13,8 +13,8 @@ ingestion request.
 
 ## Run card
 
-scope → list/plan → convert/distil → `inventory`/`coverage`/`audit`
-→ review → `archive`.
+scope → list/plan → convert/distil → `validate` (proposed)
+→ `inventory`/`coverage`/`audit` → review → `archive`.
 
 ## Files & lifecycle
 
@@ -98,6 +98,10 @@ are always skipped.
 8. Wire `relations` + `tags`; every claim cites its source. Repair the inventory
    with `inventory --write --sync-index` (inline stays declared); `wiki claims`
    flags broad claims.
+8a. **Propose the validation lane** (*The validation lane*): compute the
+   shortlist with `sdt context wiki claims --validate`, present it as a table and
+   take **one** confirmation for the set. Nothing leaves the process before that
+   answer; the acquisitions ride the write + archive approval of the next step.
 9. Persist the scope with `ingest plan ... --write`, then present the **write +
    archive plan**; **wait for approval**.
 10. On approval: archive processed sources with `sdt context ingest archive
@@ -224,6 +228,13 @@ re-checking) is tied to **source independence**:
 A merge with an **independent** source **raises** confidence; a **contradiction
 lowers** it. A deepsearch synthesis with no verifiable originals is
 **second-hand**: cap it and never let it raise another concept's confidence.
+
+**Independence is recorded, not assumed.** Two captured pages are two sources
+only when each has a `sources/` sheet whose `authors`, `publisher` and `year` say
+so and whose `duplicate_of` is empty; without a sheet the page keeps `medium`,
+because a file path says nothing about who wrote it. That is what the validation
+lane (*The validation lane*) buys: the second source is written down before it
+is counted.
 
 **Validity over time** marks a claim intrinsically time-sensitive: `stable` (not
 tied to changing tech), `evolving` (depends on changing tech — add
@@ -368,6 +379,11 @@ the page must be **knowledge, not a copy**.
   level, a confidence or a merge is uncertain, choose the more prudent option and
   record the doubt in `transformation` or the receipt.
 
+**A gap fill is cited, not invented.** The rule above still holds: report what
+the source does not cover. A concept it presupposes may be filled, under the
+three conditions in *The validation lane* — because the fill is another source's
+claim, never this file's knowledge.
+
 **The six "not-a-copy" invariants:**
 
 1. **Re-express, never quote.** Own wording; quote only when a downstream
@@ -431,15 +447,52 @@ chapter" → it is a container, extract the concepts inside it.
    the reviewable change set before writing. A source is evidence, not an
    override.
 
+## The validation lane
+
+A distilled claim proves that the source wrote it; it proves nothing about whether
+anything else agrees. The lane closes that gap once per run — and filling a
+concept the source presupposes is the same act, because both acquire a source the
+run does not have.
+
+- **Proposed once, never silent.** Compute the shortlist with `sdt context wiki
+  claims --validate` over the pages this run wrote, present it as a table, and
+  take **one** confirmation for the set — a row per target, where a target is a
+  page whose claims all rest on one source or a single claim whose own prose says
+  it is inferred. Nothing is fetched before that answer, and a run that skips the
+  lane records `validation: none`.
+- **A second source, not a stamp.** Validation acquires a source: captured under
+  `refs/` with its digest (see Reading & conversion) and recorded on a `sources/`
+  sheet with `authors`, `publisher`, `year` and `duplicate_of`. The claim keeps
+  its own citation and gains the corroborating one; `confidence` rises only across
+  independent sources, and `verified_at` is never a validation stamp.
+- **No source found is an outcome.** A row closes as `no-source` with what was
+  searched; the claim keeps its confidence and the page says so once. A claim
+  about an internal practice usually has no external literature, and reporting
+  that is the lane working, not failing.
+- **What it costs, and what it does not promise.** One capture per corroborated
+  claim, plus a search that spends provider credits; corroboration raises
+  confidence and never certifies truth.
+
+**Acquisition.** `sdt research` (init → search → fetch → verify → archive) when
+more than one claim is checked or a search is needed to find them; a plain capture
+plus a sheet for a single claim. `context/instructions/research.md` owns the
+boundary and the capture rules.
+
 ## Ingestion receipt
 
 After an approved run, record a **receipt** (a `context/notes/` entry; the prose
 `worklog/` entry points to it — one home, never two) —
 not only prose: five counters (**extracted**, **verified**, **needs-review**,
-**merged**, **discarded-with-reason**) plus the open doubts. Add one row per
+**merged**, **discarded-with-reason**) plus the lane's three (**validated**,
+**gap-filled**, **no-source**) and the open doubts. Add one row per
 concept: outcome, failing checklist items, dedup decision, open doubts. The
 receipt is the countable record of the run; the prose `worklog/` entry points to
 it.
+
+**`verified` and `validated` are different acts**: `verified` counts pages whose
+every claim cites a line the lint resolves (citation integrity); `validated`
+counts claims an independent source corroborated. Never use one for the other, and
+never rename the first.
 
 The receipt opens with one **routing block per source** — the route taken and
 the evidence it rested on:
@@ -453,6 +506,7 @@ coverage_units: <n>        # levels 1-3, the coverage denominator
 coverage: ok=<n> part=<n> gap=<n> no_op=<n>
 concepts: candidates=<n> paged=<n> merged=<n> inline=<n> declined=<n> pending=<n>
 summary_check: pass|fail (pages: <ids>)
+validation: none|partial|complete|declined (claims: <n>, gap-filled: <n>, no-source: <n>)
 ```
 
 `route_headings` is the levels 2-3 routing proxy; `coverage_units` is the
@@ -476,13 +530,16 @@ the source**: a summary that only names the topic fails, and the summary or the
 prose is rewritten until the sentence is possible. The failing page ids stay in
 the line so the review is visible after the fact; no tool reads comprehension.
 
-Three judgement lines sit beside it, all optional and all the reviewer's:
+Four judgement lines sit beside it, all optional and all the reviewer's:
 `fidelity: pass|fail (claims: <page>#<id> …)` names the claims the cited span
 does not support; `route_verdict: ok|under|over|pending` says whether the route
 matched what the source turned out to be, beside the two counts already recorded;
 `scaffolding: pass|fail (pages: …)` records the check that a derived lesson or
-guide adds no fact its claims do not carry. `receipt lint` checks the vocabulary,
-never the judgement — and a receipt left `pending` says so honestly.
+guide adds no fact its claims do not carry; `validation:
+none|partial|complete|declined (claims: <n>, gap-filled: <n>, no-source: <n>)`
+records how the lane closed, `partial` when some rows closed without a source.
+`receipt lint` checks the vocabulary, never the judgement — and a receipt left
+`pending` says so honestly.
 
 ## Verification
 
@@ -498,6 +555,9 @@ never the judgement — and a receipt left `pending` says so honestly.
   <note>]` prints the receipt with page/claim totals and the inventory verdict;
   `sdt context wiki receipt lint <note>` checks the counters;
   `sdt context wiki inventory <note>` checks the whole note.
+- `sdt context wiki claims --validate` prints the validation shortlist — one row
+  per target, with the signal that selected it. It reads and never writes, and it
+  selects only: a person decides (*The validation lane*).
 - `sdt context ingest list --write` derives the queue manifest; `archive` is the
   only archive move and records a sidecar. A source with no manifest entry is
   still visible as `pending`, so the manifest is a derived index, not a second

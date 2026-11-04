@@ -77,8 +77,11 @@ var instructionModuleRatchet = map[string]int{
 	// that its destination resolves against the project root, never the CWD. Rose
 	// to 4266 (2026-11-04): a diagram carrying a flow, a relation or a sequence is
 	// re-expressed as a Mermaid fence in the page distillation produces, the figure
-	// itself never embedded there.
-	"ingestion": 4266,
+	// itself never embedded there. Rose to 4846 (2026-11-04): the validation lane —
+	// the shortlist step in the run card, the second-source rule that makes
+	// `confidence: high` reachable at all, the three conditions a gap fill must
+	// meet, and the `validation:` judgement line with its three counters.
+	"ingestion": 4846,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.
@@ -102,7 +105,9 @@ var instructionModuleRatchet = map[string]int{
 	// key a lesson item cites, and the rule that the lint requires one per claim.
 	// Rose to 2757 (2026-11-04): a page whose mechanism is structural draws it with
 	// the page's own provenance — the diagram is the claim's shape, not decoration.
-	"wiki": 2757,
+	// Rose to 2875 (2026-11-04): the seam sentence a filled concept carries, and the
+	// reuse test that decides inline definition versus its own node.
+	"wiki": 2875,
 	// distillation rose to 1790 (2026-11-03): the extraction ledger names
 	// `units --match`, the read-only candidate list the fold-in reconciles. Rose to
 	// 1882 (2026-11-04): a section that is a diagram is extracted as one, its dropped
@@ -111,8 +116,9 @@ var instructionModuleRatchet = map[string]int{
 	"distillation": 1882,
 	// research joins the map at 1457 (2026-11-04): a finding whose meaning is a
 	// shape is drawn beside it, the drawing showing the shape and never the
-	// conclusion.
-	"research": 1457,
+	// conclusion. Rose to 1541 (2026-11-04): the ingestion lane is a named caller,
+	// with the threshold between a run and a single capture.
+	"research": 1541,
 }
 
 // countWords is the one definition the budgets are measured with.

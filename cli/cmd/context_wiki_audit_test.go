@@ -176,14 +176,14 @@ func TestWikiReceiptLintRejectsNoBlock(t *testing.T) {
 	}
 }
 
-// TestWikiReceiptLintJudgementLines covers the three optional judgement lines:
+// TestWikiReceiptLintJudgementLines covers the four optional judgement lines:
 // accepted with their closed vocabulary, refused with a value outside it, and
 // silent when absent (a judgement the reviewer did not record is not a defect).
 func TestWikiReceiptLintJudgementLines(t *testing.T) {
 	setupContextProject(t)
 	valid := strings.Replace(goodReceiptNote, "route: single-pass",
 		"route: single-pass\nroute_verdict: under\nfidelity: pass (claims: a#c-aaaaaaaa)\n"+
-			"scaffolding: fail (pages: a)", 1)
+			"scaffolding: fail (pages: a)\nvalidation: complete (claims: 4, gap-filled: 1)", 1)
 	writeCtxDoc(t, "context/notes/valid.md", valid)
 	if out := string(execute(t, contextWikiReceiptLintCmd, nil, "notes/valid.md")); !strings.Contains(out, "receipt: clean") {
 		t.Fatalf("judgement lines were rejected:\n%s", out)
@@ -207,6 +207,30 @@ func TestWikiReceiptLintJudgementLines(t *testing.T) {
 	writeCtxDoc(t, "context/notes/plain.md", goodReceiptNote)
 	if out := string(execute(t, contextWikiReceiptLintCmd, nil, "notes/plain.md")); !strings.Contains(out, "receipt: clean") {
 		t.Fatalf("a receipt without judgement lines must stay clean:\n%s", out)
+	}
+}
+
+// TestWikiReceiptLintValidationVocabulary covers the lane's four outcomes and
+// refuses a fifth: the receipt cannot answer "mostly".
+func TestWikiReceiptLintValidationVocabulary(t *testing.T) {
+	setupContextProject(t)
+	for _, value := range []string{"none", "partial", "complete", "declined"} {
+		writeCtxDoc(t, "context/notes/lane.md", strings.Replace(goodReceiptNote,
+			"route: single-pass", "route: single-pass\nvalidation: "+value, 1))
+		if out := string(execute(t, contextWikiReceiptLintCmd, nil, "notes/lane.md")); !strings.Contains(out, "receipt: clean") {
+			t.Errorf("validation %q was rejected:\n%s", value, out)
+		}
+	}
+
+	writeCtxDoc(t, "context/notes/lane.md", strings.Replace(goodReceiptNote,
+		"route: single-pass", "route: single-pass\nvalidation: mostly", 1))
+	var out string
+	shouldExitWithCode(t, 1, func() string {
+		out = string(execute(t, contextWikiReceiptLintCmd, nil, "notes/lane.md"))
+		return out
+	})
+	if !strings.Contains(out, `validation "mostly"`) || !strings.Contains(out, "none, partial, complete, declined") {
+		t.Errorf("an out-of-vocabulary validation was not refused:\n%s", out)
 	}
 }
 

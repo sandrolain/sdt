@@ -75,6 +75,13 @@ search window), Findings, Evidence, Limits and open points, Feeds.
   captures every page it relies on with `sdt crawldown` — stdout to read, a file
   under `context/refs/` to keep — and cites the capture; an uncaptured page is
   not evidence (see the AGENTS.md HARD RULES).
+- **The ingestion lane is a caller.** Corroborating an imported claim or filling a
+  concept its source presupposes (`instructions/ingestion.md`, *The validation
+  lane*) is a research question with a small budget: more than one claim to
+  corroborate, or a search needed to find them, is a **run** — init, search,
+  fetch, verify, archive, then cite the pack; a single claim is one capture plus
+  its `sources/` sheet. Either way the result is archived and cited by digest: a
+  URL pasted into a page corroborates nothing.
 - **State freshness, not just findings.** Record each source's retrieval date
   and the window the search covered (for example "last 30 days" or "since
   2024"). Prefer recent primary sources, but recency never outranks primary

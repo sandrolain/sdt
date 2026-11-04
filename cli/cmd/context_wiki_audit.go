@@ -231,13 +231,14 @@ func lintReceiptBlock(path string, receiptNo int, block string) []receiptFinding
 	}
 	checkReceiptLine(block, "coverage:", "coverage", []string{"ok=", "part=", "gap=", "no_op="}, bookScale, add)
 	checkReceiptLine(block, "concepts:", "concepts", []string{"candidates=", "paged=", "merged=", "inline=", "declined=", "pending="}, bookScale, add)
-	// The three judgement lines are optional: absent means the reviewer did not
+	// The four judgement lines are optional: absent means the reviewer did not
 	// record that judgement, and this lint checks shape, never the judgement
 	// itself. A line that is present must use the closed vocabulary, so a receipt
 	// cannot answer "sort of".
 	checkReceiptVerdict(block, "route_verdict:", []string{routeVerdictOK, routeVerdictUnder, routeVerdictOver, receiptVerdictPending}, add)
 	checkReceiptVerdict(block, "fidelity:", []string{receiptVerdictPass, receiptVerdictFail}, add)
 	checkReceiptVerdict(block, "scaffolding:", []string{receiptVerdictPass, receiptVerdictFail}, add)
+	checkReceiptVerdict(block, "validation:", []string{validationNone, validationPartial, validationComplete, validationDeclined}, add)
 	return findings
 }
 
@@ -250,6 +251,17 @@ const (
 	routeVerdictOK        = "ok"
 	routeVerdictUnder     = "under"
 	routeVerdictOver      = "over"
+)
+
+// The validation lane's judgement (ingestion.md, *The validation lane*): `none`
+// when the shortlist was skipped or the reader declined every row, `declined`
+// when the reader refused the shortlist as a whole, `partial` when some rows
+// closed without a source, `complete` when every row has an outcome.
+const (
+	validationNone     = "none"
+	validationPartial  = "partial"
+	validationComplete = "complete"
+	validationDeclined = "declined"
 )
 
 // checkReceiptVerdict validates one optional judgement line: the first token

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/distill"
@@ -230,4 +231,124 @@ func TestWikiClaimsBudgetAtRequiresBudget(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, contextWikiClaimsCmd, nil, "--at", "5"))
 	})
+}
+
+// validatePage renders a page whose claim prose is given, with extra frontmatter
+// fields spliced in above `sources`.
+func validatePage(id, extraFM string, claims ...string) string {
+	var b strings.Builder
+	b.WriteString("---\nkind: wiki\nid: " + id + "\ntitle: " + id + "\ntype: concept\nstatus: active\nsummary: Validate fixture.\n")
+	b.WriteString(extraFM)
+	b.WriteString("sources:\n  - refs/converted/book.md\n---\n\n## Claims\n\n")
+	for i, claim := range claims {
+		b.WriteString(strconv.Itoa(i+1) + ". {#claim-" + strconv.Itoa(i+1) + "} " + claim +
+			" (refs/converted/book.md@abcdef12:9)\n")
+	}
+	return b.String()
+}
+
+func TestWikiClaimsValidateSelectsAnUncorroboratedPage(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/medium.md",
+		validatePage("architecture/medium", "confidence: medium\n", "one", "two"))
+	out := string(execute(t, contextWikiClaimsCmd, nil, "architecture/medium", "--validate"))
+	for _, want := range []string{"[VALIDATE]", "page claims=2 signals=confidence", "confidence medium"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("page shortlist row is missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestWikiClaimsValidateSelectsAMarkedClaim(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/inferred.md",
+		validatePage("architecture/inferred", "confidence: high\nmaturity: established\n",
+			"a plain claim", "b is inferred from the sample"))
+	out := execute(t, contextWikiClaimsCmd, nil, "architecture/inferred", "--validate", "--format", "json")
+	var rows []validateRow
+	if err := json.Unmarshal(out, &rows); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1:\n%s", len(rows), out)
+	}
+	if rows[0].Target != "claim" || rows[0].Claim != "claim-2" || rows[0].Signals[0] != "inferred" {
+		t.Errorf("unexpected row: %+v", rows[0])
+	}
+}
+
+func TestWikiClaimsValidateSelectsADueEvolvingClaim(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/evolving.md",
+		validatePage("architecture/evolving", "confidence: high\nmaturity: established\nvalidity: evolving\nvalid_until: 2020-01-01\n", "one"))
+	out := string(execute(t, contextWikiClaimsCmd, nil, "architecture/evolving", "--validate"))
+	if !strings.Contains(out, "signals=validity") || !strings.Contains(out, "2020-01-01") {
+		t.Fatalf("a dated claim was not selected:\n%s", out)
+	}
+}
+
+func TestWikiClaimsValidateHorizonKeepsAFutureClaimOut(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	future := time.Now().AddDate(10, 0, 0).Format("2006-01-02")
+	writeCtxDoc(t, "context/wiki/architecture/future.md",
+		validatePage("architecture/future", "confidence: high\nmaturity: established\nvalidity: evolving\nvalid_until: "+future+"\n", "one"))
+	out := string(execute(t, contextWikiClaimsCmd, nil, "architecture/future", "--validate", "--horizon", "30"))
+	if out != "" {
+		t.Fatalf("a claim beyond the horizon was selected:\n%s", out)
+	}
+}
+
+func TestWikiClaimsValidateSelectsAProvisionalPage(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/draftish.md",
+		validatePage("architecture/draftish", "confidence: high\nmaturity: provisional\n", "one"))
+	out := string(execute(t, contextWikiClaimsCmd, nil, "architecture/draftish", "--validate"))
+	if !strings.Contains(out, "signals=maturity") || !strings.Contains(out, "maturity provisional") {
+		t.Fatalf("a provisional page was not selected:\n%s", out)
+	}
+}
+
+func TestWikiClaimsValidateLeavesACorroboratedPageOut(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/settled.md",
+		validatePage("architecture/settled", "confidence: high\nmaturity: established\n", "one", "two"))
+	out := string(execute(t, contextWikiClaimsCmd, nil, "architecture/settled", "--validate"))
+	if out != "" {
+		t.Fatalf("a corroborated page was selected:\n%s", out)
+	}
+}
+
+func TestWikiClaimsValidateNamesMarkedClaimsInsideAPageRow(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/both.md",
+		validatePage("architecture/both", "confidence: medium\n", "one", "two is inferred"))
+	out := execute(t, contextWikiClaimsCmd, nil, "architecture/both", "--validate", "--format", "json")
+	var rows []validateRow
+	if err := json.Unmarshal(out, &rows); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("a page-level signal must not repeat its claims: got %d rows\n%s", len(rows), out)
+	}
+	if rows[0].Target != "page" || !strings.Contains(rows[0].Reason, "#claim-2") {
+		t.Errorf("page row does not name its marked claim: %+v", rows[0])
+	}
+}
+
+func TestWikiClaimsValidateRejectsBudget(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/medium.md",
+		validatePage("architecture/medium", "confidence: medium\n", "one"))
+	out := string(execute(t, contextWikiClaimsCmd, nil, "--validate", "--budget"))
+	if out != "" {
+		t.Fatalf("two reports were answered at once:\n%s", out)
+	}
 }

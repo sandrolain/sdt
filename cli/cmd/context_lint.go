@@ -97,12 +97,14 @@ const (
 	ctxMaturityEstablished = "established"
 	ctxMaturityCanonical   = "canonical"
 	ctxMaturityRetired     = "retired"
+	ctxMaturityWip         = "wip"
+	ctxMaturityProvisional = "provisional"
 )
 
 // ctxMaturityValues is the closed cross-kind maturity vocabulary. The ladder is
 // ordered trust, not lifecycle: a canonical document may still be `status:
 // active`, and a retired one may have been `active` until today.
-var ctxMaturityValues = []string{"wip", "provisional", ctxMaturityEstablished, ctxMaturityCanonical, ctxMaturitySuperseded, ctxMaturityRetired}
+var ctxMaturityValues = []string{ctxMaturityWip, ctxMaturityProvisional, ctxMaturityEstablished, ctxMaturityCanonical, ctxMaturitySuperseded, ctxMaturityRetired}
 
 // ctxMaturityWarranted lists the stages a promotion reaches: reaching one
 // without the compressed evidence that earned it is the failure this axis exists

@@ -52,7 +52,11 @@ read that for the full schema.
   replayed.
 - **No undefined term.** Every term or proper noun the page introduces is defined
   in-page or links to the node that defines it. A page leaning on a concept it
-  never defines is incomplete, not terse.
+  never defines is incomplete, not terse. When the definition comes from outside
+  the source — a concept the source presupposes — the page marks the seam in
+  `## Notes` with one fixed sentence, `not in the source; from <refs/…@sha>`, so
+  a reader always knows which half is the source's; that fill never raises the
+  source's own claim (`ingestion.md`, *The validation lane*).
 - **Exhaustive for its concept.** The completeness is against the concept the page
   owns, never against the source's order — that is the coverage record's job
   (`distillation.md`, *Quality gates*), not the page's.
@@ -254,6 +258,11 @@ you not to overwrite silently. This is the procedure behind it.
 - Similarities and contradictions stay visible on the page — never collapse
   background knowledge or conflicting evidence into a merged statement, and
   never merge on similarity or co-occurrence alone.
+- **A filled concept obeys the reuse test.** A concept the source presupposes
+  becomes a page only when a second page needs it; otherwise it is defined inline
+  where it is used, with the seam sentence (*Page contract*, «no undefined
+  term»). A node nobody links is a dangling page, and one page per missing term
+  grows the corpus faster than its sources do.
 
 ## Padding and quality
 
