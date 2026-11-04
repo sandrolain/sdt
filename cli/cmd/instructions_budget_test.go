@@ -80,8 +80,11 @@ var instructionModuleRatchet = map[string]int{
 	// itself never embedded there. Rose to 4846 (2026-11-04): the validation lane —
 	// the shortlist step in the run card, the second-source rule that makes
 	// `confidence: high` reachable at all, the three conditions a gap fill must
-	// meet, and the `validation:` judgement line with its three counters.
-	"ingestion": 4846,
+	// meet, and the `validation:` judgement line with its three counters. Rose to
+	// 4929 (2026-11-04): the lane reads the page's attention age (`--validate`
+	// prints it, `never` for most of a corpus), and `valid_until` stopped being the
+	// staleness mechanism.
+	"ingestion": 4929,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.

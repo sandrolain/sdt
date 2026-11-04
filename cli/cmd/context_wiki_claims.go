@@ -336,6 +336,7 @@ type validateRow struct {
 	Signals    []string `json:"signals" yaml:"signals"`
 	Reason     string   `json:"reason" yaml:"reason"`
 	Confidence string   `json:"confidence,omitempty" yaml:"confidence,omitempty"`
+	AgeDays    *int     `json:"age_days,omitempty" yaml:"age_days,omitempty"`
 	Maturity   string   `json:"maturity,omitempty" yaml:"maturity,omitempty"`
 	Validity   string   `json:"validity,omitempty" yaml:"validity,omitempty"`
 	ValidUntil string   `json:"valid_until,omitempty" yaml:"valid_until,omitempty"`
@@ -399,6 +400,7 @@ func validateRows(path string, horizonDays int, now time.Time) ([]validateRow, e
 	maturity := strings.ToLower(field("maturity"))
 	validity := strings.ToLower(field("validity"))
 	validUntil := field("valid_until")
+	age := verifiedAgeDays(field("verified_at"), now)
 	page := corpusRelative(path)
 	blocks := claimBlocks(body)
 	marked := markedClaims(blocks)
@@ -406,6 +408,7 @@ func validateRows(path string, horizonDays int, now time.Time) ([]validateRow, e
 	row := validateRow{
 		Page: page, Line: offset + 1, Target: validateTargetPage, Claims: len(blocks),
 		Confidence: confidence, Maturity: maturity, Validity: validity, ValidUntil: validUntil,
+		AgeDays: age,
 	}
 	if confidence == "low" || confidence == "medium" {
 		row.Signals = append(row.Signals, "confidence")
@@ -443,6 +446,7 @@ func validateRows(path string, horizonDays int, now time.Time) ([]validateRow, e
 			Page: page, Line: offset + block.Line, Target: validateTargetClaim, Claim: block.ID,
 			Signals: []string{"inferred"}, Reason: "claim marked " + marker,
 			Confidence: confidence, Maturity: maturity, Validity: validity, ValidUntil: validUntil,
+			AgeDays: age,
 		})
 	}
 	return rows, nil
@@ -492,6 +496,28 @@ func validUntilDue(validUntil string, horizonDays int, now time.Time) (due, know
 	return !parsed.After(now.AddDate(0, 0, horizonDays)), true
 }
 
+// verifiedAgeDays is the page's attention age: how long since anyone confirmed
+// its claims. It measures attention, never truth — a recent stamp says someone
+// looked, and nothing about whether the claim still holds. An absent or
+// unparseable stamp means never, which is the honest zero for most of a corpus.
+func verifiedAgeDays(verifiedAt string, now time.Time) *int {
+	raw := strings.TrimSpace(verifiedAt)
+	if raw == "" {
+		return nil
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		if parsed, err = time.Parse("2006-01-02", raw); err != nil {
+			return nil
+		}
+	}
+	days := int(now.Sub(parsed).Hours() / 24)
+	if days < 0 {
+		days = 0
+	}
+	return &days
+}
+
 func appendReason(current, addition string) string {
 	if current == "" {
 		return addition
@@ -506,6 +532,15 @@ func sortValidateRows(rows []validateRow) {
 		}
 		return rows[i].Line < rows[j].Line
 	})
+}
+
+// formatAge renders the attention age: a day count, or "never" when the page
+// carries no confirmation at all.
+func formatAge(days *int) string {
+	if days == nil {
+		return "never"
+	}
+	return fmt.Sprintf("%dd", *days)
 }
 
 func outputValidateRows(cmd *cobra.Command, rows []validateRow) {
@@ -524,8 +559,8 @@ func outputValidateRows(cmd *cobra.Command, rows []validateRow) {
 			if r.Target == validateTargetClaim {
 				target = "#" + r.Claim
 			}
-			outputString(cmd, fmt.Sprintf("[VALIDATE] %s:%d %s claims=%d signals=%s reason=%s\n",
-				r.Page, r.Line, target, r.Claims, strings.Join(r.Signals, ","), r.Reason))
+			outputString(cmd, fmt.Sprintf("[VALIDATE] %s:%d %s claims=%d signals=%s age=%s reason=%s\n",
+				r.Page, r.Line, target, r.Claims, strings.Join(r.Signals, ","), formatAge(r.AgeDays), r.Reason))
 		}
 	}
 }

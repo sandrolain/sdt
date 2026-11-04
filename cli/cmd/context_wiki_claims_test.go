@@ -352,3 +352,62 @@ func TestWikiClaimsValidateRejectsBudget(t *testing.T) {
 		t.Fatalf("two reports were answered at once:\n%s", out)
 	}
 }
+
+func TestWikiClaimsValidateCarriesTheAttentionAge(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	recent := time.Now().AddDate(0, 0, -10).Format(time.RFC3339)
+	writeCtxDoc(t, "context/wiki/architecture/dated.md",
+		validatePage("architecture/dated", "confidence: medium\nverified_at: "+recent+"\n", "one"))
+	writeCtxDoc(t, "context/wiki/architecture/undated.md",
+		validatePage("architecture/undated", "confidence: medium\n", "one"))
+
+	out := execute(t, contextWikiClaimsCmd, nil, "architecture/dated", "--validate", "--format", "json")
+	var rows []validateRow
+	if err := json.Unmarshal(out, &rows); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out)
+	}
+	if len(rows) != 1 || rows[0].AgeDays == nil || *rows[0].AgeDays < 9 || *rows[0].AgeDays > 11 {
+		t.Fatalf("a dated page did not carry its age: %+v\n%s", rows, out)
+	}
+
+	text := string(execute(t, contextWikiClaimsCmd, nil, "architecture/dated", "--validate"))
+	if !strings.Contains(text, "age=10d") {
+		t.Errorf("text row hides the age:\n%s", text)
+	}
+
+	undated := execute(t, contextWikiClaimsCmd, nil, "architecture/undated", "--validate", "--format", "json")
+	rows = nil
+	if err := json.Unmarshal(undated, &rows); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, undated)
+	}
+	if len(rows) != 1 || rows[0].AgeDays != nil {
+		t.Fatalf("an unconfirmed page must carry no age: %+v", rows)
+	}
+	text = string(execute(t, contextWikiClaimsCmd, nil, "architecture/undated", "--validate"))
+	if !strings.Contains(text, "age=never") {
+		t.Errorf("an unconfirmed page must read never:\n%s", text)
+	}
+}
+
+func TestVerifyAgeDays(t *testing.T) {
+	now := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		in   string
+		want *int
+	}{
+		{"2026-11-01T12:00:00Z", intPtr(3)},
+		{"2026-10-05", intPtr(30)},
+		{"", nil},
+		{"not a date", nil},
+		{"2026-12-01T00:00:00Z", intPtr(0)},
+	}
+	for _, c := range cases {
+		got := verifiedAgeDays(c.in, now)
+		if (got == nil) != (c.want == nil) || (got != nil && *got != *c.want) {
+			t.Errorf("verifiedAgeDays(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+func intPtr(v int) *int { return &v }

@@ -236,10 +236,12 @@ lane (*The validation lane*) buys: the second source is written down before it
 is counted.
 
 **Validity over time** marks a claim intrinsically time-sensitive: `stable` (not
-tied to changing tech), `evolving` (depends on changing tech — add
-`valid_until: <date>`), `dated` (the source declares it superseded). This is
-separate from `created`/`updated` and the stale-source check: those catch a
-changed *source*, this marks a claim that ages on its own.
+tied to changing tech), `evolving` (depends on changing tech), `dated` (the source
+declares it superseded). This is separate from `created`/`updated` and the
+stale-source check: those catch a changed *source*, this marks a claim that ages
+on its own. The age the lane prints is what makes that ageing visible; `valid_until`
+stays for a claim whose end date is genuinely known, and is not the staleness
+mechanism.
 
 **Empirical claims inherit their sample's scope:** record what was measured, on
 what sample, under which conditions; a benchmark number is a *vehicle* unless it
@@ -468,6 +470,10 @@ run does not have.
   searched; the claim keeps its confidence and the page says so once. A claim
   about an internal practice usually has no external literature, and reporting
   that is the lane working, not failing.
+- **Age is the first signal, and it measures attention.** Each row carries how
+  long since `verified_at`, or `never` for a page nobody has re-checked — which is
+  most of a corpus. A recent date says someone looked; it never says the claim
+  still holds, so no deadline follows from it and no page is "due" because of it.
 - **What it costs, and what it does not promise.** One capture per corroborated
   claim, plus a search that spends provider credits; corroboration raises
   confidence and never certifies truth.
