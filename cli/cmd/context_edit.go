@@ -96,6 +96,15 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 	fence := getStringFlag(cmd, "fence", false)
 
 	fm, body := contextwiki.SplitFrontmatter(content)
+	// While a fence is open, every section boundary below it is a guess: a
+	// section would run to end of file and its replacement would delete the
+	// tail. Refuse instead of truncating, and say which line to close.
+	if section != "" {
+		if open := mdstruct.UnclosedFence(body); open != nil {
+			exitWithError(cmd, fmt.Errorf("%s: line %d opens a code fence (%s) that never closes, so a section would run to end of file — close the fence, then edit the section", doc.Path, open.Line, open.Marker))
+			return
+		}
+	}
 	var newBody string
 	switch {
 	case row != "":

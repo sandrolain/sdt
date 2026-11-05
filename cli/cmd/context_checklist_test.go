@@ -232,3 +232,29 @@ func TestRepairChecklistIDsPreservesReviewBlock(t *testing.T) {
 		t.Fatalf("the duplicate item should be renumbered to c2:\n%s", got)
 	}
 }
+
+// TestParseChecklistItemsIgnoresAFourBacktickBlock pins the shared fence rule:
+// a sample item inside a four-backtick block is not an item, including on the
+// line after the three-backtick line the old scanner took for a close.
+func TestParseChecklistItemsIgnoresAFourBacktickBlock(t *testing.T) {
+	content := strings.Join([]string{
+		"## Phases",
+		"",
+		"````markdown",
+		"- [ ] sample one",
+		"```",
+		"- [ ] sample two",
+		"```",
+		"````",
+		"",
+		"- [ ] real",
+		"",
+	}, "\n")
+	items := parseChecklistItems(content)
+	if len(items) != 1 {
+		t.Fatalf("expected the single real item, got %d: %+v", len(items), items)
+	}
+	if items[0].Text != "real" {
+		t.Errorf("item = %q, want the one after the block", items[0].Text)
+	}
+}

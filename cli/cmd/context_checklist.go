@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/sandrolain/sdt/internal/mdstruct"
 )
 
 // Checklist items are the shared `- [ ] text` lines used by task files (the
@@ -99,20 +101,14 @@ func splitChecklistAnchor(text string) (body, id string) {
 
 // parseChecklistEntries returns every checklist item of content as a line span.
 // Lines inside fenced code blocks are ignored, so a `- [ ]` sample in a snippet
-// is never treated as an item.
+// is never treated as an item. The fence scan is mdstruct's, shared with the
+// section split: one length rule for both, so a four-backtick block behaves the
+// same whether it is being read for items or for sections.
 func parseChecklistEntries(lines []string) []checklistEntry {
 	var entries []checklistEntry
-	fence := ""
+	inside, _ := mdstruct.ScanFences(lines)
 	for i := 0; i < len(lines); i++ {
-		t := strings.TrimSpace(lines[i])
-		if fence != "" {
-			if strings.HasPrefix(t, fence) {
-				fence = ""
-			}
-			continue
-		}
-		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
-			fence = t[:3]
+		if inside[i] {
 			continue
 		}
 		if ctxTaskLineRegexp.FindStringSubmatch(lines[i]) == nil {

@@ -39,16 +39,77 @@ type Section struct {
 var headingRe = regexp.MustCompile(`^(#{1,6})\s+(.*?)\s*#*\s*$`)
 var fenceRe = regexp.MustCompile("^(\\s*)(```+|~~~+)")
 
+// OpenFence is a fenced code block left unterminated at the end of a document.
+// Line is 1-based and Marker is the opening run, so an error can name both.
+type OpenFence struct {
+	Line   int
+	Marker string
+}
+
+// fenceRun returns the fence marker at the start of line — a run of 3+ backticks
+// or 3+ tildes after optional whitespace — and whether the line carries one.
+func fenceRun(line string) (char byte, length int, ok bool) {
+	m := fenceRe.FindStringSubmatch(line)
+	if m == nil {
+		return 0, 0, false
+	}
+	return m[2][0], len(m[2]), true
+}
+
+// ScanFences marks every line that is a fence delimiter or lies inside a fenced
+// code block, and reports a fence still open at the end. The length rule is
+// CommonMark's: a fence closes only on a run of the same character at least as
+// long as the opening one, so a three-backtick line inside a four-backtick block
+// is content, not a close. An unterminated fence runs to end of file.
+func ScanFences(lines []string) ([]bool, *OpenFence) {
+	inside := make([]bool, len(lines))
+	var openChar byte
+	openLen, openLine := 0, 0
+	for i, line := range lines {
+		char, length, ok := fenceRun(line)
+		switch {
+		case openLen == 0:
+			if ok {
+				openChar, openLen, openLine = char, length, i+1
+				inside[i] = true
+			}
+		case ok && char == openChar && length >= openLen:
+			inside[i] = true
+			openLen = 0
+		default:
+			inside[i] = true
+		}
+	}
+	if openLen == 0 {
+		return inside, nil
+	}
+	return inside, &OpenFence{Line: openLine, Marker: strings.Repeat(string(openChar), openLen)}
+}
+
+// UnclosedFence reports the fence left open at the end of doc, or nil when every
+// fence closes. A caller that resolves sections asks first: while a fence is
+// open, no boundary below it can be trusted.
+func UnclosedFence(doc string) *OpenFence {
+	_, open := ScanFences(splitDocLines(doc))
+	return open
+}
+
+// splitDocLines splits doc and drops the single empty element a terminating
+// newline produces, so line numbers index the result directly.
+func splitDocLines(doc string) []string {
+	lines := strings.Split(doc, "\n")
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
+	}
+	return lines
+}
+
 // SplitSections splits a Markdown document into sections by ATX headings while
 // ignoring heading-like lines inside fenced code blocks. Any content before the
 // first heading becomes a preamble section with an empty Heading.
 func SplitSections(doc string) []Section {
-	lines := strings.Split(doc, "\n")
-	// Drop the single trailing element produced by a terminating newline so line
-	// ranges stay accurate.
-	if n := len(lines); n > 0 && lines[n-1] == "" {
-		lines = lines[:n-1]
-	}
+	lines := splitDocLines(doc)
+	inside, _ := ScanFences(lines)
 
 	type heading struct {
 		index int
@@ -56,19 +117,8 @@ func SplitSections(doc string) []Section {
 		text  string
 	}
 	var headings []heading
-	fence := ""
 	for i, line := range lines {
-		if m := fenceRe.FindStringSubmatch(line); m != nil {
-			marker := m[2]
-			switch {
-			case fence == "":
-				fence = marker[:1]
-			case marker[0:1] == fence && len(marker) >= len(fence)*3:
-				fence = ""
-			}
-			continue
-		}
-		if fence != "" {
+		if inside[i] {
 			continue
 		}
 		if m := headingRe.FindStringSubmatch(line); m != nil {

@@ -149,3 +149,90 @@ func TestSplitSectionsBoundaryIsFlat(t *testing.T) {
 		t.Errorf("child body = %q", got)
 	}
 }
+
+// TestSplitSectionsFourBacktickFenceHoldsThreeBacktickLines pins CommonMark's
+// length rule: a four-backtick block is the way to show a fence inside a fence,
+// so its inner three-backtick lines are content and the headings around it are
+// real sections.
+func TestSplitSectionsFourBacktickFenceHoldsThreeBacktickLines(t *testing.T) {
+	doc := "## Real\n\n````markdown\n```go\n## not a heading\nfunc f() {}\n```\n````\n\n## Also real\n\nbody\n"
+	secs := SplitSections(doc)
+	if len(secs) != 2 {
+		t.Fatalf("expected 2 sections, got %d: %+v", len(secs), secs)
+	}
+	if secs[0].ID != "real" || secs[1].ID != "also-real" {
+		t.Errorf("unexpected ids: %q, %q", secs[0].ID, secs[1].ID)
+	}
+	for _, want := range []string{"````markdown", "## not a heading", "````"} {
+		if !strings.Contains(secs[0].Body, want) {
+			t.Errorf("the whole block must stay in the body, %q missing:\n%s", want, secs[0].Body)
+		}
+	}
+	if strings.Contains(secs[0].Body, "Also real") {
+		t.Error("the block swallowed the section after it")
+	}
+}
+
+// TestSplitSectionsFenceFamiliesDoNotCloseEachOther keeps the two marker
+// characters apart: a tilde run inside a backtick block is text, and the block
+// closes on its own character only.
+func TestSplitSectionsFenceFamiliesDoNotCloseEachOther(t *testing.T) {
+	doc := "## Real\n\n```\n~~~\n## not a heading\n~~~\n`````\n\n## Also real\n\nbody\n"
+	secs := SplitSections(doc)
+	if len(secs) != 2 {
+		t.Fatalf("expected 2 sections, got %d: %+v", len(secs), secs)
+	}
+	if !strings.Contains(secs[0].Body, "## not a heading") {
+		t.Errorf("the fenced heading must stay in the body:\n%s", secs[0].Body)
+	}
+}
+
+// TestUnclosedFence names the fence that runs to end of file, with the line and
+// the marker an error needs, and stays silent when every fence closes.
+func TestUnclosedFence(t *testing.T) {
+	cases := []struct {
+		name   string
+		doc    string
+		line   int
+		marker string
+	}{
+		{"backticks", "## A\n\n```go\nbody\n", 3, "```"},
+		{"four backticks", "````\n```\nstill open\n", 1, "````"},
+		{"tildes", "text\n\n~~~\nbody\n", 3, "~~~"},
+		{"closed", "```\nbody\n```\n", 0, ""},
+		{"closed by a longer run", "````\n```\n`````\n", 0, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			open := UnclosedFence(c.doc)
+			if c.marker == "" {
+				if open != nil {
+					t.Fatalf("expected every fence closed, got %+v", open)
+				}
+				return
+			}
+			if open == nil {
+				t.Fatalf("expected an open fence at line %d, got none", c.line)
+			}
+			if open.Line != c.line || open.Marker != c.marker {
+				t.Errorf("open fence = %+v, want line %d marker %q", open, c.line, c.marker)
+			}
+		})
+	}
+}
+
+// TestScanFencesMarksDelimitersAndContent pins what the mask means: a delimiter
+// is inside the block, and the first line after the close is not.
+func TestScanFencesMarksDelimitersAndContent(t *testing.T) {
+	lines := []string{"before", "````", "```", "inside", "````", "after"}
+	inside, open := ScanFences(lines)
+	if open != nil {
+		t.Fatalf("unexpected open fence: %+v", open)
+	}
+	want := []bool{false, true, true, true, true, false}
+	for i := range want {
+		if inside[i] != want[i] {
+			t.Errorf("inside[%d] = %v, want %v (%q)", i, inside[i], want[i], lines[i])
+		}
+	}
+}

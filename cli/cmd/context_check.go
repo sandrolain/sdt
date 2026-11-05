@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/mdstruct"
 	"github.com/spf13/cobra"
 )
 
@@ -194,6 +195,12 @@ Examples:
 		exitWithError(cmd, err)
 		content := string(data)
 		if len(parseChecklistItems(content)) == 0 {
+			// An open fence swallows every following line, so "no items" can be
+			// the fence's fault rather than the document's: name the line.
+			if open := mdstruct.UnclosedFence(content); open != nil {
+				exitWithError(cmd, fmt.Errorf("%s: line %d opens a code fence (%s) that never closes, so every line after it reads as fence content — close the fence, then check the item", doc.Path, open.Line, open.Marker))
+				return
+			}
 			exitWithError(cmd, fmt.Errorf("%s has no checklist items", doc.Path))
 			return
 		}

@@ -399,3 +399,47 @@ func TestContextEditWritesTheScriptsIndex(t *testing.T) {
 		t.Errorf("the frontmatter was lost:\n%s", got)
 	}
 }
+
+// TestContextEditRefusesASectionWhileAFenceIsOpen covers the edit that cost a
+// plan its tail: with a fence open, the section's end is a guess, so the edit
+// must fail and leave every byte in place instead of truncating.
+func TestContextEditRefusesASectionWhileAFenceIsOpen(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, editProbeDoc,
+		"---\nkind: plan\nuid: "+testUIDv7(9)+"\nsummary: A plan\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n---\n## Phase 1\nintro\n  ```` ```mermaid ```` sample\n\n## Phase 2\nmore\n")
+	before := readDoc(t, editProbeRef)
+
+	for _, args := range [][]string{
+		{"--section", "Phase 1", "--input", "## Phase 1\nrewritten\n"},
+		{"--append", "--section", "Phase 1", "--input", "an added line"},
+	} {
+		shouldExitWithCode(t, 1, func() string {
+			execute(t, contextEditCmd, nil, append([]string{editProbeRef}, args...)...)
+			return ""
+		})
+		if after := readDoc(t, editProbeRef); after != before {
+			t.Fatalf("a refused edit must not touch the file (%v):\n%s", args, after)
+		}
+	}
+}
+
+// TestContextEditKeepsSectionsAfterAFourBacktickBlock is the positive half: the
+// block is content, the heading after it is a section, and only that section is
+// replaced.
+func TestContextEditKeepsSectionsAfterAFourBacktickBlock(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, editProbeDoc,
+		"---\nkind: plan\nuid: "+testUIDv7(9)+"\nsummary: A plan\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n---\n## Phase 1\n````markdown\n```\n## not a heading\n```\n````\n\n## Phase 2\nmore\n")
+
+	execute(t, contextEditCmd, nil, editProbeRef, "--section", "Phase 2", "--input", "## Phase 2\nrewritten\n")
+	got := readDoc(t, editProbeRef)
+	if !strings.Contains(got, "## not a heading") {
+		t.Errorf("the fenced block must survive the edit:\n%s", got)
+	}
+	if !strings.Contains(got, "## Phase 2\nrewritten") || strings.Contains(got, "more") {
+		t.Errorf("the targeted section was not replaced:\n%s", got)
+	}
+	if !strings.Contains(got, "## Phase 1\n````markdown") {
+		t.Errorf("the preceding section changed:\n%s", got)
+	}
+}
