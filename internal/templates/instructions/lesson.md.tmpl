@@ -109,8 +109,9 @@ the value the cell holds. A cell that disagrees with its row is refused on read
   written against. Read it from `sdt learn lesson <concept> --format json` (the
   `claims` array) or from the `claim <id> <digest>` line of the text form.
   `sdt learn lesson --validate` reports `stale` when the claim now says something
-  else, `unverified` when no digest was pinned — a finding to clear before
-  shipping — and `broken` when the id is gone.
+  else, `unverified` when no digest was pinned — worth clearing before shipping,
+  and recommended rather than required: no date makes a missing digest an error —
+  and `broken` when the id is gone.
 - **`type`** is `recall`, `diagnose`, `apply` or `transfer`, and it *is* the
   item's difficulty ladder in that order, never a number. The page's `difficulty`
   paces the lesson; the two are not the same scale. An `apply` item may rest on the

@@ -18,7 +18,7 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
 | paths by glob | `sdt find <glob>` | `find` |
 | tree search, one file | `sdt grep <p> [--path <f>]` | `grep -r`/`grep -n` |
 | web page | `sdt crawldown <url>` | fetcher |
-| JSON, API | `sdt http` into `sdt q` | `curl`/`jq` |
+| JSON, API | `sdt http` into `sdt q get - <path>` | `curl`/`jq` |
 | two files | `sdt diff <a> <b>` | `diff` |
 | append, table row, fence | `sdt context edit --append/--row/--fence` | `cat >>`/`python3` |
 | literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |

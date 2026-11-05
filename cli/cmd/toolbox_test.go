@@ -130,6 +130,35 @@ func TestToolboxRowsExistInManifest(t *testing.T) {
 			}
 		}
 
+		// A row that spans two verbs gates both: Into is the full path of the
+		// second invocation the display names.
+		if len(row.Into) > 0 {
+			into := strings.Join(row.Into, " ")
+			if findManifestCommand(manifest, row.Into...) == nil {
+				t.Errorf("toolbox row %q: `sdt %s` is not in sdt manifest", row.Operation, into)
+			}
+			intoCmd := findTopCommand(row.Into[0])
+			if intoCmd == nil {
+				t.Errorf("toolbox row %q: %q is not a command", row.Operation, row.Into[0])
+			} else {
+				for _, sub := range row.Into[1:] {
+					found := false
+					for _, c := range intoCmd.Commands() {
+						if c.Name() == sub {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("toolbox row %q: %q has no subcommand %q", row.Operation, row.Into[0], sub)
+					}
+				}
+			}
+			if !strings.Contains(row.Display, "sdt "+into) {
+				t.Errorf("toolbox row %q: display %q does not invoke `sdt %s`", row.Operation, row.Display, into)
+			}
+		}
+
 		// Every flag the display advertises must be declared, or the row
 		// teaches a flag that does not exist.
 		for _, match := range toolboxFlagRe.FindAllStringSubmatch(row.Display, -1) {

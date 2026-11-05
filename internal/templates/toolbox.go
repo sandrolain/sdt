@@ -19,6 +19,10 @@ type ToolboxRow struct {
 	Command string
 	// Subcommands are the subcommands the Display names, if any.
 	Subcommands []string
+	// Into is a second verb the row writes into, when the row spans two
+	// invocations (`sdt http` into `sdt q get`): the full command path after
+	// `sdt`, so the gate can prove every part the display names.
+	Into []string
 	// Flags are the flag names the Display advertises.
 	Flags []string
 	// Replaces is the markdown cell naming the host tool this makes redundant.
@@ -98,8 +102,9 @@ func ToolboxRows() []ToolboxRow {
 		},
 		{
 			Operation: "JSON, API",
-			Display:   "`sdt http` into `sdt q`",
+			Display:   "`sdt http` into `sdt q get - <path>`",
 			Command:   "http",
+			Into:      []string{"q", "get"},
 			Replaces:  "`curl`/`jq`",
 		},
 		{

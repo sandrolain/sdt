@@ -21,6 +21,10 @@ profile.
   `context/refs/<topic>/` and keep its origin (URL plus commit or version).
 - Name the file for the source, not for its subject
   (`<origin>-<date>.<ext>`), so two sources on one topic do not collide.
+- A **bulk rename is not an archive**: a file renamed in place carries no
+  `<file>.source.yaml`, so `original_name` exists only for a source
+  `sdt context ingest` archived. The contract has these two shapes, and a missing
+  sidecar on a renamed file is the expected state, not a defect.
 
 ## Cite
 
