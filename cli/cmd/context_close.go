@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -56,6 +58,12 @@ Examples:
 				outputString(cmd, "closeout slots to fill: none\n")
 			}
 		}
+		if doc.Type.kind == ctxTypePlan {
+			//#nosec G304 -- the document was resolved by the caller
+			if data, readErr := os.ReadFile(doc.Path); readErr == nil {
+				outputString(cmd, "self-assessment: "+planSelfAssessmentInvocation(doc.Path, string(data))+"\n")
+			}
+		}
 		// The workflow ends here for the register too: the ids this document and the
 		// chain it completed carry are marked done, and the ids that changed are named
 		// so a reader sees the obligation settle.
@@ -67,6 +75,57 @@ Examples:
 			outputString(cmd, "todos closed: "+strings.Join(closed, ", ")+"\n")
 		}
 	},
+}
+
+// planSelfAssessmentInvocation renders the `sdt context new` command that
+// creates the mandatory per-plan self-assessment note (AGENTS.md, *Workflow
+// self-assessment*). It is printed and never run: the note's judgement is
+// authored, and the close only knows the plan's title, slug, objective and
+// agent (answered 2026-11-05).
+func planSelfAssessmentInvocation(path, content string) string {
+	slug := planSlugFromPath(path)
+	title := frontmatterScalar(content, "title")
+	if title == "" {
+		title = slug
+	}
+	args := []string{
+		"sdt context new",
+		"--type notes",
+		"--title " + strconv.Quote(title+" — workflow self-assessment"),
+		"--slug " + slug + "-workflow-self-assessment",
+		"--note-type self-assessment",
+	}
+	if agent := frontmatterScalar(content, "agent"); agent != "" {
+		args = append(args, "--agent "+agent)
+	}
+	if objective := frontmatterScalar(content, "objective"); objective != "" {
+		args = append(args, "--objective "+objective)
+	}
+	args = append(args, "--source plan/"+strings.TrimSuffix(filepath.Base(path), ".md"), "--summary "+strconv.Quote("<one line>"))
+	return strings.Join(args, " ")
+}
+
+// frontmatterScalar is frontmatterField without the YAML quoting: the frontmatter
+// reader returns the raw token, so a quoted title would otherwise be quoted
+// twice in the printed command.
+func frontmatterScalar(content, key string) string {
+	v := frontmatterField(content, key)
+	if len(v) >= 2 && (v[0] == '"' || v[0] == '\'') && v[len(v)-1] == v[0] {
+		if unq, err := strconv.Unquote(v); err == nil {
+			return unq
+		}
+	}
+	return v
+}
+
+// planSlugFromPath drops the dated prefix (`YYYYMMDD-HHMMSS-`) and the `.md`
+// suffix, which is the slug a plan's note is named after.
+func planSlugFromPath(path string) string {
+	base := strings.TrimSuffix(filepath.Base(path), ".md")
+	if len(base) > 16 && base[8] == '-' && base[15] == '-' {
+		return base[16:]
+	}
+	return base
 }
 
 // closeDocument writes a document's terminal status, recording an explicit

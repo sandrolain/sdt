@@ -728,7 +728,11 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			} else {
 				// Batch: --all / --grep (within --phase when given) selects the
 				// items, so a whole phase no longer needs one call per item (F5).
-				updated, _, err = applyChecklistSelection(content, phase,
+				section := ""
+				if strings.TrimSpace(phase) != "" {
+					section = "Phase " + strings.TrimSpace(phase)
+				}
+				updated, _, err = applyChecklistSelection(content, section,
 					getStringFlag(cmd, "grep", false), getBoolFlag(cmd, "all", false), status, reason)
 			}
 			if err != nil {

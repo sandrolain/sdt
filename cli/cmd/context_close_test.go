@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -95,5 +96,76 @@ func TestTaskReviewTargetsAnUnsplitPlan(t *testing.T) {
 	}
 	if got := frontmatterField(body, ctxMapStatus); got != ctxWikiStatusActive {
 		t.Fatalf("the review must not complete the plan, got %q", got)
+	}
+}
+
+// TestContextClosePrintsSelfAssessmentInvocation guards the answered gap:
+// closing a plan hands the reader the `context new` command the mandatory
+// self-assessment note needs, and writes nothing itself.
+
+func TestContextClosePrintsSelfAssessmentInvocation(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	analysis := writeCascadeAnalysis(t, dir, "20260101-000000-a", ctxWikiStatusActive)
+	plan := writeCascadePlan(t, dir, "20260101-000000-a-plan", ctxWikiStatusActive, analysis, true)
+
+	out := string(execute(t, contextCloseCmd, nil, plan))
+	for _, want := range []string{
+		"self-assessment: sdt context new",
+		"--type notes",
+		"--note-type self-assessment",
+		"--slug a-plan-workflow-self-assessment",
+		"--source plan/20260101-000000-a-plan",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("close output lacks %q:\n%s", want, out)
+		}
+	}
+	if entries, err := os.ReadDir(filepath.Join(dir, "context/notes")); err == nil && len(entries) > 0 {
+		t.Errorf("close wrote %d note(s); it must only print the invocation", len(entries))
+	}
+}
+
+// TestContextCloseTaskPrintsNoSelfAssessment keeps the line plan-only: a task
+// close has no note of its own.
+
+func TestContextCloseTaskPrintsNoSelfAssessment(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	analysis := writeCascadeAnalysis(t, dir, "20260101-000000-a", ctxWikiStatusActive)
+	plan := writeCascadePlan(t, dir, "20260101-000000-a-plan", ctxWikiStatusActive, analysis, false)
+	task := writeCascadeTask(t, dir, "20260101-000000-a-plan-phase-1", taskFileStatusInProgress, plan, "x")
+
+	out := string(execute(t, contextCloseCmd, nil, task))
+	if strings.Contains(out, "self-assessment:") {
+		t.Errorf("task close printed a self-assessment line:\n%s", out)
+	}
+}
+
+// TestPlanSelfAssessmentInvocation pins the command's shape: the title is
+// quoted, the slug drops the dated prefix, and agent/objective appear only when
+// the plan carries them.
+
+func TestPlanSelfAssessmentInvocation(t *testing.T) {
+	content := "---\ntitle: \"A plan\"\nagent: opencode\nobjective: ctx\n---\n"
+	got := planSelfAssessmentInvocation("context/plan/20260101-000000-a-plan.md", content)
+	for _, want := range []string{
+		`--title "A plan — workflow self-assessment"`,
+		"--slug a-plan-workflow-self-assessment",
+		"--agent opencode",
+		"--objective ctx",
+		"--source plan/20260101-000000-a-plan",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("invocation lacks %q:\n%s", want, got)
+		}
+	}
+
+	bare := planSelfAssessmentInvocation("context/plan/20260101-000000-a-plan.md", "---\nkind: plan\n---\n")
+	if strings.Contains(bare, "--agent") || strings.Contains(bare, "--objective") {
+		t.Errorf("a plan without agent/objective must omit both flags:\n%s", bare)
+	}
+	if !strings.Contains(bare, `--title "a-plan — workflow self-assessment"`) {
+		t.Errorf("a plan without a title falls back to its slug:\n%s", bare)
 	}
 }

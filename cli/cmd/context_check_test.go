@@ -304,3 +304,69 @@ func TestContextCheckStatePendingIsTheReset(t *testing.T) {
 		}
 	}
 }
+
+// TestContextCheckBatchSection guards the answered gap: a plan's non-phase
+// section — `## Validation`, `## Completion criteria` — ticks in one call by its
+// heading, instead of one `--grep` per cell.
+
+func TestContextCheckBatchSection(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := checkDocFixture(t, dir)
+	execute(t, contextCheckCmd, nil, rel, "--done", "--section", "Completion criteria")
+	body := mustReadFile(t, dir+"/"+rel)
+	if !strings.Contains(body, "- [x] three <!-- c3 -->") {
+		t.Errorf("section item not ticked:\n%s", body)
+	}
+	if strings.Contains(body, "- [x] one") || strings.Contains(body, "- [x] two") {
+		t.Errorf("--section ticked another section:\n%s", body)
+	}
+}
+
+// TestContextCheckBatchSectionID addresses the same section by its stable id,
+// the rule `read --section` and `edit --section` already resolve with.
+
+func TestContextCheckBatchSectionID(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := checkDocFixture(t, dir)
+	execute(t, contextCheckCmd, nil, rel, "--done", "--section", "completion-criteria")
+	body := mustReadFile(t, dir+"/"+rel)
+	if !strings.Contains(body, "- [x] three <!-- c3 -->") {
+		t.Errorf("stable id did not select the section:\n%s", body)
+	}
+}
+
+// TestContextCheckBatchPhaseIsSectionShortcut pins the answered shape:
+// `--phase <n>` is `--section "Phase <n>"`, not a second boundary rule.
+
+func TestContextCheckBatchPhaseIsSectionShortcut(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := phaseCheckDocFixture(t, dir)
+	execute(t, contextCheckCmd, nil, rel, "--done", "--phase", "1")
+	viaPhase := mustReadFile(t, dir+"/"+rel)
+
+	rel = phaseCheckDocFixture(t, dir)
+	execute(t, contextCheckCmd, nil, rel, "--done", "--section", "Phase 1")
+	viaSection := mustReadFile(t, dir+"/"+rel)
+	if viaPhase != viaSection {
+		t.Errorf("--phase and --section \"Phase 1\" disagree:\n--phase:\n%s\n--section:\n%s", viaPhase, viaSection)
+	}
+}
+
+// TestContextCheckBatchSelectorConflict refuses two selectors: they are
+// alternatives, never a refinement.
+
+func TestContextCheckBatchSelectorConflict(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	rel := phaseCheckDocFixture(t, dir)
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, contextCheckCmd, nil, rel, "--done", "--section", "Phase 1", "--phase", "1"))
+	})
+	body := mustReadFile(t, dir+"/"+rel)
+	if strings.Contains(body, "- [x]") {
+		t.Errorf("a refused selection still wrote:\n%s", body)
+	}
+}

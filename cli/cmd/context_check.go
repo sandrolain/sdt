@@ -98,26 +98,62 @@ func outputCheckResult(cmd *cobra.Command, item checklistItem) {
 	}
 }
 
-// selectChecklistIDs returns the anchor ids of the items a batch selector
-// matches: inside the `## Phase <phase>` section when phase is non-empty, whose
-// text contains grep (case-insensitive) when grep is non-empty, or every item
-// when all is true. Ids are read from content verbatim, so callers stamp first.
+// sectionHeadingIndex returns the line index of the heading a section selector
+// names — the stable anchor (`phase-3`, `completion-criteria`) or the heading
+// text (`Phase 3`, `Completion criteria`), case-insensitively — ignoring
+// heading-like lines inside a fence. An exact heading wins over a heading that
+// merely starts with the selector, so `Phase 2` addresses `### Phase 2 — Two`.
+// It is the same rule `read --section` and `edit --section` resolve with, so the
+// three cannot disagree.
+func sectionHeadingIndex(lines []string, selector string) int {
+	want := strings.ToLower(strings.TrimSpace(selector))
+	if want == "" {
+		return -1
+	}
+	wantID := strings.ToLower(mdstruct.HeadingAnchor(strings.TrimSpace(selector)))
+	inside, _ := mdstruct.ScanFences(lines)
+	prefix := -1
+	for i, line := range lines {
+		if inside[i] || headingLevel(line) == 0 {
+			continue
+		}
+		text := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "#"))
+		lower := strings.ToLower(text)
+		if lower == want {
+			return i
+		}
+		if wantID != "" && strings.EqualFold(mdstruct.HeadingAnchor(text), wantID) {
+			return i
+		}
+		if prefix < 0 && (strings.HasPrefix(lower, want+" ") || strings.HasPrefix(lower, want+"\t")) {
+			prefix = i
+		}
+	}
+	return prefix
+}
 
-func selectChecklistIDs(content, phase, grep string, all bool) []string {
+// selectChecklistIDs returns the anchor ids of the items a batch selector
+// matches: inside the section named by section (which --phase composes as
+// `Phase <n>`) when non-empty, whose text contains grep (case-insensitive) when
+// grep is non-empty, or every item when all is true. Ids are read from content
+// verbatim, so callers stamp first.
+func selectChecklistIDs(content, section, grep string, all bool) []string {
 	lines := strings.Split(content, "\n")
 	lo, hi := 0, len(lines)
-	if phase != "" {
-		h := phaseHeadingIndex(lines, phase)
+	if sel := strings.TrimSpace(section); sel != "" {
+		h := sectionHeadingIndex(lines, sel)
 		if h < 0 {
 			return nil
 		}
 		lo = h + 1
-		// The phase ends at the next heading at the same or a shallower level: a
-		// plan's `### Phase <n>` sections are siblings, so a `## `-only
-		// boundary would swallow every later phase.
-		level := headingLevel(lines[h])
+		// A section is flat: it ends at the next heading of any level, the
+		// boundary `read --section` already prints.
+		inside, _ := mdstruct.ScanFences(lines)
 		for i := lo; i < len(lines); i++ {
-			if lvl := headingLevel(lines[i]); lvl > 0 && lvl <= level {
+			if inside[i] {
+				continue
+			}
+			if headingLevel(lines[i]) > 0 {
 				hi = i
 				break
 			}
@@ -139,17 +175,52 @@ func selectChecklistIDs(content, phase, grep string, all bool) []string {
 	return ids
 }
 
-// applyChecklistSelection stamps missing ids, then sets the status of every item
-// the selector matches (--all / --phase <n> / --grep <text>). It returns the new
-// content and the number of items updated; a missing selector or no match is an
-// error so a batch tick never silently does nothing (F5).
+// checkSectionSelector composes the section a batch addresses: --section as
+// given, and --phase <n> as its shortcut for `Phase <n>`.
+func checkSectionSelector(cmd *cobra.Command) string {
+	if s := strings.TrimSpace(getStringFlag(cmd, "section", false)); s != "" {
+		return s
+	}
+	if p := strings.TrimSpace(getStringFlag(cmd, "phase", false)); p != "" {
+		return "Phase " + p
+	}
+	return ""
+}
 
-func applyChecklistSelection(content, phase, grep string, all bool, status, reason string) (string, int, error) {
-	if !all && phase == "" && strings.TrimSpace(grep) == "" {
-		return content, 0, errors.New("pass an item id or a selector: --all, --phase <n>, --grep <text>")
+// checkSelectorConflict refuses two batch selectors at once: --section and
+// --phase address the same lines, and --grep or --all beside either is a
+// different selection, never a refinement.
+func checkSelectorConflict(cmd *cobra.Command) error {
+	var chosen []string
+	if getBoolFlag(cmd, "all", false) {
+		chosen = append(chosen, "--all")
+	}
+	if strings.TrimSpace(getStringFlag(cmd, "section", false)) != "" {
+		chosen = append(chosen, "--section")
+	}
+	if strings.TrimSpace(getStringFlag(cmd, "phase", false)) != "" {
+		chosen = append(chosen, "--phase")
+	}
+	if strings.TrimSpace(getStringFlag(cmd, "grep", false)) != "" {
+		chosen = append(chosen, "--grep")
+	}
+	if len(chosen) > 1 {
+		return fmt.Errorf("%s and %s are alternative selectors: pass one", chosen[0], chosen[1])
+	}
+	return nil
+}
+
+// applyChecklistSelection stamps missing ids, then sets the status of every item
+// the selector matches (--all / --section <heading|id> / --grep <text>). It
+// returns the new content and the number of items updated; a missing selector or
+// no match is an error so a batch tick never silently does nothing (F5).
+
+func applyChecklistSelection(content, section, grep string, all bool, status, reason string) (string, int, error) {
+	if !all && strings.TrimSpace(section) == "" && strings.TrimSpace(grep) == "" {
+		return content, 0, errors.New("pass an item id or a selector: --all, --section <heading|id>, --phase <n>, --grep <text>")
 	}
 	stamped, _ := stampChecklistIDs(content)
-	ids := selectChecklistIDs(stamped, phase, grep, all)
+	ids := selectChecklistIDs(stamped, section, grep, all)
 	if len(ids) == 0 {
 		return stamped, 0, errors.New("no checklist item matches the selector")
 	}
@@ -172,8 +243,10 @@ var contextCheckCmd = &cobra.Command{
 the positional ordinal as fallback. Un-anchored items are stamped on write.
 
 Pass a batch selector instead of an id to update several items at once:
-` + "`--phase <n>`" + ` ticks the items in that phase section, ` + "`--all`" + ` every
-item, and ` + "`--grep <text>`" + ` the items whose text contains the substring.
+` + "`--section <heading|id>`" + ` ticks the items in that section, ` + "`--phase <n>`" + ` the
+items in phase <n> (its shortcut for ` + "`--section \"Phase <n>\"`" + `), ` + "`--all`" + ` every
+item, and ` + "`--grep <text>`" + ` the items whose text contains the substring. Pass one
+selector: they are alternatives, not refinements.
 
 Pass exactly one ` + "`--state`" + `: done, wip, block or pending. ` + "`--state block`" + ` takes an
 ` + "`--reason`" + `. The document's ` + "`updated`" + ` is refreshed when its kind requires it.
@@ -184,6 +257,8 @@ Examples:
   sdt context check plan/<plan-file> c4 --state done
   sdt context check context/tasks/<task-file>.md 2 --state wip
   sdt context check plan/<plan-file> --state done --phase 3
+  sdt context check plan/<plan-file> --state done --section "Validation"
+  sdt context check plan/<plan-file> --state done --section completion-criteria
   sdt context check plan/<plan-file> --state done --grep "F5"
   sdt context check questions/20260927-091146-... c3 --state block --reason "needs data"`,
 	Args: cobra.RangeArgs(1, 2),
@@ -226,8 +301,12 @@ Examples:
 			if len(args) == 2 {
 				updated, err = updateChecklistItem(content, args[1], status, reason)
 			} else {
+				if cerr := checkSelectorConflict(cmd); cerr != nil {
+					exitWithError(cmd, cerr)
+					return
+				}
 				updated, batchCount, err = applyChecklistSelection(content,
-					getStringFlag(cmd, "phase", false), getStringFlag(cmd, "grep", false),
+					checkSectionSelector(cmd), getStringFlag(cmd, "grep", false),
 					getBoolFlag(cmd, "all", false), status, reason)
 			}
 		}
@@ -296,7 +375,8 @@ func init() {
 	contextCheckCmd.Flags().Bool("waive", false, "Record a structured waiver (keeps the item unfinished; requires --reason)")
 	contextCheckCmd.Flags().String("reason", "", "Reason for --"+taskStatusBlock+" or --waive")
 	contextCheckCmd.Flags().Bool("all", false, "Select every checklist item (batch)")
-	contextCheckCmd.Flags().String("phase", "", "Select the items in the `## Phase <n>` section (batch)")
+	contextCheckCmd.Flags().String("section", "", "Select the items in the section with this heading or stable id (batch)")
+	contextCheckCmd.Flags().String("phase", "", "Select the items in the `## Phase <n>` section (batch; shortcut for --section \"Phase <n>\")")
 	contextCheckCmd.Flags().String("grep", "", "Select the items whose text contains this substring (batch)")
 	addProvenanceFlags(contextCheckCmd)
 	addCascadeFlag(contextCheckCmd)
