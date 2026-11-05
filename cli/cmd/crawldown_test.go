@@ -835,8 +835,10 @@ func TestCrawldownCommand_PartialFailure(t *testing.T) {
 	dir := t.TempDir()
 
 	code, _ := runCrawldownWithExit(t, "crawldown", "--output", dir, srv.URL+"/a", srv.URL+"/missing")
-	if code != 1 {
-		t.Fatalf("expected exit 1 on partial failure, got %d", code)
+	// One page written, one failed: a partial success, which is exit 3 and not
+	// the 1 that means nothing usable came back.
+	if code != 3 {
+		t.Fatalf("expected exit 3 on partial failure, got %d", code)
 	}
 
 	entries, err := os.ReadDir(dir)
@@ -856,11 +858,21 @@ func TestCrawldownCommand_PartialFailure(t *testing.T) {
 	}
 }
 
+func TestCrawldownCommand_AllFailed(t *testing.T) {
+	srv := newCrawldownTestServer(t)
+	dir := t.TempDir()
+
+	code, _ := runCrawldownWithExit(t, "crawldown", "--output", dir, srv.URL+"/missing-a", srv.URL+"/missing-b")
+	if code != 1 {
+		t.Fatalf("nothing written is a failure, expected exit 1, got %d", code)
+	}
+}
+
 func TestCrawldownCommand_Help(t *testing.T) {
 	long := crawldownCmd.Long
 	for _, want := range []string{
 		"stdout", "file (--output-file", "crawl (--output", "capture (--output",
-		"Only HTML web pages", "does not abort the rest", "exits non-zero",
+		"Only HTML web pages", "does not abort the rest", "3 when at least one was written",
 		"stderr", "--no-frontmatter", "--no-title", "--delay",
 	} {
 		if !strings.Contains(long, want) {

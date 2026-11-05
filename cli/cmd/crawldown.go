@@ -277,7 +277,9 @@ Streams and exit codes:
 
     is safe. --quiet silences informational logs.
   - A failed URL or page does not abort the rest: the successful pages are still
-    written and the command exits non-zero when anything failed.
+    written, and the exit code says what happened (see 'sdt --help'): 0 when
+    every page was written, 3 when at least one was written and at least one
+    failed, 1 when nothing was written at all.
 
 Politeness: --delay <seconds> waits between URLs in a batch and between requests
 while crawling; pass it when capturing many pages from one host.
@@ -403,8 +405,13 @@ Crawl bounds and document size:
 			}
 
 			if failures > 0 {
-				slog.Error("crawldown completed with failures", "failures", failures, "urls", len(args))
-				exit(1)
+				if len(receipts) == 0 {
+					slog.Error("crawldown failed for every URL", "failures", failures, "urls", len(args))
+					exit(1)
+					return
+				}
+				slog.Error("crawldown completed with failures", "failures", failures, "published", len(receipts), "urls", len(args))
+				exitWithJunk(cmd, "pages-failed")
 				return
 			}
 			return
@@ -601,6 +608,10 @@ Crawl bounds and document size:
 			slog.Error("crawldown completed with failures",
 				"pages", len(pageDataCopy), "save_failures", failures,
 				"refused_documents", c.RefusedDocuments(), "crawl_errors", c.Errors())
+			if len(pageDataCopy) > 0 {
+				exitWithJunk(cmd, "pages-failed")
+				return
+			}
 			exit(1)
 		}
 	},

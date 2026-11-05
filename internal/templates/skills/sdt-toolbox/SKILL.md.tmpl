@@ -16,6 +16,7 @@ host. Pick the verb by the operation, not by the tool you already reach for.
 | Need | Verb | Instead of |
 |---|---|---|
 | corpus, by meaning | `sdt context search <q>` | `grep` |
+| a cold corpus: what it holds | `sdt context map` | guessing from `ls` |
 | a book, by meaning, without an index | `sdt chunk search <artifact> <q>` | a throwaway search index |
 | corpus text, line range, numbered | `sdt read -p <ref> [--lines a:b] [--numbered]` | `cat`/`sed -n`/host reader |
 | listing, sizes | `sdt ls --stat` | `ls -la` |
@@ -28,6 +29,7 @@ host. Pick the verb by the operation, not by the tool you already reach for.
 | append, table row, fence | `sdt context edit --append/--row/--fence` | `cat >>`/`python3` |
 | literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
+| what SDT actually did | `sdt gain` | guesswork |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
 

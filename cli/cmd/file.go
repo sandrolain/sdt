@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/usage"
 	"github.com/spf13/cobra"
 )
 
@@ -97,6 +98,7 @@ EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 		if getBoolFlag(cmd, "count", false) {
 			selected, _, err := selectLinesFrom(string(content), lines)
 			exitWithError(cmd, err)
+			usage.Hits(len(selected))
 			outputLineCount(cmd, len(selected))
 			return
 		}
@@ -109,6 +111,7 @@ EXAMPLE — ` + "`sdt read -p cli/cmd/file.go --lines 31:49`" + `
 		}
 		selected, start, err := selectLinesFrom(string(content), lines)
 		exitWithError(cmd, err)
+		usage.Hits(len(selected))
 		if numbered {
 			selected = numberLines(selected, start)
 		}

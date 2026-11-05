@@ -41,7 +41,10 @@ embedding model is loaded from the local cache (default BASE8M, override with
 
 Examples:
   sdt context snapshot build
-  sdt context snapshot build --semantic-model BASE2M --format json`,
+  sdt context snapshot build --semantic-model BASE2M --format json
+
+Under --progress human or json the embed loop narrates itself on stderr: one
+throttled tick per batch, so a cold build no longer looks hung.`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
 		ix := ctxBuildSearchIndex(cmd)
@@ -49,7 +52,9 @@ Examples:
 		if model == "" {
 			model = semantic.ModelBase8M
 		}
-		_, res, err := ctxBuildSemanticSnapshot(cmd, ix)
+		_, res, err := ctxBuildSemanticSnapshotWith(cmd, ix, func(done, total int) {
+			progressReporter.Progress("embed", done, total)
+		})
 		exitWithError(cmd, err)
 		out := ctxSnapshotResult{
 			Path:     res.Path,

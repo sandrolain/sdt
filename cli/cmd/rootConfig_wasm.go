@@ -11,6 +11,12 @@ func loadFileConfig() {
 	return
 }
 
+// usageRoot is empty in the wasm build: a browser has no project root and no
+// directory to keep a usage log in, so nothing is ever written.
+func usageRoot() string {
+	return ""
+}
+
 var stdIn []byte
 
 func getInputString(cmd *cobra.Command, args []string) string {

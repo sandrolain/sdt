@@ -9,6 +9,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/sandrolain/sdt/internal/search"
+	"github.com/sandrolain/sdt/internal/usage"
 	"github.com/spf13/cobra"
 )
 
@@ -49,6 +50,7 @@ EXAMPLE — ` + "`sdt ls --stat --depth 2`" + `
 		}
 		res, err := search.List(opts)
 		exitWithError(cmd, err)
+		usage.Hits(len(res.Entries))
 		switch getFormat(cmd) {
 		case fmtJSON:
 			out, err := json.MarshalIndent(res, "", "  ")

@@ -2,6 +2,7 @@ package semantic
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -216,4 +217,38 @@ func snap(t *testing.T, ix *Index, sections []Section, hashes map[string]string,
 		t.Fatal(err)
 	}
 	return out, reused, embedded
+}
+
+// TestAddIncrementalWithReportsProgress pins the narration contract: a build
+// reports in batches as it walks, and the last report is the total so a caller's
+// bar can finish.
+func TestAddIncrementalWithReportsProgress(t *testing.T) {
+	ctx := context.Background()
+	ix, err := New(ctx, testModel())
+	if err != nil {
+		t.Skipf("model unavailable (offline?): %v", err)
+	}
+	sections := make([]Section, 0, buildProgressEvery+5)
+	hashes := map[string]string{}
+	for i := 0; i < buildProgressEvery+5; i++ {
+		path := fmt.Sprintf("doc-%02d.md", i)
+		sections = append(sections, Section{ID: path + "#s", Path: path, Text: "static embeddings cache"})
+		hashes[path] = "hash"
+	}
+	var ticks [][2]int
+	progress := func(done, total int) { ticks = append(ticks, [2]int{done, total}) }
+
+	if _, _, _, err := ix.AddIncrementalWith(ctx, sections, hashes, 1, &Snapshot{}, progress); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if len(ticks) < 2 {
+		t.Fatalf("ticks = %v, want a batch report and the final one", ticks)
+	}
+	if ticks[0][0] != buildProgressEvery {
+		t.Fatalf("first tick = %v, want the batch boundary %d", ticks[0], buildProgressEvery)
+	}
+	last := ticks[len(ticks)-1]
+	if last[0] != len(sections) || last[1] != len(sections) {
+		t.Fatalf("last tick = %v, want %d/%d", last, len(sections), len(sections))
+	}
 }

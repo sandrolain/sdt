@@ -52,6 +52,15 @@ func ToolboxRows() []ToolboxRow {
 			Replaces: "`grep`",
 		},
 		{
+			Operation: "a cold corpus: what it holds",
+			Display:   "`sdt context map`",
+			Command:   toolboxCmdContext,
+			Subcommands: []string{
+				"map",
+			},
+			Replaces: "guessing from `ls`",
+		},
+		{
 			Operation: "a book, by meaning, without an index",
 			Display:   "`sdt chunk search <artifact> <q>`",
 			Command:   "chunk",
@@ -142,6 +151,12 @@ func ToolboxRows() []ToolboxRow {
 			Replaces: "none",
 		},
 		{
+			Operation: "what SDT actually did",
+			Display:   "`sdt gain`",
+			Command:   "gain",
+			Replaces:  "guesswork",
+		},
+		{
 			Operation: "colour contrast from two values",
 			Display:   "`sdt color contrast <fg> <bg>`",
 			Command:   "color",
@@ -169,7 +184,7 @@ func ToolboxRows() []ToolboxRow {
 func ToolboxMarkdown() string {
 	var b strings.Builder
 	b.WriteString("### Toolbox — what goes through `sdt`\n\n")
-	b.WriteString("Pick by the operation; if the verb cannot do it, use the host tool and say so.\n\n")
+	b.WriteString("Pick by the operation; if the verb cannot, use the host tool and say so.\n\n")
 	b.WriteString("| Need | Verb | Instead of |\n")
 	b.WriteString("|---|---|---|\n")
 	for _, row := range ToolboxRows() {

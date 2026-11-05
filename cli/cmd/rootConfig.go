@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/usage"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -38,6 +39,15 @@ type ProjectConfig struct {
 	// block means the default order (tavily, firecrawl, exa, searxng), where a paid
 	// provider is used only when its key is set.
 	Research []ResearchProviderConfig `json:"research,omitempty" yaml:"research,omitempty"`
+	// Usage is the counted-usage log's own switch. Absent means on: the log holds
+	// no content, so only an explicit `enabled: false` or SDT_USAGE=off stops it.
+	Usage UsageConfig `json:"usage,omitempty" yaml:"usage,omitempty"`
+}
+
+// UsageConfig is the `usage:` block. Enabled is a pointer so that "not
+// declared" keeps the default (on) instead of reading as "off".
+type UsageConfig struct {
+	Enabled *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 }
 
 // ResearchProviderConfig is one `research:` entry.
@@ -287,6 +297,23 @@ func findProjectConfigAt() (*ProjectConfig, string, error) {
 		dir = parent
 	}
 	return nil, "", nil
+}
+
+// usageRoot resolves where the counted log lives, or "" when it is off: the
+// environment switch, the project's own `usage.enabled: false`, and a missing
+// project all mean nothing is written.
+func usageRoot() string {
+	if strings.EqualFold(os.Getenv(usage.EnvOff), "off") {
+		return ""
+	}
+	cfg, root, err := findProjectConfigAt()
+	if err != nil || root == "" {
+		return ""
+	}
+	if cfg != nil && cfg.Usage.Enabled != nil && !*cfg.Usage.Enabled {
+		return ""
+	}
+	return root
 }
 
 // getProjectAndGroup resolves project and group from (in priority order):

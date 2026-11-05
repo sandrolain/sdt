@@ -2,6 +2,11 @@ package semantic
 
 import "context"
 
+// BuildProgress reports how many sections the build has walked so far, out of
+// the total it was given. It is called from the build loop, so it must not
+// block: throttling belongs to the caller's reporter.
+type BuildProgress func(done, total int)
+
 // BuildResult reports what a BuildSnapshot produced.
 type BuildResult struct {
 	// Path is the snapshot file that was written.
@@ -24,6 +29,12 @@ type BuildResult struct {
 // search and the map stay correct and degrade on the next run) and never fails
 // the build; only a model-load or encode error is returned.
 func BuildSnapshot(ctx context.Context, root string, model Model, sections []Section, docHashes map[string]string, manifestVersion int) (*Index, BuildResult, error) {
+	return BuildSnapshotWith(ctx, root, model, sections, docHashes, manifestVersion, nil)
+}
+
+// BuildSnapshotWith is BuildSnapshot reporting its progress. The wrapper above
+// keeps every caller that has nothing to report unchanged.
+func BuildSnapshotWith(ctx context.Context, root string, model Model, sections []Section, docHashes map[string]string, manifestVersion int, progress BuildProgress) (*Index, BuildResult, error) {
 	ix, err := New(ctx, model)
 	if err != nil {
 		return nil, BuildResult{}, err
@@ -32,7 +43,7 @@ func BuildSnapshot(ctx context.Context, root string, model Model, sections []Sec
 	if !base.Matches(model, RecipeVersion, manifestVersion) {
 		base = &Snapshot{} // header mismatch: full re-embed
 	}
-	out, reused, embedded, err := ix.AddIncremental(ctx, sections, docHashes, manifestVersion, base)
+	out, reused, embedded, err := ix.AddIncrementalWith(ctx, sections, docHashes, manifestVersion, base, progress)
 	if err != nil {
 		return nil, BuildResult{}, err
 	}

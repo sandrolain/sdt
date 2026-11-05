@@ -107,3 +107,22 @@ of its source; generalise it first, then cite the target's own files.
 
 Prose editing — machine-generated patterns, the minimum effective edit,
 edit-vs-detect mode — is `context/instructions/writing.md`.
+
+## The six portability tests
+
+An instruction module is written into *every* bootstrapped project, so it is
+judged by six tests before it ships:
+
+- **SUBJECT** — portable doctrine, not the designing project's own design.
+- **PRESUPPOSITION** — nothing a generic project may lack, with an explicit
+  no-op or degradation rule where it might.
+- **LOCATION** — a generated surface, never a repo-local path.
+- **PRESCRIPTION** — defers to the project and `development.md`; numbers are
+  overridable defaults, not law, and a pinned version is re-verified against the
+  installed tool.
+- **DELIVERY** — the delivery surface is named and consistent with `agent init`.
+- **BOUNDARY** — non-overlap with `development.md` and sibling modules is
+  stated.
+
+A rule with more than one copy names the test that binds the copies, so the
+duplicate cannot drift silently.

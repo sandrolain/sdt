@@ -213,7 +213,7 @@ the derived indexes.
 
   new · edit · set · unset · get · touch    create a document, edit its frontmatter or body
   rename · rm · clean                       move, retire or discard one
-  list · search · status · resume           what the corpus holds, and where execution stands
+  list · search · map · status · resume     what the corpus holds, and where execution stands
   path · template · docs                    a document path, a type contract, the command docs
   task · check · checklist · close · deprecate
                                             run a plan: checklists, item states, the close

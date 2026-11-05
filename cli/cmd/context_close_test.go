@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,11 +41,29 @@ func TestContextCloseRefusesUnfinished(t *testing.T) {
 	plan := writeCascadePlan(t, dir, "20260101-000000-a-plan", ctxWikiStatusActive, analysis, false)
 	task := writeCascadeTask(t, dir, "20260101-000000-a-plan-phase-1", taskFileStatusInProgress, plan, " ")
 
-	shouldExitWithCode(t, 1, func() string {
+	var stderr bytes.Buffer
+	prevErr := rootCmd.ErrOrStderr()
+	rootCmd.SetErr(&stderr)
+	t.Cleanup(func() { rootCmd.SetErr(prevErr) })
+
+	// A refusal is a decision for the caller, so it is exit 4 and it names both
+	// ways forward instead of reporting a failure.
+	shouldExitWithCode(t, 4, func() string {
 		return string(execute(t, contextCloseCmd, nil, task))
 	})
 	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, task)), ctxMapStatus); got != taskFileStatusInProgress {
 		t.Fatalf("refused close must not write, got status %q", got)
+	}
+	out := stderr.String()
+	for _, want := range []string{
+		"sdt-decision reason=unfinished",
+		"sdt context resume tasks/",
+		"sdt context close tasks/",
+		"--allow-unfinished --reason",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("decision output missing %q:\n%s", want, out)
+		}
 	}
 }
 

@@ -37,6 +37,10 @@ author wrote.
 
 Supported kinds: tasks, plan, analysis.
 
+Exit: 0 closed, 1 failed, 4 unfinished — a refusal is a decision for the caller,
+so it prints the open items and the two commands that resolve them instead of
+reporting a failure (see 'sdt --help' for the exit vocabulary).
+
 Examples:
   sdt context close context/tasks/<task-file>.md
   sdt context close plan/<plan-file>
@@ -48,6 +52,11 @@ Examples:
 		allow := getBoolFlag(cmd, "allow-unfinished", false)
 		reason := strings.TrimSpace(getStringFlag(cmd, "reason", false))
 		entry, err := closeDocument(cmd, doc, allow, reason, closeoutFieldFlags(cmd))
+		var refusal *closeRefusal
+		if errors.As(err, &refusal) {
+			exitWithDecision(cmd, "unfinished", closeRefusalOptions(doc, refusal.why))
+			return
+		}
 		exitWithError(cmd, err)
 		outputString(cmd, "ok\n")
 		if entry != "" {
@@ -140,7 +149,7 @@ func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason st
 	}
 	if !allow {
 		if _, why := derivedCompletionBlock(doc.Path); why != "" {
-			return "", fmt.Errorf("cannot close %s: %s (finish the work, or pass --reason \"<why>\")", ctxKindLabel(doc.Type), why)
+			return "", &closeRefusal{why: why}
 		}
 	} else if reason == "" {
 		return "", errors.New("--reason is required when the derived state disagrees")
@@ -172,6 +181,55 @@ func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason st
 		return "", fmt.Errorf("%s is closed, but the closeout could not be recorded: %w", ctxKindLabel(doc.Type), err)
 	}
 	return entry, nil
+}
+
+// closeRefusal is the close's "not yet" answer: the derived state says work is
+// left, which is a decision for the caller (exit 4), not a failure of the
+// command (exit 1). The decision carries the two ways forward.
+type closeRefusal struct {
+	why string
+}
+
+// Error says what the refusal is, for the paths that report it as an error.
+func (e *closeRefusal) Error() string {
+	return "cannot close the document: " + e.why
+}
+
+// closeRefusalOptions renders the exit-4 options: what is unfinished, then the
+// two commands that resolve it. A caller that only reads the exit code knows to
+// ask; a caller that reads stderr knows what to run.
+func closeRefusalOptions(doc ctxResolvedDoc, why string) []string {
+	ref := strings.TrimPrefix(doc.Path, "context/")
+	opts := []string{"unfinished: " + why}
+	for _, item := range closeUnfinishedItems(doc.Path) {
+		opts = append(opts, "open: "+item)
+	}
+	return append(opts,
+		"finish it: sdt context resume "+ref,
+		"or close anyway: sdt context close "+ref+" --allow-unfinished --reason \"<why>\"",
+	)
+}
+
+// closeUnfinishedItems lists the open checklist items of a document, so a
+// refusal names the work instead of only its derived status. It reads the work
+// part only: a `## Review` or `## Deviations` item is a record, not work.
+func closeUnfinishedItems(path string) []string {
+	data, err := os.ReadFile(path) //#nosec G304 -- a document resolved by the caller
+	if err != nil {
+		return nil
+	}
+	var items []string
+	for _, line := range strings.Split(taskWorkContent(string(data)), "\n") {
+		m := ctxTaskLineRegexp.FindStringSubmatch(line)
+		if m == nil || m[1] == "x" || m[1] == "!" {
+			continue
+		}
+		items = append(items, strings.TrimSpace(line))
+		if len(items) == 6 {
+			return append(items, "…")
+		}
+	}
+	return items
 }
 
 // closeTerminalStatus returns the terminal status `close` writes for a kind, or

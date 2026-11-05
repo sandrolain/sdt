@@ -10,11 +10,12 @@ Project: sdt_44f24890 · Group: sdt_44f24890
 
 ### Toolbox — what goes through `sdt`
 
-Pick by the operation; if the verb cannot do it, use the host tool and say so.
+Pick by the operation; if the verb cannot, use the host tool and say so.
 
 | Need | Verb | Instead of |
 |---|---|---|
 | corpus, by meaning | `sdt context search <q>` | `grep` |
+| a cold corpus: what it holds | `sdt context map` | guessing from `ls` |
 | a book, by meaning, without an index | `sdt chunk search <artifact> <q>` | a throwaway search index |
 | corpus text, line range, numbered | `sdt read -p <ref> [--lines a:b] [--numbered]` | `cat`/`sed -n`/host reader |
 | listing, sizes | `sdt ls --stat` | `ls -la` |
@@ -27,6 +28,7 @@ Pick by the operation; if the verb cannot do it, use the host tool and say so.
 | append, table row, fence | `sdt context edit --append/--row/--fence` | `cat >>`/`python3` |
 | literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
+| what SDT actually did | `sdt gain` | guesswork |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
 
@@ -186,11 +188,11 @@ Every agent-visible task is an **agent command**: a row in
 everything after the first `:`, verbatim — which names the work, never the
 permission.
 
-Work directories live under `context/`: `plan/`, `analysis/`, `architecture/`,
+Work directories under `context/`: `plan/`, `analysis/`, `architecture/`,
 `decisions/`, `proposals/`, `research/`, `prompts/`, `worklog/`, `notes/`,
 `tasks/`, `commands/`, `questions/`, `briefing/`, `tmp/`, `trash/`, `scripts/`,
-`roles/` (and `wiki/`/`sdtdocs/` once created). Bundled scripts are listed in
-`context/scripts/index.md` and executed on demand (`scripts.md`).
+`roles/` (and `wiki/`, `sdtdocs/`). Bundled scripts:
+`context/scripts/index.md` (`scripts.md`).
 
 ### 5-stage development lifecycle
 
@@ -215,17 +217,17 @@ closeout, no analysis (`plan.md`); anything larger takes the chain.
 
 Sub-agents and the no-silent-downgrade rule: `plan.md`.
 
-Before closing a phase run the verify-step; the suite runs once, at delivery
+Before closing a phase run the verify-step; the suite runs once at delivery
 (`development.md`). A document and the code disagreeing is `DISCREPANT`, reported
 not resolved (`context/instructions/reconciliation.md`). Then `sdt context reindex` and
 `sdt context lint` — with the baseline, the claim is **no new findings**, never
 "clean" — and `sdt agent gate` for a hard gate (`--record --plan <ref>` appends
-the run to the task file's `## Review`).
+to `## Review`).
 
-At session end: note open tasks/questions in `context/tasks/` or
-`context/questions/`, and run the bounded signal check (`worklog.md`, *Signal review*), recording a
+At session end: note open tasks/questions in `context/tasks/` or `questions/`,
+and run the bounded signal check (`worklog.md`, *Signal review*), recording a
 routed capture or `none`. Substantive answers are filed into `context/`. Discover the build/test/lint commands from the project; record them in
-`project.md` when it declares none.
+`project.md` if none.
 
 ### Communication (default)
 
@@ -236,10 +238,9 @@ Code work: concise, direct, no filler or hedging, technical terms exact. Pattern
   request comes first, prose after.
 - **Number multi-step work** with the fewest bounded steps, and name one concrete
   next action when anything is left open. Finish the first issue, surface a second
-  one once, at the end.
-- **Restate state in one line** across turns (done, next).
-- **No preamble, no recap, no closer**: run the first-and-last-line test before
-  sending. Keep a hedge that carries real uncertainty.
+  once, at the end. Restate state in one line across turns.
+- **No preamble, no recap, no closer**: run the first-and-last-line test; keep a
+  hedge that carries real uncertainty.
 - **When to break it**: an explain request, a decision ask, a destructive action, a
   debug spiral, real ambiguity, or a rule that fights the task or the harness.
 
@@ -335,9 +336,8 @@ Module `github.com/sandrolain/sdt`. Entry `cli/main.go` (sets build-time vars);
 DOM tests use **jsdom** (happy-dom breaks DOMPurify).
 
 A bare `go build ./...` fails: `context/` holds a clone with C files and broken
-packages, so scope it the way the test command does —
-`go build $(go list -e ./... | grep -v /context/)` — or build the package you
-touch (`go build ./cli ...`).
+packages. Scope it — `go build $(go list -e ./... | grep -v /context/)` — or
+build the package you touch (`go build ./cli ...`).
 
 **Regenerating the generated surfaces** (after any `internal/templates/**` edit, in
 this order): `go build -o bin/sdt ./cli`, then `sdt agent init --force` (instruction
@@ -353,8 +353,7 @@ not reach them and the literal is edited by hand.
 ### Test
 
 ```bash
-# Go: context/refs holds an immutable clone with C files / broken Go packages,
-# so a bare `go test ./...` fails; exclude it:
+# Go: a bare `go test ./...` fails for the build's reason; exclude it:
 go test $(go list -e ./... | grep -v /context/) -coverprofile=coverage.out
 go tool cover -func=coverage.out
 
@@ -384,6 +383,11 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
 ### Conventions
 
 - **Language**: all code, comments, and documentation in English.
+- **The instrument surfaces.** `--progress` narrates on stderr only and every
+  invocation closes with one `sdt-done` line; exit 3 is a partial success and 4 a
+  decision, defined once in `sdt --help`. `.sdt/usage/` records the command path,
+  exit, duration, stdout bytes and an optional hit count — never an argument or any
+  content — and `sdt gain` reports counted facts only (decision 0037).
 - **The Toolbox table is data, not prose.** The map at the top of the
   always-loaded block lives in `internal/templates/toolbox.go`;
   `TestToolboxRowsExistInManifest` fails when a row names a command,
@@ -454,20 +458,14 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
 - **Instruction-module portability** — the instructions `sdt agent init` writes
   into *every* bootstrapped project must be portable: the agent must not need, or
   know, this repository's own implementation. This rule is **this repository
-  only** (SDT develops the instruction modules and the viewer) and is not shipped
-  to bootstrapped projects. A new or edited instruction module is judged by six
-  tests — **SUBJECT** (portable doctrine, not the viewer's design), **PRESUPPOSITION**
-  (nothing a generic project may lack, with an explicit no-op/degradation rule),
-  **LOCATION** (a generated surface, never a repo-local path), **PRESCRIPTION**
-  (defers to the project/`development.md`; numbers are overridable defaults, not
-  law, and a pinned version is re-verified against the installed tool), **DELIVERY**
-  (the delivery surface is named and consistent with `agent init`) and **BOUNDARY**
-  (non-overlap with `development.md` and sibling modules stated). The
+  only** and is not shipped to bootstrapped projects. A new or edited module is
+  judged by six tests — SUBJECT, PRESUPPOSITION, LOCATION, PRESCRIPTION, DELIVERY,
+  BOUNDARY — defined in `context/instructions/authoring.md`. The
   viewer-independence invariant — no `viewer`/`sdtviewer` token, word-boundary
   matched — is enforced by `internal/templates/templates_test.go`
   (`TestGeneratedSetIsViewerFree`) over the templates, the AGENTS.md instructions
   block and the roles core layer. A mechanical constraint becomes a gate, not
-  prose (`context/instructions/authoring.md`).
+  prose.
 - **A capability that reaches outside the process is gated, not trusted.** A viewer
   surface that touches something beyond the browser — the document-state delegation to
   the CLI (decision 0027) and the agent bridge both do — is available only on a

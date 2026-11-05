@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/sandrolain/sdt/cli/utils"
 	"github.com/sandrolain/sdt/internal/logging"
+	"github.com/sandrolain/sdt/internal/progress"
+	"github.com/sandrolain/sdt/internal/usage"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -83,15 +86,17 @@ s::::::::::::::s  d:::::::::::::::::d     tt::::::::::::::t
 var rootCmd = &cobra.Command{
 	Use:   "sdt",
 	Short: "Smart Developer Tools",
-	Long:  logo + `Smart Developer Tools is a collection of CLI utilities for developers`,
+	Long:  logo + `Smart Developer Tools is a collection of CLI utilities for developers` + exitVocabulary,
 	// installLogger runs after flag parsing and before the command body, so
 	// every command logs through the same handler. initProjectEnv then loads a
 	// project-root .env so commands can read project credentials (never
 	// overriding a value already present in the shell environment).
+	// startProgress opens the one narration channel a command may write ticks
+	// to, so a --progress value is rejected before any work runs.
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		installLogger(cmd)
 		initProjectEnv(cmd)
-		return nil
+		return startProgress(cmd)
 	},
 }
 
@@ -101,6 +106,7 @@ func init() {
 	pf.BytesBase64("inb64", []byte{}, "Input Base 64")
 	pf.String("file", "", "Input File")
 	pf.String("format", "text", "Output format: text|json|yaml")
+	pf.String("progress", "auto", "Progress narration on stderr: auto|human|json|none")
 	pf.Bool("quiet", false, "Suppress informational messages, only output result")
 	pf.Bool("no-color", false, "Disable ANSI color codes")
 	pf.Bool("no-env", false, "Do not load a project-root .env file")
@@ -109,6 +115,24 @@ func init() {
 	// (an unknown flag, for instance) render like every other log line.
 	installLogger(rootCmd)
 }
+
+// exitVocabulary is the one place the exit codes are defined. A command whose
+// outcome is not simply success or failure points here instead of restating it,
+// so a caller has one text to read and the codes cannot drift per command.
+const exitVocabulary = `
+
+Exit codes:
+  0  the command did its work
+  1  the command failed; nothing usable was produced (a usage error reports 1 too,
+     so a script keyed on 1 keeps working)
+  2  a command with its own verdict scale reports 2 for its error case: the wiki
+     lint and the wiki commands already do, and their warnings stay 1
+  3  partial success: some items worked, some did not, and the result is usable
+     (crawldown with at least one page written and at least one failed)
+  4  a decision or a verdict is required from the caller, not a repair of the
+     command: it prints what it needs (context close refused for unfinished work
+     prints the open items and the two commands that resolve them; learn answer
+     reports "cannot grade")`
 
 // installLogger wires the shared logger to the command error stream, keeping
 // stdout as the result channel. Colour is decided by internal/logging: only on
@@ -144,7 +168,19 @@ func Execute() {
 	// failure — the enriched unknown-command message below included.
 	rootCmd.SilenceErrors = true
 	rootCmd.SilenceUsage = true
-	exitWithError(nil, commandDiagnostic(rootCmd, rootCmd.Execute()))
+	exitWithError(nil, runAndFinish(rootCmd))
+}
+
+// runAndFinish executes cmd and closes the progress reporter, so a successful
+// run and a failed one both end with exactly one sdt-done line. A failing
+// command reaches exitWithError, which closes the same reporter itself; Finish
+// is idempotent, so neither path can print the line twice.
+func runAndFinish(root *cobra.Command) error {
+	err := commandDiagnostic(root, root.Execute())
+	if err == nil {
+		finishProgress(true, 0, "done")
+	}
+	return err
 }
 
 // commandDiagnostic turns a raw execution error into the report a caller can act
@@ -285,7 +321,76 @@ func getInputBytesRequired(cmd *cobra.Command, args []string) []byte {
 	return res
 }
 
-var exit func(code int) = os.Exit
+// exit is the process exit path. It is a variable so tests can observe the code
+// without ending the test binary; production leaves it at exitProcess.
+var exit func(code int) = exitProcess
+
+// exitProcess is the single way out of the process. It closes the protocol's
+// line with the code it is about to return, so a command that calls exit
+// directly — instead of exitWithError, exitWithJunk or exitWithDecision — still
+// reports itself instead of closing as a success.
+func exitProcess(code int) {
+	finishProgress(code == 0, code, exitReason(code))
+	os.Exit(code)
+}
+
+// exitReason names a bare exit code in the protocol's vocabulary.
+func exitReason(code int) string {
+	switch code {
+	case 0:
+		return "done"
+	case 3:
+		return "partial"
+	case 4:
+		return "decision"
+	default:
+		return "error"
+	}
+}
+
+// progressReporter is the invocation's narration channel, created once by
+// startProgress in PersistentPreRun and closed by whichever exit path runs. It
+// is nil when a usage error fired before the pre-run, which every method
+// tolerates.
+var progressReporter *progress.Reporter
+
+// startProgress resolves the --progress mode and opens the reporter. Unknown
+// values are rejected here, before the command does any work. The usage record
+// opens with it, so both channels describe the same invocation.
+func startProgress(cmd *cobra.Command) error {
+	mode, err := progress.ParseMode(getPersistentString(cmd, "progress", string(progress.ModeAuto)))
+	if err != nil {
+		return err
+	}
+	resolved := progress.Resolve(mode, cmd.ErrOrStderr(), getPersistentBool(cmd, "quiet"))
+	progressReporter = progress.New(cmd.ErrOrStderr(), resolved)
+	usage.Begin(invokedCommand(cmd))
+	return nil
+}
+
+// invokedCommand is the command path without the executable: "context search",
+// never the arguments. Arguments are exactly what the usage log must not hold.
+// It trims the command's own name, not the binary's: a copied or renamed binary
+// must write the same stable key into the log.
+func invokedCommand(cmd *cobra.Command) string {
+	path := cmd.CommandPath()
+	if trimmed, ok := strings.CutPrefix(path, cmd.Root().Name()+" "); ok {
+		return trimmed
+	}
+	return path
+}
+
+// finishProgress closes the invocation: the usage record first, then the
+// reporter. Finish is idempotent on both, so exactly one sdt-done line and one
+// entry leave the process.
+func finishProgress(ok bool, code int, reason string) {
+	if err := usage.Finish(usageRoot(), code); err != nil {
+		// The log is a measurement, not the command: a directory it cannot write
+		// must never change the exit status or the result on stdout.
+		slog.Debug("usage record not written", "error", err)
+	}
+	progressReporter.Finish(ok, code, reason)
+}
 
 // exitWithError reports err through the shared logger and exits with code 1.
 // The logger writes to the command error stream, so stdout keeps carrying
@@ -296,7 +401,39 @@ func exitWithError(_ *cobra.Command, err error) {
 		return
 	}
 	slog.Error(err.Error())
+	finishProgress(false, 1, "error")
 	exit(1)
+}
+
+// exitWithJunk ends an invocation that did its work only partially — some items
+// succeeded, some did not — with code 3. A caller can then keep the partial
+// result instead of discarding it as a failure.
+func exitWithJunk(_ *cobra.Command, reason string) {
+	finishProgress(false, 3, reason)
+	exit(3)
+}
+
+// exitWithDecision ends an invocation that needs a choice from the caller with
+// code 4, printing the options that resolve it so the caller has something to
+// act on rather than a bare exit status.
+func exitWithDecision(cmd *cobra.Command, reason string, options []string) {
+	lines := make([]string, 0, len(options)+1)
+	lines = append(lines, "sdt-decision reason="+progress.Slug(reason))
+	for _, opt := range options {
+		lines = append(lines, "  "+opt)
+	}
+	writeStderr(cmd, strings.Join(lines, "\n")+"\n")
+	finishProgress(false, 4, reason)
+	exit(4)
+}
+
+// writeStderr writes narration to the command's error stream and ignores a
+// write failure: the exit status is the contract, the explanation is not, and a
+// closed stderr must not change either.
+func writeStderr(cmd *cobra.Command, s string) {
+	if _, err := io.WriteString(cmd.ErrOrStderr(), s); err != nil {
+		return
+	}
 }
 
 func getFlag[T any](cmd *cobra.Command, name string, required bool, fFlags func(flags *pflag.FlagSet) (T, error), fFile func() T) T {
@@ -404,11 +541,13 @@ func getUseArray(cmd *cobra.Command) []string {
 }
 
 func outputBytes(cmd *cobra.Command, byt []byte) {
-	_, e := cmd.OutOrStdout().Write(byt)
+	n, e := cmd.OutOrStdout().Write(byt)
+	usage.CountOut(int64(n))
 	exitWithError(cmd, e)
 }
 
 func outputString(cmd *cobra.Command, str string) {
-	_, e := cmd.OutOrStdout().Write([]byte(str))
+	n, e := cmd.OutOrStdout().Write([]byte(str))
+	usage.CountOut(int64(n))
 	exitWithError(cmd, e)
 }

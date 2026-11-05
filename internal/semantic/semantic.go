@@ -122,6 +122,16 @@ func (ix *Index) Add(ctx context.Context, sections []Section) error {
 // validated with Matches (or empty) before calling: any mismatch forces a full
 // re-embed via the model/recipe guard below.
 func (ix *Index) AddIncremental(ctx context.Context, sections []Section, docHashes map[string]string, manifestVersion int, base *Snapshot) (out *Snapshot, reused, embedded int, err error) {
+	return ix.AddIncrementalWith(ctx, sections, docHashes, manifestVersion, base, nil)
+}
+
+// buildProgressEvery is how many sections pass between two progress reports:
+// often enough for a bar to move, rare enough that a tick is not the work.
+const buildProgressEvery = 16
+
+// AddIncrementalWith is AddIncremental reporting its progress. A nil progress
+// is the same call: the wrapper above keeps every existing caller unchanged.
+func (ix *Index) AddIncrementalWith(ctx context.Context, sections []Section, docHashes map[string]string, manifestVersion int, base *Snapshot, progress BuildProgress) (out *Snapshot, reused, embedded int, err error) {
 	if !ix.Available() {
 		return nil, 0, 0, ErrUnavailable
 	}
@@ -145,7 +155,8 @@ func (ix *Index) AddIncremental(ctx context.Context, sections []Section, docHash
 	vecs := make([][]float32, 0, len(sections))
 	metas := make([]map[string]string, 0, len(sections))
 	docs := make([]string, 0, len(sections))
-	for _, s := range sections {
+	total := len(sections)
+	for i, s := range sections {
 		if s.Text == "" {
 			continue
 		}
@@ -169,6 +180,12 @@ func (ix *Index) AddIncremental(ctx context.Context, sections []Section, docHash
 		metas = append(metas, s.Meta)
 		docs = append(docs, s.Text)
 		header.SectionVectors[s.ID] = vec
+		if progress != nil && (i+1)%buildProgressEvery == 0 {
+			progress(i+1, total)
+		}
+	}
+	if progress != nil {
+		progress(total, total)
 	}
 	if len(ids) == 0 {
 		return header, reused, embedded, nil

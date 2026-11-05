@@ -16,6 +16,7 @@ import (
 	"github.com/sandrolain/sdt/internal/mdstruct"
 	"github.com/sandrolain/sdt/internal/search"
 	"github.com/sandrolain/sdt/internal/semantic"
+	"github.com/sandrolain/sdt/internal/usage"
 )
 
 // ctxBuildSemanticSnapshot loads the model and (re)builds the vector snapshot
@@ -24,6 +25,13 @@ import (
 // overrides the default. A load/encode failure is returned so the caller can
 // degrade explicitly; the snapshot itself is a derived cache.
 func ctxBuildSemanticSnapshot(cmd *cobra.Command, ix *search.Index) (*semantic.Index, semantic.BuildResult, error) {
+	return ctxBuildSemanticSnapshotWith(cmd, ix, nil)
+}
+
+// ctxBuildSemanticSnapshotWith is the same build narrating its embed loop: the
+// snapshot command passes a progress function, every other caller passes nil and
+// stays silent.
+func ctxBuildSemanticSnapshotWith(cmd *cobra.Command, ix *search.Index, progress semantic.BuildProgress) (*semantic.Index, semantic.BuildResult, error) {
 	model := semantic.Model(getStringFlag(cmd, "semantic-model", false))
 	if model == "" {
 		model = semantic.ModelBase8M
@@ -38,7 +46,7 @@ func ctxBuildSemanticSnapshot(cmd *cobra.Command, ix *search.Index) (*semantic.I
 			hashes[e.ID] = e.Hash
 		}
 	}
-	return semantic.BuildSnapshot(cmd.Context(), root, model, ix.SemanticSections(), hashes, mdindex.ManifestVersion)
+	return semantic.BuildSnapshotWith(cmd.Context(), root, model, ix.SemanticSections(), hashes, mdindex.ManifestVersion, progress)
 }
 
 // loadSemanticIndex builds the semantic index for the hybrid search path.
@@ -148,6 +156,10 @@ Examples:
 				Score:      r.Score, Snippet: r.Snippet,
 			})
 		}
+		// A search that found nothing and a search nobody ran are different
+		// facts: this count is what makes the hit rate in `sdt gain` mean
+		// something.
+		usage.Hits(len(hits))
 		switch getFormat(cmd) {
 		case fmtJSON:
 			out, err := json.MarshalIndent(map[string]any{ctxFrontmatterResults: hits, "total": res.Total}, "", "  ")
