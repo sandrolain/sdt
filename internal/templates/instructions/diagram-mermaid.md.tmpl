@@ -52,6 +52,14 @@ Write the standard Mermaid the project's renderer draws. Prefer the plain
 constructs — node shapes, arrows with short labels, a subgraph for a boundary —
 over renderer-specific tweaks.
 
+## Escaped characters
+
+A label is not free text: some characters are syntax. A literal `|` is written
+`#124;` — the pipe delimits an edge label — and a literal `#` is `#35;`. When a
+label carries several of them, quote it instead: `A["themes | syllabi"]`. A
+diagram that does not parse reaches the reader as raw text instead of a picture,
+so the escaping is part of writing the block, not a defect to fix later.
+
 ## Anti-patterns
 
 - Styling-only changes: a theme or colour tweak is not a diagram improvement.
