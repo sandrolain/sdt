@@ -99,6 +99,7 @@ var crawlOnlyFlags = []string{
 	"follow-external",
 	"ignore-robots-txt",
 	"sitemap",
+	"limit",
 }
 
 // validateCrawldownFlags rejects flags that do not apply to the resolved mode.
@@ -129,19 +130,29 @@ type capturedPage struct {
 	Markdown  string
 	Documents []crawler.Document
 	Errors    int64
+	Refused   int64
 }
 
 // captureReceipt is the machine-readable result of a capture, emitted by
 // --format json|yaml. Path is set when the page was written to a file or
-// directory; Markdown is set when the body went to stdout.
+// directory; Markdown is set when the body went to stdout. Kind tells the two
+// apart in crawl mode, where pages and documents share the receipt list.
 type captureReceipt struct {
 	URL       string            `json:"url" yaml:"url"`
 	Title     string            `json:"title" yaml:"title"`
 	SavedAt   string            `json:"saved_at" yaml:"saved_at"`
+	Kind      string            `json:"kind,omitempty" yaml:"kind,omitempty"`
 	Path      string            `json:"path,omitempty" yaml:"path,omitempty"`
 	Markdown  string            `json:"markdown,omitempty" yaml:"markdown,omitempty"`
 	Documents []receiptDocument `json:"documents,omitempty" yaml:"documents,omitempty"`
 }
+
+// Receipt kinds. A page is a captured HTML page; a document is a downloaded
+// non-HTML resource.
+const (
+	receiptKindPage     = "page"
+	receiptKindDocument = "document"
+)
 
 // receiptDocument is a downloaded non-HTML document recorded in a capture
 // receipt, so a consumer can tell it from the page and find its file.
@@ -153,13 +164,14 @@ type receiptDocument struct {
 // fetchSinglePage fetches one URL without following page links and returns the
 // page plus its Markdown body with frontmatter and injected H1, honouring the
 // suppression flags. With downloadDocs its document links are also fetched.
-func fetchSinglePage(targetURL, userAgent string, timeout int, downloadDocs, noFrontmatter, noTitle bool, conv *converter.Converter) (capturedPage, error) {
+func fetchSinglePage(targetURL, userAgent string, timeout int, downloadDocs, noFrontmatter, noTitle bool, maxDocumentBytes int, conv *converter.Converter) (capturedPage, error) {
 	c, err := crawler.NewCrawler(targetURL, crawler.Options{
 		MaxDepth:          1,
 		UserAgent:         userAgent,
 		SinglePage:        true,
 		DownloadDocuments: downloadDocs,
 		RequestTimeout:    timeout,
+		MaxDocumentBytes:  maxDocumentBytes,
 		Silent:            true,
 	})
 	if err != nil {
@@ -207,6 +219,7 @@ func fetchSinglePage(targetURL, userAgent string, timeout int, downloadDocs, noF
 		Markdown:  markdown,
 		Documents: documents,
 		Errors:    c.Errors(),
+		Refused:   c.RefusedDocuments(),
 	}, nil
 }
 
@@ -267,7 +280,16 @@ Streams and exit codes:
     written and the command exits non-zero when anything failed.
 
 Politeness: --delay <seconds> waits between URLs in a batch and between requests
-while crawling; pass it when capturing many pages from one host.`,
+while crawling; pass it when capturing many pages from one host.
+
+Crawl bounds and document size:
+  - --limit caps the pages a crawl fetches, sitemap seeds included; --depth caps
+    how far it follows links.
+  - --max-document-bytes refuses a document over the cap: nothing is written for
+    it and the run counts a failure, so a truncated document is never produced.
+  - A link skipped by a path filter, a document download that is off, single-page
+    mode or the page cap is logged with its reason at debug. DEPTH_LIMIT and
+    ROBOTS_TXT are enforced by the crawler engine and are not reported here.`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		outputDir := getStringFlag(cmd, "output", false)
@@ -283,6 +305,8 @@ while crawling; pass it when capturing many pages from one host.`,
 		sitemap := getBoolFlag(cmd, "sitemap", false)
 		followExternal := getBoolFlag(cmd, "follow-external", false)
 		downloadDocs := getBoolFlag(cmd, "download-docs", false)
+		limit := getIntFlag(cmd, "limit", false)
+		maxDocumentBytes := getIntFlag(cmd, "max-document-bytes", false)
 		noFrontmatter := getBoolFlag(cmd, "no-frontmatter", false)
 		noTitle := getBoolFlag(cmd, "no-title", false)
 
@@ -316,7 +340,7 @@ while crawling; pass it when capturing many pages from one host.`,
 					time.Sleep(time.Duration(delay) * time.Second)
 				}
 
-				captured, err := fetchSinglePage(targetURL, userAgent, timeout, downloadDocs, noFrontmatter, noTitle, conv)
+				captured, err := fetchSinglePage(targetURL, userAgent, timeout, downloadDocs, noFrontmatter, noTitle, maxDocumentBytes, conv)
 				if err != nil {
 					slog.Warn("capture failed", "url", targetURL, "err", err)
 					failures++
@@ -327,6 +351,7 @@ while crawling; pass it when capturing many pages from one host.`,
 					URL:     captured.Page.URL,
 					Title:   captured.Page.Title,
 					SavedAt: captured.SavedAt,
+					Kind:    receiptKindPage,
 				}
 
 				switch mode {
@@ -369,6 +394,7 @@ while crawling; pass it when capturing many pages from one host.`,
 					}
 				}
 
+				failures += int(captured.Refused)
 				receipts = append(receipts, receipt)
 			}
 
@@ -404,6 +430,8 @@ while crawling; pass it when capturing many pages from one host.`,
 			ExcludedPaths:       excludedPaths,
 			AllowedPaths:        allowedPaths,
 			AllowedPathRegexes:  allowedPathRegexes,
+			MaxDocumentBytes:    maxDocumentBytes,
+			MaxPages:            limit,
 			Silent:              getBoolFlag(cmd, "quiet", false),
 		})
 		exitWithError(cmd, err)
@@ -548,10 +576,16 @@ while crawling; pass it when capturing many pages from one host.`,
 			slog.Info("saved", "path", outputPath)
 			successCount++
 
+			kind := receiptKindPage
+			if data.isDocument {
+				kind = receiptKindDocument
+			}
+
 			receipts = append(receipts, captureReceipt{
 				URL:     data.pageURL,
 				Title:   data.title,
 				SavedAt: data.savedAt,
+				Kind:    kind,
 				Path:    outputPath,
 			})
 		}
@@ -563,9 +597,10 @@ while crawling; pass it when capturing many pages from one host.`,
 			outputCaptureReceipts(cmd, receipts, false)
 		}
 
-		if len(pageDataCopy) == 0 || failures > 0 {
+		if len(pageDataCopy) == 0 || failures > 0 || c.RefusedDocuments() > 0 {
 			slog.Error("crawldown completed with failures",
-				"pages", len(pageDataCopy), "save_failures", failures, "crawl_errors", c.Errors())
+				"pages", len(pageDataCopy), "save_failures", failures,
+				"refused_documents", c.RefusedDocuments(), "crawl_errors", c.Errors())
 			exit(1)
 		}
 	},
@@ -586,6 +621,8 @@ func init() {
 	pf.Bool("sitemap", false, "Seed the crawl from the site's sitemaps (crawl mode only)")
 	pf.Bool("follow-external", false, "Follow links to external domains (crawl mode only)")
 	pf.Bool("download-docs", false, "Also download linked documents such as PDF, Word, Office and text files (crawl and capture modes)")
+	pf.Int("limit", 0, "Maximum number of pages to fetch in a crawl, sitemap seeds included (0 = unlimited; crawl mode only)")
+	pf.Int("max-document-bytes", 104857600, "Refuse a downloaded document larger than this many bytes (crawl and capture modes)")
 	pf.Bool("no-frontmatter", false, "Omit the YAML frontmatter block (stdout, file and capture modes)")
 	pf.Bool("no-title", false, "Do not inject the page title as an H1 (stdout, file and capture modes)")
 	rootCmd.AddCommand(crawldownCmd)

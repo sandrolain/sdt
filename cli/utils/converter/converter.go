@@ -10,6 +10,9 @@ import (
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/JohannesKaufmann/html-to-markdown/plugin"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/extension"
+	"github.com/yuin/goldmark/v2/parser"
 )
 
 // Options defines converter configuration.
@@ -117,64 +120,107 @@ func collapseBlankLines(markdown string) string {
 	return strings.TrimSpace(markdown)
 }
 
+// linkParser parses the Markdown the converter itself emits (GFM: tables,
+// strikethrough, task list, autolinks) so a link inside a table cell is seen
+// too. It is used for discovery only: the document is never re-rendered.
+var linkParser = parser.New(parser.WithExtensions(extension.NewGFMParser()))
+
+// localLink is one resolved destination rewrite.
+type localLink struct {
+	destination string
+	replacement string
+}
+
 // ConvertLinksToLocal rewrites absolute URLs in markdown to local .md file references
-// using the provided URL-to-filename mapping.
+// using the provided URL-to-file mapping. Destinations are discovered by the
+// CommonMark parser and spliced into the source, so every byte outside a
+// resolved destination is preserved; a URL containing ")" no longer swallows the
+// rest of the line. Reference links and images are left alone: their destination
+// is not written at the call site.
 func ConvertLinksToLocal(markdown string, baseURL string, urlToFileMap map[string]string) string {
 	parsedBase, err := url.Parse(baseURL)
 	if err != nil {
 		return markdown
 	}
 
-	re := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	doc := linkParser.Parse([]byte(markdown))
+	rewrites := collectLinkRewrites(doc, []byte(markdown), parsedBase, urlToFileMap)
 
-	return re.ReplaceAllStringFunc(markdown, func(match string) string {
-		parts := re.FindStringSubmatch(match)
-		if len(parts) != 3 {
-			return match
+	for _, rw := range rewrites {
+		markdown = strings.ReplaceAll(markdown, "]("+rw.destination+")", "]("+rw.replacement+")")
+	}
+
+	return markdown
+}
+
+// collectLinkRewrites walks the parsed document and resolves every inline link
+// destination the map honours, in first-appearance order.
+func collectLinkRewrites(doc ast.Node, source []byte, base *url.URL, urlToFileMap map[string]string) []localLink {
+	var rewrites []localLink
+	seen := map[string]bool{}
+
+	walkErr := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		link, ok := node.(*ast.Link)
+		if !entering || !ok || link.Reference != nil {
+			return ast.WalkContinue, nil
 		}
 
-		linkText := parts[1]
-		linkURL := parts[2]
-
-		if strings.HasPrefix(linkURL, "#") ||
-			strings.HasPrefix(linkURL, "mailto:") ||
-			strings.HasPrefix(linkURL, "javascript:") {
-			return match
+		destination := link.Destination.Value(source)
+		if seen[destination] {
+			return ast.WalkContinue, nil
 		}
+		seen[destination] = true
 
-		parsedLink, err := url.Parse(linkURL)
-		if err != nil {
-			return match
+		local, fragment, resolved := resolveLocalLink(destination, base, urlToFileMap)
+		if !resolved {
+			return ast.WalkContinue, nil
 		}
-
-		if !parsedLink.IsAbs() {
-			parsedLink = parsedBase.ResolveReference(parsedLink)
+		if fragment != "" {
+			local += "#" + fragment
 		}
+		rewrites = append(rewrites, localLink{destination: destination, replacement: local})
 
-		fullURL := parsedLink.Scheme + "://" + parsedLink.Host + strings.TrimSuffix(parsedLink.Path, "/")
-		if parsedLink.RawQuery != "" {
-			fullURL += "?" + parsedLink.RawQuery
-		}
-
-		if localFile, exists := urlToFileMap[fullURL]; exists {
-			if parsedLink.Fragment != "" {
-				return fmt.Sprintf("[%s](%s#%s)", linkText, localFile, parsedLink.Fragment)
-			}
-
-			return fmt.Sprintf("[%s](%s)", linkText, localFile)
-		}
-
-		cleanURL := parsedLink.Scheme + "://" + parsedLink.Host + strings.TrimSuffix(parsedLink.Path, "/")
-		if localFile, exists := urlToFileMap[cleanURL]; exists {
-			if parsedLink.Fragment != "" {
-				return fmt.Sprintf("[%s](%s#%s)", linkText, localFile, parsedLink.Fragment)
-			}
-
-			return fmt.Sprintf("[%s](%s)", linkText, localFile)
-		}
-
-		return match
+		return ast.WalkContinue, nil
 	})
+	if walkErr != nil {
+		return nil
+	}
+
+	return rewrites
+}
+
+// resolveLocalLink maps one link destination to the local file it was captured
+// as, keeping any fragment; the query-bearing URL is tried before its
+// query-less form, as the crawler stores both.
+func resolveLocalLink(destination string, base *url.URL, urlToFileMap map[string]string) (string, string, bool) {
+	if strings.HasPrefix(destination, "#") ||
+		strings.HasPrefix(destination, "mailto:") ||
+		strings.HasPrefix(destination, "javascript:") {
+		return "", "", false
+	}
+
+	parsed, err := url.Parse(destination)
+	if err != nil {
+		return "", "", false
+	}
+	if !parsed.IsAbs() {
+		parsed = base.ResolveReference(parsed)
+	}
+
+	fullURL := parsed.Scheme + "://" + parsed.Host + strings.TrimSuffix(parsed.Path, "/")
+	if parsed.RawQuery != "" {
+		fullURL += "?" + parsed.RawQuery
+	}
+	if local, ok := urlToFileMap[fullURL]; ok {
+		return local, parsed.Fragment, true
+	}
+
+	cleanURL := parsed.Scheme + "://" + parsed.Host + strings.TrimSuffix(parsed.Path, "/")
+	if local, ok := urlToFileMap[cleanURL]; ok {
+		return local, parsed.Fragment, true
+	}
+
+	return "", "", false
 }
 
 // GenerateFilename creates a safe .md filename from a URL.

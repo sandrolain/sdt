@@ -22,7 +22,7 @@ func fetchTargets(r *research.Run, root string, targets []string, userAgent stri
 	rawDir := filepath.Join(research.RunDir(root, r.RunID), research.RawDirName)
 
 	for _, target := range targets {
-		captured, ferr := fetchSinglePage(target, userAgent, timeout, false, false, false, conv)
+		captured, ferr := fetchSinglePage(target, userAgent, timeout, false, false, false, 0, conv)
 		if ferr != nil {
 			r.RecordFailure(target, ferr)
 			failed++

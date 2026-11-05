@@ -25,7 +25,7 @@ func TestDiscoverSitemapURLsFromRobots(t *testing.T) {
 	base = srv.URL
 
 	u, _ := url.Parse(srv.URL)
-	got := discoverSitemapURLs(u, "sdt-test", 5*time.Second)
+	got := discoverSitemapURLs(u, "sdt-test", 5*time.Second, nil)
 	if len(got) != 2 || got[0] != base+"/a" || got[1] != base+"/b" {
 		t.Errorf("discoverSitemapURLs = %v, want [%s/a %s/b]", got, base, base)
 	}
@@ -49,7 +49,7 @@ func TestDiscoverSitemapIndexRecursion(t *testing.T) {
 	base = srv.URL
 
 	u, _ := url.Parse(srv.URL)
-	got := discoverSitemapURLs(u, "sdt-test", 5*time.Second)
+	got := discoverSitemapURLs(u, "sdt-test", 5*time.Second, nil)
 	if len(got) != 1 || got[0] != base+"/x" {
 		t.Errorf("index recursion = %v, want [%s/x]", got, base)
 	}

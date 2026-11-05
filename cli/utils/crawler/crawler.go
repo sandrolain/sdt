@@ -20,9 +20,15 @@ import (
 // maxRetries bounds the transient-failure retries per crawl request.
 const maxRetries = 3
 
-// maxDocumentBytes caps a downloaded document body (colly's implicit default is
-// 10 MB); a body over the cap fails the request, which OnError reports.
-const maxDocumentBytes = 100 << 20
+// defaultMaxDocumentBytes caps a downloaded document body when the caller sets
+// no Options.MaxDocumentBytes. colly's MaxBodySize truncates with an
+// io.LimitReader instead of failing, so the cap only becomes a refusal because
+// the crawler checks the length itself.
+const defaultMaxDocumentBytes = 100 << 20
+
+// retrySleep is the wait before a transient-failure retry; a test swaps it so
+// the retry path does not sleep.
+var retrySleep = time.Sleep
 
 // Page represents a crawled web page.
 type Page struct {
@@ -52,6 +58,12 @@ type Options struct {
 	ExcludedPaths      []string
 	AllowedPaths       []string
 	AllowedPathRegexes []string
+	// MaxDocumentBytes caps a downloaded document body; zero keeps
+	// defaultMaxDocumentBytes.
+	MaxDocumentBytes int
+	// MaxPages caps how many distinct pages the page collector fetches
+	// (sitemap seeds included); zero is unlimited.
+	MaxPages int
 	// Silent suppresses the periodic crawl progress goroutine; individual
 	// visiting/error lines are gated by the shared logger's level instead.
 	Silent bool
@@ -86,7 +98,13 @@ type Crawler struct {
 	requestsTotal     int64
 	responsesTotal    int64
 	errorsTotal       int64
+	documentsRefused  int64
 	inFlight          int64
+	// pageGate is the crawl-wide page cap: it admits each distinct page URL
+	// once (a retry re-visits an admitted page) and counts the seeds.
+	pageGate   map[string]bool
+	pageGateMu sync.Mutex
+	pagesAdmit int
 }
 
 // NewCrawler creates a new Crawler instance for the given start URL.
@@ -106,6 +124,10 @@ func NewCrawler(startURL string, opts Options) (*Crawler, error) {
 
 	if opts.RequestTimeout == 0 {
 		opts.RequestTimeout = 30
+	}
+
+	if opts.MaxDocumentBytes <= 0 {
+		opts.MaxDocumentBytes = defaultMaxDocumentBytes
 	}
 
 	allowedDomains := opts.AllowedDomains
@@ -170,11 +192,12 @@ func NewCrawler(startURL string, opts Options) (*Crawler, error) {
 		docCollector.IgnoreRobotsTxt = true
 	}
 
-	// Decode non-UTF8 pages (colly's default is off); cap a document body so a
-	// large PDF fails loudly instead of silently truncating at colly's default.
+	// Decode non-UTF8 pages (colly's default is off); cap a document body at the
+	// runner's limit. colly truncates at MaxBodySize, so refusedDocument is what
+	// turns the cap into a failure.
 	c.DetectCharset = true
 	docCollector.DetectCharset = true
-	docCollector.MaxBodySize = maxDocumentBytes
+	docCollector.MaxBodySize = opts.MaxDocumentBytes
 
 	cr := &Crawler{
 		collector:         c,
@@ -197,9 +220,21 @@ func (c *Crawler) Start() error {
 	c.setupCallbacks()
 
 	// Seed the crawl from the site's sitemaps (bounded, best-effort) before the
-	// base URL, so a docs site is covered beyond the base page's link graph.
+	// base URL, so a docs site is covered beyond the base page's link graph. A
+	// seed goes through the same allow/exclude predicates as a discovered link,
+	// so --sitemap cannot fetch what the user excluded.
 	if c.options.Sitemap && !c.options.SinglePage {
-		for _, u := range discoverSitemapURLs(c.baseURL, c.options.UserAgent, time.Duration(c.options.RequestTimeout)*time.Second) {
+		seeds := discoverSitemapURLs(
+			c.baseURL,
+			c.options.UserAgent,
+			time.Duration(c.options.RequestTimeout)*time.Second,
+			c.allowed,
+		)
+		for _, u := range seeds {
+			if !c.allowed(u) {
+				slog.Debug("link denied", "url", u, "reason", reasonExcludePattern)
+				continue
+			}
 			slog.Debug("sitemap seed", "url", u)
 			//nolint:errcheck
 			_ = c.collector.Visit(u)
@@ -289,18 +324,14 @@ func (c *Crawler) setupCallbacks() {
 		}
 
 		absoluteURL := e.Request.AbsoluteURL(link)
-		if c.isExcludedPath(absoluteURL) {
-			slog.Debug("link denied", "url", absoluteURL, "reason", "EXCLUDE_PATTERN")
-			return
-		}
-		if !c.isAllowedPath(absoluteURL) {
-			slog.Debug("link denied", "url", absoluteURL, "reason", "INCLUDE_PATTERN")
+		if !c.allowed(absoluteURL) {
+			slog.Debug("link denied", "url", absoluteURL, "reason", c.denialReason(absoluteURL))
 			return
 		}
 
 		if isDocumentLink(link) {
 			if !c.options.DownloadDocuments {
-				slog.Debug("link denied", "url", absoluteURL, "reason", "DOCUMENT_NOT_DOWNLOADING")
+				slog.Debug("link denied", "url", absoluteURL, "reason", reasonDocumentNotDownloading)
 				return
 			}
 
@@ -315,7 +346,7 @@ func (c *Crawler) setupCallbacks() {
 		// Single-page mode captures exactly one page; only follow page links
 		// when actually crawling. Document links above are still honoured.
 		if c.options.SinglePage {
-			slog.Debug("link denied", "url", absoluteURL, "reason", "SINGLE_PAGE")
+			slog.Debug("link denied", "url", absoluteURL, "reason", reasonSinglePage)
 			return
 		}
 
@@ -328,6 +359,11 @@ func (c *Crawler) setupCallbacks() {
 		atomic.AddInt64(&c.inFlight, -1)
 
 		if c.options.DownloadDocuments && isDocumentResponse(r) {
+			if c.refusedDocument(r) {
+				c.refuseDocument(r)
+				return
+			}
+
 			doc := Document{
 				URL:         normalizeURL(r.Request.URL.String()),
 				ContentType: r.Headers.Get("Content-Type"),
@@ -347,9 +383,15 @@ func (c *Crawler) setupCallbacks() {
 			atomic.AddInt64(&c.inFlight, -1)
 
 			if c.options.DownloadDocuments && isDocumentResponse(r) {
+				if c.refusedDocument(r) {
+					c.refuseDocument(r)
+					return
+				}
+
 				doc := Document{
 					URL:         normalizeURL(r.Request.URL.String()),
 					ContentType: r.Headers.Get("Content-Type"),
+					Disposition: r.Headers.Get("Content-Disposition"),
 					Body:        r.Body,
 				}
 
@@ -394,6 +436,13 @@ func (c *Crawler) setupCallbacks() {
 	c.collector.OnRequest(func(r *colly.Request) {
 		atomic.AddInt64(&c.requestsTotal, 1)
 		atomic.AddInt64(&c.inFlight, 1)
+
+		if !c.admitPage(r.URL.String()) {
+			slog.Debug("link denied", "url", r.URL.String(), "reason", reasonLimit)
+			atomic.AddInt64(&c.inFlight, -1)
+			r.Abort()
+			return
+		}
 
 		slog.Info("visiting", "url", r.URL.String())
 	})
@@ -451,6 +500,30 @@ func extractMainContent(e *colly.HTMLElement) string {
 	return ""
 }
 
+// The under-extraction guard: readability can accept a sliver of a large page
+// (an empty-looking article tag, a cookie wall it treats as content). When the
+// extracted text is under extractionRatioPercent of the page's own text and the
+// page carries at least extractionMinChars of it, the selector cascade is
+// retried instead. Both numbers are overridable defaults, not law.
+const (
+	extractionRatioPercent = 30
+	extractionMinChars     = 2000
+)
+
+// htmlScriptStyleRe removes the parts of a page readability never reads, so the
+// length comparison does not count a JSON blob as content.
+var htmlScriptStyleRe = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
+
+// htmlTagRe strips the remaining tags.
+var htmlTagRe = regexp.MustCompile(`(?s)<[^>]*>`)
+
+// visibleTextLen approximates the readable text length of an HTML fragment.
+func visibleTextLen(html string) int {
+	stripped := htmlScriptStyleRe.ReplaceAllString(html, " ")
+	stripped = htmlTagRe.ReplaceAllString(stripped, " ")
+	return len(strings.Join(strings.Fields(stripped), " "))
+}
+
 func extractReadableContent(e *colly.HTMLElement) (string, error) {
 	if e.Response == nil || len(e.Response.Body) == 0 || e.Request == nil || e.Request.URL == nil {
 		return "", fmt.Errorf("missing response or URL")
@@ -474,7 +547,30 @@ func extractReadableContent(e *colly.HTMLElement) (string, error) {
 		return "", fmt.Errorf("readability content too short (%d chars)", len(content))
 	}
 
+	// A tiny slice of a large page is a readability failure, not a short page:
+	// hand the page to the selector cascade instead.
+	if pageLen := visibleTextLen(string(e.Response.Body)); pageLen >= extractionMinChars {
+		extracted := visibleTextLen(content)
+		if underExtracted(extracted, pageLen) {
+			slog.Debug(
+				"readability under-extracted the page",
+				"url", e.Request.URL.String(),
+				"extracted", extracted,
+				"page", pageLen,
+				"percent", extracted*100/pageLen,
+			)
+			return "", fmt.Errorf("readability kept %d of %d chars", extracted, pageLen)
+		}
+	}
+
 	return content, nil
+}
+
+// underExtracted reports whether an extraction kept too little of a page: the
+// page must be big enough for the question to mean anything, and the extract
+// must be under the declared share of it.
+func underExtracted(extracted, pageLen int) bool {
+	return pageLen >= extractionMinChars && extracted*100 < pageLen*extractionRatioPercent
 }
 
 // GetPages returns all crawled pages collected so far.
@@ -571,10 +667,110 @@ func (c *Crawler) isAllowedPath(rawURL string) bool {
 	return false
 }
 
-// isTransient reports whether a failed request is worth retrying: a transport
-// error, HTTP 429 or 5xx. A 4xx that is not 429 is not.
+// Denial reasons reported at debug when a link is not followed. DEPTH_LIMIT and
+// ROBOTS_TXT are enforced inside colly and are documented in the command help
+// instead of being reported here.
+const (
+	reasonExcludePattern         = "EXCLUDE_PATTERN"
+	reasonIncludePattern         = "INCLUDE_PATTERN"
+	reasonDocumentNotDownloading = "DOCUMENT_NOT_DOWNLOADING"
+	reasonSinglePage             = "SINGLE_PAGE"
+	reasonLimit                  = "LIMIT"
+)
+
+// allowed reports whether the path filters admit a URL: not excluded, and
+// allowed when an allow list exists. Discovered links, sitemap seeds and the
+// restored start URL all pass through it.
+func (c *Crawler) allowed(rawURL string) bool {
+	return !c.isExcludedPath(rawURL) && c.isAllowedPath(rawURL)
+}
+
+// denialReason names which predicate refused a URL.
+func (c *Crawler) denialReason(rawURL string) string {
+	if c.isExcludedPath(rawURL) {
+		return reasonExcludePattern
+	}
+	return reasonIncludePattern
+}
+
+// admitPage counts a distinct page URL against Options.MaxPages. It returns
+// false once the cap is reached; a retry of an already admitted URL is admitted
+// again so the retry path does not consume the budget twice.
+func (c *Crawler) admitPage(rawURL string) bool {
+	if c.options.MaxPages <= 0 {
+		return true
+	}
+
+	key := normalizeURL(rawURL)
+	c.pageGateMu.Lock()
+	defer c.pageGateMu.Unlock()
+
+	if c.pageGate[key] {
+		return true
+	}
+	if c.pagesAdmit >= c.options.MaxPages {
+		return false
+	}
+	if c.pageGate == nil {
+		c.pageGate = make(map[string]bool, c.options.MaxPages)
+	}
+	c.pageGate[key] = true
+	c.pagesAdmit++
+
+	return true
+}
+
+// refusedDocument reports whether a document response exceeds the cap. colly
+// truncates the body at MaxBodySize with an io.LimitReader, so a body that fills
+// the cap is evidence of truncation even when Content-Length is absent or lies.
+func (c *Crawler) refusedDocument(r *colly.Response) bool {
+	if c.options.MaxDocumentBytes <= 0 {
+		return false
+	}
+
+	if raw := strings.TrimSpace(r.Headers.Get("Content-Length")); raw != "" {
+		if n, err := strconv.ParseInt(raw, 10, 64); err == nil && n > int64(c.options.MaxDocumentBytes) {
+			return true
+		}
+	}
+
+	return len(r.Body) >= c.options.MaxDocumentBytes
+}
+
+// refuseDocument reports an oversize document as a failure and keeps it off the
+// callback path, so no file and no receipt entry is produced for it.
+func (c *Crawler) refuseDocument(r *colly.Response) {
+	atomic.AddInt64(&c.errorsTotal, 1)
+	atomic.AddInt64(&c.documentsRefused, 1)
+	slog.Error(
+		"document exceeds the size cap",
+		"url", r.Request.URL.String(),
+		"bytes", len(r.Body),
+		"cap", c.options.MaxDocumentBytes,
+	)
+}
+
+// RefusedDocuments returns how many documents were refused for exceeding the
+// size cap. The caller turns it into a run-level failure: the document is not a
+// crawl error, but it is not a success either.
+func (c *Crawler) RefusedDocuments() int64 {
+	return atomic.LoadInt64(&c.documentsRefused)
+}
+
+// isTransient reports whether a failed request is worth retrying. The status
+// decides first: 429 and 5xx are transient, any other 4xx is not — colly hands
+// OnError a synthesized error for a 4xx status, so "err != nil" alone would
+// retry a 404. Only a status-less failure (a transport error) falls back to the
+// error.
 func isTransient(status int, err error) bool {
-	return err != nil || status == http.StatusTooManyRequests || status >= 500
+	if status == http.StatusTooManyRequests || status >= 500 {
+		return true
+	}
+	if status >= 400 {
+		return false
+	}
+
+	return err != nil
 }
 
 // retryTransient re-queues a request that failed transiently — a transport
@@ -594,9 +790,13 @@ func retryTransient(r *colly.Response, err error) bool {
 		return false
 	}
 	r.Request.Ctx.Put("retry", strconv.Itoa(attempts+1))
-	time.Sleep(time.Duration(attempts+1) * 250 * time.Millisecond)
-	//nolint:errcheck
-	_ = r.Request.Retry()
+	retrySleep(time.Duration(attempts+1) * 250 * time.Millisecond)
+
+	if err := r.Request.Retry(); err != nil {
+		slog.Debug("retry refused", "url", r.Request.URL.String(), "err", err)
+		return false
+	}
+
 	return true
 }
 

@@ -17,10 +17,9 @@ import (
 // resetCrawldownFlags resets the persistent flags of crawldownCmd to prevent
 // cross-test contamination — cobra/pflag does not reset Changed state between Execute calls.
 func resetCrawldownFlags() {
-	crawldownCmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
-		f.Changed = false
-		_ = f.Value.Set(f.DefValue)
-	})
+	// Delegates to the shared helper: a naive Set(DefValue) appends the literal
+	// "[]" to a StringArray flag, which then filters every URL out.
+	resetCmdFlags(crawldownCmd)
 }
 
 func TestCrawldownCommand_SinglePage(t *testing.T) {
@@ -755,6 +754,8 @@ func TestCrawldownCommand_CrawlOnlyFlagsRejected(t *testing.T) {
 		{"--allowed-path-regex", "^/x"},
 		{"--follow-external"},
 		{"--ignore-robots-txt"},
+		{"--sitemap"},
+		{"--limit", "2"},
 	}
 	for _, flags := range cases {
 		t.Run(strings.TrimPrefix(flags[0], "--"), func(t *testing.T) {
@@ -946,4 +947,97 @@ func TestCrawldownCommand_StreamsAndQuiet(t *testing.T) {
 			t.Errorf("--quiet dropped stdout content:\n%s", outBuf.String())
 		}
 	})
+}
+
+func TestCrawldownCommand_CrawlReceiptKinds(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/doc/sample.pdf" {
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Header().Set("Content-Disposition", `attachment; filename="report.pdf"`)
+			_, _ = w.Write([]byte("%PDF-1.4\n%EOF"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<html><head><title>Docs</title></head><body><main><p>See <a href="/doc/sample.pdf">PDF</a></p></main></body></html>`)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(new(bytes.Buffer))
+	defer func() {
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+	}()
+
+	resetCmdFlags(rootCmd)
+	t.Cleanup(func() { resetCmdFlags(rootCmd) })
+
+	rootCmd.SetArgs([]string{"crawldown", "--output", dir, "--download-docs", "--format", "json", srv.URL})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("crawldown failed: %v", err)
+	}
+
+	var receipts []map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &receipts); err != nil {
+		t.Fatalf("decode receipts: %v\n%s", err, buf.String())
+	}
+
+	kinds := map[string]int{}
+	for _, r := range receipts {
+		if kind, ok := r["kind"].(string); ok {
+			kinds[kind]++
+		}
+	}
+	if kinds["page"] != 1 || kinds["document"] != 1 {
+		t.Errorf("receipt kinds = %v, want one page and one document", kinds)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "report.pdf")); err != nil {
+		t.Errorf("the Content-Disposition filename was not used: %v", err)
+	}
+}
+
+func TestCrawldownCommand_RefusesOversizeDocument(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/doc/sample.pdf" {
+			w.Header().Set("Content-Type", "application/pdf")
+			_, _ = w.Write([]byte(strings.Repeat("%PDF-1.4\n", 10)))
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<html><head><title>Docs</title></head><body><main><p>See <a href="/doc/sample.pdf">PDF</a></p></main></body></html>`)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	code, _ := runCrawldownWithExit(t, "crawldown", "--output", dir, "--download-docs", "--max-document-bytes", "8", srv.URL)
+
+	if code == 0 {
+		t.Error("a refused document should make the run exit non-zero")
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".pdf") {
+			t.Errorf("a refused document was written: %s", e.Name())
+		}
+	}
+}
+
+func TestCrawldownHelpNamesTheEngineDenials(t *testing.T) {
+	help := crawldownCmd.Long + crawldownCmd.PersistentFlags().FlagUsages()
+
+	for _, want := range []string{"DEPTH_LIMIT", "ROBOTS_TXT", "--max-document-bytes", "--limit"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("crawldown help does not mention %q", want)
+		}
+	}
 }
