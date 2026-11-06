@@ -6,6 +6,7 @@ import { SearchPalette } from "./components/SearchPalette";
 import { AgentPanel } from "./components/AgentPanel";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { WikiPage } from "./pages/WikiPage";
+import { LearnPage } from "./pages/LearnPage";
 import { WikiBoardView } from "./components/WikiBoardView";
 import { WikiPageDetail } from "./components/WikiPageDetail";
 import { OpenDocsProvider } from "./components/OpenDocsProvider";
@@ -89,6 +90,8 @@ export function App() {
               }
             />
             <Route path="/docs/*" element={<DocumentsPage />} />
+            <Route path="/learn/course/*" element={<LearnPage mode="course" />} />
+            <Route path="/learn/lesson/*" element={<LearnPage mode="lesson" />} />
             <Route
               path="/docs/gallery"
               element={

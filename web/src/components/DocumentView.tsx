@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { activeSectionKey, setActiveSection } from "../lib/activeSection";
 import { lineNumbers } from "../lib/codeLines";
 import { markdownControlAction } from "../lib/markdownActions";
@@ -36,6 +36,7 @@ import {
 } from "../lib/sectionRequests";
 import { resetFindQuery, useFindInDoc } from "../lib/findInDocStore";
 import { fallbackTitle, frontmatterTitle } from "../lib/titles";
+import { learnLinkForPath } from "../lib/learn";
 import { useActiveHeading } from "../lib/useActiveHeading";
 import { loadWikiIndex } from "../lib/wikiIndexLoader";
 import { docsTargetFromHref, type WikiIndex } from "../lib/wikiLinks";
@@ -342,6 +343,8 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
     docsApi.open(target.path, target.hash);
   };
 
+  const learnLink = learnLinkForPath(path);
+
   return (
     <article className="doc-view" ref={setArticleEl}>
       {findOpen && (mode === "render" || mode === "code") && (
@@ -363,6 +366,11 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
         {mapDoc && <Icon name={MAP_ICON} className="map-icon" label="Map document" />}
         {mermaidDoc && <Icon name={MERMAID_ICON} className="map-icon" label="Mermaid document" />}
         {slideDoc && <Icon name={SLIDES_ICON} className="map-icon" label="Slide deck" />}
+        {learnLink && (
+          <Link className="doc-mode" to={learnLink.to}>
+            {learnLink.label}
+          </Link>
+        )}
       </div>
       {mode === "code" && (
         <div className="doc-code-wrap">

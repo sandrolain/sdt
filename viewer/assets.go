@@ -57,5 +57,6 @@ func spaFileHandler(sub fs.FS) http.Handler {
 // rather than a static asset.
 func isSPARoute(p string) bool {
 	return p == "/docs" || strings.HasPrefix(p, "/docs/") ||
-		p == "/wiki" || strings.HasPrefix(p, "/wiki/")
+		p == "/wiki" || strings.HasPrefix(p, "/wiki/") ||
+		p == "/learn" || strings.HasPrefix(p, "/learn/")
 }

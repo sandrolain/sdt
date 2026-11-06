@@ -101,7 +101,10 @@ type server struct {
 	agentLogReason string
 	// self is this binary's own path, which a configured command may name: a program is
 	// looked for on PATH and then beside the viewer, exactly as the sdt companion is.
-	self         string
+	self string
+	// learn resolves the CLI for the read-only learning routes, once, on first use
+	// (decision 0043). It is not the mutator's: those are gated, these are not.
+	learn        learnRunner
 	agentMu      sync.Mutex
 	agentStreams map[*agentStream]struct{}
 	agentCurrent string
@@ -233,6 +236,8 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc(agentStreamPath, s.handleAgentStream)
 	mux.HandleFunc(agentNewChatPath, s.handleAgentNewChat)
 	mux.HandleFunc(contextCommandPath, s.handleContextCommand)
+	mux.HandleFunc(learnCoursePath, s.handleLearnCourse)
+	mux.HandleFunc(learnLessonPath, s.handleLearnLesson)
 	mux.HandleFunc("/", s.handleIndex)
 	return mux
 }

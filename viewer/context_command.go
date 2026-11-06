@@ -192,8 +192,10 @@ func isExecutableFile(path string) bool {
 
 // runMutator executes the CLI and returns its combined output.
 func runMutator(ctx context.Context, bin, dir string, args ...string) (string, error) {
-	//#nosec G204 -- bin is resolved from an explicit path/PATH/own directory and
-	// args come from a closed allowlist, never from the request body verbatim.
+	//#nosec G204,G702 -- bin is resolved from an explicit path/PATH/own directory.
+	// The mutator's args come from a closed allowlist; the learning routes'
+	// args are a fixed verb plus an id the handler has already matched against
+	// learnIDRe, so no request value reaches argv unvalidated.
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
