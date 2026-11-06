@@ -327,3 +327,51 @@ func TestWikiMaterialProseSilenceIsNotFresh(t *testing.T) {
 		}
 	}
 }
+
+// writeObjectivePage writes a page carrying n learning objectives, the count the
+// objective markers are compared with.
+func writeObjectivePage(t *testing.T, id string, n int) {
+	t.Helper()
+	objectives := ""
+	for i := 1; i <= n; i++ {
+		objectives += "    - \"objective " + string(rune('0'+i)) + "\"\n"
+	}
+	body := strings.Replace(materialPage, "project: p\n", "project: p\nlearning:\n  objectives:\n"+objectives, 1)
+	body = strings.Replace(body, "architecture/alpha", id, 1)
+	writeCtxDoc(t, "context/wiki/"+id+".md", body)
+}
+
+// TestWikiMaterialProseObjectiveCount proves the section contract is countable: one
+// marker per learning objective, none missing, none twice, none invented.
+func TestWikiMaterialProseObjectiveCount(t *testing.T) {
+	cases := []struct {
+		name    string
+		markers string
+		status  string
+		detail  string
+	}{
+		{"both", "<!-- objective=1 -->\n<!-- objective=2 -->\n", renderFresh, ""},
+		{"missing second", "<!-- objective=1 -->\n", renderMissing, "objective 2 has no section"},
+		{"duplicate", "<!-- objective=1 -->\n<!-- objective=1 -->\n<!-- objective=2 -->\n", renderStale, "counted 2 times"},
+		{"invented", "<!-- objective=1 -->\n<!-- objective=2 -->\n<!-- objective=7 -->\n", renderStale, "not one of the page's 2"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupContextProject(t)
+			stubWikiExit(t)
+			writeObjectivePage(t, "architecture/alpha", 2)
+			digests := liveDigests(t, "architecture/alpha")
+			header := materialHeaderLine("architecture/alpha", [][2]string{{"c-aaaaaaaa", digests["c-aaaaaaaa"]}})
+			body := proseGuide([][2]string{{"c-aaaaaaaa", digests["c-aaaaaaaa"]}}, "") + "\n" + tc.markers
+			writeMaterial(t, "alpha.it.md", header, body)
+
+			got := materialStatus(t)
+			if got.Status != tc.status {
+				t.Errorf("status = %q, want %q (%+v)", got.Status, tc.status, got)
+			}
+			if tc.detail != "" && !strings.Contains(got.Detail, tc.detail) {
+				t.Errorf("detail %q does not mention %q", got.Detail, tc.detail)
+			}
+		})
+	}
+}

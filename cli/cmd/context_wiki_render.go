@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -58,6 +59,8 @@ var (
 	materialClaimRe  = regexp.MustCompile(`<!--\s*claim=(\S+)#(c-[a-z0-9]+)\s+digest=(\S+)\s*-->`)
 	materialLessonRe = regexp.MustCompile(`<!--\s*lesson=(\S+)#(\S+)\s*-->`)
 	materialGlossRe  = regexp.MustCompile(`<!--\s*gloss=([^>]*?)\s*-->`)
+	// materialObjectiveRe numbers an objective section (decision/0041).
+	materialObjectiveRe = regexp.MustCompile(`<!--\s*objective=(\d+)\s*-->`)
 )
 
 // materialRank orders the four verdicts by severity, so two checks over one file
@@ -122,6 +125,25 @@ func materialProseIssue(concept, body string, page *contextwiki.Page) (string, s
 	}
 	if marks == 0 {
 		return renderStale, "the prose carries no claim, lesson or gloss marker"
+	}
+	// The section contract (decisions 0039, 0041): one numbered marker per learning
+	// objective, no number twice, no number the page does not have.
+	objectives := learningObjectivesOf(page.Frontmatter)
+	seen := map[int]int{}
+	for _, match := range materialObjectiveRe.FindAllStringSubmatch(body, -1) {
+		n, convErr := strconv.Atoi(match[1])
+		if convErr != nil || n < 1 || n > len(objectives) {
+			return renderStale, fmt.Sprintf("objective marker %s is not one of the page's %d", match[1], len(objectives))
+		}
+		seen[n]++
+	}
+	for n := 1; n <= len(objectives); n++ {
+		if seen[n] == 0 {
+			return renderMissing, fmt.Sprintf("objective %d has no section", n)
+		}
+		if seen[n] > 1 {
+			return renderStale, fmt.Sprintf("objective %d is counted %d times", n, seen[n])
+		}
 	}
 	return "", ""
 }
@@ -200,8 +222,9 @@ page for the concept). It reports under ` + "`lane: material`" + ` in JSON.
 
 THE PROSE IS CHECKED TOO (decision/0040): every claim marker must resolve to a live
 claim at the digest it pins, every lesson marker to a section the lesson carries,
-and every gloss marker to a non-empty term; a guide whose prose marks nothing is
-stale, because silence is not evidence. A deck (<concept>.<lang>.slide.md) is exempt:
+and every gloss marker to a non-empty term, and every objective marker to one of the
+page's learning objectives, each number once (decision/0041); a guide whose prose
+marks nothing is stale, because silence is not evidence. A deck (<concept>.<lang>.slide.md) is exempt:
 its content is an outline and its speaker notes are prose, not assertions. The first
 failure is reported, not a count.
 
