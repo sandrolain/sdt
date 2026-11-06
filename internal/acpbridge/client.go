@@ -441,7 +441,7 @@ func (c *client) ReadTextFile(_ context.Context, params acp.ReadTextFileRequest)
 // A window that is asked for and answered with the whole file would be a silent
 // wrong answer, so the window is applied here.
 func readWindow(path string, line, limit *int) (string, error) {
-	//nolint:gosec // path is resolveProjectPath's own output, checked against the root above
+	// #nosec G304 -- path is resolveProjectPath's own output, checked against the root above
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err

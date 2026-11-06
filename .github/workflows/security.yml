@@ -31,11 +31,16 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Run govulncheck
-        run: govulncheck ./cli/...
+        run: govulncheck ./cli/... ./internal/... ./viewer/...
 
   trivy:
     name: Trivy Scan
     runs-on: ubuntu-latest
+    env:
+      # The same directories the delivery gate skips: vendored trees and the
+      # corpus (whose refs are other projects' dependency graphs).
+      TRIVY_SKIP_DIRS: "node_modules,context,bin"
+      TRIVY_NO_PROGRESS: "true"
     steps:
       - name: Checkout code
         uses: actions/checkout@v7

@@ -17,6 +17,12 @@ gate:
     run: 'go test $(go list -e ./... | grep -v /context/ || echo __sdt_no_packages__)'
   - name: 'web'
     run: 'if [ -z "$(git status --porcelain -- web)" ]; then echo ''web: no change under web/, skipped (the gate validates the surface that changed)''; exit 0; fi; cd web && bun run lint && bun run test && bun run build'
+  - name: 'govulncheck'
+    run: 'govulncheck ./cli/... ./internal/... ./viewer/...'
+  - name: 'gosec'
+    run: 'gosec -quiet -severity medium -exclude-dir=context ./cli/... ./internal/... ./viewer/...'
+  - name: 'trivy'
+    run: 'trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --exit-code 1 --skip-version-check --no-progress --skip-dirs node_modules --skip-dirs context --skip-dirs bin .'
 instructions:
   profiles: [core, knowledge, ui, vector, slides, mindmap, diagram, browser, security, roles]
   frontmatter: [maturity, warrant, evidence, verified, rigor, objectives, learning]

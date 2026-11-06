@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.3
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
+	github.com/PuerkitoBio/goquery v1.13.0
 	github.com/blevesearch/bleve/v2 v2.6.1
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/firecrawl/firecrawl/apps/go-sdk v1.16.8
@@ -35,7 +36,6 @@ require (
 )
 
 require (
-	github.com/PuerkitoBio/goquery v1.13.0 // indirect
 	github.com/RoaringBitmap/roaring/v2 v2.29.0 // indirect
 	github.com/andybalholm/cascadia v1.3.5 // indirect
 	github.com/antchfx/htmlquery v1.3.7 // indirect
@@ -94,7 +94,7 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/yuin/goldmark v1.8.6 // indirect
 	go.etcd.io/bbolt v1.5.0 // indirect
-	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/appengine v1.6.8 // indirect
