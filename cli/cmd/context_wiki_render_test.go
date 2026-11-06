@@ -148,7 +148,7 @@ func TestWikiRenderNoRendersIsHonest(t *testing.T) {
 	stubWikiExit(t)
 	writeRenderPage(t, "architecture/alpha", "2026-10-20T10:00:00Z")
 	out := string(execute(t, contextWikiRenderCmd, nil))
-	if !strings.Contains(out, "no renders under") {
+	if !strings.Contains(out, "the derived lane is empty") {
 		t.Errorf("an empty lane must say so, got %q", out)
 	}
 	// And the gate passes: nothing to quote, nothing stale.
