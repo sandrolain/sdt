@@ -52,6 +52,102 @@ var renderHeaderRe = regexp.MustCompile(`^<!-- generated from wiki/(\S+)@(\S+); 
 var materialHeaderRe = regexp.MustCompile(
 	`^<!-- material: concept=(\S+); syllabus=(\S+); lang=(\S+); classification=(\S+); claims=(\S+) -->$`)
 
+// The three marker kinds a material's prose may carry (decision/0040). Each is an
+// HTML comment so a reader skips it and a grep finds it.
+var (
+	materialClaimRe  = regexp.MustCompile(`<!--\s*claim=(\S+)#(c-[a-z0-9]+)\s+digest=(\S+)\s*-->`)
+	materialLessonRe = regexp.MustCompile(`<!--\s*lesson=(\S+)#(\S+)\s*-->`)
+	materialGlossRe  = regexp.MustCompile(`<!--\s*gloss=([^>]*?)\s*-->`)
+)
+
+// materialRank orders the four verdicts by severity, so two checks over one file
+// report the worse one.
+func materialRank(status string) int {
+	switch status {
+	case renderFresh:
+		return 0
+	case renderStale:
+		return 1
+	case renderMissing:
+		return 2
+	case renderOrphan:
+		return 3
+	default:
+		return 4
+	}
+}
+
+// materialProseIssue checks one material's prose against the page it binds and the
+// lesson it cites, and returns the first failure with the verdict it earns. A
+// material that marks nothing carries no binding, and silence is not evidence.
+func materialProseIssue(concept, body string, page *contextwiki.Page) (string, string) {
+	binding := map[string]string{}
+	for _, claim := range page.Claims() {
+		binding[claim.ID] = claim.Digest
+	}
+	marks := 0
+	for _, match := range materialClaimRe.FindAllStringSubmatch(body, -1) {
+		marks++
+		owner, id, digest := strings.TrimPrefix(match[1], "wiki/"), match[2], match[3]
+		if owner != concept {
+			return renderStale, fmt.Sprintf("a claim marker names %s in a guide about %s", owner, concept)
+		}
+		live, ok := binding[id]
+		if !ok {
+			return renderMissing, fmt.Sprintf("claim %s is not on the page", id)
+		}
+		if live != digest {
+			return renderStale, fmt.Sprintf("claim %s moved (marker %s, page %s)", id, digest, live)
+		}
+	}
+	for _, match := range materialLessonRe.FindAllStringSubmatch(body, -1) {
+		marks++
+		owner, section := strings.TrimPrefix(match[1], "wiki/"), match[2]
+		if owner != concept {
+			return renderStale, fmt.Sprintf("a lesson marker names %s in a guide about %s", owner, concept)
+		}
+		ok, err := lessonHasSection(owner, section)
+		if err != nil {
+			return renderMissing, fmt.Sprintf("lesson for %s: %s", owner, err)
+		}
+		if !ok {
+			return renderMissing, fmt.Sprintf("lesson %s carries no section %q", owner, section)
+		}
+	}
+	for _, match := range materialGlossRe.FindAllStringSubmatch(body, -1) {
+		marks++
+		if strings.TrimSpace(match[1]) == "" {
+			return renderStale, "a gloss marker names no term"
+		}
+	}
+	if marks == 0 {
+		return renderStale, "the prose carries no claim, lesson or gloss marker"
+	}
+	return "", ""
+}
+
+// lessonHasSection reports whether a concept's lesson carries the named section. The
+// slug is the heading lowercased with whitespace turned into hyphens, which is how a
+// marker writes it.
+func lessonHasSection(concept, section string) (bool, error) {
+	data, err := os.ReadFile(learnLessonPath(concept)) //#nosec G304 -- concept from the material header
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		heading, ok := strings.CutPrefix(strings.TrimRight(line, " \t"), "## ")
+		if ok && materialSectionSlug(heading) == section {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// materialSectionSlug is the marker form of a lesson heading.
+func materialSectionSlug(heading string) string {
+	return strings.Join(strings.Fields(strings.ToLower(heading)), "-")
+}
+
 // renderStatuses returns the closed status vocabulary, freshest first.
 func renderStatuses() []string {
 	return []string{renderFresh, renderStale, renderMissing, renderOrphan}
@@ -101,6 +197,13 @@ classification and one claim id to digest pair per asserted claim. Its statuses
 reuse the four words: fresh (every digest still matches), stale (one moved, or the
 header cannot be read), missing (a claim the page no longer carries), orphan (no
 page for the concept). It reports under ` + "`lane: material`" + ` in JSON.
+
+THE PROSE IS CHECKED TOO (decision/0040): every claim marker must resolve to a live
+claim at the digest it pins, every lesson marker to a section the lesson carries,
+and every gloss marker to a non-empty term; a guide whose prose marks nothing is
+stale, because silence is not evidence. A deck (<concept>.<lang>.slide.md) is exempt:
+its content is an outline and its speaker notes are prose, not assertions. The first
+failure is reported, not a count.
 
 EXIT — 0 by default: the report is a report. With ` + "`--check`" + ` it exits 1 when
 anything in either lane is not fresh, so a caller that quotes a render or a material
@@ -328,7 +431,7 @@ func materialReport(bld *contextwiki.Builder) ([]renderRow, error) {
 			rows = append(rows, row)
 			continue
 		}
-		first, _, _ := strings.Cut(string(data), "\n")
+		first, rest, _ := strings.Cut(string(data), "\n")
 		header, headerErr := parseMaterialHeader(first)
 		if headerErr != nil {
 			row.Detail = headerErr.Error()
@@ -363,6 +466,14 @@ func materialReport(bld *contextwiki.Builder) ([]renderRow, error) {
 			row.Status, row.Detail = renderStale, fmt.Sprintf("%d claim(s) moved", moved)
 		default:
 			row.Status = renderFresh
+		}
+		// The header is the file's identity; the prose is what a reader acts on. A
+		// prose that cannot prove its binding is not fresh, whatever the header says.
+		// A deck is exempt: its content is an outline and its speaker notes are prose,
+		// so the claim markers of a guide have no counterpart there (decision/0039).
+		if status, detail := materialProseIssue(header.Concept, rest, page); status != "" &&
+			!strings.HasSuffix(rel, ".slide"+sdtMarkdownExt) && materialRank(status) > materialRank(row.Status) {
+			row.Status, row.Detail = status, detail
 		}
 		rows = append(rows, row)
 	}
