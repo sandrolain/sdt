@@ -19,6 +19,9 @@ type ToolboxRow struct {
 	Command string
 	// Subcommands are the subcommands the Display names, if any.
 	Subcommands []string
+	// Path is a nested invocation the Display names whole (`context wiki glossary`),
+	// which the sibling set above cannot express: the gate walks it verb by verb.
+	Path []string
 	// Into is a second verb the row writes into, when the row spans two
 	// invocations (`sdt http` into `sdt q get`): the full command path after
 	// `sdt`, so the gate can prove every part the display names.
@@ -50,6 +53,17 @@ func ToolboxRows() []ToolboxRow {
 				"search",
 			},
 			Replaces: "`grep`",
+		},
+		{
+			Operation: "what a term in the corpus means",
+			Display:   "`sdt context wiki glossary`",
+			Command:   toolboxCmdContext,
+			Path: []string{
+				"context",
+				"wiki",
+				"glossary",
+			},
+			Replaces: "recalling a definition",
 		},
 		{
 			Operation: "a cold corpus: what it holds",

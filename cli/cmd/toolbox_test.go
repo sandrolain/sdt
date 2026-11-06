@@ -70,6 +70,41 @@ func manifestHasFlag(m *CommandManifest, name string) bool {
 
 var toolboxFlagRe = regexp.MustCompile(`--([a-z0-9-]+)`)
 
+// checkToolboxPath verifies a nested invocation a row names whole, e.g.
+// `sdt context wiki glossary`: the sibling set cannot express it, and an unverified
+// path would be the one advertisement the gate does not cover.
+func checkToolboxPath(t *testing.T, manifest CommandManifest, row templates.ToolboxRow) {
+	t.Helper()
+	if len(row.Path) == 0 {
+		return
+	}
+	joined := strings.Join(row.Path, " ")
+	if findManifestCommand(manifest, row.Path...) == nil {
+		t.Errorf("toolbox row %q: `sdt %s` is not in sdt manifest", row.Operation, joined)
+	}
+	current := findTopCommand(row.Path[0])
+	for i, sub := range row.Path[1:] {
+		if current == nil {
+			break
+		}
+		var next *cobra.Command
+		for _, c := range current.Commands() {
+			if c.Name() == sub {
+				next = c
+				break
+			}
+		}
+		if next == nil {
+			t.Errorf("toolbox row %q: `sdt %s` has no subcommand %q", row.Operation, strings.Join(row.Path[:i+1], " "), sub)
+			break
+		}
+		current = next
+	}
+	if !strings.Contains(row.Display, "sdt "+joined) {
+		t.Errorf("toolbox row %q: display %q does not invoke `sdt %s`", row.Operation, row.Display, joined)
+	}
+}
+
 // TestToolboxRowsExistInManifest is the gate behind the generated Toolbox
 // table: the analysis measured that a rule naming a verb the binary cannot
 // perform is dropped wholesale, so a row must be checkable against the binary
@@ -113,6 +148,8 @@ func TestToolboxRowsExistInManifest(t *testing.T) {
 				t.Errorf("toolbox row %q: %q %s is not in sdt manifest", row.Operation, row.Command, sub)
 			}
 		}
+
+		checkToolboxPath(t, manifest, row)
 
 		if !strings.Contains(row.Display, "sdt "+row.Command) {
 			t.Errorf("toolbox row %q: display %q does not invoke %q", row.Operation, row.Display, row.Command)

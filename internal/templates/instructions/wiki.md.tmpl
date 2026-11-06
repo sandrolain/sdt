@@ -52,7 +52,9 @@ read that for the full schema.
   replayed.
 - **No undefined term.** Every term or proper noun the page introduces is defined
   in-page or links to the node that defines it. A page leaning on a concept it
-  never defines is incomplete, not terse. When the definition comes from outside
+  never defines is incomplete, not terse. A definition lives in `## Terms` as a
+  claim — anchor, stable id, span; `sdt context wiki glossary` lists them, and the
+  lint refuses an entry without all three. When the definition comes from outside
   the source — a concept the source presupposes — the page marks the seam in
   `## Notes` with one fixed sentence, `not in the source; from <refs/…@sha>`, so
   a reader always knows which half is the source's; that fill never raises the

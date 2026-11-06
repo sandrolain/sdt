@@ -35,7 +35,9 @@ const (
 	// with two words of room is a budget that says yes to the next sentence. The
 	// block is a zero-growth surface — an addition displaces a line or moves detail
 	// into the module that owns it (authoring.md, "Spend the reader's context").
-	instructionBlockBudget   = 2398
+	// Raised from 2398 on 2026-11-06: the toolbox gained the glossary row, which is
+	// the table's purpose — a verb an agent must find is a verb the block names.
+	instructionBlockBudget   = 2420
 	instructionModuleBudget  = 1400
 	instructionCatalogBudget = 400
 	// instructionFileBudget is the whole every-turn file — the generated block plus
@@ -88,7 +90,7 @@ var instructionModuleRatchet = map[string]int{
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.
-	"plan":        2675,
+	"plan": 2675,
 	// analysis rose to 2563 (2026-11-04): an analysis draws the shape its prose
 	// would spell out — a flow, a relation between parts, an option tree, a state
 	// change — the half of the diagram doctrine that lived only in the
@@ -109,8 +111,11 @@ var instructionModuleRatchet = map[string]int{
 	// Rose to 2757 (2026-11-04): a page whose mechanism is structural draws it with
 	// the page's own provenance — the diagram is the claim's shape, not decoration.
 	// Rose to 2875 (2026-11-04): the seam sentence a filled concept carries, and the
-	// reuse test that decides inline definition versus its own node.
-	"wiki": 2875,
+	// reuse test that decides inline definition versus its own node. Rose to 2910
+	// (2026-11-06): the "no undefined term" rule gained its machine form — `## Terms`,
+	// one claim per entry, and the verb that lists them — because a rule the lint
+	// enforces has to be readable where the writer looks.
+	"wiki": 2910,
 	// distillation rose to 1790 (2026-11-03): the extraction ledger names
 	// `units --match`, the read-only candidate list the fold-in reconciles. Rose to
 	// 1882 (2026-11-04): a section that is a diagram is extracted as one, its dropped
@@ -210,7 +215,7 @@ func TestInstructionBudgetCoversEveryModule(t *testing.T) {
 			t.Errorf("module %q missing from the budgeted set", want)
 		}
 	}
-	if fmt.Sprintf("%d", instructionBlockBudget) != "2398" {
+	if fmt.Sprintf("%d", instructionBlockBudget) != "2420" {
 		t.Error("the always-loaded budget changed without updating authoring.md")
 	}
 }
