@@ -34,9 +34,9 @@ func TestWikiLintTermsMechanicalHalf(t *testing.T) {
 		page *contextwiki.Page
 		want string
 	}{
-		{"claim-backed", termsPage("- {#claim-2} <!-- c-bbbbbbbb --> **Term** — a definition. (refs/spec.md@abc:2-3)"), ""},
-		{"no anchor", termsPage("- **Term** — a definition. (refs/spec.md@abc:2-3)"), "no claim anchor"},
-		{"no id", termsPage("- {#claim-2} **Term** — a definition. (refs/spec.md@abc:2-3)"), "no stable id"},
+		{"claim-backed", termsPage("- {#claim-2} <!-- c-bbbbbbbb --> **Term** — a definition. (refs/spec.md@abcdef01:2-3)"), ""},
+		{"no anchor", termsPage("- **Term** — a definition. (refs/spec.md@abcdef01:2-3)"), "no claim anchor"},
+		{"no id", termsPage("- {#claim-2} **Term** — a definition. (refs/spec.md@abcdef01:2-3)"), "no stable id"},
 		{"no span", termsPage("- {#claim-2} <!-- c-bbbbbbbb --> **Term** — a definition."), "no source span"},
 		{"no section", &contextwiki.Page{Path: "context/wiki/architecture/beta.md", ID: "architecture/beta",
 			Body: "\n## Summary\n\nA page.\n\n## Claims\n\n1. {#claim-1} <!-- c-aaaaaaaa --> a fact (refs/spec.md@abc:1)\n"}, ""},

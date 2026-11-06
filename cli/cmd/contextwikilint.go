@@ -289,6 +289,19 @@ func lintWikiClaims(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 	}
 }
 
+// termEntry is one line of a page's `## Terms` section: the term, the claim that
+// defines it, and what the entry is missing. One parser serves the lint and the
+// glossary, so the check and the index can never disagree.
+type termEntry struct {
+	Line    int
+	Term    string
+	Anchor  int
+	ClaimID string
+	Span    string
+	Text    string
+	Missing []string
+}
+
 // termSection returns the body of a page's `## Terms` section, or "" when the page
 // carries none. The section ends at the next `##` heading.
 func termSection(body string) string {
@@ -310,6 +323,67 @@ func termSection(body string) string {
 	return ""
 }
 
+// termLeadRe matches the term itself: the first bold segment of an entry, which
+// follows the anchor and id the way a Claims list writes its number.
+var termLeadRe = regexp.MustCompile(`\*\*(.+?)\*\*`)
+
+// termAnchorRe matches the claim anchor an entry cites.
+var termAnchorRe = regexp.MustCompile(`\{#claim-([0-9]+)\}`)
+
+// termSpanRe matches the source span an entry restates.
+var termSpanRe = regexp.MustCompile(`refs/[A-Za-z0-9_./-]+@[0-9a-f]{6,}(?::[0-9]+(?:-[0-9]+)?)?`)
+
+// parseTermEntries reads a page body's `## Terms` entries in document order, with the
+// parts each one is missing. A page with no section yields none.
+func parseTermEntries(body string) []termEntry {
+	var entries []termEntry
+	base := 0
+	for i, line := range strings.Split(body, "\n") {
+		if strings.TrimSpace(line) == "## Terms" {
+			base = i + 1
+			break
+		}
+	}
+	section := termSection(body)
+	if section == "" {
+		return nil
+	}
+	for i, line := range strings.Split(section, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "- ") && !strings.HasPrefix(trimmed, "* ") {
+			continue
+		}
+		entry := termEntry{Line: base + i + 1, Text: trimmed}
+		if match := termLeadRe.FindStringSubmatch(trimmed); match != nil {
+			entry.Term = strings.TrimSpace(match[1])
+		} else {
+			entry.Missing = append(entry.Missing, "no term")
+		}
+		if match := termAnchorRe.FindStringSubmatch(trimmed); match != nil {
+			anchor, convErr := strconv.Atoi(match[1])
+			if convErr != nil {
+				entry.Missing = append(entry.Missing, "an unreadable claim anchor")
+			} else {
+				entry.Anchor = anchor
+			}
+		} else {
+			entry.Missing = append(entry.Missing, "no claim anchor")
+		}
+		if id := contextwiki.ClaimIDRegexp.FindStringSubmatch(trimmed); id != nil {
+			entry.ClaimID = id[1]
+		} else {
+			entry.Missing = append(entry.Missing, "no stable id")
+		}
+		if span := termSpanRe.FindString(trimmed); span != "" {
+			entry.Span = span
+		} else {
+			entry.Missing = append(entry.Missing, "no source span")
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
 // lintWikiTerms enforces the mechanical half of the "no undefined term" rule
 // (instructions/wiki.md, Page contract): an entry in a page's `## Terms` section is
 // a claim, with its anchor, its stable id and the span it restates. A page with no
@@ -317,19 +391,9 @@ func termSection(body string) string {
 // no check can see that.
 func lintWikiTerms(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 	for _, p := range pages {
-		for _, line := range strings.Split(termSection(p.Body), "\n") {
-			entry := strings.TrimSpace(line)
-			if !strings.HasPrefix(entry, "- ") && !strings.HasPrefix(entry, "* ") {
-				continue
-			}
-			label := truncateLintText(entry)
-			switch {
-			case !strings.Contains(entry, "{#claim-"):
-				b.add(p.Path, ctxLintWarning, "term entry carries no claim anchor: %s", label)
-			case !contextwiki.ClaimIDRegexp.MatchString(entry):
-				b.add(p.Path, ctxLintWarning, "term entry carries no stable id (<!-- c-… -->): %s", label)
-			case !strings.Contains(entry, "refs/"):
-				b.add(p.Path, ctxLintWarning, "term entry carries no source span: %s", label)
+		for _, entry := range parseTermEntries(p.Body) {
+			for _, missing := range entry.Missing {
+				b.add(p.Path, ctxLintWarning, "term entry carries %s: %s", missing, truncateLintText(entry.Text))
 			}
 		}
 	}
