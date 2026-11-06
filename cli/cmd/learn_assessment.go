@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,26 @@ import (
 // learnAssessmentSection is the only section an assessment body carries.
 const learnAssessmentSection = "Items"
 
+// errLearnBankNotCurrent names the refusal of an item bank whose stored digest no
+// longer agrees with its row. One condition, one exit code: every read path
+// answers it with 4, so the distinction a message cannot carry stays in the
+// error rather than in its text.
+var errLearnBankNotCurrent = errors.New("the item bank is not current")
+
+// learnBankNotCurrent carries the specific finding while unwrapping to the
+// condition above: the message stays the one the gate wrote, and a caller takes
+// the exit code from the condition instead of guessing it from the sentence.
+type learnBankNotCurrent struct{ msg string }
+
+func (e learnBankNotCurrent) Error() string { return e.msg }
+
+func (e learnBankNotCurrent) Unwrap() error { return errLearnBankNotCurrent }
+
+// learnRefuseBank marks a refusal as the bank-not-current condition.
+func learnRefuseBank(err error) error {
+	return learnBankNotCurrent{msg: err.Error()}
+}
+
 // learnAssessmentPath is the item bank of a concept: the companion of its lesson.
 func learnAssessmentPath(conceptID string) string {
 	return filepath.Join(sdtLearningDir, filepath.FromSlash(conceptID)+ctxAssessmentSuffix+sdtMarkdownExt)
@@ -30,6 +51,16 @@ func learnAssessmentPath(conceptID string) string {
 // a lesson. The two share a directory, so the suffix is the only discriminator.
 func learnIsAssessmentPath(path string) bool {
 	return strings.HasSuffix(path, ctxAssessmentSuffix+sdtMarkdownExt)
+}
+
+// learnIsLessonPath reports whether a corpus path is a lesson, asked of the
+// registry rather than of a list of names. The lesson kind carries no suffix of
+// its own, so the suffixes its siblings declare in the same directory decide: a
+// theme or a syllabus is skipped, and a document no kind claims is still a
+// lesson to this walk — an unregistered file must not become invisible.
+func learnIsLessonPath(path string) bool {
+	t, ok := ctxTypeLookup(ctxTypeLesson)
+	return ok && ctxFileMatchesKind(t, path)
 }
 
 // learnConceptOfAssessmentPath recovers the concept an assessment path names.

@@ -41,8 +41,9 @@ RETURNS — the grade (` + "`correct`" + `, ` + "`partially_correct`" + `, ` + "
 ` + "`ungradable`" + `), the rule that produced it (` + "`exact`" + `, ` + "`numeric`" + `,
 ` + "`keywords`" + `, ` + "`manual`" + ` or the ` + "`auto`" + ` rule the item resolved to), the frozen key
 and the rubric. Exit 0 for a correct or partially correct answer, 1 for an
-incorrect one, 4 when the answer cannot be graded or the concept or item is not in
-the corpus. Reads only; ` + "`sdt learn record`" + ` is what writes the verdict.
+incorrect one, 4 when the answer cannot be graded, the concept or item is not in
+the corpus, or the item's bank is not current (a ` + "`key_hash`" + ` or ` + "`hash`" + ` that no longer
+matches its row). Reads only; ` + "`sdt learn record`" + ` is what writes the verdict.
 
 EXAMPLE — sdt learn answer --concept architecture/four-key-metrics --item fkm-3 --answer "5.56%"
           sdt learn answer --concept architecture/four-key-metrics --item fkm-1 --answer "deployment frequency" --format json`,
@@ -69,6 +70,10 @@ EXAMPLE — sdt learn answer --concept architecture/four-key-metrics --item fkm-
 		if learnItemKeyStale(item) {
 			learnExitWith(fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before grading",
 				learnAssessmentPath(page.ID), item.ID, item.KeyHash, item.KeyDigest), 4)
+			return
+		}
+		if outcome, live := learnItemClaimVerdict(bld, page.ID, item); outcome == learnClaimStale || outcome == learnClaimBroken {
+			learnExitWith(learnClaimRefused(page.ID, item, outcome, live, "grading"), 4)
 			return
 		}
 		verdict := learn.GradeAnswer(item.Grading, item.Expected, answer, item.Type)

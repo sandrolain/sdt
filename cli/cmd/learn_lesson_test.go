@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -368,5 +369,44 @@ func TestLearnBundleWithoutClaims(t *testing.T) {
 	}
 	if strings.Contains(b.text(), "  claim ") {
 		t.Error("the text form printed a claim line for a page with no claims")
+	}
+}
+
+// TestLearnValidateSkipsCourseLevels proves the walk asks the registry: a theme
+// and a syllabus share `context/learning`, and neither is linted as a lesson,
+// while a lesson with a wrong section is still reported.
+func TestLearnValidateSkipsCourseLevels(t *testing.T) {
+	runInTempDir(t)
+	fm := "---\nkind: %s\nid: %s\ntitle: t\nsummary: s\nstatus: draft\n" +
+		"created: 2026-10-01T00:00:00Z\nupdated: 2026-10-01T00:00:00Z\n---\n\n## Thread\n\nx\n"
+	theme := writeLearningDoc(t, filepath.Join(sdtLearningDir, "themes", "delivery"+ctxThemeSuffix+sdtMarkdownExt),
+		fmt.Sprintf(fm, ctxTypeTheme, "delivery"))
+	syllabus := writeLearningDoc(t, filepath.Join(sdtLearningDir, "syllabi", "architect"+ctxSyllabusSuffix+sdtMarkdownExt),
+		fmt.Sprintf(fm, ctxTypeSyllabus, "architect"))
+	lesson := writeLearningDoc(t, learnLessonPath("architecture/x"), "## Thread\n\nx\n")
+
+	issues, _ := learnValidateAll(&contextwiki.Builder{ByID: map[string]*contextwiki.Page{}})
+	joined := strings.Join(issues, "\n")
+	for _, level := range []string{theme, syllabus} {
+		if strings.Contains(joined, level) {
+			t.Errorf("a course level was linted as a lesson (%s):\n%s", level, joined)
+		}
+	}
+	if !strings.Contains(joined, lesson) || !strings.Contains(joined, "lesson section") {
+		t.Errorf("the walk stopped reporting lessons:\n%s", joined)
+	}
+}
+
+// TestLearnValidateReportsUnclaimedDocuments proves an unregistered file did not
+// become invisible: the registry calls no kind its own, and the walk still
+// reports it as a lesson that cannot be used.
+func TestLearnValidateReportsUnclaimedDocuments(t *testing.T) {
+	runInTempDir(t)
+	orphan := writeLearningDoc(t, filepath.Join(sdtLearningDir, "unclaimed", "thing"+sdtMarkdownExt),
+		"## Thread\n\nx\n")
+
+	issues, _ := learnValidateAll(&contextwiki.Builder{ByID: map[string]*contextwiki.Page{}})
+	if !strings.Contains(strings.Join(issues, "\n"), orphan) {
+		t.Errorf("an unclaimed document went unreported:\n%s", strings.Join(issues, "\n"))
 	}
 }

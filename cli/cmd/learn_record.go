@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -68,7 +69,8 @@ standing (` + "`incorrect`" + ` → weak, ` + "`partially_correct`" + ` → part
 caps it at partial when above 0, and the review date is computed with its reason
 (` + "`failure`" + ` 1d, ` + "`correct_but_hesitant`" + ` 3d, ` + "`independent_success`" + ` 7d,
 ` + "`transfer_success`" + ` 14d, ` + "`durable_success`" + ` 30d) unless ` + "`--next-review`" + `
-names one. ` + "`ungradable`" + ` writes nothing and exits 4. A call with no grade
+names one. ` + "`ungradable`" + ` writes nothing and exits 4, and so does a bank whose
+` + "`key_hash`" + ` or ` + "`hash`" + ` no longer agrees with its row: one condition, one code. A call with no grade
 records exposure — the record, its evidence, its misconception — and leaves the
 standing untouched.
 
@@ -146,6 +148,10 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 			grade := learnRecordGrade{Grade: gradeValue, Item: itemID, Hint: hint}
 			rec, created, err := learnRecordAssess(st, bld, page, grade, cmd, now)
 			if err != nil {
+				if errors.Is(err, errLearnBankNotCurrent) {
+					learnExitWith(err, 4)
+					return
+				}
 				exitWithError(cmd, err)
 				return
 			}
@@ -335,8 +341,11 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 				p.ID, grade.Item)
 		}
 		if learnItemKeyStale(item) {
-			return nil, false, fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before recording an attempt",
-				learnAssessmentPath(p.ID), item.ID, item.KeyHash, item.KeyDigest)
+			return nil, false, learnRefuseBank(fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before recording an attempt",
+				learnAssessmentPath(p.ID), item.ID, item.KeyHash, item.KeyDigest))
+		}
+		if outcome, live := learnItemClaimVerdict(bld, p.ID, item); outcome == learnClaimStale || outcome == learnClaimBroken {
+			return nil, false, learnRefuseBank(learnClaimRefused(p.ID, item, outcome, live, "recording an attempt"))
 		}
 		level := learnUnderstandingFor(grade.Grade, grade.Hint, rec.LastAssessed)
 		rec.LastAttempt = &learn.Attempt{

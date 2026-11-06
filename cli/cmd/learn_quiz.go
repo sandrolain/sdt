@@ -172,6 +172,12 @@ func learnQuizEntryFor(bld *contextwiki.Builder, st *learn.State, arg string, hi
 		return learnQuizEntry{}, fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before serving the quiz",
 			learnAssessmentPath(page.ID), stale.ID, stale.KeyHash, stale.KeyDigest)
 	}
+	// The claim digest is the second duty over the same rows: an item written
+	// against a statement the page no longer carries is refused with its siblings,
+	// while one that pins no digest is served.
+	if err := learnAssessmentClaimRefusal(bld, page.ID, "serving the quiz"); err != nil {
+		return learnQuizEntry{}, err
+	}
 	entry.Items = learnQuizItemsFor(page.ID, withKey)
 	if len(entry.Items) == 0 {
 		entry.Note = "no assessment for this concept: its questions are yours to write"

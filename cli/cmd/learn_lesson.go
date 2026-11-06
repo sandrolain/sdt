@@ -421,9 +421,78 @@ func learnResolveItemClaim(path, concept string, it learnLessonItem, byID map[st
 	return issues, counts
 }
 
-// learnValidateAll is the cross-file check: for every lesson under
-// context/learning, the shape is linted and the references are resolved against
-// the page it teaches. The counts are returned beside the findings.
+// learnClaimOutcomes are the four verdicts a claim reference carries — the same
+// labels `learn lesson --validate` prints, so one vocabulary answers a report and
+// a refusal.
+const (
+	learnClaimOK         = "ok"
+	learnClaimStale      = "stale"
+	learnClaimUnverified = "unverified"
+	learnClaimBroken     = "broken"
+)
+
+// learnItemClaimVerdict reports whether the claim an item pins still reads the
+// statement the item was written against. `ok` and `unverified` (no digest
+// pinned: the item contradicts nothing) are served; `stale` and `broken` say the
+// key was written against text the page no longer carries, and are refused. The
+// live digest comes back beside the verdict, "" when no such claim exists.
+func learnItemClaimVerdict(bld *contextwiki.Builder, concept string, it learnLessonItem) (string, string) {
+	page := bld.Resolve(concept)
+	if page == nil {
+		return learnClaimBroken, ""
+	}
+	pageID, ref, ok := strings.Cut(it.Claim, "#")
+	if !ok || pageID != concept || !strings.HasPrefix(ref, "c-") {
+		return learnClaimBroken, ""
+	}
+	for _, claim := range page.Claims() {
+		if claim.ID != ref {
+			continue
+		}
+		switch it.Hash {
+		case "":
+			return learnClaimUnverified, claim.Digest
+		case claim.Digest:
+			return learnClaimOK, claim.Digest
+		default:
+			return learnClaimStale, claim.Digest
+		}
+	}
+	return learnClaimBroken, ""
+}
+
+// learnClaimRefused renders the refusal a stale or broken claim earns, in the
+// shape the `key_hash` gate already uses: the item, the cell it pins, and the
+// page's live digest.
+func learnClaimRefused(concept string, it learnLessonItem, outcome, live, action string) error {
+	path := learnAssessmentPath(concept)
+	if outcome == learnClaimStale {
+		return fmt.Errorf("%s: item %q is stale: claim %s now reads a different statement (item hash %s, page %s); re-freeze it before %s",
+			path, it.ID, it.Claim, it.Hash, live, action)
+	}
+	return fmt.Errorf("%s: item %q cites %q, which page %q does not carry (broken); re-freeze it before %s",
+		path, it.ID, it.Claim, concept, action)
+}
+
+// learnAssessmentClaimRefusal refuses a whole bank for the first item a moved
+// claim makes unanswerable. The bank is read here because the quiz serves the
+// bank; `answer` and `record` refuse the one item they were asked about, so a
+// stale row never hides its siblings.
+func learnAssessmentClaimRefusal(bld *contextwiki.Builder, concept, action string) error {
+	items, _ := learnAssessmentItems(concept)
+	for _, it := range items {
+		outcome, live := learnItemClaimVerdict(bld, concept, it)
+		if outcome == learnClaimStale || outcome == learnClaimBroken {
+			return learnClaimRefused(concept, it, outcome, live, action)
+		}
+	}
+	return nil
+}
+
+// learnValidateAll is the cross-file check: every lesson under context/learning
+// — decided by the registry, so the themes and syllabi that share the directory
+// are skipped — has its shape linted and its references resolved against the
+// page it teaches. The counts are returned beside the findings.
 func learnValidateAll(bld *contextwiki.Builder) ([]string, learnClaimCounts) {
 	files, err := walkMarkdownFiles(sdtLearningDir)
 	if err != nil {
@@ -433,7 +502,8 @@ func learnValidateAll(bld *contextwiki.Builder) ([]string, learnClaimCounts) {
 	var issues []string
 	var counts learnClaimCounts
 	for _, path := range files {
-		if learnIsAssessmentPath(path) {
+		switch {
+		case learnIsAssessmentPath(path):
 			found, c := learnValidateAssessment(bld, path)
 			issues = append(issues, found...)
 			counts.OK += c.OK
@@ -441,15 +511,18 @@ func learnValidateAll(bld *contextwiki.Builder) ([]string, learnClaimCounts) {
 			counts.Unverified += c.Unverified
 			counts.Broken += c.Broken
 			counts.Legacy += c.Legacy
-			continue
+		case !learnIsLessonPath(path):
+			// A theme, a syllabus, or any document the registry assigns to a
+			// sibling kind: lintCourse is its checker, not this walk.
+		default:
+			found, c := learnValidateLesson(bld, path)
+			issues = append(issues, found...)
+			counts.OK += c.OK
+			counts.Stale += c.Stale
+			counts.Unverified += c.Unverified
+			counts.Broken += c.Broken
+			counts.Legacy += c.Legacy
 		}
-		found, c := learnValidateLesson(bld, path)
-		issues = append(issues, found...)
-		counts.OK += c.OK
-		counts.Stale += c.Stale
-		counts.Unverified += c.Unverified
-		counts.Broken += c.Broken
-		counts.Legacy += c.Legacy
 	}
 	return issues, counts
 }
