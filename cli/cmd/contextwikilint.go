@@ -74,6 +74,7 @@ func lintWikiLint() []ctxLintIssue {
 	lintWikiConcepts(b, bld.Pages)
 	lintWikiMarkdownLD(b, bld.Pages)
 	lintWikiMarkers(b)
+	lintWikiTerms(b, bld.Pages)
 	return b.issues
 }
 
@@ -283,6 +284,52 @@ func lintWikiClaims(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 		for _, id := range idOrder {
 			if lines := byID[id]; len(lines) > 1 {
 				b.add(p.Path, ctxLintCritical, "duplicate claim id %s %s", id, ctxLineList(lines))
+			}
+		}
+	}
+}
+
+// termSection returns the body of a page's `## Terms` section, or "" when the page
+// carries none. The section ends at the next `##` heading.
+func termSection(body string) string {
+	lines := strings.Split(body, "\n")
+	start := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "## Terms" {
+			start = i + 1
+			continue
+		}
+		if start >= 0 && strings.HasPrefix(trimmed, "## ") {
+			return strings.Join(lines[start:i], "\n")
+		}
+	}
+	if start >= 0 {
+		return strings.Join(lines[start:], "\n")
+	}
+	return ""
+}
+
+// lintWikiTerms enforces the mechanical half of the "no undefined term" rule
+// (instructions/wiki.md, Page contract): an entry in a page's `## Terms` section is
+// a claim, with its anchor, its stable id and the span it restates. A page with no
+// section is not a finding: the rule asks for a definition where a term appears, and
+// no check can see that.
+func lintWikiTerms(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	for _, p := range pages {
+		for _, line := range strings.Split(termSection(p.Body), "\n") {
+			entry := strings.TrimSpace(line)
+			if !strings.HasPrefix(entry, "- ") && !strings.HasPrefix(entry, "* ") {
+				continue
+			}
+			label := truncateLintText(entry)
+			switch {
+			case !strings.Contains(entry, "{#claim-"):
+				b.add(p.Path, ctxLintWarning, "term entry carries no claim anchor: %s", label)
+			case !contextwiki.ClaimIDRegexp.MatchString(entry):
+				b.add(p.Path, ctxLintWarning, "term entry carries no stable id (<!-- c-… -->): %s", label)
+			case !strings.Contains(entry, "refs/"):
+				b.add(p.Path, ctxLintWarning, "term entry carries no source span: %s", label)
 			}
 		}
 	}
