@@ -142,7 +142,7 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/scripts/`, `context/instructions/scripts.md` | Running or adding a bundled script |
 | `context/instructions/wiki.md` | Writing wiki pages |
 | `context/instructions/learning.md` | Quizzing and explaining |
-| `context/instructions/lesson.md` | Writing a lesson |
+| `context/instructions/lesson.md`, `context/instructions/material.md` | Writing a lesson or a material |
 | `context/instructions/course.md` | Themes and syllabi |
 | `context/instructions/briefing.md` | Writing or updating a briefing |
 | `context/instructions/debugging.md` | Diagnosing a failure |

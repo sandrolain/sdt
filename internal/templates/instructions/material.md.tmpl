@@ -1,0 +1,146 @@
+---
+kind: instructions
+title: "The material — the study artefact written from a lesson"
+summary: "A guide and its deck are written for a reader, not governed as a document: a task-first page, four moves, a plain register, a five-part brief, two examples and a blind reader; the claim markers stay live and no measure blocks the artefact."
+---
+
+`context/renders/materials/<syllabus>/<concept>.<lang>.md` is a **material**: the guide a
+learner studies. `<concept>.<lang>.slide.md` next to it is the deck. A material is derived
+from a wiki page and its lesson, but it is governed by neither lane: no frontmatter, no
+kind, no context lint, no derivation gate. Its first line is the only mechanical contract:
+`instructions/wiki.md` gives the claim marker and the digest, and `sdt context wiki render
+--check` names the fields it needs. That check reads digests, not prose.
+
+Read this module when you write or revise a guide or a deck, after
+`instructions/lesson.md` (the worked example and the transfer you inherit) and
+`instructions/wiki.md` (the claims). `instructions/course.md` owns the
+sequence a material sits in, and `instructions/slides.md` owns the deck's format.
+
+## What a material is
+
+- **A product, not a record.** Its success is a reader's: can they use it, is it
+  organised, do they want to read it. The validators that govern documents end at
+  `context/learning/`; a material is outside them.
+- **Bound to its claims, sentence by sentence.** Every sentence that asserts a fact carries
+  `<!-- claim=<page>#<id> digest=<sha> -->`; the lesson's example and transfer carry
+  `<!-- lesson=<page>#worked-example -->` and `#transfer`; a gloss carries `<!-- gloss=<term> -->`.
+  A sentence that needs a fact no claim carries is left out and named in the one-line
+  presupposition, never invented.
+- **Prose in the material's language, claims in English.** The example here is Italian;
+  keep the term the claim names in English beside its gloss at first use.
+- **Two files, one act.** The guide teaches; the deck is the same material for a room —
+  sentence headlines supported by visual evidence, not topic phrases and bullet lists.
+
+## The page is organised around a decision
+
+The unit is the decision the reader must be able to take after reading. Not the topic, not
+the concept's definition, not the list of objectives.
+
+- **Open with the task.** The first section puts the reader in a concrete situation where
+  the decision is needed. An objective such as "the learner will be able to…" is abstract
+  and is understood only after the instruction; a demonstration of the whole task orients
+  better.
+- **Demonstrate once.** Carry the lesson's worked example through to its answer, in your
+  words, citing its span. The example is a step, not the whole text: an expert finds a full
+  worked example redundant, so the page declares the **reader's** level and lets the example
+  be skipped.
+- **Close with what it presupposes.** One line of what the page assumes, not a section.
+  Coverage belongs to the course, not to the page.
+
+## The four moves
+
+A page must accomplish four things, in this order, whether or not it gives them four
+headings. They are a checklist, not a template; a short page does all four in three
+paragraphs.
+
+1. **Problem** — the task, in a situation the reader recognises.
+2. **Demonstration** — the worked example, carried through.
+3. **Application** — what the reader does with it: a question to answer, a decision to take,
+   a measurement to make. It is always present.
+4. **Integration** — where it connects: the concept before, the concept after, the course.
+
+The **exercise** is the lesson's transfer made operational. It appears only when that
+transfer is a real decision — its answer changes what the reader does. It comes after the
+four moves and replaces none of them. The application can be a question; the exercise is the
+transfer.
+
+## The register
+
+- **Second person singular, present tense, active voice.** "Tracci la metrica", not "la
+  metrica viene tracciata". The conditional and the future make the reader work harder.
+- **One idea per paragraph**; a sentence aimed under 25 words; a list or a table where the
+  content is enumerable. The number is a target, not a gate.
+- **Emphasis is scarce.** Bold the term that matters once; do not set whole sentences in
+  bold, and never in capitals.
+- **Every term glossed at first use**, in the material's language, in a few words that add
+  no fact beyond the claim. The gloss is prose beside the term — `lead time for changes
+  (quanto passa da un cambiamento alla produzione)` — and the marker `<!-- gloss=<term> -->`
+  only names which term it glosses. A marker without a gloss in the sentence glosses
+  nothing.
+
+## The brief
+
+A writer does not start from a blank page. The brief has five parts and one exclusion:
+
+1. audience and level (from the syllabus);
+2. the decision the page exists for;
+3. the lesson's transfer, if it is a real decision;
+4. the claims, with their digests;
+5. the worked example's span (`instructions/lesson.md` defines the span).
+
+The exclusion: what the page will **not** cover, stated in one line. If a part is missing,
+ask for it before writing; a page written without the decision is a summary, not a material.
+A lesson with no real transfer is a legitimate case: the brief then has no part 3, and the
+page has no exercise.
+
+## The examples and the rubric
+
+Two reference materials ship with this module — one guide and one deck, under
+`context/renders/materials/`, written from real lessons. Imitate their voice and their
+shape, never their content.
+
+The rubric is a checklist, not a gate; it is what the critic and the reader test use.
+
+- [ ] It opens with a task, not a definition or an objective list.
+- [ ] The four moves are all present.
+- [ ] It serves one decision and says which.
+- [ ] Every term the page uses is glossed at first use or defined by the page.
+- [ ] No fact appears outside a claim; what would need one is in the one-line presupposition.
+- [ ] The exercise appears only if the lesson's transfer is a real decision.
+- [ ] The worked example is carried through and cites its span.
+- [ ] A table or a list replaces prose wherever the content is enumerable.
+- [ ] The page declares the reader's level and its prerequisite in one line.
+- [ ] The deck repeats the same act: sentence headlines, visual evidence, no bullet list.
+
+## The cycle
+
+draft → critic → revision → blind reader. The critic runs in a **clean context** — one that
+has not seen the drafting conversation — reads the page and the brief, and returns a
+**defect list**: what is missing, ambiguous or assumed. It never scores. The blind reader
+reads the revision alone, in a fresh context with no shared state, and answers the same
+three questions — what it could not find, what was ambiguous, what it assumed. Its findings
+are the acceptance evidence.
+
+The record goes in one `context/notes/` entry per material: what was drafted, from which
+lesson and claims, what the critic found, what the reader found.
+
+## The floor
+
+The numbers a rendered page can honour: line length 45–90 characters, line spacing 120–145%
+of the point size, 10–12 pt in print and 15–25 px on the web. Text contrast 4.5:1, non-text
+3:1. A chart chosen by the data relationship, a palette by the data's structure. A slide
+headline is a sentence, not a topic. The HTML page is the reading copy; the PDF is the save
+and print export.
+
+## The measures
+
+Reported in the note that records the run, never enforced:
+
+- **undefined terms** — every term the page uses that its audience would have to look up;
+- **sentence-length share** — the proportion over ~25 words, as a signal;
+- **the reader's defect list** — the only measure of comprehension;
+- **the typographic numbers** — measure, spacing, contrast — where the artefact is rendered.
+
+No check may fail because of them, and the rubric above is advisory in the same way. A
+material that scores badly still ships, with its defects written down; a material that scores
+well and cannot be used is the failure this module exists to prevent.
