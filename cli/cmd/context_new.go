@@ -173,6 +173,14 @@ func contextFrontmatter(typ, title, summary, note, project, component, created, 
 		b.WriteString("to_level: " + ctxSyllabusLevelPlaceholder + "\n")
 		b.WriteString("outcome: " + yamlScalar(ctxSyllabusOutcomePlaceholder) + "\n")
 	}
+	// A practice note names the concepts it serves, the span it transforms and how
+	// it transformed it. The three are left empty for a draft and required by the
+	// lint once the note is active (`practice.md`).
+	if typ == ctxTypePractice {
+		b.WriteString("concepts: []\n")
+		b.WriteString("source_span: \"\"\n")
+		b.WriteString("transformation: \"\"\n")
+	}
 	if note != "" {
 		b.WriteString("context: " + yamlScalar(note) + "\n")
 	}
@@ -235,7 +243,7 @@ func writeFrontmatterIdentity(b *strings.Builder, typ, id, title string) {
 	if typ == ctxTypeLesson || typ == ctxTypeAssessment {
 		b.WriteString(ctxFrontmatterConcept + ": " + yamlScalar(id) + "\n")
 	}
-	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson, ctxTypeAssessment, ctxTypeTheme, ctxTypeSyllabus, ctxTypeSource}, typ) {
+	if !containsItem([]string{ctxTypeAnalysis, ctxTypeProposal, ctxTypePrompt, ctxTypeResearch, ctxTypeWiki, ctxTypeLesson, ctxTypeAssessment, ctxTypeTheme, ctxTypeSyllabus, ctxTypePractice, ctxTypeSource}, typ) {
 		return
 	}
 	if title != "" {
@@ -410,7 +418,7 @@ Examples:
 		if slug == "" && title != "" {
 			slug = sanitizeSlug(title)
 		}
-		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki || typ == ctxTypeLesson || typ == ctxTypeAssessment || typ == ctxTypeTheme || typ == ctxTypeSyllabus) && slug == "" {
+		if (typ == ctxTypeArchitecture || typ == ctxTypeDecision || typ == ctxTypeProposal || typ == ctxTypePrompt || typ == ctxTypeResearch || typ == ctxTypeWiki || typ == ctxTypeLesson || typ == ctxTypeAssessment || typ == ctxTypeTheme || typ == ctxTypeSyllabus || typ == ctxTypePractice) && slug == "" {
 			exitWithError(cmd, fmt.Errorf("--title or --slug is required for type %s", typ))
 		}
 		note := getStringFlag(cmd, "context", false)

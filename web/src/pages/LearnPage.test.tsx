@@ -10,6 +10,12 @@ const MATERIAL = {
   lang: "it",
 };
 
+const PRACTICE = {
+  path: "context/learning/practice/p.practice.md",
+  title: "P — casi",
+  cases: [{ title: "A case", text: "the situation" }],
+};
+
 function mockFetch() {
   globalThis.fetch = vi.fn((url: string) => {
     if (url.startsWith("/api/learn/lesson")) {
@@ -22,6 +28,7 @@ function mockFetch() {
             objectives: ["one"],
             worked_example: { text: "example" },
             material: MATERIAL,
+            practice: [PRACTICE],
           }),
       });
     }
@@ -71,6 +78,13 @@ describe("LearnPage material links", () => {
     renderAt("/learn/course/syllabi/s", "course");
     const link = await screen.findByRole("link", { name: "X — guida" });
     expect(link.getAttribute("href")).toBe(`/docs/${MATERIAL.path}`);
+  });
+
+  it("renders the practice cases the bundle carries", async () => {
+    renderAt("/learn/lesson/architecture/x", "lesson");
+    const note = await screen.findByRole("link", { name: "P — casi" });
+    expect(note.getAttribute("href")).toBe(`/docs/${PRACTICE.path}`);
+    expect(await screen.findByRole("heading", { name: "A case" })).toBeTruthy();
   });
 
   it("renders no material section when the bundle carries none", async () => {

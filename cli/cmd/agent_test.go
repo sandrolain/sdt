@@ -306,13 +306,13 @@ func TestAgentInit(t *testing.T) {
 		"### SESSION START",
 		"**On action**",
 		"from project evidence",
-		"source of truth for project conventions",
+		"An agreed style, architecture or workflow",
 	} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("expected %q in AGENTS.md index", want)
 		}
 	}
-	if !strings.Contains(string(data), "is written back into the") {
+	if !strings.Contains(string(data), "goes back into the project block") {
 		t.Error("expected Patterns to point at the project block")
 	}
 	if !strings.Contains(string(data), "Project: myapp") {

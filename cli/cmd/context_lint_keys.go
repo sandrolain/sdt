@@ -46,6 +46,10 @@ var ctxDeclaredKeys = map[string]bool{
 	// it moves the learner between, and the outcome it promises — because a course
 	// that cannot say who it addresses cannot be taught or checked (`course.md`).
 	"audience": true, "from_level": true, "to_level": true, "outcome": true,
+	// A practice note names the concepts it serves, the span it was transformed
+	// from and how it changed the surface — the three fields `context new --type
+	// practice` writes (`practice.md`).
+	"concepts": true, "source_span": true, "transformation": true,
 	// Index/viewer generated markers.
 	"_generated": true, "position": true, "order": true,
 	// Document-type-specific fields used by existing templates/docs.

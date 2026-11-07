@@ -122,7 +122,8 @@ func TestLearnLessonDropsTheGradingKey(t *testing.T) {
 			"expected":"the key","rubric":"all","distractor":"wrong","claim":"architecture/x#c-aaaaaaaa",
 			"key_hash":"deadbeef","hash":"1234567890ab"}],
 			"transfer":"a case",
-			"material":{"path":"context/renders/materials/s/x.it.md","title":"X — guida","lang":"it"}}`, nil
+			"material":{"path":"context/renders/materials/s/x.it.md","title":"X — guida","lang":"it"},
+			"practice":[{"path":"context/learning/practice/p.practice.md","title":"P","cases":[{"title":"A case","text":"the situation"}]}]}`, nil
 	})
 	rec := httptest.NewRecorder()
 	s.handleLearnLesson(rec, httptest.NewRequest(http.MethodGet, "/api/learn/lesson?concept=architecture/x", nil))
@@ -135,7 +136,7 @@ func TestLearnLessonDropsTheGradingKey(t *testing.T) {
 			t.Errorf("the answer leaked %q: %s", leaked, body)
 		}
 	}
-	for _, kept := range []string{"name it", "recall", "example", "a case", "context/renders/materials/s/x.it.md"} {
+	for _, kept := range []string{"name it", "recall", "example", "a case", "context/renders/materials/s/x.it.md", "context/learning/practice/p.practice.md", "the situation"} {
 		if !strings.Contains(body, kept) {
 			t.Errorf("the reader lost %q: %s", kept, body)
 		}

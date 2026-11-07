@@ -227,6 +227,7 @@ func ctxStatusRows() []ctxStatusEntry {
 		{kind: ctxTypeAssessment, next: read, ifClean: read},
 		{kind: ctxTypeTheme, next: read, ifClean: read},
 		{kind: ctxTypeSyllabus, next: read, ifClean: read},
+		{kind: ctxTypePractice, next: read, ifClean: read},
 		{kind: ctxTypeAnalysis, next: "read if current", ifClean: taskStatusDone},
 		{kind: ctxTypePlan, next: "active plan", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeNotes, next: ctxReviewVerb, ifClean: gitIgnoreModeNone},

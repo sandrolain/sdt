@@ -142,7 +142,7 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/scripts/`, `context/instructions/scripts.md` | Running or adding a bundled script |
 | `context/instructions/wiki.md` | Writing wiki pages |
 | `context/instructions/learning.md` | Quizzing and explaining |
-| `context/instructions/lesson.md`, `context/instructions/material.md` | Writing a lesson or a material |
+| `context/instructions/lesson.md`, `context/instructions/material.md`, `context/instructions/practice.md` | Writing teaching material |
 | `context/instructions/course.md` | Themes and syllabi |
 | `context/instructions/briefing.md` | Writing or updating a briefing |
 | `context/instructions/debugging.md` | Diagnosing a failure |
@@ -256,10 +256,8 @@ document and mark the question resolved.
 
 ### Patterns (keep updated)
 
-This file is the source of truth for project conventions: an agreed style,
-architecture, dependency or workflow is written back into the
-`<!-- sdt:begin:project -->` block and recorded in `context/worklog/`
-(`development.md`).
+An agreed style, architecture or workflow goes back into the project block and
+`context/worklog/` (`development.md`).
 
 ### Document conventions
 
@@ -275,7 +273,9 @@ architecture, dependency or workflow is written back into the
   `status`, `created`, `updated`) stay mandatory.
 - **Create with the CLI first** — `sdt context new --type <t>` (or
   `sdt context task`); timestamps come from `sdt time iso`. Hand-write only what
-  the CLI does not cover.
+  the CLI lacks.
+- **Form is grounded, not guessed.** A human-judged form no captured source states
+  starts with scoped research (`development.md`, *Grounding a form*).
 
 ### Keep the chain
 

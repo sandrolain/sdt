@@ -30,12 +30,24 @@ export type CourseBundle = {
   lessons_ready?: number;
   lessons_total?: number;
   materials?: Record<string, MaterialRef>;
+  practice?: Record<string, PracticeNote[]>;
 };
 
 export type MaterialRef = {
   path: string;
   title?: string;
   lang?: string;
+};
+
+export type PracticeCase = {
+  title: string;
+  text: string;
+};
+
+export type PracticeNote = {
+  path: string;
+  title?: string;
+  cases: PracticeCase[];
 };
 
 export type LessonItem = {
@@ -58,6 +70,7 @@ export type LessonBundle = {
   claims?: { id: string; digest: string; text?: string }[];
   transfer?: string;
   material?: MaterialRef;
+  practice?: PracticeNote[];
   missing?: string[];
 };
 

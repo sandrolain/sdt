@@ -15,10 +15,10 @@ import (
 // hand-written type lists in commands (stale-drift guard).
 
 const (
-	wantNewTypes      = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|wiki|lesson|assessment|theme|syllabus|briefing"
-	wantPathTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|lesson|assessment|theme|syllabus|briefing"
-	wantListTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|lesson|assessment|theme|syllabus|briefing"
-	wantTemplateTypes = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|wiki|lesson|assessment|theme|syllabus|briefing"
+	wantNewTypes      = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|wiki|lesson|assessment|theme|syllabus|practice|briefing"
+	wantPathTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|lesson|assessment|theme|syllabus|practice|briefing"
+	wantListTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|lesson|assessment|theme|syllabus|practice|briefing"
+	wantTemplateTypes = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|wiki|lesson|assessment|theme|syllabus|practice|briefing"
 )
 
 func TestContextTypeRegistry(t *testing.T) {

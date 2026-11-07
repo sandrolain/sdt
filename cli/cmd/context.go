@@ -68,6 +68,15 @@ const (
 	// because it sits beside its lesson.
 	ctxThemeSuffix    = ".theme"
 	ctxSyllabusSuffix = ".syllabus"
+	// ctxTypePractice is the case bank a concept needs to become concrete: one or
+	// more transformed cases, each naming the concepts it serves. It lives under
+	// `learning/practice/`, carries no claim (it is practice, not knowledge), and
+	// cites the span it was transformed from (decision 0046).
+	ctxTypePractice = "practice"
+	// ctxPracticeSuffix is the file-name modifier that tells a practice note apart
+	// from a lesson in the same learning tree. It is not part of the id: the
+	// `practice/` directory already names the kind.
+	ctxPracticeSuffix = ".practice"
 	// ctxTypeSupersedes is the forward-only relation field: a document names
 	// the older document it replaces (the reverse is computed, never written).
 	ctxTypeSupersedes = "supersedes"

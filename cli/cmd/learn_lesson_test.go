@@ -442,3 +442,82 @@ func TestLearnValidateReportsUnclaimedDocuments(t *testing.T) {
 		t.Errorf("an unclaimed document went unreported:\n%s", strings.Join(issues, "\n"))
 	}
 }
+
+func TestLearnPracticeOfServesConceptsByPointer(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	dir := filepath.Join("context", "learning", "practice")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	shared := `---
+kind: practice
+id: practice/shared
+title: Shared cases
+concepts: [architecture/x, architecture/y]
+source_span: "refs/a.md@abcdef01:1-2"
+transformation: "renamed the company"
+---
+
+## Cases
+
+### First
+
+situation one
+
+### Second
+
+situation two
+`
+	onlyX := `---
+kind: practice
+id: practice/only-x
+title: X only
+concepts: [architecture/x]
+---
+
+## Cases
+
+### Third
+
+situation three
+`
+	other := `---
+kind: practice
+id: practice/other
+title: Other
+concepts: [architecture/z]
+---
+
+## Cases
+
+### Fourth
+
+situation four
+`
+	for name, body := range map[string]string{"shared.practice.md": shared, "only-x.practice.md": onlyX, "other.practice.md": other} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := learnPracticeOf("architecture/x")
+	if len(got) != 2 {
+		t.Fatalf("want two notes for architecture/x, got %+v", got)
+	}
+	var sharedNote *learnPracticeNote
+	for i := range got {
+		if got[i].Title == "Shared cases" {
+			sharedNote = &got[i]
+		}
+	}
+	if sharedNote == nil || len(sharedNote.Cases) != 2 {
+		t.Fatalf("the shared note should carry two cases, got %+v", sharedNote)
+	}
+	if sharedNote.Cases[0].Title != "First" || sharedNote.Cases[0].Text != "situation one" {
+		t.Errorf("first case wrong: %+v", sharedNote.Cases[0])
+	}
+	if absent := learnPracticeOf("architecture/absent"); len(absent) != 0 {
+		t.Errorf("want no note for an unserved concept, got %+v", absent)
+	}
+}

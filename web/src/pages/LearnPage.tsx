@@ -188,6 +188,25 @@ function LessonView({ lesson }: { lesson: LessonBundle }) {
           </p>
         </>
       ) : null}
+
+      {lesson.practice?.length ? (
+        <>
+          <h2>Practice</h2>
+          {lesson.practice.map((note) => (
+            <section key={note.path}>
+              <h3>
+                <Link to={`/docs/${note.path}`}>{note.title ?? note.path}</Link>
+              </h3>
+              {note.cases.map((practiceCase) => (
+                <article key={practiceCase.title}>
+                  <h4>{practiceCase.title}</h4>
+                  <Markdown text={practiceCase.text} />
+                </article>
+              ))}
+            </section>
+          ))}
+        </>
+      ) : null}
     </article>
   );
 }

@@ -86,7 +86,10 @@ var instructionModuleRatchet = map[string]int{
 	// 4929 (2026-11-04): the lane reads the page's attention age (`--validate`
 	// prints it, `never` for most of a corpus), and `valid_until` stopped being the
 	// staleness mechanism.
-	"ingestion": 4929,
+	// ingestion rose to 4994 (2026-11-07): the practice note is a second artefact
+	// the ingest produces, and the rule that a case is never a claim belongs where
+	// the reading happens (instructions/practice.md).
+	"ingestion": 4994,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.
@@ -95,8 +98,12 @@ var instructionModuleRatchet = map[string]int{
 	// would spell out — a flow, a relation between parts, an option tree, a state
 	// change — the half of the diagram doctrine that lived only in the
 	// profile-gated module no analysis-reading project has.
-	"analysis":    2563,
-	"development": 2455,
+	"analysis": 2563,
+	// development rose to 2585 (2026-11-07): "Grounding a form" — a human-judged
+	// form with no captured source starts with a scoped research, a general rule
+	// the material work proved the hard way. The section is the detail the
+	// always-loaded block points at.
+	"development": 2585,
 	// wiki rose to 2443 (2026-10-24): the coverage record documents the
 	// `concepts:` block beside the unit block, its identity and its findings.
 	// Rose to 2495 (2026-10-28): the Verification section states that a stamp

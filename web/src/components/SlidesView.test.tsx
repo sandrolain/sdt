@@ -9,7 +9,9 @@ const DECK = `---\ntheme: default\n---\n\n# One\n\nfirst\n\n---\n\n## Two\n\n<!-
 afterEach(() => cleanup());
 
 describe("SlidesView", () => {
-  it("renders the deck's slides and a counter", async () => {
+  // The first render compiles the Marp deck; under the full parallel suite it can
+  // exceed the 5s default, so this cell gets its own budget rather than a flaky gate.
+  it("renders the deck's slides and a counter", { timeout: 20000 }, async () => {
     render(<SlidesView markdown={DECK} />);
     await waitFor(() => expect(screen.getByText("1 / 3")).toBeTruthy());
     expect(screen.getByText("One")).toBeTruthy();

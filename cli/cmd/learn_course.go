@@ -68,6 +68,9 @@ type learnCourseReport struct {
 	// Materials names the study artefact beside each concept that has one, so a
 	// course view can link it without building a path of its own (decision 0044).
 	Materials map[string]*learnLessonMaterial `json:"materials,omitempty" yaml:"materials,omitempty"`
+	// Practice names the case notes beside each concept that has one, so a course
+	// view can show what the material draws from (instructions/practice.md).
+	Practice map[string][]learnPracticeNote `json:"practice,omitempty" yaml:"practice,omitempty"`
 }
 
 // text renders one level for a human reader.
@@ -480,12 +483,32 @@ func learnCourseReportOf(bld *contextwiki.Builder, id, kind, path, content strin
 	r.Ready, r.Total = learnCourseReadiness(bld, kind, r.Members)
 	r.Conflicts = learnCourseOrderConflicts(bld, kind, r.Members)
 	r.Materials = learnCourseMaterials(r.Members)
+	r.Practice = learnCoursePractice(r.Members)
 	return r
 }
 
 // learnCourseMaterials resolves the material beside every concept the level
 // reaches. A member that is itself a concept is tried too, so a theme report
 // carries its lessons' materials as well as a syllabus carries its themes'.
+func learnCoursePractice(members []learnCourseMember) map[string][]learnPracticeNote {
+	out := map[string][]learnPracticeNote{}
+	for _, m := range members {
+		concepts := m.Members
+		if len(concepts) == 0 {
+			concepts = []string{m.ID}
+		}
+		for _, concept := range concepts {
+			if notes := learnPracticeOf(concept); len(notes) > 0 {
+				out[concept] = notes
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func learnCourseMaterials(members []learnCourseMember) map[string]*learnLessonMaterial {
 	out := map[string]*learnLessonMaterial{}
 	for _, m := range members {

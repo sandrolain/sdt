@@ -661,6 +661,9 @@ func lintDoc(path string) []ctxLintIssue {
 	// fixed columns), so it is checked rather than described.
 	issues = append(issues, lintLesson(path, content, kind)...)
 	issues = append(issues, lintAssessment(path, content, kind)...)
+	// A practice note has no claims; what it must carry is a concept pointer, a
+	// span, a transformation note and at least one case.
+	issues = append(issues, lintPractice(path, content, kind)...)
 	// A course level's shape is mechanical too (one prose section and one
 	// membership section), and its membership resolves against the corpus.
 	issues = append(issues, lintCourse(path, content, kind)...)

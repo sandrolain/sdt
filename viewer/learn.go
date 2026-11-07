@@ -167,6 +167,14 @@ type lessonWire struct {
 		Title string `json:"title,omitempty"`
 		Lang  string `json:"lang,omitempty"`
 	} `json:"material,omitempty"`
+	Practice []struct {
+		Path  string `json:"path"`
+		Title string `json:"title,omitempty"`
+		Cases []struct {
+			Title string `json:"title"`
+			Text  string `json:"text"`
+		} `json:"cases"`
+	} `json:"practice,omitempty"`
 	Missing []string `json:"missing,omitempty"`
 }
 

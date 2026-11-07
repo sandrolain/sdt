@@ -99,6 +99,7 @@ type learnLessonBundle struct {
 	Claims        []learnLessonClaim   `json:"claims,omitempty" yaml:"claims,omitempty"`
 	Transfer      string               `json:"transfer,omitempty" yaml:"transfer,omitempty"`
 	Material      *learnLessonMaterial `json:"material,omitempty" yaml:"material,omitempty"`
+	Practice      []learnPracticeNote  `json:"practice,omitempty" yaml:"practice,omitempty"`
 	Missing       []string             `json:"missing,omitempty" yaml:"missing,omitempty"`
 	_             struct{}             `json:"-" yaml:"-"`
 }
@@ -256,6 +257,7 @@ func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) learnLessonBun
 		Prerequisites: learnPrerequisites(bld, p),
 		Items:         []learnLessonItem{},
 		Material:      learnMaterialOf(p.ID),
+		Practice:      learnPracticeOf(p.ID),
 	}
 	if block, ok := learningBlockOf(p.Frontmatter); ok {
 		if d, ok := block["difficulty"].(string); ok {
@@ -774,4 +776,87 @@ func init() {
 	learnLessonCmd.Flags().Bool("validate", false, "Validate every lesson against its page (read-only)")
 	learnLessonCmd.Flags().Bool("coverage", false, "Print the objective to item matrix (read-only)")
 	learnCmd.AddCommand(learnLessonCmd)
+}
+
+// learnPracticeCase is one case in a practice note: a title and the markdown that
+// carries the situation, the decision and the mechanism.
+type learnPracticeCase struct {
+	Title string `json:"title" yaml:"title"`
+	Text  string `json:"text" yaml:"text"`
+}
+
+// learnPracticeNote is one practice note that serves the concept.
+type learnPracticeNote struct {
+	Path  string              `json:"path" yaml:"path"`
+	Title string              `json:"title,omitempty" yaml:"title,omitempty"`
+	Cases []learnPracticeCase `json:"cases" yaml:"cases"`
+}
+
+// learnPracticeOf returns the practice notes whose `concepts` list names the
+// concept. A note is written once and may serve several concepts, so the lookup
+// is by pointer, never by file name.
+func learnPracticeOf(concept string) []learnPracticeNote {
+	matches, err := filepath.Glob(filepath.Join("context", "learning", "practice", "*.practice.md"))
+	if err != nil || len(matches) == 0 {
+		return nil
+	}
+	sort.Strings(matches)
+	var out []learnPracticeNote
+	for _, path := range matches {
+		data, readErr := os.ReadFile(path) //#nosec G304 -- path from the practice glob
+		if readErr != nil {
+			continue
+		}
+		content := string(data)
+		concepts := contextwiki.FrontmatterList(content, "concepts")
+		if !containsItem(concepts, concept) {
+			continue
+		}
+		_, body := contextwiki.SplitFrontmatter(content)
+		note := learnPracticeNote{
+			Path:  filepath.ToSlash(path),
+			Title: contextwiki.FrontmatterTitle(content),
+			Cases: learnPracticeCases(body),
+		}
+		out = append(out, note)
+	}
+	return out
+}
+
+// learnPracticeCases splits a body's `## Cases` section into its `### title`
+// cases, in order. A body without the section yields no case.
+func learnPracticeCases(body string) []learnPracticeCase {
+	lines := strings.Split(body, "\n")
+	var out []learnPracticeCase
+	inCases := false
+	var title string
+	var buf []string
+	flush := func() {
+		if title == "" {
+			return
+		}
+		out = append(out, learnPracticeCase{Title: title, Text: strings.TrimSpace(strings.Join(buf, "\n"))})
+		title = ""
+		buf = nil
+	}
+	for _, line := range lines {
+		if strings.HasPrefix(line, "## ") {
+			flush()
+			inCases = strings.TrimSpace(strings.TrimPrefix(line, "## ")) == "Cases"
+			continue
+		}
+		if !inCases {
+			continue
+		}
+		if strings.HasPrefix(line, "### ") {
+			flush()
+			title = strings.TrimSpace(strings.TrimPrefix(line, "### "))
+			continue
+		}
+		if title != "" {
+			buf = append(buf, line)
+		}
+	}
+	flush()
+	return out
 }

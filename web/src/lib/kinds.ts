@@ -4,6 +4,7 @@ export type EntryKind =
   | "wiki"
   | "lesson"
   | "material"
+  | "practice"
   | "assessment"
   | "theme"
   | "syllabus"
@@ -30,6 +31,7 @@ export const KIND_ORDER: EntryKind[] = [
   "wiki",
   "lesson",
   "material",
+  "practice",
   "assessment",
   "theme",
   "syllabus",
@@ -56,6 +58,7 @@ const KIND_LABELS: Record<EntryFilterKind, string> = {
   wiki: "Wiki",
   lesson: "Lessons",
   material: "Materials",
+  practice: "Practice",
   assessment: "Assessments",
   theme: "Themes",
   syllabus: "Syllabi",
@@ -95,6 +98,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
   wiki: "menu_book",
   lesson: "school",
   material: "auto_stories",
+  practice: "library_books",
   assessment: "fact_check",
   theme: "workspaces",
   syllabus: "route",
@@ -122,6 +126,7 @@ const KIND_COLORS: Record<EntryFilterKind, string> = {
   wiki: "var(--ctp-blue)",
   lesson: "var(--ctp-teal)",
   material: "var(--ctp-teal)",
+  practice: "var(--ctp-teal)",
   assessment: "var(--ctp-teal)",
   theme: "var(--ctp-teal)",
   syllabus: "var(--ctp-sapphire)",
