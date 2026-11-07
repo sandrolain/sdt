@@ -88,18 +88,69 @@ type learnLessonClaim struct {
 
 // learnLessonBundle is the composed lesson: what a portal renders and asks.
 type learnLessonBundle struct {
-	Concept       string             `json:"concept" yaml:"concept"`
-	Title         string             `json:"title,omitempty" yaml:"title,omitempty"`
-	Objectives    []string           `json:"objectives" yaml:"objectives"`
-	Difficulty    string             `json:"difficulty,omitempty" yaml:"difficulty,omitempty"`
-	Minutes       int                `json:"minutes,omitempty" yaml:"minutes,omitempty"`
-	Prerequisites []string           `json:"prerequisites,omitempty" yaml:"prerequisites,omitempty"`
-	Example       learnWorkedExample `json:"worked_example" yaml:"worked_example"`
-	Items         []learnLessonItem  `json:"items" yaml:"items"`
-	Claims        []learnLessonClaim `json:"claims,omitempty" yaml:"claims,omitempty"`
-	Transfer      string             `json:"transfer,omitempty" yaml:"transfer,omitempty"`
-	Missing       []string           `json:"missing,omitempty" yaml:"missing,omitempty"`
-	_             struct{}           `json:"-" yaml:"-"`
+	Concept       string               `json:"concept" yaml:"concept"`
+	Title         string               `json:"title,omitempty" yaml:"title,omitempty"`
+	Objectives    []string             `json:"objectives" yaml:"objectives"`
+	Difficulty    string               `json:"difficulty,omitempty" yaml:"difficulty,omitempty"`
+	Minutes       int                  `json:"minutes,omitempty" yaml:"minutes,omitempty"`
+	Prerequisites []string             `json:"prerequisites,omitempty" yaml:"prerequisites,omitempty"`
+	Example       learnWorkedExample   `json:"worked_example" yaml:"worked_example"`
+	Items         []learnLessonItem    `json:"items" yaml:"items"`
+	Claims        []learnLessonClaim   `json:"claims,omitempty" yaml:"claims,omitempty"`
+	Transfer      string               `json:"transfer,omitempty" yaml:"transfer,omitempty"`
+	Material      *learnLessonMaterial `json:"material,omitempty" yaml:"material,omitempty"`
+	Missing       []string             `json:"missing,omitempty" yaml:"missing,omitempty"`
+	_             struct{}             `json:"-" yaml:"-"`
+}
+
+// learnLessonMaterial is the study artefact beside a lesson, when one exists.
+// The material is not a corpus document (decision 0044): the bundle only names
+// it, so a portal can link it without building a path of its own.
+type learnLessonMaterial struct {
+	Path  string `json:"path" yaml:"path"`
+	Title string `json:"title,omitempty" yaml:"title,omitempty"`
+	Lang  string `json:"lang,omitempty" yaml:"lang,omitempty"`
+}
+
+// learnMaterialOf finds the material for a concept: <base>.<lang>.md under
+// context/renders/materials/*/, never the deck and never the ledger. Several
+// languages are resolved by name order, and the language travels in the bundle
+// so a caller can say which one it got.
+func learnMaterialOf(concept string) *learnLessonMaterial {
+	base := filepath.Base(concept)
+	matches, err := filepath.Glob(filepath.Join("context", "renders", "materials", "*", base+".*.md"))
+	if err != nil || len(matches) == 0 {
+		return nil
+	}
+	sort.Strings(matches)
+	for _, match := range matches {
+		if strings.Contains(filepath.Base(match), ".slide.") {
+			continue
+		}
+		data, readErr := os.ReadFile(match) //#nosec G304 -- path from the material glob
+		if readErr != nil {
+			continue
+		}
+		text := string(data)
+		mat := &learnLessonMaterial{Path: filepath.ToSlash(match)}
+		if first, _, ok := strings.Cut(text, "\n"); ok && strings.HasPrefix(first, "<!-- material:") {
+			if i := strings.Index(first, "lang="); i >= 0 {
+				rest := first[i+len("lang="):]
+				if j := strings.IndexAny(rest, "; "); j >= 0 {
+					rest = rest[:j]
+				}
+				mat.Lang = strings.TrimSpace(rest)
+			}
+		}
+		for _, line := range strings.Split(text, "\n") {
+			if strings.HasPrefix(line, "# ") {
+				mat.Title = strings.TrimSpace(strings.TrimPrefix(line, "# "))
+				break
+			}
+		}
+		return mat
+	}
+	return nil
 }
 
 // learnLessonClaimsOf publishes the page's claims with the digest the validator
@@ -204,6 +255,7 @@ func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) learnLessonBun
 		Objectives:    learningObjectivesOf(p.Frontmatter),
 		Prerequisites: learnPrerequisites(bld, p),
 		Items:         []learnLessonItem{},
+		Material:      learnMaterialOf(p.ID),
 	}
 	if block, ok := learningBlockOf(p.Frontmatter); ok {
 		if d, ok := block["difficulty"].(string); ok {

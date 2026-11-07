@@ -3,6 +3,7 @@ import type { TreeEntry } from "./api";
 export type EntryKind =
   | "wiki"
   | "lesson"
+  | "material"
   | "assessment"
   | "theme"
   | "syllabus"
@@ -28,6 +29,7 @@ export type EntryFilterKind = EntryKind | "canvas";
 export const KIND_ORDER: EntryKind[] = [
   "wiki",
   "lesson",
+  "material",
   "assessment",
   "theme",
   "syllabus",
@@ -53,6 +55,7 @@ export const KIND_ORDER: EntryKind[] = [
 const KIND_LABELS: Record<EntryFilterKind, string> = {
   wiki: "Wiki",
   lesson: "Lessons",
+  material: "Materials",
   assessment: "Assessments",
   theme: "Themes",
   syllabus: "Syllabi",
@@ -91,6 +94,7 @@ export function kindLabel(k: EntryFilterKind): string {
 const KIND_ICONS: Record<EntryFilterKind, string> = {
   wiki: "menu_book",
   lesson: "school",
+  material: "auto_stories",
   assessment: "fact_check",
   theme: "workspaces",
   syllabus: "route",
@@ -117,6 +121,7 @@ const KIND_ICONS: Record<EntryFilterKind, string> = {
 const KIND_COLORS: Record<EntryFilterKind, string> = {
   wiki: "var(--ctp-blue)",
   lesson: "var(--ctp-teal)",
+  material: "var(--ctp-teal)",
   assessment: "var(--ctp-teal)",
   theme: "var(--ctp-teal)",
   syllabus: "var(--ctp-sapphire)",

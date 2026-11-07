@@ -12,6 +12,38 @@ import (
 	"github.com/sandrolain/sdt/internal/learn"
 )
 
+func TestLearnMaterialOfFindsTheGuideNotTheDeck(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	dir := filepath.Join("context", "renders", "materials", "s")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	guide := "<!-- material: concept=wiki/architecture/x; syllabus=s; lang=it -->\n\n# X — guida\n"
+	deck := "<!-- material: concept=wiki/architecture/x; syllabus=s; lang=it -->\n\n---\n\n# X\n"
+	if err := os.WriteFile(filepath.Join(dir, "x.it.md"), []byte(guide), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "x.it.slide.md"), []byte(deck), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := learnMaterialOf("architecture/x")
+	if got == nil {
+		t.Fatal("no material found")
+	}
+	if got.Path != "context/renders/materials/s/x.it.md" || got.Title != "X — guida" || got.Lang != "it" {
+		t.Errorf("material wrong: %+v", got)
+	}
+}
+
+func TestLearnMaterialOfAbsent(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if got := learnMaterialOf("architecture/x"); got != nil {
+		t.Errorf("want no material, got %+v", got)
+	}
+}
+
 // bundlePage is a page the builder would hand over: a learning block and two
 // claim anchors in the body.
 func bundlePage() *contextwiki.Page {

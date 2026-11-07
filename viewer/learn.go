@@ -161,8 +161,13 @@ type lessonWire struct {
 		Digest string `json:"digest"`
 		Text   string `json:"text,omitempty"`
 	} `json:"claims,omitempty"`
-	Transfer string   `json:"transfer,omitempty"`
-	Missing  []string `json:"missing,omitempty"`
+	Transfer string `json:"transfer,omitempty"`
+	Material *struct {
+		Path  string `json:"path"`
+		Title string `json:"title,omitempty"`
+		Lang  string `json:"lang,omitempty"`
+	} `json:"material,omitempty"`
+	Missing []string `json:"missing,omitempty"`
 }
 
 // redactLessonBundle decodes the bundle into the wire shape and drops the key.

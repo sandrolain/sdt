@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  fetchCourse,
-  fetchLesson,
-  type CourseBundle,
-  type LessonBundle,
-} from "../lib/learn";
+import { fetchCourse, fetchLesson, type CourseBundle, type LessonBundle } from "../lib/learn";
 import { renderMarkdown } from "../lib/markdown";
 
 /**
@@ -55,13 +50,21 @@ export function LearnPage({ mode }: { mode: "course" | "lesson" }) {
   if (mode === "course") {
     return (
       <main className="content">
-        {course === null ? <p className="content__empty">Loading course…</p> : <CourseView course={course} />}
+        {course === null ? (
+          <p className="content__empty">Loading course…</p>
+        ) : (
+          <CourseView course={course} />
+        )}
       </main>
     );
   }
   return (
     <main className="content">
-      {lesson === null ? <p className="content__empty">Loading lesson…</p> : <LessonView lesson={lesson} />}
+      {lesson === null ? (
+        <p className="content__empty">Loading lesson…</p>
+      ) : (
+        <LessonView lesson={lesson} />
+      )}
     </main>
   );
 }
@@ -70,7 +73,10 @@ export function LearnPage({ mode }: { mode: "course" | "lesson" }) {
  * lesson's prose is markdown, and a reader that shows its asterisks is not one.
  * The trailing `source_span` line is stripped: the page prints the span itself. */
 function Markdown({ text }: { text: string }) {
-  const html = useMemo(() => renderMarkdown(text.replace(/\n?`source_span`:[^\n]*\s*$/, "")), [text]);
+  const html = useMemo(
+    () => renderMarkdown(text.replace(/\n?`source_span`:[^\n]*\s*$/, "")),
+    [text],
+  );
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
@@ -93,11 +99,20 @@ function CourseView({ course }: { course: CourseBundle }) {
         <section key={theme.id}>
           <h2>{theme.title ?? theme.id}</h2>
           <ul>
-            {(theme.members ?? []).map((concept) => (
-              <li key={concept}>
-                <Link to={`/learn/lesson/${concept}`}>{concept.split("/").pop()}</Link>
-              </li>
-            ))}
+            {(theme.members ?? []).map((concept) => {
+              const material = course.materials?.[concept];
+              return (
+                <li key={concept}>
+                  <Link to={`/learn/lesson/${concept}`}>{concept.split("/").pop()}</Link>
+                  {material ? (
+                    <>
+                      {" · "}
+                      <Link to={`/docs/${material.path}`}>{material.title ?? "Material"}</Link>
+                    </>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ))}
@@ -160,6 +175,17 @@ function LessonView({ lesson }: { lesson: LessonBundle }) {
         <>
           <h2>Transfer</h2>
           <Markdown text={lesson.transfer} />
+        </>
+      ) : null}
+
+      {lesson.material ? (
+        <>
+          <h2>Material</h2>
+          <p>
+            <Link to={`/docs/${lesson.material.path}`}>
+              {lesson.material.title ?? lesson.material.path}
+            </Link>
+          </p>
         </>
       ) : null}
     </article>

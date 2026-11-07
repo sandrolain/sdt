@@ -17,7 +17,9 @@ describe("learnLinkForPath", () => {
   });
 
   it("gives no view to an assessment, a theme or a page outside learning", () => {
-    expect(learnLinkForPath("context/learning/architecture/four-key-metrics.assessment.md")).toBeNull();
+    expect(
+      learnLinkForPath("context/learning/architecture/four-key-metrics.assessment.md"),
+    ).toBeNull();
     expect(learnLinkForPath("context/learning/themes/delivery-metrics.theme.md")).toBeNull();
     expect(learnLinkForPath("context/wiki/architecture/four-key-metrics.md")).toBeNull();
   });

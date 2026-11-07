@@ -29,6 +29,13 @@ export type CourseBundle = {
   members?: CourseTheme[];
   lessons_ready?: number;
   lessons_total?: number;
+  materials?: Record<string, MaterialRef>;
+};
+
+export type MaterialRef = {
+  path: string;
+  title?: string;
+  lang?: string;
 };
 
 export type LessonItem = {
@@ -50,6 +57,7 @@ export type LessonBundle = {
   items?: LessonItem[];
   claims?: { id: string; digest: string; text?: string }[];
   transfer?: string;
+  material?: MaterialRef;
   missing?: string[];
 };
 

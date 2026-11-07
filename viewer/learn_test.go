@@ -121,7 +121,8 @@ func TestLearnLessonDropsTheGradingKey(t *testing.T) {
 			"items":[{"id":"x-1","objective":1,"type":"recall","prompt":"name it",
 			"expected":"the key","rubric":"all","distractor":"wrong","claim":"architecture/x#c-aaaaaaaa",
 			"key_hash":"deadbeef","hash":"1234567890ab"}],
-			"transfer":"a case"}`, nil
+			"transfer":"a case",
+			"material":{"path":"context/renders/materials/s/x.it.md","title":"X — guida","lang":"it"}}`, nil
 	})
 	rec := httptest.NewRecorder()
 	s.handleLearnLesson(rec, httptest.NewRequest(http.MethodGet, "/api/learn/lesson?concept=architecture/x", nil))
@@ -134,7 +135,7 @@ func TestLearnLessonDropsTheGradingKey(t *testing.T) {
 			t.Errorf("the answer leaked %q: %s", leaked, body)
 		}
 	}
-	for _, kept := range []string{"name it", "recall", "example", "a case"} {
+	for _, kept := range []string{"name it", "recall", "example", "a case", "context/renders/materials/s/x.it.md"} {
 		if !strings.Contains(body, kept) {
 			t.Errorf("the reader lost %q: %s", kept, body)
 		}

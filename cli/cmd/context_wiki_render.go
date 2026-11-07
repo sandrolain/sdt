@@ -126,8 +126,9 @@ func materialProseIssue(concept, body string, page *contextwiki.Page) (string, s
 	if marks == 0 {
 		return renderStale, "the prose carries no claim, lesson or gloss marker"
 	}
-	// The section contract (decisions 0039, 0041): one numbered marker per learning
-	// objective, no number twice, no number the page does not have.
+	// The section contract (decisions 0041, 0045): one numbered marker per learning
+	// objective, no number twice, no number the page does not have. The section
+	// names and the order are editorial; only the count is mechanical.
 	objectives := learningObjectivesOf(page.Frontmatter)
 	seen := map[int]int{}
 	for _, match := range materialObjectiveRe.FindAllStringSubmatch(body, -1) {

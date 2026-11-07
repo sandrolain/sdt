@@ -101,6 +101,28 @@ func TestScanViewsAuxResources(t *testing.T) {
 	}
 }
 
+func TestScanNamesMaterialsWithoutFrontmatter(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "context/renders/materials/s/four-key-metrics.it.md",
+		"<!-- material: concept=wiki/architecture/four-key-metrics; syllabus=s; lang=it -->\n\n# Quattro metriche — guida\n\nbody\n")
+	writeDoc(t, root, "context/renders/materials/s/four-key-metrics.it.ledger.json", "{}\n")
+
+	res, err := Scan(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := res.Manifest.Entries["context/renders/materials/s/four-key-metrics.it.md"]
+	if !ok {
+		t.Fatalf("material missing from the manifest: %+v", res.Manifest.Entries)
+	}
+	if e.Kind != "material" || e.Title != "Quattro metriche — guida" {
+		t.Errorf("material kind/title wrong: %+v", e)
+	}
+	if _, indexed := res.Manifest.Entries["context/renders/materials/s/four-key-metrics.it.ledger.json"]; indexed {
+		t.Error("the ledger sidecar must not be indexed")
+	}
+}
+
 func TestScanSkipsExcludedDirs(t *testing.T) {
 	root := t.TempDir()
 	writeDoc(t, root, "context/analysis/keep.md", "---\nkind: analysis\n---\nbody\n")

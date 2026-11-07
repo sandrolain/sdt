@@ -42,6 +42,10 @@ describe("entryKind", () => {
     expect(entryKind(entry({ kind: "assessment" }))).toBe("assessment");
   });
 
+  it("uses the synthesized material kind for a study artefact", () => {
+    expect(entryKind(entry({ kind: "material" }))).toBe("material");
+  });
+
   it("uses the theme and syllabus kinds for the two levels above the lesson", () => {
     expect(entryKind(entry({ kind: "theme" }))).toBe("theme");
     expect(entryKind(entry({ kind: "syllabus" }))).toBe("syllabus");
@@ -69,13 +73,17 @@ describe("kindFromPath", () => {
   });
 
   it("tells an assessment from the lesson it shares a folder with", () => {
-    expect(kindFromPath("context/learning/architecture/four-key-metrics.assessment.md")).toBe("assessment");
+    expect(kindFromPath("context/learning/architecture/four-key-metrics.assessment.md")).toBe(
+      "assessment",
+    );
     expect(kindFromPath("context/learning/architecture/four-key-metrics.md")).toBe("lesson");
   });
 
   it("tells the two course levels from the lessons and from each other", () => {
     expect(kindFromPath("context/learning/themes/delivery-metrics.theme.md")).toBe("theme");
-    expect(kindFromPath("context/learning/syllabi/software-architect.syllabus.md")).toBe("syllabus");
+    expect(kindFromPath("context/learning/syllabi/software-architect.syllabus.md")).toBe(
+      "syllabus",
+    );
     expect(kindFromPath("context/learning/architecture/four-key-metrics.md")).toBe("lesson");
   });
 });
@@ -87,6 +95,7 @@ describe("kindLabel", () => {
     expect(kindLabel("source")).toBe("Sources");
     expect(kindLabel("instructions")).toBe("Instructions");
     expect(kindLabel("plan")).toBe("Plans");
+    expect(kindLabel("material")).toBe("Materials");
     expect(kindLabel("worklog")).toBe("Work log");
     expect(kindLabel("decision")).toBe("Decisions");
     expect(kindLabel("mermaid")).toBe("Diagrams");

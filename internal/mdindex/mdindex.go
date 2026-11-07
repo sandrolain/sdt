@@ -29,11 +29,20 @@ import (
 )
 
 // ManifestVersion invalidates a cached manifest when the scan model changes.
-const ManifestVersion = 5
+const ManifestVersion = 6
 
 // kindTasks is the frontmatter kind of a task file: the only kind
 // whose plan reference and objective are derived rather than declared.
 const kindTasks = "tasks"
+
+// kindMaterial is the synthesized kind of a study artefact under the material
+// lane: it has no frontmatter, and the index names it from its H1 so the tree
+// can group it without giving it a corpus identity (decision 0044).
+const kindMaterial = "material"
+
+// materialIndexPrefix is the lane's root, the only place the synthesized kind
+// applies.
+const materialIndexPrefix = "context/renders/materials/"
 
 // Entry is one indexed document with its derived facets.
 type Entry struct {
@@ -264,6 +273,15 @@ func parseEntry(root, id, path string) (*Entry, error) {
 		e.Title = strings.TrimSuffix(filepath.Base(id), filepath.Ext(id))
 		e.Body = content
 	}
+	// A material carries no frontmatter and is not a corpus kind (decision 0044):
+	// the index gives it a name from its H1 so the tree can group it, and nothing
+	// else. A ledger sidecar is not markdown, so it never reaches this branch.
+	if e.Kind == "" && strings.HasPrefix(id, materialIndexPrefix) {
+		e.Kind = kindMaterial
+		if title := firstHeading(body); title != "" {
+			e.Title = title
+		}
+	}
 	// Tasks carry no objective of their own, and their plan reference is not
 	// read here: resolveTaskParents fills PlanRef from the typed relation after
 	// the scan, then resolveTaskObjectives inherits the plan's objective.
@@ -311,6 +329,16 @@ func resolveTaskObjectives(entries map[string]*Entry) {
 		}
 		e.Objective = planObjective[e.PlanRef]
 	}
+}
+
+// firstHeading returns the text of a body's first H1, or "".
+func firstHeading(body string) string {
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
+		}
+	}
+	return ""
 }
 
 // indexedExt reports whether a file extension belongs to the indexed corpus:

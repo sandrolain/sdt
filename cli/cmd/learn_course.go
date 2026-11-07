@@ -65,6 +65,9 @@ type learnCourseReport struct {
 	// reaches. Two facts, never a percentage.
 	Ready int `json:"lessons_ready" yaml:"lessons_ready"`
 	Total int `json:"lessons_total" yaml:"lessons_total"`
+	// Materials names the study artefact beside each concept that has one, so a
+	// course view can link it without building a path of its own (decision 0044).
+	Materials map[string]*learnLessonMaterial `json:"materials,omitempty" yaml:"materials,omitempty"`
 }
 
 // text renders one level for a human reader.
@@ -476,7 +479,30 @@ func learnCourseReportOf(bld *contextwiki.Builder, id, kind, path, content strin
 	}
 	r.Ready, r.Total = learnCourseReadiness(bld, kind, r.Members)
 	r.Conflicts = learnCourseOrderConflicts(bld, kind, r.Members)
+	r.Materials = learnCourseMaterials(r.Members)
 	return r
+}
+
+// learnCourseMaterials resolves the material beside every concept the level
+// reaches. A member that is itself a concept is tried too, so a theme report
+// carries its lessons' materials as well as a syllabus carries its themes'.
+func learnCourseMaterials(members []learnCourseMember) map[string]*learnLessonMaterial {
+	out := map[string]*learnLessonMaterial{}
+	for _, m := range members {
+		concepts := m.Members
+		if len(concepts) == 0 {
+			concepts = []string{m.ID}
+		}
+		for _, concept := range concepts {
+			if mat := learnMaterialOf(concept); mat != nil {
+				out[concept] = mat
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // learnIsLevelPath reports whether a corpus path is a course level rather than a
