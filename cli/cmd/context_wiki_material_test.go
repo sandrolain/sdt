@@ -375,3 +375,59 @@ func TestWikiMaterialProseObjectiveCount(t *testing.T) {
 		})
 	}
 }
+
+// TestWikiMaterialCheckLine proves the check line that closes an exercise is
+// verified against the concept's item bank (decision/0046): the line must name the
+// bank exactly, and a guide without a line passes because the exercise is optional.
+func TestWikiMaterialCheckLine(t *testing.T) {
+	const bank = `---
+kind: assessment
+id: architecture/alpha.assessment
+---
+## Items
+
+| id | objective | type | prompt | expected | rubric | distractor | claim | hash | key_hash |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| al-1 | 1 | recall | one | uno | names it | zero | architecture/alpha#c-aaaaaaaa | aaaaaaaa | aaaaaaaa |
+| al-2 | 2 | apply | two | due | names it | zero | architecture/alpha#c-bbbbbbbb | bbbbbbbb | bbbbbbbb |
+`
+	cases := []struct {
+		name   string
+		bank   bool
+		line   string
+		status string
+		detail string
+	}{
+		{"names the bank", true, "**Verifica.** La banca ha due item: `al-1` il primo, `al-2` il secondo.", renderFresh, ""},
+		{"no line", true, "", renderFresh, ""},
+		{"stale id", true, "**Verifica.** `al-1` e `al-9`.", renderMissing, "al-9"},
+		{"partial", true, "**Verifica.** `al-1` soltanto.", renderStale, "names 1"},
+		{"no bank", false, "**Verifica.** `al-1` e `al-2`.", renderMissing, "does not carry"},
+		{"two lines", true, "**Verifica.** `al-1`.\n\n**Verifica.** `al-2`.", renderStale, "more than one"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupContextProject(t)
+			stubWikiExit(t)
+			writeMaterialPage(t, "architecture/alpha")
+			if tc.bank {
+				writeCtxDoc(t, "context/learning/architecture/alpha.assessment.md", bank)
+			}
+			digests := liveDigests(t, "architecture/alpha")
+			header := materialHeaderLine("architecture/alpha", [][2]string{{"c-aaaaaaaa", digests["c-aaaaaaaa"]}})
+			body := proseGuide([][2]string{{"c-aaaaaaaa", digests["c-aaaaaaaa"]}}, "")
+			if tc.line != "" {
+				body += "\n" + tc.line + "\n"
+			}
+			writeMaterial(t, "alpha.it.md", header, body)
+
+			got := materialStatus(t)
+			if got.Status != tc.status {
+				t.Errorf("status = %q, want %q (%+v)", got.Status, tc.status, got)
+			}
+			if tc.detail != "" && !strings.Contains(got.Detail, tc.detail) {
+				t.Errorf("detail %q does not mention %q", got.Detail, tc.detail)
+			}
+		})
+	}
+}

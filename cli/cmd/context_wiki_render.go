@@ -61,6 +61,10 @@ var (
 	materialGlossRe  = regexp.MustCompile(`<!--\s*gloss=([^>]*?)\s*-->`)
 	// materialObjectiveRe numbers an objective section (decision/0041).
 	materialObjectiveRe = regexp.MustCompile(`<!--\s*objective=(\d+)\s*-->`)
+	// materialCheckRe finds the one line after the exercise that names the page's
+	// evaluation bank (decision/0046). It names items, never answers.
+	materialCheckRe   = regexp.MustCompile(`(?m)^\*\*Verifica\.\*\*[^\n]*$`)
+	materialCheckIDRe = regexp.MustCompile("`([a-zA-Z][a-zA-Z0-9]*-[0-9]+)`")
 )
 
 // materialRank orders the four verdicts by severity, so two checks over one file
@@ -146,6 +150,47 @@ func materialProseIssue(concept, body string, page *contextwiki.Page) (string, s
 			return renderStale, fmt.Sprintf("objective %d is counted %d times", n, seen[n])
 		}
 	}
+	// The check line points at the item bank (decision/0046). A guide without one
+	// passes: the exercise itself is optional, so a page with no exercise owes no
+	// check. When the line is there, it must name the bank exactly.
+	if status, detail := materialCheckIssue(concept, body); status != "" {
+		return status, detail
+	}
+	return "", ""
+}
+
+// materialCheckIssue verifies the check line against the concept's item bank: every
+// id it names must exist, and the line must name the bank's items and no others. A
+// stale id, an id added to the bank and not to the line, and a line naming a bank
+// the concept does not carry are each refused.
+func materialCheckIssue(concept, body string) (string, string) {
+	lines := materialCheckRe.FindAllString(body, -1)
+	if len(lines) == 0 {
+		return "", ""
+	}
+	if len(lines) > 1 {
+		return renderStale, "the exercise carries more than one check line"
+	}
+	named := map[string]bool{}
+	for _, match := range materialCheckIDRe.FindAllStringSubmatch(lines[0], -1) {
+		named[match[1]] = true
+	}
+	items, ok := learnAssessmentItems(concept)
+	if !ok {
+		return renderMissing, "the check line names a bank the concept does not carry"
+	}
+	inBank := map[string]bool{}
+	for _, item := range items {
+		inBank[item.ID] = true
+	}
+	for id := range named {
+		if !inBank[id] {
+			return renderMissing, fmt.Sprintf("check item %s is not in the bank", id)
+		}
+	}
+	if len(named) != len(inBank) {
+		return renderStale, fmt.Sprintf("the check line names %d of the bank's %d items", len(named), len(inBank))
+	}
 	return "", ""
 }
 
@@ -225,7 +270,9 @@ THE PROSE IS CHECKED TOO (decision/0040): every claim marker must resolve to a l
 claim at the digest it pins, every lesson marker to a section the lesson carries,
 and every gloss marker to a non-empty term, and every objective marker to one of the
 page's learning objectives, each number once (decision/0041); a guide whose prose
-marks nothing is stale, because silence is not evidence. A deck (<concept>.<lang>.slide.md) is exempt:
+marks nothing is stale, because silence is not evidence. The check line that closes
+an exercise (decision/0046) must name the concept's item bank exactly — every id it
+names exists, and no item of the bank is left out. A deck (<concept>.<lang>.slide.md) is exempt:
 its content is an outline and its speaker notes are prose, not assertions. The first
 failure is reported, not a count.
 
