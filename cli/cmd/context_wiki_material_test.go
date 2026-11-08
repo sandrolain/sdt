@@ -398,12 +398,13 @@ id: architecture/alpha.assessment
 		status string
 		detail string
 	}{
-		{"names the bank", true, "**Verifica.** La banca ha due item: `al-1` il primo, `al-2` il secondo.", renderFresh, ""},
+		{"names the bank", true, "**Verifica.** Quattro domande chiuse.\n<!-- assess=architecture/alpha items=al-1,al-2 -->", renderFresh, ""},
 		{"no line", true, "", renderFresh, ""},
-		{"stale id", true, "**Verifica.** `al-1` e `al-9`.", renderMissing, "al-9"},
-		{"partial", true, "**Verifica.** `al-1` soltanto.", renderStale, "names 1"},
-		{"no bank", false, "**Verifica.** `al-1` e `al-2`.", renderMissing, "does not carry"},
-		{"two lines", true, "**Verifica.** `al-1`.\n\n**Verifica.** `al-2`.", renderStale, "more than one"},
+		{"no marker", true, "**Verifica.** Quattro domande.", renderStale, "no assess marker"},
+		{"stale id", true, "**Verifica.** Quattro domande.\n<!-- assess=architecture/alpha items=al-1,al-9 -->", renderMissing, "al-9"},
+		{"partial", true, "**Verifica.** Quattro domande.\n<!-- assess=architecture/alpha items=al-1 -->", renderStale, "names 1"},
+		{"no bank", false, "**Verifica.** Quattro domande.\n<!-- assess=architecture/alpha items=al-1,al-2 -->", renderMissing, "does not carry"},
+		{"two lines", true, "**Verifica.** Quattro domande.\n\n**Verifica.** Altre.\n<!-- assess=architecture/alpha items=al-1,al-2 -->", renderStale, "more than one"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -448,9 +449,9 @@ id: architecture/alpha.assessment
 | al-2 | 2 | apply | two | due | names it | zero | architecture/alpha#c-bbbbbbbb | bbbbbbbb | bbbbbbbb |
 `
 	for _, tc := range []struct{ name, line, status, detail string }{
-		{"names the bank", "**Verifica.** `al-1` il primo, `al-2` il secondo.", renderFresh, ""},
+		{"names the bank", "**Verifica.** Quattro domande.\n<!-- assess=architecture/alpha items=al-1,al-2 -->", renderFresh, ""},
 		{"no line", "", renderFresh, ""},
-		{"stale id", "**Verifica.** `al-1` e `al-7`.", renderMissing, "al-7"},
+		{"stale id", "**Verifica.** Quattro domande.\n<!-- assess=architecture/alpha items=al-1,al-7 -->", renderMissing, "al-7"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			setupContextProject(t)

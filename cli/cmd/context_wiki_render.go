@@ -63,8 +63,8 @@ var (
 	materialObjectiveRe = regexp.MustCompile(`<!--\s*objective=(\d+)\s*-->`)
 	// materialCheckRe finds the one line after the exercise that names the page's
 	// evaluation bank (decision/0046). It names items, never answers.
-	materialCheckRe   = regexp.MustCompile(`(?m)^\*\*Verifica\.\*\*[^\n]*$`)
-	materialCheckIDRe = regexp.MustCompile("`([a-zA-Z][a-zA-Z0-9]*-[0-9]+)`")
+	materialCheckRe    = regexp.MustCompile(`(?m)^\*\*Verifica\.\*\*[^\n]*$`)
+	materialAssessRe   = regexp.MustCompile(`<!--\s*assess=(\S+)\s+items=([^>]*?)\s*-->`)
 )
 
 // materialRank orders the four verdicts by severity, so two checks over one file
@@ -171,9 +171,21 @@ func materialCheckIssue(concept, body string) (string, string) {
 	if len(lines) > 1 {
 		return renderStale, "the exercise carries more than one check line"
 	}
+	// The reader's sentence names no ids: they would mean nothing to a learner and
+	// would tie the text to a bank that may be rewritten. The ids live in the marker
+	// the gate reads, so the pointer is verifiable without being explained.
+	marker := materialAssessRe.FindStringSubmatch(body)
+	if marker == nil {
+		return renderStale, "the check line carries no assess marker"
+	}
+	if owner := strings.TrimPrefix(marker[1], "wiki/"); owner != concept {
+		return renderStale, fmt.Sprintf("the assess marker names %s in a guide about %s", owner, concept)
+	}
 	named := map[string]bool{}
-	for _, match := range materialCheckIDRe.FindAllStringSubmatch(lines[0], -1) {
-		named[match[1]] = true
+	for _, id := range strings.Split(marker[2], ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			named[id] = true
+		}
 	}
 	items, ok := learnAssessmentItems(concept)
 	if !ok {
@@ -271,9 +283,11 @@ claim at the digest it pins, every lesson marker to a section the lesson carries
 and every gloss marker to a non-empty term, and every objective marker to one of the
 page's learning objectives, each number once (decision/0041); a guide whose prose
 marks nothing is stale, because silence is not evidence. The check line that closes
-an exercise (decision/0046) must name the concept's item bank exactly — every id it
-names exists, and no item of the bank is left out; a deck carries that one line too,
-because a reader of the slides alone needs the same pointer. A deck (<concept>.<lang>.slide.md)
+an exercise (decisions 0046, 0047) carries an assess marker naming the concept's
+item bank: every id it lists exists, and no item of the bank is left out. The ids sit
+in the marker, not in the reader's sentence, which says only that a check exists. A
+deck carries that one marker too, because a reader of the slides alone needs the
+same pointer. A deck (<concept>.<lang>.slide.md)
 is otherwise exempt:
 its content is an outline and its speaker notes are prose, not assertions. The first
 failure is reported, not a count.
