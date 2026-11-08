@@ -29,6 +29,8 @@ func sectionRegexp(name string) *regexp.Regexp {
 	return regexp.MustCompile(`(?s)` + regexp.QuoteMeta(sectionBeginMarker(name)) + `.*?` + regexp.QuoteMeta(sectionEndMarker(name)))
 }
 
+const statusReasonExists = "file already exists (use --force to overwrite)"
+
 func hasSection(content, name string) bool {
 	return sectionRegexp(name).MatchString(content)
 }
@@ -198,7 +200,7 @@ func agentWriteGeneratedFile(path, name, templateBody string, force bool) FileRe
 	exists := err == nil
 	if exists && !force {
 		res.Status = statusSkipped
-		res.Reason = "file already exists (use --force to overwrite)"
+		res.Reason = statusReasonExists
 		return res
 	}
 	content := string(data)

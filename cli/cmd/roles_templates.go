@@ -133,7 +133,7 @@ func agentWriteRoleFile(path string, r roleDescriptor, project string, now time.
 	exists := err == nil
 	if exists && !force {
 		res.Status = statusSkipped
-		res.Reason = "file already exists (use --force to overwrite)"
+		res.Reason = statusReasonExists
 		return res
 	}
 

@@ -152,7 +152,7 @@ func writeInstructionFiles(profiles []string, project, group string, force bool)
 	var results []FileResult
 	for _, f := range instructionFilesFor(profiles, project, group) {
 		path := filepath.Join(sdtInstrDir, f.name)
-		results = append(results, agentWriteGeneratedFile(path, agentGeneratedMarkerName(scope, f.name), f.body, force))
+		results = append(results, agentWriteInstructionFile(path, agentGeneratedMarkerName(scope, f.name), f.body, force))
 	}
 	if force {
 		for _, name := range obsoleteInstructionFiles(profiles) {
@@ -328,7 +328,7 @@ func writeCommandFiles(profiles []string, project string, force bool) []FileResu
 	for _, f := range files {
 		current = append(current, f.name)
 		path := filepath.Join(sdtCommandsDir, f.name)
-		results = append(results, agentWriteGeneratedFile(path, agentGeneratedMarkerName(scope, f.name), f.body, force))
+		results = append(results, agentWriteInstructionFile(path, agentGeneratedMarkerName(scope, f.name), f.body, force))
 	}
 	if force {
 		// The per-trigger files were generated with a `commands/<id>` marker and
