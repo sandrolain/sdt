@@ -431,3 +431,47 @@ id: architecture/alpha.assessment
 		})
 	}
 }
+
+// TestWikiMaterialDeckCheckLine proves a deck answers to the one prose contract it
+// shares with its guide (decision/0046): the check line is verified, and a deck
+// that carries none still passes because the line is optional.
+func TestWikiMaterialDeckCheckLine(t *testing.T) {
+	const bank = `---
+kind: assessment
+id: architecture/alpha.assessment
+---
+## Items
+
+| id | objective | type | prompt | expected | rubric | distractor | claim | hash | key_hash |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| al-1 | 1 | recall | one | uno | names it | zero | architecture/alpha#c-aaaaaaaa | aaaaaaaa | aaaaaaaa |
+| al-2 | 2 | apply | two | due | names it | zero | architecture/alpha#c-bbbbbbbb | bbbbbbbb | bbbbbbbb |
+`
+	for _, tc := range []struct{ name, line, status, detail string }{
+		{"names the bank", "**Verifica.** `al-1` il primo, `al-2` il secondo.", renderFresh, ""},
+		{"no line", "", renderFresh, ""},
+		{"stale id", "**Verifica.** `al-1` e `al-7`.", renderMissing, "al-7"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupContextProject(t)
+			stubWikiExit(t)
+			writeMaterialPage(t, "architecture/alpha")
+			writeCtxDoc(t, "context/learning/architecture/alpha.assessment.md", bank)
+			digests := liveDigests(t, "architecture/alpha")
+			header := materialHeaderLine("architecture/alpha", [][2]string{{"c-aaaaaaaa", digests["c-aaaaaaaa"]}})
+			body := "# Alpha\n\nUna slide.\n"
+			if tc.line != "" {
+				body += "\n" + tc.line + "\n"
+			}
+			writeMaterial(t, "alpha.it.slide.md", header, body)
+
+			got := materialStatus(t)
+			if got.Status != tc.status {
+				t.Errorf("status = %q, want %q (%+v)", got.Status, tc.status, got)
+			}
+			if tc.detail != "" && !strings.Contains(got.Detail, tc.detail) {
+				t.Errorf("detail %q does not mention %q", got.Detail, tc.detail)
+			}
+		})
+	}
+}

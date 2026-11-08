@@ -272,7 +272,9 @@ and every gloss marker to a non-empty term, and every objective marker to one of
 page's learning objectives, each number once (decision/0041); a guide whose prose
 marks nothing is stale, because silence is not evidence. The check line that closes
 an exercise (decision/0046) must name the concept's item bank exactly — every id it
-names exists, and no item of the bank is left out. A deck (<concept>.<lang>.slide.md) is exempt:
+names exists, and no item of the bank is left out; a deck carries that one line too,
+because a reader of the slides alone needs the same pointer. A deck (<concept>.<lang>.slide.md)
+is otherwise exempt:
 its content is an outline and its speaker notes are prose, not assertions. The first
 failure is reported, not a count.
 
@@ -542,8 +544,15 @@ func materialReport(bld *contextwiki.Builder) ([]renderRow, error) {
 		// prose that cannot prove its binding is not fresh, whatever the header says.
 		// A deck is exempt: its content is an outline and its speaker notes are prose,
 		// so the claim markers of a guide have no counterpart there (decision/0039).
-		if status, detail := materialProseIssue(header.Concept, rest, page); status != "" &&
-			!strings.HasSuffix(rel, ".slide"+sdtMarkdownExt) && materialRank(status) > materialRank(row.Status) {
+		if strings.HasSuffix(rel, ".slide"+sdtMarkdownExt) {
+			// A deck keeps one prose contract with its guide (decision/0046): the
+			// check line, because a reader of the slides alone needs the same pointer.
+			if status, detail := materialCheckIssue(header.Concept, rest); status != "" &&
+				materialRank(status) > materialRank(row.Status) {
+				row.Status, row.Detail = status, detail
+			}
+		} else if status, detail := materialProseIssue(header.Concept, rest, page); status != "" &&
+			materialRank(status) > materialRank(row.Status) {
 			row.Status, row.Detail = status, detail
 		}
 		rows = append(rows, row)
