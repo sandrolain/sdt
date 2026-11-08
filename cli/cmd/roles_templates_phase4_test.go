@@ -40,6 +40,7 @@ execution/review roles.
 | ` + "`qa`" + ` | Quality assurance | no | ` + "`cheap`" + ` | — |
 | ` + "`devops`" + ` | DevOps engineer | no | ` + "`cheap`" + ` | — |
 | ` + "`docs`" + ` | Documentation engineer | no | ` + "`cheap`" + ` | ` + "`context/wiki`, `context/instructions`, `context/research`" + ` |
+| ` + "`editor`" + ` | Editorial writer | no | ` + "`expensive`" + ` | ` + "`context/renders/materials`, `context/learning/practice`" + ` |
 
 
 The **cost** column is a model-agnostic hint: ` + "`expensive`" + ` marks a

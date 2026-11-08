@@ -49,6 +49,7 @@ var roleRegister = []roleDescriptor{
 	{Slug: roleSlugQA, Title: "Quality assurance", CostTier: roleCostCheap},
 	{Slug: roleSlugDevops, Title: "DevOps engineer", CostTier: roleCostCheap},
 	{Slug: cmdDocs, Title: "Documentation engineer", CostTier: roleCostCheap, Owned: []string{"context/wiki", "context/instructions", "context/research"}},
+	{Slug: roleSlugEditor, Title: "Editorial writer", CostTier: roleCostExpensive, Owned: []string{"context/renders/materials", "context/learning/practice"}},
 }
 
 func roleLookup(slug string) (roleDescriptor, bool) {

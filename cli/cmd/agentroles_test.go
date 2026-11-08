@@ -10,7 +10,7 @@ import (
 // then execution/review roles). It is the frozen contract the register must
 // match byte-for-byte so `role:` frontmatter validation and profile
 // generation share one vocabulary.
-var closedRoleSlugs = []string{"pm", "backend", "frontend", "architect", "reviewer", "qa", "devops", "docs"}
+var closedRoleSlugs = []string{"pm", "backend", "frontend", "architect", "reviewer", "qa", "devops", "docs", "editor"}
 
 func TestRoleRegisterClosed(t *testing.T) {
 	if len(roleRegister) != len(closedRoleSlugs) {
@@ -78,7 +78,7 @@ func TestAgentRolesShowText(t *testing.T) {
 	if !strings.Contains(string(out), "* pm") {
 		t.Errorf("expected pm marked as coordinator:\n%s", out)
 	}
-	if !strings.Contains(string(out), "8 role(s)") {
+	if !strings.Contains(string(out), "9 role(s)") {
 		t.Errorf("expected register count in footer:\n%s", out)
 	}
 }

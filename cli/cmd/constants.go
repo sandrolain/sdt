@@ -97,6 +97,7 @@ const (
 	roleSlugReviewer  = "reviewer"
 	roleSlugQA        = "qa"
 	roleSlugDevops    = "devops"
+	roleSlugEditor    = "editor"
 
 	// Context work file task status values.
 	taskStatusTodo      = "todo"
