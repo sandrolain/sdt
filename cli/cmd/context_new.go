@@ -408,7 +408,7 @@ Examples:
 			exitWithError(cmd, fmt.Errorf("new supports type %s, got %q", ctxTypeHelpText(ctxNewTypes()), typ))
 		}
 		rawSlug := getStringFlag(cmd, "slug", false)
-		slug := sanitizeSlug(rawSlug)
+		slug := ctxSlugWithSuffix(rawSlug)
 		if ctxTypeTakesSubpathSlug(typ) && rawSlug != "" {
 			cleaned, err := ctxCleanSlug(rawSlug, true)
 			exitWithError(cmd, err)

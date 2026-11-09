@@ -53,7 +53,7 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		typ := getStringFlag(cmd, "type", true)
 		rawSlug := getStringFlag(cmd, "slug", false)
-		slug := sanitizeSlug(rawSlug)
+		slug := ctxSlugWithSuffix(rawSlug)
 		if ctxTypeTakesSubpathSlug(typ) && rawSlug != "" {
 			cleaned, err := ctxCleanSlug(rawSlug, true)
 			exitWithError(cmd, err)

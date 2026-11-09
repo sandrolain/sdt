@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -123,6 +124,22 @@ const ctxResearchSubjectPlaceholder = "<research subject — the question this r
 
 func sanitizeSlug(s string) string {
 	return ctxvocab.Slug(s)
+}
+
+// ctxSlugSuffixRegexp matches a slug carrying a document suffix modifier.
+// `.slide` and `.map` are file-name suffixes over an existing kind, not part of
+// the kebab-case slug grammar, so they must survive sanitization.
+var ctxSlugSuffixRegexp = regexp.MustCompile(`(?i)^(.+)\.(slide|map)$`)
+
+// ctxSlugWithSuffix sanitizes a slug while preserving a trailing `.slide` or
+// `.map` modifier: `--slug deck.slide` yields `<date>-deck.slide.md`.
+func ctxSlugWithSuffix(raw string) string {
+	if m := ctxSlugSuffixRegexp.FindStringSubmatch(strings.TrimSpace(raw)); m != nil {
+		if base := sanitizeSlug(m[1]); base != "" {
+			return base + "." + strings.ToLower(m[2])
+		}
+	}
+	return sanitizeSlug(raw)
 }
 
 // sanitizeSlugList normalizes a list of slugs, dropping empties and duplicates
