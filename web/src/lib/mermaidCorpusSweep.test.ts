@@ -73,5 +73,9 @@ describe("mermaid corpus sweep", () => {
       expect(blocks).toBeGreaterThan(0);
       expect(unparseable).toEqual([]);
     },
+    // A whole-corpus sweep, not a unit test: 150+ files of synchronously parsed
+    // diagrams run beside the rest of the suite, and the 5s default is a
+    // contention failure waiting for the corpus to grow — which it did.
+    30_000,
   );
 });

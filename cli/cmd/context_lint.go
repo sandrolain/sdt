@@ -745,6 +745,9 @@ func lintDoc(path string) []ctxLintIssue {
 	// An id must address exactly one item (decision 0014): a repeated
 	// `<!-- c<N> -->` in one document is a WARNING.
 	issues = append(issues, lintChecklistAnchors(path, content, kind)...)
+	// A fenced `mermaid` block's type keyword and its optional intent line:
+	// advisory only, and the check never parses the diagram.
+	issues = append(issues, lintDiagram(path, string(frontmatterBody(data)))...)
 	isMap := contextwiki.IsMapDoc(path)
 	issues = append(issues, lintMarkdownBody(path, frontmatterBody(data), isMap, contextwiki.IsSlideDoc(path))...)
 	if isMap {

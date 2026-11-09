@@ -35,6 +35,27 @@ Recommend a type and draw nothing until the question is answered. When the
 material cannot answer the reader's question, say so instead of drawing a
 plausible picture.
 
+## Where the picture lives
+
+The artefact comes before the form. A picture has four homes, and the home
+decides what the document is:
+
+| Home | When |
+|---|---|
+| a fenced block in the owning document | the diagram explains the prose beside it, and moves with it |
+| a `.map.md` | the subject is a hierarchy, and the map is the document |
+| a `.slide.md` | the picture is a slide, and the deck is the document |
+| a `.mmd` | the picture stands alone, with no prose to explain |
+
+**An explicit form is obeyed.** When the reader names the form or the home, use
+it and skip the question above; re-deriving a form the reader chose is a
+correction nobody asked for. An explicit request also outranks the furniture
+rule below: a reader who asks for the picture gets the picture, drawn honestly.
+
+**A follow-up edits the block that exists.** "Add a node", "change this edge",
+"make it vertical" act on the diagram already in the document; they never pick a
+new form for the same picture.
+
 ## Constraints fixed, layout free
 
 - Semantics are constrained: a node's role fixes its shape/colour vocabulary, and
@@ -119,6 +140,12 @@ the code itself.
   the code silently and nothing fails.
 - **A diagram that restates a short list is furniture.** If the source is three
   numbered steps, the list is the better artefact.
+
+**The intent line (optional).** A diagram whose structure came from a named
+source may carry one comment directly above its block:
+`<!-- diagram: question=…; source=…; form=… -->`. It is optional — write it when
+the provenance is worth carrying, never as a required field — and its value is
+that a reader, and a check, can see what the picture claims to be.
 
 ## Boundary
 

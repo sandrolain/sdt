@@ -8,6 +8,10 @@ import (
 	"github.com/sandrolain/sdt/internal/templates"
 )
 
+// ctxProfileMindmap is the profile slug and the module it gates: one word names
+// both, so it is written once.
+const ctxProfileMindmap = "mindmap"
+
 // Generation profiles.
 //
 // `sdt agent init` writes a default `core` set and nothing else: a project that
@@ -47,8 +51,8 @@ var agentProfileRegister = []agentProfile{
 	{Slug: "slides", Title: "Slides", Guide: "slide decks and the Marp dialect",
 		Modules: []string{"slides", "slides-marp"},
 		Skills:  []string{"sdt-slide-deck"}},
-	{Slug: "mindmap", Title: "Mind maps", Guide: "mind maps and the map markdown dialect",
-		Modules: []string{"mindmap", "mindmap-markmap"},
+	{Slug: ctxProfileMindmap, Title: "Mind maps", Guide: "mind maps and the map markdown dialect",
+		Modules: []string{ctxProfileMindmap, "mindmap-markmap"},
 		Skills:  []string{"sdt-mind-map"}},
 	{Slug: "diagram", Title: "Diagrams", Guide: "diagram types and the Mermaid dialect",
 		Modules: []string{"diagram", "diagram-mermaid"}},

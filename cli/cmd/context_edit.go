@@ -145,6 +145,14 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 		outputContextEdit(cmd, contextEditResult{Path: doc.Path, Section: getStringFlag(cmd, "section", false), DryRun: getBoolFlag(cmd, "dry-run", false)})
 		return
 	}
+	// A diagram is never refused for being unconventional: the structural check
+	// warns on the text about to be written and says what it cannot see.
+	if !getPersistentBool(cmd, "quiet") {
+		for _, warning := range diagramWriteWarnings(doc.Path, newBody) {
+			//nolint:errcheck // a stderr notice cannot fail the command
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning)
+		}
+	}
 
 	newContent := finalizeDocWrite(cmd, doc, "", fm+newBody)
 	diff := unifiedDiff(doc.Path, doc.Path, strings.Split(content, "\n"), strings.Split(newContent, "\n"), 3)
