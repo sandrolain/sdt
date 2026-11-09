@@ -119,6 +119,10 @@ export function DocsWorkspace() {
     addPanels: addSidePanels,
     onReady: (api) => {
       api.onDidActivePanelChange((event) => {
+        // Only a user activation moves the route. `api` origin is the restored
+        // layout (and our own setActive); reacting to it lets the restored
+        // panel override a deep link to another document.
+        if (event.origin !== "user") return;
         const panel = event.panel;
         if (panel?.id.startsWith(DOC_PREFIX)) activate(panel.id.slice(DOC_PREFIX.length));
       });
