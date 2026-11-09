@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SlidesView } from "./SlidesView";
@@ -61,5 +61,92 @@ describe("SlidesView", () => {
     render(<SlidesView markdown={""} />);
     await waitFor(() => expect(screen.getByText("1 / 1")).toBeTruthy());
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("scopes the section under marpit and injects the token theme", async () => {
+    // The packed CSS is all `div.marpit > section`; without the container class
+    // no rule matches and the deck renders unstyled.
+    render(<SlidesView markdown={"---\ntheme: default\n---\n\n# One\n"} />);
+    await waitFor(() => expect(screen.getByText("1 / 1")).toBeTruthy());
+    const frame = document.querySelector(".slides-frame__slide");
+    expect(frame?.classList.contains("marpit")).toBe(true);
+    const css = document.querySelector(".slides-view style")?.textContent ?? "";
+    expect(css).toContain("div.marpit > section");
+    // `theme: default` must select the viewer's tokens, not Marp's built-in look.
+    expect(css).toContain("var(--bg-base)");
+  });
+
+  it("resolves a relative image and background through /api/file", async () => {
+    // Marp emits both relative to the deck; the SPA would resolve them against
+    // the route, so the view rewrites them after sanitization.
+    render(
+      <SlidesView
+        markdown={
+          "---\ntheme: default\n---\n\n# One\n\n![w:200](../assets/pic.jpg)\n\n![bg](../assets/bg.jpg)\n"
+        }
+        path="context/notes/deck.slide.md"
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("1 / 1")).toBeTruthy());
+    const frame = document.querySelector(".slides-frame__slide");
+    expect(frame?.querySelector("img")?.getAttribute("src")).toBe(
+      "/api/file?path=context%2Fassets%2Fpic.jpg",
+    );
+    expect(frame?.querySelector("section")?.getAttribute("style")).toContain(
+      "/api/file?path=context%2Fassets%2Fbg.jpg",
+    );
+  });
+
+  it("applies deck-wide directives from the frontmatter", async () => {
+    // The caller strips the corpus frontmatter; the deck-wide directives live
+    // there, so the view must prepend it before rendering.
+    render(
+      <SlidesView
+        markdown={"# One\n\nbody\n"}
+        frontmatter={"---\ntheme: default\npaginate: true\nheader: Head\nfooter: Foot\n---\n"}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("1 / 1")).toBeTruthy());
+    const frame = document.querySelector(".slides-frame__slide");
+    expect(frame?.querySelector("header")?.textContent).toBe("Head");
+    expect(frame?.querySelector("footer")?.textContent).toBe("Foot");
+    expect(frame?.getAttribute("data-paginated")).toBe("true");
+  });
+
+  it("uses the token theme for a deck that names no theme", async () => {
+    // `pack(undefined)` goes through themeSet.default; Marp Core pins it to
+    // the built-in theme, so the view repoints it at the token override.
+    render(<SlidesView markdown={"# One\n"} />);
+    await waitFor(() => expect(screen.getByText("1 / 1")).toBeTruthy());
+    const css = document.querySelector(".slides-view style")?.textContent ?? "";
+    expect(css).toContain("var(--bg-base)");
+    expect(css).not.toContain("--fgColor-default");
+  });
+
+  it("scales the 1280px slide to the frame width", async () => {
+    // `scale(calc(100cqw / 1280))` is invalid CSS; the ratio is measured and
+    // applied inline, and the observer keeps it through resizes.
+    const callbacks: Array<() => void> = [];
+    class TestResizeObserver {
+      constructor(callback: () => void) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    try {
+      render(<SlidesView markdown={DECK} />);
+      await waitFor(() => expect(screen.getByText("1 / 3")).toBeTruthy());
+      const frame = document.querySelector<HTMLElement>(".slides-frame");
+      const slide = document.querySelector<HTMLElement>(".slides-frame__slide");
+      if (!frame || !slide) throw new Error("frame not rendered");
+      Object.defineProperty(frame, "clientWidth", { value: 640, configurable: true });
+      for (const callback of callbacks) callback();
+      expect(slide.style.transform).toBe("scale(0.5)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

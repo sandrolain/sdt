@@ -404,7 +404,7 @@ export function DocumentView({ path, frontmatter, markdown, isMap }: DocumentVie
       )}
       {mode === "slides" && (
         <Suspense fallback={<p className="content__empty">Loading slides…</p>}>
-          <SlidesView markdown={markdown} />
+          <SlidesView markdown={markdown} frontmatter={frontmatter} path={path} />
         </Suspense>
       )}
     </article>

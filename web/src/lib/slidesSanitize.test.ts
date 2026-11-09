@@ -40,6 +40,16 @@ describe("sanitizeSlideHtml", () => {
     expect(clean).toContain("<annotation");
   });
 
+  it("keeps Marp's header and footer containers", () => {
+    // `header:`/`footer:` directives render as <header>/<footer>; Marp positions
+    // them absolutely, so stripping the tags turns them into body text.
+    const clean = sanitizeSlideHtml(
+      '<section data-header="H" data-footer="F"><header>H</header><p>body</p><footer>F</footer></section>',
+    );
+    expect(clean).toContain("<header>H</header>");
+    expect(clean).toContain("<footer>F</footer>");
+  });
+
   it("does not allow a <style> tag from a slide body", () => {
     const clean = sanitizeSlideHtml("<section><style>p{color:red}</style><p>hi</p></section>");
     expect(clean).not.toContain("<style");

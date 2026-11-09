@@ -3642,9 +3642,11 @@
   }
 
   /* Slide mode: a fixed 16:9 frame that scales the 1280x720 slide to the
-     container with CSS alone (container query units), so a deck looks the same
-     at any window size. The slide theme is injected by SlidesView as a <style>
-     built from the design tokens (web/src/lib/slidesTheme.ts). */
+     container, so a deck looks the same at any window size. The ratio is
+     measured from the frame width by SlidesView (scale() needs a number, not
+     the length a container-query calc yields). The slide theme is injected by
+     SlidesView as a <style> built from the design tokens
+     (web/src/lib/slidesTheme.ts). */
   .slides-view {
     display: flex;
     flex-direction: column;
@@ -3704,8 +3706,10 @@
     width: 1280px;
     height: 720px;
     transform-origin: top left;
-    /* 100cqw = the frame width; the slide is authored at 1280px wide */
-    transform: scale(calc(100cqw / 1280));
+    /* The ratio is measured by SlidesView from the frame width and applied
+       inline; `scale(calc(100cqw / 1280))` is invalid because scale() takes a
+       number and that calc yields a length. */
+    transform: scale(1);
   }
   .slides-frame__slide > section {
     width: 1280px;

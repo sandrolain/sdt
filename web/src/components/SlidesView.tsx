@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../lib/icon";
 import { sanitizeSlides } from "../lib/slidesSanitize";
-import { SLIDES_THEME_NAME, slidesThemeCss } from "../lib/slidesTheme";
+import { resolveSlideAssets } from "../lib/slidesAssets";
+import { normalizeDeckSource } from "../lib/slidesSource";
+import { SLIDES_THEME_NAME, slidesDefaultThemeCss, slidesThemeCss } from "../lib/slidesTheme";
 
 interface SlidesViewProps {
   /** deck markdown, frontmatter already stripped by the caller */
   markdown: string;
+  /**
+   * The corpus frontmatter (the full `---…---` block). Marp reads deck-wide
+   * directives (`theme`, `paginate`, `size`, `header`, `footer`, `style`, …)
+   * from it, so it is prepended to the body before rendering; unknown corpus
+   * keys are ignored by the directive parser.
+   */
+  frontmatter?: string;
+  /** Corpus path of the deck, the base a relative image or background resolves against. */
+  path?: string;
 }
 
 /**
@@ -23,13 +34,28 @@ interface DeckRender {
   notes: string[][];
 }
 
-/** Render a deck with marp-core, then sanitize each slide (slide-scoped). */
-async function renderDeck(markdown: string): Promise<DeckRender> {
+/** Render a deck with marp-core, then sanitize and resolve each slide. */
+async function renderDeck(markdown: string, path?: string): Promise<DeckRender> {
   const { Marp } = await import("@marp-team/marp-core");
   const marp = new Marp({ script: false, math: "katex", inlineSVG: false });
   marp.themeSet.add(slidesThemeCss());
-  const { html, css, comments } = marp.render(markdown, { htmlAsArray: true });
-  return { slides: sanitizeSlides(html), css, notes: comments };
+  // The packed CSS of an unset or `theme: default` deck is the built-in look
+  // unless the built-in name is overridden too; the corpus decks say
+  // `theme: default`, so this is what makes them use the viewer's tokens.
+  marp.themeSet.add(slidesDefaultThemeCss());
+  // `pack(undefined)` resolves through `themeSet.default`, which Marp Core
+  // pinned to the built-in theme at construction: repoint it at the override,
+  // or a deck that names no theme still gets the GitHub look.
+  const defaultTheme = marp.themeSet.get("default");
+  if (defaultTheme) marp.themeSet.default = defaultTheme;
+  const { html, css, comments } = marp.render(normalizeDeckSource(markdown), {
+    htmlAsArray: true,
+  });
+  return {
+    slides: sanitizeSlides(html).map((slide) => resolveSlideAssets(slide, path)),
+    css,
+    notes: comments,
+  };
 }
 
 /** A note is worth showing when it is non-empty after trimming. */
@@ -37,36 +63,40 @@ function usableNotes(notes: string[][]): string[][] {
   return notes.map((page) => page.map((n) => n.trim()).filter((n) => n.length > 0));
 }
 
-export function SlidesView({ markdown }: SlidesViewProps) {
-  // one state object keyed by the source markdown: switching documents resets
-  // the render, the error and the page together, without a setState-in-effect.
+export function SlidesView({ markdown, frontmatter, path }: SlidesViewProps) {
+  // The engine's input is the deck frontmatter plus the body: the caller strips
+  // the corpus frontmatter, and Marp reads deck-wide directives from it.
+  const source = useMemo(() => `${frontmatter ?? ""}${markdown}`, [frontmatter, markdown]);
+  // one state object keyed by the source: switching documents resets the
+  // render, the error and the page together, without a setState-in-effect.
   const [state, setState] = useState<{
-    markdown: string;
+    source: string;
     deck: DeckRender | null;
     error: string | null;
-  }>({ markdown, deck: null, error: null });
+  }>({ source, deck: null, error: null });
   const [current, setCurrent] = useState(0);
   const [notesOpen, setNotesOpen] = useState(false);
   const frameRef = useRef<HTMLDivElement | null>(null);
+  const slideRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let alive = true;
-    renderDeck(markdown)
+    renderDeck(source, path)
       .then((d) => {
-        if (alive) setState({ markdown, deck: d, error: null });
+        if (alive) setState({ source, deck: d, error: null });
       })
       .catch((e: unknown) => {
         if (alive)
-          setState({ markdown, deck: null, error: e instanceof Error ? e.message : String(e) });
+          setState({ source, deck: null, error: e instanceof Error ? e.message : String(e) });
       });
     return () => {
       alive = false;
     };
-  }, [markdown]);
+  }, [source, path]);
 
-  // derive the current render from the latest markdown: a stale state (from a
+  // derive the current render from the latest source: a stale state (from a
   // previous document) reads as "loading" rather than showing the old deck.
-  const fresh = state.markdown === markdown;
+  const fresh = state.source === source;
   const deck = fresh ? state.deck : null;
   const error = fresh ? state.error : null;
 
@@ -74,8 +104,7 @@ export function SlidesView({ markdown }: SlidesViewProps) {
   const total = deck?.slides.length ?? 0;
   // clamp during render so a document change (or a shorter deck) never leaves
   // the index past the end
-  const page =
-    total === 0 ? 0 : Math.max(0, Math.min(total - 1, state.markdown === markdown ? current : 0));
+  const page = total === 0 ? 0 : Math.max(0, Math.min(total - 1, fresh ? current : 0));
 
   const go = (next: number) => {
     if (total === 0) return;
@@ -114,6 +143,25 @@ export function SlidesView({ markdown }: SlidesViewProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [total]);
+
+  // Fit the 1280x720 slide into the frame. `scale(calc(100cqw / 1280))` is
+  // invalid CSS (scale() takes a number, the calc yields a length), so the
+  // ratio is measured from the frame and applied inline; a ResizeObserver
+  // keeps it right through a window resize and fullscreen.
+  useEffect(() => {
+    const frame = frameRef.current;
+    const slide = slideRef.current;
+    if (!frame || !slide) return;
+    const fit = () => {
+      const scale = frame.clientWidth / 1280;
+      if (scale > 0) slide.style.transform = `scale(${scale})`;
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(fit);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [deck]);
 
   const fullscreen = () => {
     const el = frameRef.current;
@@ -193,7 +241,8 @@ export function SlidesView({ markdown }: SlidesViewProps) {
       </div>
       <div className="slides-frame" ref={frameRef}>
         <div
-          className="slides-frame__slide"
+          className="slides-frame__slide marpit"
+          ref={slideRef}
           data-slide={page + 1}
           data-paginated={paginated}
           role="group"

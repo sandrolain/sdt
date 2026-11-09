@@ -7,7 +7,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 // `renderDeck` resolves to this stub.
 vi.mock("@marp-team/marp-core", () => ({
   Marp: class {
-    themeSet = { add: () => {} };
+    themeSet = { add: () => {}, get: () => undefined };
     render() {
       throw new Error("engine exploded");
     }

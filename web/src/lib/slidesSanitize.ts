@@ -49,6 +49,8 @@ const SLIDE_ALLOWED_TAGS = [
   "img",
   "figure",
   "figcaption",
+  "header",
+  "footer",
   "a",
   "kbd",
   "sup",
