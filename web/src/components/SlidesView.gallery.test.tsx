@@ -2,9 +2,25 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const mocks = vi.hoisted(() => ({ render: vi.fn() }));
+
+vi.mock("pele", () => ({
+  render: (...args: unknown[]) => mocks.render(...args),
+}));
+
+vi.mock("svg-pan-zoom", () => ({
+  default: vi.fn(() => ({
+    zoomIn: vi.fn(),
+    zoomOut: vi.fn(),
+    reset: vi.fn(),
+    destroy: vi.fn(),
+  })),
+}));
+
 import { SlidesView } from "./SlidesView";
 
 /**
@@ -41,13 +57,25 @@ function press(key: string, times = 1): void {
 
 afterEach(() => cleanup());
 
+beforeEach(() => {
+  mocks.render.mockReset();
+  mocks.render.mockReturnValue({
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" data-testid="diagram"></svg>',
+    width: 100,
+    height: 50,
+    type: "flowchart",
+    mermaidType: "flowchart",
+    links: [],
+  });
+});
+
 describe("SlidesView gallery", () => {
   it(
     "renders the corpus gallery with the token theme and Marp's containers",
     { timeout: 20000 },
     async () => {
       render(<SlidesView markdown={markdown} frontmatter={frontmatter} path={DECK_PATH} />);
-      await waitFor(() => expect(screen.getByText("1 / 14")).toBeTruthy());
+      await waitFor(() => expect(screen.getByText("1 / 15")).toBeTruthy());
 
       expect(deckFrame().classList.contains("marpit")).toBe(true);
       expect(deckFrame().querySelector("header")?.textContent).toContain("Marp feature gallery");
@@ -63,23 +91,23 @@ describe("SlidesView gallery", () => {
   it("exposes the deck's speaker notes", async () => {
     const user = userEvent.setup();
     render(<SlidesView markdown={markdown} frontmatter={frontmatter} path={DECK_PATH} />);
-    await waitFor(() => expect(screen.getByText("1 / 14")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("1 / 15")).toBeTruthy());
     await user.click(screen.getByLabelText("Show speaker notes"));
     expect(screen.getByText(/smoke test/)).toBeTruthy();
   });
 
   it("resolves the inline image and the background through /api/file", async () => {
     render(<SlidesView markdown={markdown} frontmatter={frontmatter} path={DECK_PATH} />);
-    await waitFor(() => expect(screen.getByText("1 / 14")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("1 / 15")).toBeTruthy());
 
     press("ArrowRight", 6);
-    await waitFor(() => expect(screen.getByText("7 / 14")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("7 / 15")).toBeTruthy());
     expect(deckFrame().querySelector("img")?.getAttribute("src")).toBe(
       "/api/file?path=context%2Fassets%2Fthe-spec-is-the-code.jpg",
     );
 
     press("ArrowRight");
-    await waitFor(() => expect(screen.getByText("8 / 14")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("8 / 15")).toBeTruthy());
     expect(deckFrame().querySelector("section")?.getAttribute("style")).toContain(
       "/api/file?path=context%2Fassets%2Fthe-spec-is-the-code.jpg",
     );
@@ -87,16 +115,26 @@ describe("SlidesView gallery", () => {
 
   it("keeps the KaTeX slide's math and the fragmented list markers", async () => {
     render(<SlidesView markdown={markdown} frontmatter={frontmatter} path={DECK_PATH} />);
-    await waitFor(() => expect(screen.getByText("1 / 14")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("1 / 15")).toBeTruthy());
 
     press("ArrowRight", 4);
-    await waitFor(() => expect(screen.getByText("5 / 14")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("5 / 15")).toBeTruthy());
     expect(deckFrame().querySelector(".katex")).toBeTruthy();
 
     press("Home");
-    await waitFor(() => expect(screen.getByText("1 / 14")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("1 / 15")).toBeTruthy());
     press("ArrowRight", 2);
-    await waitFor(() => expect(screen.getByText("3 / 14")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("3 / 15")).toBeTruthy());
     expect(deckFrame().querySelector("[data-marpit-fragment]")).toBeTruthy();
+  });
+
+  it("renders the Mermaid slide's diagram through the fence plugin", async () => {
+    render(<SlidesView markdown={markdown} frontmatter={frontmatter} path={DECK_PATH} />);
+    await waitFor(() => expect(screen.getByText("1 / 15")).toBeTruthy());
+
+    press("ArrowRight", 12);
+    await waitFor(() => expect(screen.getByText("13 / 15")).toBeTruthy());
+    await waitFor(() => expect(deckFrame().querySelector('[data-testid="diagram"]')).toBeTruthy());
+    expect(mocks.render).toHaveBeenCalled();
   });
 });

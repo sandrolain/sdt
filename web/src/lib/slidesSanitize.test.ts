@@ -50,6 +50,16 @@ describe("sanitizeSlideHtml", () => {
     expect(clean).toContain("<footer>F</footer>");
   });
 
+  it("keeps the Mermaid placeholder (div + data-src)", () => {
+    // The slide fence plugin emits this placeholder; Pele injects the SVG
+    // after sanitization, so the allowlist only needs the container.
+    const clean = sanitizeSlideHtml(
+      '<section><div class="md-mermaid" data-src="flowchart%20LR"></div></section>',
+    );
+    expect(clean).toContain('class="md-mermaid"');
+    expect(clean).toContain('data-src="flowchart%20LR"');
+  });
+
   it("does not allow a <style> tag from a slide body", () => {
     const clean = sanitizeSlideHtml("<section><style>p{color:red}</style><p>hi</p></section>");
     expect(clean).not.toContain("<style");

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../lib/icon";
 import { sanitizeSlides } from "../lib/slidesSanitize";
 import { resolveSlideAssets } from "../lib/slidesAssets";
+import { mermaidFencePlugin } from "../lib/slidesMermaid";
 import { normalizeDeckSource } from "../lib/slidesSource";
 import { SLIDES_THEME_NAME, slidesDefaultThemeCss, slidesThemeCss } from "../lib/slidesTheme";
 
@@ -48,6 +49,9 @@ async function renderDeck(markdown: string, path?: string): Promise<DeckRender> 
   // or a deck that names no theme still gets the GitHub look.
   const defaultTheme = marp.themeSet.get("default");
   if (defaultTheme) marp.themeSet.default = defaultTheme;
+  // A mermaid fence becomes the viewer's placeholder; Pele renders it after
+  // the slide mounts. The plugin wraps the fence rule Marp Core installed.
+  marp.use(mermaidFencePlugin);
   const { html, css, comments } = marp.render(normalizeDeckSource(markdown), {
     htmlAsArray: true,
   });
@@ -162,6 +166,21 @@ export function SlidesView({ markdown, frontmatter, path }: SlidesViewProps) {
     observer.observe(frame);
     return () => observer.disconnect();
   }, [deck]);
+
+  // Render the current slide's Mermaid placeholders with Pele. The module is
+  // imported lazily and only when the slide carries a diagram; a page change
+  // gets a fresh DOM, so the effect re-runs. A theme flip restyles the SVG in
+  // place and needs no second render.
+  useEffect(() => {
+    if (!deck) return;
+    const frame = slideRef.current;
+    if (!frame?.querySelector(".md-mermaid")) return;
+    void import("../lib/mermaidRender").then(({ renderMermaid }) => {
+      // The frame is the same element across pages; if it is still mounted,
+      // render whatever placeholder it holds now (the function is idempotent).
+      if (frame.isConnected) void renderMermaid(frame, { fit: "contain", maxHeight: 480 });
+    });
+  }, [deck, page]);
 
   const fullscreen = () => {
     const el = frameRef.current;

@@ -3732,6 +3732,72 @@
     margin: 0;
     padding-left: 1.1rem;
   }
+  /* Mermaid in a slide: the .doc-rendered block styles do not reach the slide,
+     so the placeholder gets a compact block here. The fit is "contain" (Pele
+     upscales the vector to the slide's content box), centered. */
+  .slides-frame__slide .md-mermaid {
+    position: relative;
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin: 10px auto;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-mantle);
+    overflow: hidden;
+  }
+  .slides-frame__slide .md-mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+  .slides-frame__slide .md-mermaid__download {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-rise);
+    color: var(--fg-dim);
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .slides-frame__slide .md-mermaid:hover .md-mermaid__download,
+  .slides-frame__slide .md-mermaid__download:focus-visible {
+    opacity: 1;
+  }
+  .slides-frame__slide .md-mermaid__controls {
+    position: absolute;
+    top: 46px;
+    right: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .slides-frame__slide .md-mermaid:hover .md-mermaid__controls,
+  .slides-frame__slide .md-mermaid__controls:focus-within {
+    opacity: 1;
+  }
+  .slides-frame__slide .md-mermaid--zoomable {
+    cursor: grab;
+  }
+  .slides-frame__slide .md-mermaid__control {
+    padding: 4px;
+  }
+  .slides-frame__slide .md-mermaid__control .ms-icon,
+  .slides-frame__slide .md-mermaid__download .ms-icon {
+    font-size: 20px;
+  }
+  .slides-frame__slide .md-mermaid__source {
+    margin: 0;
+    font-size: 0.7em;
+    white-space: pre-wrap;
+  }
   .slides-degraded {
     display: flex;
     flex-direction: column;

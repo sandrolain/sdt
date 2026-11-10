@@ -1,5 +1,5 @@
 import { sanitizeDiagramSvg } from "./diagramSanitize";
-import { enhanceMermaid } from "./mermaidZoom";
+import { enhanceMermaid, type MermaidFitOptions } from "./mermaidZoom";
 
 type PeleModule = typeof import("pele");
 
@@ -47,7 +47,10 @@ function documentFont(): string | undefined {
  * diagrams in place — nothing is re-rendered. A failing diagram falls back to
  * its source.
  */
-export async function renderMermaid(root: HTMLElement | null): Promise<void> {
+export async function renderMermaid(
+  root: HTMLElement | null,
+  options: MermaidFitOptions = {},
+): Promise<void> {
   if (!root) return;
   const nodes = Array.from(root.querySelectorAll<HTMLElement>(".md-mermaid"));
   if (nodes.length === 0) return;
@@ -59,6 +62,7 @@ export async function renderMermaid(root: HTMLElement | null): Promise<void> {
     if (node.dataset.rendered === "1") continue;
     const source = decodeURIComponent(node.dataset.src ?? "");
     node.dataset.rendered = "1";
+    if (options.fit === "contain") node.classList.add("md-mermaid--contain");
     try {
       const { svg } = pele.render(source, fontFamily ? { fontFamily } : undefined);
       node.innerHTML = sanitizeDiagramSvg(svg);
@@ -75,7 +79,7 @@ export async function renderMermaid(root: HTMLElement | null): Promise<void> {
         button.append(icon);
         node.append(button);
       }
-      enhanceMermaid(node);
+      enhanceMermaid(node, options);
     } catch {
       node.classList.add("md-mermaid--error");
       const pre = document.createElement("pre");

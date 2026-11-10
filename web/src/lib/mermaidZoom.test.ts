@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import svgPanZoom from "svg-pan-zoom";
-import { destroyMermaidZoom, enhanceMermaid, fittedSvgSize, openFullscreen } from "./mermaidZoom";
+import {
+  containedSvgSize,
+  destroyMermaidZoom,
+  enhanceMermaid,
+  fittedSvgSize,
+  openFullscreen,
+} from "./mermaidZoom";
 
 interface Api {
   zoomIn: ReturnType<typeof vi.fn>;
@@ -114,6 +120,28 @@ describe("fittedSvgSize", () => {
     expect(fittedSvgSize({ width: 0, height: 100 }, 400)).toEqual({ width: 0, height: 0 });
     expect(fittedSvgSize({ width: 100, height: 0 }, 400)).toEqual({ width: 0, height: 0 });
     expect(fittedSvgSize({ width: 100, height: 100 }, 0)).toEqual({ width: 0, height: 0 });
+  });
+});
+
+describe("containedSvgSize", () => {
+  it("upscales a small diagram to the available box", () => {
+    expect(containedSvgSize({ width: 400, height: 100 }, 800, 600)).toEqual({
+      width: 800,
+      height: 200,
+    });
+  });
+
+  it("caps by height when the box is short", () => {
+    expect(containedSvgSize({ width: 400, height: 100 }, 800, 150)).toEqual({
+      width: 600,
+      height: 150,
+    });
+  });
+
+  it("guards empty inputs", () => {
+    expect(containedSvgSize({ width: 0, height: 100 }, 800, 600)).toEqual({ width: 0, height: 0 });
+    expect(containedSvgSize({ width: 100, height: 100 }, 0, 600)).toEqual({ width: 0, height: 0 });
+    expect(containedSvgSize({ width: 100, height: 100 }, 800, 0)).toEqual({ width: 0, height: 0 });
   });
 });
 

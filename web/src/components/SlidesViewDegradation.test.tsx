@@ -8,6 +8,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 vi.mock("@marp-team/marp-core", () => ({
   Marp: class {
     themeSet = { add: () => {}, get: () => undefined };
+    use = () => {};
     render() {
       throw new Error("engine exploded");
     }

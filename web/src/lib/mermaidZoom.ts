@@ -40,6 +40,29 @@ export function fittedSvgSize(
   return { width: viewBox.width * scale, height: viewBox.height * scale };
 }
 
+/** The rendered size of a viewBox scaled to fit a box, upscaling allowed. A
+ *  slide is a presentation canvas, so a small vector diagram should grow to the
+ *  available width/height instead of keeping its document size. */
+export function containedSvgSize(
+  viewBox: { width: number; height: number },
+  availableWidth: number,
+  availableHeight: number,
+): { width: number; height: number } {
+  if (viewBox.width <= 0 || viewBox.height <= 0 || availableWidth <= 0 || availableHeight <= 0) {
+    return { width: 0, height: 0 };
+  }
+  const scale = Math.min(availableWidth / viewBox.width, availableHeight / viewBox.height);
+  return { width: viewBox.width * scale, height: viewBox.height * scale };
+}
+
+/** How a rendered diagram is sized: the document default is `natural` (never
+ *  upscale); a slide passes `contain` with the content height it may use. */
+export interface MermaidFitOptions {
+  fit?: "natural" | "contain";
+  /** The available height for `contain`, in the container's pixels. */
+  maxHeight?: number;
+}
+
 /** Read an SVG's viewBox dimensions from the attribute (jsdom-safe). */
 function viewBoxOf(svg: SVGSVGElement): { width: number; height: number } {
   const parts = (svg.getAttribute("viewBox") ?? "")
@@ -60,11 +83,32 @@ function viewBoxOf(svg: SVGSVGElement): { width: number; height: number } {
  * flex line and svg-pan-zoom measures the wrong (short) viewport, which clips
  * tall diagrams. Sizing the box here makes the wrapper grow to the diagram.
  */
-function sizeSvgToViewBox(node: HTMLElement, svg: SVGSVGElement): void {
+function sizeSvgToViewBox(
+  node: HTMLElement,
+  svg: SVGSVGElement,
+  options: MermaidFitOptions = {},
+): void {
   const styles = getComputedStyle(node);
-  const padding = parseFloat(styles.paddingLeft || "0") + parseFloat(styles.paddingRight || "0");
-  const available = node.clientWidth - padding;
-  const size = fittedSvgSize(viewBoxOf(svg), available);
+  const paddingX = parseFloat(styles.paddingLeft || "0") + parseFloat(styles.paddingRight || "0");
+  const paddingY = parseFloat(styles.paddingTop || "0") + parseFloat(styles.paddingBottom || "0");
+  // `contain` sizes against the parent's content box, not the node's current
+  // (natural) width: a fit-content block is already as wide as the diagram.
+  const parent = node.parentElement;
+  const parentStyles = parent ? getComputedStyle(parent) : styles;
+  const parentPaddingX =
+    parseFloat(parentStyles.paddingLeft || "0") + parseFloat(parentStyles.paddingRight || "0");
+  const availableWidth =
+    options.fit === "contain"
+      ? (parent?.clientWidth ?? node.clientWidth) - parentPaddingX - paddingX
+      : node.clientWidth - paddingX;
+  const size =
+    options.fit === "contain"
+      ? containedSvgSize(
+          viewBoxOf(svg),
+          availableWidth,
+          (options.maxHeight ?? node.clientHeight) - paddingY,
+        )
+      : fittedSvgSize(viewBoxOf(svg), availableWidth);
   if (size.width > 0 && size.height > 0) {
     // inline style beats the `height: auto` rule, which would otherwise
     // re-collapse the SVG once svg-pan-zoom removes the viewBox attribute
@@ -118,14 +162,17 @@ function buildControls(svg: SVGSVGElement, api: ReturnType<typeof svgPanZoom>): 
  * `.md-mermaid` node (idempotent per SVG). Returns null when the node holds no
  * SVG yet.
  */
-export function enhanceMermaid(node: HTMLElement): MermaidZoomHandle | null {
+export function enhanceMermaid(
+  node: HTMLElement,
+  options: MermaidFitOptions = {},
+): MermaidZoomHandle | null {
   const svg = node.querySelector<SVGSVGElement>("svg");
   if (!svg) return null;
   const existing = instances.get(node);
   if (existing && existing.svg === svg) return handleOf(existing);
   if (existing) destroyMermaidZoom(node);
 
-  sizeSvgToViewBox(node, svg);
+  sizeSvgToViewBox(node, svg, options);
   const api = svgPanZoom(svg, { ...ZOOM_OPTIONS });
   const controls = buildControls(svg, api);
   node.classList.add("md-mermaid--zoomable");
