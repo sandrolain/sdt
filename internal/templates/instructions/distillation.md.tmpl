@@ -209,9 +209,15 @@ the verify-step vocabulary (**passed** / **expected** / **inferred**) and
 
   Every non-`OK` unit carries a **disposition**: `gap` (content still owed),
   `no-op` (the compilation-value gate found nothing durable) or `not-conceptual`
-  (navigation, front/back matter, case-study narrative). A unit with no
-  disposition is an unanswered question, not a quiet omission, and **any `gap`
-  refuses completion** — never ship a partial as whole. The counts go into the
+  (navigation, front/back matter, case-study narrative). Beside it, a unit that
+  carries teaching matter records its `matter`: which of `example`, `case`,
+  `analogy`, `alternative`, `pitfall` or `exercise` it holds, and whether it
+  carries a `figure`; where each goes — a practice case, the lesson, an
+  assessment item, a redrawn figure — and `dropped: <reason>` for the rest. A
+  figure is not a kind of matter: it is the shape the matter takes, re-expressed
+  in the medium its content calls for, and the original stays author-facing. A
+  kind with no disposition is an unanswered question, like a unit with none, and
+  **any `gap` refuses completion** — never ship a partial as whole. The counts go into the
   destination's coverage record (`wiki.md`, *The coverage record*);
   `sdt context wiki coverage --write` regenerates it from the citations. What
   the audit cannot see: it measures coverage, not comprehension — a unit can be `OK`

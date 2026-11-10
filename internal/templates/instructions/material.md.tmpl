@@ -77,6 +77,24 @@ For tone, not content:
 - Do not repeat the same fact in two sections.
 - Do not fix thresholds, values or criteria the brief leaves to the reader.
 
+## Figures
+
+A figure earns its place only when it carries a relation the prose cannot state in one
+sentence. The medium follows the content:
+
+- a relation, a flow, a sequence or a decomposition → a Mermaid fence;
+- values over categories or time → `xychart`, with the same values in a table;
+- parts of a whole → `pie`; points on two axes → `quadrantChart`; flows with quantities →
+  `sankey`;
+- a scatter whose points carry a size → a table; a positioning matrix → a small SVG;
+- a dashboard → a table of its tiles and bands, never the screenshot;
+- a screenshot, a photo or a decoration → left out, with the reason recorded.
+
+**No values, no chart.** A chart whose values the brief does not carry is dropped, not
+invented: the source's dashboard is its own system, and a guide that borrows its numbers
+teaches the reader nothing about theirs. Cite the figure to the span that carries it; shape
+defers to `instructions/diagram.md` when the project has one.
+
 ## The binder
 
 The text is written without markers. After the draft, a binder pass:

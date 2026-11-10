@@ -165,6 +165,12 @@ Sources are frequently not plain markdown — convert first, then distil.
   cited like any other evidence, and the figure itself is never embedded there.
   Shape defers to `instructions/diagram.md` when the project has it; without it
   the fence reads as text and the prose carries the structure.
+  A source in a container format (an EPUB, an archive) can give its images back
+  with their captions: extract them before distilling, keep the originals
+  author-facing where no page or material cites them, and pair each with its
+  caption and span. The run's receipt counts the figures found, placed and
+  dropped, with a reason per drop. A value read off an axis is a guess, and a
+  figure no claim supports is dropped rather than borrowed.
 
 ## Feedback from a consumer
 

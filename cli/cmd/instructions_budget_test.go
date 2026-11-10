@@ -89,7 +89,11 @@ var instructionModuleRatchet = map[string]int{
 	// ingestion rose to 4994 (2026-11-07): the practice note is a second artefact
 	// the ingest produces, and the rule that a case is never a claim belongs where
 	// the reading happens (instructions/practice.md).
-	"ingestion": 4994,
+	// Rose to 5070 (2026-11-10): a container source gives its figures back with
+	// their captions; they are extracted before distilling, kept author-facing and
+	// counted found/placed/dropped in the receipt. The rule earned its place in
+	// the images paragraph after three extraction waves (analysis 20261109-201222).
+	"ingestion": 5070,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.
@@ -127,8 +131,12 @@ var instructionModuleRatchet = map[string]int{
 	// `units --match`, the read-only candidate list the fold-in reconciles. Rose to
 	// 1882 (2026-11-04): a section that is a diagram is extracted as one, its dropped
 	// figures are listed with the run's other losses, and the form defers to the
-	// diagram module.
-	"distillation": 1882,
+	// diagram module. Rose to 1949 (2026-11-10): the completeness audit gains the
+	// `matter` axis beside the coverage disposition — the six teaching kinds, the
+	// figure as a shape, their destination, and the `dropped` reason (analysis
+	// 20261109-201222); 1961 when the blind read removed the self-contradiction
+	// between "a kind" and "a figure is not a kind".
+	"distillation": 1961,
 	// research joins the map at 1457 (2026-11-04): a finding whose meaning is a
 	// shape is drawn beside it, the drawing showing the shape and never the
 	// conclusion. Rose to 1541 (2026-11-04): the ingestion lane is a named caller,
