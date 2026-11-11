@@ -150,8 +150,14 @@ export interface Backlink {
   title?: string;
   kind?: string;
   summary?: string;
-  /** which list produced the edge: `sources`, `links` or `relation` */
+  /**
+   * the edge family that produced the reference: `derivation` (sources),
+   * `correlation` (links), `wiki` (frontmatter relations), `body` (typed body
+   * links) or `lifecycle` (the typed parent chain)
+   */
   via: string;
+  /** the relation verb, for the `wiki` and `body` families */
+  verb?: string;
   modified?: string;
 }
 

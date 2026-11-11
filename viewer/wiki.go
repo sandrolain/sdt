@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/graph"
 )
 
 // wikiDir is the wiki corpus subdirectory under the served root.
@@ -123,8 +124,9 @@ func (s *server) loadWiki() error {
 		return werr
 	}
 	s.wiki = bld
-	// The edge list is derived once from the loaded builder and reused per
+	// The edge list is derived once from the shared model and reused per
 	// request by graph/rel/board (O2); the wiki is not reloaded on live-reload.
+	s.wikiPageGraph = graph.From(nil, bld, nil)
 	s.wikiEdgeList = s.computeWikiEdges()
 	return nil
 }
@@ -176,24 +178,41 @@ func (s *server) wikiEdges() []graphEdge {
 	return s.wikiEdgeList
 }
 
-// computeWikiEdges builds the deduplicated, sorted edge list from relation
-// frontmatter and typed body links. Edges keep the source verb; labels come
-// from the wikilink label ("[[id|label]]") or the resolved target title. Only
-// links with a verb (contextwiki typed links) become "link" edges; plain
-// [[wiki]] mentions carry no relation.
+// computeWikiEdges projects the shared edge model onto the wiki graph: the
+// frontmatter relations become "relation" edges and the typed body links become
+// "link" edges, with the page id as the node identity. Reading internal/graph
+// rather than the pages means the graph, /api/wiki/rel and /api/backlinks cannot
+// disagree about what is an edge.
 func (s *server) computeWikiEdges() []graphEdge {
 	var edges []graphEdge
-	seen := map[string]bool{}
-	add := func(e graphEdge) {
-		key := e.Source + "\x00" + e.Verb + "\x00" + e.Target
-		if !seen[key] {
-			seen[key] = true
-			edges = append(edges, e)
-		}
+	if s.wikiPageGraph == nil || s.wiki == nil {
+		return edges
 	}
+	byRef := map[string]*contextwiki.Page{}
 	for _, p := range s.wiki.Pages {
-		s.addRelationEdges(p, add)
-		s.addLinkEdges(p, add)
+		byRef[graph.WikiRef(p)] = p
+	}
+	for _, e := range s.wikiPageGraph.Edges() {
+		var kind string
+		switch e.Family {
+		case graph.Wiki:
+			kind = "relation"
+		case graph.Body:
+			kind = "link"
+		default:
+			continue
+		}
+		src, tgt := byRef[e.From], byRef[e.To]
+		if src == nil || tgt == nil {
+			continue
+		}
+		edges = append(edges, graphEdge{
+			Source: nodeID(src),
+			Target: nodeID(tgt),
+			Verb:   e.Verb,
+			Label:  e.Label,
+			Kind:   kind,
+		})
 	}
 	sort.Slice(edges, func(i, j int) bool {
 		if edges[i].Source != edges[j].Source {
@@ -205,43 +224,6 @@ func (s *server) computeWikiEdges() []graphEdge {
 		return edges[i].Target < edges[j].Target
 	})
 	return edges
-}
-
-// addRelationEdges emits "relation" edges from the frontmatter relations map.
-func (s *server) addRelationEdges(p *contextwiki.Page, add func(graphEdge)) {
-	src := nodeID(p)
-	for verb, rawTargets := range p.Relations {
-		for _, raw := range rawTargets {
-			m := contextwiki.LinkRegexp.FindStringSubmatch(raw)
-			if m == nil {
-				continue
-			}
-			tgt := s.wiki.Resolve(strings.TrimSpace(m[1]))
-			if tgt == nil {
-				continue
-			}
-			label := strings.TrimSpace(m[2])
-			if label == "" {
-				label = tgt.Title
-			}
-			add(graphEdge{Source: src, Target: nodeID(tgt), Verb: verb, Label: label, Kind: "relation"})
-		}
-	}
-}
-
-// addLinkEdges emits "link" edges for typed body links (verb != "").
-func (s *server) addLinkEdges(p *contextwiki.Page, add func(graphEdge)) {
-	src := nodeID(p)
-	for _, l := range p.Links {
-		if l.Verb == "" {
-			continue
-		}
-		tgt := s.wiki.Resolve(l.Target)
-		if tgt == nil {
-			continue
-		}
-		add(graphEdge{Source: src, Target: nodeID(tgt), Verb: l.Verb, Label: tgt.Title, Kind: "link"})
-	}
 }
 
 // handleWikiRel serves inbound+outbound neighbors of one page, grouped by

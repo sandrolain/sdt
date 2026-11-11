@@ -19,11 +19,23 @@ function kindIncludes(kind: string | undefined): boolean {
   return !!kind && (KIND_ORDER as string[]).includes(kind);
 }
 
-/** Human label for the frontmatter list that produced the edge. */
-function viaLabel(via: string): string {
-  if (via === "sources") return "source";
-  if (via === "relation") return "derives from";
-  return "links to";
+/**
+ * Human label for the edge family that produced the reference. A family that
+ * carries a relation verb (wiki, body) says the verb in words; the three list
+ * families keep their fixed phrasing.
+ */
+export function viaLabel(via: string, verb?: string): string {
+  switch (via) {
+    case "derivation":
+      return "source";
+    case "lifecycle":
+      return "derives from";
+    case "wiki":
+    case "body":
+      return verb ? verb.replace(/_/g, " ") : "related";
+    default:
+      return "links to";
+  }
 }
 
 /**
@@ -96,7 +108,7 @@ export function ReferencedBy({ path, heading, compact = false }: ReferencedByPro
                   <span className="referrers__title">
                     {displayTitle({ title: ref.title, path: ref.path })}
                   </span>
-                  {!compact && <span className="referrers__via">{viaLabel(ref.via)}</span>}
+                  {!compact && <span className="referrers__via">{viaLabel(ref.via, ref.verb)}</span>}
                 </span>
                 <span className="referrers__kind" title={kindLabel(kind)}>
                   <span className="referrers__kind-icon" aria-hidden="true">

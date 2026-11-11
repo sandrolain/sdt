@@ -1,12 +1,12 @@
 package main
 
 import (
-	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/ctxrel"
+	"github.com/sandrolain/sdt/internal/graph"
 	"github.com/sandrolain/sdt/internal/mdindex"
 )
 
@@ -31,7 +31,7 @@ func (s *server) rebuildDerived(m *mdindex.Manifest) {
 	}
 	s.treeMu.Lock()
 	s.tree = buildTree(m, edges)
-	s.backlinks = buildBacklinkIndexFromManifest(m, edges)
+	s.backlinks = buildBacklinkIndexFrom(m, graph.From(m, s.wiki, edges))
 	s.treeMu.Unlock()
 }
 
@@ -83,50 +83,6 @@ func treeEntryFromEntry(e *mdindex.Entry) treeEntry {
 		t.MapID = contextwiki.DocID(e.ID)
 	}
 	return t
-}
-
-// buildBacklinkIndexFromManifest records every outbound reference of a markdown
-// entry as an inbound edge on its target (sources/links + the ctxrel parent),
-// mirroring the former corpus walk without re-reading the files.
-func buildBacklinkIndexFromManifest(m *mdindex.Manifest, edges *ctxrel.Edges) *backlinkIndex {
-	index := &backlinkIndex{byTarget: map[string][]backlinkDoc{}}
-	if m == nil {
-		return index
-	}
-	for _, e := range m.Entries {
-		if filepath.Ext(e.ID) != markdownExt {
-			continue
-		}
-		referrer := backlinkDoc{Path: e.ID, Title: e.Title, Kind: e.Kind, Summary: e.Summary, Modified: e.Updated}
-		if referrer.Modified == "" && e.ModTimeNS != 0 {
-			referrer.Modified = time.Unix(0, e.ModTimeNS).UTC().Format(time.RFC3339)
-		}
-		seen := map[string]bool{}
-		record := func(ref, via string) {
-			target := normalizeBacklinkRef(ref)
-			if target == "" || target == e.ID || seen[target] {
-				return
-			}
-			seen[target] = true
-			doc := referrer
-			doc.Via = via
-			index.byTarget[target] = append(index.byTarget[target], doc)
-		}
-		for _, ref := range e.Values["sources"] {
-			record(ref, viaSources)
-		}
-		for _, ref := range e.Values["links"] {
-			record(ref, viaLinks)
-		}
-		switch e.Kind {
-		case "plan", "tasks":
-			if parent := edges.ParentOf(e.ID); parent != "" {
-				record(parent, viaRelations)
-			}
-		}
-	}
-	index.sortAll()
-	return index
 }
 
 func firstValue(values map[string][]string, key string) string {

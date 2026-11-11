@@ -10,7 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
+	"github.com/sandrolain/sdt/internal/ctxrel"
+	"github.com/sandrolain/sdt/internal/graph"
+	"github.com/sandrolain/sdt/internal/mdindex"
 )
 
 // backlinkCorpus builds a corpus exercising every edge source: a `sources`
@@ -91,6 +95,22 @@ notes body
 	return root
 }
 
+// testBacklinkIndex builds the index the server builds, from the manifest and the
+// shared edge model, for a corpus directory.
+func testBacklinkIndex(t *testing.T, corpusDir string) *backlinkIndex {
+	t.Helper()
+	refresh, err := mdindex.EnsureFresh(filepath.Dir(corpusDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	life, err := ctxrel.Load(corpusDir)
+	if err != nil {
+		life = &ctxrel.Edges{}
+	}
+	bld, _, _ := contextwiki.LoadWiki(filepath.Join(corpusDir, "wiki"))
+	return buildBacklinkIndexFrom(refresh.Manifest, graph.From(refresh.Manifest, bld, life))
+}
+
 func backlinkRequest(t *testing.T, h http.Handler, path string) (int, backlinksResponse) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/backlinks?path="+url.QueryEscape(path), nil)
@@ -106,10 +126,7 @@ func backlinkRequest(t *testing.T, h http.Handler, path string) (int, backlinksR
 }
 
 func TestBacklinksIndexRecordsEveryReferenceKind(t *testing.T) {
-	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpus.ContextDir))
-	if err != nil {
-		t.Fatal(err)
-	}
+	index := testBacklinkIndex(t, filepath.Join(backlinkCorpus(t), corpus.ContextDir))
 	// the analysis is cited by two plans and one map, over two different lists
 	got := index.Referrers("context/analysis/analy-x.md")
 	if len(got) != 3 {
@@ -119,13 +136,13 @@ func TestBacklinksIndexRecordsEveryReferenceKind(t *testing.T) {
 	for _, ref := range got {
 		via[ref.Path] = ref.Via
 	}
-	if via["context/plan/plan-x.md"] != viaSources {
+	if via["context/plan/plan-x.md"] != "derivation" {
 		t.Errorf("plan-x via = %q, want sources", via["context/plan/plan-x.md"])
 	}
-	if via["context/plan/plan-y.md"] != viaLinks {
+	if via["context/plan/plan-y.md"] != "correlation" {
 		t.Errorf("plan-y via = %q, want links", via["context/plan/plan-y.md"])
 	}
-	if via["context/wiki/topic.map.md"] != viaLinks {
+	if via["context/wiki/topic.map.md"] != "correlation" {
 		t.Errorf("map via = %q, want links", via["context/wiki/topic.map.md"])
 	}
 	for _, ref := range got {
@@ -136,7 +153,7 @@ func TestBacklinksIndexRecordsEveryReferenceKind(t *testing.T) {
 
 	// the typed task->plan edge is recorded as a relation, not as a citation
 	task := index.Referrers("context/plan/plan-x-phase-1.md")
-	if len(task) != 1 || task[0].Path != "context/tasks/plan-x-phase-1.md" || task[0].Via != viaRelations {
+	if len(task) != 1 || task[0].Path != "context/tasks/plan-x-phase-1.md" || task[0].Via != "lifecycle" {
 		t.Errorf("plan-phase referrers = %+v, want one relation from the task file", task)
 	}
 
@@ -157,20 +174,14 @@ links:
 
 body
 `)
-	index, err := buildBacklinkIndex(filepath.Join(root, corpus.ContextDir))
-	if err != nil {
-		t.Fatal(err)
-	}
+	index := testBacklinkIndex(t, filepath.Join(root, corpus.ContextDir))
 	if refs := index.Referrers("context/notes/self.md"); len(refs) != 0 {
 		t.Errorf("self reference recorded: %+v", refs)
 	}
 }
 
 func TestBacklinksIndexSkipsNonCorpusTargets(t *testing.T) {
-	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpus.ContextDir))
-	if err != nil {
-		t.Fatal(err)
-	}
+	index := testBacklinkIndex(t, filepath.Join(backlinkCorpus(t), corpus.ContextDir))
 	for _, ref := range index.Referrers("context/notes/notes-z.md") {
 		switch ref.Via {
 		case "links":
@@ -187,10 +198,7 @@ func TestBacklinksIndexSkipsNonCorpusTargets(t *testing.T) {
 }
 
 func TestBacklinksIndexOrdersNewestFirst(t *testing.T) {
-	index, err := buildBacklinkIndex(filepath.Join(backlinkCorpus(t), corpus.ContextDir))
-	if err != nil {
-		t.Fatal(err)
-	}
+	index := testBacklinkIndex(t, filepath.Join(backlinkCorpus(t), corpus.ContextDir))
 	got := index.Referrers("context/analysis/analy-x.md")
 	if len(got) < 2 {
 		t.Fatalf("want several referrers, got %d", len(got))
@@ -208,10 +216,7 @@ func TestBacklinksIndexToleratesAMissingCorpus(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	index, err := buildBacklinkIndex(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	index := testBacklinkIndex(t, dir)
 	if refs := index.Referrers("context/analysis/analy-x.md"); len(refs) != 0 {
 		t.Errorf("empty corpus returned %+v", refs)
 	}
@@ -314,4 +319,50 @@ func countRef(refs []backlinkDoc, path string) int {
 		}
 	}
 	return n
+}
+
+// TestWikiRelationsReachTheBacklinkSurface is the parity test the shared model
+// exists for: every relation the wiki endpoint reports must also be visible on
+// the target's backlinks. Before internal/graph, the graph and the "Referenced
+// by" card read different fields and a relation could be in one and missing
+// from the other.
+func TestWikiRelationsReachTheBacklinkSurface(t *testing.T) {
+	root := makeWikiCorpus(t)
+	h, err := newHandler(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/wiki/rel?id=alpha", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rel status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var rel relResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &rel); err != nil {
+		t.Fatal(err)
+	}
+	if len(rel.Outbound) == 0 {
+		t.Fatal("the fixture page reports no outbound relation")
+	}
+
+	wantFamily := map[string]string{"depends_on": "wiki", "part_of": "wiki", "supersedes": "body"}
+	for verb, group := range rel.Outbound {
+		for _, e := range group {
+			code, back := backlinkRequest(t, h, e.Path)
+			if code != http.StatusOK {
+				t.Fatalf("backlinks(%s) status = %d", e.Path, code)
+			}
+			found := false
+			for _, ref := range back.Referrers {
+				if ref.Path == "context/wiki/alpha.md" && ref.Verb == verb && ref.Via == wantFamily[verb] {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("%s %q -> %s is not in its backlinks: %+v", verb, verb, e.Path, back.Referrers)
+			}
+		}
+	}
 }

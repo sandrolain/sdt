@@ -2,31 +2,20 @@ package main
 
 import (
 	"net/http"
-	"path/filepath"
 	"sort"
-	"strings"
+	"time"
 
-	"github.com/sandrolain/sdt/internal/corpus"
-	"github.com/sandrolain/sdt/internal/ctxrel"
+	"github.com/sandrolain/sdt/internal/graph"
 	"github.com/sandrolain/sdt/internal/mdindex"
 )
 
 // Backlinks: the inbound half of the corpus reference graph.
 //
-// `sources` is the human-readable derivation list, `links` the generic
-// correlation list, and the lifecycle edges (a plan's analysis, a task file's
-// plan) come from internal/ctxrel — the one resolver every Go tool shares. The
-// index is built once at startup over the corpus frontmatter and answers
-// "which documents point at this one", so the SPA never derives relations from
-// /api/tree (an O(N) walk over ~800 documents per render).
-
-// The three ways a document can point at another. `via` on a backlink tells
-// the UI why the edge exists.
-const (
-	viaSources   = "sources"
-	viaLinks     = "links"
-	viaRelations = "relation"
-)
+// The index is one projection of internal/graph, the model every surface reads:
+// `sources` (derivation), `links` (correlation), the wiki frontmatter relations,
+// typed body links and the lifecycle parent all arrive here as edges. The SPA
+// never derives relations from /api/tree (an O(N) walk per render), and the
+// wiki-neighbour endpoint reads the same model, so the two cannot disagree.
 
 // backlinkDoc is one referring document in the /api/backlinks response.
 type backlinkDoc struct {
@@ -34,9 +23,11 @@ type backlinkDoc struct {
 	Title   string `json:"title,omitempty"`
 	Kind    string `json:"kind,omitempty"`
 	Summary string `json:"summary,omitempty"`
-	// Via names the frontmatter list (or the resolved relation) that produced
-	// the edge.
+	// Via names the edge family that produced the reference: derivation,
+	// correlation, wiki, body or lifecycle.
 	Via string `json:"via"`
+	// Verb is the relation verb when the family carries one (wiki, body).
+	Verb string `json:"verb,omitempty"`
 	// Modified orders the list newest first; empty when unknown.
 	Modified string `json:"modified,omitempty"`
 }
@@ -62,20 +53,73 @@ func (b *backlinkIndex) Referrers(ref string) []backlinkDoc {
 	return b.byTarget[normalizeBacklinkRef(ref)]
 }
 
-// buildBacklinkIndex builds the inbound reference index from the shared
-// manifest (O1), reusing the same entries as /api/tree instead of re-walking
-// and re-parsing the corpus. It scans the corpus's parent root so the manifest
-// covers root/context.
-func buildBacklinkIndex(corpusDir string) (*backlinkIndex, error) {
-	refresh, err := mdindex.EnsureFresh(filepath.Dir(corpusDir))
-	if err != nil {
-		return nil, err
+// familyRank orders the families when one document reaches a target through
+// more than one: derivation outranks lifecycle (a plan that names its analysis
+// in `sources` also records it as parent), and correlation is last, so a row
+// states the strongest reason the edge exists rather than listing the same
+// document twice.
+func familyRank(f graph.Family) int {
+	switch f {
+	case graph.Derivation:
+		return 0
+	case graph.Lifecycle:
+		return 1
+	case graph.Wiki:
+		return 2
+	case graph.Body:
+		return 3
+	default: // graph.Correlation
+		return 4
 	}
-	edges, err := ctxrel.Load(corpusDir)
-	if err != nil {
-		return nil, err
+}
+
+// buildBacklinkIndexFrom projects an edge set onto "which documents point at
+// this one". Metadata (title, kind, summary, modified) comes from the shared
+// manifest; an edge whose source is not a manifest entry is skipped rather than
+// listed as a bare path.
+func buildBacklinkIndexFrom(m *mdindex.Manifest, g *graph.Graph) *backlinkIndex {
+	index := &backlinkIndex{byTarget: map[string][]backlinkDoc{}}
+	if m == nil || g == nil {
+		return index
 	}
-	return buildBacklinkIndexFromManifest(refresh.Manifest, edges), nil
+	type pair struct{ target, from string }
+	best := map[pair]graph.Edge{}
+	for _, e := range g.Edges() {
+		k := pair{target: e.To, from: e.From}
+		cur, ok := best[k]
+		if !ok || familyRank(e.Family) < familyRank(cur.Family) {
+			best[k] = e
+		}
+	}
+	for k, e := range best {
+		src := m.Entries[k.from]
+		if src == nil {
+			continue
+		}
+		index.byTarget[k.target] = append(index.byTarget[k.target], backlinkDoc{
+			Path:     k.from,
+			Title:    src.Title,
+			Kind:     src.Kind,
+			Summary:  src.Summary,
+			Via:      string(e.Family),
+			Verb:     e.Verb,
+			Modified: entryModified(src),
+		})
+	}
+	index.sortAll()
+	return index
+}
+
+// entryModified is the document's last modification as an RFC3339 string: the
+// frontmatter `updated` when present, the file mtime otherwise.
+func entryModified(e *mdindex.Entry) string {
+	if e.Updated != "" {
+		return e.Updated
+	}
+	if e.ModTimeNS != 0 {
+		return time.Unix(0, e.ModTimeNS).UTC().Format(time.RFC3339)
+	}
+	return ""
 }
 
 // sortAll orders every referrer list newest first, path as the tiebreak.
@@ -85,7 +129,10 @@ func (b *backlinkIndex) sortAll() {
 			if refs[i].Modified != refs[j].Modified {
 				return refs[i].Modified > refs[j].Modified
 			}
-			return refs[i].Path < refs[j].Path
+			if refs[i].Path != refs[j].Path {
+				return refs[i].Path < refs[j].Path
+			}
+			return refs[i].Via < refs[j].Via
 		})
 		b.byTarget[target] = refs
 	}
@@ -96,24 +143,7 @@ func (b *backlinkIndex) sortAll() {
 // one (`analysis/x.md`), with `./` and a leading slash tolerated. Anything that
 // does not point inside the corpus yields "".
 func normalizeBacklinkRef(ref string) string {
-	p := strings.TrimSpace(filepath.ToSlash(ref))
-	if p == "" {
-		return ""
-	}
-	p = strings.TrimPrefix(strings.TrimPrefix(p, "./"), "/")
-	if !strings.HasPrefix(p, corpus.ContextDir+"/") {
-		// `sources`/`links` are written corpus-internal (`analysis/x.md`), so a
-		// bare reference is read as one; refs/ is outside the served corpus and
-		// no viewer document has it.
-		if strings.HasPrefix(p, "refs/") {
-			return ""
-		}
-		p = corpus.ContextDir + "/" + p
-	}
-	if corpus.ExcludedPath(p) {
-		return ""
-	}
-	return p
+	return graph.NormalizeRef(ref)
 }
 
 // handleBacklinks serves GET /api/backlinks?path=<corpus path>: the documents

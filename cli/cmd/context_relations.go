@@ -612,8 +612,12 @@ Examples:
 
 func init() {
 	contextRelationsBackfillCmd.Flags().Bool("dry-run", false, "Report without writing anything")
+	contextRelationsEdgesCmd.Flags().Bool("inbound", false, "List the edges arriving at the document instead of the ones leaving it")
+	contextRelationsEdgesCmd.Flags().String("verb", "", "Only edges carrying this relation verb")
+	contextRelationsEdgesCmd.Flags().Int("depth", 1, "Hops to follow; only 1 is answered")
 	contextRelationsCmd.AddCommand(
 		contextRelationsBackfillCmd,
+		contextRelationsEdgesCmd,
 		contextRelationsParentCmd,
 		contextRelationsSimilarCmd,
 		contextRelationsRankCmd,

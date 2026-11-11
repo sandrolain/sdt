@@ -16,6 +16,7 @@ import (
 	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/corpus"
 	"github.com/sandrolain/sdt/internal/ctxrel"
+	"github.com/sandrolain/sdt/internal/graph"
 	"github.com/sandrolain/sdt/internal/search"
 	"github.com/sandrolain/sdt/internal/semantic"
 )
@@ -62,8 +63,9 @@ const indexHTML = `<!doctype html>
 type server struct {
 	root         string
 	corpus       string
-	wiki         *contextwiki.Builder
-	wikiEdgeList []graphEdge
+	wiki          *contextwiki.Builder
+	wikiPageGraph *graph.Graph
+	wikiEdgeList  []graphEdge
 	srch         *search.Index
 	srchMu       sync.RWMutex
 	backlinks    *backlinkIndex

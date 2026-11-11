@@ -32,8 +32,8 @@ describe("ReferencedBy", () => {
       path: "context/analysis/analy-x.md",
       total: 2,
       referrers: [
-        { path: "context/plan/plan-x.md", title: "Plan X", kind: "plan", via: "sources" },
-        { path: "context/tasks/t.md", title: "Task", kind: "tasks", via: "relation" },
+        { path: "context/plan/plan-x.md", title: "Plan X", kind: "plan", via: "derivation" },
+        { path: "context/tasks/t.md", title: "Task", kind: "tasks", via: "lifecycle" },
       ],
     });
     renderPanel();
@@ -45,11 +45,38 @@ describe("ReferencedBy", () => {
     expect(screen.getByText("derives from")).toBeTruthy();
   });
 
+  it("names the relation verb for a wiki or body edge", async () => {
+    mockBacklinks({
+      path: "context/wiki/architecture/beta.md",
+      total: 2,
+      referrers: [
+        {
+          path: "context/wiki/architecture/alpha.md",
+          title: "Alpha",
+          kind: "wiki",
+          via: "wiki",
+          verb: "depends_on",
+        },
+        {
+          path: "context/wiki/architecture/gamma.md",
+          title: "Gamma",
+          kind: "wiki",
+          via: "body",
+          verb: "refines",
+        },
+      ],
+    });
+    renderPanel();
+    await screen.findByRole("link", { name: /Alpha/ });
+    expect(screen.getByText("depends on")).toBeTruthy();
+    expect(screen.getByText("refines")).toBeTruthy();
+  });
+
   it("derives a readable title when a referrer has none", async () => {
     mockBacklinks({
       path: "x",
       total: 1,
-      referrers: [{ path: "context/notes/20260901-note.md", via: "links" }],
+      referrers: [{ path: "context/notes/20260901-note.md", via: "correlation" }],
     });
     renderPanel();
     const link = await screen.findByRole("link");
