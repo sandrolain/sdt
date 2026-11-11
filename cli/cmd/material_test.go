@@ -25,6 +25,11 @@ func materialExportFixture(t *testing.T) (string, string) {
 		"**Verifica.** Le domande sono nella verifica del corso.\n" +
 		"<!-- assess=architecture/alpha items=a-1 -->\n\nFine.\n"
 	path := writeMaterial(t, "alpha.it.md", header, body)
+	deck := header + "\n\n---\ntheme: default\npaginate: true\n---\n\n# Deck\n\n" +
+		"Vedi `architecture/alpha`.\n\n" +
+		"<!-- claim=architecture/alpha#c-aaaaaaaa digest=" + digests["c-aaaaaaaa"] + " -->\n\n" +
+		"<!-- Note: claim 1. Una nota del relatore. -->\n\n---\n\n# Seconda\n"
+	writeCtxDoc(t, "context/renders/materials/software-architect/alpha.it.slide.md", deck)
 	return path, digests["c-aaaaaaaa"]
 }
 
@@ -51,6 +56,23 @@ func TestMaterialExportCleansTheGuide(t *testing.T) {
 	}
 	if _, err := os.Stat(guide); err != nil {
 		t.Errorf("the authoring source must be untouched: %v", err)
+	}
+
+	deck, err := os.ReadFile(filepath.Join(out, "alpha.it.slide.md"))
+	if err != nil {
+		t.Fatalf("read the exported deck: %v", err)
+	}
+	deckText := string(deck)
+	if !strings.HasPrefix(deckText, "---\n") {
+		t.Errorf("the deck frontmatter must be first, got:\n%s", deckText)
+	}
+	for _, residue := range []string{"<!--", "claims=", "claim 1", "architecture/alpha"} {
+		if strings.Contains(deckText, residue) {
+			t.Errorf("the exported deck still carries %q:\n%s", residue, deckText)
+		}
+	}
+	if !strings.Contains(deckText, "# Seconda") || !strings.Contains(deckText, "Alpha") {
+		t.Errorf("the deck must keep its slides and resolve the slug:\n%s", deckText)
 	}
 }
 
@@ -81,11 +103,19 @@ func TestMaterialCheckRefusesTheSourceAndPassesTheExport(t *testing.T) {
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, materialCheckCmd, nil, guide))
 	})
+	deckPath := "context/renders/materials/software-architect/alpha.it.slide.md"
+	shouldExitWithCode(t, 1, func() string {
+		return string(execute(t, materialCheckCmd, nil, deckPath))
+	})
 	out := t.TempDir()
 	execute(t, materialExportCmd, nil, "architecture/alpha", "--out", out, "--lang", "it")
 	clean := string(execute(t, materialCheckCmd, nil, filepath.Join(out, "alpha.it.md")))
 	if strings.TrimSpace(clean) != "clean" {
 		t.Errorf("the export must pass the check, got %q", clean)
+	}
+	cleanDeck := string(execute(t, materialCheckCmd, nil, filepath.Join(out, "alpha.it.slide.md")))
+	if strings.TrimSpace(cleanDeck) != "clean" {
+		t.Errorf("the exported deck must pass the check, got %q", cleanDeck)
 	}
 }
 

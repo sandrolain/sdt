@@ -59,9 +59,17 @@ concept with several materials is refused: name --syllabus and --lang.`,
 		case fmtYAML:
 			outputString(cmd, fmt.Sprintf("path: %s\nmarkers_removed: %d\nslugs_resolved: %d\nslugs_unresolved: %d\ncheck_line_removed: %t\n",
 				result.Path, result.MarkersRemoved, result.SlugsResolved, result.SlugsUnresolved, result.CheckLineRemoved))
+			if result.Deck != "" {
+				outputString(cmd, fmt.Sprintf("deck: %s\ndeck_markers_removed: %d\ndeck_notes_dropped: %d\n",
+					result.Deck, result.DeckMarkers, result.DeckNotes))
+			}
 		default:
 			outputString(cmd, fmt.Sprintf("exported %s (%d marker(s) removed, %d slug(s) resolved, %d unresolved)\n",
 				result.Path, result.MarkersRemoved, result.SlugsResolved, result.SlugsUnresolved))
+			if result.Deck != "" {
+				outputString(cmd, fmt.Sprintf("exported %s (%d marker(s) removed, %d note(s) dropped)\n",
+					result.Deck, result.DeckMarkers, result.DeckNotes))
+			}
 		}
 	},
 }
@@ -217,6 +225,9 @@ type materialExportResult struct {
 	SlugsResolved    int    `json:"slugsResolved" yaml:"slugsResolved"`
 	SlugsUnresolved  int    `json:"slugsUnresolved" yaml:"slugsUnresolved"`
 	CheckLineRemoved bool   `json:"checkLineRemoved" yaml:"checkLineRemoved"`
+	Deck             string `json:"deck,omitempty" yaml:"deck,omitempty"`
+	DeckMarkers      int    `json:"deckMarkers,omitempty" yaml:"deckMarkers,omitempty"`
+	DeckNotes        int    `json:"deckNotes,omitempty" yaml:"deckNotes,omitempty"`
 }
 
 func exportMaterialFile(ref materialFile, outDir string, pages *contextwiki.Builder) (materialExportResult, error) {
@@ -233,7 +244,174 @@ func exportMaterialFile(ref materialFile, outDir string, pages *contextwiki.Buil
 		return materialExportResult{}, fmt.Errorf("write %s: %w", dst, err)
 	}
 	result.Path = filepath.ToSlash(dst)
+
+	// The deck beside the guide travels with it: the same boundary, one file.
+	deckPath := strings.TrimSuffix(ref.Path, sdtMarkdownExt) + ".slide" + sdtMarkdownExt
+	if deckData, readErr := os.ReadFile(deckPath); readErr == nil { //#nosec G304 -- the deck beside the resolved guide
+		deckClean, deckMarkers, deckNotes := cleanDeckText(string(deckData), pages)
+		deckDst := filepath.Join(outDir, filepath.Base(deckPath))
+		if writeErr := os.WriteFile(deckDst, []byte(deckClean), 0o644); writeErr != nil { //#nosec G306 -- a deliverable a reader opens
+			return materialExportResult{}, fmt.Errorf("write %s: %w", deckDst, writeErr)
+		}
+		result.Deck = filepath.ToSlash(deckDst)
+		result.DeckMarkers = deckMarkers
+		result.DeckNotes = deckNotes
+	}
 	return result, nil
+}
+
+// cleanDeckText prepares a deck for a reader who does not have the corpus. The
+// material header moves out of Marp's way (it must precede the frontmatter), the
+// binding markers are dropped, and the speaker notes go with them: the notes are
+// the presenter's, and they cite claim ids. A Marp directive (a comment that is
+// neither a marker nor a "Note:") stays, because dropping it changes the deck.
+func cleanDeckText(text string, pages *contextwiki.Builder) (string, int, int) {
+	lines := strings.Split(text, "\n")
+	if len(lines) > 0 && strings.HasPrefix(strings.TrimSpace(lines[0]), "<!-- material:") {
+		lines = lines[1:]
+	}
+	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
+		lines = lines[1:]
+	}
+	kept := make([]string, 0, len(lines))
+	markers, notes := 0, 0
+	inComment := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if inComment {
+			if strings.Contains(trimmed, "-->") {
+				inComment = false
+			}
+			continue
+		}
+		if materialCheckRe.MatchString(line) {
+			markers++
+			continue
+		}
+		if strings.HasPrefix(trimmed, "<!--") {
+			switch {
+			case materialMarkerLine(trimmed):
+				markers++
+			case speakerNoteLine(trimmed):
+				notes++
+			default:
+				// A Marp directive (fit, _class, _paginate …): keep it, it shapes
+				// the slide and is not an authoring record.
+				kept = append(kept, strings.TrimRight(line, " \t"))
+				continue
+			}
+			if !strings.Contains(trimmed, "-->") {
+				inComment = true
+			}
+			continue
+		}
+		cleaned := materialCommentRe.ReplaceAllString(line, "")
+		if cleaned != line {
+			if materialMarkerLine(line) {
+				markers++
+			} else if speakerNoteLine(line) {
+				notes++
+			}
+		}
+		kept = append(kept, strings.TrimRight(cleaned, " \t"))
+	}
+	body := strings.Join(kept, "\n")
+	body = materialSlugRe.ReplaceAllStringFunc(body, func(token string) string {
+		match := materialSlugRe.FindStringSubmatch(token)
+		if page := resolveMaterialSlug(pages, match[1]); page != nil && strings.TrimSpace(page.Title) != "" {
+			return page.Title
+		}
+		return token
+	})
+	body = regexp.MustCompile(`\n{3,}`).ReplaceAllString(body, "\n\n")
+	body = strings.Trim(body, "\n")
+	var dropped int
+	body, dropped = dropBankSlides(body)
+	markers += dropped
+	if body != "" {
+		body += "\n"
+	}
+	return body, markers, notes
+}
+
+// dropBankSlides removes the slide that promises the course's item bank. A guide
+// closes its exercise with one line the cleaner drops; a deck carries a whole
+// slide ("Verifica: …", "sono nella verifica del corso"), and a deliverable that
+// cannot show the bank should not show the promise.
+func dropBankSlides(body string) (string, int) {
+	lines := strings.Split(body, "\n")
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "---" {
+		return body, 0
+	}
+	closeIdx := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			closeIdx = i
+			break
+		}
+	}
+	if closeIdx < 0 {
+		return body, 0
+	}
+	front := lines[:closeIdx+1]
+	rest := lines[closeIdx+1:]
+	var slides [][]string
+	current := []string{}
+	for _, line := range rest {
+		if strings.TrimSpace(line) == "---" {
+			slides = append(slides, current)
+			current = nil
+			continue
+		}
+		current = append(current, line)
+	}
+	slides = append(slides, current)
+	kept := make([][]string, 0, len(slides))
+	dropped := 0
+	for _, slide := range slides {
+		text := strings.ToLower(strings.Join(slide, "\n"))
+		first := ""
+		for _, line := range slide {
+			if strings.TrimSpace(line) != "" {
+				first = strings.TrimSpace(line)
+				break
+			}
+		}
+		if strings.Contains(text, "verifica del corso") || strings.HasPrefix(first, "# Verifica") {
+			dropped++
+			continue
+		}
+		kept = append(kept, slide)
+	}
+	out := strings.Join(front, "\n")
+	for i, slide := range kept {
+		block := strings.Trim(strings.Join(slide, "\n"), "\n")
+		if i == 0 {
+			// The frontmatter close is already a `---`; the first slide follows it
+			// after a blank line, with no second separator (which Marp would read as
+			// an empty slide).
+			out += "\n\n" + block
+			continue
+		}
+		out += "\n\n---\n\n" + block
+	}
+	return out, dropped
+}
+
+func materialMarkerLine(line string) bool {
+	for _, marker := range []string{"claim=", "lesson=", "objective=", "assess=", "gloss=", "connective"} {
+		if strings.Contains(line, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func speakerNoteLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	trimmed = strings.TrimPrefix(trimmed, "<!--")
+	trimmed = strings.TrimSpace(trimmed)
+	return strings.HasPrefix(strings.ToLower(trimmed), "note:")
 }
 
 // resolveMaterialSlug accepts a full page id or the bare last segment a guide uses
@@ -355,19 +533,42 @@ func checkMaterialPath(path string, pages *contextwiki.Builder) ([]materialFindi
 		if readErr != nil {
 			return nil, readErr
 		}
-		for i, line := range strings.Split(string(data), "\n") {
+		isDeck := strings.HasSuffix(file, ".slide"+sdtMarkdownExt)
+		lines := strings.Split(string(data), "\n")
+		if isDeck && (len(lines) == 0 || strings.TrimSpace(lines[0]) != "---") {
+			findings = append(findings, materialFinding{
+				Path: filepath.ToSlash(file), Line: 1,
+				Message: "frontmatter is not at the start: the material header or a blank line displaces it, so Marp renders an empty first slide",
+			})
+		}
+		for i, line := range lines {
 			add := func(message string) {
 				findings = append(findings, materialFinding{Path: filepath.ToSlash(file), Line: i + 1, Message: message})
 			}
-			switch {
-			case strings.Contains(line, "<!--"):
-				add("authoring comment or header")
-			case strings.Contains(line, "claims="):
-				add("claim map")
-			case materialCheckRe.MatchString(line):
-				add("check line naming the item bank")
-			case strings.Contains(strings.ToLower(line), "verifica del corso"):
-				add("check line naming the item bank")
+			if isDeck {
+				switch {
+				case materialMarkerLine(line):
+					add("authoring marker")
+				case speakerNoteLine(line):
+					add("speaker note carrying presenter-only metadata")
+				case strings.Contains(line, "claims="):
+					add("claim map")
+				case strings.Contains(strings.ToLower(line), "verifica del corso"):
+					add("check line naming the item bank")
+				case strings.Contains(line, "claim "):
+					add("internal claim reference")
+				}
+			} else {
+				switch {
+				case strings.Contains(line, "<!--"):
+					add("authoring comment or header")
+				case strings.Contains(line, "claims="):
+					add("claim map")
+				case materialCheckRe.MatchString(line):
+					add("check line naming the item bank")
+				case strings.Contains(strings.ToLower(line), "verifica del corso"):
+					add("check line naming the item bank")
+				}
 			}
 			for _, match := range materialSlugRe.FindAllStringSubmatch(line, -1) {
 				if resolveMaterialSlug(pages, match[1]) != nil {
