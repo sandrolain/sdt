@@ -30,7 +30,7 @@ func materialExportFixture(t *testing.T) (string, string) {
 		"<!-- claim=architecture/alpha#c-aaaaaaaa digest=" + digests["c-aaaaaaaa"] + " -->\n\n" +
 		"<!-- Note: claim 1. Una nota del relatore. -->\n\n---\n\n# Seconda\n\n" +
 		"---\n\n# Verifica: quattro domande chiuse\n\n- sono nella verifica del corso\n\n" +
-		"---\n\n# Terza\n"
+		"---\n\n# Terza\n\n---\n\n# Dove sei: prima la lingua, ultima scena del tema\n"
 	writeCtxDoc(t, "context/renders/materials/software-architect/alpha.it.slide.md", deck)
 	return path, digests["c-aaaaaaaa"]
 }
@@ -68,12 +68,12 @@ func TestMaterialExportCleansTheGuide(t *testing.T) {
 	if !strings.HasPrefix(deckText, "---\n") {
 		t.Errorf("the deck frontmatter must be first, got:\n%s", deckText)
 	}
-	for _, residue := range []string{"<!--", "claims=", "claim 1", "architecture/alpha"} {
+	for _, residue := range []string{"claim=", "assess=", "claims=", "claim 1", "architecture/alpha"} {
 		if strings.Contains(deckText, residue) {
 			t.Errorf("the exported deck still carries %q:\n%s", residue, deckText)
 		}
 	}
-	if !strings.Contains(deckText, "# Seconda") || !strings.Contains(deckText, "# Terza") || !strings.Contains(deckText, "Alpha") {
+	if !strings.Contains(deckText, "# Seconda") || !strings.Contains(deckText, "# Terza") || !strings.Contains(deckText, "# Dove sei") || !strings.Contains(deckText, "Alpha") {
 		t.Errorf("the deck must keep its slides and resolve the slug:\n%s", deckText)
 	}
 	if strings.Contains(deckText, "Verifica") || strings.Contains(strings.ToLower(deckText), "verifica del corso") {

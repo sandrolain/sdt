@@ -60,14 +60,14 @@ concept with several materials is refused: name --syllabus and --lang.`,
 			outputString(cmd, fmt.Sprintf("path: %s\nmarkers_removed: %d\nslugs_resolved: %d\nslugs_unresolved: %d\ncheck_line_removed: %t\n",
 				result.Path, result.MarkersRemoved, result.SlugsResolved, result.SlugsUnresolved, result.CheckLineRemoved))
 			if result.Deck != "" {
-				outputString(cmd, fmt.Sprintf("deck: %s\ndeck_markers_removed: %d\ndeck_notes_dropped: %d\n",
+				outputString(cmd, fmt.Sprintf("deck: %s\ndeck_markers_removed: %d\ndeck_notes_kept: %d\n",
 					result.Deck, result.DeckMarkers, result.DeckNotes))
 			}
 		default:
 			outputString(cmd, fmt.Sprintf("exported %s (%d marker(s) removed, %d slug(s) resolved, %d unresolved)\n",
 				result.Path, result.MarkersRemoved, result.SlugsResolved, result.SlugsUnresolved))
 			if result.Deck != "" {
-				outputString(cmd, fmt.Sprintf("exported %s (%d marker(s) removed, %d note(s) dropped)\n",
+				outputString(cmd, fmt.Sprintf("exported %s (%d marker(s) removed, %d note(s) kept)\n",
 					result.Deck, result.DeckMarkers, result.DeckNotes))
 			}
 		}
@@ -275,12 +275,19 @@ func cleanDeckText(text string, pages *contextwiki.Builder) (string, int, int) {
 	}
 	kept := make([]string, 0, len(lines))
 	markers, notes := 0, 0
-	inComment := false
+	skipping, keepingNote := false, false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if inComment {
+		if skipping {
 			if strings.Contains(trimmed, "-->") {
-				inComment = false
+				skipping = false
+			}
+			continue
+		}
+		if keepingNote {
+			kept = append(kept, cleanSpeakerNote(line))
+			if strings.Contains(trimmed, "-->") {
+				keepingNote = false
 			}
 			continue
 		}
@@ -292,16 +299,24 @@ func cleanDeckText(text string, pages *contextwiki.Builder) (string, int, int) {
 			switch {
 			case materialMarkerLine(trimmed):
 				markers++
+				if !strings.Contains(trimmed, "-->") {
+					skipping = true
+				}
 			case speakerNoteLine(trimmed):
-				notes++
+				cleaned := cleanSpeakerNote(line)
+				if speakerNoteText(cleaned) != "" {
+					kept = append(kept, cleaned)
+					notes++
+					if !strings.Contains(trimmed, "-->") {
+						keepingNote = true
+					}
+				} else if !strings.Contains(trimmed, "-->") {
+					skipping = true
+				}
 			default:
 				// A Marp directive (fit, _class, _paginate …): keep it, it shapes
 				// the slide and is not an authoring record.
 				kept = append(kept, strings.TrimRight(line, " \t"))
-				continue
-			}
-			if !strings.Contains(trimmed, "-->") {
-				inComment = true
 			}
 			continue
 		}
@@ -310,7 +325,7 @@ func cleanDeckText(text string, pages *contextwiki.Builder) (string, int, int) {
 			if materialMarkerLine(line) {
 				markers++
 			} else if speakerNoteLine(line) {
-				notes++
+				cleaned = cleanSpeakerNote(cleaned)
 			}
 		}
 		kept = append(kept, strings.TrimRight(cleaned, " \t"))
@@ -334,10 +349,30 @@ func cleanDeckText(text string, pages *contextwiki.Builder) (string, int, int) {
 	return body, markers, notes
 }
 
+var materialClaimRefRe = regexp.MustCompile(`(?i)\bclaim\s+\d+(?:\s*(?:,|e|and)\s*\d+)*\.?`)
+
+// cleanSpeakerNote keeps the presenter's note and removes the claim ids it used to
+// cite: the ids are the corpus's, not the presenter's.
+func cleanSpeakerNote(line string) string {
+	out := materialClaimRefRe.ReplaceAllString(line, "")
+	out = regexp.MustCompile(`\s{2,}`).ReplaceAllString(out, " ")
+	return strings.TrimRight(out, " \t")
+}
+
+func speakerNoteText(line string) string {
+	text := strings.TrimSpace(line)
+	text = strings.TrimPrefix(text, "<!--")
+	text = strings.TrimSuffix(text, "-->")
+	text = strings.TrimSpace(text)
+	text = strings.TrimPrefix(text, "Note:")
+	return strings.TrimSpace(text)
+}
+
 // dropBankSlides removes the slide that promises the course's item bank. A guide
 // closes its exercise with one line the cleaner drops; a deck carries a whole
-// slide ("Verifica: …", "sono nella verifica del corso"), and a deliverable that
-// cannot show the bank should not show the promise.
+// slide ("Verifica: …", "sono nella verifica del corso"), and the delivered deck
+// does not carry the bank. The course position ("Dove sei") stays: the presenter
+// has the course.
 func dropBankSlides(body string) (string, int) {
 	lines := strings.Split(body, "\n")
 	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "---" {
@@ -387,9 +422,6 @@ func dropBankSlides(body string) (string, int) {
 	for i, slide := range kept {
 		block := strings.Trim(strings.Join(slide, "\n"), "\n")
 		if i == 0 {
-			// The frontmatter close is already a `---`; the first slide follows it
-			// after a blank line, with no second separator (which Marp would read as
-			// an empty slide).
 			out += "\n\n" + block
 			continue
 		}
@@ -549,8 +581,6 @@ func checkMaterialPath(path string, pages *contextwiki.Builder) ([]materialFindi
 				switch {
 				case materialMarkerLine(line):
 					add("authoring marker")
-				case speakerNoteLine(line):
-					add("speaker note carrying presenter-only metadata")
 				case strings.Contains(line, "claims="):
 					add("claim map")
 				case strings.Contains(strings.ToLower(line), "verifica del corso"):
