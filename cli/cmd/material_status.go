@@ -50,8 +50,11 @@ Exit 0: a status is a report, not a gate.`,
 			outputBytes(cmd, data)
 		default:
 			for _, row := range rows {
-				line := fmt.Sprintf("%s  %s  %s  %s  review: %s  publishable: %s",
-					row.Concept, row.Lang, row.Syllabus, row.Freshness, row.Review, yesNo(row.Publishable))
+				line := fmt.Sprintf("%s  %s  %s  %s", row.Concept, row.Lang, row.Syllabus, row.Freshness)
+				if row.Deck != "" {
+					line += "  deck: " + row.Deck
+				}
+				line += fmt.Sprintf("  review: %s  publishable: %s", row.Review, yesNo(row.Publishable))
 				if reason := publishableReason(row); reason != "" {
 					line += " — " + reason
 				}
@@ -79,6 +82,7 @@ type materialStatusRow struct {
 	Syllabus       string `json:"syllabus" yaml:"syllabus"`
 	Lang           string `json:"lang" yaml:"lang"`
 	Freshness      string `json:"freshness" yaml:"freshness"`
+	Deck           string `json:"deck,omitempty" yaml:"deck,omitempty"`
 	Review         string `json:"review" yaml:"review"`
 	Publishable    bool   `json:"publishable" yaml:"publishable"`
 	Classification string `json:"classification" yaml:"classification"`
@@ -102,6 +106,9 @@ func publishableReason(row materialStatusRow) string {
 	var reasons []string
 	if row.Freshness != renderFresh {
 		reasons = append(reasons, "freshness "+row.Freshness)
+	}
+	if row.Deck != "" && row.Deck != renderFresh {
+		reasons = append(reasons, "deck "+row.Deck)
 	}
 	if row.Review != "recorded" {
 		reasons = append(reasons, "review "+row.Review)
@@ -131,9 +138,6 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 	}
 	freshness := map[string]string{}
 	for _, row := range report {
-		if strings.HasSuffix(row.Path, ".slide"+sdtMarkdownExt) {
-			continue
-		}
 		freshness[filepath.ToSlash(row.Path)] = row.Status
 	}
 
@@ -158,6 +162,8 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 		if status == "" {
 			status = "unknown"
 		}
+		deckRel := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt) + ".slide" + sdtMarkdownExt)
+		deckStatus := freshness[deckRel]
 		ledgerPath := strings.TrimSuffix(file.Path, sdtMarkdownExt) + ".ledger.json"
 		review, detail, found := materialReviewState(ledgerPath)
 		row := materialStatusRow{
@@ -165,6 +171,7 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 			Syllabus:       strings.TrimPrefix(file.Header.Syllabus, "syllabi/"),
 			Lang:           file.Header.Lang,
 			Freshness:      status,
+			Deck:           deckStatus,
 			Review:         review,
 			Classification: file.Header.Classification,
 			Detail:         detail,
@@ -174,7 +181,9 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 				row.Ledger = filepath.ToSlash(ledgerRel)
 			}
 		}
-		row.Publishable = status == renderFresh && review == "recorded" &&
+		row.Publishable = status == renderFresh &&
+			(deckStatus == "" || deckStatus == renderFresh) &&
+			review == "recorded" &&
 			file.Header.Classification != "" && file.Header.Classification != "undeclared"
 		rows = append(rows, row)
 	}

@@ -108,3 +108,34 @@ func TestMaterialStatusFiltersByLanguage(t *testing.T) {
 		t.Errorf("without a filter the status lists both languages, got %+v", rows)
 	}
 }
+
+// writeStatusDeck puts a deck beside the guide, with the same claim at the given
+// digest: the live one for a fresh deck, a wrong one for a stale deck.
+func writeStatusDeck(t *testing.T, digest string) {
+	t.Helper()
+	header := materialHeaderLine("architecture/alpha", [][2]string{{"c-aaaaaaaa", digest}})
+	writeCtxDoc(t, "context/renders/materials/software-architect/alpha.it.slide.md",
+		header+"\n\n---\ntheme: default\npaginate: true\n---\n\n# Deck\n")
+}
+
+func TestMaterialStatusDeckFresh(t *testing.T) {
+	writeMaterialStatusFixture(t, "public", `{"cycle":{"critic":"cold read","reader":"cold read, passes"}}`)
+	digests := liveDigests(t, "architecture/alpha")
+	writeStatusDeck(t, digests["c-aaaaaaaa"])
+	row := runMaterialStatus(t)[0]
+	if row.Deck != renderFresh || !row.Publishable {
+		t.Errorf("a fresh guide and a fresh deck with a recorded review are publishable, got %+v", row)
+	}
+}
+
+func TestMaterialStatusDeckStale(t *testing.T) {
+	writeMaterialStatusFixture(t, "public", `{"cycle":{"critic":"cold read","reader":"cold read, passes"}}`)
+	writeStatusDeck(t, "000000000000")
+	row := runMaterialStatus(t)[0]
+	if row.Deck != renderStale || row.Publishable {
+		t.Errorf("a stale deck blocks publishable, got %+v", row)
+	}
+	if reason := publishableReason(row); !strings.Contains(reason, "deck stale") {
+		t.Errorf("the reason must name the deck, got %q", reason)
+	}
+}
