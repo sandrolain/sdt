@@ -28,7 +28,9 @@ func materialExportFixture(t *testing.T) (string, string) {
 	deck := header + "\n\n---\ntheme: default\npaginate: true\n---\n\n# Deck\n\n" +
 		"Vedi `architecture/alpha`.\n\n" +
 		"<!-- claim=architecture/alpha#c-aaaaaaaa digest=" + digests["c-aaaaaaaa"] + " -->\n\n" +
-		"<!-- Note: claim 1. Una nota del relatore. -->\n\n---\n\n# Seconda\n"
+		"<!-- Note: claim 1. Una nota del relatore. -->\n\n---\n\n# Seconda\n\n" +
+		"---\n\n# Verifica: quattro domande chiuse\n\n- sono nella verifica del corso\n\n" +
+		"---\n\n# Terza\n"
 	writeCtxDoc(t, "context/renders/materials/software-architect/alpha.it.slide.md", deck)
 	return path, digests["c-aaaaaaaa"]
 }
@@ -71,8 +73,11 @@ func TestMaterialExportCleansTheGuide(t *testing.T) {
 			t.Errorf("the exported deck still carries %q:\n%s", residue, deckText)
 		}
 	}
-	if !strings.Contains(deckText, "# Seconda") || !strings.Contains(deckText, "Alpha") {
+	if !strings.Contains(deckText, "# Seconda") || !strings.Contains(deckText, "# Terza") || !strings.Contains(deckText, "Alpha") {
 		t.Errorf("the deck must keep its slides and resolve the slug:\n%s", deckText)
+	}
+	if strings.Contains(deckText, "Verifica") || strings.Contains(strings.ToLower(deckText), "verifica del corso") {
+		t.Errorf("the bank slide must not reach the deliverable:\n%s", deckText)
 	}
 }
 
