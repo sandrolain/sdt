@@ -181,3 +181,19 @@ func TestContextListQueryErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestContextListAliasesFilter proves a wiki alias is addressable through the
+// generic manifest filter, so the field needs no dedicated query surface.
+func TestContextListAliasesFilter(t *testing.T) {
+	runInTempDir(t)
+	writeCtxDoc(t, "context/wiki/architecture/alpha.md", "---\nkind: wiki\nid: architecture/alpha\ntitle: Alpha\nsummary: s\nstatus: active\naliases:\n  - \"Event Sourcing\"\n  - \"event store\"\n---\nbody\n")
+	writeCtxDoc(t, "context/wiki/architecture/beta.md", "---\nkind: wiki\nid: architecture/beta\ntitle: Beta\nsummary: s\nstatus: active\n---\nbody\n")
+
+	out := string(execute(t, contextListCmd, nil, "--type", "wiki", "--where", "aliases=event store"))
+	if !strings.Contains(out, "alpha") || strings.Contains(out, "beta") {
+		t.Errorf("--where aliases=<value> did not find the page:\n%s", out)
+	}
+	if out := string(execute(t, contextListCmd, nil, "--type", "wiki", "--where", "aliases=unknown")); strings.TrimSpace(out) != "" {
+		t.Errorf("an unmatched alias must find nothing:\n%s", out)
+	}
+}

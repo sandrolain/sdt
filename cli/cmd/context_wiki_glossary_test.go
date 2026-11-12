@@ -100,3 +100,112 @@ A page.
 		t.Errorf("an empty glossary must say so, got %q", out)
 	}
 }
+
+// aliasGlossaryCorpus writes two pages: one claiming two other names and one
+// claiming none, so a test can assert both the rows and the untouched default.
+func aliasGlossaryCorpus(t *testing.T) {
+	t.Helper()
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/alpha.md", `---
+kind: wiki
+id: architecture/alpha
+title: Alpha
+aliases:
+  - "Event Sourcing"
+  - "event store"
+type: concept
+status: active
+summary: a page with two other names
+---
+
+## Summary
+
+A page.
+`)
+	writeCtxDoc(t, "context/wiki/architecture/beta.md", `---
+kind: wiki
+id: architecture/beta
+title: Beta
+type: concept
+status: active
+summary: a page with no alias
+---
+
+## Summary
+
+Another page.
+`)
+}
+
+// TestWikiGlossaryAliasesResolveAPage proves the flag answers "which page is
+// called X by another name", with the file to open, and that the case fold is
+// only comparison: the written form reaches the output.
+func TestWikiGlossaryAliasesResolveAPage(t *testing.T) {
+	aliasGlossaryCorpus(t)
+
+	out := string(execute(t, contextWikiGlossaryCmd, nil, "--aliases", "--format", "json"))
+	var rows []glossaryAliasRow
+	if err := json.Unmarshal([]byte(out), &rows); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("rows = %+v, want the two aliases", rows)
+	}
+	// "Event Sourcing" and "event store" sort case-insensitively, by lower form.
+	if rows[0].Alias != "Event Sourcing" || rows[1].Alias != "event store" {
+		t.Errorf("order = %q, %q", rows[0].Alias, rows[1].Alias)
+	}
+	for _, row := range rows {
+		if row.Page != "architecture/alpha" || row.Path != "context/wiki/architecture/alpha.md" {
+			t.Errorf("row = %+v, want alpha and its file", row)
+		}
+	}
+
+	text := string(execute(t, contextWikiGlossaryCmd, nil, "--aliases"))
+	if !strings.Contains(text, "Event Sourcing — architecture/alpha (context/wiki/architecture/alpha.md)") {
+		t.Errorf("text output is missing the alias row:\n%s", text)
+	}
+}
+
+// TestWikiGlossaryAliasesLeaveTheDefaultUntouched proves the new flag cannot
+// change an existing consumer: without it the output is the term list, and a
+// corpus with aliases but no `## Terms` says what it always said.
+func TestWikiGlossaryAliasesLeaveTheDefaultUntouched(t *testing.T) {
+	aliasGlossaryCorpus(t)
+
+	out := string(execute(t, contextWikiGlossaryCmd, nil))
+	if strings.Contains(out, "Event Sourcing") {
+		t.Errorf("the default output must not carry alias rows:\n%s", out)
+	}
+	if !strings.Contains(out, "defines no term") {
+		t.Errorf("the default on a term-less corpus must keep its wording:\n%s", out)
+	}
+}
+
+// TestWikiGlossaryAliasesEmptyIsHonest proves a corpus that declares no alias
+// says so rather than printing nothing.
+func TestWikiGlossaryAliasesEmptyIsHonest(t *testing.T) {
+	setupContextProject(t)
+	stubWikiExit(t)
+	writeCtxDoc(t, "context/wiki/architecture/beta.md", `---
+kind: wiki
+id: architecture/beta
+title: Beta
+type: concept
+status: active
+summary: a page with no alias
+---
+
+## Summary
+
+Another page.
+`)
+
+	if out := string(execute(t, contextWikiGlossaryCmd, nil, "--aliases")); !strings.Contains(out, "no page declares an `aliases` entry yet") {
+		t.Errorf("an empty alias list must say so, got %q", out)
+	}
+	if out := string(execute(t, contextWikiGlossaryCmd, nil, "--aliases", "--format", "json")); strings.TrimSpace(out) != "[]" {
+		t.Errorf("empty JSON = %q, want []", out)
+	}
+}

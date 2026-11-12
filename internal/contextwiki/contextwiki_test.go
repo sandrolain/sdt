@@ -248,6 +248,32 @@ func TestParseContentTypedBodyLinks(t *testing.T) {
 	}
 }
 
+func TestParseContentAliases(t *testing.T) {
+	p := ParseContent("---\nid: a\ntitle: Alpha\naliases:\n  - \"Alternative Name\"\n  - Beta\n---\nbody\n", "context/wiki/a.md", "a")
+	if len(p.Aliases) != 2 || p.Aliases[0] != "Alternative Name" || p.Aliases[1] != "Beta" {
+		t.Fatalf("Aliases = %q, want the two written names in order", p.Aliases)
+	}
+
+	// An absent key is an empty list, never an error: the field is optional.
+	if q := ParseContent("---\nid: b\ntitle: Beta\n---\nbody\n", "context/wiki/b.md", "b"); len(q.Aliases) != 0 {
+		t.Errorf("Aliases on a page without the key = %q, want none", q.Aliases)
+	}
+}
+
+func TestNormalizeAlias(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"  Event Sourcing ", "event sourcing"},
+		{"EVENT SOURCING", "event sourcing"},
+		{"", ""},
+		{"   ", ""},
+	}
+	for _, c := range cases {
+		if got := NormalizeAlias(c.in); got != c.want {
+			t.Errorf("NormalizeAlias(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestParsePageFromDisk(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "wiki/accounts.md", pageContent("accounts", "Account Service"))

@@ -145,6 +145,7 @@ type Page struct {
 	Status      string
 	Summary     string
 	Verified    string
+	Aliases     []string            // the concept's other names, as written
 	Relations   map[string][]string // verb → raw [[id|label]] targets
 	Tags        []string
 	Sources     []string
@@ -166,6 +167,14 @@ func (p *Page) Active() bool { return p.Status == StatusActive }
 
 // ExplicitTitle reports whether the frontmatter declares an explicit title.
 func (p *Page) ExplicitTitle() bool { return FrontmatterTitle(p.Frontmatter) != "" }
+
+// NormalizeAlias is an alias's comparison identity: surrounding space dropped
+// and the case folded, so a page declaring "Event Sourcing" and a reader asking
+// for "event sourcing" name the same synonym. The frontmatter keeps the form the
+// author wrote; only the comparison is normalised.
+func NormalizeAlias(alias string) string {
+	return strings.ToLower(strings.TrimSpace(alias))
+}
 
 // SplitFrontmatter returns the full outer "---\n...\n---" block (or "" when
 // absent) and the body after it. A trailing newline after the closing
@@ -451,6 +460,7 @@ func ParseContent(content, path, fileID string) *Page {
 		Status:      FrontmatterField(fm, "status"),
 		Summary:     FrontmatterField(fm, "summary"),
 		Verified:    FrontmatterField(fm, "verified"),
+		Aliases:     FrontmatterList(fm, "aliases"),
 		Tags:        FrontmatterList(fm, "tags"),
 		Sources:     FrontmatterList(fm, "sources"),
 		LineCount:   contentLines(content),

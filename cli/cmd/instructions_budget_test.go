@@ -93,7 +93,9 @@ var instructionModuleRatchet = map[string]int{
 	// their captions; they are extracted before distilling, kept author-facing and
 	// counted found/placed/dropped in the receipt. The rule earned its place in
 	// the images paragraph after three extraction waves (analysis 20261109-201222).
-	"ingestion": 5070,
+	// Rose to 5105 (2026-11-11): `aliases` is a schema row and the dedup step
+	// matches by other names, so a synonym reuses its page instead of becoming one.
+	"ingestion": 5105,
 	// plan rose to 2675 (2026-10-29): `close` is now stated as the only writer of a
 	// plan's `completed`, because a checklist that reaches its last item no longer
 	// flips the status — the closeout that belongs with it would be skipped.
@@ -125,8 +127,11 @@ var instructionModuleRatchet = map[string]int{
 	// reuse test that decides inline definition versus its own node. Rose to 2910
 	// (2026-11-06): the "no undefined term" rule gained its machine form — `## Terms`,
 	// one claim per entry, and the verb that lists them — because a rule the lint
-	// enforces has to be readable where the writer looks.
-	"wiki": 2910,
+	// enforces has to be readable where the writer looks. Rose to 2965 (2026-11-11):
+	// "one concept, several names" — `aliases` owns the synonym the merge
+	// accumulates and a title claiming the same name is a finding, so a second name
+	// never becomes a second page.
+	"wiki": 2965,
 	// distillation rose to 1790 (2026-11-03): the extraction ledger names
 	// `units --match`, the read-only candidate list the fold-in reconciles. Rose to
 	// 1882 (2026-11-04): a section that is a diagram is extracted as one, its dropped

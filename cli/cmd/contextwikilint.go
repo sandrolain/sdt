@@ -163,6 +163,7 @@ func lintWikiLinks(b *wikiIssueBuilder, bld *contextwiki.Builder) {
 		lintWikiBodyLinks(b, p, bld)
 	}
 	lintWikiTitleUniqueness(b, bld.Pages)
+	lintWikiAliases(b, bld.Pages)
 }
 
 // lintWikiRelations validates the closed-verb relations block targets.
@@ -513,6 +514,48 @@ func lintWikiTitleUniqueness(b *wikiIssueBuilder, pages []*contextwiki.Page) {
 			b.add(p.Path, ctxLintCritical, "duplicate title %q across wiki pages", ttl)
 		}
 		seen[ttl] = true
+	}
+}
+
+// lintWikiAliases keeps a concept's other names checkable: one alias belongs to
+// one page. A repeat on one page is that page's defect; a claim shared by two
+// pages is exactly the collision "one concept, one page" exists to catch, and so
+// is critical like a duplicate title. An alias equal to another page's title or
+// id is a naming collision rather than a broken page — a warning, with a lint of
+// the same weight as any other cross-kind clash.
+func lintWikiAliases(b *wikiIssueBuilder, pages []*contextwiki.Page) {
+	names := map[string]string{} // normalised title/id → the page that owns it
+	for _, p := range pages {
+		for _, name := range []string{p.Title, p.ID} {
+			if k := contextwiki.NormalizeAlias(name); k != "" {
+				names[k] = p.Path
+			}
+		}
+	}
+	owner := map[string]string{} // normalised alias → the page that claimed it
+	for _, p := range pages {
+		local := map[string]bool{}
+		for _, raw := range p.Aliases {
+			alias := strings.TrimSpace(raw)
+			key := contextwiki.NormalizeAlias(raw)
+			if key == "" {
+				b.add(p.Path, ctxLintWarning, "empty `aliases` entry")
+				continue
+			}
+			if local[key] {
+				b.add(p.Path, ctxLintCritical, "duplicate alias %q on this page", alias)
+				continue
+			}
+			local[key] = true
+			if prev, ok := owner[key]; ok {
+				b.add(p.Path, ctxLintCritical, "alias %q is already claimed by %s", alias, prev)
+				continue
+			}
+			owner[key] = p.Path
+			if other, ok := names[key]; ok && other != p.Path {
+				b.add(p.Path, ctxLintWarning, "alias %q is another page's title or id (%s)", alias, other)
+			}
+		}
 	}
 }
 

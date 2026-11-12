@@ -141,6 +141,10 @@ A book-scale source keeps its coverage **on its index page**.
 - One concept, one page. A page is exhaustive for its concept; material spanning
   several distinct concepts is split into child/sibling nodes wired via
   `part_of`/`depends_on`/`refers_to`.
+- One concept, several names. The source's other name for a concept goes in
+  `aliases` (optional frontmatter), never into a second page: a name belongs to
+  one page, a second claim on it — another page's alias or title — is a lint
+  finding, and `sdt context wiki glossary --aliases` lists the pairs.
 - Never overwrite an existing claim silently. Corrections refine
   `refines #claim-<n>`; conflicting claims stay visible with source, scope,
   and date until reviewed.
@@ -254,9 +258,9 @@ you not to overwrite silently. This is the procedure behind it.
   | contradiction | keep both with `conflicts_with`, both sides visible |
   | none | create a new page |
 
-- **Merge rules:** never lose sources; **keep the existing `id`**; accumulate
-  aliases; re-evaluate the merged page's confidence; and **if merging would
-  change the existing concept's meaning, do not merge**.
+- **Merge rules:** never lose sources; **keep the existing `id`**; accumulate the
+  other names into `aliases`; re-evaluate the merged page's confidence; and **if
+  merging would change the existing concept's meaning, do not merge**.
 - Similarities and contradictions stay visible on the page — never collapse
   background knowledge or conflicting evidence into a merged statement, and
   never merge on similarity or co-occurrence alone.

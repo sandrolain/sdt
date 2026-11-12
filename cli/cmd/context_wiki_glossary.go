@@ -45,7 +45,12 @@ as malformed is left out rather than listed half-formed, so the glossary and
 ` + "`sdt context wiki lint`" + ` never disagree. Derived and read-only: it holds no file
 and no status, so it cannot go stale.
 
+With ` + "`--aliases`" + ` it answers the other question — which page a concept is called X
+by another name — from the ` + "`aliases`" + ` frontmatter field. Same verb, same rows, same
+read-only source; the default output is unchanged.
+
 EXAMPLE — sdt context wiki glossary
+          sdt context wiki glossary --aliases
           sdt context wiki glossary --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -54,34 +59,42 @@ EXAMPLE — sdt context wiki glossary
 			exitWithError(cmd, fmt.Errorf("load wiki: %w", err))
 			return
 		}
-		rows := glossaryRowsOf(bld.Pages)
-		switch getFormat(cmd) {
-		case fmtJSON:
-			out, merr := json.MarshalIndent(rows, "", "  ")
-			exitWithError(cmd, merr)
-			outputBytes(cmd, out)
-			return
-		case fmtYAML:
-			out, merr := yaml.Marshal(rows)
-			exitWithError(cmd, merr)
-			outputBytes(cmd, out)
+		if getBoolFlag(cmd, "aliases", false) {
+			outputGlossaryAliases(cmd, glossaryAliasRowsOf(bld.Pages))
 			return
 		}
-		if len(rows) == 0 {
-			outputString(cmd, "the corpus defines no term in a `## Terms` section yet\n")
-			return
-		}
-		for _, row := range rows {
-			line := fmt.Sprintf("%s — %s#%s", row.Term, row.Page, row.Claim)
-			if row.Digest != "" {
-				line += " (" + row.Digest + ")"
-			}
-			if row.Span != "" {
-				line += " " + row.Span
-			}
-			outputString(cmd, line+"\n")
-		}
+		outputGlossaryTerms(cmd, glossaryRowsOf(bld.Pages))
 	},
+}
+
+// outputGlossaryTerms writes the term rows in the requested format.
+func outputGlossaryTerms(cmd *cobra.Command, rows []glossaryRow) {
+	switch getFormat(cmd) {
+	case fmtJSON:
+		out, merr := json.MarshalIndent(rows, "", "  ")
+		exitWithError(cmd, merr)
+		outputBytes(cmd, out)
+		return
+	case fmtYAML:
+		out, merr := yaml.Marshal(rows)
+		exitWithError(cmd, merr)
+		outputBytes(cmd, out)
+		return
+	}
+	if len(rows) == 0 {
+		outputString(cmd, "the corpus defines no term in a `## Terms` section yet\n")
+		return
+	}
+	for _, row := range rows {
+		line := fmt.Sprintf("%s — %s#%s", row.Term, row.Page, row.Claim)
+		if row.Digest != "" {
+			line += " (" + row.Digest + ")"
+		}
+		if row.Span != "" {
+			line += " " + row.Span
+		}
+		outputString(cmd, line+"\n")
+	}
 }
 
 // glossaryRowsOf collects one row per claim-backed term, sorted by term and page. An
@@ -122,5 +135,6 @@ func glossaryRowsOf(pages []*contextwiki.Page) []glossaryRow {
 }
 
 func init() {
+	contextWikiGlossaryCmd.Flags().Bool("aliases", false, "List the alias → page rows instead of the claim-backed terms")
 	contextWikiCmd.AddCommand(contextWikiGlossaryCmd)
 }

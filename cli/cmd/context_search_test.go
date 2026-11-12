@@ -136,3 +136,29 @@ func TestContextSearchMissingStoreRebuilds(t *testing.T) {
 		t.Fatalf("store not rebuilt: %v", err)
 	}
 }
+
+// TestContextSearchFindsAWikiAlias proves decision 0048's search assumption: an
+// alias needs no index change, because the page's frontmatter is already
+// searchable text. The synonym below appears nowhere else on the page.
+func TestContextSearchFindsAWikiAlias(t *testing.T) {
+	runInTempDir(t)
+	writeCtxDoc(t, "context/wiki/architecture/alpha.md", `---
+kind: wiki
+id: architecture/alpha
+title: Alpha
+aliases:
+  - "Quiescent Buffer"
+status: active
+summary: a page whose other name lives only in its frontmatter
+---
+
+Kestrel holds the write batch until the flush window closes.
+`)
+
+	ctxSearchIndex = nil
+	out := string(execute(t, contextSearchCmd, nil, "quiescent buffer"))
+	if !strings.Contains(out, "context/wiki/architecture/alpha.md") {
+		t.Errorf("an alias is not searchable:\n%s", out)
+	}
+	ctxSearchIndex = nil
+}

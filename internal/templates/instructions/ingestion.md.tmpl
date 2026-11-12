@@ -86,7 +86,7 @@ are always skipped.
    goes through `context/instructions/distillation.md` — its tiered batches, the
    extraction ledger and the fold-in merge — **before** any fact reaches a page.
 5. Read each source and split it into atomic facts (distillation rules below).
-6. Match existing `wiki/` nodes by `title`/`id`/`tags`: **reuse** a
+6. Match existing `wiki/` nodes by `title`/`id`/`tags`/`aliases`: **reuse** a
    same-slug + same-concept node (append/update in place, never duplicate),
    or create a new one.
 7. Write or update distilled `wiki/` pages per the schema, the six invariants
@@ -263,6 +263,7 @@ X when Y"), never as a fact.
 | `kind` | yes | `wiki` |
 | `id` | yes | relative subpath of the file (`wiki/backend/auth.md` → `backend/auth`; flat `wiki/<slug>.md` → `<slug>`) |
 | `title` | yes | unique across all `wiki/` pages (ambiguity = lint error) |
+| `aliases` | no | the concept's other names, one per item, compared case-insensitively — only names a source states; a name belongs to one page (a collision is a lint error) |
 | `type` | yes | `concept` · `entity` · `decision` · `pattern` · `module` (meaning: see wiki.md) |
 | `status` | yes | `draft` · `active` · `archived` |
 | `summary` | yes | 1-2 lines: wiki list, search and lint read it |
@@ -447,7 +448,7 @@ chapter" → it is a container, extract the concepts inside it.
 1. Read source in full; split into atomic facts.
 2. Group facts into candidate nodes by concept/entity/decision; split any
    candidate spanning several distinct concepts (pre-wire child relations).
-3. Match existing `wiki/` nodes by `title`/`id`/`tags`; reuse, split or create.
+3. Match existing `wiki/` nodes by `title`/`id`/`tags`/`aliases`; reuse, split or create.
 4. Existing nodes: **append** claims; corrections add `refines #claim-<n>` —
    never rewrite history in place.
 5. Set `relations` + `tags`; verify every claim has a citation and `sources`
