@@ -85,10 +85,16 @@ func ToolboxRows() []ToolboxRow {
 		},
 		{
 			Operation: "corpus text, line range, numbered",
-			Display:   "`sdt read -p <ref> [--lines a:b] [--numbered]`",
+			Display:   "`sdt read -p <ref> [--lines a:b] [--numbered] [--count]`",
 			Command:   toolboxCmdRead,
-			Flags:     []string{"lines", "numbered"},
+			Flags:     []string{"lines", "numbered", "count"},
 			Replaces:  "`cat`/`sed -n`/host reader",
+		},
+		{
+			Operation: "checksum of a file",
+			Display:   "`sdt sha256 <file> --hex`",
+			Command:   "sha256",
+			Replaces:  "`shasum`",
 		},
 		{
 			Operation: "listing, sizes",

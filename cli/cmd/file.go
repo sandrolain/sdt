@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"github.com/sandrolain/sdt/internal/mdstruct"
 	"os"
 	"path/filepath"
@@ -176,15 +177,64 @@ func readSectionOrExit(cmd *cobra.Command, content, section string) string {
 
 var fileWriteCmd = &cobra.Command{
 	Use:   "write",
-	Short: "File Write",
-	Long:  `File Write`,
-	Run: func(cmd *cobra.Command, args []string) {
-		byt := getInputBytes(cmd, args)
+	Short: "Write bytes to a file",
+	Long: `Write input bytes to a file.
 
+WHEN — a whole file is being written: a fixture, a derived render, bytes the
+host writer would have written. The input arrives via stdin, ` + "`--input`" + `, ` + "`--file`" + `
+or ` + "`--inb64`" + `; ` + "`--multi`" + ` reads a JSON array and writes one content per comma-
+separated path.
+
+WHEN NOT — a surgical change: ` + "`sdt edit`" + ` replaces a guarded literal and
+preserves the mode; this verb replaces the whole file. A corpus document
+appends through ` + "`sdt context edit --append`" + `.
+
+RETURNS — the written paths, one per line. Without ` + "`--overwrite`" + ` an existing
+file is refused, so the verb never destroys content silently.
+
+` + "`--append`" + ` is the ` + "`cat >>`" + ` shape: the input is added after the file's
+current bytes, the file is created when it does not exist (mode 0644), an
+existing file keeps its mode, and a directory or a corpus document is refused
+with the named reason. It conflicts with ` + "`--overwrite`" + `: appending and
+replacing are two different asks.
+
+EXAMPLE — ` + "`sdt context new --type notes … | sdt write -p out.md`" + `,
+          ` + "`echo tail | sdt write -p fixture.txt --append`" + ``,
+	Example: `  sdt write -p out.md < payload.txt
+  sdt write -p out.md < payload.txt --overwrite
+  echo tail | sdt write -p fixture.txt --append`,
+	Run: func(cmd *cobra.Command, args []string) {
 		files := getStringFlag(cmd, "file", true)
 		overwrite := getBoolFlag(cmd, "overwrite", false)
 		multi := getBoolFlag(cmd, "multi", false)
 		binary := getBoolFlag(cmd, "binary", false)
+		appendMode := getBoolFlag(cmd, "append", false)
+
+		if appendMode && overwrite {
+			exitWithError(cmd, fmt.Errorf("--append and --overwrite are different asks: appending keeps the current bytes, replacing discards them"))
+		}
+		if appendMode && multi {
+			exitWithError(cmd, fmt.Errorf("--append takes one file: drop --multi"))
+		}
+		if appendMode {
+			// The input cannot come through getInputBytes here: its --file is
+			// the input file, while --append's --file is the target.
+			var byt []byte
+			switch {
+			case cmd.Flags().Lookup("inb64").Changed:
+				byt = getBytesBase64Flag(cmd, "inb64", true)
+			case cmd.Flags().Lookup("input").Changed:
+				byt = []byte(getStringFlag(cmd, "input", true))
+			default:
+				data, err := io.ReadAll(cmd.InOrStdin())
+				exitWithError(cmd, err)
+				byt = data
+			}
+			runWriteAppend(cmd, files, byt)
+			return
+		}
+
+		byt := getInputBytes(cmd, args)
 
 		var contents [][]byte
 
@@ -235,6 +285,45 @@ var fileWriteCmd = &cobra.Command{
 	},
 }
 
+// runWriteAppend adds the input after a file's current bytes, creating the
+// file when it does not exist — the `cat >>` shape, under the same guards the
+// edit verb applies: no directory, no corpus document, nothing outside the
+// project root when the project declares one.
+func runWriteAppend(cmd *cobra.Command, files string, byt []byte) {
+	paths := strings.Split(files, ",")
+	res := make([]string, 0, len(paths))
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		abs, err := filepath.Abs(path)
+		exitWithError(cmd, err)
+		info, statErr := os.Stat(abs)
+		if statErr == nil && info.IsDir() {
+			exitWithError(cmd, fmt.Errorf("%s is a directory: append names a file", path))
+		}
+		exitWithError(cmd, editRefuseCorpus(abs, path))
+		if statErr != nil && os.IsNotExist(statErr) {
+			// Create: the cat >> shape makes the file when it is absent.
+			// #nosec G306 -- a created file is readable on purpose
+			exitWithError(cmd, os.WriteFile(abs, byt, 0o644))
+		} else {
+			// #nosec G304 -- the path is the command's subject, validated above
+			f, err := os.OpenFile(abs, os.O_APPEND|os.O_WRONLY, 0o600)
+			exitWithError(cmd, err)
+			_, err = f.Write(byt)
+			exitWithError(cmd, err)
+			exitWithError(cmd, f.Close())
+		}
+		res = append(res, abs)
+	}
+	if len(res) == 0 {
+		exitWithError(cmd, fmt.Errorf("no file to append to: name one with --file"))
+	}
+	outputString(cmd, strings.Join(res, "\n"))
+}
+
 func init() {
 	pf := fileReadCmd.PersistentFlags()
 	pf.StringP("file", "p", "", "File path")
@@ -249,6 +338,7 @@ func init() {
 	pf.BoolP("multi", "m", false, "Input as JSON array with multiple contents")
 	pf.BoolP("overwrite", "o", false, "Overwrite if already exist")
 	pf.BoolP("binary", "b", false, "Input as Base64 encoded content")
+	pf.Bool("append", false, "Add the input after the file's current bytes (creates the file when absent)")
 
 	rootCmd.AddCommand(fileReadCmd)
 	rootCmd.AddCommand(fileWriteCmd)

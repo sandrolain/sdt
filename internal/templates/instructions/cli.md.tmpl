@@ -11,7 +11,7 @@ summary: "The agent's verbs: corpus read/write, the document lifecycle and the q
 
 - `sdt context new|path|list --type <t>` — create a work file ({{.NewTypes}}), print
   its path ({{.PathTypes}}), list one kind ({{.ListTypes}})
-- `sdt read -p <file|corpus-ref> [--section] [--lines a:b|-N:] [--numbered]`,
+- `sdt read -p <file|corpus-ref> [--section] [--lines a:b|-N:] [--numbered] [--count]`,
   `context edit <doc> [--append|--row|--fence]` — one reader with line numbers
   and a real `--format json`, and a body writer (append, section, row, fence)
 - `sdt context get|set|unset <doc> [<key>] [<value>]` — a frontmatter key, bytes
@@ -26,7 +26,9 @@ summary: "The agent's verbs: corpus read/write, the document lifecycle and the q
 - `sdt context reindex`, `lint` — index, corpus
 - `sdt context budget` — the always-loaded surface; informational, never a gate
 - `sdt grep [-A/-B/-C] [--path <file>]`, `find [glob]`, `ls [--stat] [--depth]`,
-  `edit -p <f> --old/--new [--regex|--lines a:b|--from-marker/--to-marker]`, `diff <a> <b>`, `write -p <file>`, `sdt q` for
+  `edit -p <f> --old/--new [--regex|--lines a:b|--from-marker/--to-marker]`
+  (`--batch <manifest>`: N files × M pairs, per-pair count),
+  `diff <a> <b>`, `write -p <file> [--append]`, `sha256 <file> --hex`, `sdt q` for
   JSON — the working tree, bounded
 - `sdt agent doctor|verify|gate|refresh` — health, instruction contract, the
   project's `gate:` steps, a re-render

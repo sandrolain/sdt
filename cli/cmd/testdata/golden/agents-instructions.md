@@ -14,7 +14,8 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 | what a term in the corpus means | `sdt context wiki glossary` | recalling a definition |
 | a cold corpus: what it holds | `sdt context map` | guessing from `ls` |
 | a book, by meaning, without an index | `sdt chunk search <artifact> <q>` | a throwaway search index |
-| corpus text, line range, numbered | `sdt read -p <ref> [--lines a:b] [--numbered]` | `cat`/`sed -n`/host reader |
+| corpus text, line range, numbered | `sdt read -p <ref> [--lines a:b] [--numbered] [--count]` | `cat`/`sed -n`/host reader |
+| checksum of a file | `sdt sha256 <file> --hex` | `shasum` |
 | listing, sizes | `sdt ls --stat` | `ls -la` |
 | ingestion queue | `sdt context ingest list` | `ls` of context/ingestion |
 | paths by glob | `sdt find <glob>` | `find` |

@@ -16,9 +16,9 @@ import (
 // turn; an on-demand module is paid once, when its action occurs. The budgets
 // therefore differ, and each is a ceiling on growth, not a target:
 //
-//   - AGENTS instructions block ≤ 2,200 words — read on every turn;
+//   - AGENTS instructions block ≤ 2,400 words — read on every turn;
 //   - any instruction module ≤ 1,400 words — read once per session, when used;
-//   - cli.md ≤ 400 words — the agent's own verb list, the catalog everything else
+//   - cli.md ≤ 410 words — the agent's own verb list, the catalog everything else
 //     defers to `sdt schema` for.
 //
 // A module over the module ceiling is *ratcheted* rather than cut: it carries a
@@ -37,9 +37,13 @@ const (
 	// into the module that owns it (authoring.md, "Spend the reader's context").
 	// Raised from 2398 on 2026-11-06: the toolbox gained the glossary row, which is
 	// the table's purpose — a verb an agent must find is a verb the block names.
-	instructionBlockBudget   = 2420
+	// Raised to 2440 on 2026-11-12: the audit's G4/G5 rows — the read row's
+	// --count and the sha256 checksum row (plan 20261112-085909).
+	instructionBlockBudget   = 2440
 	instructionModuleBudget  = 1400
-	instructionCatalogBudget = 400
+	// Raised from 400 to 410 on 2026-11-12: the audit's G1–G3/G5 additions to the
+	// verb line — --batch, write --append, sha256 (plan 20261112-085909).
+	instructionCatalogBudget = 410
 	// instructionFileBudget is the whole every-turn file — the generated block plus
 	// the write-once project block, title and separators included — pinned at the
 	// measured 4,380 words of 2026-10-27 (audit 20261025-154218, F1). The block
@@ -47,7 +51,8 @@ const (
 	// file a session actually pays for was 1.8x what the block budget named.
 	// Raised to 4,390 on 2026-10-28: the lesson module's on-action row, five
 	// words for a contract a session reads whenever it writes teaching content.
-	instructionFileBudget = 4390
+	// Raised to 4,400 on 2026-11-12: follows the block's G4/G5 rows.
+	instructionFileBudget = 4400
 )
 
 // instructionModuleRatchet is the exemption map: a module may not grow past the
@@ -235,7 +240,7 @@ func TestInstructionBudgetCoversEveryModule(t *testing.T) {
 			t.Errorf("module %q missing from the budgeted set", want)
 		}
 	}
-	if fmt.Sprintf("%d", instructionBlockBudget) != "2420" {
+	if fmt.Sprintf("%d", instructionBlockBudget) != "2440" {
 		t.Error("the always-loaded budget changed without updating authoring.md")
 	}
 }
