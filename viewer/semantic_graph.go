@@ -15,7 +15,7 @@ const semanticGraphK = 5
 // eligibleSemanticKinds is the knowledge-bearing scope of the docs semantic map.
 // `wiki` is excluded because it has its own graph view (wiki and docs are
 // separate uses); operational and generated records (tasks, plans, instructions,
-// commands, worklog, ...) stay out so document structure does not dominate
+// worklog, ...) stay out so document structure does not dominate
 // proximity.
 var eligibleSemanticKinds = map[string]bool{
 	"notes":        true,

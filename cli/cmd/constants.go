@@ -37,8 +37,6 @@ const (
 	sdtDocsDir         = "context/sdtdocs"
 	sdtDocsReadme      = "context/sdtdocs/README.md"
 	sdtInstrDir        = "context/instructions"
-	sdtCommandsDir     = "context/commands"
-	sdtCommandsIndex   = "context/commands/index.md"
 	sdtWorkReadme      = "context/README.md"
 	sdtContextIndex    = "context/index.md"
 	sdtArchitectureDir = "context/architecture"

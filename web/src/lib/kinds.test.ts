@@ -30,10 +30,6 @@ describe("entryKind", () => {
     expect(entryKind(entry({ kind: "decision" }))).toBe("decision");
   });
 
-  it("uses the commands kind for command-trigger files", () => {
-    expect(entryKind(entry({ kind: "commands" }))).toBe("commands");
-  });
-
   it("uses the instructions kind for the per-type contract modules", () => {
     expect(entryKind(entry({ kind: "instructions" }))).toBe("instructions");
   });
@@ -58,8 +54,7 @@ describe("entryKind", () => {
 });
 
 describe("kindFromPath", () => {
-  it("maps corpus folders to kinds, including commands and plurals", () => {
-    expect(kindFromPath("context/commands/index.md")).toBe("commands");
+  it("maps corpus folders to kinds, including plurals", () => {
     expect(kindFromPath("context/instructions/analysis.md")).toBe("instructions");
     expect(kindFromPath("context/proposals/p.md")).toBe("proposal");
     expect(kindFromPath("context/questions/q.md")).toBe("questions");

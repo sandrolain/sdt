@@ -237,7 +237,6 @@ func ctxStatusRows() []ctxStatusEntry {
 		{kind: ctxTypeSource, next: read, ifClean: read},
 		{kind: ctxTypeQuestions, next: "answer open questions", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeTasks, next: "sdt context resume", ifClean: gitIgnoreModeNone},
-		{kind: ctxTypeCommands, next: "review triggers", ifClean: gitIgnoreModeNone},
 		{kind: ctxTypeWorklog, next: ctxTierHistory, ifClean: ctxTierHistory},
 	}
 	var rows []ctxStatusEntry

@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -586,50 +585,6 @@ func TestAgentInitForceArchivesObsoleteInstructions(t *testing.T) {
 	}
 }
 
-func TestAgentInitForceArchivesObsoleteCommands(t *testing.T) {
-	dir := runInTempDir(t)
-	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	obsolete := obsoleteCommandFiles
-	for _, name := range obsolete {
-		writeTestFile(t, filepath.Join("context/commands", name), "obsolete")
-	}
-	// Without --force the stale command file is preserved.
-	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	if _, err := os.Stat(filepath.Join(dir, "context/commands", obsolete[0])); err != nil {
-		t.Fatalf("expected stale command file preserved without --force: %v", err)
-	}
-	out := execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	if !strings.Contains(string(out), "archived") {
-		t.Errorf("expected archived status for obsolete command files: %s", out)
-	}
-	for _, name := range obsolete {
-		if _, err := os.Stat(filepath.Join(dir, "context/commands", name)); !os.IsNotExist(err) {
-			t.Errorf("expected obsolete command file %s to leave context/commands with --force", name)
-		}
-		assertArchived(t, dir, strings.TrimSuffix(name, ".md"))
-	}
-}
-
-// TestAgentInitForcePreservesUserCommandTrigger guards that a project trigger —
-// a row outside the generated block plus its optional detail file — survives
-// --force, which rewrites the built-in table only.
-func TestAgentInitForcePreservesUserCommandTrigger(t *testing.T) {
-	dir := runInTempDir(t)
-	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
-	execute(t, contextCommandsNewCmd, nil, "mytask", "--detail")
-	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	if _, err := os.Stat(filepath.Join(dir, "context/commands/mytask.md")); err != nil {
-		t.Errorf("a project detail file must survive --force: %v", err)
-	}
-	idx, err := os.ReadFile(filepath.Join(dir, "context/commands/index.md"))
-	if err != nil {
-		t.Fatalf("read registry: %v", err)
-	}
-	if !hasProjectRow(string(idx), "mytask") {
-		t.Errorf("the project row did not survive --force:\n%s", idx)
-	}
-}
-
 // TestAgentInitForceArchivesStaleMarkedFile checks the derived detection: a file
 // whose generated marker names a template that is no longer generated is
 // obsolete even though it is absent from the legacy list.
@@ -698,14 +653,13 @@ func assertArchived(t *testing.T, dir, base string) {
 }
 
 // TestAgentInitForcePreservesUserContent guards A4: content outside the
-// sdt:begin/end markers survives --force, both for instruction files and
-// command files.
+// sdt:begin/end markers survives --force for instruction files.
 
 func TestAgentInitForcePreservesUserContent(t *testing.T) {
 	runInTempDir(t)
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes")
 	note := "\n> User note outside the markers — must survive --force.\n"
-	for _, p := range []string{"context/instructions/analysis.md", "context/commands/index.md"} {
+	for _, p := range []string{"context/instructions/analysis.md"} {
 		data, err := os.ReadFile(p)
 		if err != nil {
 			t.Fatalf("read %s: %v", p, err)
@@ -715,7 +669,7 @@ func TestAgentInitForcePreservesUserContent(t *testing.T) {
 		}
 	}
 	execute(t, agentInitCmd, nil, "--project", "p", "--yes", "--force")
-	for _, p := range []string{"context/instructions/analysis.md", "context/commands/index.md"} {
+	for _, p := range []string{"context/instructions/analysis.md"} {
 		data, err := os.ReadFile(p)
 		if err != nil {
 			t.Fatalf("read %s after --force: %v", p, err)
@@ -723,10 +677,7 @@ func TestAgentInitForcePreservesUserContent(t *testing.T) {
 		if !strings.Contains(string(data), note) {
 			t.Errorf("user note outside markers lost in %s after --force", p)
 		}
-		wantMarker := "sdt:begin:commands/"
-		if strings.Contains(p, "instructions/") {
-			wantMarker = "sdt:begin:instructions/"
-		}
+		wantMarker := "sdt:begin:instructions/"
 		if !strings.Contains(string(data), wantMarker) {
 			t.Errorf("expected marker %q preserved in %s after --force", wantMarker, p)
 		}
@@ -1268,9 +1219,6 @@ func TestAgentInstructionsBlock(t *testing.T) {
 		"context/",
 		"task file exists only to split",
 		"context/essentials.md",
-		"context/commands/",
-		">ingestion",
-		"agent command",
 		"Lead with the do-able thing",
 		"Number multi-step work",
 		"Restate state in one line",
@@ -1288,24 +1236,6 @@ func TestAgentInstructionsBlock(t *testing.T) {
 	assertCommitConsentStatedOnce(t, string(data))
 	if !strings.Contains(string(data), "### Keep the chain") {
 		t.Error("expected intent gate recap section at block end")
-	}
-
-	// Commands directory: index + one thin trigger per agent-visible task,
-	// each referencing its durable instruction.
-	if _, err := os.Stat(filepath.Join(dir, "context/commands")); err != nil {
-		t.Fatalf("expected context/commands/ directory: %v", err)
-	}
-	cmdIndex, err := os.ReadFile(filepath.Join(dir, "context/commands/index.md"))
-	if err != nil {
-		t.Fatalf("expected context/commands/index.md: %v", err)
-	}
-	for _, want := range []string{"kind: commands", "`>analysis`", "`context/instructions/analysis.md`"} {
-		if !strings.Contains(string(cmdIndex), want) {
-			t.Errorf("expected %q in commands registry:\n%s", want, cmdIndex)
-		}
-	}
-	if _, err := os.Stat(filepath.Join(dir, "context/commands/ingestion.md")); !os.IsNotExist(err) {
-		t.Errorf("the registry must not write a per-trigger file: %v", err)
 	}
 
 	for _, name := range []string{
@@ -1423,8 +1353,7 @@ func TestAgentBlockInstructionsCoherence(t *testing.T) {
 		"context/scripts/",
 		"context/instructions/scripts.md",
 		"context/scripts/index.md",
-		"context/commands/",
-		">ingestion",
+		".agents/skills/",
 		"### 5-stage development lifecycle",
 		"verify-step",
 		"sdt context status",
@@ -2592,113 +2521,6 @@ func TestInstructionTemplateBodyDynamicData(t *testing.T) {
 	}
 	if strings.TrimSpace(instructionTemplateBody("analysis.md.tmpl", "", "")) == "" {
 		t.Error("analysis.md.tmpl rendered empty")
-	}
-}
-
-// TestCommandStubsResolveToInstructions is the parity guard for the declared
-// command registry: every stub's durable contract resolves to a generated
-// instruction file, and ids are unique.
-func TestCommandStubsResolveToInstructions(t *testing.T) {
-	generated := map[string]bool{}
-	for _, f := range instructionFiles("p", "g") {
-		generated[f.name] = true
-	}
-	seen := map[string]bool{}
-	for _, s := range agentCommandStubs {
-		if seen[s.id] {
-			t.Errorf("duplicate command stub id %q", s.id)
-		}
-		seen[s.id] = true
-		if !generated[s.contract+sdtMarkdownExt] {
-			t.Errorf("command stub %q: contract %q has no generated instruction file", s.id, s.contract)
-		}
-	}
-}
-
-// TestCommandStubsDeclarePayload is the completeness guard for the payload
-// contract: every shipped trigger declares what it accepts and enough examples
-// to be usable, so a 17th trigger cannot ship with a hollow stub. The
-// threshold is two because a single example does not show the free-prose rule
-// (an example with a colon in it) nor the empty-payload path.
-func TestCommandStubsDeclarePayload(t *testing.T) {
-	for _, s := range agentCommandStubs {
-		if strings.TrimSpace(s.payload) == "" {
-			t.Errorf("command stub %q declares no payload", s.id)
-		}
-		if len(s.examples) < 2 {
-			t.Errorf("command stub %q declares %d example(s), want at least 2", s.id, len(s.examples))
-		}
-		for i, ex := range s.examples {
-			if !strings.HasPrefix(ex, ">"+s.id+":") {
-				t.Errorf("command stub %q example %d = %q, want it to start with %q", s.id, i, ex, ">"+s.id+":")
-			}
-		}
-	}
-}
-
-// TestCommandStubsDeclareTaxonomy is the completeness guard for the command
-// taxonomy: every trigger declares a known kind, and only a workflow command
-// declares a subject (the doc type it advances the lifecycle of). A document
-// command's subject is the trigger itself, so the field stays empty.
-func TestCommandStubsDeclareTaxonomy(t *testing.T) {
-	kinds := map[string]bool{commandKindDocument: true, commandKindWorkflow: true}
-	workflows := map[string]bool{ctxTypePlan: true, "execute": true, ctxTypeDecision: true, ctxTypeTasks: true}
-	for _, s := range agentCommandStubs {
-		if !kinds[s.kind] {
-			t.Errorf("command stub %q: kind %q is not %q or %q", s.id, s.kind, commandKindDocument, commandKindWorkflow)
-			continue
-		}
-		switch s.kind {
-		case commandKindWorkflow:
-			if strings.TrimSpace(s.subject) == "" {
-				t.Errorf("workflow stub %q declares no subject", s.id)
-			}
-		case commandKindDocument:
-			if s.subject != "" {
-				t.Errorf("document stub %q declares subject %q, want empty", s.id, s.subject)
-			}
-		}
-		if workflows[s.id] != (s.kind == commandKindWorkflow) {
-			t.Errorf("command stub %q: kind %q does not match the declared workflow set", s.id, s.kind)
-		}
-	}
-}
-
-// TestCommandPayloadSurfaces asserts the payload contract is present in the
-// generated registry. It deliberately checks section headers and table shape,
-// never the exact wording: re-phrasing the grammar must not break the suite.
-func TestCommandPayloadSurfaces(t *testing.T) {
-	now := time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC)
-	idx := instrCommandsIndexTemplate([]commandIndexEntry{
-		{Trigger: "wiki", Contract: "wiki", Kind: commandKindDocument, Payload: "topic or page id", Examples: commandRowExamples([]string{">wiki: backend/auth"})},
-		{Trigger: "scratch", Contract: "scratch", Kind: commandKindDocument, Payload: commandPayloadUndeclared},
-	}, "p", now)
-	for _, want := range []string{
-		"### Grammar",
-		"| Trigger | Kind | Subject | Durable contract | Payload | Examples |",
-		"topic or page id",
-		commandPayloadUndeclared,
-		"`context/instructions/wiki.md`",
-		"`>wiki: backend/auth`",
-	} {
-		if !strings.Contains(idx, want) {
-			t.Errorf("registry missing %q", want)
-		}
-	}
-}
-
-// TestGeneratedCommandFilesMatchRegistry checks commandFiles() emits the single
-// registry document: a trigger is a row, not a file, so the generated set has
-// one member.
-func TestGeneratedCommandFilesMatchRegistry(t *testing.T) {
-	files := commandFiles("p", contextNow())
-	if len(files) != 1 || files[0].name != filepath.Base(sdtCommandsIndex) {
-		t.Fatalf("commandFiles() = %d file(s), want only the registry", len(files))
-	}
-	for _, s := range agentCommandStubs {
-		if _, err := os.Stat(filepath.Join(sdtCommandsDir, s.id+sdtMarkdownExt)); err == nil {
-			t.Errorf("a per-trigger file still exists for %q", s.id)
-		}
 	}
 }
 

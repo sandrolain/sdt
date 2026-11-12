@@ -17,7 +17,6 @@ func TestScopeInstructionContract(t *testing.T) {
 	}
 	for _, want := range []string{
 		"title: \"Recursive Design Flow (",
-		">scope",
 		"**Constitution**",
 		"Specify (tech-free)",
 		"Clarify (recursive)",
@@ -40,32 +39,5 @@ func TestScopeInstructionContract(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("scope contract missing %q:\n%s", want, body)
 		}
-	}
-}
-
-func TestScopeCommandStubRegistered(t *testing.T) {
-	found := false
-	for _, s := range agentCommandStubs {
-		if s.id == "scope" {
-			found = true
-			if s.contract != "scope" {
-				t.Errorf("scope contract = %q, want scope", s.contract)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("scope trigger not registered in agentCommandStubs")
-	}
-
-	if idx := commandsIndexContentFor([]string{agentProfileCore}, "p", contextNow()); !strings.Contains(idx, "`context/instructions/scope.md`") {
-		t.Errorf("the registry row does not point at the scope contract:\n%s", idx)
-	}
-
-	if idx := commandsIndexContent("p", contextNow()); !strings.Contains(idx, "| `>scope` |") {
-		t.Errorf("commands index missing the >scope row:\n%s", idx)
-	}
-
-	if block := agentBlockInstructions("p", "g"); !strings.Contains(block, "`context/instructions/scope.md`") {
-		t.Errorf("AGENTS.md instructions block does not reference context/instructions/scope.md")
 	}
 }

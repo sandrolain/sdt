@@ -244,7 +244,6 @@ var ctxReferenceFields = []string{ctxFrontmatterSources, ctxFrontmatterLinks, ct
 
 func lintFrontmatterReferences(path, content string, prio func(string) string) []ctxLintIssue {
 	var issues []ctxLintIssue
-	inCommands := filepath.Dir(path) == sdtCommandsDir
 	for _, field := range ctxReferenceFields {
 		for _, ref := range parseFrontmatterList(content, field) {
 			// `links: none` is the explicit "no relation" opt-out, not a path.
@@ -252,12 +251,6 @@ func lintFrontmatterReferences(path, content string, prio func(string) string) [
 				continue
 			}
 			if _, ok := ctxResolvePath(sdtWorkDir, ref); ok {
-				continue
-			}
-			// Unresolvable instructions refs in command files are reported by
-			// lintCommandFile with a precise remediation hint; skip the generic
-			// message here to avoid a duplicate finding.
-			if inCommands && strings.HasPrefix(strings.TrimSpace(ref), "instructions/") {
 				continue
 			}
 			message := "broken " + field + " reference: " + ref
@@ -479,9 +472,6 @@ const (
 	// probably carries more than one subject and should be a sibling set.
 	ctxAnalysisOversizedSections = 12
 	ctxAnalysisOversizedOptions  = 6
-	// ctxCommandSummaryMax caps the command-trigger description: the summary
-	// doubles as the trigger tooltip in CLI helpers and the viewer index.
-	ctxCommandSummaryMax = 1024
 )
 
 func (i ctxLintIssue) String() string {
@@ -544,41 +534,6 @@ func lintTimestampFields(path, content string, prio func(string) string) []ctxLi
 		if _, err := time.Parse(time.RFC3339, v); err != nil {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("frontmatter `%s` %q does not parse as RFC3339 UTC", key, v)})
 		}
-	}
-	return issues
-}
-
-// lintCommandFile validates the command-trigger contract for files under
-// context/commands/: kind must be `commands`, `id` must equal commands/<name>,
-// `summary` is capped (it doubles as the trigger tooltip), references to
-// instructions/<t>.md must resolve, and the body should state when the trigger
-// does NOT apply. Commands are standardized prompts: they may reference 0..n
-// instruction files, so no reverse (contract→command) check exists and a
-// self-contained command is valid.
-func lintCommandFile(path, content string, prio func(string) string) []ctxLintIssue {
-	var issues []ctxLintIssue
-	if kind := parseFrontmatterField(content, ctxFrontmatterKind); kind != "" && kind != ctxTypeCommands {
-		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "command file `kind` must be `" + ctxTypeCommands + "`, got " + kind})
-	}
-	base := strings.TrimSuffix(filepath.Base(path), sdtMarkdownExt)
-	if got := parseFrontmatterField(content, "id"); got != ctxTypeCommands+"/"+base {
-		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "command file `id` must be `" + ctxTypeCommands + "/" + base + "`"})
-	}
-	if s := parseFrontmatterField(content, "summary"); len([]rune(s)) > ctxCommandSummaryMax {
-		issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: fmt.Sprintf("command `summary` is %d chars (max %d)", len([]rune(s)), ctxCommandSummaryMax)})
-	}
-	for _, field := range []string{ctxFrontmatterSources, ctxFrontmatterLinks, ctxFrontmatterDerivedFrom, ctxFrontmatterResults} {
-		for _, ref := range parseFrontmatterList(content, field) {
-			if !strings.HasPrefix(strings.TrimSpace(ref), "instructions/") {
-				continue
-			}
-			if _, ok := ctxResolvePath(sdtWorkDir, ref); !ok {
-				issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintWarning), Message: "unresolved instruction reference: " + ref + " (fix the target path in the command frontmatter)"})
-			}
-		}
-	}
-	if !strings.Contains(content, "## When not to use") {
-		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintSuggestion, Message: "command body lacks a `## When not to use` section (state when the trigger does NOT apply)"})
 	}
 	return issues
 }
@@ -730,11 +685,6 @@ func lintDoc(path string) []ctxLintIssue {
 		} else if n := parseFrontmatterField(content, "number"); n != "" && n != m[1] {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintCritical, Message: fmt.Sprintf("frontmatter number %s does not match filename %s", n, m[1])})
 		}
-	}
-	// Command dir: trigger contract (kind/id consistency, summary cap,
-	// resolvable instruction refs, when-not-to-use advisory).
-	if dir == sdtCommandsDir {
-		issues = append(issues, lintCommandFile(path, content, prio)...)
 	}
 	// Oversized task phases and the completed-without-review advisory: a
 	// checklist beyond the soft bound (per `## Phase` section) gets a

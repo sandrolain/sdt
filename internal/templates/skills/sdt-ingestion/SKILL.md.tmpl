@@ -1,0 +1,31 @@
+---
+name: sdt-ingestion
+description: >
+  Use this skill when a request ingests external material into the corpus:
+  distilling staged sources into wiki pages, converting non-markdown captures,
+  or archiving consumed sources after approval — even when the request does not
+  name "ingestion", "distil" or "archive" explicitly. It routes to the project's
+  ingestion instruction file; it does not replace it.
+---
+
+# SDT ingestion skill
+
+The knowledge pipeline in one line: sources land in `context/ingestion/`
+(user), the agent distils them into `context/wiki/` pages, and consumed sources
+move to `context/refs/` only after the user approves the write-and-archive
+plan.
+
+1. Read `context/instructions/ingestion.md` **before any distillation** — the
+   invocation scope (`all`, one file, a glob, a URL), the routing test
+   (`single-pass` vs `book-scale`) and the operating sequence live there.
+2. List the scope with `sdt context ingest list`; the status is derived, never
+   assumed. Convert non-markdown sources first; the converted artifact is what
+   the routing test measures.
+3. Write and update wiki pages per `context/instructions/wiki.md` — one concept
+   per page, atomic cited claims, typed `relations`.
+4. **Approve-before-archive**: present the write-and-archive plan and wait for
+   the user's approval before anything leaves `context/ingestion/`. The archive
+   move (pending → archived) is the only legal mutation of the immutable dirs.
+5. On verification doubts, `context/instructions/distillation.md` and the
+   research lane (`research.md`) own the reading discipline; this skill owns the
+   pipeline gates.

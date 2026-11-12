@@ -61,7 +61,6 @@ describe("Tree", () => {
     // empty kind folders render at count 0 (questions/proposals/research/…)
     expect(countFor("Questions")).toBe("0");
     expect(countFor("Proposals")).toBe("0");
-    expect(countFor("Commands")).toBe("0");
   });
 
   it("renders mermaid documents in their own folder, linked to the docs route", async () => {

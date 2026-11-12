@@ -31,7 +31,7 @@ func checklistBackfillDone() bool {
 func ctxChecklistFiles() ([]string, error) {
 	var files []string
 	for _, t := range contextTypeList {
-		if t.kind == ctxTypeTmp || t.kind == ctxTypeCommands {
+		if t.kind == ctxTypeTmp {
 			continue
 		}
 		walkErr := filepath.WalkDir(t.dir, func(path string, d fs.DirEntry, err error) error {

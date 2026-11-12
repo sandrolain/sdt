@@ -1,0 +1,24 @@
+---
+name: sdt-memo
+description: >
+  Use this skill when a request touches a planned operation: adding a rule that
+  recurs, recording that a scheduled operation was done, or reviewing what is
+  due — even when the request does not name "memo" or "due" explicitly. It
+  routes to the project's memo instruction file; it does not replace it.
+---
+
+# SDT memo skill
+
+A memo is a planned operation the register owns; SDT has no scheduler, so the
+due check is opportunistic and propose-never-block.
+
+1. Read `context/instructions/memo.md` **before any register write** — the
+   rule/memo model, the CLI-owned register and the due-check contract live
+   there.
+2. Mutate only through the CLI (`sdt context memo …`), never by hand-editing
+   the register.
+3. At session start, run `sdt context memo due`; surface what is due and ask
+   whether to run it before or after the requested task — never block the task,
+   never run it silently.
+4. A due operation the user declines is postponed, not dropped: the register
+   records it and its next due date.

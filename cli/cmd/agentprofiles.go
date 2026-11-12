@@ -41,7 +41,8 @@ type agentProfile struct {
 var agentProfileRegister = []agentProfile{
 	{Slug: agentProfileCore, Title: "Core", Guide: "the lifecycle, the document contracts and the CLI"},
 	{Slug: "knowledge", Title: "Knowledge", Guide: "briefings, distillation, learning and the wiki",
-		Modules: []string{"briefing", "course", "distillation", "ingestion", "learning", "lesson", "material", "practice", "wiki"}},
+		Modules: []string{"briefing", "course", "distillation", "ingestion", "learning", "lesson", "material", "practice", "wiki"},
+		Skills:  []string{"sdt-ingestion"}},
 	{Slug: "ui", Title: "UI/UX", Guide: "layout, components, tokens, motion and accessibility",
 		Modules: []string{"ui", "ui-accessibility", "ui-adapters", "ui-components", "ui-layout", "ui-motion", "ui-performance", "ui-review", "ui-taste", "ui-tokens"},
 		Skills:  []string{"sdt-ui-ux"}},
@@ -160,15 +161,6 @@ func skillProfile(dir string) string {
 		}
 	}
 	return ""
-}
-
-// stubSelected reports whether a trigger is written for a selection: it is when
-// its durable contract module is.
-func stubSelected(s commandStub, profiles []string) bool {
-	if len(profiles) == 0 {
-		return true
-	}
-	return moduleSelected(s.contract, profiles)
 }
 
 // currentProfiles returns the project's stored selection, or core alone when

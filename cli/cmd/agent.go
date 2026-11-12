@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -162,188 +161,6 @@ func writeInstructionFiles(profiles []string, project, group string, force bool)
 	return results
 }
 
-// commandStub declares one agent-invocable trigger generated under
-// context/commands/: its trigger id, the durable instruction contract it
-// invokes, its kind (document vs workflow), and — for a workflow command — the
-// subject document type it advances the lifecycle of. The generated stubs and
-// the commands index derive from this single declared set — it is deliberately
-// not a pure function of the instruction set, because only some instruction
-// types are agent-invocable.
-//
-// payload is the one-phrase summary of what the trigger takes after the colon
-// in `>id: payload`; examples are rendered into the stub's ## Payload block.
-// This table is the single source of the per-trigger payload semantics: the
-// index column and the stub are both projections of it, never a second copy.
-//
-// kind/subject are the taxonomy projection: a document command produces or edits
-// a document of a fixed type (subject empty, the trigger is the type); a
-// workflow command advances the lifecycle and declares the subject type it
-// resolves (e.g. >plan resolves an analysis) through the working-context
-// resolution ladder documented in the generated commands index.
-
-type commandStub struct {
-	id       string
-	contract string // instruction id (no extension), e.g. "analysis"
-	kind     string // commandKindDocument | commandKindWorkflow
-	subject  string // doc type slug a workflow command resolves; empty for a document command
-	payload  string // one phrase: what the trigger accepts as its payload
-	examples []string
-}
-
-// Command kinds: a document command produces/edits a document of a fixed type;
-// a workflow command advances the lifecycle and declares the subject type it
-// resolves from the working context.
-
-const (
-	commandKindDocument = "document"
-	commandKindWorkflow = "workflow"
-)
-
-// doc is the shorthand for a document command: kind document, no subject.
-
-func docTrigger(id, contract, payload string, examples ...string) commandStub {
-	return commandStub{id: id, contract: contract, kind: commandKindDocument, payload: payload, examples: examples}
-}
-
-// workflow is the shorthand for a workflow command: it advances the lifecycle of
-// one subject document type.
-
-func workflowTrigger(id, contract, subject, payload string, examples ...string) commandStub {
-	return commandStub{id: id, contract: contract, kind: commandKindWorkflow, subject: subject, payload: payload, examples: examples}
-}
-
-var agentCommandStubs = []commandStub{
-	docTrigger("ingestion", "ingestion", "paths and/or URLs to ingest",
-		">ingestion: context/refs/example-repo", ">ingestion: https://example.com/doc"),
-	docTrigger(ctxTypeWiki, ctxTypeWiki, "topic or page id",
-		">wiki: the auth topic", ">wiki: list the pages in a section"),
-	docTrigger("learn", "learning", "the topic to learn",
-		">learn: the wiki page model", ">learn: why learner state is not wiki knowledge"),
-	docTrigger("review", "learning", "the concept to review, or what is due",
-		">review: the search ranking pipeline", ">review: what is due in the learner state"),
-	docTrigger("quiz", "learning", "the concepts a quiz covers",
-		">quiz: the relation vocabulary, including transitive links", ">quiz: how a page reaches a cluster"),
-	docTrigger("practice", "learning", "the task and its checkable result",
-		">practice: reconcile a staged source set into wiki pages", ">practice: the review pass over the learner state"),
-	docTrigger("research-learn", ctxTypeResearch, "the knowledge gap to ground the lesson in first",
-		">research-learn: what spaced-repetition clones do for review queues",
-		">research-learn: evidence for review scheduling without a tutor runtime"),
-	docTrigger(ctxTypeAnalysis, ctxTypeAnalysis, "subject or scope of the analysis to create or extend",
-		">analysis: why does the linter skip a note that should be indexed?",
-		">analysis: extend analysis/<analysis-file>.md with the trade-off the review raised"),
-	docTrigger("draft", "draft", "the raw notes to capture",
-		">draft: check whether the ranking can carry the objective facet",
-		">draft: three ideas about phase splitting, see the open question"),
-	docTrigger("scope", "scope", "the objective to scope",
-		">scope: give the linter a closed schema for command payloads", ">scope: replace two overlapping entry points with one filter engine"),
-	docTrigger("decide", "conversation", "the decision to put to the user",
-		">decide: the retry wording after three attempts", ">decide: whether the new wording replaces the timeout"),
-	workflowTrigger(ctxTypePlan, ctxTypePlan, ctxTypeAnalysis, "the analysis the plan is built from",
-		">plan: analysis/<analysis-file>.md", ">plan: the analysis just discussed"),
-	workflowTrigger("execute", ctxTypePlan, ctxTypePlan, "the plan (and phase) to execute",
-		">execute: plan/<plan-file>.md", ">execute: phase 3 of the plan just discussed"),
-	workflowTrigger(ctxTypeTasks, ctxTypeTasks, ctxTypePlan, "the plan to split across parallel streams",
-		">tasks: plan/<plan-file>.md", ">tasks: the plan just approved, two agents in parallel"),
-	docTrigger(ctxTypeProposal, ctxTypeProposal, "subject of the proposal",
-		">proposal: merge two overlapping commands into one verb", ">proposal: adopt the team checklist as a delivery gate"),
-	workflowTrigger(ctxTypeDecision, ctxTypeDecision, ctxTypeProposal, "the proposal to convert",
-		">decision: proposals/<proposal-file>", ">decision: the proposal just accepted"),
-	docTrigger(ctxTypeArchitecture, ctxTypeArchitecture, "component or topic to document",
-		">architecture: the search index pipeline", ">architecture: how the corpus is scanned and indexed"),
-	docTrigger(ctxTypeWorklog, ctxTypeWorklog, "the phase or task being closed out",
-		">worklog: phase 3 of plan/<plan-file>.md", ">worklog: close out the whole plan/<plan-file> run"),
-	docTrigger(ctxTypeNotes, ctxTypeNotes, "subject of the note",
-		">notes: filter clauses were dropped from the shared query engine", ">notes: the map document that the parser silently truncates"),
-	docTrigger(ctxTypeQuestions, ctxTypeQuestions, "topic to raise questions about",
-		">questions: whether the payload needs a closed schema", ">questions: which triggers need a subject and which accept a free subject"),
-	docTrigger("prompts", "prompts", "intent of the tracked prompt",
-		">prompts: the release note for the query filters", ">prompts: the reusable review checklist for a new instruction module"),
-	docTrigger("reference", "reference", "library or topic to look up",
-		">reference: cobra", ">reference: how do agents invoke commands"),
-	docTrigger("debug", "debugging", "the failure, regression or failing check to diagnose",
-		">debug: the failing test in the indexer", ">debug: the regression the user reported"),
-	docTrigger("memo", "memo", "the planned operation to add, record or review",
-		">memo: add a rule to update dependencies every 14 days",
-		">memo: record the vulnerability scan as done"),
-	docTrigger("todo", "todo", "one or more short ideas to add to the inbox",
-		">todo: integrate chatbot",
-		">todo: rethink the lint pipeline"),
-	docTrigger(ctxTypeResearch, ctxTypeResearch, "the question the run answers",
-		">research: do list and search stay in lockstep", ">research: what the host passes to an agent command"),
-	docTrigger("deepsearch", ctxTypeResearch, "the question the deepsearch answers",
-		">deepsearch: embedded vector stores for a Go CLI", ">deepsearch: how other Markdown KBs model claim provenance"),
-	docTrigger("search", ctxTypeResearch, "the query to discover sources for",
-		">search: embedded vector store Go", ">search: crawldown capture options"),
-	docTrigger("fetch", ctxTypeResearch, "the URL(s) to acquire, or none for the discovered sources",
-		">fetch: https://example.com/doc", ">fetch: every discovered source"),
-	docTrigger("verify", ctxTypeResearch, "the run to verify (default: the latest)",
-		">verify: the latest run", ">verify: 01a0f…"),
-	docTrigger("populate-wiki", ctxTypeResearch, "the brief explaining why the knowledge is useful (the agent then authors the pages)",
-		">populate-wiki: embedded vector stores for a documentation search", ">populate-wiki: archive the run, then author the pages"),
-}
-
-// commandFiles returns the generated command files under context/commands/:
-// one thin trigger per declared agent-invocable task plus the index. The index
-// is built last from a directory scan so user-created triggers are listed too
-// and survive `sdt agent init --force`.
-
-func commandFiles(project string, now time.Time) []instructionFile {
-	return commandFilesFor(nil, project, now)
-}
-
-// commandFilesFor returns the command files a profile selection writes: a
-// trigger whose durable contract lives in an unselected module is neither
-// generated nor advertised, so the registry never points at a file the project
-// does not have.
-func commandFilesFor(profiles []string, project string, now time.Time) []instructionFile {
-	return []instructionFile{{name: filepath.Base(sdtCommandsIndex), body: commandsIndexContentFor(profiles, project, now)}}
-}
-
-// obsoleteCommandFiles were generated as command stubs by older versions of
-// sdt agent init without a generated marker and are no longer generated; the
-// list is the documented history. Marker-based detection is deliberately NOT
-// applied to commands: `sdt context commands new` creates user triggers that
-// carry the same `commands/<id>` marker scope, so absence from the registry
-// cannot mean obsolete. With --force these files move to context/trash/
-// instead of being removed.
-
-var obsoleteCommandFiles = []string{
-	// Renamed rfcs → proposals: the trigger stub is now proposal.md.
-	"rfc.md",
-	// Renamed adr → decision: the trigger stub is now decision.md.
-	"adr.md",
-}
-
-// writeCommandFiles creates the command files under context/commands/. It is
-// non-destructive: existing files are preserved unless force is set, and
-// --force refreshes only the marker-delimited generated body. Obsolete files
-// are moved to context/trash/ instead of deleted.
-
-func writeCommandFiles(profiles []string, project string, force bool) []FileResult {
-	now := time.Now()
-	scope := filepath.Base(sdtCommandsDir)
-	var results []FileResult
-	files := commandFilesFor(profiles, project, now)
-	current := make([]string, 0, len(files))
-	for _, f := range files {
-		current = append(current, f.name)
-		path := filepath.Join(sdtCommandsDir, f.name)
-		results = append(results, agentWriteInstructionFile(path, agentGeneratedMarkerName(scope, f.name), f.body, force))
-	}
-	if force {
-		// The per-trigger files were generated with a `commands/<id>` marker and
-		// no longer are; marker detection retires them without touching a
-		// project's own files, which carry no marker.
-		for _, name := range obsoleteGeneratedFiles(sdtCommandsDir, scope, current) {
-			results = append(results, agentArchiveGenerated(sdtCommandsDir, name, "obsolete (the trigger registry replaced the per-trigger files)"))
-		}
-		for _, name := range obsoleteCommandFiles {
-			results = append(results, agentArchiveGenerated(sdtCommandsDir, name, "obsolete (no longer generated)"))
-		}
-	}
-	return results
-}
-
 var agentInitCmd = &cobra.Command{
 	Use:   useInit,
 	Short: "Bootstrap an SDT-managed project for AI agents",
@@ -360,7 +177,6 @@ var agentInitCmd = &cobra.Command{
   context/questions/     open questions awaiting a user decision
   context/analysis/      analysis documents and implementation plans
   context/wiki/          wiki pages (grouped in subpaths, no date)
-  context/commands/      thin per-trigger command files
   context/instructions/  per-type instruction/template files
   context/roles/         generated role profiles (sdt agent roles init)
   .gitignore                          ignores chosen context dirs (current dir)
@@ -368,7 +184,7 @@ var agentInitCmd = &cobra.Command{
 The command is idempotent and non-destructive: a second run fills in missing
 content and never overwrites or removes existing files. Use --force to refresh
 the generated (marker-delimited) content while preserving edits outside the
-markers, and to move obsolete instruction/command files to context/trash/
+markers, and to move obsolete instruction files to context/trash/
 instead of deleting them.
 
 The .gitignore entries for the context working directories are decided
@@ -452,8 +268,8 @@ Examples:
 			gitIgnoreResults = append(gitIgnoreResults, *res)
 		}
 
-		// 4. Generated surfaces: the instruction files, the command stubs and
-		//    their index, the agent skills and the AGENTS.md instructions block.
+		// 4. Generated surfaces: the instruction files, the agent skills and
+		//    the AGENTS.md instructions block.
 		//    Written by one shared function, so `sdt agent refresh` cannot drift
 		//    from `sdt agent init`.
 		//
@@ -488,9 +304,8 @@ Examples:
 }
 
 // agentRefreshGenerated re-renders every generated surface from the embedded
-// templates: the instruction files under context/instructions/, the command
-// stubs and their index under context/commands/, the agent skills under
-// .agents/skills/ and the AGENTS.md instructions block.
+// templates: the instruction files under context/instructions/, the agent
+// skills under .agents/skills/ and the AGENTS.md instructions block.
 //
 // It is the single writer of the generated set, called by `sdt agent init` and
 // by `sdt agent refresh`, so the two cannot drift. It deliberately does not
@@ -500,7 +315,6 @@ Examples:
 func agentRefreshGenerated(cfg *ProjectConfig, target string, force, wantProjectBlock bool) ([]FileResult, error) {
 	profiles := normalizeProfileList(cfg.Instructions.Profiles)
 	results := writeInstructionFiles(profiles, cfg.Project, cfg.Group, force)
-	results = append(results, writeCommandFiles(profiles, cfg.Project, force)...)
 	results = append(results, writeSkillFiles(profiles, force)...)
 	// Roles are a profile of their own: selecting it generates the profiles here,
 	// so a fresh workspace that asked for them is not unhealthy on its first
@@ -635,7 +449,7 @@ func (cfg *ProjectConfig) fill(existing *ProjectConfig) {
 // ensureWorkDirs creates the context/ working directory layout.
 
 func ensureWorkDirs(force bool) []FileResult {
-	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtTrashDir, sdtTmpDir, sdtInstrDir, sdtCommandsDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir, sdtBriefingDir, sdtSourcesDir}
+	dirs := []string{sdtWorkDir, sdtPlanDir, sdtAnalysisDir, sdtWorklogDir, sdtNotesDir, sdtTasksDir, sdtTrashDir, sdtTmpDir, sdtInstrDir, sdtArchitectureDir, sdtDecisionsDir, sdtQuestionsDir, sdtProposalsDir, sdtPromptsDir, sdtResearchDir, sdtScriptsDir, sdtRolesDir, sdtBriefingDir, sdtSourcesDir}
 	var results []FileResult
 	for _, d := range dirs {
 		res := FileResult{Path: d + "/"}

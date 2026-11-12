@@ -17,7 +17,7 @@ import (
 const (
 	wantNewTypes      = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|wiki|lesson|assessment|theme|syllabus|practice|briefing"
 	wantPathTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|lesson|assessment|theme|syllabus|practice|briefing"
-	wantListTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|lesson|assessment|theme|syllabus|practice|briefing"
+	wantListTypes     = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decisions|tasks|wiki|lesson|assessment|theme|syllabus|practice|briefing"
 	wantTemplateTypes = "plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|wiki|lesson|assessment|theme|syllabus|practice|briefing"
 )
 
@@ -91,7 +91,6 @@ func TestContextTypeDirTier(t *testing.T) {
 		{ctxTypeDecision, sdtDecisionsDir, "essential", false, "decisions"},
 		{ctxTypeTasks, sdtTasksDir, "operational", true, ""},
 		{ctxTypeTmp, sdtTmpDir, "", false, ""},
-		{ctxTypeCommands, sdtCommandsDir, "operational", false, ""},
 		{ctxTypeWiki, sdtWikiDir, "", true, ""},
 	}
 	for _, c := range cases {
@@ -146,7 +145,6 @@ func TestContextTypeStatuses(t *testing.T) {
 		{ctxTypeArchitecture, ctxWikiStatusDraft, "draft|current|superseded"},
 		{ctxTypeDecision, "proposed", "proposed|accepted|rejected|deprecated|superseded"},
 		{ctxTypeTasks, taskFileStatusPending, "pending|in-progress|completed|archived|active"},
-		{ctxTypeCommands, ctxWikiStatusActive, "active"},
 		{ctxTypeWiki, ctxWikiStatusDraft, "draft|active|archived"},
 		{ctxTypeWorklog, "", ""},
 		{ctxTypeNotes, "", ""},
@@ -251,7 +249,7 @@ func TestContextPathRegistryScheme(t *testing.T) {
 		t.Error("tmp path without --slug must error")
 	}
 	if _, err := contextPath("commands", "x", "", "", ""); err == nil {
-		t.Error("commands is not path-supported; must error")
+		t.Error("unknown kind must error")
 	}
 }
 
@@ -273,7 +271,7 @@ func TestContextInstrPathRegistry(t *testing.T) {
 			t.Errorf("contextInstrPath(%s) = %q, want %q", c.kind, got, c.want)
 		}
 	}
-	for _, kind := range []string{ctxTypeCommands, ctxTypeTmp} {
+	for _, kind := range []string{ctxTypeTmp} {
 		if _, err := contextInstrPath(kind); err == nil {
 			t.Errorf("contextInstrPath(%s) must error (template not allowed)", kind)
 		}

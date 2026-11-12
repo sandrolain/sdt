@@ -18,7 +18,6 @@ instruction files and temporary files for this project.
 - `questions/` — open questions / points awaiting user decision (`sources` link back to origin)
 - `tasks/` — task checklists (one file per plan by default, phases as `## Phase` sections)
 - `trash/` — obsolete generated files moved by `sdt agent init --force` (history)
-- `commands/` — the agent-invokable commands registry (`index.md`)
 - `instructions/` — agent instruction files (referenced by AGENTS.md)
 - `roles/` — generated role profiles (`<slug>.md`) + `shared.md` (see `sdt agent roles`)
 - `scripts/` — reusable utility scripts (`index.md` lists them; see `instructions/scripts.md`)
@@ -75,6 +74,6 @@ Create and manage work files with `sdt context`:
 - `sdt context template --type plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|wiki|lesson|assessment|theme|syllabus|practice|briefing` — print the per-type instruction file
 - `sdt context path --type plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decision|tasks|tmp|wiki|lesson|assessment|theme|syllabus|practice|briefing [--slug]` — print a
   path without creating anything
-- `sdt context list --type plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decisions|tasks|commands|wiki|lesson|assessment|theme|syllabus|practice|briefing` — list existing files
+- `sdt context list --type plan|analysis|worklog|notes|source|questions|proposal|prompt|research|architecture|decisions|tasks|wiki|lesson|assessment|theme|syllabus|practice|briefing` — list existing files
 - `sdt context task add "<step>" [--phase <n>] [--stream <label>]` / `done|block|wip <id>` — manage a
   plan task checklist (one file per plan, phases as sections)

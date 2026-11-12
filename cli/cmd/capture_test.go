@@ -23,7 +23,7 @@ func TestWorklogCarriesTheSignalReview(t *testing.T) {
 		"note_type: dead-end",
 		"Do-Not-Repeat",
 		"context/questions/",
-		">draft",
+		"a routed capture",
 		"Observation",
 		"HARD RULE 1",
 		"`none`",

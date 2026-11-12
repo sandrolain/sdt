@@ -32,14 +32,6 @@ var renderCases = map[string]any{
 		"Project": "p",
 		"Group":   "g",
 	},
-	"commands/index.md.tmpl": map[string]any{
-		"Project": "p",
-		"Now":     "2026-09-24T00:00:00Z",
-		"Triggers": []map[string]any{
-			{"Trigger": "analysis", "Kind": "document", "Contract": "analysis", "Payload": "subject or scope of the analysis to create or extend", "Examples": "`>analysis: the failing test`"},
-			{"Trigger": "plan", "Kind": "workflow", "Subject": "analysis", "Contract": "plan", "Payload": "the analysis the plan is built from", "Examples": "`>plan: the analysis just discussed`"},
-		},
-	},
 	"instructions/project.md.tmpl": map[string]any{
 		"Project": "p",
 		"Group":   "g",
@@ -247,7 +239,7 @@ func TestProjectTemplateIdentity(t *testing.T) {
 // `sdt context vocab`; the tier taxonomy is the type registry's own field.
 func TestGeneratedSetCitesNoProjectDoc(t *testing.T) {
 	const citation = "architecture/stack.md"
-	for _, dir := range []string{"instructions", "agents", "commands", "workspace", "roles"} {
+	for _, dir := range []string{"instructions", "agents", "workspace", "roles"} {
 		err := fs.WalkDir(templatesFS, dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return err

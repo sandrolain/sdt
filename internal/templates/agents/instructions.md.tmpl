@@ -71,8 +71,6 @@ This project is managed with SDT: this block, and the write-once
   holds project conventions.
 - **`context/instructions/<type>.md`** — the per-type contract for one kind or
   activity.
-- **`context/commands/index.md`** — the trigger registry: grammar, gates, and one
-  row per trigger naming its durable contract.
 
 Change a rule where it is owned; link from the others, never duplicate.
 
@@ -151,19 +149,16 @@ something is due, surface it and ask whether to run it before or after the reque
 {{if .Profiles.diagram}}| `context/instructions/diagram-mermaid.md` | The Mermaid dialect |{{end}}
 | `context/instructions/memo.md` | The planned-operation register and its due check |
 | `context/instructions/todo.md` | The TODO inbox |
-| `context/commands/index.md` | What a `>trigger` resolves to: its row names the contract; grammar, gates and the resolution ladder live once, there |
 {{if .Profiles.roles}}| `context/roles/` | Working as one of the SDT roles |{{end}}
 | `context/sdtdocs/README.md` | Per-command docs (`sdt context docs`) |
 
-Every agent-visible task is an **agent command**: a row in
-`context/commands/index.md` whose durable contract stays under
-`context/instructions/` (e.g. `>ingestion`). A trigger may take a payload —
-everything after the first `:`, verbatim — which names the work, never the
-permission.
+A contract with real invocation value ships as an **agent skill** under
+`.agents/skills/` (e.g. `sdt-ingestion`): the skill carries the invocation-time
+pipeline and points at its durable contract under `context/instructions/`.
 
 Work directories under `context/`: `plan/`, `analysis/`, `architecture/`,
 `decisions/`, `proposals/`, `research/`, `prompts/`, `worklog/`, `notes/`,
-`tasks/`, `commands/`, `questions/`, `briefing/`, `tmp/`, `trash/`, `scripts/`,
+`tasks/`, `questions/`, `briefing/`, `tmp/`, `trash/`, `scripts/`,
 `roles/` (and `wiki/`, `sdtdocs/`). Bundled scripts:
 `context/scripts/index.md` (`scripts.md`).
 

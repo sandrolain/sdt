@@ -4,7 +4,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -24,7 +23,6 @@ func TestVisibleContextVerbsAreNamed(t *testing.T) {
 		surfaces.WriteString("\n")
 	}
 	surfaces.WriteString(agentBlockInstructions("probe", "probe"))
-	surfaces.WriteString(commandsIndexContentFor(nil, "probe", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)))
 	text := surfaces.String()
 
 	// The rule has to fail on a verb the set does not name, or it can only agree

@@ -46,7 +46,6 @@ describe("groupByKind", () => {
     expect(groups.map((g) => g.kind)).toEqual(expected);
     // empty folders are present with zero entries
     expect(groups.find((g) => g.kind === "questions")?.entries).toHaveLength(0);
-    expect(groups.find((g) => g.kind === "commands")?.entries).toHaveLength(0);
     expect(groups.find((g) => g.kind === "wiki")?.entries).toHaveLength(1);
     expect(groups.find((g) => g.kind === "canvas")?.entries).toHaveLength(1);
   });

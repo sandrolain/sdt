@@ -1,24 +1,22 @@
 ---
 kind: instructions
-title: "Draft Capture (`>draft`)"
+title: "Draft Capture (draft note)"
 summary: "Draft capture: turn raw notes into a draft analysis."
 ---
 
-`>draft: <notes>` captures raw notes as a draft analysis. It is the
+`draft <notes>` captures raw notes as a draft analysis. It is the
 **raw-capture rung** of the analysis ladder: it never asks a question, and it
 files the note on the right initiative when a draft for that initiative already
-exists. The eliciting alternatives are `>scope` (batched questions) and
-`>analysis` (authoring or extending a full analysis); all three converge on a
+exists. The eliciting alternatives are the scope flow (batched questions) and
+a full analysis (authoring or extending); all three converge on a
 `status: draft` analysis.
 
 ## Invocation
 
-- Trigger: `>draft`.
-- Payload: everything after the first `:` on the same line, taken **verbatim** to
-  the end of the turn — this is the note; multi-line payload is allowed. No
-  flags, no quoting. With no `:`, the whole message is the note.
-- The invocation **is** the approval to write exactly one capture (one create, or
-  one append). The file- and plan-creation gates are untouched.
+- Input: the raw notes, taken **verbatim** — this is the note; multi-line
+  input is allowed. No flags, no quoting.
+- The invocation **is** the approval to write exactly one capture (one create,
+  or one append). The file- and plan-creation gates are untouched.
 
 ## Capture ritual
 
@@ -45,6 +43,6 @@ exists. The eliciting alternatives are `>scope` (batched questions) and
 - One invocation writes one file mutation — one create, or one append.
 - The capture is a plain `context/analysis/` document in `draft` state; no new
   kind, no new directory, no side file.
-- Draining a draft is normal: `>scope` elicits and fills the analysis, `>plan`
-  turns it into a plan. The draft is not migrated.
+- Draining a draft is normal: the scope flow elicits and fills the analysis, a
+  plan turns it into a plan. The draft is not migrated.
 - No H1 in the created body (document convention); write `## ` sections.

@@ -35,11 +35,10 @@ AGENTS.md (HARD RULE 1). The plan is built on top of the analysis (set
 `sources`); within a running plan, integrate/modify in place — do not
 restart the chain.
 
-**Subject resolution (`>plan`).** The `>plan` trigger is a **workflow** command
-whose subject is an `analysis`. It resolves that analysis through the
-working-context ladder (`context/commands/index.md`, *Working-context
-resolution*): explicit payload → exactly one `status: active` analysis → the
-analysis under discussion → **ask**. When more than one remains, list them and
+**Subject resolution.** A plan is built from an `analysis`. Resolve it through
+the working-context ladder: explicitly named in the request → exactly one
+`status: active` analysis → the analysis under discussion → **ask**. When more
+than one remains, list them and
 ask; `updated` recency orders the list but never picks. Bare plan creation (no
 source analysis) stays reachable via `sdt context new --type plan`.
 
@@ -85,10 +84,8 @@ to **split** a plan across parallel streams or sub-agents:
   plan creation.
 3. **Execute the plan** — the plan's phases are the checklist: tick a
    `- [ ]` item with `sdt context check <plan> <id>` as it finishes, and mark the
-   plan **in progress** on take-in. The `>execute` trigger drives this step
-   (subject: the plan; see the working-context ladder in
-   `context/commands/index.md`). For work larger than one session, pick from the
-   `sdt context resume` frontier.
+   plan **in progress** on take-in. For work larger than one session, pick from
+   the `sdt context resume` frontier.
 4. **Split only to parallelize** — when phases run concurrently or across
    sub-agents, create task files (`context/tasks/<YYYYMMDD-HHMMSS>-<slug-plan>.md`,
    one per disjoint scope) with `sdt context task add --stream <label>`, link

@@ -100,20 +100,6 @@ func TestProfileMatrixWritesExactlyItsSet(t *testing.T) {
 					t.Errorf("profile %q: AGENTS.md advertises unselected module %s", profile.Slug, module)
 				}
 			}
-
-			// The command registry follows the modules: a trigger whose contract
-			// lives in an unselected module is not a row.
-			registry, err := os.ReadFile(filepath.Join(sdtCommandsDir, "index.md"))
-			if err != nil {
-				t.Fatalf("read the registry: %v", err)
-			}
-			wikiRow := strings.Contains(string(registry), "| `>wiki` |")
-			if profile.Slug == "knowledge" && !wikiRow {
-				t.Error("profile knowledge did not register the >wiki trigger")
-			}
-			if profile.Slug != "knowledge" && wikiRow {
-				t.Errorf("profile %q registered >wiki, whose contract is not selected", profile.Slug)
-			}
 		})
 	}
 }

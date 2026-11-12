@@ -16,11 +16,11 @@ import (
 	"text/template"
 )
 
-//go:embed workspace instructions commands roles agents skills
+//go:embed workspace instructions roles agents skills
 var templatesFS embed.FS
 
 // The embed pattern is extended with each populated top-level directory
-// (agents, commands, instructions, roles) as later migration phases land their
+// (agents, instructions, roles) as later migration phases land their
 // template files.
 
 // Exists reports whether a template file is present under templates/.

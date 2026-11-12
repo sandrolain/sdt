@@ -5,11 +5,11 @@ summary: "Knowledge pipeline: ingest external sources and convert non-markdown i
 ---
 
 The three-stage knowledge pipeline on top of `context/`: source material lands
-in `context/ingestion/`, an **agent command** distils it into knowledge-graph
-pages under `context/wiki/`, and consumed sources are archived to
-`context/refs/`. No CLI ingests files — placement is manual (user),
-distillation is agent work. This file is the **agent command**: read it on a new
-ingestion request.
+in `context/ingestion/`, the **sdt-ingestion skill** distils it into
+knowledge-graph pages under `context/wiki/`, and consumed sources are archived
+to `context/refs/`. No CLI ingests files — placement is manual (user),
+distillation is agent work. This file is the durable contract: read it on a new
+ingestion request, and invoke the pipeline through the skill.
 
 ## Run card
 
@@ -32,7 +32,7 @@ scope → list/plan → convert/distil → `validate` (proposed)
 ```
 user drops files → ingestion/ (pending)
       │
-      ▼ agent command: distil → write/update wiki/ pages
+      ▼ sdt-ingestion skill: distil → write/update wiki/ pages
       │                                      │
       ▼ (user approves write + archive plan) ▼
 agent moves sources → refs/ (archived)   sync node status
@@ -55,8 +55,7 @@ agent moves sources → refs/ (archived)   sync node status
 
 ## Invocation (scope)
 
-The user triggers ingestion with an **agent command**, a chat shorthand the host
-renders as typed text — `>ingestion`, specifying one of:
+The user invokes ingestion through the **sdt-ingestion skill**, specifying one of:
 
 - `all` — every pending file in `context/ingestion/` (default when no scope).
 - `<file>` — a single pending source (path, name or id).

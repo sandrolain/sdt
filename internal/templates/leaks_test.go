@@ -68,7 +68,7 @@ type leakSurface struct {
 func leakSurfaces(t *testing.T) []leakSurface {
 	t.Helper()
 	var surfaces []leakSurface
-	for _, dir := range []string{"instructions", "agents", "commands", "workspace", "roles", "skills"} {
+	for _, dir := range []string{"instructions", "agents", "workspace", "roles", "skills"} {
 		err := fs.WalkDir(templatesFS, dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return err

@@ -183,7 +183,7 @@ func TestAgentRefreshCommandRegisteredUnderAgent(t *testing.T) {
 	if !found {
 		t.Error("sdt agent refresh is not registered under the agent command")
 	}
-	for _, surface := range []string{"context/instructions/", "context/commands/", ".agents/skills/"} {
+	for _, surface := range []string{"context/instructions/", ".agents/skills/"} {
 		if !strings.Contains(agentRefreshCmd.Long, surface) {
 			t.Errorf("refresh help does not name the %s surface", surface)
 		}

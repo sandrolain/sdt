@@ -38,8 +38,8 @@ Before writing an analysis, **type it**: determine and record its `categories`
 (the work type, from the register below) and state the expected outcome —
 **information-only** (no plan expected) vs **implementation** (a plan is
 expected). Ask **one** question only when the answer changes that outcome; never
-ask by rote (see the non-pedantry rule in `scope.md`). `>draft` stays
-zero-question raw capture and `>scope` records the categories during its Specify
+ask by rote (see the non-pedantry rule in `scope.md`). A draft note stays
+zero-question raw capture; the scope flow records the categories in its Specify
 phase.
 
 ## Structure
@@ -112,7 +112,8 @@ session: <session id>        # optional
 - **Non-goals** — what this analysis deliberately does not cover, to keep it
   bounded.
 - **Constraints** (optional) — fixed non-negotiables (mandated stack, standards,
-  explicit exclusions) captured once, usually by a `>scope` Constitution phase.
+  explicit exclusions) captured once, usually by the scope flow's Constitution
+  phase.
   Distinct from assumptions: a constraint is a decision already taken, not a
   guess.
 - **Investigation** — what was tried, checked, tested. Include dead ends; they
@@ -122,8 +123,8 @@ session: <session id>        # optional
   who decided it (user answer or a declared default). A rule without its example
   is the ambiguity this section exists to remove.
 - **Design decisions** (optional) — technical choices with their rationale,
-  filled by the `>scope` Plan phase; the plan's Design contract references them
-  and may only change one with an explicit note.
+  filled by the scope flow's Plan phase; the plan's Design contract references
+  them and may only change one with an explicit note.
 - **Options considered** — only when the analysis leads to a real choice. One
   subsection per option: Description, Pros, Cons,
   Effort/risk, and `**Outcome:**` (accepted / proposed / rejected /
@@ -223,7 +224,7 @@ session: <session id>        # optional
   prose expecting the check to read it — only the checklist declares.
 - **Check the objective's dead ends first**: before opening an analysis for an
   objective, review its `note_type: dead-end` notes (`sdt context status`
-  counts them; `sdt context reindex` groups them under the objective) and do
+  counts them) and do
   not re-run a rejected approach without new evidence.
 - `topics` / `entities` (optional): subjects and named things,
   **distinct from `objective`**. Topics come from the controlled list in

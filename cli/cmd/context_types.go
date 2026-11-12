@@ -44,7 +44,7 @@ type ctxDocType struct {
 	// retiredStatus is the value `context deprecate` writes for this type: the
 	// word its own vocabulary already carries for "kept, no longer current".
 	// Empty when the type's statuses have no such word — worklog and notes carry
-	// no status at all, tmp and commands carry only a live one, and questions
+	// instruction, roles carry only a live one, and questions
 	// carries lifecycle states without a retirement — which is what makes the
 	// verb refuse for those types rather than import another type's word.
 	retiredStatus string
@@ -85,7 +85,6 @@ var contextTypeList = []ctxDocType{
 	{kind: ctxTypeDecision, dir: sdtDecisionsDir, tier: ctxTierEssential, scheme: ctxSchemeDecision, defaultStatus: "proposed", statuses: []string{"proposed", "accepted", "rejected", "deprecated", ctxDocStatusSuperseded}, retiredStatus: "deprecated", hasUpdated: false, templateFile: "decision.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true, alias: ctxDocAliasDecision},
 	{kind: ctxTypeTasks, dir: sdtTasksDir, tier: ctxTierOperational, scheme: ctxSchemePhase, defaultStatus: taskFileStatusPending, statuses: []string{"pending", "in-progress", "completed", taskFileStatusArchived, taskFileStatusLegacy}, retiredStatus: taskFileStatusArchived, hasUpdated: true, templateFile: "tasks.md", pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 	{kind: ctxTypeTmp, dir: sdtTmpDir, tier: "", scheme: ctxSchemeTmpBySlug, pathSupported: true, statusRow: false},
-	{kind: ctxTypeCommands, dir: sdtCommandsDir, tier: ctxTierOperational, scheme: ctxSchemeBare, defaultStatus: ctxWikiStatusActive, statuses: []string{taskFileStatusLegacy}, listSupported: true, statusRow: true},
 	{kind: ctxTypeWiki, dir: sdtWikiDir, tier: "", scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, taskFileStatusLegacy, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "wiki.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: false},
 	{kind: ctxTypeLesson, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "lesson.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},
 	{kind: ctxTypeAssessment, dir: sdtLearningDir, tier: ctxTierOperational, scheme: ctxSchemeSubpath, suffix: ctxAssessmentSuffix, suffixInID: true, defaultStatus: ctxWikiStatusDraft, statuses: []string{ctxWikiStatusDraft, ctxWikiStatusActive, statusArchived}, retiredStatus: statusArchived, hasUpdated: true, templateFile: "lesson.md", newSupported: true, pathSupported: true, listSupported: true, templateAllowed: true, statusRow: true},

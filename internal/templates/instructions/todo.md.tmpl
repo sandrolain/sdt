@@ -5,7 +5,7 @@ summary: "The idea inbox: context/todo.yaml, its annotate-only rule and how to a
 ---
 
 `context/instructions/todo.md` is the contract for the centralized idea inbox.
-Read it when `context/todo.yaml` is relevant: a `>todo` capture, or a request to
+Read it when `context/todo.yaml` is relevant: an inbox capture, or a request to
 list or close an item.
 
 ## The inbox
@@ -19,12 +19,12 @@ mutation; the register stays the source of truth.
 
 ## Annotate only
 
-`>todo` (and `sdt context todo add`) **only records** the idea. It never starts
+`sdt context todo add` **only records** the idea. It never starts
 an analysis, a plan, a task or any operation:
 
-- **Never begin work from `>todo`.** Capture the line and stop.
+- **Never begin work from an inbox item.** Capture the line and stop.
 - A capture is not a commitment: draining the inbox is a later, separate
-  `>draft`/`>analysis`.
+  draft note or analysis.
 - Keep each item short — an objective or an idea, not a plan.
 
 ## The verbs
@@ -34,7 +34,7 @@ an analysis, a plan, a task or any operation:
 - `sdt context todo done <id>` — mark an item done (kept in the list).
 - `sdt context todo remove <id>` — drop an item.
 
-`>todo: <text>` is the agent trigger; a bullet list adds one item per line.
+`sdt context todo add "<text>"` records one idea; a bullet list adds one item per line.
 
 ## Boundaries
 

@@ -273,7 +273,6 @@ func contextBaselineCheck() doctorCheck {
 		{"agents.md (every turn)", agentTargetDefault, false},
 		{"instructions (on demand)", sdtInstrDir, true},
 		{"roles (on demand)", sdtRolesDir, true},
-		{"commands (on demand)", sdtCommandsDir, true},
 	}
 	parts := make([]string, 0, len(surfaces))
 	missing := false

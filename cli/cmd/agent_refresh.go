@@ -14,8 +14,8 @@ var agentRefreshCmd = &cobra.Command{
 	Short: "Re-render the generated instruction surfaces",
 	Long: `Re-render the generated surfaces from the embedded templates.
 
-  agent refresh    refresh context/instructions/, context/commands/,
-                   .agents/skills/ and the AGENTS.md instructions block
+  agent refresh    refresh context/instructions/, .agents/skills/ and the
+                   AGENTS.md instructions block
 
 It is the narrow alternative to ` + "`sdt agent init --force`" + `: it never asks
 questions, never rewrites the project identity and never touches .gitignore, the write-once

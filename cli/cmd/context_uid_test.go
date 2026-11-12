@@ -103,7 +103,7 @@ func TestLintUIDField(t *testing.T) {
 		t.Fatalf("valid uid = %#v, want nil", valid)
 	}
 
-	if got := lintUIDField("context/commands/x.md", "---\nkind: commands\nsummary: x\n---\n", ctxTypeCommands, prio); got != nil {
+	if got := lintUIDField("context/tmp/x.md", "---\nkind: tmp\nsummary: x\n---\n", ctxTypeTmp, prio); got != nil {
 		t.Fatalf("excluded kind = %#v, want nil", got)
 	}
 }
@@ -112,7 +112,7 @@ func TestContextUIDBackfill(t *testing.T) {
 	runInTempDir(t)
 	const analysis = "context/analysis/a.md"
 	writeCtxDoc(t, analysis, "---\nkind: analysis\nsummary: a\n---\nbody\n")
-	writeCtxDoc(t, "context/commands/c.md", "---\nkind: commands\nid: commands/c\nsummary: c\n---\nbody\n")
+	writeCtxDoc(t, "context/tmp/t.md", "---\nkind: tmp\nsummary: t\n---\nbody\n")
 
 	out := string(execute(t, contextUIDBackfillCmd, nil, "--dry-run"))
 	if !strings.Contains(out, "would stamp 1") {
@@ -132,7 +132,7 @@ func TestContextUIDBackfill(t *testing.T) {
 	if !strings.Contains(content, "kind: analysis\nuid: ") {
 		t.Errorf("uid must be emitted right after kind:\n%s", content)
 	}
-	if c := mustReadFile(t, "context/commands/c.md"); strings.Contains(c, "uid:") {
+	if c := mustReadFile(t, "context/tmp/t.md"); strings.Contains(c, "uid:") {
 		t.Errorf("ineligible command file must not be stamped:\n%s", c)
 	}
 	if !uidBackfillDone() {

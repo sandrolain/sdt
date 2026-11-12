@@ -17,7 +17,6 @@ func TestDraftInstructionContract(t *testing.T) {
 	}
 	for _, want := range []string{
 		"title: \"Draft Capture (",
-		">draft",
 		"verbatim",
 		"exactly one",
 		"append",
@@ -29,28 +28,5 @@ func TestDraftInstructionContract(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("draft contract missing %q:\n%s", want, body)
 		}
-	}
-}
-
-func TestDraftCommandStubRegistered(t *testing.T) {
-	found := false
-	for _, s := range agentCommandStubs {
-		if s.id == "draft" {
-			found = true
-			if s.contract != "draft" {
-				t.Errorf("draft contract = %q, want draft", s.contract)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("draft trigger not registered in agentCommandStubs")
-	}
-
-	if idx := commandsIndexContentFor([]string{agentProfileCore}, "p", contextNow()); !strings.Contains(idx, "`context/instructions/draft.md`") {
-		t.Errorf("the registry row does not point at the draft contract:\n%s", idx)
-	}
-
-	if idx := commandsIndexContent("p", contextNow()); !strings.Contains(idx, "| `>draft` |") {
-		t.Errorf("commands index missing the >draft row:\n%s", idx)
 	}
 }

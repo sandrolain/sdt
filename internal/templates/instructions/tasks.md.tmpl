@@ -156,12 +156,11 @@ the plan already authorizes and record each as
 then keep going. A decision that changes scope, style, architecture or cost is
 not a ruling — it is a question for the user (HARD RULE 7).
 
-### The `>execute` trigger
+### Taking a task file in
 
-`>execute` is the **workflow** command that drives this file. Its subject is a
-`plan` and one of that plan's task files; it resolves the subject through the
-working-context ladder (`context/commands/index.md`, *Working-context
-resolution*) — explicit payload → exactly one active plan with an unfinished
+Execution is driven by a **plan**: resolve the subject through the
+working-context ladder — explicitly named → exactly one active plan with an
+unfinished
 task file → the plan under discussion → **ask**. Then:
 
 - **Pick** — the file with no pending dependency; if several are eligible, apply
@@ -174,7 +173,7 @@ task file → the plan under discussion → **ask**. Then:
     and **ask**;
   - a side effect outside the task's scope — a merge, a push, a publish, or
     touching another work stream's files → stop and **ask**;
-  - a broken or missing plan — no task file (point to `>tasks`) or a plan where
+  - a broken or missing plan — no task file or a plan where
     every path forward is a guess → stop and **ask**;
   - an ambiguous or already-closed subject — more than one candidate plan/task,
     or a `completed` plan (do not reopen it silently) → list the candidates and

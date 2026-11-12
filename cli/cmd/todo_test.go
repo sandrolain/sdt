@@ -25,7 +25,7 @@ func TestTodoInstructionModule(t *testing.T) {
 	for _, want := range []string{
 		"## The inbox",
 		"Annotate only",
-		"Never begin work from `>todo`",
+		"Never begin work from an inbox item",
 		"`sdt context todo add",
 		"`sdt context todo done <id>`",
 		"## Boundaries",
@@ -42,37 +42,5 @@ func TestTodoInstructionDiscoverable(t *testing.T) {
 	block := agentBlockInstructions("p", "g")
 	if !strings.Contains(block, "`context/instructions/todo.md`") {
 		t.Error("AGENTS.md block does not reference context/instructions/todo.md")
-	}
-}
-
-// TestTodoTriggerResolves proves the >todo document trigger is registered with a
-// resolvable contract and that the generated instruction file exists — the same
-// lookup an agent performs when the trigger fires.
-func TestTodoTriggerResolves(t *testing.T) {
-	var found *commandStub
-	for i := range agentCommandStubs {
-		if agentCommandStubs[i].id == "todo" {
-			found = &agentCommandStubs[i]
-			break
-		}
-	}
-	if found == nil {
-		t.Fatal(">todo is not registered in agentCommandStubs")
-	}
-	if found.kind != commandKindDocument {
-		t.Errorf(">todo kind = %q, want %q", found.kind, commandKindDocument)
-	}
-	if found.subject != "" {
-		t.Errorf(">todo subject = %q, want empty for a document command", found.subject)
-	}
-	if found.contract != "todo" {
-		t.Errorf(">todo contract = %q, want %q", found.contract, "todo")
-	}
-	generated := map[string]bool{}
-	for _, f := range instructionFiles("", "") {
-		generated[f.name] = true
-	}
-	if !generated[found.contract+sdtMarkdownExt] {
-		t.Errorf(">todo contract %q has no generated instruction file", found.contract)
 	}
 }

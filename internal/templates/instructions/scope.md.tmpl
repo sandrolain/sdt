@@ -1,33 +1,31 @@
 ---
 kind: instructions
-title: "Recursive Design Flow (`>scope`)"
+title: "Recursive Design Flow (scope)"
 summary: "Recursive design flow: elicit a broad objective into a decision-complete analysis."
 ---
 
-`>scope: <objective>` runs a recursive, phase-ordered elicitation that turns a
+`scope <objective>` runs a recursive, phase-ordered elicitation that turns a
 broad or ambiguous objective into a **decision-complete analysis**. It is the
-middle rung of the analysis ladder: `>draft` captures raw notes without asking,
-`>scope` elicits with batched questions, `>analysis` authors or extends a full
-analysis — all three converge on a `status: draft` analysis.
+middle rung of the analysis ladder: a raw draft note captures without asking,
+the scope flow elicits with batched questions, a full analysis authors or
+extends — all three converge on a `status: draft` analysis.
 
 The flow is agent-side and conversational: there is no `sdt scope` CLI, no
 questionnaire engine and no state machine. The only artifact is the analysis
 file. Use it for an objective too broad or ambiguous to write straight into an
-analysis; a well-scoped objective goes directly to `>analysis`.
+analysis; a well-scoped objective goes directly into a full analysis.
 
 ## Invocation
 
-- Trigger: `>scope`.
-- Payload: the objective to scope, per the shared grammar in
-  `context/commands/index.md` — everything after the first `:`, verbatim, to
-  the end of the turn. This contract does not restate the grammar.
-- With no payload, ask for the objective in **one** question, then proceed with
-  the answer. Never infer it from the working context.
-- **The payload narrows the objective; it never authorises the write.** Confirm
-  once — `scope <objective> into a draft analysis?` — before creating the
-  `status: draft` analysis, then treat that confirmation as covering the whole
-  flow (its appends and the final `status` flip). This flow ends at the analysis;
-  `>plan` is a separate command (AGENTS.md HARD RULE 1 owns the gates).
+- Input: the objective to scope, stated in the request — the whole request is
+  the objective; this contract does not restate a grammar.
+- With no objective, ask for it in **one** question, then proceed with the
+  answer. Never infer it from the working context.
+- **The stated objective narrows the work; it never authorises the write.**
+  Confirm once — `scope <objective> into a draft analysis?` — before creating
+  the `status: draft` analysis, then treat that confirmation as covering the
+  whole flow (its appends and the final `status` flip). This flow ends at the
+  analysis; the plan is a separate stage (AGENTS.md HARD RULE 1 owns the gates).
 
 ## The flow (phases are ordered; do not run ahead)
 
@@ -102,7 +100,8 @@ points" section.
   --objective <slug> --summary "<one line>"`; append phase by phase.
 - Keep a `## Scope flow` block in the body with `state: <phase>` and the
   coverage states, so a new session resumes instead of restarting.
-- `>scope: <same objective>` with an existing draft of that objective
+- Re-running the flow on the same objective with an existing draft of that
+  objective
   **continues** it (after confirming with the user); it never creates a sibling.
 - An abandoned draft stays `draft` (the honest state); `sdt context status`
   counts it. Never archive it to hide it.
@@ -134,6 +133,6 @@ postponed options per **R3**. Both rules are in
   `summary`, style/architecture agreed a priori, library-first).
 - No open points in the analysis: residuals go to `context/questions/`, never an
   "Open points" section.
-- The flow produces the analysis only; the plan is `>plan`.
+- The flow produces the analysis only; the plan is a separate stage.
 - All file mutations go through the CLI (`sdt context new`, `sdt context status
   set`, `sdt context touch`, `sdt context check`) — never hand-write state.
