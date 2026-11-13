@@ -324,3 +324,159 @@ func TestContextIngestArchiveRecordsClassification(t *testing.T) {
 		t.Errorf("a refused classification must leave the source in place: %v", err)
 	}
 }
+
+// TestContextIngestArchiveCreatesSourceSheetAndRewritesProvenance: the archive
+// move carries the custody join with it — the kept artifact's `source:` header
+// follows the archived copy (the `context/tmp/` intermediate shape is rewritten
+// too, matched by digest) and the source sheet is created with the pin, the
+// extract, checked_at and the restore recipe.
+func TestContextIngestArchiveCreatesSourceSheetAndRewritesProvenance(t *testing.T) {
+	setupContextProject(t)
+	source := "context/ingestion/books/book.epub"
+	writeCtxDoc(t, source, "epub-bytes")
+	sha, _, err := fileSHA256(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact := "context/refs/converted/book-" + sha[:12] + ".md"
+	writeCtxDoc(t, artifact, "---\nsource: context/tmp/ingestion-run/book.txt\nsha256: "+sha+"\nconverter: anydoc\n---\n\n# Book\n")
+	oldArtifactSHA, _, err := fileSHA256(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeCtxDoc(t, "context/wiki/citing.md", "---\nkind: wiki\nsummary: citation fixture\n---\n\n## Claims\n\n{#claim-1} Claim. (refs/converted/"+filepath.Base(artifact)+"@"+oldArtifactSHA[:8]+":1)\n")
+
+	out := string(execute(t, contextIngestArchiveCmd, nil, "book.epub"))
+	if !strings.Contains(out, "provenance: refs/converted/book-") || !strings.Contains(out, "source -> refs/book.epub") {
+		t.Errorf("archive did not report the provenance rewrite:\n%s", out)
+	}
+	kept, err := os.ReadFile(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"source: refs/book.epub", "sha256: " + sha, "converter: anydoc", "# Book"} {
+		if !strings.Contains(string(kept), want) {
+			t.Errorf("kept artifact is missing %q:\n%s", want, kept)
+		}
+	}
+	if !strings.Contains(out, "sheet: created sources/book.md") {
+		t.Errorf("archive did not report the sheet:\n%s", out)
+	}
+	sheet, err := os.ReadFile("context/sources/book.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"kind: source", "status: curated", "sha256: " + sha,
+		"capture_path: refs/book.epub", "extract: refs/converted/book-",
+		"checked_at: ", "## Custody notes", "Restore: `sdt doc2md refs/book.epub",
+	} {
+		if !strings.Contains(string(sheet), want) {
+			t.Errorf("sheet is missing %q:\n%s", want, sheet)
+		}
+	}
+	newArtifactSHA, _, err := fileSHA256(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	citing, err := os.ReadFile("context/wiki/citing.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(citing), "@"+newArtifactSHA[:8]+":1") || strings.Contains(string(citing), "@"+oldArtifactSHA[:8]+":1") {
+		t.Errorf("provenance rewrite did not re-pin the unchanged claim span: old=%s new=%s citation=%s", oldArtifactSHA[:8], newArtifactSHA[:8], citing)
+	}
+}
+
+// TestContextIngestArchiveLinksExistingSheet: a sheet that already pins the
+// source is linked, not duplicated — only the keys it lacks are filled and its
+// own frontmatter and body are untouched.
+func TestContextIngestArchiveLinksExistingSheet(t *testing.T) {
+	setupContextProject(t)
+	source := "context/ingestion/books/book.epub"
+	writeCtxDoc(t, source, "epub-bytes")
+	sha, _, err := fileSHA256(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeCtxDoc(t, "context/refs/converted/book-"+sha[:12]+".md",
+		"---\nsource: "+source+"\nsha256: "+sha+"\n---\n\n# Book\n")
+	writeCtxDoc(t, "context/sources/book.md",
+		"---\nkind: source\nuid: u-book\nsummary: A book I already recorded\nstatus: candidate\nurl: https://example.org/book\nsha256: "+sha+"\n---\n\n## Why it matters\n\nRecorded before the archive.\n")
+
+	out := string(execute(t, contextIngestArchiveCmd, nil, "book.epub"))
+	if !strings.Contains(out, "sheet: linked sources/book.md") {
+		t.Fatalf("archive did not report the link:\n%s", out)
+	}
+	sheet, err := os.ReadFile("context/sources/book.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"kind: source", "sha256: " + sha, "capture_path: refs/book.epub",
+		"extract: refs/converted/book-", "summary: A book I already recorded",
+		"status: candidate", "Recorded before the archive.",
+	} {
+		if !strings.Contains(string(sheet), want) {
+			t.Errorf("linked sheet is missing %q:\n%s", want, sheet)
+		}
+	}
+	if strings.Count(string(sheet), "kind: source") != 1 {
+		t.Errorf("the link duplicated the sheet:\n%s", sheet)
+	}
+	if strings.Contains(string(sheet), "status: curated") {
+		t.Errorf("the link rewrote the status the sheet already carried:\n%s", sheet)
+	}
+}
+
+// TestContextIngestArchiveNeverClobbersAForeignSheet: a sheet at the derived
+// slug recording other bytes stays untouched; the new record lands on a
+// digest-suffixed slug instead.
+func TestContextIngestArchiveNeverClobbersAForeignSheet(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/ingestion/other.epub", "other-bytes")
+	foreign := "---\nkind: source\nuid: u-x\nsummary: Someone else's book\nsha256: " + strings.Repeat("a", 64) + "\n---\n\n## Why it matters\n"
+	writeCtxDoc(t, "context/sources/other.md", foreign)
+
+	execute(t, contextIngestArchiveCmd, nil, "other.epub", "--force")
+
+	if got, err := os.ReadFile("context/sources/other.md"); err != nil || string(got) != foreign {
+		t.Errorf("a foreign sheet was modified: %v\n%s", err, got)
+	}
+	sha, _, err := fileSHA256("context/refs/other.epub")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet, err := os.ReadFile("context/sources/other-" + sha[:8] + ".md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"sha256: " + sha, "capture_path: refs/other.epub", "status: candidate"} {
+		if !strings.Contains(string(sheet), want) {
+			t.Errorf("suffixed sheet is missing %q:\n%s", want, sheet)
+		}
+	}
+}
+
+// TestContextIngestArchiveSheetWithoutConvertedArtifact: an archived source
+// with no kept rendering still gets its custody record, at the kind's default
+// status and without an extract or a re-conversion restore.
+func TestContextIngestArchiveSheetWithoutConvertedArtifact(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/ingestion/note.md", "# A note\n")
+
+	execute(t, contextIngestArchiveCmd, nil, "note.md")
+
+	sheet, err := os.ReadFile("context/sources/note.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"kind: source", "status: candidate", "capture_path: refs/note.md", "Restore: none recorded"} {
+		if !strings.Contains(string(sheet), want) {
+			t.Errorf("sheet is missing %q:\n%s", want, sheet)
+		}
+	}
+	if strings.Contains(string(sheet), "extract:") {
+		t.Errorf("a sheet without a kept rendering carries no extract:\n%s", sheet)
+	}
+}

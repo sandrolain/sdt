@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -81,10 +82,133 @@ func TestLintBodyCitations(t *testing.T) {
 	}
 }
 
+// TestLintCitationMissResolvesByDigest proves the miss path of the citation
+// lint (option B of the refs-custody analysis): when the cited path does not
+// resolve, the run walks context/refs/ once and reports a moved artifact as a
+// resolvable SUGGESTION, a genuinely missing digest as the existing not-found
+// WARNING, and a digest collision by naming both files, never guessing.
+func TestLintCitationMissResolvesByDigest(t *testing.T) {
+	cases := []struct {
+		name     string
+		files    map[string]string
+		body     string
+		priority string
+		msg      string
+	}{
+		{
+			name: "moved target resolves by digest as SUGGESTION",
+			files: map[string]string{
+				"context/refs/2026/evolved.md": "evolutionary architecture body\n",
+			},
+			body:     "see refs/old/deleted.md@%s:1-4 for the claim\n",
+			priority: ctxLintSuggestionPriority,
+			msg:      "citation target moved, still resolvable (was refs/old/deleted.md, now refs/2026/evolved.md)",
+		},
+		{
+			name: "genuinely missing digest stays not-found",
+			files: map[string]string{
+				"context/refs/live.md": "the source body\n",
+			},
+			body:     "see refs/gone.md@deadbeef:1\n",
+			priority: ctxLintWarning,
+			msg:      "citation target not found: refs/gone.md",
+		},
+		{
+			name: "digest collision names both files and guesses nothing",
+			files: map[string]string{
+				"context/refs/copy-a.md": "identical bytes\n",
+				"context/refs/copy-b.md": "identical bytes\n",
+			},
+			body:     "see refs/where/was-it.md@%s:1\n",
+			priority: ctxLintWarning,
+			msg:      "citation digest collision: 2 files match",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			runInTempDir(t)
+			var digest string
+			for path, content := range tc.files {
+				writeTestFile(t, path, content)
+				digest = refSHA8(t, path)
+			}
+			body := tc.body
+			if strings.Contains(body, "%s") {
+				body = fmt.Sprintf(body, digest)
+			}
+			writeTestFile(t, "context/notes/citing.md", "---\nkind: notes\nsummary: s\nagent: opencode\n---\n"+body)
+
+			got := citationIssues(lintDoc("context/notes/citing.md"))
+			if len(got) != 1 {
+				t.Fatalf("citation findings = %#v, want exactly one", got)
+			}
+			if got[0].Priority != tc.priority {
+				t.Errorf("priority = %s, want %s", got[0].Priority, tc.priority)
+			}
+			if !strings.Contains(got[0].Message, tc.msg) {
+				t.Errorf("message %q missing %q", got[0].Message, tc.msg)
+			}
+		})
+	}
+}
+
+// TestLintCitationCollisionNamesBothFiles pins the collision message naming
+// every matching path, so the report never silently picks one.
+func TestLintCitationCollisionNamesBothFiles(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, "context/refs/copy-a.md", "identical bytes\n")
+	writeTestFile(t, "context/refs/copy-b.md", "identical bytes\n")
+	digest := refSHA8(t, "context/refs/copy-a.md")
+	writeTestFile(t, "context/notes/citing.md", "---\nkind: notes\nsummary: s\nagent: opencode\n---\nsee refs/lost.md@"+digest+":1\n")
+
+	got := citationIssues(lintDoc("context/notes/citing.md"))
+	if len(got) != 1 {
+		t.Fatalf("citation findings = %#v, want exactly one", got)
+	}
+	for _, path := range []string{"refs/copy-a.md", "refs/copy-b.md"} {
+		if !strings.Contains(got[0].Message, path) {
+			t.Errorf("collision message %q does not name %s", got[0].Message, path)
+		}
+	}
+}
+
+// TestLintCitationMissCacheStaysWithinTheRun proves the digest walk is paid
+// once: a second miss in the same run reads the cache, and a fresh run (the
+// reset each lint invocation performs) rebuilds the index instead of reading a
+// previous run's tree.
+func TestLintCitationMissCacheStaysWithinTheRun(t *testing.T) {
+	runInTempDir(t)
+	writeTestFile(t, "context/refs/moved.md", "the moved artifact\n")
+	digest := refSHA8(t, "context/refs/moved.md")
+	writeTestFile(t, "context/notes/citing.md", "---\nkind: notes\nsummary: s\nagent: opencode\n---\nsee refs/old.md@"+digest+":1\n")
+
+	got := citationIssues(lintDoc("context/notes/citing.md"))
+	if len(got) != 1 || got[0].Priority != ctxLintSuggestionPriority {
+		t.Fatalf("first miss should resolve as moved, got %#v", got)
+	}
+
+	// Same run: the cached index still answers.
+	got = citationIssues(lintDoc("context/notes/citing.md"))
+	if len(got) != 1 || got[0].Priority != ctxLintSuggestionPriority {
+		t.Fatalf("cached index should resolve as moved, got %#v", got)
+	}
+
+	// A new run: the cache reset re-reads the tree, so a change made between
+	// runs is visible.
+	resetCtxRefDigestCache()
+	writeTestFile(t, "context/refs/moved.md", "the moved artifact, rewritten\n")
+	got = citationIssues(lintDoc("context/notes/citing.md"))
+	if len(got) != 1 || got[0].Priority != ctxLintWarning || !strings.Contains(got[0].Message, "citation target not found: refs/old.md") {
+		t.Fatalf("fresh run must re-read refs/, got %#v", got)
+	}
+}
+
 func TestLintCitationHints(t *testing.T) {
 	for _, msg := range []string{
 		"stale citation refs/x.md@fbf61784 (actual eab182ea)",
 		"citation target not found: refs/x.md",
+		"citation target moved, still resolvable (was refs/old.md, now refs/new.md)",
+		"citation digest collision: 2 files match deadbeef (refs/a.md, refs/b.md)",
 	} {
 		if ctxLintHint(msg) == "" {
 			t.Errorf("message %q has no curated remediation hint", msg)

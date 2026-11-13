@@ -49,6 +49,23 @@ profile.
 - Silence is not permission: a source that declares nothing states nothing, and a
   release refuses to publish it until someone does.
 
+## Retention
+
+Every source falls in one of three classes, decided once and written beside its
+custody record:
+
+- **recoverable** — a page or repository whose URL (plus commit or version) is
+  on the sheet: it may be deleted, the sheet's `restore` brings it back;
+- **derived** — a conversion (`refs/converted/…`): it may be deleted only when
+  its source is archived and the recipe is on the sheet — deleting it is a
+  re-derivation, not a loss;
+- **non-recoverable** — a capture of a page that may disappear, and local
+  material: it stays; no sheet makes deletion safe.
+
+The deletion order is fixed: write the sheet, check the restore works, then
+delete. `sdt context lint --custody` reports the counts a deletion is preceded
+by.
+
 ## When the work is larger
 
 Distilling sources into pages, a book-scale run, a coverage ledger: select the

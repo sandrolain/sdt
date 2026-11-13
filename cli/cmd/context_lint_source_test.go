@@ -78,3 +78,20 @@ func TestLintSourceSheet(t *testing.T) {
 		})
 	}
 }
+
+// TestLintSourceSheetCapturePathStandsInForURL: a local capture is its own
+// address — a sheet whose `capture_path` resolves to a file under context/ is
+// not asked for a URL, and the stand-in only holds while the file is there.
+func TestLintSourceSheetCapturePathStandsInForURL(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/refs/capture.md", "captured bytes\n")
+	sheet := "---\nkind: source\ntitle: local capture\ncapture_path: refs/capture.md\n---\n\n## Why it matters\n"
+	if issues := lintSourceSheet("context/sources/x.md", sheet, ctxTypeSource); len(issues) != 0 {
+		t.Fatalf("a resolvable capture_path stands in for the url, got %+v", issues)
+	}
+	absent := strings.Replace(sheet, "capture_path: refs/capture.md", "capture_path: refs/absent.md", 1)
+	issues := lintSourceSheet("context/sources/x.md", absent, ctxTypeSource)
+	if len(issues) != 1 || !strings.Contains(issues[0].Message, "missing `url`") {
+		t.Fatalf("a capture_path that resolves nowhere does not stand in for the url: %+v", issues)
+	}
+}

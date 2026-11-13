@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -79,6 +80,10 @@ Examples:
 				return
 			}
 			runClaimValidate(cmd, args)
+			return
+		}
+		if getBoolFlag(cmd, "corroboration", false) {
+			runClaimCorroboration(cmd)
 			return
 		}
 		paths, err := claimPages(args)
@@ -592,7 +597,122 @@ func init() {
 	contextWikiClaimsCmd.Flags().Int("max-units", 2, "Flag a citation overlapping more than this many artifact units")
 	contextWikiClaimsCmd.Flags().Bool("budget", false, "Report pages over the claim budget, worst first")
 	contextWikiClaimsCmd.Flags().Bool("validate", false, "Report the validation shortlist: pages and claims that deserve a second source")
+	contextWikiClaimsCmd.Flags().Bool("corroboration", false, "Report claim pages linked to the same concept as corroboration candidates")
 	contextWikiClaimsCmd.Flags().Int("horizon", 180, "With --validate, days ahead that make an evolving claim due")
 	contextWikiClaimsCmd.Flags().Int("at", 0, "With --budget, lower the threshold (default: the lint's constant)")
 	contextWikiCmd.AddCommand(contextWikiClaimsCmd)
+}
+
+type corroborationRow struct {
+	Concept      string   `json:"concept" yaml:"concept"`
+	PageA        string   `json:"page_a" yaml:"page_a"`
+	ClaimsA      int      `json:"claims_a" yaml:"claims_a"`
+	SourcesA     []string `json:"sources_a" yaml:"sources_a"`
+	PageB        string   `json:"page_b" yaml:"page_b"`
+	ClaimsB      int      `json:"claims_b" yaml:"claims_b"`
+	SourcesB     []string `json:"sources_b" yaml:"sources_b"`
+	Independence string   `json:"independence" yaml:"independence"`
+}
+
+// runClaimCorroboration reports page pairs that explicitly refer to the same
+// concept. It proposes candidates only; sheet metadata can rule out a known
+// duplicate, while missing metadata stays unknown and never changes confidence.
+func runClaimCorroboration(cmd *cobra.Command) {
+	bld, _, err := contextwiki.LoadWiki(sdtWikiDir)
+	if err != nil {
+		exitWithError(cmd, err)
+		return
+	}
+	sheets := map[string]string{}
+	files, _ := dirFiles(sdtSourcesDir)
+	for _, path := range files {
+		data, e := os.ReadFile(path)
+		if e != nil {
+			continue
+		}
+		content := string(data)
+		if parseFrontmatterField(content, ctxFrontmatterKind) == ctxTypeSource {
+			extract := strings.TrimSpace(parseFrontmatterField(content, "extract"))
+			if extract != "" {
+				sheets[filepath.ToSlash(extract)] = content
+			}
+		}
+	}
+	byConcept := map[string][]*contextwiki.Page{}
+	for _, p := range bld.Pages {
+		if p.Type != "concept" || p.ClaimCount == 0 {
+			continue
+		}
+		for _, raw := range p.Relations["refers_to"] {
+			m := contextwiki.LinkRegexp.FindStringSubmatch(raw)
+			if m == nil {
+				continue
+			}
+			concept := strings.TrimSpace(m[1])
+			if target := bld.Resolve(concept); target != nil {
+				concept = target.ID
+			}
+			byConcept[concept] = append(byConcept[concept], p)
+		}
+	}
+	rows := []corroborationRow{}
+	for concept, pages := range byConcept {
+		for i := 0; i < len(pages); i++ {
+			for j := i + 1; j < len(pages); j++ {
+				a, b := pages[i], pages[j]
+				if len(a.Sources) == 0 || len(b.Sources) == 0 {
+					continue
+				}
+				independence := "unknown: source sheets lack complete independence metadata"
+				for _, sa := range a.Sources {
+					for _, sb := range b.Sources {
+						if sa == sb {
+							independence = "same-source: identical source path"
+							continue
+						}
+						ca, cb := sheets[filepath.ToSlash(sa)], sheets[filepath.ToSlash(sb)]
+						if ca == "" || cb == "" {
+							continue
+						}
+						dupA := contextwiki.FrontmatterField(ca, "duplicate_of")
+						dupB := contextwiki.FrontmatterField(cb, "duplicate_of")
+						if dupA == sb || dupB == sa {
+							independence = "same-source: duplicate or identical source"
+							continue
+						}
+						authA, authB := contextwiki.FrontmatterField(ca, "authors"), contextwiki.FrontmatterField(cb, "authors")
+						pubA, pubB := contextwiki.FrontmatterField(ca, "publisher"), contextwiki.FrontmatterField(cb, "publisher")
+						yearA, yearB := contextwiki.FrontmatterField(ca, "year"), contextwiki.FrontmatterField(cb, "year")
+						if authA != "" && authB != "" && pubA != "" && pubB != "" && yearA != "" && yearB != "" && (authA != authB || pubA != pubB || yearA != yearB) {
+							independence = "candidate-independent: distinct sheet metadata; human review required"
+						}
+					}
+				}
+				rows = append(rows, corroborationRow{Concept: concept, PageA: a.ID, ClaimsA: a.ClaimCount, SourcesA: a.Sources, PageB: b.ID, ClaimsB: b.ClaimCount, SourcesB: b.Sources, Independence: independence})
+			}
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Concept != rows[j].Concept {
+			return rows[i].Concept < rows[j].Concept
+		}
+		if rows[i].PageA != rows[j].PageA {
+			return rows[i].PageA < rows[j].PageA
+		}
+		return rows[i].PageB < rows[j].PageB
+	})
+	switch getFormat(cmd) {
+	case fmtJSON:
+		out, e := json.MarshalIndent(rows, "", "  ")
+		exitWithError(cmd, e)
+		outputBytes(cmd, out)
+	case fmtYAML:
+		out, e := yaml.Marshal(rows)
+		exitWithError(cmd, e)
+		outputBytes(cmd, out)
+	default:
+		for _, r := range rows {
+			outputString(cmd, fmt.Sprintf("[CANDIDATE] concept=%s pages=%s(%d claims),%s(%d claims) independence=%s\n", r.Concept, r.PageA, r.ClaimsA, r.PageB, r.ClaimsB, r.Independence))
+		}
+	}
 }

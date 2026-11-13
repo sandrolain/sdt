@@ -932,6 +932,7 @@ Examples:
   sdt context wiki lint --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		resetCtxRefDigestCache()
 		issues := lintWikiLint()
 		if issues == nil {
 			issues = []ctxLintIssue{}

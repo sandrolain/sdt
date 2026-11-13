@@ -314,6 +314,7 @@ func init() {
 	contextListCmd.Flags().StringArray("where", nil, "Generic frontmatter filter key=value or key!=value (repeatable; AND-ed)")
 
 	contextLintCmd.Flags().Bool("security", false, "Also scan for prompt-injection, credential and invisible-Unicode patterns (advisory WARNING)")
+	contextLintCmd.Flags().Bool("custody", false, "Also print the custody report: four counts over cited refs/ artifacts and source sheets (cited without a sheet, gone with a live capture_path, sha256 disagreement, gone without restore)")
 	contextLintCmd.Flags().Bool("all", false, "Ignore the lint baseline and print every finding")
 	contextLintCmd.Flags().Bool("baseline-write", false, "Record the current findings as the baseline and report the delta accepted")
 	contextLintCmd.Flags().Bool("suggestions", false, "Also show the suggestions the baseline already accepted")

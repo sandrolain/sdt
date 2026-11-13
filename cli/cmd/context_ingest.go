@@ -1,12 +1,14 @@
 package cmd
 
 import (
-	"crypto/sha256"
+	cryptosha "crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -178,6 +180,9 @@ nothing.`,
 		}
 		if getBoolFlag(cmd, "dry-run", false) {
 			outputString(cmd, fmt.Sprintf("would archive: %s -> %s (sha256 %s)\n", corpusRelative(path), corpusRelative(dest), sha[:12]))
+			if slug := sanitizeSlug(strings.TrimSuffix(filepath.Base(dest), filepath.Ext(dest))); slug != "" {
+				outputString(cmd, fmt.Sprintf("would write sheet: %s\n", corpusRelative(filepath.Join(sdtSourcesDir, slug+sdtMarkdownExt))))
+			}
 			return
 		}
 		// A project may archive before it ever had a refs/ directory.
@@ -219,6 +224,27 @@ nothing.`,
 					fmt.Fprintf(os.Stderr, "warning: refresh ingestion manifest: %v\n", werr)
 				}
 			}
+		}
+		// The custody join (decision 0030): the kept artifact's provenance
+		// follows the move and the sheet is created or linked in the same step,
+		// so an archive never produces a provenance or a citation surface
+		// without a custody record again.
+		if converted != "" {
+			rewrote, rerr := rewriteConvertedSource(converted, sha, corpusRelative(dest))
+			if rerr != nil {
+				fmt.Fprintf(os.Stderr, "warning: rewrite provenance of %s: %v\n", converted, rerr)
+			} else if rewrote {
+				outputString(cmd, fmt.Sprintf("provenance: %s source -> %s\n", converted, corpusRelative(dest)))
+			}
+		}
+		sheetPath, sheetAction, serr := archiveSourceSheet(corpusRelative(dest), record, converted)
+		switch {
+		case serr != nil:
+			fmt.Fprintf(os.Stderr, "warning: source sheet: %v\n", serr)
+		case sheetAction == "":
+			fmt.Fprintf(os.Stderr, "warning: source sheet not written — %s records other bytes and its digest-suffixed name is taken\n", sheetPath)
+		default:
+			outputString(cmd, fmt.Sprintf("sheet: %s %s\n", sheetAction, sheetPath))
 		}
 		outputString(cmd, fmt.Sprintf("archived: %s -> %s\n", corpusRelative(path), corpusRelative(dest)))
 	},
@@ -611,7 +637,7 @@ func fileSHA256(path string) (string, int64, error) {
 			fmt.Fprintf(os.Stderr, "warning: close %s: %v\n", path, cerr)
 		}
 	}()
-	h := sha256.New()
+	h := cryptosha.New()
 	n, err := io.Copy(h, f)
 	if err != nil {
 		return "", 0, err
@@ -624,6 +650,301 @@ func shortSHA(sha string) string {
 		return sha[:12]
 	}
 	return sha
+}
+
+// ── the custody join (decision 0030) ─────────────────────────────────────────
+//
+// The archive move is where a source stops living where it was converted from.
+// Two records must follow it in the same step or the corpus re-learns the same
+// break later: the kept artifact's `source:` header (which would otherwise name
+// a path the move erases) and the source sheet (the custody record with the
+// pin, the extract and the restore recipe). Both are written by the verb, never
+// hand-shaped afterwards.
+
+// rewriteConvertedSource points a kept artifact's `source:` header at the
+// archived copy. Only that one line moves: the body bytes, and the ~700
+// citations pinned to them, stay exactly where they are. The rewrite fires when
+// the artifact's provenance digest names this source — either the header still
+// names the pre-archive path or it names an intermediate file matched only by
+// digest (the `context/tmp/` provenance the two converted books carried).
+func rewriteConvertedSource(converted, sha256, archivedCorpus string) (bool, error) {
+	abs := filepath.Join(sdtWorkDir, filepath.FromSlash(converted))
+	data, err := os.ReadFile(abs) //#nosec G304 -- converted corpus path
+	if err != nil {
+		return false, err
+	}
+	content := string(data)
+	if !strings.HasPrefix(content, "---\n") {
+		return false, nil
+	}
+	end := strings.Index(content[4:], "\n---\n")
+	if end < 0 {
+		return false, nil
+	}
+	fm, rest := content[:end+4+1], content[end+4+1:]
+	if contextwiki.FrontmatterField(fm, "sha256") != sha256 {
+		return false, nil
+	}
+	if contextwiki.FrontmatterField(fm, "source") == archivedCorpus {
+		return false, nil
+	}
+	updated, found := replaceFrontmatterKeyLine(fm, "source", archivedCorpus)
+	if !found {
+		return false, nil
+	}
+	if err := os.WriteFile(abs, []byte(updated+rest), 0o644); err != nil { //#nosec G306 -- kept document, the tool's own write mode
+		return false, err
+	}
+	oldSum := cryptosha.Sum256(data)
+	newSum := cryptosha.Sum256([]byte(updated + rest))
+	if _, err := rewriteCitationDigest(converted, hex.EncodeToString(oldSum[:]), hex.EncodeToString(newSum[:])); err != nil {
+		return true, fmt.Errorf("provenance updated but citation re-pin failed: %w", err)
+	}
+	return true, nil
+}
+
+// rewriteCitationDigest updates only citations whose path and digest prefix
+// identify the converted artifact's previous bytes. Rewriting its provenance
+// changes the file hash even though its cited body and line offsets stay fixed.
+func rewriteCitationDigest(ref, oldSHA, newSHA string) (int, error) {
+	changed := 0
+	citationRef := strings.TrimPrefix(filepath.ToSlash(ref), "context/")
+	dirs := append(append([]string(nil), ctxIndexDirs...), sdtWikiDir)
+	for _, dir := range dirs {
+		files, err := dirFilesFor(dir)
+		if err != nil {
+			continue
+		}
+		for _, path := range files {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			body := string(data)
+			updated := ctxCitationRegexp.ReplaceAllStringFunc(body, func(match string) string {
+				m := ctxCitationRegexp.FindStringSubmatch(match)
+				if len(m) != 4 || m[1] != citationRef || !strings.HasPrefix(oldSHA, m[3]) {
+					return match
+				}
+				changed++
+				return strings.Replace(match, m[3], newSHA[:len(m[3])], 1)
+			})
+			if updated != body {
+				if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+					return changed, err
+				} //#nosec G306 -- corpus documents use the repository's standard mode
+			}
+		}
+	}
+	return changed, nil
+}
+
+// replaceFrontmatterKeyLine rewrites the first top-level `key: …` line of a
+// frontmatter block and reports whether the key was there; every other byte,
+// including comments and quoting on other keys, is preserved.
+func replaceFrontmatterKeyLine(fm, key, value string) (string, bool) {
+	lines := strings.Split(fm, "\n")
+	prefix := key + ":"
+	for i, line := range lines {
+		if strings.HasPrefix(line, prefix) {
+			lines[i] = prefix + " " + value
+			return strings.Join(lines, "\n"), true
+		}
+	}
+	return fm, false
+}
+
+// archiveSourceSheet creates or links the custody sheet (`context/sources/`)
+// for an archived source: `capture_path`, `extract`, `sha256`, `checked_at`,
+// with the restore recipe in the custody notes (the frontmatter `restore` key
+// belongs to the `gone` transition). A sheet already pinning the same digest or
+// capture path is linked — only keys it lacks are filled; a sheet recording
+// other bytes is never clobbered, the new record then lands on a
+// digest-suffixed slug. The returned action is `created`, `linked`, or empty
+// when nothing was written because both slugs record other bytes.
+func archiveSourceSheet(archivedCorpus string, record ingestArchiveRecord, converted string) (string, string, error) {
+	base := strings.TrimSuffix(filepath.Base(archivedCorpus), filepath.Ext(archivedCorpus))
+	slug := sanitizeSlug(base)
+	if slug == "" {
+		return "", "", nil
+	}
+	if err := os.MkdirAll(sdtSourcesDir, 0o750); err != nil {
+		return "", "", err
+	}
+	keys := ingestSheetKeys(archivedCorpus, record, converted)
+	plain := filepath.Join(sdtSourcesDir, slug+sdtMarkdownExt)
+	content, exists, err := readSourceSheet(plain)
+	if err != nil {
+		return "", "", err
+	}
+	action := ""
+	if exists && !sheetPinsSource(content, archivedCorpus, record.SHA256) {
+		// The plain slug records other bytes: the digest-suffixed name is the
+		// last candidate, and a foreign sheet is never clobbered.
+		plain = filepath.Join(sdtSourcesDir, slug+"-"+record.SHA256[:8]+sdtMarkdownExt)
+		content, exists, err = readSourceSheet(plain)
+		if err != nil {
+			return "", "", err
+		}
+		if exists && !sheetPinsSource(content, archivedCorpus, record.SHA256) {
+			return plain, "", nil
+		}
+	}
+	if exists {
+		action = "linked"
+	} else {
+		action = "created"
+		if content, err = newSourceSheetContent(slug, archivedCorpus, record, converted); err != nil {
+			return "", "", err
+		}
+	}
+	content = insertFrontmatterScalars(content, keys)
+	if action == "created" {
+		content += "\n" + sourceSheetBody(archivedCorpus, record, converted)
+	}
+	if err := os.WriteFile(plain, []byte(content), 0o644); err != nil { //#nosec G306 -- user work file, `context new`'s own mode
+		return "", "", err
+	}
+	return corpusRelative(plain), action, nil
+}
+
+// readSourceSheet reads a sheet, reporting absence as (empty, false, nil).
+func readSourceSheet(path string) (string, bool, error) {
+	data, err := os.ReadFile(path) //#nosec G304 -- corpus path under sources/
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return string(data), true, nil
+}
+
+// sheetPinsSource reports whether a sheet already records this archived source,
+// by digest or by capture path — the two keys the archive step owns.
+func sheetPinsSource(content, archivedCorpus, sha256 string) bool {
+	return contextwiki.FrontmatterField(content, "sha256") == sha256 ||
+		contextwiki.FrontmatterField(content, "capture_path") == archivedCorpus
+}
+
+// ingestSheetKeys is the key set the archive step owns on a sheet.
+func ingestSheetKeys(archivedCorpus string, record ingestArchiveRecord, converted string) [][2]string {
+	keys := [][2]string{
+		{"sha256", record.SHA256},
+		{"bytes", strconv.FormatInt(record.Bytes, 10)},
+		{"captured_at", record.ArchivedAt},
+		{"capture_path", archivedCorpus},
+		{"checked_at", record.ArchivedAt[:10]},
+	}
+	if converted != "" {
+		keys = append(keys, [][2]string{{"extract", converted}}...)
+	}
+	if record.License != "" {
+		keys = append(keys, [][2]string{{"license", record.License}}...)
+	}
+	return keys
+}
+
+// newSourceSheetContent builds a fresh sheet: the kind's own frontmatter (uid,
+// summary, status, created, project) plus the four custody sections. With a
+// kept rendering the sheet is `curated` — the source was read and distilled;
+// without one it stays at the kind's default until a session judges it.
+func newSourceSheetContent(slug, archivedCorpus string, record ingestArchiveRecord, converted string) (string, error) {
+	title := strings.TrimSuffix(filepath.Base(archivedCorpus), filepath.Ext(archivedCorpus))
+	if converted != "" {
+		if data, err := os.ReadFile(filepath.Join(sdtWorkDir, filepath.FromSlash(converted))); err == nil { //#nosec G304 -- converted corpus path
+			if t := contextwiki.FrontmatterField(string(data), "title"); t != "" {
+				title = t
+			}
+		}
+	}
+	summary := "Archived source; the sha256 pin is the custody record of the bytes."
+	if converted != "" {
+		summary = "Archived source of " + converted + "; the sha256 pin is the custody link to the kept rendering."
+	}
+	project := ""
+	if cfg, err := findProjectConfig(); err == nil && cfg != nil {
+		project = cfg.Project
+	}
+	status := ""
+	if converted != "" {
+		status = "curated"
+	}
+	created := time.Now().UTC().Format(time.RFC3339)
+	return contextFrontmatter(ctxTypeSource, title, summary, "", project, "", created, "", slug, "", "", "", status, nil, nil, nil), nil
+}
+
+// sourceSheetBody is the four-section body of a fresh sheet, with the restore
+// recipe in the custody notes: re-convert from the archived source when a kept
+// rendering exists, otherwise the archived bytes are the artifact.
+func sourceSheetBody(archivedCorpus string, record ingestArchiveRecord, converted string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Why it matters\n\nArchived from `%s` on %s; `sha256` pins the bytes", record.Source, record.ArchivedAt[:10])
+	if converted != "" {
+		fmt.Fprintf(&b, " and `extract` names the kept rendering the corpus cites")
+	}
+	b.WriteString(".\n\n")
+	b.WriteString("## What was taken\n\nNot recorded by the archive step: the citations on `extract` name their own anchors.\n\n")
+	b.WriteString("## What was rejected\n\nNothing recorded here: the archive move is custody, not a reading.\n\n")
+	b.WriteString("## Custody notes\n\n")
+	fmt.Fprintf(&b, "Created by `sdt context ingest archive`; the pin was checked at %s.\n", record.ArchivedAt[:10])
+	if converted != "" {
+		fmt.Fprintf(&b, "Restore: `sdt doc2md %s --keep --force` — a re-derivation changes bytes, so the citations on `extract` re-pin (a migration, not a repair).\n", archivedCorpus)
+	} else {
+		b.WriteString("Restore: none recorded — the archived bytes are the artifact; re-acquiring from the origin produces new bytes and a new pin.\n")
+	}
+	return b.String()
+}
+
+// insertFrontmatterScalars inserts missing `key: value` lines after the
+// `summary:` line of a document's frontmatter (after `kind:` when the summary
+// is absent), skipping keys it already carries, so linking an existing sheet
+// fills only what is missing and never reorders or re-quotes what is there.
+func insertFrontmatterScalars(content string, keys [][2]string) string {
+	if !strings.HasPrefix(content, "---\n") {
+		return content
+	}
+	end := strings.Index(content[4:], "\n---\n")
+	if end < 0 {
+		return content
+	}
+	fm, rest := content[:end+4+1], content[end+4+1:]
+	present := map[string]bool{}
+	for _, line := range strings.Split(fm, "\n") {
+		if strings.HasPrefix(line, " ") {
+			continue
+		}
+		if k, _, found := strings.Cut(line, ":"); found {
+			present[strings.TrimSpace(k)] = true
+		}
+	}
+	var insert []string
+	for _, kv := range keys {
+		if present[kv[0]] {
+			continue
+		}
+		present[kv[0]] = true
+		insert = append(insert, kv[0]+": "+yamlScalar(kv[1]))
+	}
+	if len(insert) == 0 {
+		return content
+	}
+	lines := strings.Split(fm, "\n")
+	at := 1
+	for i := 1; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "summary:") {
+			at = i + 1
+			break
+		}
+		if strings.HasPrefix(lines[i], "kind:") {
+			at = i + 1
+		}
+	}
+	merged := make([]string, 0, len(lines)+len(insert))
+	merged = append(merged, lines[:at]...)
+	merged = append(merged, insert...)
+	merged = append(merged, lines[at:]...)
+	return strings.Join(merged, "\n") + rest
 }
 
 func emptyDash(s string) string {

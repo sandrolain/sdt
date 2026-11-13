@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -36,11 +38,16 @@ func lintSourceSheet(path, content, kind string) []ctxLintIssue {
 	var issues []ctxLintIssue
 
 	raw := strings.TrimSpace(parseFrontmatterField(content, ctxSourceURLKey))
-	switch raw {
-	case "":
-		issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning,
-			Message: "source sheet missing `url` (a source without an address is not a source)"})
-	default:
+	if raw == "" {
+		// A local capture is its own address: when `capture_path` names a file
+		// under context/ the sheet points at real material, and inventing a URL
+		// for an archived or local source would be the lie the check exists to
+		// stop. Whether the capture is still there is custody, not shape.
+		if !capturePathResolves(content) {
+			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning,
+				Message: "source sheet missing `url` (a source without an address is not a source)"})
+		}
+	} else {
 		u, err := url.Parse(raw)
 		//nolint:goconst // "http" is a URL scheme here; it collides with two cobra command names, not with a constant
 		if err != nil || !u.IsAbs() || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -68,4 +75,16 @@ func lintSourceSheet(path, content, kind string) []ctxLintIssue {
 	}
 
 	return issues
+}
+
+// capturePathResolves reports whether the sheet's `capture_path` names a file
+// that exists under context/. The path is corpus-relative (`refs/...`,
+// `ingestion/...`), the same shape the sheets record.
+func capturePathResolves(content string) bool {
+	capture := strings.TrimSpace(parseFrontmatterField(content, "capture_path"))
+	if capture == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(sdtWorkDir, filepath.FromSlash(capture)))
+	return err == nil
 }

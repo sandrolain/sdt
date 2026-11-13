@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/goccy/go-yaml"
@@ -300,7 +301,7 @@ func lintCitationText(path, body string) []ctxLintIssue {
 		}
 		actual, ok := ctxRefSHA8(filepath.Join(sdtWorkDir, ref))
 		if !ok {
-			issues = append(issues, ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: "citation target not found: " + ref})
+			issues = append(issues, lintCitationMiss(path, ref, cited)...)
 			continue
 		}
 		if !strings.HasPrefix(actual, cited) {
@@ -308,6 +309,106 @@ func lintCitationText(path, body string) []ctxLintIssue {
 		}
 	}
 	return issues
+}
+
+// lintCitationMiss resolves a citation whose target path does not exist by
+// digest instead: context/refs/ is walked once per run (cached; only the first
+// unresolved citation pays for it — 4,493 files, 211 MB at the time of the
+// refs-custody analysis) looking for files whose SHA-256 starts with the cited
+// prefix. Found under another path → "moved, still resolvable" (SUGGESTION,
+// naming the new path); several files share the prefix → a digest collision,
+// both named and never guessed (WARNING); nothing matches → the existing
+// not-found WARNING, so a moved artifact stops reading as a deleted one while
+// a missing digest stays missing.
+func lintCitationMiss(path, ref, cited string) []ctxLintIssue {
+	var moved []string
+	for _, rel := range ctxRefDigestIndexFor().findByPrefix(cited) {
+		if at := "refs/" + rel; at != ref {
+			moved = append(moved, at)
+		}
+	}
+	sort.Strings(moved)
+	switch {
+	case len(moved) == 1:
+		return []ctxLintIssue{{Path: path, Priority: ctxLintSuggestionPriority,
+			Message: fmt.Sprintf("citation target moved, still resolvable (was %s, now %s)", ref, moved[0])}}
+	case len(moved) > 1:
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning,
+			Message: fmt.Sprintf("citation digest collision: %d files match %s (%s) — cite the intended path, not the digest alone", len(moved), cited, strings.Join(moved, ", "))}}
+	default:
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "citation target not found: " + ref}}
+	}
+}
+
+// ctxRefDigestIndex maps every file's full SHA-256 digest under context/refs/
+// to the refs-relative paths holding those bytes. Built once per run on the
+// first unresolved citation and read from the cache afterwards; `refs/` is
+// immutable between runs, so a run never resolves against another run's walk.
+type ctxRefDigestIndex struct {
+	digests map[string][]string // full SHA-256 hex → refs-relative slash paths
+	files   int
+}
+
+var (
+	ctxRefDigestMu    sync.Mutex
+	ctxRefDigestCache = map[string]*ctxRefDigestIndex{}
+)
+
+// ctxRefDigestIndexFor returns the digest index of context/refs/, walking and
+// hashing the tree lazily on the first call of the run.
+func ctxRefDigestIndexFor() *ctxRefDigestIndex {
+	root, err := filepath.Abs(filepath.Join(sdtWorkDir, "refs"))
+	if err != nil {
+		root = filepath.Join(sdtWorkDir, "refs")
+	}
+	ctxRefDigestMu.Lock()
+	defer ctxRefDigestMu.Unlock()
+	if idx, ok := ctxRefDigestCache[root]; ok {
+		return idx
+	}
+	idx := &ctxRefDigestIndex{digests: map[string][]string{}}
+	//nolint:errcheck // a missing or unreadable refs/ tree is an empty index, not an error
+	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, werr error) error {
+		if werr != nil || d.IsDir() {
+			return nil // unreadable or non-regular entries contribute nothing
+		}
+		data, rerr := os.ReadFile(p) //#nosec G304,G122 -- path from the trusted context/refs walk, never user input
+		if rerr != nil {
+			return nil
+		}
+		sum := sha256.Sum256(data)
+		rel, rerr := filepath.Rel(root, p)
+		if rerr != nil {
+			rel = filepath.Base(p)
+		}
+		digest := hex.EncodeToString(sum[:])
+		idx.digests[digest] = append(idx.digests[digest], filepath.ToSlash(rel))
+		idx.files++
+		return nil
+	})
+	ctxRefDigestCache[root] = idx
+	return idx
+}
+
+// findByPrefix returns every refs-relative path whose digest starts with the
+// cited hex prefix. An empty result means the bytes are gone; more than one
+// path for the same prefix is a collision the caller reports, never resolves.
+func (idx *ctxRefDigestIndex) findByPrefix(prefix string) []string {
+	var out []string
+	for digest, paths := range idx.digests {
+		if strings.HasPrefix(digest, prefix) {
+			out = append(out, paths...)
+		}
+	}
+	return out
+}
+
+// resetCtxRefDigestCache drops the per-run digest cache; every lint invocation
+// starts fresh so a run never reads another run's tree state.
+func resetCtxRefDigestCache() {
+	ctxRefDigestMu.Lock()
+	defer ctxRefDigestMu.Unlock()
+	ctxRefDigestCache = map[string]*ctxRefDigestIndex{}
 }
 
 // stripInlineCode blanks single-backtick code spans; a citation inside a code
@@ -379,6 +480,8 @@ var ctxLintHints = []struct{ prefix, hint string }{
 	{"`evidence_class` ", "set `evidence_class` to one of fact | observation | inference | hypothesis | assumption | decision, or omit the key (optional)"},
 	{"stale citation", "recompute the target's sha256 and update the citation prefix (first 8 hex), or re-verify the claim against the current source"},
 	{"citation target not found", "fix the `refs/<path>` target so it resolves under context/refs/, or restore the cited file"},
+	{"citation target moved", "update the citation's `refs/<path>` to the new location named in the finding (the cited bytes are intact; only the path moved)"},
+	{"citation digest collision", "several files share the cited digest prefix — cite the intended file by its full path (and a longer digest prefix) so the resolution is unambiguous"},
 	{"missing `sources`", "add a `sources` frontmatter reference to the document this one derives from or extends (bidirectional traceability)"},
 	{"frontmatter missing `kind`", "add `kind: <type>`; use `sdt context new --type <type>` to scaffold a compliant document"},
 	{"frontmatter missing mandatory `", "add the missing mandatory frontmatter key; use `sdt context new` to scaffold a compliant document"},
@@ -1743,12 +1846,20 @@ With --security, additionally scan the selected documents (or the whole corpus)
 for prompt-injection phrases, credential/secret literals, invisible/zero-width
 Unicode and exfil patterns (advisory WARNING).
 
+With --custody, print the custody report after the findings: four corpus counts
+(cited refs/ artifacts without a source sheet, gone sheets whose capture_path
+still exists, sheets whose sha256 disagrees with the file they pin, gone sheets
+without a restore command) plus what the report cost. The counts are a summary,
+never one finding per file, so the lint baseline cannot absorb the class. In
+--format json/yaml the counts follow the findings as a separate document.
+
 Examples:
   sdt context lint
   sdt context lint context/plan/example.md
   sdt context lint plan/example.md --format json
   sdt context lint --limit 0
   sdt context lint --security
+  sdt context lint --custody
   sdt context lint --fix
   sdt context lint --fix --fix-terminal
   sdt context lint --format json
@@ -1761,11 +1872,15 @@ unless --fix-terminal is given, because a rule adopted today does not rewrite a
 closed document. Every change is named on stdout.`,
 	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		// The digest-resolution walk (citation misses) and the custody report
+		// are per-run views of context/refs/: start every invocation cold.
+		resetCtxRefDigestCache()
 		if getBoolFlag(cmd, "fix", false) {
 			lintFixTargets(cmd, args)
 		}
 		var issues []ctxLintIssue
 		security := getBoolFlag(cmd, "security", false)
+		custody := getBoolFlag(cmd, "custody", false)
 		staleDays := getIntFlag(cmd, "stale-days", false)
 		if staleDays <= 0 {
 			staleDays = ctxStaleInProgressDays
@@ -1930,6 +2045,21 @@ closed document. Every change is named on stdout.`,
 			outputBytes(cmd, out)
 		default:
 			outputString(cmd, lintTextReport(issues, getIntFlag(cmd, "limit", false)))
+		}
+		if custody {
+			report := lintCustodyReport()
+			switch getFormat(cmd) {
+			case fmtJSON:
+				out, err := json.MarshalIndent(report, "", "  ")
+				exitWithError(cmd, err)
+				outputBytes(cmd, out)
+			case fmtYAML:
+				out, err := yaml.Marshal(report)
+				exitWithError(cmd, err)
+				outputBytes(cmd, out)
+			default:
+				outputString(cmd, report.String())
+			}
 		}
 		critical := 0
 		for _, it := range issues {
