@@ -113,45 +113,58 @@ type learnLessonMaterial struct {
 	Lang  string `json:"lang,omitempty" yaml:"lang,omitempty"`
 }
 
-// learnMaterialOf finds the material for a concept: <base>.<lang>.md under
-// context/renders/materials/*/, never the deck and never the ledger. Several
-// languages are resolved by name order, and the language travels in the bundle
-// so a caller can say which one it got.
-func learnMaterialOf(concept string) *learnLessonMaterial {
-	base := filepath.Base(concept)
-	matches, err := filepath.Glob(filepath.Join("context", "renders", "materials", "*", base+".*.md"))
-	if err != nil || len(matches) == 0 {
-		return nil
+// learnMaterialOf resolves the material beside a concept through the export
+// resolver's matcher (material.go, decision D7): the full concept id with or
+// without `wiki/`, the syllabus and the language the header names — never the
+// deck and never the ledger. The lesson call site knows neither syllabus nor
+// language, so the match runs across all of them: a concept with no material is
+// no error (the bundle omits it), and a concept present in more than one
+// syllabus or language is refused with the candidate list — resolving it by
+// sort order was the old bug.
+func learnMaterialOf(concept string) (*learnLessonMaterial, error) {
+	matches, err := matchMaterialFiles(concept, "", "")
+	if err != nil {
+		return nil, err
 	}
-	sort.Strings(matches)
-	for _, match := range matches {
-		if strings.Contains(filepath.Base(match), ".slide.") {
-			continue
-		}
-		data, readErr := os.ReadFile(match) //#nosec G304 -- path from the material glob
-		if readErr != nil {
-			continue
-		}
-		text := string(data)
-		mat := &learnLessonMaterial{Path: filepath.ToSlash(match)}
-		if first, _, ok := strings.Cut(text, "\n"); ok && strings.HasPrefix(first, "<!-- material:") {
-			if i := strings.Index(first, "lang="); i >= 0 {
-				rest := first[i+len("lang="):]
-				if j := strings.IndexAny(rest, "; "); j >= 0 {
-					rest = rest[:j]
-				}
-				mat.Lang = strings.TrimSpace(rest)
-			}
-		}
-		for _, line := range strings.Split(text, "\n") {
-			if strings.HasPrefix(line, "# ") {
-				mat.Title = strings.TrimSpace(strings.TrimPrefix(line, "# "))
-				break
-			}
-		}
-		return mat
+	switch len(matches) {
+	case 0:
+		return nil, nil
+	case 1:
+		return learnLessonMaterialOf(matches[0])
+	default:
+		return nil, fmt.Errorf("%d materials match %q: %s — name --syllabus and --lang",
+			len(matches), strings.TrimPrefix(concept, "wiki/"), materialCandidates(matches))
 	}
-	return nil
+}
+
+// learnLessonMaterialOf reads the one material the resolver matched and returns
+// what the bundle carries: the path, the first heading as the title and the
+// header's language. The path keeps the bundle's external form — relative to
+// the working directory, as the old glob reported it — and carries the
+// syllabus (context/renders/materials/<syllabus>/…); the language its own
+// field.
+func learnLessonMaterialOf(ref materialFile) (*learnLessonMaterial, error) {
+	data, err := os.ReadFile(ref.Path) //#nosec G304 -- the material the resolver matched
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", ref.Path, err)
+	}
+	path := ref.Path
+	if wd, wdErr := os.Getwd(); wdErr == nil {
+		if rel, relErr := filepath.Rel(wd, ref.Path); relErr == nil {
+			path = rel
+		}
+	}
+	mat := &learnLessonMaterial{
+		Path: filepath.ToSlash(path),
+		Lang: ref.Header.Lang,
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "# ") {
+			mat.Title = strings.TrimSpace(strings.TrimPrefix(line, "# "))
+			break
+		}
+	}
+	return mat, nil
 }
 
 // learnLessonClaimsOf publishes the page's claims with the digest the validator
@@ -223,7 +236,11 @@ EXAMPLE — sdt learn lesson architecture/four-key-metrics --format json
 				exitWithError(cmd, fmt.Errorf("no wiki page matches %q", args[0]))
 				return
 			}
-			bundle := learnBundleOf(bld, page)
+			bundle, bundleErr := learnBundleOf(bld, page)
+			if bundleErr != nil {
+				exitWithError(cmd, bundleErr)
+				return
+			}
 			learnEmit(cmd, bundle, func() {
 				outputString(cmd, bundle.text())
 				learnSuggestNext(cmd, loadLearnState(cmd), page.ID)
@@ -248,15 +265,21 @@ func (r learnCoverageRow) line() string {
 	return fmt.Sprintf("%-40s objectives=%d items=%d %s", r.Concept, r.Objectives, r.Items, state)
 }
 
-// learnBundleOf composes one lesson.
-func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) learnLessonBundle {
+// learnBundleOf composes one lesson. A material the resolver cannot name
+// uniquely is a refusal, not a silent pick: the error carries the candidate
+// list, and the caller refuses the bundle.
+func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) (learnLessonBundle, error) {
+	material, materialErr := learnMaterialOf(p.ID)
+	if materialErr != nil {
+		return learnLessonBundle{}, materialErr
+	}
 	b := learnLessonBundle{
 		Concept:       p.ID,
 		Title:         p.Title,
 		Objectives:    learningObjectivesOf(p.Frontmatter),
 		Prerequisites: learnPrerequisites(bld, p),
 		Items:         []learnLessonItem{},
-		Material:      learnMaterialOf(p.ID),
+		Material:      material,
 		Practice:      learnPracticeOf(p.ID),
 	}
 	if block, ok := learningBlockOf(p.Frontmatter); ok {
@@ -272,7 +295,7 @@ func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) learnLessonBun
 	data, err := os.ReadFile(learnLessonPath(p.ID)) //#nosec G304 -- path from the page id
 	if err != nil {
 		b.Missing = []string{fmt.Sprintf("no lesson document at %s", learnLessonPath(p.ID))}
-		return b
+		return b, nil
 	}
 	body := documentBody(string(data))
 	_, sections := markdownSections(body)
@@ -293,7 +316,7 @@ func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) learnLessonBun
 	case len(b.Items) == 0:
 		b.Missing = append(b.Missing, "the Items table has no readable item")
 	}
-	return b
+	return b, nil
 }
 
 // text renders the bundle for a human reader.

@@ -83,6 +83,7 @@ type materialStatusRow struct {
 	Lang           string `json:"lang" yaml:"lang"`
 	Freshness      string `json:"freshness" yaml:"freshness"`
 	Deck           string `json:"deck,omitempty" yaml:"deck,omitempty"`
+	DeckDetail     string `json:"deck_detail,omitempty" yaml:"deck_detail,omitempty"`
 	Review         string `json:"review" yaml:"review"`
 	Publishable    bool   `json:"publishable" yaml:"publishable"`
 	Classification string `json:"classification" yaml:"classification"`
@@ -108,7 +109,11 @@ func publishableReason(row materialStatusRow) string {
 		reasons = append(reasons, "freshness "+row.Freshness)
 	}
 	if row.Deck != "" && row.Deck != renderFresh {
-		reasons = append(reasons, "deck "+row.Deck)
+		if row.DeckDetail != "" {
+			reasons = append(reasons, "deck "+row.Deck+" ("+row.DeckDetail+")")
+		} else {
+			reasons = append(reasons, "deck "+row.Deck)
+		}
 	}
 	if row.Review != "recorded" {
 		reasons = append(reasons, "review "+row.Review)
@@ -163,7 +168,7 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 			status = "unknown"
 		}
 		deckRel := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt) + ".slide" + sdtMarkdownExt)
-		deckStatus := freshness[deckRel]
+		deckStatus, deckDetail := deckFreshnessOf(root, deckRel, freshness[deckRel])
 		ledgerPath := strings.TrimSuffix(file.Path, sdtMarkdownExt) + ".ledger.json"
 		review, detail, found := materialReviewState(ledgerPath)
 		row := materialStatusRow{
@@ -172,6 +177,7 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 			Lang:           file.Header.Lang,
 			Freshness:      status,
 			Deck:           deckStatus,
+			DeckDetail:     deckDetail,
 			Review:         review,
 			Classification: file.Header.Classification,
 			Detail:         detail,
@@ -197,6 +203,21 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 		return rows[i].Lang < rows[j].Lang
 	})
 	return rows, nil
+}
+
+// deckFreshnessOf keeps the render lane's verdict for the deck beside a guide
+// and adds the one structural check on top: a deck the lane calls fresh but
+// that cannot render reports render-broken, and the row says why. Every other
+// lane verdict stands.
+func deckFreshnessOf(root, deckRel, laneStatus string) (string, string) {
+	if laneStatus != renderFresh {
+		return laneStatus, ""
+	}
+	reason, checked := deckRenderIssue(filepath.Join(root, filepath.FromSlash(deckRel)))
+	if checked && reason != "" {
+		return deckRenderBroken, reason
+	}
+	return laneStatus, ""
 }
 
 // materialReviewState reads the free-text cycle. It never calls an unrun review

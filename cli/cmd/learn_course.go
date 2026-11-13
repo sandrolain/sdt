@@ -482,7 +482,14 @@ func learnCourseReportOf(bld *contextwiki.Builder, id, kind, path, content strin
 	}
 	r.Ready, r.Total = learnCourseReadiness(bld, kind, r.Members)
 	r.Conflicts = learnCourseOrderConflicts(bld, kind, r.Members)
-	r.Materials = learnCourseMaterials(r.Members)
+	materials, materialErr := learnCourseMaterials(r.Members)
+	if materialErr != nil {
+		// An ambiguous concept is a refusal the report records, not a silent
+		// sorted pick.
+		r.Refusals = append(r.Refusals, materialErr.Error())
+	} else {
+		r.Materials = materials
+	}
 	r.Practice = learnCoursePractice(r.Members)
 	return r
 }
@@ -490,6 +497,33 @@ func learnCourseReportOf(bld *contextwiki.Builder, id, kind, path, content strin
 // learnCourseMaterials resolves the material beside every concept the level
 // reaches. A member that is itself a concept is tried too, so a theme report
 // carries its lessons' materials as well as a syllabus carries its themes'.
+// An ambiguous concept is a refusal the report records; it is never a silent
+// sorted pick.
+func learnCourseMaterials(members []learnCourseMember) (map[string]*learnLessonMaterial, error) {
+	out := map[string]*learnLessonMaterial{}
+	for _, m := range members {
+		concepts := m.Members
+		if len(concepts) == 0 {
+			concepts = []string{m.ID}
+		}
+		for _, concept := range concepts {
+			mat, err := learnMaterialOf(concept)
+			if err != nil {
+				return nil, fmt.Errorf("material for %q: %w", concept, err)
+			}
+			if mat != nil {
+				out[concept] = mat
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+// learnCoursePractice resolves the practice notes beside every concept the
+// level reaches.
 func learnCoursePractice(members []learnCourseMember) map[string][]learnPracticeNote {
 	out := map[string][]learnPracticeNote{}
 	for _, m := range members {
@@ -500,25 +534,6 @@ func learnCoursePractice(members []learnCourseMember) map[string][]learnPractice
 		for _, concept := range concepts {
 			if notes := learnPracticeOf(concept); len(notes) > 0 {
 				out[concept] = notes
-			}
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func learnCourseMaterials(members []learnCourseMember) map[string]*learnLessonMaterial {
-	out := map[string]*learnLessonMaterial{}
-	for _, m := range members {
-		concepts := m.Members
-		if len(concepts) == 0 {
-			concepts = []string{m.ID}
-		}
-		for _, concept := range concepts {
-			if mat := learnMaterialOf(concept); mat != nil {
-				out[concept] = mat
 			}
 		}
 	}

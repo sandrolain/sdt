@@ -167,11 +167,31 @@ func loadMaterialFiles() ([]materialFile, error) {
 }
 
 func resolveMaterialFile(concept, syllabus, lang string) (materialFile, error) {
+	matches, err := matchMaterialFiles(concept, syllabus, lang)
+	if err != nil {
+		return materialFile{}, err
+	}
+	switch len(matches) {
+	case 0:
+		return materialFile{}, fmt.Errorf("no material for %q with syllabus %q and language %q: check the header", strings.TrimPrefix(concept, "wiki/"), syllabus, lang)
+	case 1:
+		return matches[0], nil
+	default:
+		return materialFile{}, fmt.Errorf("%d materials match %q: %s — name --syllabus and --lang", len(matches), strings.TrimPrefix(concept, "wiki/"), materialCandidates(matches))
+	}
+}
+
+// matchMaterialFiles is the shared material matcher (the export resolver's
+// matching, decision D7): the concept id with or without `wiki/`, the syllabus
+// with or without `syllabi/`, the language exact. An empty syllabus or language
+// matches across all of them; zero matches is an empty slice, not an error, so
+// each caller decides whether absence is fatal.
+func matchMaterialFiles(concept, syllabus, lang string) ([]materialFile, error) {
 	concept = strings.TrimPrefix(concept, "wiki/")
 	syllabus = strings.TrimPrefix(syllabus, "syllabi/")
 	files, err := loadMaterialFiles()
 	if err != nil {
-		return materialFile{}, err
+		return nil, err
 	}
 	var matches []materialFile
 	for _, f := range files {
@@ -186,18 +206,17 @@ func resolveMaterialFile(concept, syllabus, lang string) (materialFile, error) {
 		}
 		matches = append(matches, f)
 	}
-	switch len(matches) {
-	case 0:
-		return materialFile{}, fmt.Errorf("no material for %q with syllabus %q and language %q: check the header", concept, syllabus, lang)
-	case 1:
-		return matches[0], nil
-	default:
-		paths := make([]string, 0, len(matches))
-		for _, m := range matches {
-			paths = append(paths, filepath.ToSlash(m.Path))
-		}
-		return materialFile{}, fmt.Errorf("%d materials match %q: %s — name --syllabus and --lang", len(matches), concept, strings.Join(paths, ", "))
+	return matches, nil
+}
+
+// materialCandidates renders the paths a refusal names, so an ambiguous concept
+// is refused with its candidates and never resolved by sort order.
+func materialCandidates(matches []materialFile) string {
+	paths := make([]string, 0, len(matches))
+	for _, m := range matches {
+		paths = append(paths, filepath.ToSlash(m.Path))
 	}
+	return strings.Join(paths, ", ")
 }
 
 func loadMaterialWiki() *contextwiki.Builder {

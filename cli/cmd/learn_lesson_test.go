@@ -19,8 +19,11 @@ func TestLearnMaterialOfFindsTheGuideNotTheDeck(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	guide := "<!-- material: concept=wiki/architecture/x; syllabus=s; lang=it -->\n\n# X — guida\n"
-	deck := "<!-- material: concept=wiki/architecture/x; syllabus=s; lang=it -->\n\n---\n\n# X\n"
+	// The full header the resolver matches on: concept, syllabus, language,
+	// classification and the claim pairs.
+	header := "<!-- material: concept=wiki/architecture/x; syllabus=s; lang=it; classification=personal; claims=c-aaaaaaaa@111111111111 -->"
+	guide := header + "\n\n# X — guida\n"
+	deck := header + "\n\n---\n\n# X\n"
 	if err := os.WriteFile(filepath.Join(dir, "x.it.md"), []byte(guide), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +31,10 @@ func TestLearnMaterialOfFindsTheGuideNotTheDeck(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := learnMaterialOf("architecture/x")
+	got, err := learnMaterialOf("architecture/x")
+	if err != nil {
+		t.Fatalf("learnMaterialOf: %v", err)
+	}
 	if got == nil {
 		t.Fatal("no material found")
 	}
@@ -39,7 +45,11 @@ func TestLearnMaterialOfFindsTheGuideNotTheDeck(t *testing.T) {
 
 func TestLearnMaterialOfAbsent(t *testing.T) {
 	t.Chdir(t.TempDir())
-	if got := learnMaterialOf("architecture/x"); got != nil {
+	got, err := learnMaterialOf("architecture/x")
+	if err != nil {
+		t.Fatalf("an absent material is no error: %v", err)
+	}
+	if got != nil {
 		t.Errorf("want no material, got %+v", got)
 	}
 }
@@ -173,7 +183,10 @@ func TestLearnBundleComposesALesson(t *testing.T) {
 	bld := &contextwiki.Builder{Pages: nil, ByID: map[string]*contextwiki.Page{}}
 	bld.ByID[bundlePage().ID] = bundlePage()
 	bld.Pages = append(bld.Pages, bundlePage())
-	b := learnBundleOf(bld, bundlePage())
+	b, err := learnBundleOf(bld, bundlePage())
+	if err != nil {
+		t.Fatalf("learnBundleOf: %v", err)
+	}
 	if len(b.Objectives) != 2 {
 		t.Errorf("objectives = %v", b.Objectives)
 	}
@@ -357,7 +370,10 @@ func TestLearnBundleCarriesClaimDigests(t *testing.T) {
 	writeLesson(t, checkLessonBody)
 	page := bundlePage()
 	bld := &contextwiki.Builder{Pages: []*contextwiki.Page{page}, ByID: map[string]*contextwiki.Page{page.ID: page}}
-	b := learnBundleOf(bld, page)
+	b, err := learnBundleOf(bld, page)
+	if err != nil {
+		t.Fatalf("learnBundleOf: %v", err)
+	}
 	if len(b.Claims) != 2 {
 		t.Fatalf("claims = %d, want 2", len(b.Claims))
 	}
@@ -378,7 +394,13 @@ func TestLearnBundleTextPrintsClaimDigests(t *testing.T) {
 	writeLesson(t, checkLessonBody)
 	page := bundlePage()
 	bld := &contextwiki.Builder{Pages: []*contextwiki.Page{page}, ByID: map[string]*contextwiki.Page{page.ID: page}}
-	text := learnBundleOf(bld, page).text()
+	text := func() string {
+		b, err := learnBundleOf(bld, page)
+		if err != nil {
+			t.Fatalf("learnBundleOf: %v", err)
+		}
+		return b.text()
+	}()
 	for _, c := range contextwiki.Claims(page.Body) {
 		if !strings.Contains(text, "claim "+c.ID+" "+c.Digest) {
 			t.Errorf("text does not carry claim %s digest %s:\n%s", c.ID, c.Digest, text)
@@ -395,7 +417,10 @@ func TestLearnBundleWithoutClaims(t *testing.T) {
 		Body:        "## Claims\n\nNo anchors here.\n",
 	}
 	bld := &contextwiki.Builder{Pages: []*contextwiki.Page{page}, ByID: map[string]*contextwiki.Page{page.ID: page}}
-	b := learnBundleOf(bld, page)
+	b, err := learnBundleOf(bld, page)
+	if err != nil {
+		t.Fatalf("learnBundleOf: %v", err)
+	}
 	if len(b.Claims) != 0 {
 		t.Errorf("claims = %v, want none", b.Claims)
 	}

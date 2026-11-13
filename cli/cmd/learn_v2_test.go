@@ -118,7 +118,11 @@ func loadV2Bundle(t *testing.T) learnLessonBundle {
 	if page == nil {
 		t.Fatal("v2 page not found")
 	}
-	return learnBundleOf(bld, page)
+	bundle, bundleErr := learnBundleOf(bld, page)
+	if bundleErr != nil {
+		t.Fatalf("learnBundleOf: %v", bundleErr)
+	}
+	return bundle
 }
 
 // TestLearnLessonReadsOptionalColumns proves the three optional columns are read
