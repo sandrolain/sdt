@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,6 +122,59 @@ func TestMaterialCheckRefusesTheSourceAndPassesTheExport(t *testing.T) {
 	cleanDeck := string(execute(t, materialCheckCmd, nil, filepath.Join(out, "alpha.it.slide.md")))
 	if strings.TrimSpace(cleanDeck) != "clean" {
 		t.Errorf("the exported deck must pass the check, got %q", cleanDeck)
+	}
+}
+
+// TestMaterialCheckRefusesCuratorRegister proves the check refuses the
+// curator register: every pattern in a plausible sentence, reported with the
+// file, the line and the phrase matched; a case-insensitive variant mid-sentence;
+// and a clean text still passes.
+func TestMaterialCheckRefusesCuratorRegister(t *testing.T) {
+	setupContextProject(t)
+	sentences := []struct{ phrase, text string }{
+		{"come nel corpus", "Il contesto si delimita, come nel corpus, con una riga per linguaggio."},
+		{"come nella guida precedente", "Come nella guida precedente, la mappa precede la lista."},
+		{"come vedrai", "Come vedrai, il caso si chiude da solo."},
+		{"come vedremo", "Come vedremo, il conteggio guida la decisione."},
+		{"come nel resto del corso", "Il confine resta disegnato, come nel resto del corso, prima della scelta."},
+	}
+	var body strings.Builder
+	body.WriteString("# Guida\n\n")
+	for _, s := range sentences {
+		body.WriteString(s.text + "\n")
+	}
+	registered := "context/renders/materials/software-architect/register.it.md"
+	writeCtxDoc(t, registered, body.String())
+
+	var findings string
+	shouldExitWithCode(t, 1, func() string {
+		findings = string(execute(t, materialCheckCmd, nil, registered))
+		return findings
+	})
+	for i, s := range sentences {
+		want := fmt.Sprintf("%s:%d: curator register: %q", registered, 3+i, s.phrase)
+		if !strings.Contains(findings, want) {
+			t.Errorf("the check must report the pattern at its line, want %q in:\n%s", want, findings)
+		}
+	}
+
+	variant := "context/renders/materials/software-architect/variant.it.md"
+	writeCtxDoc(t, variant, "# Guida\n\nIl confine, Come nel corpus, si disegna prima della scelta.\n")
+	var variantFindings string
+	shouldExitWithCode(t, 1, func() string {
+		variantFindings = string(execute(t, materialCheckCmd, nil, variant))
+		return variantFindings
+	})
+	want := fmt.Sprintf("%s:3: curator register: %q", variant, "come nel corpus")
+	if !strings.Contains(variantFindings, want) {
+		t.Errorf("the check must match the phrase case-insensitively, want %q in:\n%s", want, variantFindings)
+	}
+
+	clean := "context/renders/materials/software-architect/pulita.it.md"
+	writeCtxDoc(t, clean, "# Guida\n\nIl confine si disegna prima di sceglierlo.\n\nFine.\n")
+	out := string(execute(t, materialCheckCmd, nil, clean))
+	if strings.TrimSpace(out) != "clean" {
+		t.Errorf("a text without the register must pass the check, got %q", out)
 	}
 }
 

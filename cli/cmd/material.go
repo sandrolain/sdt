@@ -78,8 +78,9 @@ var materialCheckCmd = &cobra.Command{
 	Use:   "check <path>",
 	Short: "Refuse a package that still carries the authoring machinery",
 	Long: `Walk a file or directory and report every authoring residue in the Markdown:
-an HTML comment or header, a claim map, a "Verifica" line naming the item bank, or
-a backticked page id. Exit 0 when clean, 1 with the findings otherwise.`,
+an HTML comment or header, a claim map, a "Verifica" line naming the item bank,
+a backticked page id, or a curator-register phrase addressing the corpus instead
+of the reader. Exit 0 when clean, 1 with the findings otherwise.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		findings, err := checkMaterialPath(args[0], loadMaterialWiki())
@@ -555,6 +556,19 @@ type materialFinding struct {
 	Message string `json:"message" yaml:"message"`
 }
 
+// materialRegisterPhrases are the curator-register phrases the export must not
+// carry: text addressing the corpus curator instead of the standalone reader.
+// Exact phrases, matched case-insensitively — no fuzzy matching; a future
+// pattern is one line here. "Dopo questa guida" is deliberately absent: the
+// course hand-off is an accepted register (user decision 2026-11-07).
+var materialRegisterPhrases = []string{
+	"come nel corpus",
+	"come nella guida precedente",
+	"come vedrai",
+	"come vedremo",
+	"come nel resto del corso",
+}
+
 func checkMaterialPath(path string, pages *contextwiki.Builder) ([]materialFinding, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -622,6 +636,13 @@ func checkMaterialPath(path string, pages *contextwiki.Builder) ([]materialFindi
 			for _, match := range materialSlugRe.FindAllStringSubmatch(line, -1) {
 				if resolveMaterialSlug(pages, match[1]) != nil {
 					add("page slug `" + match[1] + "`")
+				}
+			}
+			lower := strings.ToLower(line)
+			for _, phrase := range materialRegisterPhrases {
+				if strings.Contains(lower, phrase) {
+					add("curator register: \"" + phrase + "\"")
+					break
 				}
 			}
 		}
