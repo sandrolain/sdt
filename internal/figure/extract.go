@@ -1,5 +1,6 @@
-// Package figure extracts a book's chapter figures out of an EPUB and pairs
-// them with the captions the converted Markdown carries, into a manifest.
+// Package figure extracts a book's chapter figures out of a source (an EPUB
+// or a PDF) and pairs them with the captions the converted Markdown carries,
+// into a manifest.
 //
 // The conversion keeps the caption and drops the image; this package puts the
 // image back where an author can read it. It is the pure-Go port of
@@ -7,6 +8,12 @@
 // the OPF, every <img> pairs with its alt text, and the alt maps to the
 // converted `###### Figure N-M. <caption>` line. The mapping is a string
 // match, not a vision call.
+//
+// A PDF source carries no alt text and no file paths: its pairing is purely
+// positional — the converted captions in reading order against the extracted
+// images in page order (source.go's seam). A count mismatch is never guessed:
+// the default records the unpaired ones as dropped, --strict-position refuses
+// the ambiguity naming the counts and the first divergence point.
 //
 // An image with no matching caption and a caption with no image are both
 // recorded in the manifest, so a silent drop is impossible. A repeated caption
@@ -58,10 +65,11 @@ var (
 	nonDigitRe = regexp.MustCompile(`\D`)
 )
 
-// Options carries one extraction run's inputs. EPUBPath and ConvertedPath are
-// the files to read; SourceDisplay and ConvertedDisplay are the paths written
-// into the manifest (relative, when the files live under the project root);
-// OutDir receives the images and manifest.json.
+// Options carries one extraction run's inputs. EPUBPath (an .epub or a .pdf —
+// the name is the pilot's) and ConvertedPath are the files to read;
+// SourceDisplay and ConvertedDisplay are the paths written into the manifest
+// (relative, when the files live under the project root); OutDir receives the
+// images and manifest.json.
 type Options struct {
 	EPUBPath         string
 	SourceDisplay    string
@@ -72,11 +80,12 @@ type Options struct {
 }
 
 // Finding is one named anomaly of the run: an image whose alt is empty, a
-// caption heading that repeats, or a second image matching a caption that is
-// already placed. Findings are reported, never silent, and never enter the
-// manifest schema.
+// caption heading that repeats, a second image matching a caption that is
+// already placed, a positional count mismatch, a caption no PDF page locates,
+// or a page whose caption/image ambiguity cannot be resolved. Findings are
+// reported, never silent, and never enter the manifest schema.
 type Finding struct {
-	Kind     string `json:"kind"` // empty-alt | duplicate-caption | duplicate-image
+	Kind     string `json:"kind"` // empty-alt | duplicate-caption | duplicate-image | shared-caption-text | count-mismatch | no-label-page | ambiguous-page | unclaimed-images
 	FigureID string `json:"figure_id,omitempty"`
 	Message  string `json:"message"`
 }
@@ -92,7 +101,7 @@ type Counts struct {
 	CaptionsWithoutImage int `json:"captions_without_image"` // captions no image matched
 }
 
-// UnmappedImage is an image in the EPUB that matched no caption.
+// UnmappedImage is an image in the source that matched no caption.
 type UnmappedImage struct {
 	Chapter string `json:"chapter"`
 	XHTML   string `json:"xhtml"`
@@ -110,7 +119,7 @@ type Result struct {
 	Missing      []string        `json:"captions_without_image"`
 }
 
-// ── manifest schema (the two existing manifests are the contract) ─────────────
+// ── manifest schema (the existing manifests are the contract) ─────────────────
 
 type manifestFigure struct {
 	ID            string `json:"id"`
@@ -153,15 +162,16 @@ type spineEntry struct {
 	Media string
 }
 
-// Extract runs one extraction: walk the EPUB spine, pair every image with its
-// caption, write the images and manifest.json into OutDir. Dispositions of a
-// previous manifest in OutDir are preserved, so a re-run is idempotent.
+// Extract runs one extraction: read the source's images through the seam
+// (source.go), pair every image with its caption, write the images and
+// manifest.json into OutDir. Dispositions of a previous manifest in OutDir are
+// preserved, so a re-run is idempotent.
 func Extract(opts Options) (*Result, error) {
-	epubBytes, err := os.ReadFile(opts.EPUBPath) //#nosec G304 -- caller-provided input path
+	sourceBytes, err := os.ReadFile(opts.EPUBPath) //#nosec G304 -- caller-provided input path
 	if err != nil {
 		return nil, fmt.Errorf("unreadable input: %s: %w", opts.EPUBPath, err)
 	}
-	digest := sha256.Sum256(epubBytes)
+	digest := sha256.Sum256(sourceBytes)
 	sourceSHA := hex.EncodeToString(digest[:])
 
 	convertedBytes, err := os.ReadFile(opts.ConvertedPath) //#nosec G304 -- caller-provided input path
@@ -178,30 +188,18 @@ func Extract(opts Options) (*Result, error) {
 	}
 	previous := readDispositions(filepath.Join(opts.OutDir, "manifest.json"))
 
-	zr, err := zip.NewReader(bytes.NewReader(epubBytes), int64(len(epubBytes)))
+	imgs, err := sourceImages(opts.EPUBPath)
 	if err != nil {
-		return nil, fmt.Errorf("unreadable EPUB %s: %w", opts.EPUBPath, err)
-	}
-	spine, err := readSpine(zr)
-	if err != nil {
-		return nil, fmt.Errorf("unreadable EPUB %s: %w", opts.EPUBPath, err)
+		return nil, err
 	}
 
 	byChapter, fidOrder := captionIndex(caps)
-	targets := chapterTargets(spine)
-	if len(targets) == 0 {
-		return nil, fmt.Errorf("no chapter matched: the spine carries no ch<N> XHTML document")
-	}
-	chapterNums := make([]int, 0, len(targets))
-	for _, t := range targets {
-		chapterNums = append(chapterNums, t.num)
-	}
+	pdf := strings.EqualFold(filepath.Ext(opts.EPUBPath), ".pdf")
 
-	manifest := &manifest{
+	man := &manifest{
 		Source:               opts.SourceDisplay,
 		SourceSHA256:         sourceSHA,
 		Converted:            opts.ConvertedDisplay,
-		Chapters:             chapterNums,
 		Scope:                "all chapters",
 		Figures:              []manifestFigure{},
 		Unmapped:             []UnmappedImage{},
@@ -218,60 +216,67 @@ func Extract(opts Options) (*Result, error) {
 
 	ex := &extractor{
 		opts:        opts,
-		zr:          zr,
 		caps:        caps,
 		byChapter:   byChapter,
 		previous:    previous,
 		repeatedFid: repeatedFid,
-		manifest:    manifest,
+		manifest:    man,
 		seen:        map[string]bool{},
 	}
 	ex.findings = findings
 	ex.sink = newImageSink(opts.OutDir, &ex.findings)
-	for _, t := range targets {
-		if err := ex.extractChapter(t); err != nil {
+
+	if pdf {
+		man.Chapters = captionChapters(fidOrder, caps)
+		if err := ex.extractPDF(imgs, fidOrder); err != nil {
+			return nil, err
+		}
+	} else {
+		if man.Chapters, err = epubChapters(opts.EPUBPath); err != nil {
+			return nil, err
+		}
+		if err := ex.extractEPUB(imgs); err != nil {
 			return nil, err
 		}
 	}
-	findings, seen := ex.findings, ex.seen
 
 	active := map[string]bool{}
-	for _, n := range chapterNums {
+	for _, n := range man.Chapters {
 		active[strconv.Itoa(n)] = true
 	}
 	for _, fid := range fidOrder {
 		c := caps[fid]
-		if !active[c.Chapter] || seen[fid] {
+		if !active[c.Chapter] || ex.seen[fid] {
 			continue
 		}
-		manifest.CaptionsWithoutImage = append(manifest.CaptionsWithoutImage, fid)
+		man.CaptionsWithoutImage = append(man.CaptionsWithoutImage, fid)
 	}
-	sort.Strings(manifest.CaptionsWithoutImage)
-	sortFigures(manifest.Figures)
+	sort.Strings(man.CaptionsWithoutImage)
+	sortFigures(man.Figures)
 
 	manifestPath := filepath.Join(opts.OutDir, "manifest.json")
-	if err := writeManifest(manifestPath, manifest); err != nil {
+	if err := writeManifest(manifestPath, man); err != nil {
 		return nil, err
 	}
 
 	result := &Result{
 		OutDir:       opts.OutDir,
 		ManifestPath: manifestPath,
-		Findings:     findings,
-		Unmapped:     manifest.Unmapped,
-		Missing:      manifest.CaptionsWithoutImage,
+		Findings:     ex.findings,
+		Unmapped:     man.Unmapped,
+		Missing:      man.CaptionsWithoutImage,
 	}
 	result.Counts.Found = len(activeCaptions(caps, active))
-	result.Counts.Placed = len(seen)
+	result.Counts.Placed = len(ex.seen)
 	result.Counts.Duplicates = 0
-	for _, f := range manifest.Figures {
+	for _, f := range man.Figures {
 		if f.PairedBy == "duplicate" {
 			result.Counts.Duplicates++
 		}
 	}
 	result.Counts.Dropped = result.Counts.Found - result.Counts.Placed
-	result.Counts.UnmappedImages = len(manifest.Unmapped)
-	result.Counts.CaptionsWithoutImage = len(manifest.CaptionsWithoutImage)
+	result.Counts.UnmappedImages = len(man.Unmapped)
+	result.Counts.CaptionsWithoutImage = len(man.CaptionsWithoutImage)
 	return result, nil
 }
 
@@ -378,6 +383,23 @@ func chapterOf(fid string) string {
 	return fid[:strings.Index(fid, "-")]
 }
 
+// captionChapters lists the distinct chapters the captions name, sorted
+// numerically — the chapters a PDF run is active over.
+func captionChapters(fidOrder []string, caps map[string]*caption) []int {
+	seen := map[int]bool{}
+	var out []int
+	for _, fid := range fidOrder {
+		n, err := strconv.Atoi(caps[fid].Chapter)
+		if err != nil || seen[n] {
+			continue
+		}
+		seen[n] = true
+		out = append(out, n)
+	}
+	sort.Ints(out)
+	return out
+}
+
 // ── EPUB: spine and images ────────────────────────────────────────────────────
 
 // readSpine returns the reading order from the OPF spine.
@@ -455,22 +477,22 @@ func chapterTargets(spine []spineEntry) []chapterTarget {
 	return targets
 }
 
-type image struct {
+type htmlImage struct {
 	src string
 	alt string
 }
 
 // collectImages returns the document's <img src alt> in document order.
-func collectImages(doc []byte) ([]image, error) {
+func collectImages(doc []byte) ([]htmlImage, error) {
 	root, err := html.Parse(bytes.NewReader(doc))
 	if err != nil {
 		return nil, err
 	}
-	var images []image
+	var images []htmlImage
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "img") {
-			img := image{}
+			img := htmlImage{}
 			for _, a := range n.Attr {
 				switch strings.ToLower(a.Key) {
 				case "src":
@@ -503,10 +525,11 @@ func zipRead(zr *zip.Reader, name string) ([]byte, error) {
 	return nil, fmt.Errorf("the EPUB carries no %s", name)
 }
 
+// ── pairing ───────────────────────────────────────────────────────────────────
+
 // extractor carries one run's state across the per-chapter steps.
 type extractor struct {
 	opts        Options
-	zr          *zip.Reader
 	caps        map[string]*caption
 	byChapter   map[string]map[string][]string
 	previous    map[string]string
@@ -517,25 +540,30 @@ type extractor struct {
 	seen        map[string]bool
 }
 
-// extractChapter places every image of one spine chapter, then pairs what
-// remains by position when the counts agree.
-func (ex *extractor) extractChapter(t chapterTarget) error {
-	chapter := strconv.Itoa(t.num)
-	byCaption := ex.byChapter[chapter]
-	doc, err := zipRead(ex.zr, t.href)
-	if err != nil {
-		return err
-	}
-	images, err := collectImages(doc)
-	if err != nil {
-		return fmt.Errorf("chapter %s (%s): %w", chapter, t.href, err)
-	}
-	for _, img := range images {
-		if err := ex.placeImage(t, chapter, byCaption, img); err != nil {
+// extractEPUB walks the collected images in spine order: the images of one
+// chapter run are placed by alt, then the chapter's captionless remainder is
+// paired by position when the counts agree — the proven script's order.
+func (ex *extractor) extractEPUB(imgs []rawImage) error {
+	for i := 0; i < len(imgs); {
+		j := i
+		for j < len(imgs) && imgs[j].chapter == imgs[i].chapter {
+			j++
+		}
+		chapter := imgs[i].chapter
+		byCaption := ex.byChapter[chapter]
+		base := len(ex.manifest.Unmapped)
+		var pool []rawImage
+		for _, img := range imgs[i:j] {
+			if err := ex.placeImage(chapter, byCaption, img, &pool); err != nil {
+				return err
+			}
+		}
+		if err := ex.pairByPosition(chapter, byCaption, pool, base); err != nil {
 			return err
 		}
+		i = j
 	}
-	return ex.pairByPosition(t, chapter, byCaption)
+	return nil
 }
 
 // placeImage writes one chapter image under its caption's figure id. An alt
@@ -544,19 +572,25 @@ func (ex *extractor) extractChapter(t chapterTarget) error {
 // suffixed file, named and never an overwrite; any other second image stays
 // in the unmapped pool, where the positional pairing disposes of it exactly
 // as the proven script does.
-func (ex *extractor) placeImage(t chapterTarget, chapter string, byCaption map[string][]string, img image) error {
+func (ex *extractor) placeImage(chapter string, byCaption map[string][]string, img rawImage, pool *[]rawImage) error {
 	alt := norm(img.alt)
 	if fid := firstUnseen(byCaption[alt], ex.seen); fid != "" {
-		return ex.place(t, img, fid, "", "")
+		return ex.place(chapter, img, fid, "", "")
 	}
 	fids := byCaption[alt]
 	if alt != "" && len(fids) > 0 && ex.repeatedFid[fids[0]] {
 		fid := fids[0]
-		name := fmt.Sprintf("figure-%s.1%s", fid, imageExt(t.href, img.src))
-		return ex.place(t, img, fid, name, "duplicate")
+		name := fmt.Sprintf("figure-%s.1%s", fid, img.ext)
+		if err := ex.place(chapter, img, fid, name, "duplicate"); err != nil {
+			return err
+		}
+		ex.findings = append(ex.findings, Finding{Kind: "duplicate-image", FigureID: fid,
+			Message: fmt.Sprintf("Figure %s: second image for the repeated caption, placed as %s", fid, name)})
+		return nil
 	}
+	*pool = append(*pool, img)
 	ex.manifest.Unmapped = append(ex.manifest.Unmapped, UnmappedImage{
-		Chapter: chapter, XHTML: t.href, Src: img.src, Alt: img.alt,
+		Chapter: chapter, XHTML: img.href, Src: img.src, Alt: img.alt,
 	})
 	return nil
 }
@@ -566,49 +600,398 @@ func (ex *extractor) placeImage(t chapterTarget, chapter string, byCaption map[s
 // assigned a caption it does not belong to. Strict mode refuses a guess when
 // several candidates could pair, naming the captions and the candidate
 // positions instead.
-func (ex *extractor) pairByPosition(t chapterTarget, chapter string, byCaption map[string][]string) error {
-	chapterUnmapped := unmappedOf(ex.manifest.Unmapped, chapter)
+func (ex *extractor) pairByPosition(chapter string, byCaption map[string][]string, pool []rawImage, base int) error {
 	chapterMissing := missingOf(byCaption, ex.seen, ex.caps)
-	if len(chapterUnmapped) == 0 || len(chapterUnmapped) != len(chapterMissing) {
+	if len(pool) == 0 || len(pool) != len(chapterMissing) {
 		return nil
 	}
-	if ex.opts.StrictPosition && len(chapterUnmapped) > 1 {
+	if ex.opts.StrictPosition && len(pool) > 1 {
 		return fmt.Errorf("ambiguous positional pairing in chapter %s: %d images without caption and %d captions without image; candidates: %s; re-run without --strict-position to pair by position",
-			chapter, len(chapterUnmapped), len(chapterMissing),
-			ambiguityDetail(chapterMissing, ex.caps, chapterUnmapped, t.href))
+			chapter, len(pool), len(chapterMissing),
+			ambiguityDetail(chapterMissing, ex.caps, pool))
 	}
-	for i, u := range chapterUnmapped {
+	for i, img := range pool {
 		fid := chapterMissing[i]
-		name := fmt.Sprintf("figure-%s%s", fid, imageExt(t.href, u.Src))
-		if err := ex.place(t, image{src: u.Src, alt: u.Alt}, fid, name, "position"); err != nil {
+		name := fmt.Sprintf("figure-%s%s", fid, img.ext)
+		if err := ex.place(chapter, img, fid, name, "position"); err != nil {
 			return err
 		}
+		if img.alt == "" {
+			ex.findings = append(ex.findings, Finding{Kind: "empty-alt", FigureID: fid,
+				Message: fmt.Sprintf("Figure %s: empty alt; image paired by position (converted line %d)", fid, ex.caps[fid].Line)})
+		}
 	}
-	ex.manifest.Unmapped = dropUnmapped(ex.manifest.Unmapped, chapterUnmapped)
+	ex.manifest.Unmapped = ex.manifest.Unmapped[:base]
 	return nil
 }
 
-// place writes one image and records its manifest entry. An empty name means
-// the caption's own filename; an empty alt is a named finding on every path
-// that places its image.
-func (ex *extractor) place(t chapterTarget, img image, fid, name, pairedBy string) error {
-	if name == "" {
-		name = fmt.Sprintf("figure-%s%s", fid, imageExt(t.href, img.src))
+// extractPDF pairs the PDF's images with the converted captions by page text:
+// a page whose text carries the reference "Figure N-M" is the caption's own
+// page, and the image on it is the figure — a PDF carries no alt text, and
+// books caption their figures under or near the image. When several pages
+// mention the label, the caption's text confirms the page (preferring pages
+// that carry an image). A page matched by more than one caption, or a caption
+// whose matched page carries more than one image, is an ambiguity, never a
+// guess: strict mode refuses it naming the counts and the first divergence
+// point, the default records every unpaired image and caption as dropped.
+// What the pass leaves unpaired — covers, logos, decorations, and the captions
+// no page locates — is recorded as unpaired; the positional stream is
+// structurally wrong for PDFs, so no positional fallback runs here.
+func (ex *extractor) extractPDF(imgs []rawImage, fidOrder []string) error {
+	pages, err := pdfPageTexts(ex.opts.EPUBPath)
+	if err != nil {
+		return err
 	}
-	name, err := ex.sink.write(ex.zr, t.href, img.src, fid, name)
+	imgsByPage := pdfImagesByPage(imgs)
+	resolution := ex.pdfResolveCaptions(fidOrder, pages, imgsByPage)
+	if err := ex.pdfStrictGate(fidOrder, resolution, imgsByPage); err != nil {
+		return err
+	}
+	placedPages, err := ex.pdfPlacePlaced(resolution, imgsByPage)
+	if err != nil {
+		return err
+	}
+	ex.pdfRecordDrops(resolution, imgs, imgsByPage, placedPages)
+	return nil
+}
+
+// pdfResolution carries one PDF pass's caption-to-page resolution.
+type pdfResolution struct {
+	pageCaptions map[int][]string // the caption's own page → its captions, reading order
+	resolvedTo   map[string]int   // caption → its page
+	candidates   map[string][]int // caption → the pages mentioning its label
+	noLabelPage  []string         // captions no page's text locates
+	unresolved   []string         // captions several pages locate, none singled out
+}
+
+// pdfImagesByPage groups the PDF's images by page, pdfcpu's order.
+func pdfImagesByPage(imgs []rawImage) map[int][]rawImage {
+	byPage := map[int][]rawImage{}
+	for _, img := range imgs {
+		byPage[img.page] = append(byPage[img.page], img)
+	}
+	return byPage
+}
+
+// pdfResolveCaptions locates every caption's own page: by its label, confirmed
+// by the caption's text when several pages mention the label. A caption no
+// page locates, or several pages locate without a winner, is recorded.
+func (ex *extractor) pdfResolveCaptions(fidOrder []string, pages map[int]string, imgsByPage map[int][]rawImage) *pdfResolution {
+	normPage := map[int]string{}
+	labelPages := map[string][]int{}
+	seenPage := map[string]map[int]bool{}
+	for pg, text := range pages {
+		normPage[pg] = pdfNorm(text)
+		for _, m := range pdfLabelRe.FindAllStringSubmatch(strings.ToLower(text), -1) {
+			label := m[1] + "-" + m[2]
+			if seenPage[label] == nil {
+				seenPage[label] = map[int]bool{}
+			}
+			if !seenPage[label][pg] {
+				seenPage[label][pg] = true
+				labelPages[label] = append(labelPages[label], pg)
+			}
+		}
+	}
+	res := &pdfResolution{
+		pageCaptions: map[int][]string{},
+		resolvedTo:   map[string]int{},
+		candidates:   map[string][]int{},
+	}
+	for _, fid := range fidOrder {
+		cand := labelPages[fid]
+		res.candidates[fid] = cand
+		switch {
+		case len(cand) == 0:
+			res.noLabelPage = append(res.noLabelPage, fid)
+		case len(cand) == 1:
+			res.pageCaptions[cand[0]] = append(res.pageCaptions[cand[0]], fid)
+			res.resolvedTo[fid] = cand[0]
+		default:
+			if page, ok := pdfConfirmPage(fid, cand, ex.caps[fid].Text, normPage, imgsByPage); ok {
+				res.pageCaptions[page] = append(res.pageCaptions[page], fid)
+				res.resolvedTo[fid] = page
+			} else {
+				res.unresolved = append(res.unresolved, fid)
+			}
+		}
+	}
+	return res
+}
+
+// pdfStrictGate refuses the first ambiguity in reading order: a caption whose
+// label several pages carry without its text singling one out, or a caption
+// whose page cannot host its image alone.
+func (ex *extractor) pdfStrictGate(fidOrder []string, res *pdfResolution, imgsByPage map[int][]rawImage) error {
+	if !ex.opts.StrictPosition {
+		return nil
+	}
+	for _, fid := range fidOrder {
+		if containsString(res.unresolved, fid) {
+			return fmt.Errorf("ambiguous page-text pairing in %s: Figure %s is mentioned on pages %v and its caption text does not single one out (all captions: %d); re-run without --strict-position to record the ambiguity and drop the unpaired ones",
+				ex.opts.EPUBPath, fid, res.candidates[fid], len(fidOrder))
+		}
+		if pg, ok := res.resolvedTo[fid]; ok && (len(res.pageCaptions[pg]) > 1 || len(imgsByPage[pg]) > 1) {
+			return fmt.Errorf("ambiguous page-text pairing in %s: %s; re-run without --strict-position to record the ambiguity and drop the unpaired ones",
+				ex.opts.EPUBPath, pdfStrictDetail(pg, res.pageCaptions[pg], imgsByPage[pg], len(fidOrder)))
+		}
+	}
+	return nil
+}
+
+// pdfPlacePlaced places every unambiguous caption on its page's single image
+// and reports the pages it placed.
+func (ex *extractor) pdfPlacePlaced(res *pdfResolution, imgsByPage map[int][]rawImage) (map[int]bool, error) {
+	placedPages := map[int]bool{}
+	for _, pg := range sortedIntKeys(res.pageCaptions) {
+		fids := res.pageCaptions[pg]
+		images := imgsByPage[pg]
+		if len(fids) == 1 && len(images) == 1 {
+			if err := ex.placePDF(images[0], fids[0]); err != nil {
+				return placedPages, err
+			}
+			placedPages[pg] = true
+			continue
+		}
+		if len(fids) == 1 && len(images) == 0 {
+			continue // the page confirms the caption but carries no image: caption_without_image
+		}
+		// >1 caption or >1 image on the page: the ambiguity is recorded
+		ex.findings = append(ex.findings, Finding{Kind: "ambiguous-page", FigureID: fids[0],
+			Message: fmt.Sprintf("page %d carries %d image(s) for %s; the ambiguity is recorded, not guessed", pg, len(images), figureList(fids))})
+	}
+	return placedPages, nil
+}
+
+// pdfRecordDrops records what the pass left unpaired: the captions no page
+// locates or no page confirms, and the images no placed figure claims —
+// covers, logos, decorations — with one finding each.
+func (ex *extractor) pdfRecordDrops(res *pdfResolution, imgs []rawImage, imgsByPage map[int][]rawImage, placedPages map[int]bool) {
+	if len(res.unresolved) > 0 {
+		for _, fid := range res.unresolved {
+			ex.findings = append(ex.findings, Finding{Kind: "ambiguous-page", FigureID: fid,
+				Message: fmt.Sprintf("Figure %s is mentioned on pages %v and its caption text does not single one out; the ambiguity is recorded, not guessed", fid, res.candidates[fid])})
+		}
+	}
+	if len(res.noLabelPage) > 0 {
+		ex.findings = append(ex.findings, Finding{Kind: "no-label-page", FigureID: res.noLabelPage[0],
+			Message: fmt.Sprintf("%s: no PDF page carries the label; recorded without an image", figureList(res.noLabelPage))})
+	}
+	var unclaimed []rawImage
+	var unclaimedPages []int
+	seenUnclaimed := map[int]bool{}
+	for _, img := range imgs {
+		if placedPages[img.page] {
+			continue
+		}
+		unclaimed = append(unclaimed, img)
+		if !seenUnclaimed[img.page] {
+			seenUnclaimed[img.page] = true
+			unclaimedPages = append(unclaimedPages, img.page)
+		}
+	}
+	if len(unclaimed) > 0 {
+		sort.Ints(unclaimedPages)
+		for _, img := range unclaimed {
+			ex.manifest.Unmapped = append(ex.manifest.Unmapped, UnmappedImage{Src: img.src})
+		}
+		ex.findings = append(ex.findings, Finding{Kind: "unclaimed-images",
+			Message: fmt.Sprintf("%d image(s) on %d page(s) no placed figure claims (%s…): recorded as unmapped", len(unclaimed), len(unclaimedPages), pageListHead(unclaimedPages, 5))})
+	}
+}
+
+// pdfNorm keeps only the [a-z0-9] skeleton of a page's text or a caption:
+// kerning splits, dashes, quotes and font-encoding garbage all vanish, so a
+// caption's glyphs can be found in the page's glyphs even when the encoding
+// mangles everything between them.
+func pdfNorm(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if isPDFWordRune(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func isPDFWordRune(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+}
+
+// pdfConfirmPage singles the caption's page out among the pages that mention
+// its label: first by the caption's own text appearing in the page's text
+// (decreasing prefix cuts, so a font-encoded ligature partway through the
+// caption still matches on its head), then by a word-score confirmation, and
+// whenever several pages still tie, by preferring the pages that carry an
+// image — the caption's own page is the image's page. No single page: not
+// confirmed, the caption is recorded instead.
+func pdfConfirmPage(fid string, cand []int, captionText string, normPage map[int]string, imgsByPage map[int][]rawImage) (int, bool) {
+	matched := pdfContiguousPages(captionText, cand, normPage)
+	if len(matched) == 0 {
+		matched = pdfWordScoredPages(captionText, cand, normPage)
+	}
+	if len(matched) > 1 {
+		if withImgs := pdfPagesWithImages(matched, imgsByPage); len(withImgs) > 0 {
+			matched = withImgs
+		}
+	}
+	if len(matched) == 1 {
+		return matched[0], true
+	}
+	return 0, false
+}
+
+// pdfContiguousPages returns the candidate pages whose text contains the
+// caption's glyphs, trying the full caption first and shorter heads after.
+func pdfContiguousPages(captionText string, cand []int, normPage map[int]string) []int {
+	ctext := pdfNorm(captionText)
+	for _, cut := range []int{len(ctext), 40, 24, 12} {
+		if cut > len(ctext) {
+			continue
+		}
+		var matched []int
+		for _, pg := range cand {
+			if strings.Contains(normPage[pg], ctext[:cut]) {
+				matched = append(matched, pg)
+			}
+		}
+		if len(matched) > 0 {
+			return matched
+		}
+	}
+	return nil
+}
+
+// pdfWordScoredPages returns the candidate pages sharing enough of the
+// caption's longer words — the fallback when the glyphs stop matching
+// contiguously, e.g. across a font-encoded ligature.
+func pdfWordScoredPages(captionText string, cand []int, normPage map[int]string) []int {
+	var strong []string
+	total := 0
+	for _, w := range pdfWords(captionText) {
+		if len(w) >= 4 {
+			strong = append(strong, w)
+			total += len(w)
+		}
+	}
+	if total == 0 {
+		return nil
+	}
+	var matched []int
+	for _, pg := range cand {
+		s := 0
+		for _, w := range strong {
+			if strings.Contains(normPage[pg], w) {
+				s += len(w)
+			}
+		}
+		if s*100 >= total*85 && s >= 16 {
+			matched = append(matched, pg)
+		}
+	}
+	return matched
+}
+
+// pdfWords splits a caption into its alphanumeric tokens, longest first.
+func pdfWords(s string) []string {
+	f := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !isPDFWordRune(r)
+	})
+	sort.Slice(f, func(i, j int) bool { return len(f[i]) > len(f[j]) })
+	return f
+}
+
+func pdfPagesWithImages(pages []int, imgsByPage map[int][]rawImage) []int {
+	var out []int
+	for _, pg := range pages {
+		if len(imgsByPage[pg]) > 0 {
+			out = append(out, pg)
+		}
+	}
+	return out
+}
+
+// pdfStrictDetail names the counts and the first divergence point of a strict
+// refusal: the first caption (reading order) whose page is ambiguous.
+func pdfStrictDetail(pg int, fids []string, images []rawImage, captionCount int) string {
+	capsPart := make([]string, 0, len(fids))
+	for _, fid := range fids {
+		capsPart = append(capsPart, "Figure "+fid)
+	}
+	if len(fids) > 1 {
+		return fmt.Sprintf("page %d carries %s and %d image(s): the captions cannot be told apart on the page (all captions: %d)", pg, strings.Join(capsPart, ", "), len(images), captionCount)
+	}
+	return fmt.Sprintf("%s matches page %d carrying %d image(s): which one is the figure is not decidable (all captions: %d)", capsPart[0], pg, len(images), captionCount)
+}
+
+func sortedIntKeys(m map[int][]string) []int {
+	keys := make([]int, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	return keys
+}
+
+func containsString(list []string, v string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// figureList renders figure ids comma-separated.
+func figureList(fids []string) string {
+	parts := make([]string, 0, len(fids))
+	for _, fid := range fids {
+		parts = append(parts, "Figure "+fid)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// pageListHead renders the head of a page list for a finding.
+func pageListHead(pages []int, max int) string {
+	parts := make([]string, 0, max)
+	for i, pg := range pages {
+		if i == max {
+			break
+		}
+		parts = append(parts, fmt.Sprintf("page %d", pg))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// placePDF writes one page-text image under its caption's figure id. The
+// pairing is by page text: the caption's own page is the image's page. A PDF
+// carries no alt text to report on.
+func (ex *extractor) placePDF(img rawImage, fid string) error {
+	name := fmt.Sprintf("figure-%s%s", fid, img.ext)
+	name, err := ex.sink.writeData(img.data, fid, name)
 	if err != nil {
 		return err
 	}
 	ex.seen[fid] = true
-	ex.manifest.Figures = append(ex.manifest.Figures, figureEntry(fid, t, img, name, ex.caps[fid], ex.previous, pairedBy))
-	if img.alt == "" {
-		ex.findings = append(ex.findings, Finding{Kind: "empty-alt", FigureID: fid,
-			Message: fmt.Sprintf("Figure %s: empty alt; image paired by position (converted line %d)", fid, ex.caps[fid].Line)})
+	ex.manifest.Figures = append(ex.manifest.Figures,
+		figureEntry(fid, chapterOf(fid), img.src, img.alt, name, ex.caps[fid], ex.previous, "page-text"))
+	return nil
+}
+
+// place writes one image and records its manifest entry. An empty name means
+// the caption's own filename; the findings an EPUB pairing reports (an empty
+// alt, a repeated caption's second image) belong to its callers, since a PDF
+// pairing has no alt and no repetition to report.
+func (ex *extractor) place(chapter string, img rawImage, fid, name, pairedBy string) error {
+	if name == "" {
+		name = fmt.Sprintf("figure-%s%s", fid, img.ext)
 	}
-	if pairedBy == "duplicate" {
-		ex.findings = append(ex.findings, Finding{Kind: "duplicate-image", FigureID: fid,
-			Message: fmt.Sprintf("Figure %s: second image for the repeated caption, placed as %s", fid, name)})
+	name, err := ex.sink.writeData(img.data, fid, name)
+	if err != nil {
+		return err
 	}
+	ex.seen[fid] = true
+	ex.manifest.Figures = append(ex.manifest.Figures, figureEntry(fid, chapter, img.src, img.alt, name, ex.caps[fid], ex.previous, pairedBy))
 	return nil
 }
 
@@ -623,10 +1006,9 @@ func firstUnseen(fids []string, seen map[string]bool) string {
 	return ""
 }
 
-// imageExt resolves an image's extension from its zip path, defaulting to
-// .png like the script.
-func imageExt(chapterHref, src string) string {
-	resolved := resolveImage(chapterHref, src)
+// imageExt resolves an image's extension from its resolved source path,
+// defaulting to .png like the script.
+func imageExt(resolved string) string {
 	if ext := path.Ext(resolved); ext != "" {
 		return strings.ToLower(ext)
 	}
@@ -680,9 +1062,9 @@ func newImageSink(out string, findings *[]Finding) *imageSink {
 	return &imageSink{out: out, written: map[string]int{}, findings: findings}
 }
 
-// write stores one image under name; on a collision it returns the suffixed
-// name it actually used.
-func (s *imageSink) write(zr *zip.Reader, chapterHref, src, fid, name string) (string, error) {
+// writeData stores one image's bytes under name; on a collision it returns
+// the suffixed name it actually used.
+func (s *imageSink) writeData(data []byte, fid, name string) (string, error) {
 	if n, ok := s.written[name]; ok {
 		n++
 		s.written[name] = n
@@ -694,24 +1076,20 @@ func (s *imageSink) write(zr *zip.Reader, chapterHref, src, fid, name string) (s
 	} else {
 		s.written[name] = 0
 	}
-	data, err := zipRead(zr, resolveImage(chapterHref, src))
-	if err != nil {
-		return "", err
-	}
 	if err := os.WriteFile(filepath.Join(s.out, name), data, 0o644); err != nil { //#nosec G304 G306 -- author-facing asset under the caller's OutDir
 		return "", fmt.Errorf("cannot write %s: %w", name, err)
 	}
 	return name, nil
 }
 
-func figureEntry(fid string, t chapterTarget, img image, name string, c *caption, previous map[string]string, pairedBy string) manifestFigure {
+func figureEntry(fid, chapter, xhtml, alt, name string, c *caption, previous map[string]string, pairedBy string) manifestFigure {
 	disposition := previous[fid]
 	if disposition == "" {
 		disposition = "unclassified"
 	}
 	f := manifestFigure{
-		ID: fid, Chapter: strconv.Itoa(t.num), File: name,
-		Alt: img.alt, XHTML: resolveImage(t.href, img.src),
+		ID: fid, Chapter: chapter, File: name,
+		Alt: alt, XHTML: xhtml,
 		ConvertedLine: c.Line, Anchor: c.Anchor, Span: c.Span,
 		Disposition: disposition,
 	}
@@ -719,30 +1097,6 @@ func figureEntry(fid string, t chapterTarget, img image, name string, c *caption
 		f.PairedBy = pairedBy
 	}
 	return f
-}
-
-func unmappedOf(unmapped []UnmappedImage, chapter string) []*UnmappedImage {
-	var out []*UnmappedImage
-	for i := range unmapped {
-		if unmapped[i].Chapter == chapter {
-			out = append(out, &unmapped[i])
-		}
-	}
-	return out
-}
-
-func dropUnmapped(unmapped []UnmappedImage, dropped []*UnmappedImage) []UnmappedImage {
-	set := map[*UnmappedImage]bool{}
-	for _, d := range dropped {
-		set[d] = true
-	}
-	out := make([]UnmappedImage, 0, len(unmapped))
-	for i := range unmapped {
-		if !set[&unmapped[i]] {
-			out = append(out, unmapped[i])
-		}
-	}
-	return out
 }
 
 func missingOf(byCaption map[string][]string, seen map[string]bool, caps map[string]*caption) []string {
@@ -760,13 +1114,13 @@ func missingOf(byCaption map[string][]string, seen map[string]bool, caps map[str
 	return missing
 }
 
-func ambiguityDetail(missing []string, caps map[string]*caption, images []*UnmappedImage, chapterHref string) string {
+func ambiguityDetail(missing []string, caps map[string]*caption, images []rawImage) string {
 	var capsPart, imgPart []string
 	for _, fid := range missing {
 		capsPart = append(capsPart, fmt.Sprintf("Figure %s (converted line %d)", fid, caps[fid].Line))
 	}
-	for _, u := range images {
-		imgPart = append(imgPart, resolveImage(chapterHref, u.Src))
+	for _, img := range images {
+		imgPart = append(imgPart, img.src)
 	}
 	return fmt.Sprintf("%s ← images %s", strings.Join(capsPart, ", "), strings.Join(imgPart, ", "))
 }

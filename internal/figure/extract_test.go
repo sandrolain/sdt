@@ -220,22 +220,13 @@ func TestExtractSecondImageOfOneCaptionJoinsThePositionPool(t *testing.T) {
 
 func TestImageSinkNeverOverwrites(t *testing.T) {
 	dir := t.TempDir()
-	epub, _ := writeBook(t, dir, "###### Figure 1-1. A diagram\n", `<html><body><img src="assets/f1.png" alt="A diagram"/></body></html>`)
-	data, err := os.ReadFile(epub) //#nosec G304 -- test fixture path
-	if err != nil {
-		t.Fatal(err)
-	}
-	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		t.Fatal(err)
-	}
 	var findings []Finding
 	sink := newImageSink(dir, &findings)
-	name, err := sink.write(zr, "OEBPS/ch01.xhtml", "assets/f1.png", "1-1", "figure-1-1.png")
+	name, err := sink.writeData([]byte(pngByte), "1-1", "figure-1-1.png")
 	if err != nil || name != "figure-1-1.png" {
 		t.Fatalf("first write = %q, %v", name, err)
 	}
-	name, err = sink.write(zr, "OEBPS/ch01.xhtml", "assets/f1.png", "1-1", "figure-1-1.png")
+	name, err = sink.writeData([]byte(pngByte), "1-1", "figure-1-1.png")
 	if err != nil {
 		t.Fatal(err)
 	}

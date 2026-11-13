@@ -24,16 +24,22 @@ var figureCmd = &cobra.Command{
 }
 
 var figureExtractCmd = &cobra.Command{
-	Use:   "extract <epub>",
-	Short: "Extract one EPUB's chapter figures and write their manifest",
-	Long: `Walk an EPUB's spine, pair every <img> with its alt text and map that text
-to the converted Markdown's ` + "`###### Figure N-M. <caption>`" + ` headings. The mapping
-is a string match, not a vision call.
+	Use:   "extract <epub|pdf>",
+	Short: "Extract one source's chapter figures and write their manifest",
+	Long: `Walk a source's images and map them to the converted Markdown's ` + "`###### Figure N-M. <caption>`" + `
+headings. The mapping is a string match, not a vision call.
+
+An EPUB is walked by its spine: every <img> pairs with its alt text, and the
+alt maps to the caption. A PDF carries no alt text and no file paths: its
+pairing is purely positional — the converted captions in reading order
+against the extracted images in page order. A count mismatch is never
+guessed: the default records the unpaired ones as dropped; --strict-position
+refuses the ambiguity, naming the counts and the first divergence point.
 
 The images and manifest.json go to <out>/<source-id>/ (default
 context/assets/figures/), in the manifest schema the extracted books already
 carry. The converted Markdown is found under context/refs/converted/ by the
-EPUB's digest, the name doc2md --keep gives it; --converted names it
+source's digest, the name doc2md --keep gives it; --converted names it
 explicitly.
 
 An image with no matching caption and a caption with no image are both
@@ -51,7 +57,7 @@ drops recorded in the manifest.
 
 Examples:
   sdt figure extract context/refs/monolithtomicroservices.epub
-  sdt figure extract <epub> --out /tmp/figs --strict-position`,
+  sdt figure extract <source> --out /tmp/figs --strict-position`,
 	Args: cobra.ExactArgs(1),
 	Run:  runFigureExtract,
 }
@@ -69,22 +75,22 @@ func runFigureExtract(cmd *cobra.Command, args []string) {
 		out = filepath.Join(root, "context", "assets", "figures")
 	}
 
-	epubArg := args[0]
-	epubRead := epubArg
-	if !filepath.IsAbs(epubRead) {
-		if _, err := os.Stat(epubRead); err != nil {
-			epubRead = filepath.Join(root, epubArg)
+	sourceArg := args[0]
+	sourceRead := sourceArg
+	if !filepath.IsAbs(sourceRead) {
+		if _, err := os.Stat(sourceRead); err != nil {
+			sourceRead = filepath.Join(root, sourceArg)
 		}
 	}
-	if _, err := os.Stat(epubRead); err != nil {
-		exitWithError(cmd, fmt.Errorf("unreadable input: %s: %w", epubArg, err))
+	if _, err := os.Stat(sourceRead); err != nil {
+		exitWithError(cmd, fmt.Errorf("unreadable input: %s: %w", sourceArg, err))
 		return
 	}
-	sourceID := strings.TrimSuffix(filepath.Base(epubRead), filepath.Ext(epubRead))
+	sourceID := strings.TrimSuffix(filepath.Base(sourceRead), filepath.Ext(sourceRead))
 
 	convertedRead, convertedDisplay := convertedFlag, convertedFlag
 	if convertedRead == "" {
-		display, read, err := figure.FindConverted(root, sourceID, epubRead)
+		display, read, err := figure.FindConverted(root, sourceID, sourceRead)
 		if err != nil {
 			exitWithError(cmd, err)
 			return
@@ -93,8 +99,8 @@ func runFigureExtract(cmd *cobra.Command, args []string) {
 	}
 
 	opts := figure.Options{
-		EPUBPath:         epubRead,
-		SourceDisplay:    figure.DisplayPath(root, epubRead),
+		EPUBPath:         sourceRead,
+		SourceDisplay:    figure.DisplayPath(root, sourceRead),
 		ConvertedPath:    convertedRead,
 		ConvertedDisplay: convertedDisplay,
 		OutDir:           filepath.Join(out, sourceID),
