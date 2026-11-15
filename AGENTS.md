@@ -290,7 +290,7 @@ owns the chain and its gates.
 
 ### Stack
 
-Go 1.27.1 (see `.tool-versions`) · pure-Go, no CGO · cobra CLI + viper config.
+Go (see `.tool-versions`; `go.mod` states the module requirement) · pure-Go, no CGO · cobra CLI + viper config.
 
 Key dependencies:
 

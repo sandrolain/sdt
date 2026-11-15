@@ -108,7 +108,9 @@ export function ReferencedBy({ path, heading, compact = false }: ReferencedByPro
                   <span className="referrers__title">
                     {displayTitle({ title: ref.title, path: ref.path })}
                   </span>
-                  {!compact && <span className="referrers__via">{viaLabel(ref.via, ref.verb)}</span>}
+                  {!compact && (
+                    <span className="referrers__via">{viaLabel(ref.via, ref.verb)}</span>
+                  )}
                 </span>
                 <span className="referrers__kind" title={kindLabel(kind)}>
                   <span className="referrers__kind-icon" aria-hidden="true">
