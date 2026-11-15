@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -22,7 +23,7 @@ import (
 // of them. `material export` is the boundary; `material check` is its gate.
 
 var materialCmd = &cobra.Command{
-	Use:   "material",
+	Use:   materialLane,
 	Short: "Export a study guide without its authoring machinery",
 }
 
@@ -54,7 +55,8 @@ concept with several materials is refused: name --syllabus and --lang.`,
 		}
 		switch getFormat(cmd) {
 		case fmtJSON:
-			data, _ := json.MarshalIndent(result, "", "  ")
+			data, err := json.MarshalIndent(result, "", "  ")
+			exitWithError(cmd, err)
 			outputBytes(cmd, data)
 		case fmtYAML:
 			outputString(cmd, fmt.Sprintf("path: %s\nmarkers_removed: %d\nslugs_resolved: %d\nslugs_unresolved: %d\ncheck_line_removed: %t\n",
@@ -90,8 +92,9 @@ of the reader. Exit 0 when clean, 1 with the findings otherwise.`,
 		}
 		switch getFormat(cmd) {
 		case fmtJSON:
-			payload := map[string]any{"clean": len(findings) == 0, "findings": findings}
-			data, _ := json.MarshalIndent(payload, "", "  ")
+			payload := map[string]any{materialStatusClean: len(findings) == 0, "findings": findings}
+			data, err := json.MarshalIndent(payload, "", "  ")
+			exitWithError(cmd, err)
 			outputBytes(cmd, data)
 		default:
 			if len(findings) == 0 {
@@ -136,7 +139,7 @@ func materialBaseDir() string {
 // valid header is not a guide and is skipped; the render check reports those.
 func loadMaterialFiles() ([]materialFile, error) {
 	base := materialBaseDir()
-	var files []materialFile
+	var paths []string
 	err := filepath.WalkDir(base, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -148,20 +151,34 @@ func loadMaterialFiles() ([]materialFile, error) {
 			strings.HasSuffix(d.Name(), ".slide"+sdtMarkdownExt) {
 			return nil
 		}
-		data, readErr := os.ReadFile(path) //#nosec G304 -- path from the material lane walk
-		if readErr != nil {
-			return nil
-		}
-		first, _, _ := strings.Cut(string(data), "\n")
-		header, headerErr := parseMaterialHeader(first)
-		if headerErr != nil {
-			return nil
-		}
-		files = append(files, materialFile{Path: path, Header: header})
+		paths = append(paths, path)
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", base, err)
+	}
+	root, err := os.OpenRoot(base)
+	if err != nil {
+		return nil, err
+	}
+	var files []materialFile
+	for _, path := range paths {
+		rel, relErr := filepath.Rel(base, path)
+		if relErr != nil {
+			continue
+		}
+		data, readErr := root.ReadFile(rel)
+		if readErr != nil {
+			continue
+		}
+		first, _, _ := strings.Cut(string(data), "\n")
+		header, headerErr := parseMaterialHeader(first)
+		if headerErr == nil {
+			files = append(files, materialFile{Path: path, Header: header})
+		}
+	}
+	if err := root.Close(); err != nil {
+		return nil, err
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
@@ -260,8 +277,15 @@ func exportMaterialFile(ref materialFile, outDir string, pages *contextwiki.Buil
 		return materialExportResult{}, fmt.Errorf("create %s: %w", outDir, err)
 	}
 	dst := filepath.Join(outDir, filepath.Base(ref.Path))
-	if err := os.WriteFile(dst, []byte(clean), 0o644); err != nil { //#nosec G306 -- a deliverable a reader opens
-		return materialExportResult{}, fmt.Errorf("write %s: %w", dst, err)
+	outputRoot, err := os.OpenRoot(outDir)
+	if err != nil {
+		return materialExportResult{}, fmt.Errorf("open %s: %w", outDir, err)
+	}
+	if err := outputRoot.WriteFile(filepath.Base(dst), []byte(clean), 0o644); err != nil { //#nosec G306 -- a deliverable a reader opens
+		return materialExportResult{}, fmt.Errorf("write %s: %w", dst, errors.Join(err, outputRoot.Close()))
+	}
+	if err := outputRoot.Close(); err != nil {
+		return materialExportResult{}, err
 	}
 	result.Path = filepath.ToSlash(dst)
 
@@ -270,8 +294,15 @@ func exportMaterialFile(ref materialFile, outDir string, pages *contextwiki.Buil
 	if deckData, readErr := os.ReadFile(deckPath); readErr == nil { //#nosec G304 -- the deck beside the resolved guide
 		deckClean, deckMarkers, deckNotes := cleanDeckText(string(deckData), pages)
 		deckDst := filepath.Join(outDir, filepath.Base(deckPath))
-		if writeErr := os.WriteFile(deckDst, []byte(deckClean), 0o644); writeErr != nil { //#nosec G306 -- a deliverable a reader opens
-			return materialExportResult{}, fmt.Errorf("write %s: %w", deckDst, writeErr)
+		deckRoot, rootErr := os.OpenRoot(outDir)
+		if rootErr != nil {
+			return materialExportResult{}, rootErr
+		}
+		if writeErr := deckRoot.WriteFile(filepath.Base(deckDst), []byte(deckClean), 0o644); writeErr != nil { //#nosec G306 -- a deliverable a reader opens
+			return materialExportResult{}, fmt.Errorf("write %s: %w", deckDst, errors.Join(writeErr, deckRoot.Close()))
+		}
+		if closeErr := deckRoot.Close(); closeErr != nil {
+			return materialExportResult{}, closeErr
 		}
 		result.Deck = filepath.ToSlash(deckDst)
 		result.DeckMarkers = deckMarkers
@@ -297,58 +328,13 @@ func cleanDeckText(text string, pages *contextwiki.Builder) (string, int, int) {
 	markers, notes := 0, 0
 	skipping, keepingNote := false, false
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if skipping {
-			if strings.Contains(trimmed, "-->") {
-				skipping = false
-			}
-			continue
+		cleaned, keep, marker, note, nextSkipping, nextNote := cleanDeckLine(line, skipping, keepingNote)
+		skipping, keepingNote = nextSkipping, nextNote
+		if keep {
+			kept = append(kept, cleaned)
 		}
-		if keepingNote {
-			kept = append(kept, cleanSpeakerNote(line))
-			if strings.Contains(trimmed, "-->") {
-				keepingNote = false
-			}
-			continue
-		}
-		if materialCheckRe.MatchString(line) {
-			markers++
-			continue
-		}
-		if strings.HasPrefix(trimmed, "<!--") {
-			switch {
-			case materialMarkerLine(trimmed):
-				markers++
-				if !strings.Contains(trimmed, "-->") {
-					skipping = true
-				}
-			case speakerNoteLine(trimmed):
-				cleaned := cleanSpeakerNote(line)
-				if speakerNoteText(cleaned) != "" {
-					kept = append(kept, cleaned)
-					notes++
-					if !strings.Contains(trimmed, "-->") {
-						keepingNote = true
-					}
-				} else if !strings.Contains(trimmed, "-->") {
-					skipping = true
-				}
-			default:
-				// A Marp directive (fit, _class, _paginate …): keep it, it shapes
-				// the slide and is not an authoring record.
-				kept = append(kept, strings.TrimRight(line, " \t"))
-			}
-			continue
-		}
-		cleaned := materialCommentRe.ReplaceAllString(line, "")
-		if cleaned != line {
-			if materialMarkerLine(line) {
-				markers++
-			} else if speakerNoteLine(line) {
-				cleaned = cleanSpeakerNote(cleaned)
-			}
-		}
-		kept = append(kept, strings.TrimRight(cleaned, " \t"))
+		markers += marker
+		notes += note
 	}
 	body := strings.Join(kept, "\n")
 	body = materialSlugRe.ReplaceAllStringFunc(body, func(token string) string {
@@ -367,6 +353,49 @@ func cleanDeckText(text string, pages *contextwiki.Builder) (string, int, int) {
 		body += "\n"
 	}
 	return body, markers, notes
+}
+
+func cleanDeckLine(line string, skipping, keepingNote bool) (string, bool, int, int, bool, bool) {
+	trimmed := strings.TrimSpace(line)
+	if skipping {
+		return "", false, 0, 0, !strings.Contains(trimmed, "-->"), false
+	}
+	if keepingNote {
+		return cleanSpeakerNote(line), true, 0, 0, false, !strings.Contains(trimmed, "-->")
+	}
+	if materialCheckRe.MatchString(line) {
+		return "", false, 1, 0, false, false
+	}
+	if strings.HasPrefix(trimmed, "<!--") {
+		return cleanDeckComment(line, trimmed)
+	}
+	cleaned := materialCommentRe.ReplaceAllString(line, "")
+	markerCount := 0
+	if cleaned != line {
+		if materialMarkerLine(line) {
+			markerCount = 1
+		}
+		if speakerNoteLine(line) {
+			cleaned = cleanSpeakerNote(cleaned)
+		}
+	}
+	return strings.TrimRight(cleaned, " \t"), true, markerCount, 0, false, false
+}
+
+func cleanDeckComment(line, trimmed string) (string, bool, int, int, bool, bool) {
+	closed := strings.Contains(trimmed, "-->")
+	if materialMarkerLine(trimmed) {
+		return "", false, 1, 0, !closed, false
+	}
+	if speakerNoteLine(trimmed) {
+		cleaned := cleanSpeakerNote(line)
+		if speakerNoteText(cleaned) != "" {
+			return cleaned, true, 0, 1, false, !closed
+		}
+		return "", false, 0, 0, !closed, false
+	}
+	// A Marp directive (fit, _class, _paginate …) shapes the slide and stays.
+	return strings.TrimRight(line, " \t"), true, 0, 0, false, false
 }
 
 var materialClaimRefRe = regexp.MustCompile(`(?i)\bclaim\s+\d+(?:\s*(?:,|e|and)\s*\d+)*\.?`)
@@ -395,12 +424,12 @@ func speakerNoteText(line string) string {
 // has the course.
 func dropBankSlides(body string) (string, int) {
 	lines := strings.Split(body, "\n")
-	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "---" {
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim {
 		return body, 0
 	}
 	closeIdx := -1
 	for i := 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == "---" {
+		if strings.TrimSpace(lines[i]) == ctxFrontmatterDelim {
 			closeIdx = i
 			break
 		}
@@ -413,7 +442,7 @@ func dropBankSlides(body string) (string, int) {
 	var slides [][]string
 	current := []string{}
 	for _, line := range rest {
-		if strings.TrimSpace(line) == "---" {
+		if strings.TrimSpace(line) == ctxFrontmatterDelim {
 			slides = append(slides, current)
 			current = nil
 			continue
@@ -574,78 +603,107 @@ func checkMaterialPath(path string, pages *contextwiki.Builder) ([]materialFindi
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
+	rootPath, files, err := materialCheckFiles(path, info.IsDir())
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(files)
+	var findings []materialFinding
+	for _, file := range files {
+		data, readErr := root.ReadFile(file)
+		if readErr != nil {
+			return nil, errors.Join(readErr, root.Close())
+		}
+		displayPath := filepath.Join(rootPath, file)
+		findings = append(findings, checkMaterialContents(displayPath, string(data), pages)...)
+	}
+	if err := root.Close(); err != nil {
+		return nil, err
+	}
+	return findings, nil
+}
+
+func materialCheckFiles(path string, isDir bool) (string, []string, error) {
+	rootPath := path
 	var files []string
-	if info.IsDir() {
+	if isDir {
 		walkErr := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if !d.IsDir() && strings.HasSuffix(d.Name(), sdtMarkdownExt) {
-				files = append(files, p)
+				rel, relErr := filepath.Rel(path, p)
+				if relErr != nil {
+					return relErr
+				}
+				files = append(files, rel)
 			}
 			return nil
 		})
 		if walkErr != nil {
-			return nil, walkErr
+			return "", nil, walkErr
 		}
 	} else {
-		files = []string{path}
+		rootPath = filepath.Dir(path)
+		files = []string{filepath.Base(path)}
 	}
-	sort.Strings(files)
+	return rootPath, files, nil
+}
+
+func checkMaterialContents(path, content string, pages *contextwiki.Builder) []materialFinding {
+	isDeck := strings.HasSuffix(path, ".slide"+sdtMarkdownExt)
+	lines := strings.Split(content, "\n")
 	var findings []materialFinding
-	for _, file := range files {
-		data, readErr := os.ReadFile(file) //#nosec G304 -- the path the caller asked to check
-		if readErr != nil {
-			return nil, readErr
+	if isDeck && (len(lines) == 0 || strings.TrimSpace(lines[0]) != ctxFrontmatterDelim) {
+		findings = append(findings, materialFinding{Path: filepath.ToSlash(path), Line: 1,
+			Message: "frontmatter is not at the start: the material header or a blank line displaces it, so Marp renders an empty first slide"})
+	}
+	for i, line := range lines {
+		for _, message := range materialLineFindings(line, isDeck) {
+			findings = append(findings, materialFinding{Path: filepath.ToSlash(path), Line: i + 1, Message: message})
 		}
-		isDeck := strings.HasSuffix(file, ".slide"+sdtMarkdownExt)
-		lines := strings.Split(string(data), "\n")
-		if isDeck && (len(lines) == 0 || strings.TrimSpace(lines[0]) != "---") {
-			findings = append(findings, materialFinding{
-				Path: filepath.ToSlash(file), Line: 1,
-				Message: "frontmatter is not at the start: the material header or a blank line displaces it, so Marp renders an empty first slide",
-			})
+		for _, match := range materialSlugRe.FindAllStringSubmatch(line, -1) {
+			if resolveMaterialSlug(pages, match[1]) != nil {
+				findings = append(findings, materialFinding{Path: filepath.ToSlash(path), Line: i + 1, Message: "page slug `" + match[1] + "`"})
+			}
 		}
-		for i, line := range lines {
-			add := func(message string) {
-				findings = append(findings, materialFinding{Path: filepath.ToSlash(file), Line: i + 1, Message: message})
-			}
-			if isDeck {
-				switch {
-				case materialMarkerLine(line):
-					add("authoring marker")
-				case strings.Contains(line, "claims="):
-					add("claim map")
-				case strings.Contains(strings.ToLower(line), "verifica del corso"):
-					add("check line naming the item bank")
-				case strings.Contains(line, "claim "):
-					add("internal claim reference")
-				}
-			} else {
-				switch {
-				case strings.Contains(line, "<!--"):
-					add("authoring comment or header")
-				case strings.Contains(line, "claims="):
-					add("claim map")
-				case materialCheckRe.MatchString(line):
-					add("check line naming the item bank")
-				case strings.Contains(strings.ToLower(line), "verifica del corso"):
-					add("check line naming the item bank")
-				}
-			}
-			for _, match := range materialSlugRe.FindAllStringSubmatch(line, -1) {
-				if resolveMaterialSlug(pages, match[1]) != nil {
-					add("page slug `" + match[1] + "`")
-				}
-			}
-			lower := strings.ToLower(line)
-			for _, phrase := range materialRegisterPhrases {
-				if strings.Contains(lower, phrase) {
-					add("curator register: \"" + phrase + "\"")
-					break
-				}
+		lower := strings.ToLower(line)
+		for _, phrase := range materialRegisterPhrases {
+			if strings.Contains(lower, phrase) {
+				findings = append(findings, materialFinding{Path: filepath.ToSlash(path), Line: i + 1, Message: "curator register: \"" + phrase + "\""})
+				break
 			}
 		}
 	}
-	return findings, nil
+	return findings
+}
+
+func materialLineFindings(line string, isDeck bool) []string {
+	if isDeck {
+		switch {
+		case materialMarkerLine(line):
+			return []string{"authoring marker"}
+		case strings.Contains(line, "claims="):
+			return []string{"claim map"}
+		case strings.Contains(strings.ToLower(line), "verifica del corso"):
+			return []string{"check line naming the item bank"}
+		case strings.Contains(line, "claim "):
+			return []string{"internal claim reference"}
+		}
+		return nil
+	}
+	switch {
+	case strings.Contains(line, "<!--"):
+		return []string{"authoring comment or header"}
+	case strings.Contains(line, "claims="):
+		return []string{"claim map"}
+	case materialCheckRe.MatchString(line), strings.Contains(strings.ToLower(line), "verifica del corso"):
+		return []string{"check line naming the item bank"}
+	default:
+		return nil
+	}
 }

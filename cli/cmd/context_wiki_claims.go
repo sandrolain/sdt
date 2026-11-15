@@ -623,72 +623,68 @@ func runClaimCorroboration(cmd *cobra.Command) {
 		exitWithError(cmd, err)
 		return
 	}
+	sheets, err := claimSourceSheets()
+	if err != nil {
+		exitWithError(cmd, err)
+		return
+	}
+	rows := claimCorroborationRows(bld, sheets)
+	writeClaimCorroboration(cmd, rows)
+}
+
+func claimSourceSheets() (map[string]string, error) {
+	files, err := dirFiles(sdtSourcesDir)
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(sdtSourcesDir)
+	if err != nil {
+		return nil, err
+	}
 	sheets := map[string]string{}
-	files, _ := dirFiles(sdtSourcesDir)
 	for _, path := range files {
-		data, e := os.ReadFile(path)
-		if e != nil {
+		data, err := root.ReadFile(filepath.Base(path))
+		if err != nil {
 			continue
 		}
 		content := string(data)
 		if parseFrontmatterField(content, ctxFrontmatterKind) == ctxTypeSource {
-			extract := strings.TrimSpace(parseFrontmatterField(content, "extract"))
-			if extract != "" {
+			if extract := strings.TrimSpace(parseFrontmatterField(content, "extract")); extract != "" {
 				sheets[filepath.ToSlash(extract)] = content
 			}
 		}
 	}
-	byConcept := map[string][]*contextwiki.Page{}
-	for _, p := range bld.Pages {
-		if p.Type != "concept" || p.ClaimCount == 0 {
+	if err := root.Close(); err != nil {
+		return nil, err
+	}
+	return sheets, nil
+}
+
+func claimCorroborationRows(bld *contextwiki.Builder, sheets map[string]string) []corroborationRow {
+	byConcept := make(map[string][]*contextwiki.Page)
+	for _, page := range bld.Pages {
+		if page.Type != ctxFrontmatterConcept || page.ClaimCount == 0 {
 			continue
 		}
-		for _, raw := range p.Relations["refers_to"] {
-			m := contextwiki.LinkRegexp.FindStringSubmatch(raw)
-			if m == nil {
+		for _, raw := range page.Relations["refers_to"] {
+			match := contextwiki.LinkRegexp.FindStringSubmatch(raw)
+			if match == nil {
 				continue
 			}
-			concept := strings.TrimSpace(m[1])
+			concept := strings.TrimSpace(match[1])
 			if target := bld.Resolve(concept); target != nil {
 				concept = target.ID
 			}
-			byConcept[concept] = append(byConcept[concept], p)
+			byConcept[concept] = append(byConcept[concept], page)
 		}
 	}
 	rows := []corroborationRow{}
 	for concept, pages := range byConcept {
 		for i := 0; i < len(pages); i++ {
 			for j := i + 1; j < len(pages); j++ {
-				a, b := pages[i], pages[j]
-				if len(a.Sources) == 0 || len(b.Sources) == 0 {
-					continue
+				if row, ok := claimCorroborationPair(concept, pages[i], pages[j], sheets); ok {
+					rows = append(rows, row)
 				}
-				independence := "unknown: source sheets lack complete independence metadata"
-				for _, sa := range a.Sources {
-					for _, sb := range b.Sources {
-						if sa == sb {
-							independence = "same-source: identical source path"
-							continue
-						}
-						ca, cb := sheets[filepath.ToSlash(sa)], sheets[filepath.ToSlash(sb)]
-						if ca == "" || cb == "" {
-							continue
-						}
-						dupA := contextwiki.FrontmatterField(ca, "duplicate_of")
-						dupB := contextwiki.FrontmatterField(cb, "duplicate_of")
-						if dupA == sb || dupB == sa {
-							independence = "same-source: duplicate or identical source"
-							continue
-						}
-						authA, authB := contextwiki.FrontmatterField(ca, "authors"), contextwiki.FrontmatterField(cb, "authors")
-						pubA, pubB := contextwiki.FrontmatterField(ca, "publisher"), contextwiki.FrontmatterField(cb, "publisher")
-						yearA, yearB := contextwiki.FrontmatterField(ca, "year"), contextwiki.FrontmatterField(cb, "year")
-						if authA != "" && authB != "" && pubA != "" && pubB != "" && yearA != "" && yearB != "" && (authA != authB || pubA != pubB || yearA != yearB) {
-							independence = "candidate-independent: distinct sheet metadata; human review required"
-						}
-					}
-				}
-				rows = append(rows, corroborationRow{Concept: concept, PageA: a.ID, ClaimsA: a.ClaimCount, SourcesA: a.Sources, PageB: b.ID, ClaimsB: b.ClaimCount, SourcesB: b.Sources, Independence: independence})
 			}
 		}
 	}
@@ -701,6 +697,48 @@ func runClaimCorroboration(cmd *cobra.Command) {
 		}
 		return rows[i].PageB < rows[j].PageB
 	})
+	return rows
+}
+
+func claimCorroborationPair(concept string, a, b *contextwiki.Page, sheets map[string]string) (corroborationRow, bool) {
+	if len(a.Sources) == 0 || len(b.Sources) == 0 {
+		return corroborationRow{}, false
+	}
+	independence := "unknown: source sheets lack complete independence metadata"
+	for _, sa := range a.Sources {
+		for _, sb := range b.Sources {
+			independence = claimSourceIndependence(sa, sb, sheets, independence)
+		}
+	}
+	return corroborationRow{Concept: concept, PageA: a.ID, ClaimsA: a.ClaimCount, SourcesA: a.Sources, PageB: b.ID, ClaimsB: b.ClaimCount, SourcesB: b.Sources, Independence: independence}, true
+}
+
+func claimSourceIndependence(sa, sb string, sheets map[string]string, current string) string {
+	if sa == sb {
+		return "same-source: identical source path"
+	}
+	ca, cb := sheets[filepath.ToSlash(sa)], sheets[filepath.ToSlash(sb)]
+	if ca == "" || cb == "" {
+		return current
+	}
+	if contextwiki.FrontmatterField(ca, "duplicate_of") == sb || contextwiki.FrontmatterField(cb, "duplicate_of") == sa {
+		return "same-source: duplicate or identical source"
+	}
+	fields := []string{"authors", "publisher", "year"}
+	for _, field := range fields {
+		if contextwiki.FrontmatterField(ca, field) == "" || contextwiki.FrontmatterField(cb, field) == "" {
+			return current
+		}
+	}
+	if contextwiki.FrontmatterField(ca, "authors") != contextwiki.FrontmatterField(cb, "authors") ||
+		contextwiki.FrontmatterField(ca, "publisher") != contextwiki.FrontmatterField(cb, "publisher") ||
+		contextwiki.FrontmatterField(ca, "year") != contextwiki.FrontmatterField(cb, "year") {
+		return "candidate-independent: distinct sheet metadata; human review required"
+	}
+	return current
+}
+
+func writeClaimCorroboration(cmd *cobra.Command, rows []corroborationRow) {
 	switch getFormat(cmd) {
 	case fmtJSON:
 		out, e := json.MarshalIndent(rows, "", "  ")

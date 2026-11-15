@@ -82,9 +82,15 @@ func lintSourceSheet(path, content, kind string) []ctxLintIssue {
 // `ingestion/...`), the same shape the sheets record.
 func capturePathResolves(content string) bool {
 	capture := strings.TrimSpace(parseFrontmatterField(content, "capture_path"))
-	if capture == "" {
+	path := filepath.FromSlash(capture)
+	if capture == "" || !filepath.IsLocal(path) {
 		return false
 	}
-	_, err := os.Stat(filepath.Join(sdtWorkDir, filepath.FromSlash(capture)))
-	return err == nil
+	root, err := os.OpenRoot(sdtWorkDir)
+	if err != nil {
+		return false
+	}
+	_, err = root.Stat(path)
+	closeErr := root.Close()
+	return err == nil && closeErr == nil
 }

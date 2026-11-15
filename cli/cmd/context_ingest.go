@@ -4,6 +4,7 @@ import (
 	cryptosha "crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -301,7 +302,7 @@ the source or a page.`,
 			scope = "all"
 		}
 		artifactRef := getStringFlag(cmd, "artifact", false)
-		route, headings, lines, units := "unknown", 0, 0, 0
+		route, headings, lines, units := learnProvenanceUnknown, 0, 0, 0
 		if artifactRef != "" {
 			artifact, aerr := resolveCorpusFile(artifactRef)
 			if aerr != nil {
@@ -667,9 +668,21 @@ func shortSHA(sha string) string {
 // the artifact's provenance digest names this source — either the header still
 // names the pre-archive path or it names an intermediate file matched only by
 // digest (the `context/tmp/` provenance the two converted books carried).
-func rewriteConvertedSource(converted, sha256, archivedCorpus string) (bool, error) {
-	abs := filepath.Join(sdtWorkDir, filepath.FromSlash(converted))
-	data, err := os.ReadFile(abs) //#nosec G304 -- converted corpus path
+func rewriteConvertedSource(converted, sha256, archivedCorpus string) (rewritten bool, retErr error) {
+	rel := filepath.FromSlash(converted)
+	if !filepath.IsLocal(rel) {
+		return false, fmt.Errorf("converted artifact path %q is not corpus-relative", converted)
+	}
+	root, err := os.OpenRoot(sdtWorkDir)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		if closeErr := root.Close(); closeErr != nil {
+			retErr = errors.Join(retErr, closeErr)
+		}
+	}()
+	data, err := root.ReadFile(rel)
 	if err != nil {
 		return false, err
 	}
@@ -692,7 +705,7 @@ func rewriteConvertedSource(converted, sha256, archivedCorpus string) (bool, err
 	if !found {
 		return false, nil
 	}
-	if err := os.WriteFile(abs, []byte(updated+rest), 0o644); err != nil { //#nosec G306 -- kept document, the tool's own write mode
+	if err := root.WriteFile(rel, []byte(updated+rest), 0o644); err != nil {
 		return false, err
 	}
 	oldSum := cryptosha.Sum256(data)
@@ -715,8 +728,16 @@ func rewriteCitationDigest(ref, oldSHA, newSHA string) (int, error) {
 		if err != nil {
 			continue
 		}
+		root, err := os.OpenRoot(dir)
+		if err != nil {
+			continue
+		}
 		for _, path := range files {
-			data, err := os.ReadFile(path)
+			rel, relErr := filepath.Rel(dir, path)
+			if relErr != nil {
+				continue
+			}
+			data, err := root.ReadFile(rel)
 			if err != nil {
 				continue
 			}
@@ -730,10 +751,13 @@ func rewriteCitationDigest(ref, oldSHA, newSHA string) (int, error) {
 				return strings.Replace(match, m[3], newSHA[:len(m[3])], 1)
 			})
 			if updated != body {
-				if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+				if err := root.WriteFile(rel, []byte(updated), 0o644); err != nil {
 					return changed, err
 				} //#nosec G306 -- corpus documents use the repository's standard mode
 			}
+		}
+		if err := root.Close(); err != nil {
+			return changed, err
 		}
 	}
 	return changed, nil
@@ -793,7 +817,7 @@ func archiveSourceSheet(archivedCorpus string, record ingestArchiveRecord, conve
 	if exists {
 		action = "linked"
 	} else {
-		action = "created"
+		action = statusCreated
 		if content, err = newSourceSheetContent(slug, archivedCorpus, record, converted); err != nil {
 			return "", "", err
 		}
@@ -830,14 +854,14 @@ func sheetPinsSource(content, archivedCorpus, sha256 string) bool {
 // ingestSheetKeys is the key set the archive step owns on a sheet.
 func ingestSheetKeys(archivedCorpus string, record ingestArchiveRecord, converted string) [][2]string {
 	keys := [][2]string{
-		{"sha256", record.SHA256},
-		{"bytes", strconv.FormatInt(record.Bytes, 10)},
+		{ctxSourceSheetSHA256, record.SHA256},
+		{"byte_count", strconv.FormatInt(record.Bytes, 10)},
 		{"captured_at", record.ArchivedAt},
 		{"capture_path", archivedCorpus},
 		{"checked_at", record.ArchivedAt[:10]},
 	}
 	if converted != "" {
-		keys = append(keys, [][2]string{{"extract", converted}}...)
+		keys = append(keys, [][2]string{{"extracted_text", converted}}...)
 	}
 	if record.License != "" {
 		keys = append(keys, [][2]string{{"license", record.License}}...)

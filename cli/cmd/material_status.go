@@ -25,8 +25,8 @@ var materialStatusCmd = &cobra.Command{
 	Long: `Report the three states of each guide, one row per concept and language.
 
 Freshness is the render lane's verdict (fresh/stale/missing/orphan). Review comes
-from the ledger beside the guide: "not run" when the critic or the reader is
-empty or says so, "pending" when one says "to run", "recorded" otherwise — the
+from the ledger beside the guide: materialReviewNotRun when the critic or the reader is
+empty or says so, "pending" when one says "to run", materialReviewRecorded otherwise — the
 raw text is carried, never rewritten into "passed". Publishable requires all
 three: fresh, a recorded review, and a classification that is not "undeclared".
 Exit 0: a status is a report, not a gate.`,
@@ -43,10 +43,12 @@ Exit 0: a status is a report, not a gate.`,
 		}
 		switch getFormat(cmd) {
 		case fmtJSON:
-			data, _ := json.MarshalIndent(rows, "", "  ")
+			data, err := json.MarshalIndent(rows, "", "  ")
+			exitWithError(cmd, err)
 			outputBytes(cmd, data)
 		case fmtYAML:
-			data, _ := yaml.Marshal(rows)
+			data, err := yaml.Marshal(rows)
+			exitWithError(cmd, err)
 			outputBytes(cmd, data)
 		default:
 			for _, row := range rows {
@@ -115,7 +117,7 @@ func publishableReason(row materialStatusRow) string {
 			reasons = append(reasons, "deck "+row.Deck)
 		}
 	}
-	if row.Review != "recorded" {
+	if row.Review != materialReviewRecorded {
 		reasons = append(reasons, "review "+row.Review)
 	}
 	if row.Classification == "" || row.Classification == "undeclared" {
@@ -150,48 +152,9 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 	syllabus = strings.TrimPrefix(syllabus, "syllabi/")
 	rows := make([]materialStatusRow, 0, len(files))
 	for _, file := range files {
-		if concept != "" && file.Header.Concept != concept {
-			continue
+		if row, ok := materialStatusRowFor(file, root, concept, syllabus, lang, freshness); ok {
+			rows = append(rows, row)
 		}
-		if syllabus != "" && strings.TrimPrefix(file.Header.Syllabus, "syllabi/") != syllabus {
-			continue
-		}
-		if lang != "" && file.Header.Lang != lang {
-			continue
-		}
-		rel, relErr := filepath.Rel(root, file.Path)
-		if relErr != nil {
-			rel = file.Path
-		}
-		status := freshness[filepath.ToSlash(rel)]
-		if status == "" {
-			status = "unknown"
-		}
-		deckRel := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt) + ".slide" + sdtMarkdownExt)
-		deckStatus, deckDetail := deckFreshnessOf(root, deckRel, freshness[deckRel])
-		ledgerPath := strings.TrimSuffix(file.Path, sdtMarkdownExt) + ".ledger.json"
-		review, detail, found := materialReviewState(ledgerPath)
-		row := materialStatusRow{
-			Concept:        file.Header.Concept,
-			Syllabus:       strings.TrimPrefix(file.Header.Syllabus, "syllabi/"),
-			Lang:           file.Header.Lang,
-			Freshness:      status,
-			Deck:           deckStatus,
-			DeckDetail:     deckDetail,
-			Review:         review,
-			Classification: file.Header.Classification,
-			Detail:         detail,
-		}
-		if found {
-			if ledgerRel, ledgerErr := filepath.Rel(root, ledgerPath); ledgerErr == nil {
-				row.Ledger = filepath.ToSlash(ledgerRel)
-			}
-		}
-		row.Publishable = status == renderFresh &&
-			(deckStatus == "" || deckStatus == renderFresh) &&
-			review == "recorded" &&
-			file.Header.Classification != "" && file.Header.Classification != "undeclared"
-		rows = append(rows, row)
 	}
 	if concept != "" && len(rows) == 0 {
 		return nil, fmt.Errorf("no material for %q with syllabus %q and language %q", concept, syllabus, lang)
@@ -203,6 +166,39 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 		return rows[i].Lang < rows[j].Lang
 	})
 	return rows, nil
+}
+
+func materialStatusRowFor(file materialFile, root, concept, syllabus, lang string, freshness map[string]string) (materialStatusRow, bool) {
+	if concept != "" && file.Header.Concept != concept ||
+		syllabus != "" && strings.TrimPrefix(file.Header.Syllabus, "syllabi/") != syllabus ||
+		lang != "" && file.Header.Lang != lang {
+		return materialStatusRow{}, false
+	}
+	rel, relErr := filepath.Rel(root, file.Path)
+	if relErr != nil {
+		rel = file.Path
+	}
+	status := freshness[filepath.ToSlash(rel)]
+	if status == "" {
+		status = "unknown"
+	}
+	deckRel := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt) + ".slide" + sdtMarkdownExt)
+	deckStatus, deckDetail := deckFreshnessOf(root, deckRel, freshness[deckRel])
+	ledgerPath := strings.TrimSuffix(file.Path, sdtMarkdownExt) + ".ledger.json"
+	review, detail, found := materialReviewState(ledgerPath)
+	row := materialStatusRow{
+		Concept: file.Header.Concept, Syllabus: strings.TrimPrefix(file.Header.Syllabus, "syllabi/"),
+		Lang: file.Header.Lang, Freshness: status, Deck: deckStatus, DeckDetail: deckDetail,
+		Review: review, Classification: file.Header.Classification, Detail: detail,
+	}
+	if found {
+		if ledgerRel, err := filepath.Rel(root, ledgerPath); err == nil {
+			row.Ledger = filepath.ToSlash(ledgerRel)
+		}
+	}
+	row.Publishable = status == renderFresh && (deckStatus == "" || deckStatus == renderFresh) &&
+		review == materialReviewRecorded && file.Header.Classification != "" && file.Header.Classification != "undeclared"
+	return row, true
 }
 
 // deckFreshnessOf keeps the render lane's verdict for the deck beside a guide
@@ -221,26 +217,26 @@ func deckFreshnessOf(root, deckRel, laneStatus string) (string, string) {
 }
 
 // materialReviewState reads the free-text cycle. It never calls an unrun review
-// passed: only "recorded" is earned, and the raw text travels in the detail.
+// passed: only materialReviewRecorded is earned, and the raw text travels in the detail.
 func materialReviewState(path string) (state, detail string, found bool) {
 	data, err := os.ReadFile(path) //#nosec G304 -- the ledger beside the resolved guide
 	if err != nil {
-		return "not run", "no ledger beside the guide", false
+		return materialReviewNotRun, "no ledger beside the guide", false
 	}
 	var ledger materialLedger
 	if err := json.Unmarshal(data, &ledger); err != nil {
-		return "not run", "ledger unreadable: " + err.Error(), true
+		return materialReviewNotRun, "ledger unreadable: " + err.Error(), true
 	}
 	critic := strings.TrimSpace(ledger.Cycle.Critic)
 	reader := strings.TrimSpace(ledger.Cycle.Reader)
 	detail = fmt.Sprintf("critic=%q reader=%q", critic, reader)
 	switch {
 	case critic == "" || reader == "" ||
-		strings.EqualFold(critic, "not run") || strings.EqualFold(reader, "not run"):
-		return "not run", detail, true
+		strings.EqualFold(critic, materialReviewNotRun) || strings.EqualFold(reader, materialReviewNotRun):
+		return materialReviewNotRun, detail, true
 	case strings.EqualFold(critic, "to run") || strings.EqualFold(reader, "to run"):
 		return "pending", detail, true
 	default:
-		return "recorded", detail, true
+		return materialReviewRecorded, detail, true
 	}
 }
