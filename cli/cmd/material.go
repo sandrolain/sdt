@@ -157,6 +157,11 @@ func loadMaterialFiles() ([]materialFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", base, err)
 	}
+	// An absent material lane is an empty lane: the walk swallowed the
+	// not-exist error, and OpenRoot would turn it into a hard failure.
+	if len(paths) == 0 {
+		return nil, nil
+	}
 	root, err := os.OpenRoot(base)
 	if err != nil {
 		return nil, err

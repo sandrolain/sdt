@@ -133,7 +133,7 @@ func comprehensionSamples(bld *contextwiki.Builder, books []*contextwiki.Page) [
 		}
 		var pages []*contextwiki.Page
 		for _, page := range bld.Pages {
-			if page.Type == "concept" && inventoryContainsString(page.Sources, artifact) {
+			if page.Type == ctxFrontmatterConcept && inventoryContainsString(page.Sources, artifact) {
 				pages = append(pages, page)
 			}
 		}

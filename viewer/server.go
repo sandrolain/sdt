@@ -61,23 +61,23 @@ const indexHTML = `<!doctype html>
 // server is the read-only httper of the corpus under root. corpus is the
 // served subtree (root/context); everything else under root is out of scope.
 type server struct {
-	root         string
-	corpus       string
+	root          string
+	corpus        string
 	wiki          *contextwiki.Builder
 	wikiPageGraph *graph.Graph
 	wikiEdgeList  []graphEdge
-	srch         *search.Index
-	srchMu       sync.RWMutex
-	backlinks    *backlinkIndex
-	tree         []treeEntry
-	treeMu       sync.RWMutex
-	semOpts      semanticOptions
-	sem          *semantic.Index
-	semMu        sync.RWMutex
-	semBuildMu   sync.Mutex
-	spa          http.Handler
-	broker       *broker
-	watcher      *fsnotify.Watcher
+	srch          *search.Index
+	srchMu        sync.RWMutex
+	backlinks     *backlinkIndex
+	tree          []treeEntry
+	treeMu        sync.RWMutex
+	semOpts       semanticOptions
+	sem           *semantic.Index
+	semMu         sync.RWMutex
+	semBuildMu    sync.Mutex
+	spa           http.Handler
+	broker        *broker
+	watcher       *fsnotify.Watcher
 	// cmd runs the sanctioned document-state mutators; nil means the viewer is
 	// read-only (decision 0027).
 	cmd *delegator

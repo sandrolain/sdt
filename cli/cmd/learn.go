@@ -185,7 +185,7 @@ func learnStatusWord(v learnView) string {
 		return "new"
 	}
 	if v.Understanding == "" {
-		return "recorded"
+		return materialReviewRecorded
 	}
 	return v.Understanding
 }

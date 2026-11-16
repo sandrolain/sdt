@@ -24,15 +24,18 @@ var ctxGateRecordSince = time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
 // gateStepResult is one ladder rung as the record stores it: the step name, the
 // status it reached and how long it took.
 type gateStepResult struct {
-	Step     string
-	Status   string
-	Duration time.Duration
+	Step     string        `json:"step" yaml:"step"`
+	Status   string        `json:"status" yaml:"status"`
+	Duration time.Duration `json:"duration_ns" yaml:"duration_ns"`
+	Reason   string        `json:"reason" yaml:"reason"`
+	Detail   string        `json:"detail,omitempty" yaml:"detail,omitempty"`
+	Log      string        `json:"log,omitempty" yaml:"log,omitempty"`
 }
 
 // writeGateRecord appends one gate run to the task file at path. The file must
 // already exist: the gate records evidence about work the agent did, so it never
 // creates the task file it reports on.
-func writeGateRecord(path string, stamp time.Time, failed string, results []gateStepResult) error {
+func writeGateRecord(path string, stamp time.Time, failed string, results []gateStepResult, reports ...gateReport) error {
 	//#nosec G304 -- path resolved from the corpus, not from user input
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -41,7 +44,7 @@ func writeGateRecord(path string, stamp time.Time, failed string, results []gate
 		}
 		return err
 	}
-	updated := appendGateRecord(string(data), stamp, failed, results)
+	updated := appendGateRecord(string(data), stamp, failed, results, reports...)
 	//#nosec G304 G306 G703 -- path resolved from the corpus, not from user input
 	return os.WriteFile(path, []byte(updated), 0o644)
 }
@@ -51,7 +54,7 @@ func writeGateRecord(path string, stamp time.Time, failed string, results []gate
 // newest-last: nothing an earlier run wrote is ever rewritten. The run is headed
 // by its timestamp and, when it did not pass, by the step it failed at — a
 // failing run is recorded with the status it actually reached, never as a pass.
-func appendGateRecord(content string, stamp time.Time, failed string, results []gateStepResult) string {
+func appendGateRecord(content string, stamp time.Time, failed string, results []gateStepResult, reports ...gateReport) string {
 	content = appendReviewBlock(content, "")
 	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
 	review := indexOfTrimmedLine(lines, ctxReviewBlockHeader, 0, len(lines))
@@ -59,7 +62,7 @@ func appendGateRecord(content string, stamp time.Time, failed string, results []
 		// appendReviewBlock guarantees the section; keep the function total.
 		return content
 	}
-	run := gateRunLines(stamp, failed, results)
+	run := gateRunLines(stamp, failed, results, reports...)
 	reviewEnd := sectionEnd(lines, review, 2)
 	if gate := indexOfTrimmedLine(lines, ctxGateRecordHeader, review+1, reviewEnd); gate >= 0 {
 		end := sectionAppendIndex(lines, sectionEnd(lines, gate, 3))
@@ -72,7 +75,7 @@ func appendGateRecord(content string, stamp time.Time, failed string, results []
 // gateRunLines renders one run: a heading carrying the timestamp and, when the
 // run did not pass, the failure, then one line per step with its status and
 // duration.
-func gateRunLines(stamp time.Time, failed string, results []gateStepResult) []string {
+func gateRunLines(stamp time.Time, failed string, results []gateStepResult, reports ...gateReport) []string {
 	head := stamp.UTC().Format(time.RFC3339) + " (sdt agent gate)"
 	if failed != "" {
 		head += " — FAILED at step " + failed
@@ -80,9 +83,19 @@ func gateRunLines(stamp time.Time, failed string, results []gateStepResult) []st
 		head += " — passed"
 	}
 	out := make([]string, 0, len(results)+1)
+	if len(reports) > 0 && reports[0].Status != gateStatusPassed && failed == "" {
+		head = stamp.UTC().Format(time.RFC3339) + " (sdt agent gate) — " + reports[0].Status
+	}
 	out = append(out, head)
+	if len(reports) > 0 {
+		r := reports[0]
+		out = append(out, fmt.Sprintf("Schema: %d; revision: %s; dirty: %t; config SHA-256: %s", r.SchemaVersion, r.Revision, r.Dirty, r.ConfigSHA256))
+	}
 	for _, r := range results {
 		out = append(out, fmt.Sprintf("- %s: %s (%.2fs)", r.Step, r.Status, r.Duration.Seconds()))
+		if r.Reason != "" {
+			out = append(out, "  Reason: "+strings.ReplaceAll(r.Reason, "\n", " "))
+		}
 	}
 	return out
 }

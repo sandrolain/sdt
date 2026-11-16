@@ -16,10 +16,10 @@ import (
 type Session struct {
 	// mu guards id and conn, which a reattach replaces: the conversation outlives the
 	// process that was carrying it, and only what it runs on changes.
-	mu     sync.RWMutex
-	id     string
-	conn   *acp.ClientSideConnection
-	state  *ThreadState
+	mu      sync.RWMutex
+	id      string
+	conn    *acp.ClientSideConnection
+	state   *ThreadState
 	perms   *PermissionQueue
 	elicits *ElicitationQueue
 	detach  func()

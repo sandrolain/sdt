@@ -63,8 +63,8 @@ var (
 	materialObjectiveRe = regexp.MustCompile(`<!--\s*objective=(\d+)\s*-->`)
 	// materialCheckRe finds the one line after the exercise that names the page's
 	// evaluation bank (decision/0046). It names items, never answers.
-	materialCheckRe    = regexp.MustCompile(`(?m)^\*\*Verifica\.\*\*[^\n]*$`)
-	materialAssessRe   = regexp.MustCompile(`<!--\s*assess=(\S+)\s+items=([^>]*?)\s*-->`)
+	materialCheckRe  = regexp.MustCompile(`(?m)^\*\*Verifica\.\*\*[^\n]*$`)
+	materialAssessRe = regexp.MustCompile(`<!--\s*assess=(\S+)\s+items=([^>]*?)\s*-->`)
 )
 
 // materialRank orders the four verdicts by severity, so two checks over one file

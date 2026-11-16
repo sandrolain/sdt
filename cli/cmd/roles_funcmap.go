@@ -15,7 +15,7 @@ func roleFuncMap() template.FuncMap {
 	return template.FuncMap{
 		"yesNo": func(b bool) string {
 			if b {
-				return "yes"
+				return affirmativeYes
 			}
 			return "no"
 		},

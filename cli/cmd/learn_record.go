@@ -194,7 +194,7 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 			if result.Concept != "" {
 				verb := "updated"
 				if result.Created {
-					verb = "created"
+					verb = statusCreated
 				}
 				if result.Understanding == "" {
 					outputString(cmd, fmt.Sprintf("concept: %s (%s, no assessment)\n",

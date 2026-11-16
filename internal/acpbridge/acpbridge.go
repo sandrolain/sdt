@@ -110,9 +110,9 @@ type Bridge struct {
 	// accepted last, guarded by mu because a posture frame reads it.
 	models     []string
 	modelInUse string
-	perms   *PermissionQueue
-	elicits *ElicitationQueue
-	log     *slog.Logger
+	perms      *PermissionQueue
+	elicits    *ElicitationQueue
+	log        *slog.Logger
 	// trace is the sink the wire log writes into, set by the viewer before the
 	// first start; rt is the capture of the run in flight, if any.
 	trace TraceSink
@@ -322,13 +322,13 @@ func (b *Bridge) newSession(ctx context.Context, conn *acp.ClientSideConnection)
 	// it asked for. End is what stops it.
 	life, halt := context.WithCancel(b.life)
 	session := &Session{
-		id:    id,
-		conn:  conn,
-		state: NewThreadState(id),
+		id:      id,
+		conn:    conn,
+		state:   NewThreadState(id),
 		perms:   b.perms,
 		elicits: b.elicits,
-		ctx:   life,
-		halt:  halt,
+		ctx:     life,
+		halt:    halt,
 	}
 	// What the agent offers for this session arrives with the answer that opened it, and
 	// nowhere else: folded here, so a browser that joins a session the bridge just opened

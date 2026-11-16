@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SDT gate report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "revision",
+    "dirty",
+    "config_sha256",
+    "started",
+    "status",
+    "configuration",
+    "results"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision_reason": {
+      "type": "string"
+    },
+    "dirty": {
+      "type": "boolean"
+    },
+    "config_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "started": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "excluded"
+      ]
+    },
+    "configuration": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "run"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "run": {
+            "type": "string"
+          },
+          "exclude": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "step",
+          "status",
+          "reason",
+          "duration_ns"
+        ],
+        "properties": {
+          "step": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "not-run",
+              "excluded"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "duration_ns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "detail": {
+            "type": "string"
+          },
+          "log": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

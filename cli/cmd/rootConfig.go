@@ -71,8 +71,9 @@ type InstructionsConfig struct {
 // GateStep is one rung of the project-declared delivery gate. Run is a shell
 // command line, executed with /bin/sh -c inside the project root.
 type GateStep struct {
-	Name string `json:"name" yaml:"name"`
-	Run  string `json:"run"  yaml:"run"`
+	Name    string `json:"name" yaml:"name"`
+	Run     string `json:"run"  yaml:"run"`
+	Exclude string `json:"exclude,omitempty" yaml:"exclude,omitempty"`
 }
 
 // skipDirsComment is the create-only note written under a new .sdt.yaml. It
@@ -136,6 +137,9 @@ func gateConfigLines(steps []GateStep) []string {
 	out = append(out, "gate:")
 	for _, s := range steps {
 		out = append(out, "  - name: "+yamlSingleQuoted(s.Name), "    run: "+yamlSingleQuoted(s.Run))
+		if s.Exclude != "" {
+			out = append(out, "    exclude: "+yamlSingleQuoted(s.Exclude))
+		}
 	}
 	return out
 }

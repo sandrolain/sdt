@@ -8,9 +8,16 @@ const (
 	cmdValid   = "valid"
 
 	// Type identifiers shared by config and schema commands.
-	typeString      = "string"
-	typeInt         = "int"
-	typeStringArray = "stringArray"
+	affirmativeYes         = "yes"
+	materialReviewRecorded = "recorded"
+	materialReviewNotRun   = "not run"
+	materialStatusClean    = "clean"
+	materialRoleReader     = "reader"
+	materialRoleCritic     = "critic"
+	cmdExtract             = "extract"
+	typeString             = "string"
+	typeInt                = "int"
+	typeStringArray        = "stringArray"
 
 	// PEM block type headers.
 	pemTypeRSAPrivateKey = "RSA PRIVATE KEY"

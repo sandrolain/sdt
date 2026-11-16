@@ -26,9 +26,9 @@ var materialReviewCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		role := strings.TrimSpace(getStringFlag(cmd, "role", false))
 		if role == "" {
-			role = "reader"
+			role = materialRoleReader
 		}
-		if role != "reader" && role != "critic" {
+		if role != materialRoleReader && role != materialRoleCritic {
 			exitWithError(cmd, fmt.Errorf("--role must be reader or critic, got %q", role))
 			return
 		}
@@ -98,7 +98,7 @@ func materialLedgerCriticOf(text, recorded string) (string, error) {
 	if err := json.Unmarshal([]byte(block), &cycle); err != nil {
 		return "", fmt.Errorf("parse cycle: %w", err)
 	}
-	if recorded == "reader" {
+	if recorded == materialRoleReader {
 		return cycle.Critic, nil
 	}
 	return cycle.Reader, nil
@@ -150,14 +150,14 @@ func materialLedgerReplaceCycle(text, role, other, verdict, by, model, at string
 	indent := materialLedgerIndentOf(text, block)
 	critic, reader := other, other
 	byKey, atKey := "reader_by", "reader_at"
-	if role == "critic" {
+	if role == materialRoleCritic {
 		critic, byKey, atKey = verdict, "critic_by", "critic_at"
 	} else {
 		reader = verdict
 	}
 	fields := []struct{ key, value string }{
-		{"critic", critic},
-		{"reader", reader},
+		{materialRoleCritic, critic},
+		{materialRoleReader, reader},
 	}
 	if by != "" {
 		fields = append(fields, struct{ key, value string }{byKey, by})

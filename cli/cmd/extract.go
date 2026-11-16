@@ -35,7 +35,7 @@ var extractPatterns = map[string]*regexp.Regexp{
 }
 
 var extractCmd = &cobra.Command{
-	Use:   "extract",
+	Use:   cmdExtract,
 	Short: "Extract structured items from text input",
 	Long: `Extract specific types of items from plain text using pattern matching.
 

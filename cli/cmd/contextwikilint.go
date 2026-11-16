@@ -790,7 +790,7 @@ func conceptCounterDiffs(c contextwiki.Concepts, n inventoryCounts) []string {
 		{"merged", c.Merged, n.Merged},
 		{"inline", c.Inline, n.Inline},
 		{"declined", c.Declined, n.Declined},
-		{"pending", c.Pending, n.Pending},
+		{taskFileStatusPending, c.Pending, n.Pending},
 	}
 	var diffs []string
 	for _, p := range pairs {

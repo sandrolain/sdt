@@ -73,16 +73,16 @@ func gainRoot(cmd *cobra.Command) string {
 // embedding usage.Report so the field names are the wire contract and a change
 // in the counting type cannot silently rename them.
 type gainPayload struct {
-	Since            string             `json:"since"             yaml:"since"`
-	Until            string             `json:"until"             yaml:"until"`
-	Window           string             `json:"window"            yaml:"window"`
-	Calls            int                `json:"calls"             yaml:"calls"`
-	Failures         int                `json:"failures"          yaml:"failures"`
-	Out              int64              `json:"out"               yaml:"out"`
-	HitsReported     int                `json:"hits_reported"     yaml:"hits_reported"`
-	HitsFound        int                `json:"hits_found"        yaml:"hits_found"`
-	ExcludedSelf     int                `json:"excluded_self"     yaml:"excluded_self"`
-	ExcludedInternal int                `json:"excluded_internal" yaml:"excluded_internal"`
+	Since            string              `json:"since"             yaml:"since"`
+	Until            string              `json:"until"             yaml:"until"`
+	Window           string              `json:"window"            yaml:"window"`
+	Calls            int                 `json:"calls"             yaml:"calls"`
+	Failures         int                 `json:"failures"          yaml:"failures"`
+	Out              int64               `json:"out"               yaml:"out"`
+	HitsReported     int                 `json:"hits_reported"     yaml:"hits_reported"`
+	HitsFound        int                 `json:"hits_found"        yaml:"hits_found"`
+	ExcludedSelf     int                 `json:"excluded_self"     yaml:"excluded_self"`
+	ExcludedInternal int                 `json:"excluded_internal" yaml:"excluded_internal"`
 	Commands         []usage.CommandStat `json:"commands"          yaml:"commands"`
 }
 

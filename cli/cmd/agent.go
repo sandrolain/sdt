@@ -209,7 +209,7 @@ Examples:
   sdt agent init --project myapp
   sdt agent init --project myapp --group platform --yes`,
 	Run: func(cmd *cobra.Command, args []string) {
-		yes := getBoolFlag(cmd, "yes", false)
+		yes := getBoolFlag(cmd, affirmativeYes, false)
 		project := getStringFlag(cmd, "project", false)
 		group := getStringFlag(cmd, "group", false)
 		force := getBoolFlag(cmd, "force", false)
@@ -371,7 +371,7 @@ func agentPromptBool(cmd *cobra.Command, yes bool, label string, def bool) bool 
 		return def
 	}
 	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes", "1":
+	case "y", affirmativeYes, "1":
 		return true
 	case "n", "no", "0":
 		return false
@@ -598,7 +598,7 @@ func init() {
 	agentInitCmd.Flags().String("gitignore", "", "Which context entries to add to .gitignore (none, tmp, docs, work, context); prompts interactively when omitted")
 	agentInitCmd.Flags().Bool("force", false, "Refresh generated template content")
 	agentInitCmd.Flags().Bool("project-block", false, "Insert the write-once <!-- sdt:begin:project --> block (asks interactively when omitted)")
-	agentInitCmd.Flags().Bool("yes", false, "Accept defaults without prompting")
+	agentInitCmd.Flags().Bool(affirmativeYes, false, "Accept defaults without prompting")
 	agentInitCmd.Flags().StringArray("with", nil, "Optional generation profile to add (repeatable): "+strings.Join(agentProfileSlugs()[1:], ", "))
 
 	agentCmd.AddCommand(agentInitCmd, agentVerifyCmd)

@@ -145,22 +145,38 @@ task build-viewer                     # web SPA + embed + sdtviewer -> bin/sdtvi
 ## Development
 
 ```bash
-# Build CLI (+ optional viewer)
-task build
-task build-viewer
+# Canonical delivery check (one command; local scope matches CI):
+task check
 
-# Tests (≥80% coverage required; context/refs holds an immutable clone, so
-# scope out /context):
-go test $(go list -e ./... | grep -v /context/) -coverprofile=coverage.out
-go tool cover -func=coverage.out
-cd web && bun run test
-
-# Lint + format + vulnerabilities
-golangci-lint run ./cli/... ./viewer/... ./internal/... .
-gofmt -w ./cli ./internal ./viewer ./main.go
-govulncheck ./...
-cd web && bun run lint && bun run fmt:check
+# Individual read-only checks (one product scope, excluding context/):
+sh scripts/verify.sh packages
+sh scripts/verify.sh fmt
+sh scripts/verify.sh modules
+sh scripts/verify.sh build
+sh scripts/verify.sh vet
+sh scripts/verify.sh lint
+sh scripts/verify.sh test
+sh scripts/verify.sh coverage    # consumes coverage.out from the test step
+sh scripts/verify.sh vuln
+cd web && bun run lint && bun run fmt:check && bun run test && bun run build
 ```
+
+Coverage requires 80% per Go package. Existing exceptions have non-regression
+floors: `cli/utils` 18.1%, `internal/acpfixture` 66.7%, `internal/feedback` 77.7%,
+and `internal/figure` 77.0%. Root and `./cli` are entry points checked by build,
+installation and version metadata checks. `internal/acpbridge/acptest` is a test
+peer excluded from standalone coverage; its consumer tests remain required.
+An absent package profile fails the
+coverage check. Frontend coverage is measured separately; no frontend threshold
+is enforced.
+
+`sdt agent gate --format json --record --plan <ref>` emits a versioned report
+and records the same execution in the plan. The [v1 schema](docs/gate-report-v1.schema.json)
+identifies revision, dirty state, configuration digest and every selected check.
+Statuses are `passed`, `failed`, `not-run` and `excluded`, each with a reason.
+An optional `exclude` reason on a configured gate step excludes it explicitly;
+otherwise the gate stops at the first failure. A report with excluded checks is
+summarized as `excluded`, and an interrupted gate is never summarized as passed.
 
 ## Context & Knowledge
 

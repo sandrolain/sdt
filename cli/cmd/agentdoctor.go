@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
@@ -347,6 +349,10 @@ var agentGateCmd = &cobra.Command{
 .sdt.yaml, in order, stopping at the first failure (fail-closed). This is the
 strict, explicit counterpart of the advisory verify-step.
 
+JSON/YAML reports use schema_version 1, identify revision and configuration, and
+include every declared step. A step with an exclude reason is reported as excluded;
+steps after a failure are not-run. Neither outcome is counted as a passed check.
+
 Each step's ` + "`run`" + ` is a shell command line executed with /bin/sh -c in the
 project root, so a step can expand its own package list. Nothing is assumed about
 the toolchain: with no ` + "`gate:`" + ` declared the command reports "no gate declared"
@@ -369,60 +375,43 @@ Examples:
   sdt agent gate --format json`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		type gateResult struct {
-			Step   string `json:"step" yaml:"step"`
-			Status string `json:"status" yaml:"status"`
-			Detail string `json:"detail,omitempty" yaml:"detail,omitempty"`
-			// Log is the path of the failing step's full output, written under
-			// context/tmp: the console keeps the tail, the evidence survives.
-			Log string `json:"log,omitempty" yaml:"log,omitempty"`
-		}
-		cfg, err := findProjectConfig()
+		cfg, root, err := findProjectConfigAt()
 		exitWithError(cmd, err)
 		if cfg == nil {
 			exitWithError(cmd, fmt.Errorf("no %s found walking up from the current directory", sdtConfigFile))
 			return
 		}
-		if err := validateGateSteps(cfg.Gate); err != nil {
+		exitWithError(cmd, validateGateSteps(cfg.Gate))
+		var recordPath string
+		if getBoolFlag(cmd, "record", false) {
+			recordPath, err = gateRecordPath(cmd)
 			exitWithError(cmd, err)
-			return
 		}
-		var results []gateResult
-		var recorded []gateStepResult
-		failed := ""
-		if len(cfg.Gate) == 0 {
-			outputString(cmd, "no gate declared: add a `gate:` list to "+sdtConfigFile+"\n")
-			return
-		}
-		for _, step := range cfg.Gate {
-			started := contextNow()
-			out, err := runGateStep(step.Run)
-			elapsed := contextNow().Sub(started)
-			if err != nil {
-				detail, logPath := gateFailureDetail(step.Name, out)
-				results = append(results, gateResult{Step: step.Name, Status: doctorStatusFail, Detail: detail, Log: logPath})
-				recorded = append(recorded, gateStepResult{Step: step.Name, Status: doctorStatusFail, Duration: elapsed})
-				failed = step.Name
-				break
-			}
-			results = append(results, gateResult{Step: step.Name, Status: doctorStatusPass})
-			recorded = append(recorded, gateStepResult{Step: step.Name, Status: doctorStatusPass, Duration: elapsed})
-		}
+		report, err := newGateReport(root, cfg.Gate)
+		exitWithError(cmd, err)
+		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		failed := report.execute(ctx, root)
+		exitWithError(cmd, report.validate())
+		results := report.Results
 		switch getFormat(cmd) {
 		case fmtJSON:
-			out, err := json.MarshalIndent(results, "", "  ")
+			out, err := json.MarshalIndent(report, "", "  ")
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		case fmtYAML:
-			out, err := yaml.Marshal(results)
+			out, err := yaml.Marshal(report)
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		default:
+			if len(results) == 0 {
+				outputString(cmd, "no gate declared: add a `gate:` list to "+sdtConfigFile+"\n")
+			}
 			for _, r := range results {
 				// A failing step gets its own block: the tail of the output, then
 				// the path that carries all of it. The one-line shape would bury
 				// the error the reader needs.
-				if r.Status == doctorStatusFail && (r.Detail != "" || r.Log != "") {
+				if r.Status == gateStatusFailed && (r.Detail != "" || r.Log != "") {
 					outputString(cmd, fmt.Sprintf("[%s] %s\n", r.Status, r.Step))
 					for _, line := range strings.Split(r.Detail, "\n") {
 						outputString(cmd, "  "+line+"\n")
@@ -432,20 +421,14 @@ Examples:
 					}
 					continue
 				}
-				outputString(cmd, fmt.Sprintf("[%s] %s %s\n", r.Status, r.Step, r.Detail))
+				outputString(cmd, fmt.Sprintf("[%s] %s %s\n", r.Status, r.Step, r.Reason))
 			}
 		}
-		if getBoolFlag(cmd, "record", false) {
-			// The record is written before the failure exit below: a failed
-			// run is exactly what the next session must be able to read back.
-			path, err := gateRecordPath(cmd)
-			if err == nil {
-				err = writeGateRecord(path, contextNow(), failed, recorded)
-			}
-			if err != nil {
-				exitWithError(cmd, err)
-			} else {
-				outputString(cmd, "recorded gate run in "+path+"\n")
+		if recordPath != "" {
+			err := writeGateRecord(recordPath, report.Started, failed, report.Results, report)
+			exitWithError(cmd, err)
+			if getFormat(cmd) != fmtJSON && getFormat(cmd) != fmtYAML {
+				outputString(cmd, "recorded gate run in "+recordPath+"\n")
 			}
 		}
 		if failed != "" {
@@ -501,11 +484,16 @@ func existingTaskFileForPlan(phase, plan string) string {
 // validateGateSteps refuses a malformed declaration before anything runs, so a
 // typo cannot pass silently as a gate that executed nothing.
 func validateGateSteps(steps []GateStep) error {
+	seen := map[string]bool{}
 	for i, s := range steps {
 		if strings.TrimSpace(s.Name) == "" {
 			return fmt.Errorf("gate step %d has no name", i+1)
 		}
-		if strings.TrimSpace(s.Run) == "" {
+		if seen[s.Name] {
+			return fmt.Errorf("duplicate gate step %q", s.Name)
+		}
+		seen[s.Name] = true
+		if strings.TrimSpace(s.Run) == "" && strings.TrimSpace(s.Exclude) == "" {
 			return fmt.Errorf("gate step %q has no run command", s.Name)
 		}
 	}

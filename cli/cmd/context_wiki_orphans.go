@@ -59,7 +59,7 @@ func orphanFindings(bld *contextwiki.Builder) []orphanFinding {
 	}
 	var out []orphanFinding
 	for _, page := range bld.Pages {
-		if page.Type != "concept" || len(page.Relations) > 0 {
+		if page.Type != ctxFrontmatterConcept || len(page.Relations) > 0 {
 			continue
 		}
 		linked := false

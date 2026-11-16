@@ -36,7 +36,17 @@ jobs:
         run: go mod verify
 
       - name: Run tests
-        run: go test -v -coverprofile=coverage.out -covermode=atomic ./cli/... ./internal/... ./viewer/...
+        run: sh scripts/verify.sh test
+
+      - name: Enforce package coverage floors
+        run: sh scripts/verify.sh coverage
+
+      - name: Verify Go formatting, modules, vet and builds
+        run: |
+          sh scripts/verify.sh fmt
+          sh scripts/verify.sh modules
+          sh scripts/verify.sh vet
+          sh scripts/verify.sh build
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@2320916714171c258d01dbd81040d64d798c6f8e # v7.1.1
@@ -58,10 +68,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Resolve product scope
+        id: scope
+        run: echo "packages=$(sh scripts/verify.sh lint-packages | paste -sd ' ' -)" >> "$GITHUB_OUTPUT"
+
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@d583c34f0599d37dbac4a198b9c83201be380893 # v9.3.0
         with:
-          args: --timeout=5m ./cli/... ./viewer/... ./internal/... .
+          args: --timeout=5m ${{ steps.scope.outputs.packages }}
 
   web:
     name: Web
@@ -85,6 +99,9 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+      - name: Format check
+        run: bun run fmt:check
 
       - name: Test
         run: bun run test
@@ -110,7 +127,7 @@ jobs:
 
       - name: Verify ldflags targets (D4 guard)
         run: |
-          for f in cli/main.go viewer/main.go; do
+          for f in main.go cli/main.go viewer/main.go; do
             for v in version commit date; do
               grep -Eq "^[[:space:]]*${v}[[:space:]]*=" "$f" || { echo "FAIL: -X main.${v} target is not declared in $f"; exit 1; }
             done

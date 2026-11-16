@@ -126,7 +126,7 @@ func outputCleanResult(cmd *cobra.Command, res ctxCleanResult) {
 }
 
 var contextCleanCmd = &cobra.Command{
-	Use:   "clean",
+	Use:   materialStatusClean,
 	Short: "Empty the discard areas: context/trash and context/tmp",
 	Long: `Empty a discard area. ` + "`context rm`" + ` moves a document into ` + "`context/trash`" + ` and
 ` + "`context/tmp`" + ` collects scratch; nothing else removes either, so they grow until

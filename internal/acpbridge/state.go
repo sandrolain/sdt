@@ -20,13 +20,13 @@ const (
 // browser's renderer and the protocol stay checkable against each other; the last two come
 // from the prompt response instead, which is where a turn's outcome arrives.
 const (
-	PartText       = "text"       // user_message_chunk, agent_message_chunk
-	PartThought    = "thought"    // agent_thought_chunk
-	PartToolCall   = "tool_call"  // tool_call, tool_call_update
-	PartPermission = "permission" // a RequestPermission waiting for the user
+	PartText        = "text"        // user_message_chunk, agent_message_chunk
+	PartThought     = "thought"     // agent_thought_chunk
+	PartToolCall    = "tool_call"   // tool_call, tool_call_update
+	PartPermission  = "permission"  // a RequestPermission waiting for the user
 	PartElicitation = "elicitation" // an elicitation/create waiting for the user
-	PartError      = "error"      // the turn failed, in the agent's own words
-	PartStop       = "stop"       // the turn stopped, for a reason worth telling
+	PartError       = "error"       // the turn failed, in the agent's own words
+	PartStop        = "stop"        // the turn stopped, for a reason worth telling
 )
 
 // The user's answer to a permission card is the id of the option they chose, which is
@@ -43,12 +43,12 @@ type Thread struct {
 	// snapshot that had to infer it from parts would guess at both ends of the turn.
 	Running  bool              `json:"running,omitempty"`
 	Messages []Message         `json:"messages"`
-	Plan      *Plan             `json:"plan,omitempty"`
-	Commands  []SlashCommand    `json:"commands,omitempty"`
-	Mode      string            `json:"mode,omitempty"`
-	Config    []json.RawMessage `json:"config,omitempty"`
-	Info      *SessionInfo      `json:"info,omitempty"`
-	Usage     *Usage            `json:"usage,omitempty"`
+	Plan     *Plan             `json:"plan,omitempty"`
+	Commands []SlashCommand    `json:"commands,omitempty"`
+	Mode     string            `json:"mode,omitempty"`
+	Config   []json.RawMessage `json:"config,omitempty"`
+	Info     *SessionInfo      `json:"info,omitempty"`
+	Usage    *Usage            `json:"usage,omitempty"`
 }
 
 // Message is one user or assistant turn, with its parts in arrival order.

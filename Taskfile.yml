@@ -98,19 +98,39 @@ tasks:
   test:
     desc: Run unit tests (project packages; context/refs excluded)
     cmds:
-      - go test -coverprofile=coverage.out $(go list -e ./... | grep -v /context/)
+      - sh scripts/verify.sh test
       - go tool cover -html=coverage.out -o coverage.html
       - echo "Coverage report generated at coverage.html"
+
+  coverage-check:
+    desc: Check the existing profile against per-package coverage floors
+    cmds:
+      - sh scripts/verify.sh coverage
+
+  fmt:check:
+    desc: Check Go formatting without modifying files
+    cmds:
+      - sh scripts/verify.sh fmt
+
+  modules:check:
+    desc: Check module tidiness and integrity without modifying files
+    cmds:
+      - sh scripts/verify.sh modules
+
+  build:check:
+    desc: Build all product packages, including both CLI entry points
+    cmds:
+      - sh scripts/verify.sh build
 
   test-race:
     desc: Run tests with race detector
     cmds:
-      - go test -race -v $(go list -e ./... | grep -v /context/)
+      - go test -race -v $(sh scripts/verify.sh packages)
 
   test-bench:
     desc: Run benchmarks
     cmds:
-      - go test -bench=. -benchmem $(go list -e ./... | grep -v /context/)
+      - go test -bench=. -benchmem $(sh scripts/verify.sh packages)
 
   test-all:
     desc: Run all tests (unit, race, benchmarks)
@@ -128,19 +148,19 @@ tasks:
   lint:
     desc: Run golangci-lint (project packages)
     cmds:
-      - golangci-lint run ./cli/... ./viewer/... ./internal/... .
+      - sh scripts/verify.sh lint
 
   vet:
     desc: Run go vet for static analysis (project packages)
     cmds:
-      - go vet $(go list -e ./... | grep -v /context/)
+      - sh scripts/verify.sh vet
 
   verify:vars:
     desc: Fail when a -X ldflags target no longer resolves in the main packages
     cmds:
       - |
         fail=0
-        for entry in cli/main.go:version cli/main.go:commit cli/main.go:date viewer/main.go:version viewer/main.go:commit viewer/main.go:date; do
+        for entry in main.go:version main.go:commit main.go:date cli/main.go:version cli/main.go:commit cli/main.go:date viewer/main.go:version viewer/main.go:commit viewer/main.go:date; do
           file="${entry%%:*}"; var="${entry##*:}"
           if [ ! -f "$file" ]; then
             echo "FAIL: main package file $file is missing"; fail=1; continue
@@ -153,22 +173,26 @@ tasks:
         exit $fail
 
   govulncheck:
-    desc: Run Go vulnerability check using govulncheck
+    desc: Run Go vulnerability check using govulncheck (product scope only)
     cmds:
       - echo "Running govulncheck..."
-      - govulncheck .
+      - sh scripts/verify.sh vuln
 
   check:
     desc: Run all checks (fmt, lint, vet, test, security, web, context)
     cmds:
-      - task: fmt
+      - task: fmt:check
       - task: lint
       - task: vet
       - task: verify:vars
-      - task: tidy
+      - task: modules:check
+      - task: build:check
       - task: test
+      - task: coverage-check
       - task: govulncheck
+      - task: test-web
       - task: build-web
+      - cd web && bun run fmt:check
       - task: context
 
   context:

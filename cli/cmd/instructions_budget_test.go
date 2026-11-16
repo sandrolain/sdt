@@ -39,8 +39,8 @@ const (
 	// the table's purpose — a verb an agent must find is a verb the block names.
 	// Raised to 2440 on 2026-11-12: the audit's G4/G5 rows — the read row's
 	// --count and the sha256 checksum row (plan 20261112-085909).
-	instructionBlockBudget   = 2440
-	instructionModuleBudget  = 1400
+	instructionBlockBudget  = 2440
+	instructionModuleBudget = 1400
 	// Raised from 400 to 410 on 2026-11-12: the audit's G1–G3/G5 additions to the
 	// verb line — --batch, write --append, sha256 (plan 20261112-085909).
 	instructionCatalogBudget = 410

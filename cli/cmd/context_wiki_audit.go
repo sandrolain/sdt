@@ -86,7 +86,7 @@ Examples:
 				return
 			}
 			findings := checkInventory(notePath, bld)
-			audit.Inventory = "clean"
+			audit.Inventory = materialStatusClean
 			if len(findings) > 0 {
 				audit.Inventory = fmt.Sprintf("%d finding(s)", len(findings))
 				for _, f := range findings {

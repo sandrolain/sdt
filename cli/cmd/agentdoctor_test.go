@@ -207,7 +207,7 @@ func TestGateRecordWritesOnlyWhenAsked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"## Review", "### Gate", "- noop: pass ("} {
+	for _, want := range []string{"## Review", "### Gate", "- noop: passed ("} {
 		if !strings.Contains(string(after), want) {
 			t.Fatalf("recorded file missing %q:\n%s", want, after)
 		}
@@ -240,7 +240,7 @@ func TestGateRecordRecordsAFailingRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(after), `FAILED at step boom`) || !strings.Contains(string(after), "- boom: fail (") {
+	if !strings.Contains(string(after), `FAILED at step boom`) || !strings.Contains(string(after), "- boom: failed (") {
 		t.Fatalf("want the failing run recorded with its real status:\n%s", after)
 	}
 }

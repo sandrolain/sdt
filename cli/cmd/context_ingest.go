@@ -861,7 +861,7 @@ func ingestSheetKeys(archivedCorpus string, record ingestArchiveRecord, converte
 		{"checked_at", record.ArchivedAt[:10]},
 	}
 	if converted != "" {
-		keys = append(keys, [][2]string{{"extracted_text", converted}}...)
+		keys = append(keys, [][2]string{{"extract", converted}}...)
 	}
 	if record.License != "" {
 		keys = append(keys, [][2]string{{"license", record.License}}...)

@@ -16,8 +16,8 @@ import (
 // and can signal a test when a permission card appears, so a test waits for the
 // card instead of sleeping.
 type recordingSink struct {
-	mu           sync.Mutex
-	updates      []acp.SessionNotification
+	mu            sync.Mutex
+	updates       []acp.SessionNotification
 	permissions   []Permission
 	onPermission  func(Permission)
 	elicitations  []Elicitation
