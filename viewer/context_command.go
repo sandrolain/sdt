@@ -282,9 +282,12 @@ func (s *server) handleContextCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 // sameOrigin refuses a request that a page in the user's browser could forge
-// from another site: a cross-site Sec-Fetch-Site, or an Origin that is present
-// and not this server's own.
+// from another site: a non-loopback request Host, a cross-site Sec-Fetch-Site,
+// or an Origin that is present and not this server's own.
 func sameOrigin(r *http.Request) bool {
+	if !requestHostIsLoopback(r) {
+		return false
+	}
 	if site := r.Header.Get("Sec-Fetch-Site"); site == "cross-site" || site == "same-site" {
 		return false
 	}
@@ -344,4 +347,19 @@ func isLoopbackHost(host string) bool {
 		return ip.IsLoopback()
 	}
 	return false
+}
+
+// requestHostIsLoopback binds the origin gates to the loopback boundary the bind
+// already declares. r.Host is client-controlled: a page reached through DNS
+// rebinding can send a foreign Host with a matching Origin, and comparing the two
+// alone would mistake that page for the viewer's own. The port is not part of the
+// host check.
+func requestHostIsLoopback(r *http.Request) bool {
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	// An empty request Host is not a loopback name: only a bind host may be empty
+	// (all interfaces), and that is not a value a request can borrow here.
+	return host != "" && isLoopbackHost(host)
 }

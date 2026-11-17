@@ -40,6 +40,7 @@ func recordingDelegator(root string, output string, err error) (*delegator, *[]s
 func postCommand(t *testing.T, s *server, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, contextCommandPath, strings.NewReader(body))
+	req.Host = "127.0.0.1:8791" // the SPA's loopback Host; the origin gate binds to it
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	s.handleContextCommand(rec, req)
@@ -152,6 +153,7 @@ func TestContextCommandRefusesCrossOriginAndNonJSON(t *testing.T) {
 	// a page in another site can forge this one; the Sec-Fetch-Site header says so
 	cross := httptest.NewRequest(http.MethodPost, contextCommandPath,
 		strings.NewReader(`{"doc":"`+analysisDoc+`","action":"close"}`))
+	cross.Host = "127.0.0.1:8791"
 	cross.Header.Set("Content-Type", "application/json")
 	cross.Header.Set("Sec-Fetch-Site", "cross-site")
 	crossRec := httptest.NewRecorder()
@@ -163,6 +165,7 @@ func TestContextCommandRefusesCrossOriginAndNonJSON(t *testing.T) {
 	// a foreign Origin with a same-site marker is refused on the header too
 	origin := httptest.NewRequest(http.MethodPost, contextCommandPath,
 		strings.NewReader(`{"doc":"`+analysisDoc+`","action":"close"}`))
+	origin.Host = "127.0.0.1:8791"
 	origin.Header.Set("Content-Type", "application/json")
 	origin.Header.Set("Origin", "http://evil.example")
 	originRec := httptest.NewRecorder()
@@ -174,6 +177,7 @@ func TestContextCommandRefusesCrossOriginAndNonJSON(t *testing.T) {
 	// a form-encoded POST is a simple request: no preflight, so it must be refused
 	form := httptest.NewRequest(http.MethodPost, contextCommandPath,
 		strings.NewReader(`{"doc":"x","action":"close"}`))
+	form.Host = "127.0.0.1:8791"
 	form.Header.Set("Content-Type", "text/plain")
 	formRec := httptest.NewRecorder()
 	s.handleContextCommand(formRec, form)
@@ -182,6 +186,64 @@ func TestContextCommandRefusesCrossOriginAndNonJSON(t *testing.T) {
 	}
 	if len(*seen) != 0 {
 		t.Fatalf("a refused request still reached the CLI: %v", *seen)
+	}
+}
+
+// The request Host is client-controlled: a foreign Host with a matching Origin is
+// the shape a DNS-rebound page sends. The document-state gate must refuse it, or
+// the boundary becomes whichever origin the caller claims.
+func TestSameOriginRule(t *testing.T) {
+	cases := []struct {
+		name, host, origin, site string
+		want                     bool
+	}{
+		{"loopback host, own origin", "127.0.0.1:8791", "http://127.0.0.1:8791", "", true},
+		{"loopback host, own origin over https", "127.0.0.1:8791", "https://127.0.0.1:8791", "", true},
+		{"localhost host, own origin", "localhost:8791", "http://localhost:8791", "", true},
+		{"ipv6 loopback host, own origin", "[::1]:8791", "http://[::1]:8791", "", true},
+		{"loopback host, no origin", "127.0.0.1:8791", "", "", true},
+		{"foreign host, matching foreign origin", "evil.example:8791", "http://evil.example:8791", "", false},
+		{"foreign host, own origin", "evil.example:8791", "http://127.0.0.1:8791", "", false},
+		{"foreign host, no origin", "evil.example:8791", "", "", false},
+		{"foreign host, same-origin site marker", "evil.example:8791", "", "same-origin", false},
+		{"empty host, no origin", "", "", "", false},
+		{"loopback host, cross-site marker", "127.0.0.1:8791", "http://127.0.0.1:8791", "cross-site", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, contextCommandPath, nil)
+			request.Host = tc.host
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			if tc.site != "" {
+				request.Header.Set("Sec-Fetch-Site", tc.site)
+			}
+			if got := sameOrigin(request); got != tc.want {
+				t.Fatalf("sameOrigin = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestContextCommandRefusesAForeignHost(t *testing.T) {
+	root := analysisCorpus(t)
+	s, _ := newServer(root)
+	d, seen := recordingDelegator(root, "ok", nil)
+	s.cmd = d
+
+	req := httptest.NewRequest(http.MethodPost, contextCommandPath,
+		strings.NewReader(`{"doc":"`+analysisDoc+`","action":"close"}`))
+	req.Host = "evil.example:8791"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://evil.example:8791")
+	rec := httptest.NewRecorder()
+	s.handleContextCommand(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body)
+	}
+	if len(*seen) != 0 {
+		t.Fatalf("a foreign Host still reached the CLI: %v", *seen)
 	}
 }
 

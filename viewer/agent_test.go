@@ -1024,24 +1024,35 @@ func readBody(response *http.Response) (string, error) {
 // forge is what decides, and a cross-site fetch marker is refused whatever the Origin
 // says.
 func TestAgentOriginRule(t *testing.T) {
+	const loopback = "127.0.0.1:8791"
 	cases := []struct {
 		name   string
+		host   string
 		origin string
 		site   string
 		want   bool
 	}{
-		{"the viewer's own origin", "http://127.0.0.1:8791", "", true},
-		{"a foreign origin", "http://someone-else.test", "", false},
-		{"no origin, a same-origin fetch", "", "same-origin", true},
-		{"no origin at all", "", "", false},
-		{"no origin, a cross-site fetch", "", "cross-site", false},
-		{"matching origin but a cross-site marker", "http://127.0.0.1:8791", "cross-site", false},
-		{"a URL scheme that is not http", "ftp://127.0.0.1:8791", "", false},
+		{"the viewer's own origin", loopback, "http://127.0.0.1:8791", "", true},
+		{"a foreign origin", loopback, "http://someone-else.test", "", false},
+		{"no origin, a same-origin fetch", loopback, "", "same-origin", true},
+		{"no origin at all", loopback, "", "", false},
+		{"no origin, a cross-site fetch", loopback, "", "cross-site", false},
+		{"matching origin but a cross-site marker", loopback, "http://127.0.0.1:8791", "cross-site", false},
+		{"a URL scheme that is not http", loopback, "ftp://127.0.0.1:8791", "", false},
+		// r.Host is client-controlled. A foreign Host with a matching Origin, or
+		// with an unforgeable-looking same-origin marker, is exactly what a
+		// DNS-rebound page sends; it must not pass as the viewer's own origin.
+		{"foreign host, matching foreign origin", "evil.example:8791", "http://evil.example:8791", "", false},
+		{"foreign host, own origin", "evil.example:8791", "http://127.0.0.1:8791", "", false},
+		{"foreign host, same-origin site marker", "evil.example:8791", "", "same-origin", false},
+		{"foreign host, no origin", "evil.example:8791", "", "", false},
+		{"empty host, same-origin site marker", "", "", "same-origin", false},
+		{"ipv6 loopback host, own origin", "[::1]:8791", "http://[::1]:8791", "", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/api/agent/command", nil)
-			request.Host = "127.0.0.1:8791"
+			request.Host = tc.host
 			if tc.origin != "" {
 				request.Header.Set("Origin", tc.origin)
 			}

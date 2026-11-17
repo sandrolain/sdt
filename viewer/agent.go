@@ -597,8 +597,13 @@ func limitedBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 // no Origin at all, because a local non-browser client is the legitimate caller
 // there, while the bridge's only intended caller is the panel in the user's own
 // page. So a missing Origin is refused here as firmly as a foreign one, and a
-// cross-site fetch marker is refused even when the header agrees.
+// cross-site fetch marker is refused even when the header agrees. Both gates first
+// require a loopback request Host, so a foreign Host cannot be made same-origin by
+// a matching Origin or a same-origin fetch marker.
 func agentOrigin(r *http.Request) bool {
+	if !requestHostIsLoopback(r) {
+		return false
+	}
 	site := r.Header.Get("Sec-Fetch-Site")
 	if site == "cross-site" || site == "same-site" {
 		return false
