@@ -42,6 +42,42 @@ type ProjectConfig struct {
 	// Usage is the counted-usage log's own switch. Absent means on: the log holds
 	// no content, so only an explicit `enabled: false` or SDT_USAGE=off stops it.
 	Usage UsageConfig `json:"usage,omitempty" yaml:"usage,omitempty"`
+	// Delegation declares ACP agents and the aggregate task limits used by the
+	// asynchronous task runner.
+	Delegation DelegationConfig `json:"delegation,omitempty" yaml:"delegation,omitempty"`
+}
+
+// DelegationConfig is the project's ordered ACP agent pool and task limits.
+type DelegationConfig struct {
+	Agents           []DelegationAgentConfig    `json:"agents,omitempty" yaml:"agents,omitempty"`
+	MaxAttempts      int                        `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
+	MaxDuration      string                     `json:"max_duration,omitempty" yaml:"max_duration,omitempty"`
+	Groups           []DelegationGroupConfig    `json:"groups,omitempty" yaml:"groups,omitempty"`
+	PermissionPolicy []DelegationPermissionRule `json:"permission_policy,omitempty" yaml:"permission_policy,omitempty"`
+}
+
+// DelegationAgentConfig is one ordered candidate in delegation.agents.
+type DelegationAgentConfig struct {
+	Name              string   `json:"name" yaml:"name"`
+	Command           []string `json:"command" yaml:"command"`
+	Model             string   `json:"model" yaml:"model"`
+	Roles             []string `json:"roles" yaml:"roles"`
+	Capabilities      []string `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	AvailabilityGroup string   `json:"availability_group,omitempty" yaml:"availability_group,omitempty"`
+	Concurrency       int      `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
+	Cooldown          string   `json:"cooldown,omitempty" yaml:"cooldown,omitempty"`
+}
+
+// DelegationGroupConfig configures a shared provider/account capacity group.
+type DelegationGroupConfig struct {
+	Name        string `json:"name" yaml:"name"`
+	Concurrency int    `json:"concurrency" yaml:"concurrency"`
+}
+
+// DelegationPermissionRule maps a request capability to allow, deny, or ask.
+type DelegationPermissionRule struct {
+	Capability string `json:"capability" yaml:"capability"`
+	Decision   string `json:"decision" yaml:"decision"`
 }
 
 // UsageConfig is the `usage:` block. Enabled is a pointer so that "not

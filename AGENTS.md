@@ -31,6 +31,7 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 | literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
 | what SDT actually did | `sdt gain` | guesswork |
+| start and track delegated agent work | `sdt agent task start --role <role> --brief <goal>` | manual agent handoffs and status polling |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
 

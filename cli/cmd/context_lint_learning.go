@@ -29,7 +29,7 @@ var ctxLearningVerbPrefixes = []string{
 	"compare", "compute", "construct", "critique", "decide", "define",
 	"demonstrate", "derive", "design", "diagnose", "distinguish", "estimate",
 	"evaluate", "explain", "identify", "implement", "interpret", "justify",
-	"list", "map", "measure", "name", "predict", "prioritise", "prioritize",
+	useList, "map", "measure", "name", "predict", "prioritise", "prioritize",
 	"propose", "recognise", "recognize", "relate", "select", "state", "trace",
 }
 

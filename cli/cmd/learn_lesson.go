@@ -57,7 +57,7 @@ var learnLessonGradingRules = learn.GradingRules()
 
 // learnLessonProvenances is the closed provenance vocabulary: where the expected
 // answer came from, never how good it is.
-var learnLessonProvenances = []string{materialLane, "ai_generated", "mixed", "unknown"}
+var learnLessonProvenances = []string{materialLane, "ai_generated", "mixed", learnProvenanceUnknown}
 
 // learnLessonOptionalColumns is the optional trailing header, in order. A lesson
 // that carries none of them is still valid: every optional value has a default.

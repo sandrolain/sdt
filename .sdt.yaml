@@ -37,4 +37,15 @@ agent:
   command: ["opencode", "acp"]
   models:
     - "opencode/big-pickle"
-    - "opencode-go/deepseek-v4.1-flash"
+
+delegation:
+  max_attempts: 1
+  max_duration: 45m
+  agents:
+    - name: opencode-big-pickle
+      command: ["opencode", "acp"]
+      model: "opencode/big-pickle"
+      roles: [backend]
+      capabilities: [file-read, file-write, testing]
+      concurrency: 1
+      cooldown: 10m

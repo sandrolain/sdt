@@ -95,6 +95,9 @@ type Options struct {
 	// put the conversation back on the agent's own default. Empty means no
 	// declaration, which is the agent's own choice of model.
 	Models []string
+	// PermissionHandler replaces the viewer's in-memory permission queue when a
+	// caller owns a durable decision workflow. A nil handler keeps viewer behavior.
+	PermissionHandler func(context.Context, Permission) (string, error)
 	// Log may be nil.
 	Log *slog.Logger
 }
@@ -108,11 +111,12 @@ type Bridge struct {
 	// once, when the bridge is built from the project's own file, and never changes:
 	// the picker changes a session, not the project. modelInUse is the one the agent
 	// accepted last, guarded by mu because a posture frame reads it.
-	models     []string
-	modelInUse string
-	perms      *PermissionQueue
-	elicits    *ElicitationQueue
-	log        *slog.Logger
+	models            []string
+	modelInUse        string
+	permissionHandler func(context.Context, Permission) (string, error)
+	perms             *PermissionQueue
+	elicits           *ElicitationQueue
+	log               *slog.Logger
 	// trace is the sink the wire log writes into, set by the viewer before the
 	// first start; rt is the capture of the run in flight, if any.
 	trace TraceSink
@@ -163,12 +167,13 @@ func New(opts Options) *Bridge {
 		log = slog.New(slog.DiscardHandler)
 	}
 	bridge := &Bridge{
-		root:     opts.Root,
-		version:  opts.Version,
-		models:   opts.Models,
-		log:      log,
-		sessions: map[string]*Session{},
-		status:   StatusIdle,
+		root:              opts.Root,
+		version:           opts.Version,
+		models:            opts.Models,
+		permissionHandler: opts.PermissionHandler,
+		log:               log,
+		sessions:          map[string]*Session{},
+		status:            StatusIdle,
 	}
 	// The life a started process inherits: Close ends it, so nothing the bridge
 	// started can outlive the bridge.
@@ -505,7 +510,7 @@ func (b *Bridge) attach(ctx context.Context, rw io.ReadWriteCloser, closeTranspo
 
 	// The connection's callbacks are the policy, not a pass-through, and the bridge
 	// is their sink: this is the one place the two are joined.
-	callbacks := &client{root: b.root, sink: b, perms: b.perms, elicitations: b.elicits, currentSession: b.currentSessionID}
+	callbacks := &client{root: b.root, sink: b, perms: b.perms, permissionHandler: b.permissionHandler, elicitations: b.elicits, currentSession: b.currentSessionID}
 	conn := acp.NewClientSideConnection(callbacks, rw, rw)
 	conn.SetLogger(b.log)
 

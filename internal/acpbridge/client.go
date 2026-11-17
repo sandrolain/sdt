@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/coder/acp-go-sdk"
 )
@@ -341,9 +342,11 @@ func (q *ElicitationQueue) CancelSession(sessionID string) int {
 // method is a pass-through — the file pair is confined to the root, a permission
 // request suspends for the user, and the terminal family refuses.
 type client struct {
-	root  string
-	sink  Sink
-	perms *PermissionQueue
+	root              string
+	sink              Sink
+	perms             *PermissionQueue
+	permissionHandler func(context.Context, Permission) (string, error)
+	permissionCounter atomic.Uint64
 	// elicitations is the question queue, and currentSession names the conversation a
 	// question belongs to: the protocol's request carries no session id, so the bridge
 	// supplies the one it holds when the question arrives.
@@ -485,7 +488,15 @@ func (c *client) WriteTextFile(_ context.Context, params acp.WriteTextFileReques
 // the sink (one at a time) and the wait ends with the browser's decision, or with
 // the protocol's own cancellation when the wait's context ends.
 func (c *client) RequestPermission(ctx context.Context, params acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
-	optionID, err := c.perms.Ask(ctx, permissionFrom(params))
+	request := permissionFrom(params)
+	request.RequestID = fmt.Sprintf("acp-perm-%d", c.permissionCounter.Add(1))
+	var optionID string
+	var err error
+	if c.permissionHandler != nil {
+		optionID, err = c.permissionHandler(ctx, request)
+	} else {
+		optionID, err = c.perms.Ask(ctx, request)
+	}
 	if err != nil {
 		// The connection died or the request was cancelled: the protocol has a word
 		// for that, and the agent must not be left waiting for a card nobody will

@@ -180,7 +180,7 @@ func materialStatusRowFor(file materialFile, root, concept, syllabus, lang strin
 	}
 	status := freshness[filepath.ToSlash(rel)]
 	if status == "" {
-		status = "unknown"
+		status = learnProvenanceUnknown
 	}
 	deckRel := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt) + ".slide" + sdtMarkdownExt)
 	deckStatus, deckDetail := deckFreshnessOf(root, deckRel, freshness[deckRel])
@@ -235,7 +235,7 @@ func materialReviewState(path string) (state, detail string, found bool) {
 		strings.EqualFold(critic, materialReviewNotRun) || strings.EqualFold(reader, materialReviewNotRun):
 		return materialReviewNotRun, detail, true
 	case strings.EqualFold(critic, "to run") || strings.EqualFold(reader, "to run"):
-		return "pending", detail, true
+		return taskFileStatusPending, detail, true
 	default:
 		return materialReviewRecorded, detail, true
 	}

@@ -143,7 +143,7 @@ func storeCompletenessVerdict() ctxStoreVerdict {
 }
 
 var contextStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   ctxMapStatus,
 	Short: "Summarize context/ documents per type with next step",
 	Long: `Summarize the context/ knowledge: per-type document count and the
 recommended next step (read / write / verify). Useful at session start after

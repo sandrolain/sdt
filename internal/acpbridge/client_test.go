@@ -357,6 +357,55 @@ func TestDeniedPermissionSelectsTheAgentsRejectOption(t *testing.T) {
 	}
 }
 
+func TestPermissionHandlerUsesDurableDecisionCallbackAndOwnRequestID(t *testing.T) {
+	c := newTestClient(t, t.TempDir(), &recordingSink{})
+	c.perms = nil
+	c.permissionHandler = func(_ context.Context, request Permission) (string, error) {
+		if request.RequestID == "" || request.ToolKind != "edit" {
+			t.Fatalf("handler received incomplete request: %+v", request)
+		}
+		return "allow-exact", nil
+	}
+	kind := acp.ToolKind("edit")
+	response, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+		SessionId: "sess-1",
+		ToolCall:  acp.ToolCallUpdate{ToolCallId: "call-1", Kind: &kind},
+		Options:   []acp.PermissionOption{{OptionId: "allow-exact", Kind: acp.PermissionOptionKindAllowOnce}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "allow-exact" {
+		t.Fatalf("handler decision did not reach ACP: %+v", response.Outcome)
+	}
+}
+
+func TestPermissionHandlerCanReturnExactRejectOption(t *testing.T) {
+	c := newTestClient(t, t.TempDir(), &recordingSink{})
+	c.perms = nil
+	c.permissionHandler = func(_ context.Context, request Permission) (string, error) {
+		if request.RequestID == "" {
+			t.Fatal("permission handler received no request identity")
+		}
+		return "reject-exact", nil
+	}
+	kind := acp.ToolKind("terminal")
+	response, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+		SessionId: "sess-1",
+		ToolCall:  acp.ToolCallUpdate{ToolCallId: "call-1", Kind: &kind},
+		Options: []acp.PermissionOption{
+			{OptionId: "allow", Kind: acp.PermissionOptionKindAllowOnce},
+			{OptionId: "reject-exact", Kind: acp.PermissionOptionKindRejectOnce},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "reject-exact" {
+		t.Fatalf("handler denial did not select the agent's reject option: %+v", response.Outcome)
+	}
+}
+
 // Two requests: the thread shows one card at a time, and the second waits its turn
 // rather than being dropped.
 func TestASecondPermissionWaitsItsTurn(t *testing.T) {

@@ -177,6 +177,13 @@ func ToolboxRows() []ToolboxRow {
 			Replaces:  "guesswork",
 		},
 		{
+			Operation: "start and track delegated agent work",
+			Display:   "`sdt agent task start --role <role> --brief <goal>`",
+			Command:   "agent",
+			Path:      []string{"agent", "task", "start"},
+			Replaces:  "manual agent handoffs and status polling",
+		},
+		{
 			Operation: "colour contrast from two values",
 			Display:   "`sdt color contrast <fg> <bg>`",
 			Command:   "color",

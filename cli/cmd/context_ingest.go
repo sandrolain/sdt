@@ -82,7 +82,7 @@ The commands never convert or distil:
 }
 
 var contextIngestListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   useList,
 	Short: "List context/ingestion/ sources with a derived status",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {

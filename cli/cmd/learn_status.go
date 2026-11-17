@@ -91,7 +91,7 @@ func learnGoalLines(goals []learnGoalView) string {
 }
 
 var learnStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   ctxMapStatus,
 	Short: "Report goals, coverage, weak areas and due reviews (read-only)",
 	Long: `Report how far the learner has got against the wiki.
 

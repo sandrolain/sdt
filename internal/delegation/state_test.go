@@ -1,0 +1,275 @@
+package delegation
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"testing"
+	"time"
+)
+
+const storeHelperEnv = "SDT_DELEGATION_STORE_HELPER"
+
+func TestStoreCreateUpdateAndRejectsInvalidIDs(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: "task-1", Role: "reviewer", Deadline: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.Read("task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != TaskQueued || task.Revision != 1 || task.SchemaVersion != stateSchemaVersion {
+		t.Fatalf("created task has wrong initial state: %+v", task)
+	}
+	if err := store.Update("task-1", "started", "Worker started", func(task *Task) error {
+		task.Status = TaskRunning
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	task, err = store.Read("task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != TaskRunning || task.Revision != 2 || len(task.Events) != 2 || task.Events[1].ID != 2 {
+		t.Fatalf("updated task has wrong revision/event: %+v", task)
+	}
+	if err := store.Create(Task{ID: "../escape"}); err == nil {
+		t.Fatal("expected unsafe task id to fail")
+	}
+}
+
+func TestPrincipalAcceptanceAndCorrectionAreRecordedSeparately(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: "decision-task", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("decision-task", "started", "Worker started", func(task *Task) error { task.Status = TaskRunning; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("decision-task", "result_ready", "Result delivered", func(task *Task) error { task.Status = TaskResultReady; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AcceptResult("decision-task", "Reviewed and accepted"); err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.Read("decision-task")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != TaskAccepted || task.PrincipalDecision == nil || task.PrincipalDecision.AcceptedAt.IsZero() {
+		t.Fatalf("acceptance was not recorded: %+v", task)
+	}
+	if err := store.RequestCorrection("decision-task", "Address the missing edge case"); err != nil {
+		t.Fatal(err)
+	}
+	task, err = store.Read("decision-task")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != TaskQueued || task.Correction != "Address the missing edge case" || task.PrincipalDecision == nil || task.PrincipalDecision.CorrectedAt.IsZero() || len(task.PrincipalDecisions) != 2 || task.PrincipalDecisions[0].Action != "accepted" {
+		t.Fatalf("correction was not independently recorded: %+v", task)
+	}
+}
+
+func TestStoreReconcileRetainsArtifactsAndMarksLostWorker(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: "task-1", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("task-1", "started", "Worker started", func(task *Task) error {
+		task.Status = TaskRunning
+		task.Artifacts = []Artifact{{Name: "partial", Path: "artifacts/partial.md"}}
+		task.Attempts = []Attempt{{ID: "attempt-1", Status: "running", ProcessID: 2147483000, ProcessStart: "missing-process-token"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.Reconcile("task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != TaskInterventionRequired || task.Attempts[0].Status != "interrupted" {
+		t.Fatalf("lost worker was not reconciled: %+v", task)
+	}
+	if len(task.Artifacts) != 1 || task.Artifacts[0].Path != "artifacts/partial.md" {
+		t.Fatalf("partial artifact was not retained: %+v", task.Artifacts)
+	}
+}
+
+func TestStoreIgnoresAbandonedPartialStatePublication(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: "task-1", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	partial := filepath.Join(store.Root(), "tasks", "task-1", ".state-crashed")
+	if err := os.WriteFile(partial, []byte(`{"schema_version":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.Read("task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != TaskQueued || task.Revision != 1 {
+		t.Fatalf("abandoned temp file replaced the published state: %+v", task)
+	}
+}
+
+func TestStoreLockHelperProcess(t *testing.T) {
+	if os.Getenv(storeHelperEnv) == "" {
+		return
+	}
+	store := NewStore(os.Getenv(storeHelperEnv))
+	if os.Getenv(storeHelperEnv+"_admit") == "1" {
+		taskID := os.Getenv(storeHelperEnv + "_task")
+		admitted, err := store.TryAdmit(taskID, map[string]int{"entry": 1, "group": 1})
+		if err != nil {
+			os.Exit(4)
+		}
+		result := "queued"
+		if admitted {
+			result = "admitted"
+		}
+		if err := os.WriteFile(os.Getenv(storeHelperEnv+"_result"), []byte(result), 0o600); err != nil {
+			os.Exit(5)
+		}
+		os.Exit(0)
+	}
+	if os.Getenv(storeHelperEnv+"_exit") == "1" {
+		_ = store.WithLock("task-task-1", func() error { os.Exit(0); return nil })
+		os.Exit(2)
+	}
+	count, _ := strconv.Atoi(os.Getenv(storeHelperEnv + "_count"))
+	for i := 0; i < count; i++ {
+		if err := store.Update("task-1", "tick", "Increment", func(task *Task) error {
+			task.Status = TaskRunning
+			return nil
+		}); err != nil {
+			os.Exit(3)
+		}
+	}
+	os.Exit(0)
+}
+
+func TestTryAdmitReservesAllCapacityKeysAtomically(t *testing.T) {
+	store := NewStore(t.TempDir())
+	for _, id := range []string{"task-a", "task-b", "task-c"} {
+		if err := store.Create(Task{ID: id, Role: "reviewer"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	limits := map[string]int{"entry-a": 1, "group-shared": 1}
+	if admitted, err := store.TryAdmit("task-a", limits); err != nil || !admitted {
+		t.Fatalf("first admission = %v, %v", admitted, err)
+	}
+	if admitted, err := store.TryAdmit("task-b", map[string]int{"entry-b": 1, "group-shared": 1}); err != nil || admitted {
+		t.Fatalf("shared group should queue the second task: %v, %v", admitted, err)
+	}
+	if admitted, err := store.TryAdmit("task-c", map[string]int{"entry-b": 1}); err != nil || !admitted {
+		t.Fatalf("failed admission must not retain a partial entry reservation: %v, %v", admitted, err)
+	}
+	if err := store.ReleaseCapacity("task-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ReleaseCapacity("task-c"); err != nil {
+		t.Fatal(err)
+	}
+	if admitted, err := store.TryAdmit("task-b", map[string]int{"entry-b": 1, "group-shared": 1}); err != nil || !admitted {
+		t.Fatalf("released group capacity was not reusable: %v, %v", admitted, err)
+	}
+}
+
+func TestTryAdmitSerializesAcrossProcesses(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	for _, id := range []string{"task-a", "task-b"} {
+		if err := store.Create(Task{ID: id, Role: "reviewer"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commands := make([]*exec.Cmd, 0, 2)
+	for _, id := range []string{"task-a", "task-b"} {
+		result := filepath.Join(root, id+".result")
+		cmd := exec.Command(os.Args[0], "-test.run=^TestStoreLockHelperProcess$")
+		cmd.Env = append(os.Environ(), storeHelperEnv+"="+root, storeHelperEnv+"_admit=1", storeHelperEnv+"_task="+id, storeHelperEnv+"_result="+result)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		commands = append(commands, cmd)
+	}
+	for _, cmd := range commands {
+		if err := cmd.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	admitted, queued := 0, 0
+	for _, id := range []string{"task-a", "task-b"} {
+		result, err := os.ReadFile(filepath.Join(root, id+".result"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch string(result) {
+		case "admitted":
+			admitted++
+		case "queued":
+			queued++
+		default:
+			t.Fatalf("unexpected admission result %q", result)
+		}
+	}
+	if admitted != 1 || queued != 1 {
+		t.Fatalf("cross-process capacity results admitted=%d queued=%d", admitted, queued)
+	}
+}
+
+func TestStoreSerializesCrossProcessUpdates(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	if err := store.Create(Task{ID: "task-1", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	const workers, updates = 4, 8
+	commands := make([]*exec.Cmd, 0, workers)
+	for i := 0; i < workers; i++ {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestStoreLockHelperProcess$")
+		cmd.Env = append(os.Environ(), storeHelperEnv+"="+root, storeHelperEnv+"_count="+strconv.Itoa(updates))
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		commands = append(commands, cmd)
+	}
+	for _, cmd := range commands {
+		if err := cmd.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task, err := store.Read("task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := uint64(1 + workers*updates)
+	if task.Revision != want || uint64(len(task.Events)) != want {
+		t.Fatalf("revision/events = %d/%d, want %d/%d", task.Revision, len(task.Events), want, want)
+	}
+}
+
+func TestStoreLockReleasesWhenOwnerDies(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	if err := store.Create(Task{ID: "task-1", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestStoreLockHelperProcess$")
+	cmd.Env = append(os.Environ(), storeHelperEnv+"="+root, storeHelperEnv+"_exit=1")
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("task-1", "recovered", "Lock released after owner exit", func(task *Task) error {
+		task.Status = TaskRunning
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
