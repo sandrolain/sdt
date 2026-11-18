@@ -49,3 +49,10 @@ delegation:
       capabilities: [file-read, file-write, testing]
       concurrency: 1
       cooldown: 10m
+    - name: copilot-luna
+      command: ["copilot", "--acp"]
+      model: "gpt-6-luna"
+      roles: [backend]
+      capabilities: [file-read, file-write, testing]
+      concurrency: 1
+      cooldown: 10m
