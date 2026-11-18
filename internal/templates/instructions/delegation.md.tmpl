@@ -1,0 +1,80 @@
+---
+kind: instructions
+title: "Run a delegated task through the CLI"
+summary: "Dispatch, observe, review and integrate native ACP delegated work."
+---
+
+<!-- sdt:begin:instructions/delegation -->
+
+Read this when you manage a delegate through `sdt agent task`. For a corpus
+task claim or a handoff between sessions, see `tasks-handoff.md`.
+
+## Dispatch
+
+Check the project's `.sdt.yaml` for `delegation.agents`, `max_attempts` and
+`max_duration`. Choose a role and the capabilities the task requires. Give
+the delegate one bounded goal, its allowed scope, and acceptance criteria.
+The principal owns task decisions, integration and closeout.
+
+Record the returned runtime ID alongside the plan item or corpus task. That
+ID follows the worker, its artifacts and the retained worktree. A
+`context task claim` records ownership of a corpus task and does not launch a
+worker.
+
+Use `--reference` to copy project files as stable context, `--commit` to
+select a source revision and `--include` to carry explicitly selected dirty
+paths. For an existing worktree, pair `--worktree` with the matching `--id`.
+The checkout must belong to the project repository, be clean, and be at the
+source commit on branch `sdt/delegation/<id>` under
+`.sdt/delegation/worktrees/<id>`. Use `--include` only with a new worktree.
+If Git cannot update repository metadata, report that failure before retrying.
+A worktree separates Git edits. The worker's tools still run with the
+permissions of their environment.
+
+## Observe and decide
+
+| Observation | Next action |
+|---|---|
+| Queued or running | Use `sdt agent task wait <id> --timeout 2m`. If it times out, inspect `status <id>`. The timeout ends the wait only. |
+| Worker health is unknown | Keep the recorded task state. Verify process visibility before trying to recover or start a replacement. |
+| Permission pending | Use `permissions list <id>`. Inspect the request and offered options. Resolve only within authority already granted, otherwise ask the user. Use `permissions resolve <id> <request-id> --option <option-id> --rationale "<reason>"` with the exact offered ID. |
+| Result ready | Read `result <id>` and relevant artifacts with `result <id> <artifact>`. Verify what changed and the evidence against the brief. Use `accept <id>` when satisfied, or `correct <id> --instructions "<required change>"` for bounded follow-up work. |
+| Intervention required without a pending permission | Inspect recent events in `status <id>` and retrieve the worker log with `result <id> --log`. Address the cause and check remaining limits before `resume <id>`. |
+| Provider quota or availability restriction | Use `availability list` to see exclusions and expiry. Respect the provider retry time or local cooldown. A local attempt limit does not measure the remaining provider quota. Reset a key only when authorized and there is evidence the restriction has cleared. |
+| Work should stop | Use `cancel <id>` when authorized. Confirm the resulting state before taking further action. |
+| Accepted | Review `apply preview <id>` and apply the reviewed digest when integration is authorized. |
+| Completed, failed or cancelled | Inspect retained artifacts and changes before deciding whether to request cleanup. |
+
+Commands in the table use the `sdt agent task` prefix. Use
+`sdt schema 'agent task <command>'` to confirm flags.
+
+## Review and integrate
+
+For example, dispatch a narrowly scoped correction:
+
+```sh
+sdt agent task start --role backend --capability file-write --brief "Fix the typo in README.md. Change only that line and report the diff."
+sdt agent task wait <id> --timeout 2m
+sdt agent task result <id>
+```
+
+Use the returned ID in place of `<id>`. After independently verifying the
+result, accept it and preview the patch:
+
+```sh
+sdt agent task accept <id>
+sdt agent task apply preview <id>
+```
+
+Review the paths, patch and conflicts. If integration is authorized, run
+`sdt agent task apply execute <id> --digest <reviewed-digest>`. If the digest
+changes, review a fresh preview. Application writes to the principal working
+tree. Staging and committing are separate actions.
+
+## Retire
+
+Use `sdt agent task cleanup preview <id>` to inspect retained resources. Make
+sure the principal has what it needs from the worktree and artifacts. Get
+explicit authorization before running `sdt agent task cleanup execute <id>`.
+
+<!-- sdt:end:instructions/delegation -->
