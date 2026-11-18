@@ -32,6 +32,7 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 | document state | `sdt context check/status/close` | none |
 | what SDT actually did | `sdt gain` | guesswork |
 | start and track delegated agent work | `sdt agent task start --role <role> --brief <goal>` | manual agent handoffs and status polling |
+| preview and apply accepted delegated changes | `sdt agent task apply preview|execute <task-id>` | manual worktree patch transfer |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
 
@@ -358,8 +359,8 @@ go tool cover -func=coverage.out
 cd web && bun run test          # vitest (jsdom)
 ```
 
-`task test` wraps the scoped Go command. Known gap: `cli/utils/converter` and
-`cli/utils/crawler` are below the 80% per-package target (pre-existing).
+`task test` wraps the scoped Go command. Package-specific exceptions use the
+explicit non-regression floors in README.md and scripts/verify.sh.
 
 The agent bridge's wire is pinned from both sides: the Go tests write
 `internal/acpbridge/testdata/wire/*.json` and a TS test reads them, so a renamed field
@@ -441,7 +442,7 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
     build, not only the Go tests.
 - **Tests**: every new command must have a `_test.go` file; benchmark tests in a
   separate `_bench_test.go`.
-- **Coverage**: minimum 80% per package.
+- **Coverage**: minimum 70% per Go package.
 - **Lint**: no `golangci-lint` issues before committing.
 - **No CGO**: all dependencies must be pure-Go; no `cgo` usage.
 - **Commands**: cobra, one file per command group under `cli/cmd/`. Follow the

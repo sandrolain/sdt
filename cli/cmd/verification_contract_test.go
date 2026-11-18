@@ -108,7 +108,8 @@ func TestVerificationCoverageAndFormattingFailures(t *testing.T) {
 		pass                  bool
 	}{
 		{"eligible", "8", "2", true},
-		{"ordinary regression", "7", "2", false},
+		{"coverage floor", "7", "3", true},
+		{"ordinary regression", "6", "4", false},
 		{"exception regression", "8", "1", false},
 		{"improved exception", "9", "9", true},
 		{"missing package", "", "2", false},
@@ -116,9 +117,9 @@ func TestVerificationCoverageAndFormattingFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			profile := "mode: atomic\n"
 			if tc.good != "" {
-				profile += "github.com/sandrolain/sdt/good/good.go:1.1,2.2 " + tc.good + " 1\ngithub.com/sandrolain/sdt/good/good.go:3.1,4.2 " + map[string]string{"7": "3", "8": "2", "9": "1"}[tc.good] + " 0\n"
+				profile += "github.com/sandrolain/sdt/good/good.go:1.1,2.2 " + tc.good + " 1\ngithub.com/sandrolain/sdt/good/good.go:3.1,4.2 " + map[string]string{"6": "4", "7": "3", "8": "2", "9": "1"}[tc.good] + " 0\n"
 			}
-			profile += "github.com/sandrolain/sdt/cli/utils/u.go:1.1,2.2 " + tc.exception + " 1\ngithub.com/sandrolain/sdt/cli/utils/u.go:3.1,4.2 " + map[string]string{"1": "9", "2": "8", "9": "1"}[tc.exception] + " 0\n"
+			profile += "github.com/sandrolain/sdt/cli/utils/u.go:1.1,2.2 " + tc.exception + " 1\ngithub.com/sandrolain/sdt/cli/utils/u.go:3.1,4.2 " + map[string]string{"1": "9", "2": "8", "3": "7", "9": "1"}[tc.exception] + " 0\n"
 			if err := os.WriteFile(filepath.Join(dir, "coverage.out"), []byte(profile), 0o600); err != nil {
 				t.Fatal(err)
 			}

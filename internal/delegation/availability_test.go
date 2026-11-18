@@ -50,6 +50,45 @@ func TestAvailabilityExpiryUsesReportedTimeAndLocalBoundaries(t *testing.T) {
 	}
 }
 
+func TestAvailabilityInspectionFiltersExpiryAndRecoveryProbeOwnership(t *testing.T) {
+	store := NewStore(shortProjectTemp(t))
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	if _, err := store.RecordAvailabilityFailure("agent-a", "", FailureSignal{Kind: FailureUnavailable, Until: now.Add(time.Minute)}, time.Minute, now); err != nil {
+		t.Fatal(err)
+	}
+	active, err := store.Availability(now)
+	if err != nil || len(active) != 1 || active[0].Key != "entry:agent-a" {
+		t.Fatalf("active availability = %+v, %v", active, err)
+	}
+	active, err = store.Availability(now.Add(time.Minute))
+	if err != nil || len(active) != 0 {
+		t.Fatalf("expired availability = %+v, %v", active, err)
+	}
+	claimed, _, err := store.ClaimCandidate("agent-a", "", "probe-owner", now.Add(2*time.Minute))
+	if err != nil || !claimed {
+		t.Fatalf("recovery probe claim = %v, %v", claimed, err)
+	}
+	owned, err := store.RecoveryProbes("probe-owner")
+	if err != nil || len(owned) != 1 || owned[0].TaskID != "probe-owner" {
+		t.Fatalf("owned recovery probes = %+v, %v", owned, err)
+	}
+	other, err := store.RecoveryProbes("other-task")
+	if err != nil || len(other) != 0 {
+		t.Fatalf("unowned recovery probes = %+v, %v", other, err)
+	}
+}
+
+func TestFailureSignalValidation(t *testing.T) {
+	for _, kind := range []FailureKind{FailureQuota, FailureUnavailable, FailureAuth, FailurePermission, FailureUnknown, FailureSuccess} {
+		if err := (FailureSignal{Kind: kind}).Validate(); err != nil {
+			t.Errorf("valid failure class %q: %v", kind, err)
+		}
+	}
+	if err := (FailureSignal{Kind: FailureKind("unexpected")}).Validate(); err == nil {
+		t.Fatal("unknown failure class was accepted")
+	}
+}
+
 func TestAvailabilityScopesAndSingleRecoveryProbe(t *testing.T) {
 	store := NewStore(shortProjectTemp(t))
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)

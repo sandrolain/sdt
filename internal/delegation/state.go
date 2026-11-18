@@ -60,6 +60,7 @@ type Task struct {
 	Events                   []StateEvent        `json:"events,omitempty"`
 	PrincipalDecision        *PrincipalDecision  `json:"principal_decision,omitempty"`
 	PrincipalDecisions       []PrincipalDecision `json:"principal_decisions,omitempty"`
+	Integration              *IntegrationReceipt `json:"integration,omitempty"`
 	Worker                   *ProcessIdentity    `json:"worker,omitempty"`
 	Correction               string              `json:"correction,omitempty"`
 }

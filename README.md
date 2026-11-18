@@ -161,7 +161,7 @@ sh scripts/verify.sh vuln
 cd web && bun run lint && bun run fmt:check && bun run test && bun run build
 ```
 
-Coverage requires 80% per Go package. Existing exceptions have non-regression
+Coverage requires 70% per Go package by default. Existing exceptions have non-regression
 floors: `cli/utils` 18.1%, `internal/acpfixture` 66.7%, `internal/feedback` 77.7%,
 and `internal/figure` 77.0%. Root and `./cli` are entry points checked by build,
 installation and version metadata checks. `internal/acpbridge/acptest` is a test

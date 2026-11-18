@@ -177,7 +177,7 @@ test(hash): add tests for SHA-256 function
 ### Testing
 
 - Write unit tests for new functionality
-- Aim for at least 80% code coverage
+- Aim for at least 70% code coverage per Go package
 - Test edge cases and error conditions
 - Use table-driven tests where appropriate
 

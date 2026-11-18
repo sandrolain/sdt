@@ -46,7 +46,9 @@ Example project configuration (verify each configured server's ACP behavior):
 
 Token usage, provider cost, and ACP communication bytes remain unknown unless
 the server reports measurable values. Results require principal acceptance or
-an explicit correction; cleanup never runs automatically.
+an explicit correction; cleanup never runs automatically. Apply accepted changes
+through the explicit preview and digest-checked apply commands; they never
+create a commit.
 
 Routing filters the configured agent order by an existing SDT role and every
 requested capability, then enforces entry and shared-group concurrency. The
@@ -90,7 +92,7 @@ func init() {
 	agentTaskStartCmd.Flags().StringSlice("reference", nil, "Project-relative reference file to copy into the stable task workspace (repeatable)")
 	agentTaskStartCmd.Flags().String("id", "", "Task id (generated when omitted)")
 
-	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskStatusCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd)
+	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskStatusCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskApplyCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd)
 	agentCmd.AddCommand(agentTaskCmd)
 }
 
@@ -502,6 +504,48 @@ var agentTaskCleanupExecuteCmd = &cobra.Command{Use: "execute <task-id>", Args: 
 
 func init() { agentTaskCleanupCmd.AddCommand(agentTaskCleanupPreviewCmd, agentTaskCleanupExecuteCmd) }
 
+var agentTaskApplyCmd = &cobra.Command{Use: "apply", Short: "Preview or apply accepted task changes to the principal checkout"}
+var agentTaskApplyPreviewCmd = &cobra.Command{Use: "preview <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskApplyPreview}
+var agentTaskApplyExecuteCmd = &cobra.Command{Use: "execute <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskApplyExecute}
+
+func init() {
+	agentTaskApplyExecuteCmd.Flags().String("digest", "", "Digest from the reviewed integration preview")
+	agentTaskApplyCmd.AddCommand(agentTaskApplyPreviewCmd, agentTaskApplyExecuteCmd)
+}
+
+func runAgentTaskApplyPreview(cmd *cobra.Command, args []string) error {
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	_, root, err := findProjectConfigAt()
+	if err != nil {
+		return err
+	}
+	preview, err := store.PreviewIntegration(cmd.Context(), args[0], root)
+	if err != nil {
+		return err
+	}
+	return outputTask(cmd, preview)
+}
+
+func runAgentTaskApplyExecute(cmd *cobra.Command, args []string) error {
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	_, root, err := findProjectConfigAt()
+	if err != nil {
+		return err
+	}
+	digest := getStringFlag(cmd, "digest", false)
+	result, err := store.ApplyIntegration(cmd.Context(), args[0], root, digest)
+	if err != nil {
+		return err
+	}
+	return outputAction(cmd, fmt.Sprintf("Applied accepted task %s to the working tree (%d paths); no commit created.\n", result.TaskID, len(result.Paths)), result)
+}
+
 type cleanupPreview struct {
 	TaskID         string                `json:"task_id" yaml:"task_id"`
 	Status         delegation.TaskStatus `json:"status" yaml:"status"`
@@ -730,6 +774,8 @@ func outputTask(cmd *cobra.Command, value any) error {
 			}
 			outputString(cmd, b.String())
 			return nil
+		case delegation.IntegrationPreview:
+			return outputIntegrationPreview(cmd, rows)
 		}
 	}
 	var data []byte
@@ -746,6 +792,29 @@ func outputTask(cmd *cobra.Command, value any) error {
 		return err
 	}
 	outputBytes(cmd, data)
+	return nil
+}
+
+func outputIntegrationPreview(cmd *cobra.Command, preview delegation.IntegrationPreview) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Task %s (%s)\nDigest: %s\nSource: %s\n", preview.TaskID, preview.Status, preview.Digest, preview.SourceWorkspace)
+	if preview.NoChanges {
+		b.WriteString("No task changes to apply.\n")
+	}
+	if preview.AlreadyApplied {
+		b.WriteString("These accepted changes are already applied.\n")
+	}
+	for _, path := range preview.Paths {
+		fmt.Fprintf(&b, "Path: %s\n", path)
+	}
+	for _, conflict := range preview.Conflicts {
+		fmt.Fprintf(&b, "Conflict: %s\n", conflict)
+	}
+	if preview.Patch != "" {
+		b.WriteString("\n")
+		b.WriteString(preview.Patch)
+	}
+	outputString(cmd, b.String())
 	return nil
 }
 

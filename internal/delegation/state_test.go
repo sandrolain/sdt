@@ -117,6 +117,59 @@ func TestStoreIgnoresAbandonedPartialStatePublication(t *testing.T) {
 	}
 }
 
+func TestStoreListAndReconcileCancellationReleaseCapacity(t *testing.T) {
+	store := NewStore(t.TempDir())
+	for _, id := range []string{"task-a", "task-b"} {
+		if err := store.Create(Task{ID: id, Role: "reviewer"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tasks, err := store.List()
+	if err != nil || len(tasks) != 2 {
+		t.Fatalf("task list = %d records, %v", len(tasks), err)
+	}
+	if admitted, err := store.TryAdmit("task-a", map[string]int{"agent": 1}); err != nil || !admitted {
+		t.Fatalf("capacity admission = %v, %v", admitted, err)
+	}
+	if err := store.Update("task-a", "cancelling", "cancel requested", func(task *Task) error {
+		task.Status = TaskCancelling
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.Reconcile("task-a")
+	if err != nil || result.Status != TaskCancelled {
+		t.Fatalf("cancel reconciliation = %+v, %v", result, err)
+	}
+	if admitted, err := store.TryAdmit("task-b", map[string]int{"agent": 1}); err != nil || !admitted {
+		t.Fatalf("cancelled task retained its capacity: %v, %v", admitted, err)
+	}
+}
+
+func TestReconcileCapacityReleasesExpiredAndLostWorkers(t *testing.T) {
+	store := NewStore(t.TempDir())
+	for _, id := range []string{"expired", "lost-worker", "unstarted"} {
+		if err := store.Create(Task{ID: id, Role: "reviewer"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now().UTC()
+	if err := store.writeCapacity(CapacityState{Reservations: []CapacityReservation{
+		{TaskID: "expired", Keys: []string{"a"}, Deadline: now.Add(-time.Second)},
+		{TaskID: "lost-worker", Keys: []string{"b"}, Worker: ProcessIdentity{PID: 2147483000, GroupID: 2147483000, StartToken: "missing-token"}},
+		{TaskID: "unstarted", Keys: []string{"c"}, Deadline: now.Add(time.Hour)},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	released, err := store.ReconcileCapacity(now)
+	if err != nil || !containsString(released, "expired") || !containsString(released, "lost-worker") || containsString(released, "unstarted") {
+		t.Fatalf("reconciled capacity = %v, %v", released, err)
+	}
+	if !equalStrings([]string{"a", "b"}, []string{"a", "b"}) || equalStrings([]string{"a"}, []string{"b"}) || equalStrings([]string{"a"}, []string{"a", "b"}) {
+		t.Fatal("capacity key equality returned an incorrect result")
+	}
+}
+
 func TestStoreLockHelperProcess(t *testing.T) {
 	if os.Getenv(storeHelperEnv) == "" {
 		return

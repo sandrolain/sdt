@@ -28,6 +28,7 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 | document state | `sdt context check/status/close` | none |
 | what SDT actually did | `sdt gain` | guesswork |
 | start and track delegated agent work | `sdt agent task start --role <role> --brief <goal>` | manual agent handoffs and status polling |
+| preview and apply accepted delegated changes | `sdt agent task apply preview|execute <task-id>` | manual worktree patch transfer |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
 

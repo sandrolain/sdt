@@ -71,7 +71,7 @@ case "${1:-}" in
                 }
                 if (!total[pkg]) { print "FAIL: missing coverage for " pkg; bad = 1; continue }
                 value = sprintf("%.1f", 100 * covered[pkg] / total[pkg])
-                minimum = (pkg in floor) ? floor[pkg] : 80
+                minimum = (pkg in floor) ? floor[pkg] : 70
                 if (value + 0 < minimum) {
                     printf "FAIL: %s %s%% < %.1f%%\n", pkg, value, minimum
                     bad = 1

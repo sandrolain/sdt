@@ -37,6 +37,7 @@ type ToolboxRow struct {
 const (
 	toolboxCmdContext = "context"
 	toolboxCmdRead    = "read"
+	toolboxCmdAgent   = "agent"
 	toolboxSubEdit    = "edit"
 )
 
@@ -179,9 +180,16 @@ func ToolboxRows() []ToolboxRow {
 		{
 			Operation: "start and track delegated agent work",
 			Display:   "`sdt agent task start --role <role> --brief <goal>`",
-			Command:   "agent",
+			Command:   toolboxCmdAgent,
 			Path:      []string{"agent", "task", "start"},
 			Replaces:  "manual agent handoffs and status polling",
+		},
+		{
+			Operation: "preview and apply accepted delegated changes",
+			Display:   "`sdt agent task apply preview|execute <task-id>`",
+			Command:   toolboxCmdAgent,
+			Path:      []string{"agent", "task", "apply"},
+			Replaces:  "manual worktree patch transfer",
 		},
 		{
 			Operation: "colour contrast from two values",
