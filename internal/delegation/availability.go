@@ -50,30 +50,11 @@ func (s *Store) RecordAvailabilityFailure(agent, group string, signal FailureSig
 	if strings.TrimSpace(agent) == "" {
 		return AvailabilityExclusion{}, fmt.Errorf("agent name is required")
 	}
-	key, scopeGroup := "entry:"+agent, ""
-	if signal.Scope == AvailabilityScopeGroup && group != "" {
-		key, scopeGroup = "group:"+group, group
+	exclusion, err := availabilityExpiry(agent, group, signal, cooldown, now)
+	if err != nil {
+		return AvailabilityExclusion{}, err
 	}
-	until := signal.Until
-	if until.IsZero() {
-		switch signal.Kind {
-		case FailureQuota:
-			until = NextLocalMidnight(now, time.Local)
-		case FailureUnavailable:
-			if cooldown <= 0 {
-				return AvailabilityExclusion{}, fmt.Errorf("temporary unavailability needs a positive configured cooldown")
-			}
-			until = now.Add(cooldown)
-		}
-	}
-	if !until.After(now) {
-		return AvailabilityExclusion{}, fmt.Errorf("availability expiry must be after the failure time")
-	}
-	exclusion := AvailabilityExclusion{
-		Key: key, Agent: agent, Group: scopeGroup, Kind: signal.Kind,
-		Reason: string(signal.Kind), Since: now.UTC(), Until: until.UTC(),
-	}
-	err := s.WithLock("availability-global", func() error {
+	err = s.WithLock("availability-global", func() error {
 		state, err := s.readAvailability()
 		if err != nil {
 			return err
@@ -451,10 +432,10 @@ func availabilityExpiry(agent, group string, signal FailureSignal, cooldown time
 	}
 	until := signal.Until
 	if until.IsZero() {
-		if signal.Kind == FailureQuota {
-			until = NextLocalMidnight(now, time.Local)
-		} else if signal.Kind == FailureUnavailable && cooldown > 0 {
+		if cooldown > 0 && signal.Recoverable() {
 			until = now.Add(cooldown)
+		} else if signal.Kind == FailureQuota {
+			until = NextLocalMidnight(now, time.Local)
 		} else {
 			return AvailabilityExclusion{}, fmt.Errorf("availability expiry is not defined for %q", signal.Kind)
 		}

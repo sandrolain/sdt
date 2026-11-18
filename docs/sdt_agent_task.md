@@ -72,3 +72,4 @@ configured server version and is not inferred from ACP support alone.
 * [sdt agent task resume](sdt_agent_task_resume.md)	 -
 * [sdt agent task start](sdt_agent_task_start.md)	 - Start a bounded delegated task
 * [sdt agent task status](sdt_agent_task_status.md)	 -
+* [sdt agent task wait](sdt_agent_task_wait.md)	 - Wait for a delegated task to require attention

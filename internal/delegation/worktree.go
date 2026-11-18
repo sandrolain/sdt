@@ -24,7 +24,7 @@ func PrepareWorkspace(ctx context.Context, projectRoot, taskID, commit string, s
 	if !safeID.MatchString(taskID) {
 		return Workspace{}, fmt.Errorf("invalid task id %q", taskID)
 	}
-	resolved, err := gitOutput(ctx, projectRoot, nil, "rev-parse", "--verify", commit+"^{commit}")
+	resolved, err := gitOutput(ctx, projectRoot, nil, "rev-parse", "--verify", "--end-of-options", commit+"^{commit}")
 	if err != nil {
 		return Workspace{}, fmt.Errorf("resolve source commit: %w", err)
 	}
@@ -43,7 +43,7 @@ func PrepareWorkspace(ctx context.Context, projectRoot, taskID, commit string, s
 	}
 	branch := "sdt/delegation/" + taskID
 	if _, err := gitOutput(ctx, projectRoot, nil, "worktree", "add", "-b", branch, path, resolved); err != nil {
-		return Workspace{}, fmt.Errorf("create task worktree: %w", err)
+		return Workspace{}, fmt.Errorf("create task worktree (Git must be able to update repository metadata): %w", err)
 	}
 	ws := Workspace{Path: path, Branch: branch, Commit: resolved}
 	fail := func(err error) (Workspace, error) {
@@ -182,4 +182,54 @@ func gitOutput(ctx context.Context, dir string, stdin io.Reader, args ...string)
 func gitRun(ctx context.Context, dir string, stdin io.Reader, args ...string) error {
 	_, err := gitOutput(ctx, dir, stdin, args...)
 	return err
+}
+
+// CheckWorkspace verifies the source revision and optionally adopts the task's
+// reserved checkout after verifying its branch, repository and initial state.
+func CheckWorkspace(ctx context.Context, root, id, commit, existing string) (Workspace, error) {
+	if !safeID.MatchString(id) {
+		return Workspace{}, fmt.Errorf("invalid task id %q", id)
+	}
+	base, err := gitOutput(ctx, root, nil, "rev-parse", "--verify", "--end-of-options", commit+"^{commit}")
+	if err != nil {
+		return Workspace{}, fmt.Errorf("resolve task source commit: %w", err)
+	}
+	ws := Workspace{Path: filepath.Join(root, ".sdt", "delegation", "worktrees", id), Branch: "sdt/delegation/" + id, Commit: strings.TrimSpace(base)}
+	if existing == "" {
+		if _, err := os.Lstat(ws.Path); !os.IsNotExist(err) {
+			if err != nil {
+				return Workspace{}, err
+			}
+			return Workspace{}, fmt.Errorf("task worktree already exists at %s; use --worktree to adopt it", ws.Path)
+		}
+		return ws, nil
+	}
+	path, err := filepath.Abs(existing)
+	if err != nil {
+		return Workspace{}, err
+	}
+	task := Task{ID: id, Source: SourceSnapshot{ProjectRoot: root, Workspace: path, Branch: ws.Branch, Commit: ws.Commit}}
+	if _, _, err := validateIntegrationSource(ctx, task, root); err != nil {
+		return Workspace{}, fmt.Errorf("verify existing task worktree: %w", err)
+	}
+	common, err := gitOutput(ctx, root, nil, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return Workspace{}, err
+	}
+	linked, err := gitOutput(ctx, path, nil, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil || strings.TrimSpace(common) != strings.TrimSpace(linked) {
+		return Workspace{}, fmt.Errorf("existing task worktree must belong to the project repository")
+	}
+	head, err := gitOutput(ctx, path, nil, "rev-parse", "HEAD")
+	if err != nil || strings.TrimSpace(head) != ws.Commit {
+		return Workspace{}, fmt.Errorf("existing task worktree must be at the selected source commit")
+	}
+	status, err := gitOutput(ctx, path, nil, "status", "--porcelain", "--untracked-files=all", "--ignored")
+	if err != nil {
+		return Workspace{}, err
+	}
+	if status != "" {
+		return Workspace{}, fmt.Errorf("existing task worktree must be clean, including ignored files")
+	}
+	return ws, nil
 }

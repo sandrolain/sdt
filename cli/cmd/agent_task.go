@@ -87,12 +87,13 @@ func init() {
 	agentTaskStartCmd.Flags().String("role", "", "Existing SDT role for the task")
 	agentTaskStartCmd.Flags().String("brief", "", "Task objective and acceptance criteria")
 	agentTaskStartCmd.Flags().StringSlice("capability", nil, "Indispensable capability (repeatable)")
+	agentTaskStartCmd.Flags().String("worktree", "", "Use an existing dedicated task worktree")
 	agentTaskStartCmd.Flags().String("commit", "HEAD", "Identified source commit")
 	agentTaskStartCmd.Flags().StringSlice("include", nil, "Explicit project-relative dirty file to include (repeatable)")
 	agentTaskStartCmd.Flags().StringSlice("reference", nil, "Project-relative reference file to copy into the stable task workspace (repeatable)")
 	agentTaskStartCmd.Flags().String("id", "", "Task id (generated when omitted)")
 
-	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskStatusCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskApplyCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd)
+	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskStatusCmd, agentTaskWaitCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskApplyCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd)
 	agentCmd.AddCommand(agentTaskCmd)
 }
 
@@ -143,6 +144,14 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 	if err != nil {
 		return err
 	}
+	existing := getStringFlag(cmd, "worktree", false)
+	workspace, err := delegation.CheckWorkspace(cmd.Context(), root, taskID, commit, existing)
+	if err != nil {
+		return err
+	}
+	if existing != "" && len(selected) != 0 {
+		return fmt.Errorf("--include requires a new task worktree")
+	}
 	store := delegation.NewStore(root)
 	duration, err := time.ParseDuration(cfg.Delegation.MaxDuration)
 	if err != nil {
@@ -158,7 +167,7 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 			_ = store.Update(taskID, "start_failed", "Task setup failed before a worker was launched: "+runErr.Error(), func(task *delegation.Task) error { task.Status = delegation.TaskInterventionRequired; return nil }) //nolint:errcheck // Preserve the original setup error returned to the caller.
 		}
 	}()
-	workspace, err := delegation.PrepareWorkspace(cmd.Context(), root, taskID, commit, selected)
+	workspace, err = prepareTaskWorkspace(cmd.Context(), root, taskID, workspace, existing, selected)
 	if err != nil {
 		return err
 	}
@@ -193,14 +202,8 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 	if err := materializeDelegationRole(root, workspace.Path, role); err != nil {
 		return err
 	}
-	referenceSnapshots, err := materializeDelegationReferences(root, workspace.Path, references)
-	if err != nil {
+	if err := recordTaskReferences(store, taskID, root, workspace.Path, references); err != nil {
 		return err
-	}
-	if len(referenceSnapshots) > 0 {
-		if err := store.Update(taskID, "references_materialized", "Stable reference copies and digests recorded", func(task *delegation.Task) error { task.Source.References = referenceSnapshots; return nil }); err != nil {
-			return err
-		}
 	}
 	identity, err := launchTaskWorker(store, root, taskID, workspace.Path, candidates[0].Name)
 	if err != nil {
@@ -209,6 +212,24 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 	launched = true
 	outputTaskStart(cmd, taskStartResult{ID: taskID, Status: delegation.TaskQueued, Role: role, Deadline: task.Deadline, Workspace: workspace.Path, Worker: identity})
 	return nil
+}
+
+func recordTaskReferences(store *delegation.Store, taskID, root, workspace string, references []string) error {
+	snapshots, err := materializeDelegationReferences(root, workspace, references)
+	if err != nil || len(snapshots) == 0 {
+		return err
+	}
+	return store.Update(taskID, "references_materialized", "Stable reference copies and digests recorded", func(task *delegation.Task) error {
+		task.Source.References = snapshots
+		return nil
+	})
+}
+
+func prepareTaskWorkspace(ctx context.Context, root, id string, checked delegation.Workspace, existing string, selected []string) (delegation.Workspace, error) {
+	if existing != "" {
+		return checked, nil
+	}
+	return delegation.PrepareWorkspace(ctx, root, id, checked.Commit, selected)
 }
 
 func delegationReferenceLabels(paths []string) []string {
@@ -304,7 +325,7 @@ func runAgentTaskStatus(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	task, err := store.Reconcile(args[0])
+	task, err := store.Read(args[0])
 	if err != nil {
 		return err
 	}
@@ -312,6 +333,9 @@ func runAgentTaskStatus(cmd *cobra.Command, args []string) error {
 }
 
 type taskStatusSummary struct {
+	WorkerHealth       string                  `json:"worker_health" yaml:"worker_health"`
+	MaxAttempts        int                     `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
+	ProviderQuota      string                  `json:"provider_quota" yaml:"provider_quota"`
 	ID                 string                  `json:"id" yaml:"id"`
 	Status             delegation.TaskStatus   `json:"status" yaml:"status"`
 	Role               string                  `json:"role" yaml:"role"`
@@ -336,6 +360,14 @@ type taskMetricsSummary struct {
 
 func boundedTaskStatus(task delegation.Task) taskStatusSummary {
 	view := taskStatusSummary{ID: task.ID, Status: task.Status, Role: task.Role, Deadline: task.Deadline, AttemptCount: len(task.Attempts)}
+	view.WorkerHealth = delegation.WorkerHealth(task.Worker)
+	view.ProviderQuota = "unknown"
+	var limits struct {
+		MaxAttempts int `json:"max_attempts"`
+	}
+	if json.Unmarshal(task.ConfigSnapshot, &limits) == nil {
+		view.MaxAttempts = limits.MaxAttempts
+	}
 	for _, p := range task.Permissions {
 		if p.Disposition == delegation.PermissionPending {
 			view.PendingPermissions = append(view.PendingPermissions, p.RequestID)
@@ -454,7 +486,8 @@ func runAgentTaskAccept(cmd *cobra.Command, args []string) error {
 	if err := store.AcceptResult(args[0], getStringFlag(cmd, "note", false)); err != nil {
 		return err
 	}
-	return outputAction(cmd, "Result accepted: "+args[0]+"\n", map[string]string{delegationFieldTaskID: args[0], ctxMapStatus: string(delegation.TaskAccepted)})
+	hint := "sdt agent task apply preview " + args[0]
+	return outputAction(cmd, "Result accepted: "+args[0]+"\nNext: "+hint+"\n", map[string]string{delegationFieldTaskID: args[0], ctxMapStatus: string(delegation.TaskAccepted), "next_command": hint})
 }
 
 func runAgentTaskCorrect(cmd *cobra.Command, args []string) error {
@@ -730,19 +763,27 @@ func launchTaskWorker(store *delegation.Store, projectRoot, taskID, workspace, a
 	return identity, nil
 }
 
+func outputTaskStatus(cmd *cobra.Command, status taskStatusSummary) {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Task %s — %s (%s)\nAttempts: %d\nDeadline: %s\n", status.ID, status.Status, status.Role, status.AttemptCount, status.Deadline.Format(time.RFC3339))
+	if status.MaxAttempts > 0 {
+		fmt.Fprintf(&b, "Local attempt limit: %d\n", status.MaxAttempts)
+	}
+	fmt.Fprintf(&b, "Worker: %s\nProvider quota: %s\n", status.WorkerHealth, status.ProviderQuota)
+	for _, request := range status.PendingPermissions {
+		fmt.Fprintf(&b, "Pending permission: %s\n", request)
+	}
+	for _, artifact := range status.Artifacts {
+		fmt.Fprintf(&b, "Artifact %s: %s\n", artifact.Name, artifact.Path)
+	}
+	fmt.Fprintf(&b, "Attempt elapsed: %d ms; principal tokens: %s; delegate tokens: %s; principal cost: %s USD; delegate cost: %s USD; total cost: %s USD; communication bytes: %s\n", status.Metrics.AttemptElapsedMS, status.Metrics.PrincipalTokens, status.Metrics.DelegateTokens, status.Metrics.PrincipalCostUSD, status.Metrics.DelegateCostUSD, status.Metrics.TotalCostUSD, status.Metrics.CommunicationBytes)
+	outputString(cmd, b.String())
+}
+
 func outputTask(cmd *cobra.Command, value any) error {
 	if getFormat(cmd) == formatText {
 		if status, ok := value.(taskStatusSummary); ok {
-			var b strings.Builder
-			fmt.Fprintf(&b, "Task %s — %s (%s)\nAttempts: %d\nDeadline: %s\n", status.ID, status.Status, status.Role, status.AttemptCount, status.Deadline.Format(time.RFC3339))
-			for _, request := range status.PendingPermissions {
-				fmt.Fprintf(&b, "Pending permission: %s\n", request)
-			}
-			for _, artifact := range status.Artifacts {
-				fmt.Fprintf(&b, "Artifact %s: %s\n", artifact.Name, artifact.Path)
-			}
-			fmt.Fprintf(&b, "Attempt elapsed: %d ms; principal tokens: %s; delegate tokens: %s; principal cost: %s USD; delegate cost: %s USD; total cost: %s USD; communication bytes: %s\n", status.Metrics.AttemptElapsedMS, status.Metrics.PrincipalTokens, status.Metrics.DelegateTokens, status.Metrics.PrincipalCostUSD, status.Metrics.DelegateCostUSD, status.Metrics.TotalCostUSD, status.Metrics.CommunicationBytes)
-			outputString(cmd, b.String())
+			outputTaskStatus(cmd, status)
 			return nil
 		}
 		switch rows := value.(type) {
@@ -1074,6 +1115,51 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 			timer.Stop()
 			return cmd.Context().Err()
 		case <-timer.C:
+		}
+	}
+}
+
+var agentTaskWaitCmd = &cobra.Command{
+	Use: "wait <task-id>", Short: "Wait for a delegated task to require attention",
+	Args: cobra.ExactArgs(1), RunE: runAgentTaskWait,
+}
+
+func init() {
+	agentTaskWaitCmd.Flags().Duration("timeout", time.Minute, "Maximum time to wait")
+}
+
+func runAgentTaskWait(cmd *cobra.Command, args []string) error {
+	timeout, err := cmd.Flags().GetDuration("timeout")
+	if err != nil || timeout <= 0 {
+		return fmt.Errorf("--timeout must be positive")
+	}
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		task, err := store.Read(args[0])
+		if err != nil {
+			return err
+		}
+		switch task.Status {
+		case delegation.TaskQueued, delegation.TaskRunning, delegation.TaskCancelling:
+			for _, permission := range task.Permissions {
+				if permission.Disposition == delegation.PermissionPending {
+					return outputTask(cmd, boundedTaskStatus(task))
+				}
+			}
+		default:
+			return outputTask(cmd, boundedTaskStatus(task))
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for task %s (last status: %s): %w", task.ID, task.Status, ctx.Err())
+		case <-ticker.C:
 		}
 	}
 }

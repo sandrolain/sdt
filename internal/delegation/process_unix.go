@@ -157,3 +157,17 @@ func StopWorkerGroup(ctx context.Context, identity ProcessIdentity) error {
 	}
 	return nil
 }
+
+// WorkerHealth observes a recorded worker without reconciling persistent state.
+func WorkerHealth(identity *ProcessIdentity) string {
+	if identity == nil {
+		return "unrecorded"
+	}
+	if WorkerMatches(*identity) {
+		return "running"
+	}
+	if identity.PID > 0 && errors.Is(syscall.Kill(identity.PID, 0), syscall.ESRCH) {
+		return "stopped"
+	}
+	return "unknown"
+}

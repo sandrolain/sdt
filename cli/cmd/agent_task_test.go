@@ -13,7 +13,7 @@ import (
 
 func TestAgentTaskCommandContractAndBoundedStatus(t *testing.T) {
 	for _, path := range [][]string{
-		{"agent", "task", "start"}, {"agent", "task", "status"}, {"agent", "task", "result"},
+		{"agent", "task", "start"}, {"agent", "task", "status"}, {"agent", "task", "result"}, {"agent", "task", "wait"},
 		{"agent", "task", "cancel"}, {"agent", "task", "resume"},
 		{"agent", "task", "accept"}, {"agent", "task", "correct"},
 		{"agent", "task", "apply", "preview"}, {"agent", "task", "apply", "execute"},
@@ -31,7 +31,11 @@ func TestAgentTaskCommandContractAndBoundedStatus(t *testing.T) {
 		Events:      []delegation.StateEvent{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4}, {ID: 5}, {ID: 6}},
 		Permissions: []delegation.PermissionRecord{{RequestID: "pending", Disposition: "pending"}},
 	}
+	task.ConfigSnapshot = []byte(`{"max_attempts":5}`)
 	view := boundedTaskStatus(task)
+	if view.MaxAttempts != 5 || view.ProviderQuota != "unknown" {
+		t.Fatalf("unexpected local limit or provider quota: %+v", view)
+	}
 	if view.AttemptCount != 4 || len(view.Attempts) != 3 || len(view.RecentEvents) != 5 || len(view.PendingPermissions) != 1 {
 		t.Fatalf("status summary was not bounded or lost actionable state: %+v", view)
 	}

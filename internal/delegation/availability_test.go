@@ -45,6 +45,10 @@ func TestAvailabilityExpiryUsesReportedTimeAndLocalBoundaries(t *testing.T) {
 	if err != nil || exclusion.Key != "group:acct" || !exclusion.Until.Equal(reported.UTC()) {
 		t.Fatalf("reported expiry was not preserved: %+v, %v", exclusion, err)
 	}
+	quota, err := availabilityExpiry("agent", "", FailureSignal{Kind: FailureQuota}, 5*time.Minute, now)
+	if err != nil || !quota.Until.Equal(now.Add(5*time.Minute)) {
+		t.Fatalf("quota cooldown was not applied: %+v, %v", quota, err)
+	}
 	if _, err := availabilityExpiry("agent", "", FailureSignal{Kind: FailureUnavailable}, 0, now); err == nil {
 		t.Fatal("unavailability without a provider expiry or configured cooldown was accepted")
 	}

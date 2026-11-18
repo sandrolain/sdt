@@ -42,9 +42,9 @@ delegation:
   max_attempts: 1
   max_duration: 45m
   agents:
-    - name: opencode-big-pickle
+    - name: opencode-deepseek
       command: ["opencode", "acp"]
-      model: "opencode/big-pickle"
+      model: "opencode/deepseek-v4.1-flash-free"
       roles: [backend]
       capabilities: [file-read, file-write, testing]
       concurrency: 1
