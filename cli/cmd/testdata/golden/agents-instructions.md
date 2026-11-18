@@ -123,7 +123,7 @@ something is due, surface it and ask whether to run it before or after the reque
 | `context/instructions/draft.md`, `context/instructions/scope.md` | Notes or a vague goal into an analysis |
 | `context/instructions/plan.md` | Creating or modifying a plan |
 | `context/instructions/tasks.md` | Creating or modifying task files |
-| `context/instructions/tasks-handoff.md` | Handing the work over |
+| `context/instructions/tasks-handoff.md`, `context/instructions/delegation.md` | Handoffs and CLI delegation |
 | `context/instructions/tasks-review.md` | Closing a phase: verify-step, review |
 | `context/instructions/decision.md` | Writing a decision record |
 | `context/instructions/architecture.md` | Updating architecture docs |

@@ -1,14 +1,16 @@
 ## sdt agent task wait
 
-Wait for a delegated task to require attention
+Wait for delegated tasks through worker events
 
 ```
-sdt agent task wait <task-id> [flags]
+sdt agent task wait <task-id> [task-id...] [flags]
 ```
 
 ### Options
 
 ```
+      --all[=true|false]    Wait for all supplied tasks to finish; return early for intervention
+      --any[=true|false]    Wait for any supplied task to require attention
   -h, --help[=true|false]   help for wait
       --timeout duration    Maximum time to wait (default 1m0s)
 ```

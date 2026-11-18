@@ -114,6 +114,7 @@ type PermissionRecord struct {
 	PolicyRule    string             `json:"policy_rule,omitempty"`
 	Source        string             `json:"source,omitempty"`
 	Rationale     string             `json:"rationale,omitempty"`
+	Mandate       string             `json:"mandate,omitempty"`
 	Escalation    string             `json:"escalation,omitempty"`
 	Disposition   string             `json:"disposition"`
 	OptionID      string             `json:"option_id,omitempty"`
@@ -567,7 +568,7 @@ func (s *Store) RecordPermission(id string, record PermissionRecord) error {
 }
 
 // ResolvePermission records the exact offered option before a caller answers ACP.
-func (s *Store) ResolvePermission(id, attemptID, requestID, optionID, source, rationale, policyVersion, policyRule string) error {
+func (s *Store) ResolvePermission(id, attemptID, requestID, optionID, source, rationale, policyVersion, policyRule string, mandate ...string) error {
 	if optionID == "" || source == "" {
 		return fmt.Errorf("permission option and decision source are required")
 	}
@@ -593,6 +594,9 @@ func (s *Store) ResolvePermission(id, attemptID, requestID, optionID, source, ra
 			record.OptionID = optionID
 			record.Source = source
 			record.Rationale = rationale
+			if len(mandate) > 0 {
+				record.Mandate = mandate[0]
+			}
 			record.PolicyVersion = policyVersion
 			record.PolicyRule = policyRule
 			record.ResolvedAt = time.Now().UTC()
@@ -632,15 +636,15 @@ func hasPermissionChoice(options []PermissionChoice, optionID string) bool {
 }
 
 // ResolvePermissionAndWake publishes the decision before notifying the worker.
-func (s *Store) ResolvePermissionAndWake(id, attemptID, requestID, optionID, source, rationale, policyVersion, policyRule string) error {
-	if err := s.ResolvePermission(id, attemptID, requestID, optionID, source, rationale, policyVersion, policyRule); err != nil {
+func (s *Store) ResolvePermissionAndWake(id, attemptID, requestID, optionID, source, rationale, policyVersion, policyRule string, mandate ...string) error {
+	if err := s.ResolvePermission(id, attemptID, requestID, optionID, source, rationale, policyVersion, policyRule, mandate...); err != nil {
 		return err
 	}
 	return s.WakeWorker(id)
 }
 
 // ResolvePermissionWithPolicy fences answers against the live policy version.
-func (s *Store) ResolvePermissionWithPolicy(id, attemptID, requestID, optionID, source, rationale, currentPolicyVersion, policyRule string) error {
+func (s *Store) ResolvePermissionWithPolicy(id, attemptID, requestID, optionID, source, rationale, currentPolicyVersion, policyRule string, mandate ...string) error {
 	task, err := s.Read(id)
 	if err != nil {
 		return err
@@ -658,7 +662,7 @@ func (s *Store) ResolvePermissionWithPolicy(id, attemptID, requestID, optionID, 
 			}
 			return fmt.Errorf("permission policy changed; request marked stale")
 		}
-		return s.ResolvePermissionAndWake(id, attemptID, requestID, optionID, source, rationale, currentPolicyVersion, policyRule)
+		return s.ResolvePermissionAndWake(id, attemptID, requestID, optionID, source, rationale, currentPolicyVersion, policyRule, mandate...)
 	}
 	return fmt.Errorf("permission request is not outstanding for this attempt")
 }
@@ -741,7 +745,7 @@ func atomicWrite(path string, data []byte) error {
 
 func syncDirectoryTree(dir string) error {
 	for current := dir; ; current = filepath.Dir(current) {
-		dirHandle, err := os.Open(current) //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+		dirHandle, err := os.Open(current) //#nosec G304 -- Opens ancestor directories only to fsync metadata, not to read file contents.
 		if err != nil {
 			return err
 		}

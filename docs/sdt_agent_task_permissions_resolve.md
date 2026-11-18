@@ -10,8 +10,10 @@ sdt agent task permissions resolve <task-id> <request-id> [flags]
 
 ```
   -h, --help[=true|false]   help for resolve
+      --mandate string      Existing mandate reference required for a principal decision
       --option string       Exact offered permission option id
       --rationale string    Principal decision rationale
+      --source string       Decision source: principal or user (explicit user response) (default "principal")
 ```
 
 ### Options inherited from parent commands

@@ -1,0 +1,94 @@
+---
+marp: true
+style: |
+  h1 { letter-spacing: 0.02em; }
+---
+
+<!-- theme: default -->
+<!-- paginate: true -->
+<!-- header: "SDT · Marp feature gallery" -->
+<!-- footer: "verification deck" -->
+
+# Marp feature gallery
+
+<!-- The title slide is a smoke test. -->
+
+---
+
+## Directives
+
+---
+
+## Fragments
+
+* first
+* second
+
+---
+
+## Code
+
+```go
+fmt.Println("fixture")
+```
+
+---
+
+## Mathematics
+
+$$x^2$$
+
+---
+
+## Table
+
+| A   | B   |
+| --- | --- |
+| 1   | 2   |
+
+---
+
+## Inline image
+
+![sample](../assets/the-spec-is-the-code.jpg)
+
+---
+
+## Background
+
+![bg](../assets/the-spec-is-the-code.jpg)
+
+---
+
+## Quote
+
+> fixture
+
+---
+
+## Layout
+
+---
+
+## Emoji
+
+---
+
+## Notes
+
+---
+
+## Diagram
+
+```mermaid
+flowchart LR
+ A --> B
+```
+
+---
+
+## Closing
+
+---
+
+## End

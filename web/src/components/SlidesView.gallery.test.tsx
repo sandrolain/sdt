@@ -24,13 +24,14 @@ vi.mock("svg-pan-zoom", () => ({
 import { SlidesView } from "./SlidesView";
 
 /**
- * The gallery is a corpus document, so it is read from disk rather than
- * duplicated here: the deck a reader opens in the Notes tree is the deck this
- * test renders. Assertions are structural (containers, resolved URLs, engine
- * markers), never prose, so editing the deck's wording does not break them.
+ * A versioned synthetic deck keeps this regression check runnable in a fresh
+ * checkout, where the project's local corpus is unavailable.
  */
 const DECK_PATH = "context/notes/20261109-201359-marp-feature-gallery.slide.md";
-const DECK_FILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../../", DECK_PATH);
+const DECK_FILE = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "__fixtures__/gallery.slide.txt",
+);
 
 function splitDeck(content: string): { frontmatter: string; markdown: string } {
   if (!content.startsWith("---")) return { frontmatter: "", markdown: content };
@@ -71,7 +72,7 @@ beforeEach(() => {
 
 describe("SlidesView gallery", () => {
   it(
-    "renders the corpus gallery with the token theme and Marp's containers",
+    "renders the gallery fixture with the token theme and Marp's containers",
     { timeout: 20000 },
     async () => {
       render(<SlidesView markdown={markdown} frontmatter={frontmatter} path={DECK_PATH} />);

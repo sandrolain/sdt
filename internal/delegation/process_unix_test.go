@@ -84,11 +84,22 @@ func notifierWorkerProcess() {
 		cancel()
 		return
 	}
-	if err := notifier.Update("permission_pending", "Permission needs intervention", func(task *Task) error {
+	update := notifier.Update
+	if os.Getenv("SDT_TEST_NOTIFIER_NO_PUBLISH") != "" {
+		update = func(kind, summary string, mutate func(*Task) error) error {
+			return store.Update("task-1", kind, summary, mutate)
+		}
+	}
+	if err := update("permission_pending", "Permission needs intervention", func(task *Task) error {
 		task.Status = TaskInterventionRequired
 		return nil
 	}); err != nil {
 		notifierWorkerError("update: " + err.Error())
+	}
+	if os.Getenv("SDT_TEST_NOTIFIER_NO_PUBLISH") != "" {
+		_ = notifier.Close()
+		cancel()
+		return
 	}
 	_, err = store.Read("task-1")
 	if err != nil {

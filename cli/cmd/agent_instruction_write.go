@@ -31,6 +31,15 @@ func agentWriteInstructionFile(path, name, templateBody string, force bool) File
 	if exists && force && hasSection(content, name) {
 		_, sectionBody := contextwiki.SplitFrontmatter(templateBody)
 		content = agentReplaceSection(content, name, strings.TrimSpace(sectionBody))
+		// Older templates carried their own markers; refreshing their first pair
+		// left closing markers behind. Remove only a marker-only generated tail.
+		end := "<!-- sdt:end:" + name + " -->"
+		if first := strings.Index(content, end); first >= 0 {
+			tail := content[first+len(end):]
+			if strings.Contains(tail, end) && strings.TrimSpace(strings.ReplaceAll(tail, end, "")) == "" {
+				content = content[:first+len(end)] + "\n"
+			}
+		}
 		// The header is generated too: replace it, keep everything after it.
 		if templateFM, _ := contextwiki.SplitFrontmatter(templateBody); strings.TrimSpace(templateFM) != "" {
 			_, rest := contextwiki.SplitFrontmatter(content)

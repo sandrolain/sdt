@@ -9,7 +9,10 @@ sdt agent task permissions list <task-id> [flags]
 ### Options
 
 ```
-  -h, --help[=true|false]   help for list
+      --escalated[=true|false]   Show only requests carrying an escalation reason
+  -h, --help[=true|false]        help for list
+      --outcome string           Filter recorded disposition, such as pending, resolved or stale
+      --source string            Filter decision source, including principal, user or policy
 ```
 
 ### Options inherited from parent commands

@@ -71,7 +71,8 @@ func (s *Store) Listen(ctx context.Context, taskID string, identity ProcessIdent
 	if err != nil {
 		return nil, err
 	}
-	if len(task.Attempts) == 0 || task.Attempts[len(task.Attempts)-1].ProcessStart != identity.StartToken {
+	owned := task.Worker != nil && *task.Worker == identity
+	if !owned && (len(task.Attempts) == 0 || task.Attempts[len(task.Attempts)-1].ProcessStart != identity.StartToken) {
 		return nil, fmt.Errorf("worker identity does not own task %q", taskID)
 	}
 	dir := filepath.Join(s.root, "w")
@@ -244,11 +245,19 @@ func (n *Notifier) serveClient(conn *net.UnixConn) {
 		return
 	}
 	_ = conn.SetDeadline(time.Time{}) //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
+	disconnected := make(chan struct{})
+	go func() {
+		_, _ = reader.ReadByte() //nolint:errcheck // A subscriber sends nothing after its handshake; EOF releases its slot.
+		close(disconnected)
+	}()
 	for {
 		select {
 		case <-n.closed:
 			return
+		case <-disconnected:
+			return
 		case revision := <-queue:
+			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second)) //nolint:errcheck // Bound a subscriber that stops reading.
 			message, err := json.Marshal(revisionMessage{Revision: revision})
 			if err != nil {
 				return
@@ -278,9 +287,11 @@ func (s *Store) Subscribe(ctx context.Context, taskID string) (*Subscription, er
 	if err != nil {
 		return nil, err
 	}
+	stopCancel := context.AfterFunc(ctx, func() { _ = conn.Close() }) //nolint:errcheck // Cancellation releases a blocked handshake or reader.
 	failed := true
 	defer func() {
 		if failed {
+			stopCancel()
 			_ = conn.Close() //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
 		}
 	}()
@@ -324,7 +335,7 @@ func (s *Store) Subscribe(ctx context.Context, taskID string) (*Subscription, er
 		}
 	}()
 	failed = false
-	return &Subscription{Conn: conn, InitialRevision: ack.Revision, Revisions: revisions, close: func() { _ = conn.Close() }}, nil //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
+	return &Subscription{Conn: conn, InitialRevision: ack.Revision, Revisions: revisions, close: func() { stopCancel(); _ = conn.Close() }}, nil //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
 }
 
 func (s *Store) WakeWorker(taskID string) error {

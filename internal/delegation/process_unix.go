@@ -68,7 +68,7 @@ func StartWorkerWithToken(executable, workingDir, logPath, token string, args ..
 		return ProcessIdentity{}, err
 	}
 	defer devNull.Close()                  //nolint:errcheck
-	cmd := exec.Command(absolute, args...) //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+	cmd := exec.Command(absolute, args...) //#nosec G204 -- Explicit user-configured executable is launched as direct argv without a shell.
 	cmd.Dir = workingDir
 	cmd.Stdin = devNull
 	cmd.Stdout = log
@@ -111,7 +111,7 @@ func WorkerMatches(identity ProcessIdentity) bool {
 	if identity.PID <= 0 || identity.GroupID != identity.PID || identity.StartToken == "" {
 		return false
 	}
-	output, err := exec.Command("ps", "-p", strconv.Itoa(identity.PID), "-o", "args=").Output() //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+	output, err := exec.Command("ps", "-p", strconv.Itoa(identity.PID), "-o", "args=").Output() //#nosec G204 -- Fixed ps executable and flags; PID is formatted from an integer, without a shell.
 	if err != nil {
 		return false
 	}

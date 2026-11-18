@@ -4,8 +4,6 @@ title: "Run a delegated task through the CLI"
 summary: "Dispatch, observe, review and integrate native ACP delegated work."
 ---
 
-<!-- sdt:begin:instructions/delegation -->
-
 Read this when you manage a delegate through `sdt agent task`. For a corpus
 task claim or a handoff between sessions, see `tasks-handoff.md`.
 
@@ -14,6 +12,7 @@ task claim or a handoff between sessions, see `tasks-handoff.md`.
 Check the project's `.sdt.yaml` for `delegation.agents`, `max_attempts` and
 `max_duration`. Choose a role and the capabilities the task requires. Give
 the delegate one bounded goal, its allowed scope, and acceptance criteria.
+Put all three in `--brief`; references supplement that text.
 The principal owns task decisions, integration and closeout.
 
 Record the returned runtime ID alongside the plan item or corpus task. That
@@ -35,18 +34,32 @@ permissions of their environment.
 
 | Observation | Next action |
 |---|---|
-| Queued or running | Use `sdt agent task wait <id> --timeout 2m`. If it times out, inspect `status <id>`. The timeout ends the wait only. |
+| Queued or running | Use `sdt agent task wait <id> --timeout 2m`. Timeout returns a nonzero exit and structured timeout state; it leaves tasks running. |
 | Worker health is unknown | Keep the recorded task state. Verify process visibility before trying to recover or start a replacement. |
-| Permission pending | Use `permissions list <id>`. Inspect the request and offered options. Resolve only within authority already granted, otherwise ask the user. Use `permissions resolve <id> <request-id> --option <option-id> --rationale "<reason>"` with the exact offered ID. |
-| Result ready | Read `result <id>` and relevant artifacts with `result <id> <artifact>`. Verify what changed and the evidence against the brief. Use `accept <id>` when satisfied, or `correct <id> --instructions "<required change>"` for bounded follow-up work. |
+| Permission pending | Use `permissions list <id>`. Inspect the request and offered options. Resolve only within authority already granted, otherwise ask the user. Use `permissions resolve <id> <request-id> --option <option-id> --source principal --mandate "<existing authority>" --rationale "<reason>"` with the exact offered ID. Use `--source user` only to relay an explicit user response. |
+| Result ready | Read `result <id>` and relevant artifacts with `result <id> <artifact-name>` using a recorded name such as `result-attempt-1`. Verify changes and evidence before `accept <id>`. Use `correct <id> --instructions "<required change>"` only while attempts and duration remain. |
 | Intervention required without a pending permission | Inspect recent events in `status <id>` and retrieve the worker log with `result <id> --log`. Address the cause and check remaining limits before `resume <id>`. |
 | Provider quota or availability restriction | Use `availability list` to see exclusions and expiry. Respect the provider retry time or local cooldown. A local attempt limit does not measure the remaining provider quota. Reset a key only when authorized and there is evidence the restriction has cleared. |
-| Work should stop | Use `cancel <id>` when authorized. Confirm the resulting state before taking further action. |
+| Active work should stop | Use `cancel <id>` when authorized. Confirm the resulting state. A retained ready or accepted result has no live work to cancel; review it before requesting cleanup. |
 | Accepted | Review `apply preview <id>` and apply the reviewed digest when integration is authorized. |
 | Completed, failed or cancelled | Inspect retained artifacts and changes before deciding whether to request cleanup. |
 
 Commands in the table use the `sdt agent task` prefix. Use
 `sdt schema 'agent task <command>'` to confirm flags.
+Permission history includes pending and resolved records; filter with `--source`,
+`--outcome` or `--escalated`. Source and mandate record the caller's declaration;
+the CLI cannot authenticate a human response or interpret natural-language authority.
+Automatic policy decisions remain distinct and do not expand the principal's mandate.
+
+For multiple explicit IDs, use `wait <id1> <id2> --any` or `--all`.
+`--any` returns the ready/actionable tasks and remaining IDs in one snapshot.
+`--all` requires terminal outcomes for every task, but returns early for a
+permission, intervention or result awaiting acceptance with
+`condition_satisfied: false`. A failed or cancelled task is terminal, not
+successful. Remove handled terminal tasks from the next wait set. Worker
+notifications trigger durable-state reads; an unreachable worker is reported
+after bounded reconnection, never treated as completion. Waiting cannot
+reactivate an external principal session after that session has ended.
 
 ## Review and integrate
 
@@ -61,6 +74,12 @@ sdt agent task result <id>
 Use the returned ID in place of `<id>`. After independently verifying the
 result, accept it and preview the patch:
 
+Before acceptance, inspect the retained worktree with host Git:
+`git -C .sdt/delegation/worktrees/<id> status --short` and
+`git -C .sdt/delegation/worktrees/<id> diff HEAD`, then read added files and run
+the relevant checks. Git remains a host operation; `result` is the delegate's
+report. The apply preview requires prior acceptance.
+
 ```sh
 sdt agent task accept <id>
 sdt agent task apply preview <id>
@@ -70,11 +89,13 @@ Review the paths, patch and conflicts. If integration is authorized, run
 `sdt agent task apply execute <id> --digest <reviewed-digest>`. If the digest
 changes, review a fresh preview. Application writes to the principal working
 tree. Staging and committing are separate actions.
+Resolve destination conflicts before requesting a fresh preview. Application
+keeps task status `accepted`; the integration receipt records the transfer.
 
 ## Retire
 
 Use `sdt agent task cleanup preview <id>` to inspect retained resources. Make
 sure the principal has what it needs from the worktree and artifacts. Get
 explicit authorization before running `sdt agent task cleanup execute <id>`.
-
-<!-- sdt:end:instructions/delegation -->
+Cleanup refuses active tasks or live workers and permanently removes the
+retained worktree, branch and task artifacts, including uncommitted changes.

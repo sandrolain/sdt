@@ -333,6 +333,8 @@ func runAgentTaskStatus(cmd *cobra.Command, args []string) error {
 }
 
 type taskStatusSummary struct {
+	Revision           uint64                  `json:"revision" yaml:"revision"`
+	Workspace          string                  `json:"workspace,omitempty" yaml:"workspace,omitempty"`
 	WorkerHealth       string                  `json:"worker_health" yaml:"worker_health"`
 	MaxAttempts        int                     `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
 	ProviderQuota      string                  `json:"provider_quota" yaml:"provider_quota"`
@@ -360,6 +362,7 @@ type taskMetricsSummary struct {
 
 func boundedTaskStatus(task delegation.Task) taskStatusSummary {
 	view := taskStatusSummary{ID: task.ID, Status: task.Status, Role: task.Role, Deadline: task.Deadline, AttemptCount: len(task.Attempts)}
+	view.Revision, view.Workspace = task.Revision, task.Source.Workspace
 	view.WorkerHealth = delegation.WorkerHealth(task.Worker)
 	view.ProviderQuota = "unknown"
 	var limits struct {
@@ -410,8 +413,7 @@ func runAgentTaskResult(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if getBoolFlag(cmd, "log", false) {
-		path := filepath.Join(store.Root(), "tasks", task.ID, "artifacts", "worker.log")
-		data, err := os.ReadFile(path) //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+		data, err := store.ReadArtifact(task.ID, "worker.log")
 		if err != nil {
 			return err
 		}
@@ -608,7 +610,7 @@ func runAgentTaskCleanupPreview(cmd *cobra.Command, args []string) error {
 	}
 	preview := makeCleanupPreview(store, task)
 	if task.Source.Workspace != "" {
-		if output, err := exec.CommandContext(cmd.Context(), "git", "-C", task.Source.Workspace, "status", "--short").Output(); err == nil { //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+		if output, err := exec.CommandContext(cmd.Context(), "git", "-C", task.Source.Workspace, "status", "--short").Output(); err == nil { //#nosec G204 -- Read-only Git status receives cwd as one argv value; no shell.
 			for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 				if line != "" {
 					preview.DirtyPaths = append(preview.DirtyPaths, strings.TrimSpace(line))
@@ -656,15 +658,15 @@ func runAgentTaskCleanupExecute(cmd *cobra.Command, args []string) error {
 			if info.Mode()&os.ModeSymlink != 0 {
 				return fmt.Errorf("refusing to remove a symlink worktree path")
 			}
-			if output, err := exec.CommandContext(cmd.Context(), "git", "-C", root, "worktree", "remove", "--force", workspace).CombinedOutput(); err != nil { //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+			if output, err := exec.CommandContext(cmd.Context(), "git", "-C", root, "worktree", "remove", "--force", workspace).CombinedOutput(); err != nil { //#nosec G204 -- Task path and branch were validated above; fixed Git argv without a shell.
 				return fmt.Errorf("remove task worktree: %w: %s", err, strings.TrimSpace(string(output)))
 			}
 		} else if !os.IsNotExist(statErr) {
 			return statErr
 		}
 		branch := "refs/heads/" + task.Source.Branch
-		if err := exec.CommandContext(cmd.Context(), "git", "-C", root, "show-ref", "--verify", "--quiet", branch).Run(); err == nil { //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
-			if output, err := exec.CommandContext(cmd.Context(), "git", "-C", root, "branch", "-D", task.Source.Branch).CombinedOutput(); err != nil { //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+		if err := exec.CommandContext(cmd.Context(), "git", "-C", root, "show-ref", "--verify", "--quiet", branch).Run(); err == nil { //#nosec G204 -- Branch is the validated task branch under refs/heads; fixed Git argv without a shell.
+			if output, err := exec.CommandContext(cmd.Context(), "git", "-C", root, "branch", "-D", task.Source.Branch).CombinedOutput(); err != nil { //#nosec G204 -- Branch must equal sdt/delegation/<safe task id> above; fixed argv without a shell.
 				return fmt.Errorf("remove task branch: %w: %s", err, strings.TrimSpace(string(output)))
 			}
 		}
@@ -873,8 +875,13 @@ var agentTaskPermissionResolveCmd = &cobra.Command{Use: "resolve <task-id> <requ
 
 func init() {
 	agentTaskPermissionsCmd.AddCommand(agentTaskPermissionListCmd, agentTaskPermissionResolveCmd)
+	agentTaskPermissionListCmd.Flags().String("source", "", "Filter decision source, including principal, user or policy")
+	agentTaskPermissionListCmd.Flags().String("outcome", "", "Filter recorded disposition, such as pending, resolved or stale")
+	agentTaskPermissionListCmd.Flags().Bool("escalated", false, "Show only requests carrying an escalation reason")
 	agentTaskPermissionResolveCmd.Flags().String("option", "", "Exact offered permission option id")
 	agentTaskPermissionResolveCmd.Flags().String("rationale", "", "Principal decision rationale")
+	agentTaskPermissionResolveCmd.Flags().String("source", "principal", "Decision source: principal or user (explicit user response)")
+	agentTaskPermissionResolveCmd.Flags().String("mandate", "", "Existing mandate reference required for a principal decision")
 	agentTaskResultCmd.Flags().Bool("log", false, "Retrieve the retained worker log")
 }
 
@@ -887,10 +894,16 @@ func runAgentTaskPermissionList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return outputTask(cmd, task.Permissions)
+	return outputTask(cmd, filterPermissionHistory(task.Permissions, getStringFlag(cmd, "source", false), getStringFlag(cmd, "outcome", false), getBoolFlag(cmd, "escalated", false)))
 }
 
 func runAgentTaskPermissionResolve(cmd *cobra.Command, args []string) error {
+	source := getStringFlag(cmd, "source", false)
+	rationale := getStringFlag(cmd, "rationale", false)
+	mandate := getStringFlag(cmd, "mandate", false)
+	if err := validatePermissionAuthority(source, rationale, mandate); err != nil {
+		return err
+	}
 	store, err := taskStore()
 	if err != nil {
 		return err
@@ -920,7 +933,7 @@ func runAgentTaskPermissionResolve(cmd *cobra.Command, args []string) error {
 	}
 	digest := sha256.Sum256(versionData)
 	version := hex.EncodeToString(digest[:])
-	if err := store.ResolvePermissionWithPolicy(args[0], request.AttemptID, request.RequestID, option, "user", getStringFlag(cmd, "rationale", false), version, "principal decision"); err != nil {
+	if err := store.ResolvePermissionWithPolicy(args[0], request.AttemptID, request.RequestID, option, source, rationale, version, "explicit CLI decision", mandate); err != nil {
 		return err
 	}
 	return outputAction(cmd, "Permission decision recorded and worker notified.\n", map[string]string{"task_id": args[0], "request_id": args[1], "status": "resolved"})
@@ -1004,7 +1017,12 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	briefData, err := os.ReadFile(filepath.Join(store.Root(), "tasks", taskID, "artifacts", "brief.md")) //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+	notifier, err := store.Listen(cmd.Context(), taskID, identity)
+	if err != nil {
+		return err
+	}
+	defer notifier.Close() //nolint:errcheck // Worker owns its subscription endpoint.
+	briefData, err := store.ReadArtifact(taskID, "brief.md")
 	if err != nil {
 		return err
 	}
@@ -1084,7 +1102,7 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 		runErr := delegation.RunACPTask(cmd.Context(), delegation.ACPTaskOptions{
 			Store: store, TaskID: taskID, Workspace: workspace, Brief: string(briefData),
 			Candidates: candidates, MaxAttempts: snap.MaxAttempts, Policy: policy, WorkerIdentity: identity,
-			NotifierFactory: func() (*delegation.Notifier, error) { return store.Listen(cmd.Context(), taskID, identity) },
+			Notifier: notifier,
 		})
 		if !errors.Is(runErr, delegation.ErrWaitingAvailability) {
 			return runErr
@@ -1120,12 +1138,15 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 }
 
 var agentTaskWaitCmd = &cobra.Command{
-	Use: "wait <task-id>", Short: "Wait for a delegated task to require attention",
-	Args: cobra.ExactArgs(1), RunE: runAgentTaskWait,
+	Use: "wait <task-id> [task-id...]", Short: "Wait for delegated tasks through worker events",
+	Args: cobra.MinimumNArgs(1), RunE: runAgentTaskWait,
 }
 
 func init() {
 	agentTaskWaitCmd.Flags().Duration("timeout", time.Minute, "Maximum time to wait")
+	agentTaskWaitCmd.Flags().Bool("any", false, "Wait for any supplied task to require attention")
+	agentTaskWaitCmd.Flags().Bool(delegation.WaitModeAll, false, "Wait for all supplied tasks to finish; return early for intervention")
+	agentTaskWaitCmd.MarkFlagsMutuallyExclusive("any", delegation.WaitModeAll)
 }
 
 func runAgentTaskWait(cmd *cobra.Command, args []string) error {
@@ -1139,27 +1160,26 @@ func runAgentTaskWait(cmd *cobra.Command, args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 	defer cancel()
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		task, err := store.Read(args[0])
-		if err != nil {
-			return err
-		}
-		switch task.Status {
-		case delegation.TaskQueued, delegation.TaskRunning, delegation.TaskCancelling:
-			for _, permission := range task.Permissions {
-				if permission.Disposition == delegation.PermissionPending {
-					return outputTask(cmd, boundedTaskStatus(task))
-				}
-			}
-		default:
-			return outputTask(cmd, boundedTaskStatus(task))
-		}
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("wait for task %s (last status: %s): %w", task.ID, task.Status, ctx.Err())
-		case <-ticker.C:
-		}
+	mode := "one"
+	if getBoolFlag(cmd, "any", false) {
+		mode = "any"
 	}
+	if getBoolFlag(cmd, delegation.WaitModeAll, false) {
+		mode = delegation.WaitModeAll
+	}
+	result, waitErr := store.Wait(ctx, args, mode)
+	if len(result.Tasks) == 0 {
+		return waitErr
+	}
+	statuses := make([]taskStatusSummary, 0, len(result.Tasks))
+	for _, task := range result.Tasks {
+		statuses = append(statuses, boundedTaskStatus(task))
+	}
+	if err := outputTask(cmd, struct {
+		delegation.WaitSnapshot
+		Tasks []taskStatusSummary `json:"tasks"`
+	}{result, statuses}); err != nil {
+		return err
+	}
+	return waitErr
 }

@@ -355,7 +355,7 @@ func gitApplyCheckRun(ctx context.Context, root, patch string, reverse bool) err
 }
 
 func gitOutputEnv(ctx context.Context, dir string, extraEnv []string, stdin io.Reader, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // Args are fixed Git operations over validated task paths.
+	cmd := exec.CommandContext(ctx, "git", args...) //#nosec G204 -- Fixed Git executable and internal argv over provenance-checked task paths; no shell.
 	cmd.Dir, cmd.Stdin = dir, stdin
 	cmd.Env = append(os.Environ(), extraEnv...)
 	var stdout, stderr bytes.Buffer

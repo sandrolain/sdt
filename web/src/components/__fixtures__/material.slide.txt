@@ -1,0 +1,86 @@
+<!-- material: synthetic portability regression fixture -->
+---
+marp: true
+theme: default
+paginate: true
+---
+
+# Il bounded context
+
+---
+
+## Fixture slide 2
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 3
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 4
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 5
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 6
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 7
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 8
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 9
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 10
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 11
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 12
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 13
+
+Synthetic regression content.
+
+---
+
+## Fixture slide 14
+
+Synthetic regression content.

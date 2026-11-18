@@ -10,10 +10,13 @@ import { SlidesView } from "./SlidesView";
  * A material deck puts its machine header comment first and Marp's frontmatter
  * after it (decision 0038). Marp only reads frontmatter at the start, so
  * without normalization the deck opens on a blank slide and shows the
- * frontmatter keys as content. This reads the real derived file, not a copy.
+ * frontmatter keys as content. Use a synthetic fixture available in CI.
  */
 const DECK_PATH = "context/renders/materials/software-architect/bounded-context.it.slide.md";
-const DECK_FILE = resolve(dirname(fileURLToPath(import.meta.url)), "../../../", DECK_PATH);
+const DECK_FILE = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "__fixtures__/material.slide.txt",
+);
 
 afterEach(() => cleanup());
 

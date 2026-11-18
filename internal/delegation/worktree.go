@@ -167,7 +167,7 @@ func rejectSymlinkPath(root, relative string, allowFinalFile bool) error {
 }
 
 func gitOutput(ctx context.Context, dir string, stdin io.Reader, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // Inputs are validated as project-confined paths or fixed process-management arguments.
+	cmd := exec.CommandContext(ctx, "git", args...) //#nosec G204 -- Fixed Git executable and internal argv, with no shell expansion.
 	cmd.Dir = dir
 	cmd.Stdin = stdin
 	var stdout, stderr bytes.Buffer

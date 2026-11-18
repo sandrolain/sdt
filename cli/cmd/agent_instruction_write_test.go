@@ -44,3 +44,36 @@ func TestInstructionWriterRefreshesFrontmatter(t *testing.T) {
 		t.Errorf("without force status = %q, want %q", skipped.Status, statusSkipped)
 	}
 }
+
+func TestInstructionRefreshRepairsOnlyGeneratedMarkerTail(t *testing.T) {
+	const name = "instructions/delegation"
+	const template = "---\nkind: instructions\nsummary: fixture\n---\n\nNew body.\n"
+	want := agentRenderGenerated(name, template)
+	for _, tc := range []struct {
+		tail     string
+		repaired bool
+	}{
+		{"\n<!-- sdt:end:instructions/delegation -->\n\n<!-- sdt:end:instructions/delegation -->\n", true},
+		{"\nUser-authored guidance.\n", false},
+	} {
+		path := filepath.Join(t.TempDir(), "delegation.md")
+		if err := os.WriteFile(path, []byte(want+tc.tail), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		result := agentWriteInstructionFile(path, name, template, true)
+		if result.Status != statusUpdated {
+			t.Fatalf("%+v", result)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := want
+		if !tc.repaired {
+			expected += tc.tail
+		}
+		if string(got) != expected {
+			t.Fatalf("got %q, want %q", got, expected)
+		}
+	}
+}
