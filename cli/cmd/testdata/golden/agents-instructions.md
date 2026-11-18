@@ -34,15 +34,12 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 
 ### HARD RULES (apply always)
 
-1. **Intent gate — declare the chain, then proceed.** A non-trivial objective
-   outside an existing analysis or plan starts with the **analysis**; plan and
-   execution follow inside that objective, and the documents are the record.
-   Inside the current analysis/plan, integrate in place. Trivial questions are
-   answered inline. It stops only where a hard rule reserves it: a commit, a
-   deletion, a spend, a choice between real options, including which one an
-   analysis accepts, design agreement, rule 4.
-   *Don't:* edit code the moment the ask arrives; state the chain and open the
-   analysis first.
+1. **Intent gate — declare the chain, then proceed.** Classify new work using
+   `plan.md`. Start standard or exploratory work with analysis and
+   lightweight work with one compact plan. Integrate into the current
+   objective. Answer trivial questions inline. Stop for commits, deletion,
+   spending, consequential decisions, acceptance of an analysis option,
+   or rule 4.
 2. **Immutable past docs** — touch a past analysis/plan only when the user points
    to it; "integrate/modify" never means editing a past document unasked.
    *Don't:* rewrite a past analysis so it agrees with the change you just made.
@@ -60,10 +57,10 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
    index (`sdt context reindex`) and lint depend on it. Each per-type
    instruction file specifies the exact frontmatter for that kind.
    *Don't:* hand-write a `context/` file the CLI scaffolds (`sdt context new`).
-7. **Style & architecture agreed a priori** — propose components, boundaries,
-   patterns, naming and layout in the plan; every non-trivial design choice
-   defaults to the user, never to a "reasonable default" (`development.md`).
-   *Don't:* pick a library, layout or naming as a "reasonable default".
+7. **Agree consequential choices.** State the design and bounds in the plan.
+   Apply existing conventions autonomously. Ask before changes to expected
+   behavior, scope, cost, significant dependencies, persistent data or
+   consequences that are difficult to reverse (`development.md`).
 8. **Library-first** — evaluate existing libraries (search + local docs), present
    a shortlist and ask which to use (`development.md`).
    *Don't:* hand-roll parsing, HTTP or date logic a maintained library covers.
@@ -191,24 +188,27 @@ Work directories under `context/`: `plan/`, `analysis/`, `architecture/`,
 
 ### 5-stage development lifecycle
 
-For any non-trivial task. A **bounded change** — one file, one decision,
-reversible, no new surface — runs as one plan carrying intent, checklist and
-closeout, no analysis (`plan.md`); anything larger takes the chain.
+Choose the work path by reversibility, uncertainty, impact and acceptance
+needs. Lightweight work uses one compact plan. Standard work uses analysis
+and plan. Exploratory work investigates before implementation planning
+(`plan.md`).
 
 1. **Analysis** — integrate/modify the current analysis; type it first
    (`categories`, expected outcome: information or implementation). It carries
-   context, evidence and decisions — the "how" belongs to the plan. Splitting a
-   broad analysis asks first; every option ends accepted by the user,
+   context, evidence and decisions. Ask before decomposition changes scope.
+   Every option ends accepted by the user,
    proposed, rejected or `postponed` (`analysis.md`).
-2. **Plan** — from the analysis; carries the implementation, maps each objective
+2. **Plan** — carries implementation, maps each objective
+   and its observable acceptance criteria
    to its phase and ends with a **Validation phase** (`plan.md`).
 3. **Execution** — the plan is the ledger: phases carry the checklist
    (`sdt context check <plan> <id>`), `## Review` the verdicts, `### Gate` the
    runs. A task file exists only to split across parallel agents
    (`tasks.md`).
-4. **Close** — `sdt context close <plan>` cascades to the analysis; then propose
-   a Conventional Commits message and ask whether to commit (`git.md`).
-5. **Final reports** — append `context/worklog/` and `notes/` entries.
+4. **Close** — run `sdt context close <plan>` with `--no-cascade` if intended
+   outcomes remain unverified or required user acceptance is pending.
+   Propose a Conventional Commits message and ask whether to commit (`git.md`).
+5. **Final reports** — derive worklog from closeout and record reusable lessons.
 
 Sub-agents and the no-silent-downgrade rule: `plan.md`.
 
@@ -277,5 +277,4 @@ An agreed style, architecture or workflow goes back into the project block and
 
 ### Keep the chain
 
-Non-trivial intent → the **analysis** first, then plan → execution; HARD RULE 1
-owns the chain and its gates.
+Follow HARD RULE 1 for work classification and approval gates.
