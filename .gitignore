@@ -40,11 +40,13 @@ skills-lock.json
 # Nodejs
 /node_modules
 
+# secrets
+.env
+deploy/searxng/searxng/settings.yml
+
 # sdt:start
 /context/tmp/
 /context/sdtdocs/
 /context/
 /context/trash/
 # sdt:end
-
-.env
