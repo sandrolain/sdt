@@ -286,24 +286,68 @@ func TestContextCommandCapabilityIsAvailableWithADelegator(t *testing.T) {
 }
 
 func TestIsLoopbackHost(t *testing.T) {
-	for _, host := range []string{"127.0.0.1", "localhost", "::1", "[::1]", ""} {
+	for _, host := range []string{"127.0.0.1", "localhost", "LOCALHOST", "::1", "[::1]"} {
 		if !isLoopbackHost(host) {
 			t.Errorf("host %q should be loopback", host)
 		}
 	}
-	for _, host := range []string{"0.0.0.0", "192.168.1.10", "example.com"} {
+	// An empty bind host is not this machine: net.JoinHostPort("") and a listener
+	// on it bind every interface, which is exactly the bind the capability must
+	// stay off. A malformed name is not loopback either, however the brackets fall.
+	for _, host := range []string{"", "[]", "[", "]", "0.0.0.0", "192.168.1.10", "example.com"} {
 		if isLoopbackHost(host) {
 			t.Errorf("host %q should not be loopback", host)
 		}
 	}
 }
 
+// The request Host is client-controlled. The guard reads it as a name, so a name
+// that is not the viewer's own must be refused even when its brackets make it
+// look like an empty one.
+func TestRequestHostIsLoopbackRule(t *testing.T) {
+	cases := []struct {
+		name, host string
+		want       bool
+	}{
+		{"loopback v4 with a port", "127.0.0.1:8791", true},
+		{"loopback v4 without a port", "127.0.0.1", true},
+		{"localhost with a port", "localhost:8791", true},
+		{"loopback v6 with a port", "[::1]:8791", true},
+		{"loopback v6 without a port", "[::1]", true},
+		{"a lone closing bracket", "]", false},
+		{"a lone opening bracket", "[", false},
+		{"an empty bracket pair", "[]", false},
+		{"an empty host", "", false},
+		{"a foreign host with a port", "evil.example:8791", false},
+		{"an all-interfaces address", "0.0.0.0:8791", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, contextCommandPath, nil)
+			request.Host = tc.host
+			if got := requestHostIsLoopback(request); got != tc.want {
+				t.Fatalf("requestHostIsLoopback(%q) = %v, want %v", tc.host, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEnableWritesRefusesANonLoopbackBindHost(t *testing.T) {
-	root := analysisCorpus(t)
-	s, _ := newServer(root)
-	s.enableWrites("0.0.0.0", "/usr/local/bin/sdt")
-	if s.cmd != nil {
-		t.Fatal("a non-loopback bind host must not enable document editing")
+	for _, tc := range []struct{ name, host string }{
+		{"wildcard address", "0.0.0.0"},
+		{"empty host, every interface", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := analysisCorpus(t)
+			s, _ := newServer(root)
+			s.enableWrites(tc.host, "/usr/local/bin/sdt")
+			if s.cmd != nil {
+				t.Fatalf("bind host %q is not loopback and must not enable document editing", tc.host)
+			}
+			if s.writeReason == "" {
+				t.Fatal("a disabled write surface must say why")
+			}
+		})
 	}
 }
 

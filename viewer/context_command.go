@@ -338,28 +338,30 @@ func (s *server) enableWrites(host, sdtBin string) {
 }
 
 // isLoopbackHost reports whether a bind host keeps the server on this machine.
+// An empty host is not loopback: a listener given it binds every interface, which
+// is the bind the capability must stay off. A malformed name is not loopback
+// either — trimming brackets from both ends mapped "[]", "[" and "]" to the
+// empty string, which then read as this machine.
 func isLoopbackHost(host string) bool {
-	switch strings.ToLower(strings.Trim(host, "[]")) {
-	case "localhost", "":
+	if len(host) > 2 && host[0] == '[' && host[len(host)-1] == ']' {
+		host = host[1 : len(host)-1]
+	}
+	if strings.EqualFold(host, "localhost") {
 		return true
 	}
-	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
-		return ip.IsLoopback()
-	}
-	return false
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // requestHostIsLoopback binds the origin gates to the loopback boundary the bind
 // already declares. r.Host is client-controlled: a page reached through DNS
 // rebinding can send a foreign Host with a matching Origin, and comparing the two
 // alone would mistake that page for the viewer's own. The port is not part of the
-// host check.
+// host check, and an empty or malformed host is never loopback.
 func requestHostIsLoopback(r *http.Request) bool {
 	host := r.Host
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
-	// An empty request Host is not a loopback name: only a bind host may be empty
-	// (all interfaces), and that is not a value a request can borrow here.
 	return host != "" && isLoopbackHost(host)
 }

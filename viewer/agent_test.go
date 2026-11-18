@@ -916,6 +916,24 @@ func TestAgentSurfaceIsDisabledOffLoopback(t *testing.T) {
 	}
 }
 
+// An empty bind host is the address every interface, so the bridge stays off
+// there exactly as it does for any other non-loopback bind.
+func TestAgentSurfaceIsDisabledOnAnAllInterfacesBindHost(t *testing.T) {
+	s, err := newServer(t.TempDir())
+	if err != nil {
+		t.Fatalf("newServer: %v", err)
+	}
+	s.enableAgent("")
+	if s.agentReason == "" {
+		t.Fatal("an empty bind host listens on every interface and must disable the bridge")
+	}
+	ts := httptest.NewServer(s.mux())
+	t.Cleanup(ts.Close)
+	if stream := openStream(t, ts, ts.URL); stream.response.StatusCode != http.StatusForbidden {
+		t.Fatalf("a disabled surface answered a stream with %d", stream.response.StatusCode)
+	}
+}
+
 // Malformed input is refused one request at a time, and a refusal is never fatal.
 func TestAgentEndpointsRefuseMalformedInput(t *testing.T) {
 	s, ts := newAgentViewer(t)
@@ -1047,6 +1065,8 @@ func TestAgentOriginRule(t *testing.T) {
 		{"foreign host, same-origin site marker", "evil.example:8791", "", "same-origin", false},
 		{"foreign host, no origin", "evil.example:8791", "", "", false},
 		{"empty host, same-origin site marker", "", "", "same-origin", false},
+		{"a lone bracket as host", "]", "", "same-origin", false},
+		{"an empty bracket pair as host", "[]", "", "same-origin", false},
 		{"ipv6 loopback host, own origin", "[::1]:8791", "http://[::1]:8791", "", true},
 	}
 	for _, tc := range cases {
