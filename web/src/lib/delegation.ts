@@ -22,6 +22,11 @@ export type DelegatedTask = {
 
 export type DelegatedTasksSnapshot = { tasks: DelegatedTask[]; omitted?: number };
 
+/** A linked task without a phase owns the entire plan. */
+export function planScopeLabel(phase?: string): string {
+  return phase?.trim() || "Entire plan";
+}
+
 export async function fetchDelegatedTasks(): Promise<DelegatedTasksSnapshot> {
   return fetchJSON<DelegatedTasksSnapshot>("/api/delegation/tasks");
 }

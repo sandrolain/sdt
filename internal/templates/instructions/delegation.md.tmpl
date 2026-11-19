@@ -102,7 +102,7 @@ retained worktree, branch and task artifacts, including uncommitted changes.
 
 ## Resuming and linking work
 
-Use `sdt agent task list` after reconnecting to recover task IDs, linked plan phases and the next principal action. Start new work with both `--plan context/plan/<file>.md` and `--phase <phase-or-checklist-id>`; the pair is saved on the task and shown in status.
+Use `sdt agent task list` after reconnecting to recover task IDs, linked plan scope and the next principal action. When assigning a plan, link the **whole plan** with `--plan <path>` and omit `--phase`; the delegate owns its phases in dependency order and returns any principal-only decisions. Use `--phase <phase-or-checklist-id>` only when the delegation is intentionally bounded to that phase or checklist item. Always include the plan with `--reference <path>` so its contents are copied into the stable task workspace; `--plan` stores the relationship but does not itself materialize the file.
 
 A completed worker result still requires principal review. Read the retained result and worktree diff, then accept or request a correction. Only an accepted result can be previewed and applied with its reviewed digest. Applying leaves the task accepted; verify the principal workspace and update the linked plan phase through the document-state CLI.
 

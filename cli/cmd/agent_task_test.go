@@ -5,6 +5,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -72,5 +73,58 @@ func TestMaterializeDelegationReferencesCopiesStableContentAndRejectsEscape(t *t
 	}
 	if _, err := materializeDelegationReferences(root, workspace, []string{"escape.md"}); err == nil {
 		t.Fatal("symlink reference escaping the project was accepted")
+	}
+}
+
+func TestValidateTaskPlanReferenceSupportsPlanWideAndPhaseScopes(t *testing.T) {
+	root := t.TempDir()
+	planPath := filepath.Join(root, "context", "plan", "example.md")
+	if err := os.MkdirAll(filepath.Dir(planPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(planPath, []byte("## Phase 1 — First\n- [ ] step <!-- c1 -->\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name, reference, phase string
+		wantReference          string
+		wantErr                string
+	}{
+		{name: "unlinked task"},
+		{name: "whole plan", reference: "context/plan/example.md", wantReference: "context/plan/example.md"},
+		{name: "phase checklist", reference: "context/plan/example.md", phase: "c1", wantReference: "context/plan/example.md"},
+		{name: "phase heading", reference: "context/plan/example.md", phase: "Phase 1", wantReference: "context/plan/example.md"},
+		{name: "unknown phase", reference: "context/plan/example.md", phase: "Phase 2", wantErr: "plan phase"},
+		{name: "phase without plan", phase: "c1", wantErr: "--phase requires --plan"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := validateTaskPlanReference(root, tc.reference, tc.phase)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("validateTaskPlanReference() error = %v, want containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateTaskPlanReference() error = %v", err)
+			}
+			if got != tc.wantReference {
+				t.Fatalf("validateTaskPlanReference() = %q, want %q", got, tc.wantReference)
+			}
+		})
+	}
+}
+
+func TestTaskPlanScopePresentation(t *testing.T) {
+	if got := taskPlanScope("context/plan/example.md", ""); got != "entire plan" {
+		t.Fatalf("plan-wide task scope = %q, want %q", got, "entire plan")
+	}
+	if got := taskPlanScope("context/plan/example.md", "c1"); got != "c1" {
+		t.Fatalf("phase task scope = %q, want %q", got, "c1")
+	}
+	if got := formatPlanScopeLine("", ""); got != "" {
+		t.Fatalf("unlinked task rendered a plan label: %q", got)
 	}
 }

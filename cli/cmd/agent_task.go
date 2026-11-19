@@ -98,7 +98,7 @@ func init() {
 	agentTaskStartCmd.Flags().StringSlice("reference", nil, "Project-relative reference file to copy into the stable task workspace (repeatable)")
 	agentTaskStartCmd.Flags().String("id", "", "Task id (generated when omitted)")
 	agentTaskStartCmd.Flags().String("plan", "", "Project-relative plan reference to link")
-	agentTaskStartCmd.Flags().String("phase", "", "Plan phase or checklist id linked to this task")
+	agentTaskStartCmd.Flags().String("phase", "", "Plan phase or checklist id; omit to link the entire plan")
 
 	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskListCmd, agentTaskStatusCmd, agentTaskWaitCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskApplyCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd, agentTaskMessageCmd)
 	agentCmd.AddCommand(agentTaskCmd)
@@ -116,14 +116,9 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 	}
 	planReference := strings.TrimSpace(getStringFlag(cmd, "plan", false))
 	planPhase := strings.TrimSpace(getStringFlag(cmd, "phase", false))
-	if (planReference == "") != (planPhase == "") {
-		return fmt.Errorf("--plan and --phase must be supplied together")
-	}
-	if planReference != "" {
-		planReference, err = validateDelegationPlanReference(root, planReference, planPhase)
-		if err != nil {
-			return err
-		}
+	planReference, err = validateTaskPlanReference(root, planReference, planPhase)
+	if err != nil {
+		return err
 	}
 	taskID := getStringFlag(cmd, "id", false)
 	if taskID == "" {
@@ -278,10 +273,23 @@ func validateDelegationPlanReference(root, reference, phase string) (string, err
 		return "", fmt.Errorf("plan reference %q is not a readable project file", reference)
 	}
 	planData, readErr := os.ReadFile(planReal)
-	if readErr != nil || !delegationPlanPhaseExists(string(planData), phase) {
+	if readErr != nil {
+		return "", fmt.Errorf("plan reference %q could not be read: %w", reference, readErr)
+	}
+	if phase != "" && !delegationPlanPhaseExists(string(planData), phase) {
 		return "", fmt.Errorf("plan phase %q is not present in %s", phase, reference)
 	}
 	return reference, nil
+}
+
+func validateTaskPlanReference(root, reference, phase string) (string, error) {
+	if reference == "" {
+		if phase != "" {
+			return "", fmt.Errorf("--phase requires --plan")
+		}
+		return "", nil
+	}
+	return validateDelegationPlanReference(root, reference, phase)
 }
 
 func delegationPlanPhaseExists(content, phase string) bool {
@@ -396,7 +404,7 @@ func outputTaskStart(cmd *cobra.Command, result taskStartResult) {
 	default:
 		text := fmt.Sprintf("Task %s queued for role %s\nWorkspace: %s\nDeadline: %s\n", result.ID, result.Role, result.Workspace, result.Deadline.Format(time.RFC3339))
 		if result.Plan != "" {
-			text += fmt.Sprintf("Plan: %s · %s\n", result.Plan, result.Phase)
+			text += formatPlanScopeLine(result.Plan, result.Phase)
 		}
 		outputString(cmd, text)
 	}
@@ -453,7 +461,7 @@ func runAgentTaskList(cmd *cobra.Command, _ []string) error {
 		for _, status := range statuses {
 			fmt.Fprintf(&out, "%s %s", status.ID, status.Status)
 			if status.Plan != "" {
-				fmt.Fprintf(&out, " · %s · %s", status.Plan, status.Phase)
+				fmt.Fprintf(&out, " · %s · %s", status.Plan, taskPlanScope(status.Plan, status.Phase))
 			}
 			fmt.Fprintf(&out, "\n  Next: %s\n", status.NextAction)
 		}
@@ -482,6 +490,21 @@ type taskStatusSummary struct {
 	Artifacts          []delegation.Artifact   `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
 	RecentEvents       []delegation.StateEvent `json:"recent_events,omitempty" yaml:"recent_events,omitempty"`
 	Metrics            taskMetricsSummary      `json:"metrics" yaml:"metrics"`
+}
+
+func taskPlanScope(plan, phase string) string {
+	phase = strings.TrimSpace(phase)
+	if phase == "" {
+		return "entire plan"
+	}
+	return phase
+}
+
+func formatPlanScopeLine(plan, phase string) string {
+	if plan == "" {
+		return ""
+	}
+	return fmt.Sprintf("Plan: %s · %s\n", plan, taskPlanScope(plan, phase))
 }
 
 type taskMetricsSummary struct {
@@ -641,7 +664,7 @@ func runAgentTaskResult(cmd *cobra.Command, args []string) error {
 	}
 	var out strings.Builder
 	if task.PlanReference != "" {
-		fmt.Fprintf(&out, "Task %s · %s · %s\n\n", task.ID, task.PlanReference, task.PlanPhase)
+		fmt.Fprintf(&out, "Task %s · %s · %s\n\n", task.ID, task.PlanReference, taskPlanScope(task.PlanReference, task.PlanPhase))
 	}
 	for _, artifact := range task.Artifacts {
 		if artifact.Name == "worker.log" {
@@ -985,7 +1008,7 @@ func outputTaskStatus(cmd *cobra.Command, status taskStatusSummary) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Task %s — %s (%s)\nAttempts: %d\nDeadline: %s\n", status.ID, status.Status, status.Role, status.AttemptCount, status.Deadline.Format(time.RFC3339))
 	if status.Plan != "" {
-		fmt.Fprintf(&b, "Plan: %s · %s\n", status.Plan, status.Phase)
+		b.WriteString(formatPlanScopeLine(status.Plan, status.Phase))
 	}
 	fmt.Fprintf(&b, "Next principal action: %s\n", status.NextAction)
 	if status.MaxAttempts > 0 {
@@ -1063,7 +1086,7 @@ func outputIntegrationPreview(cmd *cobra.Command, preview delegation.Integration
 	var b strings.Builder
 	fmt.Fprintf(&b, "Task %s (%s)\nDigest: %s\nSource: %s\n", preview.TaskID, preview.Status, preview.Digest, preview.SourceWorkspace)
 	if preview.PlanReference != "" {
-		fmt.Fprintf(&b, "Plan: %s · %s\n", preview.PlanReference, preview.PlanPhase)
+		b.WriteString(formatPlanScopeLine(preview.PlanReference, preview.PlanPhase))
 	}
 	if preview.NoChanges {
 		b.WriteString("No task changes to apply.\n")

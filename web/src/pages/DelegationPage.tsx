@@ -4,6 +4,7 @@ import { formatFieldDateTime } from "../lib/frontmatter";
 import { Icon } from "../lib/icon";
 import {
   fetchDelegatedTasks,
+  planScopeLabel,
   type DelegatedTask,
   type DelegatedTasksSnapshot,
 } from "../lib/delegation";
@@ -187,12 +188,12 @@ function TaskDetails({ task }: { task: DelegatedTask }) {
         <Metadata label="Model" value={task.model || "Unknown"} />
         <Metadata label="Workspace" value={task.workspace || "Not created"} mono />
         <Metadata
-          label="Plan phase"
+          label="Plan scope"
           value={
             task.plan ? (
               <>
                 <Link to={`/docs/${task.plan}`}>{task.plan}</Link>
-                {task.phase ? ` · ${task.phase}` : ""}
+                {` · ${planScopeLabel(task.phase)}`}
               </>
             ) : (
               "No plan linked"
