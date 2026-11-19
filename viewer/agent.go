@@ -191,9 +191,19 @@ func (s *server) agentState(session string) agentStateResponse {
 }
 
 // handleAgentState reports the bridge's posture: whether it is activated, which
-// session a browser would join, and why it cannot be used when it is disabled. It
-// is the only agent endpoint reachable before activation.
-func (s *server) handleAgentState(w http.ResponseWriter, _ *http.Request) {
+// session a browser would join, the argv and the model the project declared, and why
+// it cannot be used when it is disabled. It is the only agent endpoint reachable
+// before activation, and it keeps the surface's origin rule: the declared argv is
+// not a foreign page's to read, so a request that is not the viewer's own origin is
+// refused exactly as an activation or a command is. A disabled bind is no exception
+// to the gate — the sentence that says why the surface is off is the viewer's own
+// page's to read, and a foreign, malformed or mismatched request learns nothing of
+// the posture, the declaration or the reason.
+func (s *server) handleAgentState(w http.ResponseWriter, r *http.Request) {
+	if !agentOrigin(r) {
+		writeErr(w, http.StatusForbidden, errAgentOrigin)
+		return
+	}
 	writeJSON(w, http.StatusOK, s.agentState(""))
 }
 

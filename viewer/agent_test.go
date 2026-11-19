@@ -163,18 +163,7 @@ func TestAgentStateIsReachableAndInert(t *testing.T) {
 	s, ts := newAgentViewer(t)
 	agent := acptest.NewAgent(t, acptest.Streams("hello"))
 
-	response, err := ts.Client().Get(ts.URL + agentStatePath)
-	if err != nil {
-		t.Fatalf("state: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("state answered %d", response.StatusCode)
-	}
-	var state agentStateResponse
-	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
-		t.Fatalf("state body: %v", err)
-	}
+	state := getState(t, ts)
 	if state.Activated || state.Connected || state.Session != "" || state.Error != "" {
 		t.Fatalf("an inert bridge reported %+v", state)
 	}
@@ -227,15 +216,7 @@ func TestAgentStateReportsTheLiveAgent(t *testing.T) {
 	if got, want := agent.Methods(), []string{"initialize", "session/new"}; len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("the agent was asked %v", got)
 	}
-	response, err := ts.Client().Get(ts.URL + agentStatePath)
-	if err != nil {
-		t.Fatalf("state: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	var state agentStateResponse
-	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
-		t.Fatalf("state body: %v", err)
-	}
+	state := getState(t, ts)
 	if !state.Activated || !state.Connected || state.Session == "" {
 		t.Fatalf("the activated state is %+v", state)
 	}
@@ -257,6 +238,69 @@ func TestAgentStateReportsTheLiveAgent(t *testing.T) {
 	// reach the browser: it is the project's own order, not the agent's.
 	if len(state.Models) != 1 || state.Models[0] != "opencode/big-pickle" {
 		t.Fatalf("the state must carry the declared model list, got %v", state.Models)
+	}
+}
+
+// The state read carries the argv and the models the project declared, so it keeps
+// the same strict own-origin boundary as the endpoints that start and command the
+// agent: a foreign, malformed, empty or wildcard Host cannot be made same-origin by
+// a matching Origin or a same-origin fetch marker, and a missing Origin is accepted
+// only with the one marker a page cannot forge.
+func TestAgentStateKeepsTheAgentOriginBoundary(t *testing.T) {
+	s, ts := newAgentViewer(t)
+	s.agentCommand = []string{"declared-agent", "--secret-argv"}
+	s.agentModels = []string{"declared-model"}
+
+	// The viewer's own page reads the declaration.
+	state := getState(t, ts)
+	if len(state.Command) != 2 || state.Command[1] != "--secret-argv" {
+		t.Fatalf("the state must carry the command the project declared, got %v", state.Command)
+	}
+
+	// A browser may omit Origin on a same-origin request; Sec-Fetch-Site is the
+	// proof the gate accepts in its place.
+	if response := stateRequest(t, ts, "", "same-origin"); response.StatusCode != http.StatusOK {
+		t.Fatalf("a same-origin fetch with no Origin answered %d, want 200", response.StatusCode)
+	}
+
+	cases := []struct {
+		name   string
+		host   string
+		origin string
+		site   string
+	}{
+		{"a foreign origin", "127.0.0.1:8791", "http://someone-else.test", ""},
+		{"no origin at all", "127.0.0.1:8791", "", ""},
+		{"no origin, a cross-site fetch", "127.0.0.1:8791", "", "cross-site"},
+		{"a matching origin but a cross-site marker", "127.0.0.1:8791", "http://127.0.0.1:8791", "cross-site"},
+		{"a foreign host with a matching origin", "evil.example:8791", "http://evil.example:8791", ""},
+		{"a foreign host with the viewer's origin", "evil.example:8791", "http://127.0.0.1:8791", ""},
+		{"a foreign host with a same-origin marker", "evil.example:8791", "", "same-origin"},
+		{"an empty host with a same-origin marker", "", "", "same-origin"},
+		{"the wildcard host", "0.0.0.0:8791", "http://0.0.0.0:8791", ""},
+		{"the all-interfaces host without a port", "0.0.0.0", "http://0.0.0.0", ""},
+		{"a malformed host", "]", "", "same-origin"},
+		{"an empty bracket pair", "[]", "", "same-origin"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, agentStatePath, nil)
+			request.Host = tc.host
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			if tc.site != "" {
+				request.Header.Set("Sec-Fetch-Site", tc.site)
+			}
+			recorder := httptest.NewRecorder()
+			s.mux().ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("the state answered %d, want 403", recorder.Code)
+			}
+			if body := recorder.Body.String(); strings.Contains(body, "secret-argv") {
+				t.Fatalf("a refused state leaked the declared argv: %s", body)
+			}
+		})
 	}
 }
 
@@ -886,7 +930,10 @@ func TestAgentDeactivateReturnsToInert(t *testing.T) {
 }
 
 // A non-loopback bind disables the surface, as decision 0027 disables document
-// editing, and says so.
+// editing, and says so. The explanatory read keeps the same gate as every other
+// agent endpoint: the sentence reaches the viewer's own page, and a foreign,
+// malformed, empty or mismatched request learns nothing of the posture, the
+// declaration or the reason.
 func TestAgentSurfaceIsDisabledOffLoopback(t *testing.T) {
 	s, err := newServer(t.TempDir())
 	if err != nil {
@@ -896,18 +943,78 @@ func TestAgentSurfaceIsDisabledOffLoopback(t *testing.T) {
 	ts := httptest.NewServer(s.mux())
 	t.Cleanup(ts.Close)
 
-	response, err := ts.Client().Get(ts.URL + agentStatePath)
-	if err != nil {
-		t.Fatalf("state: %v", err)
+	// The viewer's own page reads why the surface is off, and the declaration is
+	// still absent because the disabled bind never loaded it.
+	response := stateRequest(t, ts, ts.URL, "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("a disabled surface answered state with %d", response.StatusCode)
 	}
-	defer func() { _ = response.Body.Close() }()
 	var state agentStateResponse
 	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
 		t.Fatalf("state body: %v", err)
 	}
-	if state.Error == "" {
+	if state.Error != errAgentDisabled {
 		t.Fatalf("a disabled surface reported %+v", state)
 	}
+	if len(state.Command) != 0 {
+		t.Fatalf("a disabled surface must not carry a declared argv, got %v", state.Command)
+	}
+
+	// A browser may omit Origin on a same-origin request; the fetch marker is the
+	// proof the gate accepts in its place, and it still reaches the sentence.
+	if response := stateRequest(t, ts, "", "same-origin"); response.StatusCode != http.StatusOK {
+		t.Fatalf("a same-origin fetch with no Origin answered %d, want 200", response.StatusCode)
+	}
+
+	// The disabled bind is no exception to the gate: a request that is not the
+	// viewer's own origin is refused, and the refusal carries neither the reason nor
+	// the declaration.
+	refused := []struct {
+		name   string
+		host   string
+		origin string
+		site   string
+	}{
+		{"a foreign origin", "127.0.0.1:8791", "http://someone-else.test", ""},
+		{"no origin at all", "127.0.0.1:8791", "", ""},
+		{"no origin, a cross-site fetch", "127.0.0.1:8791", "", "cross-site"},
+		{"a matching origin but a cross-site marker", "127.0.0.1:8791", "http://127.0.0.1:8791", "cross-site"},
+		{"a foreign host with a matching origin", "evil.example:8791", "http://evil.example:8791", ""},
+		{"a foreign host with the viewer's origin", "evil.example:8791", "http://127.0.0.1:8791", ""},
+		{"a foreign host with a same-origin marker", "evil.example:8791", "", "same-origin"},
+		{"an empty host with a same-origin marker", "", "", "same-origin"},
+		{"the wildcard host", "0.0.0.0:8791", "http://0.0.0.0:8791", ""},
+		{"a malformed host", "]", "", "same-origin"},
+		{"an empty bracket pair", "[]", "", "same-origin"},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, agentStatePath, nil)
+			request.Host = tc.host
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			if tc.site != "" {
+				request.Header.Set("Sec-Fetch-Site", tc.site)
+			}
+			recorder := httptest.NewRecorder()
+			s.mux().ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("a disabled surface answered state with %d, want 403", recorder.Code)
+			}
+			var refusal errResponse
+			if err := json.Unmarshal(recorder.Body.Bytes(), &refusal); err != nil {
+				t.Fatalf("refusal body: %v", err)
+			}
+			if refusal.Error != errAgentOrigin {
+				t.Fatalf("a disabled surface refused with %q, want %q", refusal.Error, errAgentOrigin)
+			}
+			if body := recorder.Body.String(); strings.Contains(body, errAgentDisabled) || strings.Contains(body, "command") {
+				t.Fatalf("a refused state leaked the reason or the declaration: %s", body)
+			}
+		})
+	}
+
 	if refused := post(t, ts, agentActivatePath, "", ts.URL); refused.StatusCode != http.StatusForbidden {
 		t.Fatalf("a disabled surface answered an activation with %d", refused.StatusCode)
 	}
@@ -929,6 +1036,10 @@ func TestAgentSurfaceIsDisabledOnAnAllInterfacesBindHost(t *testing.T) {
 	}
 	ts := httptest.NewServer(s.mux())
 	t.Cleanup(ts.Close)
+	// The gate holds on this bind too: a bare client is not the viewer's own page.
+	if response := stateRequest(t, ts, "", ""); response.StatusCode != http.StatusForbidden {
+		t.Fatalf("a disabled surface answered a bare state read with %d", response.StatusCode)
+	}
 	if stream := openStream(t, ts, ts.URL); stream.response.StatusCode != http.StatusForbidden {
 		t.Fatalf("a disabled surface answered a stream with %d", stream.response.StatusCode)
 	}
@@ -1086,19 +1197,40 @@ func TestAgentOriginRule(t *testing.T) {
 	}
 }
 
-// getState reads the state endpoint, which several tests assert on.
+// getState reads the state endpoint with the origin a browser sends. The endpoint is
+// gated like every other agent endpoint, so a bare client is refused.
 func getState(t *testing.T, ts *httptest.Server) agentStateResponse {
 	t.Helper()
-	response, err := ts.Client().Get(ts.URL + agentStatePath)
-	if err != nil {
-		t.Fatalf("state: %v", err)
+	response := stateRequest(t, ts, ts.URL, "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("state answered %d", response.StatusCode)
 	}
-	defer func() { _ = response.Body.Close() }()
 	var state agentStateResponse
 	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
 		t.Fatalf("state body: %v", err)
 	}
 	return state
+}
+
+// stateRequest reads the state endpoint with the headers a browser may send.
+func stateRequest(t *testing.T, ts *httptest.Server, origin, site string) *http.Response {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodGet, ts.URL+agentStatePath, nil)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if origin != "" {
+		request.Header.Set("Origin", origin)
+	}
+	if site != "" {
+		request.Header.Set("Sec-Fetch-Site", site)
+	}
+	response, err := ts.Client().Do(request)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	t.Cleanup(func() { _ = response.Body.Close() })
+	return response
 }
 
 // TestAgentStatusFrameReachesEveryStream is the fan-out gate: one posture change
