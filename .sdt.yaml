@@ -39,8 +39,9 @@ agent:
     - "opencode/big-pickle"
 
 delegation:
-  max_attempts: 1
+  max_attempts: 2
   max_duration: 45m
+  trace: true
   agents:
     - name: opencode-deepseek
       command: ["opencode", "acp"]

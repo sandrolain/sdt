@@ -39,6 +39,7 @@ const (
 	toolboxCmdRead    = "read"
 	toolboxCmdAgent   = "agent"
 	toolboxSubEdit    = "edit"
+	toolboxSubTask    = "task"
 )
 
 // ToolboxRows is the ordered table. Order is by how often the operation comes
@@ -179,10 +180,25 @@ func ToolboxRows() []ToolboxRow {
 		},
 		{
 			Operation: "start and track delegated agent work",
-			Display:   "`sdt agent task start --role <role> --brief <goal>`",
+			Display:   "`sdt agent task start --role <role> --brief <goal> --plan <ref> --phase <phase>`",
 			Command:   toolboxCmdAgent,
-			Path:      []string{"agent", "task", "start"},
+			Path:      []string{toolboxCmdAgent, toolboxSubTask, "start"},
+			Flags:     []string{"role", "brief", "plan", "phase"},
 			Replaces:  "manual agent handoffs and status polling",
+		},
+		{
+			Operation: "resume delegated work and recover its next principal action",
+			Display:   "`sdt agent task list`",
+			Command:   toolboxCmdAgent,
+			Path:      []string{toolboxCmdAgent, toolboxSubTask, "list"},
+			Replaces:  "manual task-state reconstruction",
+		},
+		{
+			Operation: "coordinate participants within one delegated task",
+			Display:   "`sdt agent task message send|list <task-id>`",
+			Command:   toolboxCmdAgent,
+			Path:      []string{toolboxCmdAgent, toolboxSubTask, "message"},
+			Replaces:  "untracked agent handoffs",
 		},
 		{
 			Operation: "preview and apply accepted delegated changes",

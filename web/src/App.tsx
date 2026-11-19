@@ -7,6 +7,7 @@ import { AgentPanel } from "./components/AgentPanel";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { WikiPage } from "./pages/WikiPage";
 import { LearnPage } from "./pages/LearnPage";
+import { DelegationPage } from "./pages/DelegationPage";
 import { WikiBoardView } from "./components/WikiBoardView";
 import { WikiPageDetail } from "./components/WikiPageDetail";
 import { OpenDocsProvider } from "./components/OpenDocsProvider";
@@ -81,6 +82,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/docs/dashboard" replace />} />
             <Route path="/docs" element={<DocumentsPage />} />
+            <Route path="/delegation" element={<DelegationPage />} />
             <Route
               path="/docs/map"
               element={

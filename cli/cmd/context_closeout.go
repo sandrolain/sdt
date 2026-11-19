@@ -287,6 +287,7 @@ func closeoutCarriedFields(block string) map[string]string {
 }
 
 func closeoutLessonValue(entry, slug string) (string, error) {
+	//#nosec G304 -- entry is the corpus worklog path returned by closeoutWrite
 	data, err := os.ReadFile(entry)
 	if err != nil {
 		return "", err

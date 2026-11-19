@@ -103,10 +103,11 @@ describe("TopBar", () => {
       "Kanban",
       "Graph",
       "Board",
+      "Delegation",
     ]);
-    // three sibling groups → the existing `.top-bar__group + .top-bar__group`
+    // four sibling groups → the existing `.top-bar__group + .top-bar__group`
     // rule draws the hairline separator; no new CSS is added
-    expect(nav.querySelectorAll(":scope > .top-bar__group").length).toBe(3);
+    expect(nav.querySelectorAll(":scope > .top-bar__group").length).toBe(4);
   });
 
   it("highlights the Graph entry under the wiki graph route", () => {

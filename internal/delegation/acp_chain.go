@@ -39,6 +39,7 @@ type ACPTaskOptions struct {
 	Brief           string
 	Candidates      []ACPAgentCandidate
 	MaxAttempts     int
+	Trace           bool
 	Policy          PermissionPolicy
 	WorkerIdentity  ProcessIdentity
 	RenderHandoff   HandoffRenderer
@@ -154,7 +155,7 @@ func RunACPTask(ctx context.Context, opts ACPTaskOptions) error { //nolint:gocyc
 				Store: opts.Store, Notifier: opts.Notifier, TaskID: opts.TaskID, AttemptID: attemptID,
 				Agent: candidate.Name, Model: candidate.Model, AvailabilityGroup: candidate.AvailabilityGroup,
 				Cooldown: candidate.Cooldown, Command: candidate.Command, Workspace: opts.Workspace,
-				Brief: brief, Policy: opts.Policy, bridgeStart: opts.bridgeStart,
+				Brief: brief, Policy: opts.Policy, Trace: opts.Trace, bridgeStart: opts.bridgeStart,
 			}
 			runErr := RunACPAttempt(ctx, attemptOpts)
 			if err := opts.Store.ReleaseCapacity(opts.TaskID); err != nil {

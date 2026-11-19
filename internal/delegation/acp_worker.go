@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -35,6 +37,7 @@ type ACPWorkerOptions struct {
 	Workspace         string
 	Brief             string
 	Policy            PermissionPolicy
+	Trace             bool
 	bridgeStart       func(context.Context, *acpbridge.Bridge, []string, string) (string, error)
 }
 
@@ -66,6 +69,9 @@ func RunACPAttempt(ctx context.Context, opts ACPWorkerOptions) error { //nolint:
 			return optionID, err
 		},
 	})
+	if opts.Trace {
+		bridge.SetTrace(taskTraceSink{store: opts.Store, taskID: opts.TaskID, attemptID: opts.AttemptID})
+	}
 	defer bridge.Close() //nolint:errcheck // Shutdown is best-effort after the task result has been recorded.
 	start := opts.bridgeStart
 	if start == nil {
@@ -148,6 +154,73 @@ func RunACPAttempt(ctx context.Context, opts ACPWorkerOptions) error { //nolint:
 	return opts.publishLatest()
 }
 
+type taskTraceSink struct {
+	store     *Store
+	taskID    string
+	attemptID string
+}
+
+const taskTraceLimit = 20 << 20
+
+func (sink taskTraceSink) Open(_ acpbridge.RunInfo) (io.WriteCloser, error) {
+	name := filepath.Join("tasks", sink.taskID, "artifacts", "trace-"+sink.attemptID+".jsonl")
+	file, err := sink.store.openTaskRelative(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := file.Chmod(0o600); err != nil {
+		_ = file.Close() //nolint:errcheck
+		return nil, err
+	}
+	path := filepath.Join(sink.store.root, name)
+	if err := sink.store.Update(sink.taskID, "trace_started", "Opt-in ACP trace capture started", func(task *Task) error {
+		for _, artifact := range task.Artifacts {
+			if artifact.Name == "trace-"+sink.attemptID {
+				return nil
+			}
+		}
+		task.Artifacts = append(task.Artifacts, Artifact{Name: "trace-" + sink.attemptID, Path: path})
+		return nil
+	}); err != nil {
+		_ = file.Close() //nolint:errcheck
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close() //nolint:errcheck
+		return nil, err
+	}
+	return &boundedTraceWriter{file: file, written: info.Size()}, nil
+}
+
+type boundedTraceWriter struct {
+	file      *os.File
+	written   int64
+	markedEnd bool
+}
+
+func (writer *boundedTraceWriter) Write(data []byte) (int, error) {
+	if writer.markedEnd {
+		return len(data), nil
+	}
+	const endMarker = "{\"t\":\"truncated\",\"reason\":\"task trace size limit reached\"}\n"
+	if writer.written+int64(len(data))+int64(len(endMarker)) > taskTraceLimit {
+		if writer.written+int64(len(endMarker)) <= taskTraceLimit {
+			if _, err := writer.file.WriteString(endMarker); err != nil {
+				return 0, err
+			}
+			writer.written += int64(len(endMarker))
+		}
+		writer.markedEnd = true
+		return len(data), nil
+	}
+	n, err := writer.file.Write(data)
+	writer.written += int64(n)
+	return n, err
+}
+
+func (writer *boundedTraceWriter) Close() error { return writer.file.Close() }
+
 //nolint:gocognit // Permission persistence, policy and waiting are one audit boundary.
 //nolint:gocyclo
 func (opts ACPWorkerOptions) handlePermission(ctx context.Context, request acpbridge.Permission) (string, error) { //nolint:gocyclo
@@ -191,10 +264,15 @@ func (opts ACPWorkerOptions) handlePermission(ctx context.Context, request acpbr
 		return "", err
 	}
 	subscription, err := opts.Store.Subscribe(ctx, opts.TaskID)
-	if err != nil {
-		return "", err
+	var revisions <-chan uint64
+	if err == nil {
+		revisions = subscription.Revisions
+		defer subscription.Close() //nolint:errcheck
 	}
-	defer subscription.Close() //nolint:errcheck
+	// Durable state is authoritative; polling recovers a decision if the socket
+	// notification was unavailable or lost after the permission was recorded.
+	reconcile := time.NewTicker(250 * time.Millisecond)
+	defer reconcile.Stop()
 	for {
 		task, err := opts.Store.Read(opts.TaskID)
 		if err != nil {
@@ -229,10 +307,11 @@ func (opts ACPWorkerOptions) handlePermission(ctx context.Context, request acpbr
 			})
 			_ = opts.publishLatest() //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
 			return "", ctx.Err()
-		case _, ok := <-subscription.Revisions:
+		case _, ok := <-revisions:
 			if !ok {
-				return "", fmt.Errorf("worker notification connection closed")
+				revisions = nil
 			}
+		case <-reconcile.C:
 		}
 	}
 }
@@ -320,6 +399,9 @@ func renderACPResult(thread acpbridge.Thread) string {
 }
 
 func (opts ACPWorkerOptions) failAttempt(event string, cause error) error {
+	if errors.Is(cause, context.Canceled) {
+		return cause
+	}
 	signal := ClassifyACPFailure(cause)
 	status := TaskFailed
 	attemptStatus := "failed"

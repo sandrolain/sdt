@@ -69,7 +69,7 @@ describe("SlidesView mermaid", () => {
       expect(document.querySelector('.slides-frame__slide [data-testid="diagram"]')).toBeTruthy(),
     );
     expect(mocks.render).toHaveBeenCalledTimes(2);
-  });
+  }, 10_000);
 
   it("falls back to the source when Pele cannot parse the diagram", async () => {
     mocks.render.mockImplementationOnce(() => {

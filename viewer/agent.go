@@ -632,6 +632,7 @@ func agentOrigin(r *http.Request) bool {
 // start will run, and on which model, before asking for one; whether the command
 // resolves is the start's business, because that is where a reader asked.
 func (s *server) enableAgent(host string) {
+	s.delegationReadOnly = isLoopbackHost(host)
 	if !isLoopbackHost(host) {
 		s.agentReason = errAgentDisabled
 		slog.Info("sdtviewer: agent bridge disabled", "reason", "non-loopback bind host", "host", host)

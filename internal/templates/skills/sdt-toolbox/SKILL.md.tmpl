@@ -32,7 +32,9 @@ host. Pick the verb by the operation, not by the tool you already reach for.
 | literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
 | what SDT actually did | `sdt gain` | guesswork |
-| start and track delegated agent work | `sdt agent task start --role <role> --brief <goal>` | manual agent handoffs and status polling |
+| start and track delegated agent work | `sdt agent task start --role <role> --brief <goal> --plan <ref> --phase <phase>` | manual agent handoffs and status polling |
+| resume delegated work and recover its next principal action | `sdt agent task list` | manual task-state reconstruction |
+| coordinate participants within one delegated task | `sdt agent task message send|list <task-id>` | untracked agent handoffs |
 | preview and apply accepted delegated changes | `sdt agent task apply preview|execute <task-id>` | manual worktree patch transfer |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |

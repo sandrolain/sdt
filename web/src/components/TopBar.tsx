@@ -114,6 +114,14 @@ export function TopBar({ onOpenSearch, onOpenAgent }: TopBarProps) {
             Board
           </NavLink>
         </div>
+        <div className="top-bar__group">
+          <NavLink
+            to="/delegation"
+            className={({ isActive }) => `top-bar__tab${isActive ? " is-active" : ""}`}
+          >
+            Delegation
+          </NavLink>
+        </div>
       </nav>
       <div className="top-bar__actions">
         <button

@@ -24,6 +24,8 @@ type IntegrationReceipt struct {
 type IntegrationPreview struct {
 	TaskID          string     `json:"task_id"`
 	Status          TaskStatus `json:"status"`
+	PlanReference   string     `json:"plan,omitempty"`
+	PlanPhase       string     `json:"phase,omitempty"`
 	SourceCommit    string     `json:"source_commit"`
 	SourceWorkspace string     `json:"source_workspace"`
 	Digest          string     `json:"digest"`
@@ -49,12 +51,20 @@ func (s *Store) PreviewIntegration(ctx context.Context, id, projectRoot string) 
 	if err != nil {
 		return IntegrationPreview{}, err
 	}
-	if task.Worker != nil && WorkerMatches(*task.Worker) {
+	probeCtx, cancelProbe := context.WithTimeout(ctx, time.Second)
+	probeErr := s.ProbeWorker(probeCtx, id)
+	cancelProbe()
+	if err := ctx.Err(); err != nil {
+		return IntegrationPreview{}, err
+	}
+	if probeErr == nil || task.Worker != nil && WorkerMatches(*task.Worker) {
 		return IntegrationPreview{}, fmt.Errorf("task %q still has a live worker", id)
 	}
-	for _, attempt := range task.Attempts {
-		if _, live := attemptWorker(attempt); live {
-			return IntegrationPreview{}, fmt.Errorf("task %q still has a live attempt worker", id)
+	if task.Worker == nil {
+		for _, attempt := range task.Attempts {
+			if identity, found := attemptWorker(attempt); found && WorkerMatches(identity) {
+				return IntegrationPreview{}, fmt.Errorf("task %q still has a live attempt worker", id)
+			}
 		}
 	}
 	patch, paths, err := snapshotIntegrationPatch(ctx, s, task, workspace)
@@ -63,7 +73,7 @@ func (s *Store) PreviewIntegration(ctx context.Context, id, projectRoot string) 
 	}
 	digestBytes := sha256.Sum256([]byte(patch))
 	preview := IntegrationPreview{
-		TaskID: id, Status: task.Status, SourceCommit: task.Source.Commit,
+		TaskID: id, Status: task.Status, PlanReference: task.PlanReference, PlanPhase: task.PlanPhase, SourceCommit: task.Source.Commit,
 		SourceWorkspace: workspace, Digest: hex.EncodeToString(digestBytes[:]),
 		Paths: paths, Patch: patch, NoChanges: patch == "",
 	}

@@ -18,9 +18,10 @@ import (
 const stateSchemaVersion = 1
 
 const (
-	PermissionPending  = "pending"
-	PermissionResolved = "resolved"
-	PermissionUser     = "user"
+	PermissionPending         = "pending"
+	PermissionResolved        = "resolved"
+	PermissionUser            = "user"
+	PrincipalDecisionAccepted = "accepted"
 )
 
 var safeID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
@@ -46,6 +47,8 @@ type Task struct {
 	ID                       string              `json:"id"`
 	Status                   TaskStatus          `json:"status"`
 	Role                     string              `json:"role"`
+	PlanReference            string              `json:"plan_reference,omitempty"`
+	PlanPhase                string              `json:"plan_phase,omitempty"`
 	RequiredCapabilities     []string            `json:"required_capabilities,omitempty"`
 	CreatedAt                time.Time           `json:"created_at"`
 	UpdatedAt                time.Time           `json:"updated_at"`
@@ -230,6 +233,14 @@ func (s *Store) Reconcile(id string) (Task, error) {
 	if task.Status == TaskQueued && len(task.Attempts) > 0 {
 		last := task.Attempts[len(task.Attempts)-1]
 		if last.Status == "starting" && last.ProcessStart != "" {
+			if task.Worker != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				err := s.WaitWorkerReady(ctx, id)
+				cancel()
+				if err == nil {
+					return task, nil
+				}
+			}
 			if identity, found := FindWorker(last.ProcessStart); found {
 				if err := s.RecordAttemptWorker(id, last.ID, identity); err != nil {
 					return Task{}, err
@@ -244,22 +255,25 @@ func (s *Store) Reconcile(id string) (Task, error) {
 	}
 	if task.Status != TaskRunning {
 		if task.Status == TaskCancelling {
-			if len(task.Attempts) > 0 {
-				last := task.Attempts[len(task.Attempts)-1]
-				if identity, found := attemptWorker(last); found {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					if err := StopWorkerGroup(ctx, identity); err != nil {
-						return Task{}, err
-					}
-				}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := s.Cancel(ctx, id); err != nil {
+				return Task{}, err
 			}
-			return s.finishCancelled(id)
+			return s.Read(id)
 		}
 		return task, nil
 	}
 	if len(task.Attempts) == 0 {
 		return s.interrupt(id, "running task has no attempt record")
+	}
+	if task.Worker != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		err := s.ProbeWorker(ctx, id)
+		cancel()
+		if err == nil {
+			return task, nil
+		}
 	}
 	last := task.Attempts[len(task.Attempts)-1]
 	identity, found := attemptWorker(last)
@@ -276,24 +290,6 @@ func (s *Store) Reconcile(id string) (Task, error) {
 		return s.Read(id)
 	}
 	return s.interrupt(id, "worker process identity is absent or no longer matches")
-}
-
-func (s *Store) finishCancelled(id string) (Task, error) {
-	if err := s.Update(id, "cancelled", "Cancellation reconciled after worker exit", func(task *Task) error {
-		task.Status = TaskCancelled
-		if len(task.Attempts) > 0 {
-			last := &task.Attempts[len(task.Attempts)-1]
-			last.Status = string(TaskCancelled)
-			last.FinishedAt = time.Now().UTC()
-		}
-		return nil
-	}); err != nil {
-		return Task{}, err
-	}
-	if err := s.ReleaseCapacity(id); err != nil {
-		return Task{}, err
-	}
-	return s.Read(id)
 }
 
 func (s *Store) interrupt(id, reason string) (Task, error) {
@@ -339,17 +335,8 @@ func (s *Store) Cancel(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if task.Worker != nil && WorkerMatches(*task.Worker) {
-		if err := StopWorkerGroup(ctx, *task.Worker); err != nil {
-			return err
-		}
-	} else if len(task.Attempts) > 0 {
-		last := task.Attempts[len(task.Attempts)-1]
-		if identity, found := attemptWorker(last); found {
-			if err := StopWorkerGroup(ctx, identity); err != nil {
-				return err
-			}
-		}
+	if err := s.stopTaskWorker(ctx, id, task); err != nil {
+		return err
 	}
 	if err := s.Update(id, "cancelled", "Task cancelled by principal", func(task *Task) error {
 		task.Status = TaskCancelled
@@ -365,14 +352,63 @@ func (s *Store) Cancel(ctx context.Context, id string) error {
 	return s.ReleaseCapacity(id)
 }
 
+func (s *Store) stopTaskWorker(ctx context.Context, id string, task Task) error {
+	var identity *ProcessIdentity
+	if task.Worker != nil {
+		copy := *task.Worker
+		identity = &copy
+	} else if len(task.Attempts) > 0 {
+		last := task.Attempts[len(task.Attempts)-1]
+		if last.ProcessID > 0 && regexpToken.MatchString(last.ProcessStart) {
+			identity = &ProcessIdentity{PID: last.ProcessID, GroupID: last.ProcessID, StartToken: last.ProcessStart}
+		}
+	}
+	if task.Worker != nil || len(task.Attempts) > 0 {
+		graceCtx, cancelGrace := context.WithTimeout(ctx, 5*time.Second)
+		requestErr := s.RequestWorkerCancel(graceCtx, id)
+		if requestErr == nil {
+			if err := s.WaitWorkerClosed(graceCtx, id); err != nil {
+				if !errors.Is(err, context.DeadlineExceeded) || identity == nil || !WorkerMatches(*identity) {
+					cancelGrace()
+					return fmt.Errorf("waiting for worker shutdown: %w", err)
+				}
+				cancelGrace()
+				killCtx, cancelKill := context.WithTimeout(ctx, 5*time.Second)
+				err = StopWorkerGroup(killCtx, *identity)
+				cancelKill()
+				if err != nil {
+					return err
+				}
+			} else {
+				cancelGrace()
+			}
+		} else if identity != nil && WorkerMatches(*identity) {
+			cancelGrace()
+			stopCtx, cancelStop := context.WithTimeout(ctx, 5*time.Second)
+			if err := StopWorkerGroup(stopCtx, *identity); err != nil {
+				cancelStop()
+				return err
+			}
+			cancelStop()
+		} else {
+			cancelGrace()
+			return fmt.Errorf("cannot confirm worker %q stopped: control socket unavailable and process identity cannot be verified", id)
+		}
+	}
+	return nil
+}
+
 // SetWorker records the task-owned process group even before its first ACP attempt,
 // so a queued worker waiting on provider availability can still be cancelled.
 func (s *Store) SetWorker(id string, identity ProcessIdentity) error {
-	if !WorkerMatches(identity) {
+	if identity.PID <= 0 || identity.GroupID != identity.PID || !regexpToken.MatchString(identity.StartToken) {
 		return ErrStaleWorker
 	}
 	return s.Update(id, "worker_started", "Task worker process group recorded", func(task *Task) error {
-		if task.Worker != nil && WorkerMatches(*task.Worker) {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		probeErr := s.ProbeWorker(ctx, id)
+		cancel()
+		if probeErr == nil || task.Worker != nil && task.Worker.StartToken != identity.StartToken && WorkerMatches(*task.Worker) {
 			return fmt.Errorf("task %q already has a live worker", id)
 		}
 		copy := identity
@@ -418,7 +454,7 @@ func (s *Store) AcceptResult(id, note string) error {
 			return fmt.Errorf("task result is not awaiting acceptance")
 		}
 		task.Status = TaskAccepted
-		decision := PrincipalDecision{Action: "accepted", AcceptedAt: time.Now().UTC(), Note: note}
+		decision := PrincipalDecision{Action: PrincipalDecisionAccepted, AcceptedAt: time.Now().UTC(), Note: note}
 		task.PrincipalDecision = &decision
 		task.PrincipalDecisions = append(task.PrincipalDecisions, decision)
 		return nil
@@ -640,7 +676,8 @@ func (s *Store) ResolvePermissionAndWake(id, attemptID, requestID, optionID, sou
 	if err := s.ResolvePermission(id, attemptID, requestID, optionID, source, rationale, policyVersion, policyRule, mandate...); err != nil {
 		return err
 	}
-	return s.WakeWorker(id)
+	_ = s.WakeWorker(id) //nolint:errcheck // The durable decision is authoritative; the worker polls when a wake is unavailable.
+	return nil
 }
 
 // ResolvePermissionWithPolicy fences answers against the live policy version.
@@ -657,9 +694,7 @@ func (s *Store) ResolvePermissionWithPolicy(id, attemptID, requestID, optionID, 
 			if err := s.MarkPermissionStale(id, attemptID, requestID, currentPolicyVersion); err != nil {
 				return err
 			}
-			if err := s.WakeWorker(id); err != nil {
-				return fmt.Errorf("permission marked stale but worker notification failed: %w", err)
-			}
+			_ = s.WakeWorker(id) //nolint:errcheck // The stale record is durable and the worker reconciles it by polling.
 			return fmt.Errorf("permission policy changed; request marked stale")
 		}
 		return s.ResolvePermissionAndWake(id, attemptID, requestID, optionID, source, rationale, currentPolicyVersion, policyRule, mandate...)

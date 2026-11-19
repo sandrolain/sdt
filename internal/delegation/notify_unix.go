@@ -17,7 +17,10 @@ import (
 	"time"
 )
 
-const maxTaskSubscribers = 32
+const (
+	maxTaskSubscribers    = 32
+	workerOperationCancel = "cancel"
+)
 
 type workerSocketOwner struct {
 	TaskID   string          `json:"task_id"`
@@ -45,6 +48,8 @@ type Notifier struct {
 	mu           sync.Mutex
 	clients      map[net.Conn]chan uint64
 	closed       chan struct{}
+	cancel       chan struct{}
+	cancelOnce   sync.Once
 	lastRevision uint64
 	closeMu      sync.Once
 }
@@ -64,7 +69,7 @@ func (s *Subscription) Close() error {
 }
 
 func (s *Store) Listen(ctx context.Context, taskID string, identity ProcessIdentity) (*Notifier, error) {
-	if !safeID.MatchString(taskID) || !WorkerMatches(identity) {
+	if !safeID.MatchString(taskID) || identity.PID != os.Getpid() || identity.GroupID != identity.PID || identity.StartToken == "" {
 		return nil, fmt.Errorf("task id or worker identity is invalid")
 	}
 	task, err := s.Read(taskID)
@@ -104,7 +109,7 @@ func (s *Store) Listen(ctx context.Context, taskID string, identity ProcessIdent
 		os.Remove(path)  //nolint:errcheck
 		return nil, err
 	}
-	n := &Notifier{store: s, taskID: taskID, identity: identity, path: path, owner: ownerPath, listener: listener, clients: map[net.Conn]chan uint64{}, closed: make(chan struct{}), lastRevision: task.Revision}
+	n := &Notifier{store: s, taskID: taskID, identity: identity, path: path, owner: ownerPath, listener: listener, clients: map[net.Conn]chan uint64{}, closed: make(chan struct{}), cancel: make(chan struct{}), lastRevision: task.Revision}
 	go n.acceptLoop()
 	go func() {
 		select {
@@ -115,6 +120,11 @@ func (s *Store) Listen(ctx context.Context, taskID string, identity ProcessIdent
 	}()
 	return n, nil
 }
+
+// CancelRequests is closed when an authenticated principal requests cancellation.
+func (n *Notifier) CancelRequests() <-chan struct{} { return n.cancel }
+
+func (n *Notifier) requestCancel() { n.cancelOnce.Do(func() { close(n.cancel) }) }
 
 func (n *Notifier) Publish(revision uint64) error {
 	task, err := n.store.Read(n.taskID)
@@ -201,23 +211,37 @@ func (n *Notifier) serveClient(conn *net.UnixConn) {
 	if err != nil {
 		return
 	}
-	if request.Operation == "wake" {
-		ack, err := json.Marshal(revisionMessage{Revision: task.Revision})
-		if err != nil {
-			return
-		}
-		if _, err := conn.Write(append(ack, '\n')); err != nil {
-			return
-		}
-		// The ack means the durable revision was read and accepted for broadcast.
-		// Queueing after the ack avoids a fast worker exit closing the control socket
-		// before the caller receives confirmation.
-		_ = n.Publish(task.Revision) //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
-		return
-	}
 	if request.Operation != "subscribe" {
+		n.handleControlRequest(conn, request.Operation, task)
 		return
 	}
+	n.serveSubscriber(conn, reader)
+}
+
+func (n *Notifier) handleControlRequest(conn *net.UnixConn, operation string, task Task) {
+	if operation != "wake" && operation != "probe" && operation != workerOperationCancel {
+		return
+	}
+	if operation == workerOperationCancel && task.Status != TaskCancelling {
+		return
+	}
+	ack, err := json.Marshal(revisionMessage{Revision: task.Revision})
+	if err != nil {
+		return
+	}
+	if _, err := conn.Write(append(ack, '\n')); err != nil {
+		return
+	}
+	switch operation {
+	case "wake":
+		// Ack first so a fast worker exit cannot hide receipt from the caller.
+		_ = n.Publish(task.Revision) //nolint:errcheck // Caller can reread durable state if broadcasting fails.
+	case workerOperationCancel:
+		n.requestCancel()
+	}
+}
+
+func (n *Notifier) serveSubscriber(conn *net.UnixConn, reader *bufio.Reader) {
 	queue := make(chan uint64, 1)
 	n.mu.Lock()
 	if len(n.clients) >= maxTaskSubscribers {
@@ -233,7 +257,7 @@ func (n *Notifier) serveClient(conn *net.UnixConn) {
 	}()
 	// Registration precedes the revision read and acknowledgment. A caller then
 	// rereads durable state, so a transition on either side of the read is visible.
-	task, err = n.store.Read(n.taskID)
+	task, err := n.store.Read(n.taskID)
 	if err != nil {
 		return
 	}
@@ -280,7 +304,7 @@ func (s *Store) Subscribe(ctx context.Context, taskID string) (*Subscription, er
 		return nil, err
 	}
 	var owner workerSocketOwner
-	if err := json.Unmarshal(data, &owner); err != nil || owner.TaskID != taskID || !WorkerMatches(owner.Identity) {
+	if err := json.Unmarshal(data, &owner); err != nil || owner.TaskID != taskID || owner.Identity.StartToken == "" {
 		return nil, fmt.Errorf("worker socket owner is stale or invalid")
 	}
 	conn, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: path, Net: "unix"})
@@ -339,6 +363,33 @@ func (s *Store) Subscribe(ctx context.Context, taskID string) (*Subscription, er
 }
 
 func (s *Store) WakeWorker(taskID string) error {
+	return s.workerCommand(context.Background(), taskID, "wake")
+}
+
+func (s *Store) RequestWorkerCancel(ctx context.Context, taskID string) error {
+	return s.workerCommand(ctx, taskID, "cancel")
+}
+
+func (s *Store) ProbeWorker(ctx context.Context, taskID string) error {
+	return s.workerCommand(ctx, taskID, "probe")
+}
+
+func (s *Store) WaitWorkerReady(ctx context.Context, taskID string) error {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if err := s.ProbeWorker(ctx, taskID); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Store) workerCommand(ctx context.Context, taskID, operation string) error {
 	if !safeID.MatchString(taskID) {
 		return fmt.Errorf("invalid task id %q", taskID)
 	}
@@ -349,16 +400,21 @@ func (s *Store) WakeWorker(taskID string) error {
 		return err
 	}
 	var owner workerSocketOwner
-	if err := json.Unmarshal(data, &owner); err != nil || owner.TaskID != taskID || !WorkerMatches(owner.Identity) {
+	if err := json.Unmarshal(data, &owner); err != nil || owner.TaskID != taskID || owner.Identity.StartToken == "" {
 		return fmt.Errorf("worker socket owner is stale or invalid")
 	}
-	conn, err := net.DialTimeout("unix", path, 500*time.Millisecond)
+	dialer := net.Dialer{Timeout: 500 * time.Millisecond}
+	conn, err := dialer.DialContext(ctx, "unix", path)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()                                //nolint:errcheck
-	_ = conn.SetDeadline(time.Now().Add(time.Second)) //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
-	request, err := json.Marshal(subscribeRequest{Operation: "wake", TaskID: taskID, Token: owner.Identity.StartToken})
+	defer conn.Close() //nolint:errcheck
+	deadline := time.Now().Add(time.Second)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	_ = conn.SetDeadline(deadline) //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
+	request, err := json.Marshal(subscribeRequest{Operation: operation, TaskID: taskID, Token: owner.Identity.StartToken})
 	if err != nil {
 		return err
 	}
@@ -370,6 +426,33 @@ func (s *Store) WakeWorker(taskID string) error {
 		return err
 	}
 	return nil
+}
+
+// WaitWorkerClosed waits for the worker-owned control endpoint to be removed after
+// its ACP process teardown has completed.
+func (s *Store) WaitWorkerClosed(ctx context.Context, taskID string) error {
+	dir := filepath.Join(s.root, "w")
+	path, ownerPath := workerSocketPaths(dir, taskID)
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		_, socketErr := os.Lstat(path)
+		_, ownerErr := os.Lstat(ownerPath)
+		if os.IsNotExist(socketErr) && os.IsNotExist(ownerErr) {
+			return nil
+		}
+		if socketErr != nil && !os.IsNotExist(socketErr) {
+			return socketErr
+		}
+		if ownerErr != nil && !os.IsNotExist(ownerErr) {
+			return ownerErr
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func workerSocketPaths(dir, taskID string) (string, string) {

@@ -12,8 +12,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/goccy/go-yaml"
 	"github.com/sandrolain/sdt/internal/delegation"
@@ -69,6 +72,8 @@ type taskStartResult struct {
 	Role      string                     `json:"role" yaml:"role"`
 	Deadline  time.Time                  `json:"deadline" yaml:"deadline"`
 	Workspace string                     `json:"workspace" yaml:"workspace"`
+	Plan      string                     `json:"plan,omitempty" yaml:"plan,omitempty"`
+	Phase     string                     `json:"phase,omitempty" yaml:"phase,omitempty"`
 	Worker    delegation.ProcessIdentity `json:"worker" yaml:"worker"`
 }
 
@@ -92,44 +97,33 @@ func init() {
 	agentTaskStartCmd.Flags().StringSlice("include", nil, "Explicit project-relative dirty file to include (repeatable)")
 	agentTaskStartCmd.Flags().StringSlice("reference", nil, "Project-relative reference file to copy into the stable task workspace (repeatable)")
 	agentTaskStartCmd.Flags().String("id", "", "Task id (generated when omitted)")
+	agentTaskStartCmd.Flags().String("plan", "", "Project-relative plan reference to link")
+	agentTaskStartCmd.Flags().String("phase", "", "Plan phase or checklist id linked to this task")
 
-	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskStatusCmd, agentTaskWaitCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskApplyCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd)
+	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskListCmd, agentTaskStatusCmd, agentTaskWaitCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskApplyCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd, agentTaskMessageCmd)
 	agentCmd.AddCommand(agentTaskCmd)
 }
 
 func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
-	cfg, projectRoot, err := findProjectConfigAt()
-	if err != nil {
-		return fmt.Errorf("delegation requires a valid project .sdt.yaml: %w", err)
-	}
-	if cfg == nil {
-		return fmt.Errorf("delegation requires a valid project .sdt.yaml")
-	}
-	if err := validateDelegationConfig(cfg.Delegation); err != nil {
-		return err
-	}
-	if len(cfg.Delegation.Agents) == 0 {
-		return fmt.Errorf("no delegation.agents are configured")
-	}
-	role := getStringFlag(cmd, "role", false)
-	brief := strings.TrimSpace(getStringFlag(cmd, "brief", false))
-	if role == "" || brief == "" {
-		return fmt.Errorf("--role and --brief are required")
-	}
-	if _, ok := roleLookup(role); !ok {
-		return fmt.Errorf("unknown SDT role %q", role)
-	}
-	capabilities, err := cmd.Flags().GetStringSlice("capability")
+	start, err := prepareDelegationStart(cmd)
 	if err != nil {
 		return err
 	}
-	candidates := delegationCandidates(cfg.Delegation, role, capabilities)
-	if len(candidates) == 0 {
-		return fmt.Errorf("no configured agent matches role %q and required capabilities", role)
-	}
+	cfg, projectRoot, role, brief, capabilities, candidates := start.Config, start.ProjectRoot, start.Role, start.Brief, start.Capabilities, start.Candidates
 	root, err := filepath.Abs(projectRoot)
 	if err != nil {
 		return err
+	}
+	planReference := strings.TrimSpace(getStringFlag(cmd, "plan", false))
+	planPhase := strings.TrimSpace(getStringFlag(cmd, "phase", false))
+	if (planReference == "") != (planPhase == "") {
+		return fmt.Errorf("--plan and --phase must be supplied together")
+	}
+	if planReference != "" {
+		planReference, err = validateDelegationPlanReference(root, planReference, planPhase)
+		if err != nil {
+			return err
+		}
 	}
 	taskID := getStringFlag(cmd, "id", false)
 	if taskID == "" {
@@ -157,7 +151,7 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("invalid delegation.max_duration: %w", err)
 	}
-	task := delegation.Task{ID: taskID, Role: role, RequiredCapabilities: capabilities, Deadline: time.Now().Add(duration).UTC()}
+	task := delegation.Task{ID: taskID, Role: role, RequiredCapabilities: capabilities, Deadline: time.Now().Add(duration).UTC(), PlanReference: planReference, PlanPhase: planPhase}
 	if err := store.Create(task); err != nil {
 		return err
 	}
@@ -210,8 +204,108 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 		return err
 	}
 	launched = true
-	outputTaskStart(cmd, taskStartResult{ID: taskID, Status: delegation.TaskQueued, Role: role, Deadline: task.Deadline, Workspace: workspace.Path, Worker: identity})
+	outputTaskStart(cmd, taskStartResult{ID: taskID, Status: delegation.TaskQueued, Role: role, Deadline: task.Deadline, Workspace: workspace.Path, Plan: planReference, Phase: planPhase, Worker: identity})
 	return nil
+}
+
+type delegationStartOptions struct {
+	Config       *ProjectConfig
+	ProjectRoot  string
+	Role         string
+	Brief        string
+	Capabilities []string
+	Candidates   []DelegationAgentConfig
+}
+
+func prepareDelegationStart(cmd *cobra.Command) (delegationStartOptions, error) {
+	cfg, projectRoot, err := findProjectConfigAt()
+	if err != nil {
+		return delegationStartOptions{}, fmt.Errorf("delegation requires a valid project .sdt.yaml: %w", err)
+	}
+	if cfg == nil {
+		return delegationStartOptions{}, fmt.Errorf("delegation requires a valid project .sdt.yaml")
+	}
+	if err := validateDelegationConfig(cfg.Delegation); err != nil {
+		return delegationStartOptions{}, err
+	}
+	if len(cfg.Delegation.Agents) == 0 {
+		return delegationStartOptions{}, fmt.Errorf("no delegation.agents are configured")
+	}
+	role := getStringFlag(cmd, "role", false)
+	brief := strings.TrimSpace(getStringFlag(cmd, "brief", false))
+	if role == "" || brief == "" {
+		return delegationStartOptions{}, fmt.Errorf("--role and --brief are required")
+	}
+	if _, ok := roleLookup(role); !ok {
+		return delegationStartOptions{}, fmt.Errorf("unknown SDT role %q", role)
+	}
+	capabilities, err := cmd.Flags().GetStringSlice("capability")
+	if err != nil {
+		return delegationStartOptions{}, err
+	}
+	candidates := delegationCandidates(cfg.Delegation, role, capabilities)
+	if len(candidates) == 0 {
+		return delegationStartOptions{}, fmt.Errorf("no configured agent matches role %q and required capabilities", role)
+	}
+	if err := preflightDelegationCandidates(candidates); err != nil {
+		return delegationStartOptions{}, err
+	}
+	return delegationStartOptions{Config: cfg, ProjectRoot: projectRoot, Role: role, Brief: brief, Capabilities: capabilities, Candidates: candidates}, nil
+}
+
+func preflightDelegationCandidates(candidates []DelegationAgentConfig) error {
+	for _, candidate := range candidates {
+		if _, err := exec.LookPath(candidate.Command[0]); err != nil {
+			return fmt.Errorf("preflight: configured agent %q executable %q is unavailable: %w", candidate.Name, candidate.Command[0], err)
+		}
+	}
+	return nil
+}
+
+func validateDelegationPlanReference(root, reference, phase string) (string, error) {
+	if filepath.IsAbs(reference) {
+		return "", fmt.Errorf("--plan must be project-relative")
+	}
+	clean := filepath.Clean(reference)
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("--plan must stay inside the project")
+	}
+	reference = filepath.ToSlash(clean)
+	projectReal, rootErr := filepath.EvalSymlinks(root)
+	planReal, planErr := filepath.EvalSymlinks(filepath.Join(root, clean))
+	info, statErr := os.Stat(filepath.Join(root, clean))
+	if rootErr != nil || planErr != nil || statErr != nil || !info.Mode().IsRegular() || !withinRoot(projectReal, planReal) {
+		return "", fmt.Errorf("plan reference %q is not a readable project file", reference)
+	}
+	planData, readErr := os.ReadFile(planReal)
+	if readErr != nil || !delegationPlanPhaseExists(string(planData), phase) {
+		return "", fmt.Errorf("plan phase %q is not present in %s", phase, reference)
+	}
+	return reference, nil
+}
+
+func delegationPlanPhaseExists(content, phase string) bool {
+	phase = strings.TrimSpace(phase)
+	if phase == "" || len(phase) > 128 || strings.ContainsAny(phase, "\r\n\x00") {
+		return false
+	}
+	if strings.HasPrefix(phase, "c") && len(phase) > 1 {
+		if _, err := strconv.Atoi(strings.TrimPrefix(phase, "c")); err == nil {
+			return strings.Contains(content, "<!-- "+phase+" -->")
+		}
+	}
+	prefix := "## Phase "
+	if strings.HasPrefix(phase, "Phase ") {
+		prefix = "## "
+	}
+	want := prefix + phase
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == want || strings.HasPrefix(line, want+" ") || strings.HasPrefix(line, want+" —") || strings.HasPrefix(line, want+" -") {
+			return true
+		}
+	}
+	return false
 }
 
 func recordTaskReferences(store *delegation.Store, taskID, root, workspace string, references []string) error {
@@ -300,11 +394,16 @@ func outputTaskStart(cmd *cobra.Command, result taskStartResult) {
 		exitWithError(cmd, err)
 		outputBytes(cmd, data)
 	default:
-		outputString(cmd, fmt.Sprintf("Task %s queued for role %s\nWorkspace: %s\nDeadline: %s\n", result.ID, result.Role, result.Workspace, result.Deadline.Format(time.RFC3339)))
+		text := fmt.Sprintf("Task %s queued for role %s\nWorkspace: %s\nDeadline: %s\n", result.ID, result.Role, result.Workspace, result.Deadline.Format(time.RFC3339))
+		if result.Plan != "" {
+			text += fmt.Sprintf("Plan: %s · %s\n", result.Plan, result.Phase)
+		}
+		outputString(cmd, text)
 	}
 }
 
 var agentTaskStatusCmd = &cobra.Command{Use: "status <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskStatus}
+var agentTaskListCmd = &cobra.Command{Use: "list", Short: "List delegated tasks and their next principal action", RunE: runAgentTaskList}
 var agentTaskResultCmd = &cobra.Command{Use: "result <task-id> [artifact]", Args: cobra.RangeArgs(1, 2), RunE: runAgentTaskResult}
 var agentTaskCancelCmd = &cobra.Command{Use: "cancel <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskCancel}
 var agentTaskResumeCmd = &cobra.Command{Use: "resume <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskResume}
@@ -329,12 +428,47 @@ func runAgentTaskStatus(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return outputTask(cmd, boundedTaskStatus(task))
+	status := boundedTaskStatus(task)
+	probeTaskStatus(cmd.Context(), store, &status)
+	return outputTask(cmd, status)
+}
+
+func runAgentTaskList(cmd *cobra.Command, _ []string) error {
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	tasks, err := store.List()
+	if err != nil {
+		return err
+	}
+	statuses := make([]taskStatusSummary, 0, len(tasks))
+	for _, task := range tasks {
+		status := boundedTaskStatus(task)
+		probeTaskStatus(cmd.Context(), store, &status)
+		statuses = append(statuses, status)
+	}
+	if getFormat(cmd) == formatText {
+		var out strings.Builder
+		for _, status := range statuses {
+			fmt.Fprintf(&out, "%s %s", status.ID, status.Status)
+			if status.Plan != "" {
+				fmt.Fprintf(&out, " · %s · %s", status.Plan, status.Phase)
+			}
+			fmt.Fprintf(&out, "\n  Next: %s\n", status.NextAction)
+		}
+		outputString(cmd, out.String())
+		return nil
+	}
+	return outputTask(cmd, statuses)
 }
 
 type taskStatusSummary struct {
 	Revision           uint64                  `json:"revision" yaml:"revision"`
 	Workspace          string                  `json:"workspace,omitempty" yaml:"workspace,omitempty"`
+	Plan               string                  `json:"plan,omitempty" yaml:"plan,omitempty"`
+	Phase              string                  `json:"phase,omitempty" yaml:"phase,omitempty"`
+	NextAction         string                  `json:"next_action" yaml:"next_action"`
 	WorkerHealth       string                  `json:"worker_health" yaml:"worker_health"`
 	MaxAttempts        int                     `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
 	ProviderQuota      string                  `json:"provider_quota" yaml:"provider_quota"`
@@ -351,19 +485,27 @@ type taskStatusSummary struct {
 }
 
 type taskMetricsSummary struct {
-	AttemptElapsedMS   int64  `json:"attempt_elapsed_ms" yaml:"attempt_elapsed_ms"`
-	PrincipalTokens    string `json:"principal_tokens" yaml:"principal_tokens"`
-	DelegateTokens     string `json:"delegate_tokens" yaml:"delegate_tokens"`
-	PrincipalCostUSD   string `json:"principal_cost_usd" yaml:"principal_cost_usd"`
-	DelegateCostUSD    string `json:"delegate_cost_usd" yaml:"delegate_cost_usd"`
-	TotalCostUSD       string `json:"total_cost_usd" yaml:"total_cost_usd"`
-	CommunicationBytes string `json:"communication_bytes" yaml:"communication_bytes"`
+	PreparationElapsedMS int64  `json:"preparation_elapsed_ms,omitempty" yaml:"preparation_elapsed_ms,omitempty"`
+	AttemptElapsedMS     int64  `json:"attempt_elapsed_ms" yaml:"attempt_elapsed_ms"`
+	ReviewElapsedMS      int64  `json:"review_elapsed_ms,omitempty" yaml:"review_elapsed_ms,omitempty"`
+	IntegrationElapsedMS int64  `json:"integration_elapsed_ms,omitempty" yaml:"integration_elapsed_ms,omitempty"`
+	PrincipalTokens      string `json:"principal_tokens" yaml:"principal_tokens"`
+	DelegateTokens       string `json:"delegate_tokens" yaml:"delegate_tokens"`
+	PrincipalCostUSD     string `json:"principal_cost_usd" yaml:"principal_cost_usd"`
+	DelegateCostUSD      string `json:"delegate_cost_usd" yaml:"delegate_cost_usd"`
+	TotalCostUSD         string `json:"total_cost_usd" yaml:"total_cost_usd"`
+	CommunicationBytes   string `json:"communication_bytes" yaml:"communication_bytes"`
 }
 
 func boundedTaskStatus(task delegation.Task) taskStatusSummary {
 	view := taskStatusSummary{ID: task.ID, Status: task.Status, Role: task.Role, Deadline: task.Deadline, AttemptCount: len(task.Attempts)}
 	view.Revision, view.Workspace = task.Revision, task.Source.Workspace
-	view.WorkerHealth = delegation.WorkerHealth(task.Worker)
+	view.Plan, view.Phase = task.PlanReference, task.PlanPhase
+	view.NextAction = principalNextAction(task.Status)
+	view.WorkerHealth = "unrecorded"
+	if task.Worker != nil {
+		view.WorkerHealth = "unknown"
+	}
 	view.ProviderQuota = "unknown"
 	var limits struct {
 		MaxAttempts int `json:"max_attempts"`
@@ -384,16 +526,38 @@ func boundedTaskStatus(task delegation.Task) taskStatusSummary {
 	view.Attempts = append([]delegation.Attempt(nil), task.Attempts...)
 	view.Artifacts = append([]delegation.Artifact(nil), task.Artifacts...)
 	var elapsed time.Duration
+	var firstStart, lastFinish time.Time
 	for _, attempt := range task.Attempts {
 		if !attempt.StartedAt.IsZero() {
+			if firstStart.IsZero() || attempt.StartedAt.Before(firstStart) {
+				firstStart = attempt.StartedAt
+			}
 			end := attempt.FinishedAt
 			if end.IsZero() {
 				end = time.Now()
+			} else if end.After(lastFinish) {
+				lastFinish = end
 			}
 			elapsed += end.Sub(attempt.StartedAt)
 		}
 	}
-	view.Metrics = taskMetricsSummary{AttemptElapsedMS: elapsed.Milliseconds(), PrincipalTokens: learnProvenanceUnknown, DelegateTokens: learnProvenanceUnknown, PrincipalCostUSD: learnProvenanceUnknown, DelegateCostUSD: learnProvenanceUnknown, TotalCostUSD: learnProvenanceUnknown, CommunicationBytes: learnProvenanceUnknown}
+	metrics := taskMetricsSummary{AttemptElapsedMS: elapsed.Milliseconds(), PrincipalTokens: learnProvenanceUnknown, DelegateTokens: learnProvenanceUnknown, PrincipalCostUSD: learnProvenanceUnknown, DelegateCostUSD: learnProvenanceUnknown, TotalCostUSD: learnProvenanceUnknown, CommunicationBytes: learnProvenanceUnknown}
+	if !task.CreatedAt.IsZero() && !firstStart.IsZero() && firstStart.After(task.CreatedAt) {
+		metrics.PreparationElapsedMS = firstStart.Sub(task.CreatedAt).Milliseconds()
+	}
+	acceptedAt := time.Time{}
+	for _, decision := range task.PrincipalDecisions {
+		if decision.Action == delegation.PrincipalDecisionAccepted && decision.AcceptedAt.After(acceptedAt) {
+			acceptedAt = decision.AcceptedAt
+		}
+	}
+	if !lastFinish.IsZero() && !acceptedAt.IsZero() && acceptedAt.After(lastFinish) {
+		metrics.ReviewElapsedMS = acceptedAt.Sub(lastFinish).Milliseconds()
+	}
+	if !acceptedAt.IsZero() && task.Integration != nil && task.Integration.Applied.After(acceptedAt) {
+		metrics.IntegrationElapsedMS = task.Integration.Applied.Sub(acceptedAt).Milliseconds()
+	}
+	view.Metrics = metrics
 	if len(view.Attempts) > 3 {
 		view.Attempts = append([]delegation.Attempt(nil), view.Attempts[len(view.Attempts)-3:]...)
 	}
@@ -401,6 +565,36 @@ func boundedTaskStatus(task delegation.Task) taskStatusSummary {
 		view.Artifacts = append([]delegation.Artifact(nil), view.Artifacts[len(view.Artifacts)-5:]...)
 	}
 	return view
+}
+
+func probeTaskStatus(ctx context.Context, store *delegation.Store, status *taskStatusSummary) {
+	if status.WorkerHealth == "unrecorded" {
+		return
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	if store.ProbeWorker(probeCtx, status.ID) == nil {
+		status.WorkerHealth = "running"
+	}
+}
+
+func principalNextAction(status delegation.TaskStatus) string {
+	switch status {
+	case delegation.TaskQueued, delegation.TaskRunning:
+		return "wait or inspect status"
+	case delegation.TaskInterventionRequired:
+		return "inspect the failure and decide whether to correct or reassign"
+	case delegation.TaskResultReady:
+		return "review the result, then accept or request a correction"
+	case delegation.TaskAccepted:
+		return "preview and digest-check apply"
+	case delegation.TaskCompleted:
+		return "verify the applied changes and update the linked plan"
+	case delegation.TaskCancelling:
+		return "confirm worker shutdown"
+	default:
+		return "inspect task status and choose the next action"
+	}
 }
 
 func runAgentTaskResult(cmd *cobra.Command, args []string) error {
@@ -437,7 +631,7 @@ func runAgentTaskResult(cmd *cobra.Command, args []string) error {
 					outputString(cmd, string(data))
 					return nil
 				}
-				return outputTask(cmd, map[string]any{"artifact": artifact, "content": string(data)})
+				return outputTask(cmd, map[string]any{"task_id": task.ID, "plan": task.PlanReference, "phase": task.PlanPhase, "artifact": artifact, "content": string(data)})
 			}
 		}
 		return fmt.Errorf("artifact %q is not recorded for task %s", args[1], task.ID)
@@ -446,6 +640,9 @@ func runAgentTaskResult(cmd *cobra.Command, args []string) error {
 		return outputTask(cmd, task.Artifacts)
 	}
 	var out strings.Builder
+	if task.PlanReference != "" {
+		fmt.Fprintf(&out, "Task %s · %s · %s\n\n", task.ID, task.PlanReference, task.PlanPhase)
+	}
 	for _, artifact := range task.Artifacts {
 		if artifact.Name == "worker.log" {
 			continue
@@ -516,12 +713,8 @@ func runAgentTaskCorrect(cmd *cobra.Command, args []string) error {
 	if len(candidates) == 0 {
 		return fmt.Errorf("task configuration snapshot has no eligible correction agent")
 	}
-	if task.Worker != nil && delegation.WorkerMatches(*task.Worker) {
-		ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
-		defer cancel()
-		if err := delegation.StopWorkerGroup(ctx, *task.Worker); err != nil {
-			return err
-		}
+	if err := ensureTaskWorkerStopped(cmd, store, task); err != nil {
+		return err
 	}
 	if err := store.RequestCorrection(task.ID, instructions); err != nil {
 		return err
@@ -634,8 +827,8 @@ func runAgentTaskCleanupExecute(cmd *cobra.Command, args []string) error {
 	if task.Status == delegation.TaskRunning || task.Status == delegation.TaskQueued || task.Status == delegation.TaskCancelling {
 		return fmt.Errorf("active or queued task resources cannot be cleaned up")
 	}
-	if task.Worker != nil && delegation.WorkerMatches(*task.Worker) {
-		return fmt.Errorf("task still has a live worker")
+	if err := ensureTaskWorkerStopped(cmd, store, task); err != nil {
+		return err
 	}
 	preview := makeCleanupPreview(store, task)
 	if task.Source.Workspace != "" {
@@ -690,8 +883,8 @@ func runAgentTaskResume(cmd *cobra.Command, args []string) error {
 	if task.Status != delegation.TaskQueued && task.Status != delegation.TaskInterventionRequired {
 		return fmt.Errorf("task %s is %s; only queued or intervention-required tasks can resume", task.ID, task.Status)
 	}
-	if task.Worker != nil && delegation.WorkerMatches(*task.Worker) {
-		return fmt.Errorf("task %s already has a live worker", task.ID)
+	if err := ensureTaskWorkerStopped(cmd, store, task); err != nil {
+		return fmt.Errorf("task %s: %w", task.ID, err)
 	}
 	var snapshot DelegationConfig
 	if err := json.Unmarshal(task.ConfigSnapshot, &snapshot); err != nil {
@@ -760,14 +953,41 @@ func launchTaskWorker(store *delegation.Store, projectRoot, taskID, workspace, a
 		return delegation.ProcessIdentity{}, err
 	}
 	if err := store.SetWorker(taskID, identity); err != nil {
+		killErr := syscall.Kill(-identity.GroupID, syscall.SIGKILL)
+		if killErr != nil && !errors.Is(killErr, syscall.ESRCH) {
+			return delegation.ProcessIdentity{}, fmt.Errorf("record worker: %w; terminate unrecorded worker: %v", err, killErr)
+		}
 		return delegation.ProcessIdentity{}, err
 	}
 	return identity, nil
 }
 
+func ensureTaskWorkerStopped(cmd *cobra.Command, store *delegation.Store, task delegation.Task) error {
+	ctx, cancel := context.WithTimeout(cmd.Context(), 500*time.Millisecond)
+	err := store.ProbeWorker(ctx, task.ID)
+	cancel()
+	if err == nil {
+		return fmt.Errorf("task still has a live worker; wait for it to stop before replacing or cleaning up")
+	}
+	if task.Worker != nil && delegation.WorkerMatches(*task.Worker) {
+		return fmt.Errorf("task still has a live worker; wait for it to stop before replacing or cleaning up")
+	}
+	for _, attempt := range task.Attempts {
+		identity := delegation.ProcessIdentity{PID: attempt.ProcessID, GroupID: attempt.ProcessID, StartToken: attempt.ProcessStart}
+		if delegation.WorkerMatches(identity) {
+			return fmt.Errorf("task still has a live attempt worker; wait for it to stop before replacing or cleaning up")
+		}
+	}
+	return nil
+}
+
 func outputTaskStatus(cmd *cobra.Command, status taskStatusSummary) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Task %s — %s (%s)\nAttempts: %d\nDeadline: %s\n", status.ID, status.Status, status.Role, status.AttemptCount, status.Deadline.Format(time.RFC3339))
+	if status.Plan != "" {
+		fmt.Fprintf(&b, "Plan: %s · %s\n", status.Plan, status.Phase)
+	}
+	fmt.Fprintf(&b, "Next principal action: %s\n", status.NextAction)
 	if status.MaxAttempts > 0 {
 		fmt.Fprintf(&b, "Local attempt limit: %d\n", status.MaxAttempts)
 	}
@@ -778,7 +998,8 @@ func outputTaskStatus(cmd *cobra.Command, status taskStatusSummary) {
 	for _, artifact := range status.Artifacts {
 		fmt.Fprintf(&b, "Artifact %s: %s\n", artifact.Name, artifact.Path)
 	}
-	fmt.Fprintf(&b, "Attempt elapsed: %d ms; principal tokens: %s; delegate tokens: %s; principal cost: %s USD; delegate cost: %s USD; total cost: %s USD; communication bytes: %s\n", status.Metrics.AttemptElapsedMS, status.Metrics.PrincipalTokens, status.Metrics.DelegateTokens, status.Metrics.PrincipalCostUSD, status.Metrics.DelegateCostUSD, status.Metrics.TotalCostUSD, status.Metrics.CommunicationBytes)
+	fmt.Fprintf(&b, "Preparation: %d ms; worker attempts: %d ms; principal review: %d ms; integration: %d ms\n", status.Metrics.PreparationElapsedMS, status.Metrics.AttemptElapsedMS, status.Metrics.ReviewElapsedMS, status.Metrics.IntegrationElapsedMS)
+	fmt.Fprintf(&b, "Provider tokens and costs: %s; communication bytes: %s\n", status.Metrics.DelegateTokens, status.Metrics.CommunicationBytes)
 	outputString(cmd, b.String())
 }
 
@@ -841,6 +1062,9 @@ func outputTask(cmd *cobra.Command, value any) error {
 func outputIntegrationPreview(cmd *cobra.Command, preview delegation.IntegrationPreview) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Task %s (%s)\nDigest: %s\nSource: %s\n", preview.TaskID, preview.Status, preview.Digest, preview.SourceWorkspace)
+	if preview.PlanReference != "" {
+		fmt.Fprintf(&b, "Plan: %s · %s\n", preview.PlanReference, preview.PlanPhase)
+	}
 	if preview.NoChanges {
 		b.WriteString("No task changes to apply.\n")
 	}
@@ -936,15 +1160,68 @@ func runAgentTaskPermissionResolve(cmd *cobra.Command, args []string) error {
 	if err := store.ResolvePermissionWithPolicy(args[0], request.AttemptID, request.RequestID, option, source, rationale, version, "explicit CLI decision", mandate); err != nil {
 		return err
 	}
-	return outputAction(cmd, "Permission decision recorded and worker notified.\n", map[string]string{"task_id": args[0], "request_id": args[1], "status": "resolved"})
+	return outputAction(cmd, "Permission decision recorded; the worker reconciles durable state even if the wake notification is unavailable.\n", map[string]string{"task_id": args[0], "request_id": args[1], "status": "resolved"})
 }
 
 var agentTaskAvailabilityCmd = &cobra.Command{Use: "availability", Short: "Inspect or reset provider availability exclusions"}
+var agentTaskMessageCmd = &cobra.Command{Use: "message", Short: "Exchange untrusted coordination notes within one task"}
+var agentTaskMessageListCmd = &cobra.Command{Use: "list <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskMessageList}
+var agentTaskMessageSendCmd = &cobra.Command{Use: "send <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskMessageSend}
 var agentTaskAvailabilityListCmd = &cobra.Command{Use: useList, RunE: runAgentTaskAvailabilityList}
 var agentTaskAvailabilityResetCmd = &cobra.Command{Use: "reset <key>", Args: cobra.ExactArgs(1), RunE: runAgentTaskAvailabilityReset}
 
 func init() {
 	agentTaskAvailabilityCmd.AddCommand(agentTaskAvailabilityListCmd, agentTaskAvailabilityResetCmd)
+	agentTaskMessageCmd.AddCommand(agentTaskMessageListCmd, agentTaskMessageSendCmd)
+	agentTaskMessageListCmd.Flags().String("as", "", "Show messages for one task participant")
+	agentTaskMessageSendCmd.Flags().String("from", "", "Task participant sending the message")
+	agentTaskMessageSendCmd.Flags().String("to", "", "Task participant receiving the message")
+	agentTaskMessageSendCmd.Flags().String("text", "", "Coordination note; treated as untrusted context")
+	agentTaskMessageSendCmd.Flags().String("artifact", "", "Name of a retained task artifact to reference")
+}
+
+func runAgentTaskMessageList(cmd *cobra.Command, args []string) error {
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	messages, err := store.ListMessages(args[0], getStringFlag(cmd, "as", false))
+	if err != nil {
+		return err
+	}
+	if getFormat(cmd) == formatText {
+		var out strings.Builder
+		for _, message := range messages {
+			fmt.Fprintf(&out, "%d %s → %s [%s]\n%s\n", message.Sequence, message.From, message.To, message.CreatedAt.Format(time.RFC3339), safeTaskMessageText(message.Text))
+			if message.Artifact != "" {
+				fmt.Fprintf(&out, "Artifact: %s\n", message.Artifact)
+			}
+		}
+		outputString(cmd, out.String())
+		return nil
+	}
+	return outputTask(cmd, messages)
+}
+
+func safeTaskMessageText(text string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return -1
+		}
+		return r
+	}, text)
+}
+
+func runAgentTaskMessageSend(cmd *cobra.Command, args []string) error {
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	message, err := store.SendMessage(args[0], getStringFlag(cmd, "from", false), getStringFlag(cmd, "to", false), getStringFlag(cmd, "text", false), getStringFlag(cmd, "artifact", false))
+	if err != nil {
+		return err
+	}
+	return outputAction(cmd, fmt.Sprintf("Task message %d recorded; coordination text is untrusted context.\n", message.Sequence), message)
 }
 
 func runAgentTaskAvailabilityList(cmd *cobra.Command, _ []string) error {
@@ -1009,8 +1286,13 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 		if task.Worker != nil && task.Worker.PID == identity.PID && task.Worker.StartToken == token {
 			break
 		}
-		if task.Worker != nil && delegation.WorkerMatches(*task.Worker) {
-			return fmt.Errorf("task %s is owned by another live worker", taskID)
+		if task.Worker != nil && task.Worker.StartToken != token {
+			probeCtx, cancel := context.WithTimeout(cmd.Context(), 250*time.Millisecond)
+			probeErr := store.ProbeWorker(probeCtx, taskID)
+			cancel()
+			if probeErr == nil || delegation.WorkerMatches(*task.Worker) {
+				return fmt.Errorf("task %s is owned by another live worker", taskID)
+			}
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("worker identity was not durably assigned to task %s", taskID)
@@ -1019,9 +1301,25 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 	}
 	notifier, err := store.Listen(cmd.Context(), taskID, identity)
 	if err != nil {
-		return err
+		updateErr := store.Update(taskID, "worker_control_unavailable", "Worker control socket could not be initialized: "+err.Error(), func(task *delegation.Task) error {
+			task.Status = delegation.TaskInterventionRequired
+			return nil
+		})
+		if updateErr != nil {
+			return fmt.Errorf("initialize worker control socket: %w (record intervention: %v)", err, updateErr)
+		}
+		return fmt.Errorf("initialize worker control socket: %w", err)
 	}
 	defer notifier.Close() //nolint:errcheck // Worker owns its subscription endpoint.
+	workerCtx, cancelWorker := context.WithCancel(cmd.Context())
+	defer cancelWorker()
+	go func() {
+		select {
+		case <-notifier.CancelRequests():
+			cancelWorker()
+		case <-workerCtx.Done():
+		}
+	}()
 	briefData, err := store.ReadArtifact(taskID, "brief.md")
 	if err != nil {
 		return err
@@ -1099,11 +1397,14 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 		if task.Status == delegation.TaskCancelling || task.Status == delegation.TaskCancelled {
 			return nil
 		}
-		runErr := delegation.RunACPTask(cmd.Context(), delegation.ACPTaskOptions{
+		runErr := delegation.RunACPTask(workerCtx, delegation.ACPTaskOptions{
 			Store: store, TaskID: taskID, Workspace: workspace, Brief: string(briefData),
-			Candidates: candidates, MaxAttempts: snap.MaxAttempts, Policy: policy, WorkerIdentity: identity,
+			Candidates: candidates, MaxAttempts: snap.MaxAttempts, Policy: policy, WorkerIdentity: identity, Trace: snap.Trace,
 			Notifier: notifier,
 		})
+		if errors.Is(workerCtx.Err(), context.Canceled) {
+			return nil
+		}
 		if !errors.Is(runErr, delegation.ErrWaitingAvailability) {
 			return runErr
 		}
@@ -1129,7 +1430,7 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 		}
 		timer := time.NewTimer(wait)
 		select {
-		case <-cmd.Context().Done():
+		case <-workerCtx.Done():
 			timer.Stop()
 			return cmd.Context().Err()
 		case <-timer.C:
@@ -1174,6 +1475,7 @@ func runAgentTaskWait(cmd *cobra.Command, args []string) error {
 	statuses := make([]taskStatusSummary, 0, len(result.Tasks))
 	for _, task := range result.Tasks {
 		statuses = append(statuses, boundedTaskStatus(task))
+		probeTaskStatus(cmd.Context(), store, &statuses[len(statuses)-1])
 	}
 	if err := outputTask(cmd, struct {
 		delegation.WaitSnapshot

@@ -99,8 +99,9 @@ type server struct {
 	// path or declared one this viewer refused; agentLogReason is the refusal's
 	// sentence. Both are set before the server serves, so they are read without a
 	// lock — the sink's own state is guarded inside it.
-	agentTrace     *agentTraceSink
-	agentLogReason string
+	agentTrace         *agentTraceSink
+	agentLogReason     string
+	delegationReadOnly bool
 	// self is this binary's own path, which a configured command may name: a program is
 	// looked for on PATH and then beside the viewer, exactly as the sdt companion is.
 	self string
@@ -232,6 +233,8 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc("/api/wiki/board", s.handleWikiBoard)
 	mux.HandleFunc("/api/events", s.handleEvents)
 	mux.HandleFunc(agentStatePath, s.handleAgentState)
+	mux.HandleFunc("/api/delegation/tasks", s.handleDelegationTasks)
+	mux.HandleFunc("/api/delegation/trace", s.handleDelegationTrace)
 	mux.HandleFunc(agentActivatePath, s.handleAgentActivate)
 	mux.HandleFunc(agentDeactivatePath, s.handleAgentDeactivate)
 	mux.HandleFunc(agentCommandPath, s.handleAgentCommand)

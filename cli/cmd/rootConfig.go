@@ -52,6 +52,7 @@ type DelegationConfig struct {
 	Agents           []DelegationAgentConfig    `json:"agents,omitempty" yaml:"agents,omitempty"`
 	MaxAttempts      int                        `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
 	MaxDuration      string                     `json:"max_duration,omitempty" yaml:"max_duration,omitempty"`
+	Trace            bool                       `json:"trace,omitempty" yaml:"trace,omitempty"`
 	Groups           []DelegationGroupConfig    `json:"groups,omitempty" yaml:"groups,omitempty"`
 	PermissionPolicy []DelegationPermissionRule `json:"permission_policy,omitempty" yaml:"permission_policy,omitempty"`
 }

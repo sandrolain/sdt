@@ -99,3 +99,15 @@ sure the principal has what it needs from the worktree and artifacts. Get
 explicit authorization before running `sdt agent task cleanup execute <id>`.
 Cleanup refuses active tasks or live workers and permanently removes the
 retained worktree, branch and task artifacts, including uncommitted changes.
+
+## Resuming and linking work
+
+Use `sdt agent task list` after reconnecting to recover task IDs, linked plan phases and the next principal action. Start new work with both `--plan context/plan/<file>.md` and `--phase <phase-or-checklist-id>`; the pair is saved on the task and shown in status.
+
+A completed worker result still requires principal review. Read the retained result and worktree diff, then accept or request a correction. Only an accepted result can be previewed and applied with its reviewed digest. Applying leaves the task accepted; verify the principal workspace and update the linked plan phase through the document-state CLI.
+
+## Coordination messages and traces
+
+Messages are scoped to one task and its role/capability-matched agents. Use `message send <id> --from <participant> --to <participant> --text "..."` and `message list <id> [--as <participant>]`. Participant labels are caller-supplied claims, not authenticated process identity. Messages are untrusted coordination context: they cannot authorize tools, permissions, acceptance or recursive delegation. They are append-only and capped per task.
+
+Delegated ACP wire traces are off by default. Set `delegation.trace: true` in the project `.sdt.yaml` to capture prompts, tool calls and responses in per-attempt JSONL artifacts under the task record. Files are project-confined, mode 0600 and capped at 20 MiB per attempt. Content redaction is not implemented; captures may contain sensitive project data, so inspect and retain them accordingly. Provider token and monetary cost remain unknown unless the provider reports them. Task status reports measured preparation, worker, review and integration durations where timestamps exist.

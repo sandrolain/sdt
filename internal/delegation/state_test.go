@@ -74,6 +74,51 @@ func TestPrincipalAcceptanceAndCorrectionAreRecordedSeparately(t *testing.T) {
 	}
 }
 
+func TestResolvePermissionWithPolicyAcceptsCurrentAndInvalidatesStaleRequests(t *testing.T) {
+	newPending := func(t *testing.T, id string) *Store {
+		t.Helper()
+		store := NewStore(t.TempDir())
+		if err := store.Create(Task{ID: id, Role: "reviewer"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Update(id, "attempt_started", "Attempt started", func(task *Task) error {
+			task.Status = TaskRunning
+			task.Attempts = []Attempt{{ID: "attempt-1", Agent: "reviewer", Status: "running"}}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.RecordPermission(id, PermissionRecord{
+			RequestID: "request-1", AttemptID: "attempt-1", Capability: "file-write",
+			Options: []PermissionChoice{{OptionID: "allow", Name: "Allow"}}, PolicyVersion: "policy-v1", Disposition: PermissionPending,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return store
+	}
+
+	accepted := newPending(t, "permission-current")
+	if err := accepted.ResolvePermissionWithPolicy("permission-current", "attempt-1", "request-1", "allow", "principal", "within mandate", "policy-v1", "rule-1", "review approved"); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := accepted.Read("permission-current")
+	if err != nil || resolved.Permissions[0].Disposition != "resolved" || resolved.Permissions[0].Mandate != "review approved" || resolved.Status != TaskRunning {
+		t.Fatalf("current-policy decision = %+v, %v", resolved, err)
+	}
+
+	stale := newPending(t, "permission-stale")
+	if err := stale.ResolvePermissionWithPolicy("permission-stale", "attempt-1", "request-1", "allow", "principal", "obsolete", "policy-v2", "rule-2", "review approved"); err == nil {
+		t.Fatal("accepted a request against a changed policy")
+	}
+	invalidated, err := stale.Read("permission-stale")
+	if err != nil || invalidated.Permissions[0].Disposition != "stale" || invalidated.Permissions[0].PolicyRule != "invalidated; current policy version policy-v2" {
+		t.Fatalf("stale permission was not recorded: %+v, %v", invalidated, err)
+	}
+	if err := stale.ResolvePermissionWithPolicy("permission-stale", "attempt-1", "missing", "allow", "principal", "", "policy-v2", "rule-2"); err == nil {
+		t.Fatal("accepted a request that is not outstanding")
+	}
+}
+
 func TestStoreReconcileRetainsArtifactsAndMarksLostWorker(t *testing.T) {
 	store := NewStore(t.TempDir())
 	if err := store.Create(Task{ID: "task-1", Role: "reviewer"}); err != nil {

@@ -31,7 +31,9 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 | literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
 | what SDT actually did | `sdt gain` | guesswork |
-| start and track delegated agent work | `sdt agent task start --role <role> --brief <goal>` | manual agent handoffs and status polling |
+| start and track delegated agent work | `sdt agent task start --role <role> --brief <goal> --plan <ref> --phase <phase>` | manual agent handoffs and status polling |
+| resume delegated work and recover its next principal action | `sdt agent task list` | manual task-state reconstruction |
+| coordinate participants within one delegated task | `sdt agent task message send|list <task-id>` | untracked agent handoffs |
 | preview and apply accepted delegated changes | `sdt agent task apply preview|execute <task-id>` | manual worktree patch transfer |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
@@ -61,7 +63,7 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
    index (`sdt context reindex`) and lint depend on it. Each per-type
    instruction file specifies the exact frontmatter for that kind.
    *Don't:* hand-write a `context/` file the CLI scaffolds (`sdt context new`).
-7. **Agree consequential choices.** State the design and bounds in the plan.
+7. **Style & architecture agreed a priori.** State the design and bounds in the plan.
    Apply existing conventions autonomously. Ask before changes to expected
    behavior, scope, cost, significant dependencies, persistent data or
    consequences that are difficult to reverse (`development.md`).
