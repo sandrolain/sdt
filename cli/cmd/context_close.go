@@ -68,8 +68,12 @@ Examples:
 			}
 		}
 		if doc.Type.kind == ctxTypePlan {
-			//#nosec G304 -- the document was resolved by the caller
-			if data, readErr := os.ReadFile(doc.Path); readErr == nil {
+			lesson, readErr := closeoutLessonValue(entry, closeoutSlug(doc.Path))
+			exitWithError(cmd, readErr)
+			if closeoutHasReusableLesson(lesson) {
+				//#nosec G304 -- the document was resolved by the caller
+				data, readErr := os.ReadFile(doc.Path)
+				exitWithError(cmd, readErr)
 				outputString(cmd, "self-assessment: "+planSelfAssessmentInvocation(doc.Path, string(data))+"\n")
 			}
 		}
@@ -86,11 +90,10 @@ Examples:
 	},
 }
 
-// planSelfAssessmentInvocation renders the `sdt context new` command that
-// creates the mandatory per-plan self-assessment note (AGENTS.md, *Workflow
-// self-assessment*). It is printed and never run: the note's judgement is
-// authored, and the close only knows the plan's title, slug, objective and
-// agent (answered 2026-11-05).
+// planSelfAssessmentInvocation renders the `sdt context new` command for a
+// self-assessment note when the closeout records a reusable lesson. It is printed
+// and never run: the note's judgement is authored, and the close only knows the
+// plan's title, slug, objective and agent.
 func planSelfAssessmentInvocation(path, content string) string {
 	slug := planSlugFromPath(path)
 	title := frontmatterScalar(content, "title")
@@ -112,6 +115,11 @@ func planSelfAssessmentInvocation(path, content string) string {
 	}
 	args = append(args, "--source plan/"+strings.TrimSuffix(filepath.Base(path), ".md"), "--summary "+strconv.Quote("<one line>"))
 	return strings.Join(args, " ")
+}
+
+func closeoutHasReusableLesson(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return value != "" && !strings.HasPrefix(value, "none") && !strings.HasPrefix(value, "no reusable lesson")
 }
 
 // frontmatterScalar is frontmatterField without the YAML quoting: the frontmatter

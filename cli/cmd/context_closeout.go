@@ -286,6 +286,21 @@ func closeoutCarriedFields(block string) map[string]string {
 	return carried
 }
 
+func closeoutLessonValue(entry, slug string) (string, error) {
+	data, err := os.ReadFile(entry)
+	if err != nil {
+		return "", err
+	}
+	content := string(data)
+	lines := strings.Split(content, "\n")
+	start, end, _ := closeoutFindSection(content, slug)
+	if start < 0 {
+		return "", nil
+	}
+	block := strings.Join(lines[start:end], "\n")
+	return closeoutCarriedFields(block)["Lessons / Do-Not-Repeat candidates"], nil
+}
+
 // closeoutRemainingSlots reports the human fields still carrying their marker in
 // a recorded closeout, so `close` says what a rerun still needs instead of
 // leaving the fill-in lines to be discovered by reading the file.

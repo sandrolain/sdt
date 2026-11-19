@@ -118,17 +118,14 @@ func TestTaskReviewTargetsAnUnsplitPlan(t *testing.T) {
 	}
 }
 
-// TestContextClosePrintsSelfAssessmentInvocation guards the answered gap:
-// closing a plan hands the reader the `context new` command the mandatory
-// self-assessment note needs, and writes nothing itself.
-
-func TestContextClosePrintsSelfAssessmentInvocation(t *testing.T) {
+func TestContextClosePrintsSelfAssessmentOnlyForReusableLesson(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
 	analysis := writeCascadeAnalysis(t, dir, "20260101-000000-a", ctxWikiStatusActive)
 	plan := writeCascadePlan(t, dir, "20260101-000000-a-plan", ctxWikiStatusActive, analysis, true)
 
-	out := string(execute(t, contextCloseCmd, nil, plan))
+	out := string(execute(t, contextCloseCmd, nil, plan,
+		"--lessons", "reusable lesson captured in context/notes/lesson.md"))
 	for _, want := range []string{
 		"self-assessment: sdt context new",
 		"--type notes",
@@ -142,6 +139,25 @@ func TestContextClosePrintsSelfAssessmentInvocation(t *testing.T) {
 	}
 	if entries, err := os.ReadDir(filepath.Join(dir, "context/notes")); err == nil && len(entries) > 0 {
 		t.Errorf("close wrote %d note(s); it must only print the invocation", len(entries))
+	}
+
+	out = string(execute(t, contextCloseCmd, nil, plan))
+	if !strings.Contains(out, "self-assessment: sdt context new") {
+		t.Errorf("a rerun must retain the reusable lesson suggestion:\n%s", out)
+	}
+}
+
+func TestContextCloseOmitsSelfAssessmentWithoutReusableLesson(t *testing.T) {
+	dir := runInTempDir(t)
+	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	analysis := writeCascadeAnalysis(t, dir, "20260101-000000-a", ctxWikiStatusActive)
+	plan := writeCascadePlan(t, dir, "20260101-000000-a-plan", ctxWikiStatusActive, analysis, true)
+
+	for _, args := range [][]string{nil, {"--lessons", "none"}} {
+		out := string(execute(t, contextCloseCmd, nil, append([]string{plan}, args...)...))
+		if strings.Contains(out, "self-assessment:") {
+			t.Errorf("close without a reusable lesson suggested a note:\n%s", out)
+		}
 	}
 }
 
