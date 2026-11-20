@@ -16,7 +16,8 @@ func TestAgentTaskCommandContractAndBoundedStatus(t *testing.T) {
 	for _, path := range [][]string{
 		{"agent", "task", "start"}, {"agent", "task", "status"}, {"agent", "task", "result"}, {"agent", "task", "wait"},
 		{"agent", "task", "cancel"}, {"agent", "task", "resume"},
-		{"agent", "task", "accept"}, {"agent", "task", "correct"},
+		{"agent", "task", "accept"}, {"agent", "task", "correct"}, {"agent", "task", "fail"}, {"agent", "task", "discard"},
+		{"agent", "task", "inbox", "list"},
 		{"agent", "task", "apply", "preview"}, {"agent", "task", "apply", "execute"},
 		{"agent", "task", "cleanup", "preview"}, {"agent", "task", "cleanup", "execute"},
 		{"agent", "task", "permissions", "list"}, {"agent", "task", "permissions", "resolve"},
@@ -25,6 +26,10 @@ func TestAgentTaskCommandContractAndBoundedStatus(t *testing.T) {
 		if _, _, err := rootCmd.Find(path); err != nil {
 			t.Fatalf("command %v not registered: %v", path, err)
 		}
+	}
+	t.Setenv(delegationWorkerEnv, "nested-parent")
+	if err := runAgentTaskStart(nil, nil); err == nil || !strings.Contains(err.Error(), "nested SDT task dispatch is disabled inside delegated task nested-parent") {
+		t.Fatalf("nested task dispatch guard returned %v", err)
 	}
 	now := time.Now().UTC()
 	task := delegation.Task{ID: "bounded", Status: delegation.TaskResultReady, Role: "reviewer", Deadline: now.Add(time.Hour),

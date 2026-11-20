@@ -27,6 +27,7 @@ const (
 	delegationFieldTaskID = "task_id"
 	delegationFieldWorker = "worker"
 	permissionDecisionAsk = "ask"
+	delegationWorkerEnv   = "SDT_DELEGATION_TASK_WORKER"
 )
 
 var agentTaskCmd = &cobra.Command{
@@ -100,11 +101,14 @@ func init() {
 	agentTaskStartCmd.Flags().String("plan", "", "Project-relative plan reference to link")
 	agentTaskStartCmd.Flags().String("phase", "", "Plan phase or checklist id; omit to link the entire plan")
 
-	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskListCmd, agentTaskStatusCmd, agentTaskWaitCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskApplyCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd, agentTaskMessageCmd)
+	agentTaskCmd.AddCommand(agentTaskStartCmd, agentTaskListCmd, agentTaskStatusCmd, agentTaskWaitCmd, agentTaskResultCmd, agentTaskCancelCmd, agentTaskResumeCmd, agentTaskAcceptCmd, agentTaskCorrectCmd, agentTaskFailCmd, agentTaskDiscardCmd, agentTaskInboxCmd, agentTaskApplyCmd, agentTaskCleanupCmd, agentTaskWorkerCmd, agentTaskPermissionsCmd, agentTaskAvailabilityCmd, agentTaskMessageCmd)
 	agentCmd.AddCommand(agentTaskCmd)
 }
 
 func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
+	if taskID := strings.TrimSpace(os.Getenv(delegationWorkerEnv)); taskID != "" {
+		return fmt.Errorf("nested SDT task dispatch is disabled inside delegated task %s", taskID)
+	}
 	start, err := prepareDelegationStart(cmd)
 	if err != nil {
 		return err
@@ -156,6 +160,9 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 			_ = store.Update(taskID, "start_failed", "Task setup failed before a worker was launched: "+runErr.Error(), func(task *delegation.Task) error { task.Status = delegation.TaskInterventionRequired; return nil }) //nolint:errcheck // Preserve the original setup error returned to the caller.
 		}
 	}()
+	if _, err := ensureTaskBroker(root, store); err != nil {
+		return err
+	}
 	workspace, err = prepareTaskWorkspace(cmd.Context(), root, taskID, workspace, existing, selected)
 	if err != nil {
 		return err
@@ -694,10 +701,74 @@ func runAgentTaskCancel(cmd *cobra.Command, args []string) error {
 
 var agentTaskAcceptCmd = &cobra.Command{Use: "accept <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskAccept}
 var agentTaskCorrectCmd = &cobra.Command{Use: "correct <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskCorrect}
+var agentTaskFailCmd = &cobra.Command{Use: "fail <task-id>", Short: "Mark a task failed after confirming worker shutdown", Args: cobra.ExactArgs(1), RunE: runAgentTaskFail}
+var agentTaskDiscardCmd = &cobra.Command{Use: "discard <task-id>", Short: "Discard a delivered result without accepting it", Args: cobra.ExactArgs(1), RunE: runAgentTaskDiscard}
+var agentTaskInboxCmd = &cobra.Command{Use: "inbox", Short: "Read the durable task decision inbox"}
+var agentTaskInboxListCmd = &cobra.Command{Use: "list", Short: "List tasks requiring principal attention", Args: cobra.NoArgs, RunE: runAgentTaskInboxList}
 
 func init() {
+	agentTaskInboxCmd.AddCommand(agentTaskInboxListCmd)
 	agentTaskAcceptCmd.Flags().String("note", "", "Principal acceptance note")
 	agentTaskCorrectCmd.Flags().String("instructions", "", "Correction instructions for a follow-up attempt")
+	agentTaskFailCmd.Flags().String("reason", "", "Required reason for terminal failure")
+	agentTaskDiscardCmd.Flags().String("reason", "", "Required reason for discarding the result")
+}
+
+func runAgentTaskInboxList(cmd *cobra.Command, _ []string) error {
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	items, err := store.Inbox()
+	if err != nil {
+		return err
+	}
+	if getFormat(cmd) == formatText {
+		var out strings.Builder
+		if len(items) == 0 {
+			out.WriteString("No task decisions are pending.\n")
+		}
+		for _, item := range items {
+			fmt.Fprintf(&out, "%s %s — %s (revision %d)\n", item.TaskID, item.Status, strings.Join(item.Kinds, ", "), item.Revision)
+			if len(item.PendingRequestIDs) > 0 {
+				fmt.Fprintf(&out, "  Permission requests: %s\n", strings.Join(item.PendingRequestIDs, ", "))
+			}
+			fmt.Fprintf(&out, "  Next: %s\n", item.NextAction)
+		}
+		outputString(cmd, out.String())
+		return nil
+	}
+	return outputTask(cmd, items)
+}
+
+func runAgentTaskFail(cmd *cobra.Command, args []string) error {
+	reason := strings.TrimSpace(getStringFlag(cmd, "reason", false))
+	if reason == "" {
+		return fmt.Errorf("--reason is required")
+	}
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	if err := store.Fail(args[0], reason); err != nil {
+		return err
+	}
+	return outputAction(cmd, "Task marked failed: "+args[0]+"\n", map[string]string{delegationFieldTaskID: args[0], ctxMapStatus: string(delegation.TaskFailed)})
+}
+
+func runAgentTaskDiscard(cmd *cobra.Command, args []string) error {
+	reason := strings.TrimSpace(getStringFlag(cmd, "reason", false))
+	if reason == "" {
+		return fmt.Errorf("--reason is required")
+	}
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	if err := store.DiscardResult(args[0], reason); err != nil {
+		return err
+	}
+	return outputAction(cmd, "Task result discarded: "+args[0]+"\n", map[string]string{delegationFieldTaskID: args[0], ctxMapStatus: string(delegation.TaskDiscarded)})
 }
 
 func runAgentTaskAccept(cmd *cobra.Command, args []string) error {
@@ -1183,7 +1254,7 @@ func runAgentTaskPermissionResolve(cmd *cobra.Command, args []string) error {
 	if err := store.ResolvePermissionWithPolicy(args[0], request.AttemptID, request.RequestID, option, source, rationale, version, "explicit CLI decision", mandate); err != nil {
 		return err
 	}
-	return outputAction(cmd, "Permission decision recorded; the worker reconciles durable state even if the wake notification is unavailable.\n", map[string]string{"task_id": args[0], "request_id": args[1], "status": "resolved"})
+	return outputAction(cmd, "Permission decision recorded; the worker reconciles durable state even if the wake notification is unavailable.\n", map[string]string{"task_id": args[0], "request_id": args[1], ctxMapStatus: "resolved"})
 }
 
 var agentTaskAvailabilityCmd = &cobra.Command{Use: "availability", Short: "Inspect or reset provider availability exclusions"}
@@ -1289,6 +1360,11 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 	if token == "" {
 		return fmt.Errorf("worker identity token is missing")
 	}
+	workerTaskID := getStringFlag(cmd, "task", false)
+	if err := os.Setenv(delegationWorkerEnv, workerTaskID); err != nil {
+		return fmt.Errorf("mark delegated worker context: %w", err)
+	}
+	defer os.Unsetenv(delegationWorkerEnv) //nolint:errcheck // This is a dedicated worker process.
 	root := getStringFlag(cmd, "project-root", false)
 	taskID := getStringFlag(cmd, "task", false)
 	workspace := getStringFlag(cmd, "workspace", false)
@@ -1366,17 +1442,21 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("initial agent %q is absent from task config snapshot", selected)
 	}
 	defer store.ReleaseCapacity(taskID) //nolint:errcheck
-	policy := func(_ context.Context, capability string) (delegation.PermissionRule, error) {
+	policy := func(_ context.Context, capability, operation, scope string) (delegation.PermissionRule, error) {
 		live := loadProjectConfig(filepath.Join(root, sdtConfigFile))
 		if live == nil {
 			return delegation.PermissionRule{}, fmt.Errorf("current project permission policy is unavailable")
 		}
+		if err := validateDelegationConfig(live.Delegation); err != nil {
+			return delegation.PermissionRule{}, fmt.Errorf("current delegation policy is invalid: %w", err)
+		}
 		seen := map[string]bool{}
 		for _, rule := range live.Delegation.PermissionPolicy {
-			if strings.TrimSpace(rule.Capability) == "" || seen[rule.Capability] {
+			key := strings.Join([]string{rule.Capability, rule.Operation, rule.Scope}, "\x00")
+			if strings.TrimSpace(rule.Capability) == "" || seen[key] {
 				return delegation.PermissionRule{}, fmt.Errorf("current permission policy is invalid")
 			}
-			seen[rule.Capability] = true
+			seen[key] = true
 			switch rule.Decision {
 			case "allow", "deny", permissionDecisionAsk:
 			default:
@@ -1389,12 +1469,28 @@ func runAgentTaskWorker(cmd *cobra.Command, args []string) error {
 		}
 		digest := sha256.Sum256(data)
 		version := hex.EncodeToString(digest[:])
-		for _, rule := range live.Delegation.PermissionPolicy {
-			if rule.Capability == capability {
-				return delegation.PermissionRule{Capability: capability, Decision: rule.Decision, Version: version}, nil
+		task, err := store.Read(taskID)
+		if err != nil {
+			return delegation.PermissionRule{}, err
+		}
+		for i, rule := range live.Delegation.PermissionPolicy {
+			if rule.Capability == capability && rule.Operation == operation && rule.Scope == scope {
+				validFor, err := time.ParseDuration(rule.ValidFor)
+				if err != nil || validFor <= 0 {
+					return delegation.PermissionRule{}, fmt.Errorf("current permission mandate has invalid validity")
+				}
+				expiresAt := task.CreatedAt.Add(validFor)
+				if !task.Deadline.IsZero() && task.Deadline.Before(expiresAt) {
+					expiresAt = task.Deadline
+				}
+				decision := rule.Decision
+				if !expiresAt.After(time.Now()) {
+					decision = permissionDecisionAsk
+				}
+				return delegation.PermissionRule{Capability: capability, Operation: operation, Scope: scope, Decision: decision, Version: version, Mandate: fmt.Sprintf("delegation.permission_policy[%d]", i), ExpiresAt: expiresAt}, nil
 			}
 		}
-		return delegation.PermissionRule{Capability: capability, Decision: "ask", Version: version}, nil
+		return delegation.PermissionRule{Capability: capability, Operation: operation, Scope: scope, Decision: permissionDecisionAsk, Version: version}, nil
 	}
 	candidates := make([]delegation.ACPAgentCandidate, 0, len(snap.Agents))
 	for _, candidate := range snap.Agents {

@@ -5,6 +5,7 @@ package delegation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -99,8 +100,8 @@ func TestAutomaticPermissionRequiresMatchingOnceOptionAndOmitsRawInput(t *testin
 	store, _ := runningTask(t)
 	opts := ACPWorkerOptions{
 		Store: store, TaskID: "task-1", AttemptID: "attempt-1", Agent: "reviewer", Model: "m1",
-		Policy: func(context.Context, string) (PermissionRule, error) {
-			return PermissionRule{Capability: "edit", Decision: "allow", Version: "v1"}, nil
+		Policy: func(_ context.Context, capability, operation, scope string) (PermissionRule, error) {
+			return PermissionRule{Capability: capability, Operation: operation, Scope: scope, Decision: "allow", Version: "v1", Mandate: "test-rule", ExpiresAt: time.Now().Add(time.Hour)}, nil
 		},
 	}
 	request := acpbridge.Permission{
@@ -120,7 +121,7 @@ func TestAutomaticPermissionRequiresMatchingOnceOptionAndOmitsRawInput(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(task.Permissions) != 1 || task.Permissions[0].Disposition != "resolved" || task.Permissions[0].Source != "automatic" || task.Permissions[0].PolicyVersion != "v1" {
+	if len(task.Permissions) != 1 || task.Permissions[0].Disposition != "resolved" || task.Permissions[0].Source != "automatic" || task.Permissions[0].PolicyVersion != "v1" || task.Permissions[0].Operation != "write file" || task.Permissions[0].Mandate == "" || task.Permissions[0].MandateExpiresAt.IsZero() {
 		t.Fatalf("automatic permission decision was not recorded: %+v", task.Permissions)
 	}
 	data, err := os.ReadFile(store.statePath("task-1"))
@@ -136,8 +137,8 @@ func TestAutomaticDenySelectsOnlyRejectOnce(t *testing.T) {
 	store, _ := runningTask(t)
 	opts := ACPWorkerOptions{
 		Store: store, TaskID: "task-1", AttemptID: "attempt-1", Agent: "reviewer",
-		Policy: func(context.Context, string) (PermissionRule, error) {
-			return PermissionRule{Capability: "terminal", Decision: "deny", Version: "v1"}, nil
+		Policy: func(_ context.Context, capability, operation, scope string) (PermissionRule, error) {
+			return PermissionRule{Capability: capability, Operation: operation, Scope: scope, Decision: "deny", Version: "v1", Mandate: "test-rule", ExpiresAt: time.Now().Add(time.Hour)}, nil
 		},
 	}
 	option, err := opts.handlePermission(context.Background(), acpbridge.Permission{
@@ -156,6 +157,25 @@ func TestAutomaticDenySelectsOnlyRejectOnce(t *testing.T) {
 	}
 	if task.Status != TaskRunning || len(task.Permissions) != 1 || task.Permissions[0].OptionID != "reject-once" || task.Permissions[0].Source != "automatic" {
 		t.Fatalf("automatic denial changed task authority or was not recorded: %+v", task)
+	}
+}
+
+func TestExpiredExactMandateEscalatesInsteadOfResolving(t *testing.T) {
+	store, _ := runningTask(t)
+	opts := ACPWorkerOptions{Store: store, TaskID: "task-1", AttemptID: "attempt-1", Agent: "reviewer",
+		Policy: func(_ context.Context, capability, operation, scope string) (PermissionRule, error) {
+			return PermissionRule{Capability: capability, Operation: operation, Scope: scope, Decision: "allow", Version: "v1", Mandate: "expired-rule", ExpiresAt: time.Now().Add(-time.Second)}, nil
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	option, err := opts.handlePermission(ctx, acpbridge.Permission{RequestID: "expired", ToolKind: "edit", Title: "write file", Options: []acpbridge.PermissionOption{{OptionID: "allow", Kind: "allow_once"}}})
+	if option != "" || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expired mandate resolved as %q, %v", option, err)
+	}
+	task, err := store.Read("task-1")
+	if err != nil || len(task.Permissions) != 1 || task.Permissions[0].Disposition != string(TaskCancelled) || task.Permissions[0].Source == "automatic" {
+		t.Fatalf("expired mandate was not retained for principal review: %+v, %v", task.Permissions, err)
 	}
 }
 

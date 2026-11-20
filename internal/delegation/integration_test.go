@@ -10,12 +10,7 @@ import (
 )
 
 func TestApplyAcceptedIntegrationPreviewExecuteAndRepeat(t *testing.T) {
-	store, root, workspace, base := acceptedIntegrationWorkspace(t, "integration-apply")
-	writeTestFile(t, filepath.Join(workspace, "tracked.txt"), "delegate update\n")
-	if err := os.Remove(filepath.Join(workspace, "delete.txt")); err != nil {
-		t.Fatal(err)
-	}
-	writeTestFile(t, filepath.Join(workspace, "new file.txt"), "new delegate file\n")
+	store, root, _, base := acceptedIntegrationWorkspace(t, "integration-apply")
 	writeTestFile(t, filepath.Join(root, "unrelated.txt"), "principal local work\n")
 	gitTest(t, root, "add", "unrelated.txt")
 
@@ -140,7 +135,7 @@ func TestApplyIntegrationRejectsSymlinkChanges(t *testing.T) {
 }
 
 func TestApplyIntegrationNoChangesAndInvalidPreview(t *testing.T) {
-	store, root, _, _ := acceptedIntegrationWorkspace(t, "integration-empty")
+	store, root, _, _ := acceptedIntegrationWorkspaceMode(t, "integration-empty", true)
 	preview, err := store.PreviewIntegration(context.Background(), "integration-empty", root)
 	if err != nil || !preview.NoChanges || preview.Digest == "" {
 		t.Fatalf("empty preview = %+v, %v", preview, err)
@@ -154,6 +149,28 @@ func TestApplyIntegrationNoChangesAndInvalidPreview(t *testing.T) {
 		if _, err := store.ApplyIntegration(context.Background(), test.id, root, test.digest); err == nil {
 			t.Errorf("invalid apply (%q, %q) was accepted", test.id, test.digest)
 		}
+	}
+}
+
+func TestAcceptanceRejectsCandidateChangedAfterEvidence(t *testing.T) {
+	store, _, workspace, _ := acceptedIntegrationWorkspace(t, "integration-stale-evidence")
+	if err := store.Update("integration-stale-evidence", "correction_started", "correction started", func(task *Task) error {
+		task.Status = TaskRunning
+		task.Attempts = append(task.Attempts, Attempt{ID: "attempt-2", Status: "running"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(workspace, "tracked.txt"), "corrected candidate\n")
+	if err := store.RecordCandidateDigest(context.Background(), "integration-stale-evidence", "attempt-2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("integration-stale-evidence", "result_ready", "corrected result awaits review", func(task *Task) error { task.Status = TaskResultReady; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(workspace, "tracked.txt"), "changed after evidence\n")
+	if err := store.AcceptResult("integration-stale-evidence", "reviewed"); err == nil || !strings.Contains(err.Error(), "candidate changed") {
+		t.Fatalf("changed candidate was accepted: %v", err)
 	}
 }
 
@@ -201,12 +218,8 @@ func TestApplyIntegrationRejectsTamperedProvenanceAndDestinationSymlink(t *testi
 	if err := os.Symlink(outside, filepath.Join(root, "linked")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	preview, err := store.PreviewIntegration(context.Background(), "integration-destination-link", root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(preview.Conflicts) == 0 {
-		t.Fatalf("destination symlink was not reported: %+v", preview)
+	if _, err := store.PreviewIntegration(context.Background(), "integration-destination-link", root); err == nil {
+		t.Fatal("changed task candidate was allowed after acceptance")
 	}
 }
 
@@ -316,6 +329,10 @@ func TestRecordIntegrationLockedRejectsStaleTaskAndDifferentReceipt(t *testing.T
 }
 
 func acceptedIntegrationWorkspace(t *testing.T, id string) (*Store, string, string, string) {
+	return acceptedIntegrationWorkspaceMode(t, id, false)
+}
+
+func acceptedIntegrationWorkspaceMode(t *testing.T, id string, empty bool) (*Store, string, string, string) {
 	t.Helper()
 	root := t.TempDir()
 	gitTest(t, root, "init", "-q")
@@ -335,10 +352,21 @@ func acceptedIntegrationWorkspace(t *testing.T, id string) (*Store, string, stri
 	if err := store.RecordWorkspace(id, root, workspace, nil, json.RawMessage(`{}`), json.RawMessage(`{}`)); err != nil {
 		t.Fatal(err)
 	}
+	if !empty {
+		writeTestFile(t, filepath.Join(workspace.Path, "tracked.txt"), "delegate update\n")
+		if err := os.Remove(filepath.Join(workspace.Path, "delete.txt")); err != nil {
+			t.Fatal(err)
+		}
+		writeTestFile(t, filepath.Join(workspace.Path, "new file.txt"), "new delegate file\n")
+	}
 	if err := store.Update(id, "started", "task started", func(task *Task) error {
 		task.Status = TaskRunning
+		task.Attempts = []Attempt{{ID: "attempt-1", Status: "running"}}
 		return nil
 	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordCandidateDigest(context.Background(), id, "attempt-1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Update(id, "result_ready", "result awaits review", func(task *Task) error {

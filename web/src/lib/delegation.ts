@@ -20,7 +20,21 @@ export type DelegatedTask = {
   next_action: string;
 };
 
-export type DelegatedTasksSnapshot = { tasks: DelegatedTask[]; omitted?: number };
+export type DelegationInboxItem = {
+  task_id: string;
+  status: string;
+  revision: number;
+  updated_at: string;
+  kinds: string[];
+  pending_request_ids?: string[];
+  next_action: string;
+};
+
+export type DelegatedTasksSnapshot = {
+  tasks: DelegatedTask[];
+  inbox: DelegationInboxItem[];
+  omitted?: number;
+};
 
 /** A linked task without a phase owns the entire plan. */
 export function planScopeLabel(phase?: string): string {

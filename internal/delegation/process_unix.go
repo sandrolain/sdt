@@ -118,6 +118,25 @@ func WorkerMatches(identity ProcessIdentity) bool {
 	return strings.Contains(string(output), "--sdt-delegation-worker="+identity.StartToken)
 }
 
+// InspectWorker distinguishes a confirmed stale identity from an unavailable process listing.
+func InspectWorker(identity ProcessIdentity) (bool, error) {
+	if identity.PID <= 0 || identity.GroupID != identity.PID || !regexpToken.MatchString(identity.StartToken) {
+		return false, ErrStaleWorker
+	}
+	if err := syscall.Kill(identity.PID, 0); errors.Is(err, syscall.ESRCH) {
+		return false, nil
+	} else if err != nil && !errors.Is(err, syscall.EPERM) {
+		return false, fmt.Errorf("probe worker process %d: %w", identity.PID, err)
+	} else if errors.Is(err, syscall.EPERM) {
+		return false, fmt.Errorf("worker process %d exists but cannot be inspected", identity.PID)
+	}
+	output, err := exec.Command("ps", "-p", strconv.Itoa(identity.PID), "-o", "args=").Output() //#nosec G204 -- Fixed ps executable and flags; PID is formatted from an integer, without a shell.
+	if err != nil {
+		return false, fmt.Errorf("inspect worker process %d: %w", identity.PID, err)
+	}
+	return strings.Contains(string(output), "--sdt-delegation-worker="+identity.StartToken), nil
+}
+
 func SignalWorkerGroup(identity ProcessIdentity, signal syscall.Signal) error {
 	if !WorkerMatches(identity) {
 		return ErrStaleWorker

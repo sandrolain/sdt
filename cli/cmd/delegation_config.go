@@ -107,10 +107,20 @@ func validateDelegationConfig(cfg DelegationConfig) error { //nolint:gocyclo
 		default:
 			return fmt.Errorf("delegation permission rule for %q has invalid decision %q", rule.Capability, rule.Decision)
 		}
-		if _, exists := seenRules[rule.Capability]; exists {
-			return fmt.Errorf("duplicate delegation permission rule for %q", rule.Capability)
+		if rule.Decision != permissionDecisionAsk {
+			if strings.TrimSpace(rule.Operation) == "" || strings.TrimSpace(rule.Scope) == "" {
+				return fmt.Errorf("automatic delegation permission rule for %q requires exact operation and scope", rule.Capability)
+			}
+			validFor, err := time.ParseDuration(rule.ValidFor)
+			if err != nil || validFor <= 0 {
+				return fmt.Errorf("automatic delegation permission rule for %q requires a positive valid_for duration", rule.Capability)
+			}
 		}
-		seenRules[rule.Capability] = struct{}{}
+		key := strings.Join([]string{rule.Capability, rule.Operation, rule.Scope}, "\x00")
+		if _, exists := seenRules[key]; exists {
+			return fmt.Errorf("duplicate delegation permission mandate for capability %q, operation %q, and scope %q", rule.Capability, rule.Operation, rule.Scope)
+		}
+		seenRules[key] = struct{}{}
 	}
 	return nil
 }

@@ -83,6 +83,58 @@ export function DelegationPage() {
       {snapshot === null && !error ? (
         <p className="content__empty">Loading delegated tasks…</p>
       ) : null}
+      {snapshot ? (
+        <section
+          className="delegation-list delegation-inbox"
+          aria-labelledby="delegation-inbox-title"
+        >
+          <div className="delegation-list__header">
+            <h2 id="delegation-inbox-title">Principal inbox</h2>
+            <span>{snapshot.inbox?.length ?? 0}</span>
+          </div>
+          {snapshot.inbox?.length ? (
+            <ul>
+              {snapshot.inbox.map((item) => {
+                const task = snapshot.tasks.find((candidate) => candidate.id === item.task_id);
+                return (
+                  <li key={`${item.task_id}:${item.revision}`}>
+                    <button
+                      type="button"
+                      className="delegation-task"
+                      aria-pressed={selectedTask?.id === item.task_id}
+                      onClick={() => setSelectedTaskID(item.task_id)}
+                    >
+                      <span className="delegation-task__heading">
+                        <span className="delegation-task__role">{task?.role ?? item.task_id}</span>
+                        <span
+                          className={`delegation-task__status delegation-task__status--${statusTone(item.status)}`}
+                        >
+                          <Icon name={statusIcon(item.status)} />
+                          {item.kinds.map(statusLabel).join(" · ")}
+                        </span>
+                      </span>
+                      <span className="delegation-task__meta">
+                        {item.pending_request_ids?.length ? (
+                          <>
+                            <span>
+                              {item.pending_request_ids.length} pending permission request
+                              {item.pending_request_ids.length === 1 ? "" : "s"}
+                            </span>
+                            <span>Requests: {item.pending_request_ids.join(", ")}</span>
+                          </>
+                        ) : null}
+                        <span>{item.next_action} · CLI response</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="delegation-inbox__empty">No task decisions are pending.</p>
+          )}
+        </section>
+      ) : null}
       {snapshot?.tasks.length === 0 ? (
         <p className="content__empty">No delegated tasks are recorded for this project.</p>
       ) : null}
@@ -306,6 +358,8 @@ function statusTone(status: string) {
       return "complete";
     case "failed":
       return "failed";
+    case "discarded":
+      return "neutral";
     default:
       return "neutral";
   }
@@ -330,6 +384,7 @@ function statusIcon(status: string) {
     case "failed":
       return "error";
     case "cancelled":
+    case "discarded":
       return "cancel";
     default:
       return "help";

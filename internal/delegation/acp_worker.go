@@ -16,13 +16,19 @@ import (
 	"github.com/sandrolain/sdt/internal/acpbridge"
 )
 
+const permissionDecisionAsk = "ask"
+
 type PermissionRule struct {
 	Capability string
+	Operation  string
+	Scope      string
 	Decision   string
 	Version    string
+	Mandate    string
+	ExpiresAt  time.Time
 }
 
-type PermissionPolicy func(context.Context, string) (PermissionRule, error)
+type PermissionPolicy func(context.Context, string, string, string) (PermissionRule, error)
 
 type ACPWorkerOptions struct {
 	Store             *Store
@@ -136,6 +142,15 @@ func RunACPAttempt(ctx context.Context, opts ACPWorkerOptions) error { //nolint:
 	if err := atomicWrite(path, []byte(result)); err != nil {
 		return opts.failAttempt("ACP result artifact failed", err)
 	}
+	completedTask, err := opts.Store.Read(opts.TaskID)
+	if err != nil {
+		return err
+	}
+	if completedTask.Source.ProjectRoot != "" {
+		if err := opts.Store.RecordCandidateDigest(ctx, opts.TaskID, opts.AttemptID); err != nil {
+			return opts.failAttempt("candidate evidence binding failed", err)
+		}
+	}
 	if err := opts.update("result_ready", "ACP turn completed; result awaits principal review", func(task *Task) error {
 		if task.Status != TaskRunning {
 			return fmt.Errorf("task is not running")
@@ -224,13 +239,14 @@ func (writer *boundedTraceWriter) Close() error { return writer.file.Close() }
 //nolint:gocognit // Permission persistence, policy and waiting are one audit boundary.
 //nolint:gocyclo
 func (opts ACPWorkerOptions) handlePermission(ctx context.Context, request acpbridge.Permission) (string, error) { //nolint:gocyclo
-	rule := PermissionRule{Capability: request.ToolKind, Decision: "ask"}
+	scope := permissionScope(request)
+	rule := PermissionRule{Capability: request.ToolKind, Operation: request.Title, Scope: scope, Decision: permissionDecisionAsk}
 	if opts.Policy != nil {
-		current, err := opts.Policy(ctx, request.ToolKind)
+		current, err := opts.Policy(ctx, request.ToolKind, request.Title, scope)
 		if err != nil {
 			return "", err
 		}
-		if current.Capability == request.ToolKind && (current.Decision == "allow" || current.Decision == "deny" || current.Decision == "ask") {
+		if current.Capability == request.ToolKind && current.Operation == request.Title && current.Scope == scope && (current.Decision == "allow" || current.Decision == "deny" || current.Decision == permissionDecisionAsk) {
 			rule = current
 		}
 	}
@@ -241,10 +257,14 @@ func (opts ACPWorkerOptions) handlePermission(ctx context.Context, request acpbr
 	base := PermissionRecord{
 		RequestID: request.RequestID, AttemptID: opts.AttemptID, Agent: opts.Agent, Model: opts.Model,
 		ToolCallID: request.ToolCallID, Capability: request.ToolKind,
-		Scope:   strings.TrimSpace(strings.Join([]string{request.ToolKind, request.Title}, ": ")),
+		Scope: scope, Operation: request.Title, Mandate: rule.Mandate, MandateExpiresAt: rule.ExpiresAt,
 		Options: choices, PolicyVersion: rule.Version,
 	}
-	if optionID := policyOption(rule.Decision, choices); optionID != "" {
+	decision := rule.Decision
+	if rule.Mandate == "" || rule.ExpiresAt.IsZero() || !rule.ExpiresAt.After(time.Now()) {
+		decision = permissionDecisionAsk
+	}
+	if optionID := policyOption(decision, choices); optionID != "" {
 		base.Disposition, base.Source, base.PolicyRule, base.OptionID = PermissionResolved, "automatic", rule.Capability+":"+rule.Decision, optionID
 		base.ResolvedAt = time.Now().UTC()
 		if err := opts.Store.RecordPermission(opts.TaskID, base); err != nil {
@@ -314,6 +334,10 @@ func (opts ACPWorkerOptions) handlePermission(ctx context.Context, request acpbr
 		case <-reconcile.C:
 		}
 	}
+}
+
+func permissionScope(request acpbridge.Permission) string {
+	return strings.TrimSpace(strings.Join([]string{request.ToolKind, request.Title}, ": "))
 }
 
 func policyOption(decision string, options []PermissionChoice) string {

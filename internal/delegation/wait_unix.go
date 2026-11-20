@@ -28,7 +28,7 @@ type WaitSnapshot struct {
 
 func waitReason(task Task) (string, bool) {
 	switch task.Status {
-	case TaskAccepted, TaskCompleted, TaskFailed, TaskCancelled:
+	case TaskAccepted, TaskCompleted, TaskFailed, TaskCancelled, TaskDiscarded:
 		return waitTerminal, true
 	case TaskResultReady, TaskInterventionRequired:
 		return string(task.Status), false

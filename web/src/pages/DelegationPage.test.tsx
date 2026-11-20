@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { DelegationPage } from "./DelegationPage";
@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function renderDelegationTask(phase?: string) {
+async function renderDelegationTask(phase?: string, inbox: unknown[] = []) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -27,6 +27,7 @@ async function renderDelegationTask(phase?: string) {
             next_action: "Wait for the result",
           },
         ],
+        inbox,
       }),
     }),
   );
@@ -47,5 +48,24 @@ describe("DelegationPage plan scope", () => {
   it("preserves the linked phase scope", async () => {
     const label = await renderDelegationTask("c2");
     expect(label.parentElement?.querySelector("dd")?.textContent).toContain("c2");
+  });
+
+  it("shows grouped pending decisions and selects the associated task", async () => {
+    await renderDelegationTask(undefined, [
+      {
+        task_id: "task-1",
+        status: "intervention_required",
+        revision: 4,
+        updated_at: "2026-11-19T10:00:00Z",
+        kinds: ["intervention", "permission"],
+        pending_request_ids: ["request-a", "request-b"],
+        next_action: "Review each pending permission and resolve it through the CLI",
+      },
+    ]);
+    expect(screen.getByRole("heading", { name: "Principal inbox" })).toBeTruthy();
+    const item = screen.getByRole("button", { name: /2 pending permission requests/ });
+    fireEvent.click(item);
+    expect(item.getAttribute("aria-pressed")).toBe("true");
+    expect(item.textContent).toContain("request-a, request-b");
   });
 });

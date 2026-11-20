@@ -31,8 +31,9 @@ type delegatedTaskView struct {
 }
 
 type delegatedTasksResponse struct {
-	Tasks   []delegatedTaskView `json:"tasks"`
-	Omitted int                 `json:"omitted,omitempty"`
+	Tasks   []delegatedTaskView    `json:"tasks"`
+	Inbox   []delegation.InboxItem `json:"inbox"`
+	Omitted int                    `json:"omitted,omitempty"`
 }
 
 const maxViewerDelegatedTasks = 100
@@ -51,13 +52,19 @@ func (s *server) handleDelegationTasks(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, errAgentOrigin)
 		return
 	}
-	tasks, err := delegation.NewStore(s.root).List()
+	store := delegation.NewStore(s.root)
+	tasks, err := store.List()
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "delegated task status could not be read")
 		return
 	}
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].CreatedAt.After(tasks[j].CreatedAt) })
-	response := delegatedTasksResponse{Tasks: make([]delegatedTaskView, 0, min(len(tasks), maxViewerDelegatedTasks))}
+	inbox, err := store.Inbox()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "delegated task inbox could not be read")
+		return
+	}
+	response := delegatedTasksResponse{Tasks: make([]delegatedTaskView, 0, min(len(tasks), maxViewerDelegatedTasks)), Inbox: inbox}
 	if len(tasks) > maxViewerDelegatedTasks {
 		response.Omitted = len(tasks) - maxViewerDelegatedTasks
 		tasks = tasks[:maxViewerDelegatedTasks]

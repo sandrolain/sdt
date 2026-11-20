@@ -77,6 +77,9 @@ func (s *Store) PreviewIntegration(ctx context.Context, id, projectRoot string) 
 		SourceWorkspace: workspace, Digest: hex.EncodeToString(digestBytes[:]),
 		Paths: paths, Patch: patch, NoChanges: patch == "",
 	}
+	if task.CandidateDigest != "" && task.CandidateDigest != preview.Digest {
+		return IntegrationPreview{}, fmt.Errorf("task candidate changed after evidence was produced or accepted")
+	}
 	if task.Integration != nil {
 		if task.Integration.Digest != preview.Digest {
 			return IntegrationPreview{}, fmt.Errorf("task worktree changed after its accepted result was integrated")
@@ -105,6 +108,22 @@ func (s *Store) PreviewIntegration(ctx context.Context, id, projectRoot string) 
 	sort.Strings(preview.Conflicts)
 	preview.Conflicts = uniqueStrings(preview.Conflicts)
 	return preview, nil
+}
+
+func (s *Store) candidateDigest(ctx context.Context, task Task) (string, error) {
+	root, workspace, err := validateIntegrationSource(ctx, task, task.Source.ProjectRoot)
+	if err != nil {
+		return "", err
+	}
+	if root == "" || workspace == "" {
+		return "", fmt.Errorf("task candidate source is unavailable")
+	}
+	patch, _, err := snapshotIntegrationPatch(ctx, s, task, workspace)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256([]byte(patch))
+	return hex.EncodeToString(digest[:]), nil
 }
 
 // ApplyIntegration applies only the exact patch hash shown by a previous preview.

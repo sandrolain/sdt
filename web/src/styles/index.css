@@ -2741,6 +2741,14 @@
     overflow-y: auto;
     overscroll-behavior: contain;
   }
+  .delegation-inbox {
+    max-height: min(36vh, 20rem);
+    margin-bottom: 1rem;
+  }
+  .delegation-inbox__empty {
+    padding: 0.75rem 1rem;
+    color: var(--fg-dim);
+  }
   .delegation-list__header {
     position: sticky;
     top: 0;

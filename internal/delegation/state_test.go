@@ -1,6 +1,7 @@
 package delegation
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,24 +43,12 @@ func TestStoreCreateUpdateAndRejectsInvalidIDs(t *testing.T) {
 }
 
 func TestPrincipalAcceptanceAndCorrectionAreRecordedSeparately(t *testing.T) {
-	store := NewStore(t.TempDir())
-	if err := store.Create(Task{ID: "decision-task", Role: "reviewer"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Update("decision-task", "started", "Worker started", func(task *Task) error { task.Status = TaskRunning; return nil }); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Update("decision-task", "result_ready", "Result delivered", func(task *Task) error { task.Status = TaskResultReady; return nil }); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.AcceptResult("decision-task", "Reviewed and accepted"); err != nil {
-		t.Fatal(err)
-	}
+	store, _, _, _ := acceptedIntegrationWorkspace(t, "decision-task")
 	task, err := store.Read("decision-task")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.Status != TaskAccepted || task.PrincipalDecision == nil || task.PrincipalDecision.AcceptedAt.IsZero() {
+	if task.Status != TaskAccepted || task.PrincipalDecision == nil || task.PrincipalDecision.AcceptedAt.IsZero() || task.PrincipalDecision.CandidateDigest == "" {
 		t.Fatalf("acceptance was not recorded: %+v", task)
 	}
 	if err := store.RequestCorrection("decision-task", "Address the missing edge case"); err != nil {
@@ -71,6 +60,52 @@ func TestPrincipalAcceptanceAndCorrectionAreRecordedSeparately(t *testing.T) {
 	}
 	if task.Status != TaskQueued || task.Correction != "Address the missing edge case" || task.PrincipalDecision == nil || task.PrincipalDecision.CorrectedAt.IsZero() || len(task.PrincipalDecisions) != 2 || task.PrincipalDecisions[0].Action != "accepted" {
 		t.Fatalf("correction was not independently recorded: %+v", task)
+	}
+}
+
+func TestPrincipalCanFailInterruptedTaskAndDiscardReadyResult(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: "recover-failed", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("recover-failed", "interrupted", "Worker was lost", func(task *Task) error {
+		task.Status = TaskInterventionRequired
+		task.Attempts = []Attempt{{ID: "attempt-1", Status: "interrupted", Error: "worker exited"}}
+		task.Artifacts = []Artifact{{Name: "partial", Path: "artifacts/partial.md"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Fail("recover-failed", "operator stopped recovery"); err != nil {
+		t.Fatal(err)
+	}
+	failed, err := store.Read("recover-failed")
+	if err != nil || failed.Status != TaskFailed || failed.Attempts[0].Error != "operator stopped recovery" || len(failed.Artifacts) != 1 || failed.Events[len(failed.Events)-1].Type != "principal_failed" {
+		t.Fatalf("failed task did not retain durable evidence: %+v, %v", failed, err)
+	}
+
+	if err := store.Create(Task{ID: "recover-discard", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("recover-discard", "started", "Worker started", func(task *Task) error { task.Status = TaskRunning; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("recover-discard", "result_ready", "Result delivered", func(task *Task) error {
+		task.Status = TaskResultReady
+		task.Artifacts = []Artifact{{Name: "result", Path: "artifacts/result.md"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DiscardResult("recover-discard", "not needed"); err != nil {
+		t.Fatal(err)
+	}
+	discarded, err := store.Read("recover-discard")
+	if err != nil || discarded.Status != TaskDiscarded || discarded.PrincipalDecision == nil || discarded.PrincipalDecision.Action != "discarded" || discarded.PrincipalDecision.DiscardedAt.IsZero() || len(discarded.Artifacts) != 1 {
+		t.Fatalf("discard was not retained: %+v, %v", discarded, err)
+	}
+	if err := store.DiscardResult("recover-discard", "again"); err == nil {
+		t.Fatal("accepted a repeated terminal disposition")
 	}
 }
 
@@ -188,6 +223,70 @@ func TestStoreListAndReconcileCancellationReleaseCapacity(t *testing.T) {
 	}
 	if admitted, err := store.TryAdmit("task-b", map[string]int{"agent": 1}); err != nil || !admitted {
 		t.Fatalf("cancelled task retained its capacity: %v, %v", admitted, err)
+	}
+}
+
+func TestCancelRecoversWhenRecordedWorkerIdentityIsGone(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: "lost-cancel", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("lost-cancel", "cancel_pending", "Cancellation was interrupted", func(task *Task) error {
+		task.Status = TaskCancelling
+		task.Attempts = []Attempt{{ID: "attempt-1", Status: "running", ProcessID: 2147483000, ProcessStart: "0123456789abcdef0123456789abcdef"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Cancel(context.Background(), "lost-cancel"); err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.Read("lost-cancel")
+	if err != nil || task.Status != TaskCancelled || task.Events[len(task.Events)-1].Type != "cancelled" {
+		t.Fatalf("dead recorded worker did not reach cancelled: %+v, %v", task, err)
+	}
+}
+
+func TestInboxGroupsIndependentPermissionsByTask(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: "inbox-permissions", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("inbox-permissions", "started", "Worker started", func(task *Task) error {
+		task.Status = TaskRunning
+		task.Attempts = []Attempt{{ID: "attempt-1", Status: "running"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"permission-a", "permission-b"} {
+		if err := store.RecordPermission("inbox-permissions", PermissionRecord{RequestID: id, AttemptID: "attempt-1", Capability: "file-write", Options: []PermissionChoice{{OptionID: "allow", Name: "Allow"}}, Disposition: PermissionPending}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.Create(Task{ID: "inbox-result", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("inbox-result", "started", "Worker started", func(task *Task) error { task.Status = TaskRunning; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update("inbox-result", "result_ready", "Result is ready", func(task *Task) error { task.Status = TaskResultReady; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	items, err := store.Inbox()
+	if err != nil || len(items) != 2 {
+		t.Fatalf("inbox = %+v, %v", items, err)
+	}
+	byID := map[string]InboxItem{}
+	for _, item := range items {
+		byID[item.TaskID] = item
+	}
+	permission := byID["inbox-permissions"]
+	if permission.Status != TaskInterventionRequired || len(permission.PendingRequestIDs) != 2 || len(permission.Kinds) != 2 || permission.Revision == 0 {
+		t.Fatalf("permission requests were not grouped with task provenance: %+v", permission)
+	}
+	if byID["inbox-result"].Kinds[0] != "result" {
+		t.Fatalf("result action missing from inbox: %+v", byID["inbox-result"])
 	}
 }
 

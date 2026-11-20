@@ -78,7 +78,10 @@ type DelegationGroupConfig struct {
 // DelegationPermissionRule maps a request capability to allow, deny, or ask.
 type DelegationPermissionRule struct {
 	Capability string `json:"capability" yaml:"capability"`
+	Operation  string `json:"operation,omitempty" yaml:"operation,omitempty"`
+	Scope      string `json:"scope,omitempty" yaml:"scope,omitempty"`
 	Decision   string `json:"decision" yaml:"decision"`
+	ValidFor   string `json:"valid_for,omitempty" yaml:"valid_for,omitempty"`
 }
 
 // UsageConfig is the `usage:` block. Enabled is a pointer so that "not

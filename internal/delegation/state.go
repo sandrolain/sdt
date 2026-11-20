@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -40,6 +41,7 @@ const (
 	TaskCompleted            TaskStatus = "completed"
 	TaskFailed               TaskStatus = "failed"
 	TaskCancelled            TaskStatus = "cancelled"
+	TaskDiscarded            TaskStatus = "discarded"
 )
 
 type Task struct {
@@ -64,8 +66,29 @@ type Task struct {
 	PrincipalDecision        *PrincipalDecision  `json:"principal_decision,omitempty"`
 	PrincipalDecisions       []PrincipalDecision `json:"principal_decisions,omitempty"`
 	Integration              *IntegrationReceipt `json:"integration,omitempty"`
+	CandidateDigest          string              `json:"candidate_digest,omitempty"`
 	Worker                   *ProcessIdentity    `json:"worker,omitempty"`
 	Correction               string              `json:"correction,omitempty"`
+}
+
+// InboxItem groups the current actionable state and independent permission requests for one task.
+type InboxItem struct {
+	TaskID            string     `json:"task_id"`
+	Status            TaskStatus `json:"status"`
+	Revision          uint64     `json:"revision"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	Kinds             []string   `json:"kinds"`
+	PendingRequestIDs []string   `json:"pending_request_ids,omitempty"`
+	NextAction        string     `json:"next_action"`
+}
+
+// BrokerState is the restart cursor and process identity for the local observer.
+type BrokerState struct {
+	Worker     *ProcessIdentity  `json:"worker,omitempty"`
+	StartedAt  time.Time         `json:"started_at,omitempty"`
+	ObservedAt time.Time         `json:"observed_at,omitempty"`
+	Attention  int               `json:"attention_count,omitempty"`
+	Revisions  map[string]uint64 `json:"revisions,omitempty"`
 }
 
 type SourceSnapshot struct {
@@ -103,24 +126,26 @@ type Artifact struct {
 }
 
 type PermissionRecord struct {
-	RequestID     string             `json:"request_id"`
-	AttemptID     string             `json:"attempt_id"`
-	Agent         string             `json:"agent"`
-	Model         string             `json:"model"`
-	ToolCallID    string             `json:"tool_call_id"`
-	Capability    string             `json:"capability"`
-	Scope         string             `json:"scope"`
-	Options       []PermissionChoice `json:"options"`
-	CreatedAt     time.Time          `json:"created_at"`
-	ResolvedAt    time.Time          `json:"resolved_at,omitempty"`
-	PolicyVersion string             `json:"policy_version,omitempty"`
-	PolicyRule    string             `json:"policy_rule,omitempty"`
-	Source        string             `json:"source,omitempty"`
-	Rationale     string             `json:"rationale,omitempty"`
-	Mandate       string             `json:"mandate,omitempty"`
-	Escalation    string             `json:"escalation,omitempty"`
-	Disposition   string             `json:"disposition"`
-	OptionID      string             `json:"option_id,omitempty"`
+	RequestID        string             `json:"request_id"`
+	AttemptID        string             `json:"attempt_id"`
+	Agent            string             `json:"agent"`
+	Model            string             `json:"model"`
+	ToolCallID       string             `json:"tool_call_id"`
+	Capability       string             `json:"capability"`
+	Operation        string             `json:"operation,omitempty"`
+	Scope            string             `json:"scope"`
+	Options          []PermissionChoice `json:"options"`
+	CreatedAt        time.Time          `json:"created_at"`
+	ResolvedAt       time.Time          `json:"resolved_at,omitempty"`
+	PolicyVersion    string             `json:"policy_version,omitempty"`
+	MandateExpiresAt time.Time          `json:"mandate_expires_at,omitempty"`
+	PolicyRule       string             `json:"policy_rule,omitempty"`
+	Source           string             `json:"source,omitempty"`
+	Rationale        string             `json:"rationale,omitempty"`
+	Mandate          string             `json:"mandate,omitempty"`
+	Escalation       string             `json:"escalation,omitempty"`
+	Disposition      string             `json:"disposition"`
+	OptionID         string             `json:"option_id,omitempty"`
 }
 
 type PermissionChoice struct {
@@ -137,10 +162,12 @@ type StateEvent struct {
 }
 
 type PrincipalDecision struct {
-	Action      string    `json:"action"`
-	AcceptedAt  time.Time `json:"accepted_at,omitempty"`
-	CorrectedAt time.Time `json:"corrected_at,omitempty"`
-	Note        string    `json:"note,omitempty"`
+	Action          string    `json:"action"`
+	AcceptedAt      time.Time `json:"accepted_at,omitempty"`
+	CorrectedAt     time.Time `json:"corrected_at,omitempty"`
+	DiscardedAt     time.Time `json:"discarded_at,omitempty"`
+	CandidateDigest string    `json:"candidate_digest,omitempty"`
+	Note            string    `json:"note,omitempty"`
 }
 
 type Store struct {
@@ -219,6 +246,85 @@ func (s *Store) List() ([]Task, error) {
 		tasks = append(tasks, task)
 	}
 	return tasks, nil
+}
+
+// Inbox projects durable task state into one current decision item per task.
+func (s *Store) Inbox() ([]InboxItem, error) {
+	tasks, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+	items := make([]InboxItem, 0)
+	for _, task := range tasks {
+		item := InboxItem{TaskID: task.ID, Status: task.Status, Revision: task.Revision, UpdatedAt: task.UpdatedAt}
+		switch task.Status {
+		case TaskInterventionRequired:
+			item.Kinds = append(item.Kinds, "intervention")
+		case TaskResultReady:
+			item.Kinds = append(item.Kinds, "result")
+		case TaskCancelling:
+			item.Kinds = append(item.Kinds, "cancellation")
+		}
+		for _, permission := range task.Permissions {
+			if permission.Disposition == PermissionPending {
+				item.PendingRequestIDs = append(item.PendingRequestIDs, permission.RequestID)
+			}
+		}
+		if len(item.PendingRequestIDs) > 0 {
+			item.Kinds = append(item.Kinds, "permission")
+		}
+		if len(item.Kinds) == 0 {
+			continue
+		}
+		item.NextAction = inboxNextAction(task.Status, len(item.PendingRequestIDs))
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].UpdatedAt.After(items[j].UpdatedAt) })
+	return items, nil
+}
+
+func (s *Store) ReadBrokerState() (BrokerState, error) {
+	data, err := os.ReadFile(filepath.Join(s.root, "broker.json"))
+	if os.IsNotExist(err) {
+		return BrokerState{}, nil
+	}
+	if err != nil {
+		return BrokerState{}, err
+	}
+	var state BrokerState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return BrokerState{}, fmt.Errorf("decode broker state: %w", err)
+	}
+	return state, nil
+}
+
+func (s *Store) WriteBrokerState(state BrokerState) error {
+	return s.WithLock("broker", func() error {
+		if err := os.MkdirAll(s.root, 0o700); err != nil {
+			return err
+		}
+		data, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		return atomicWrite(filepath.Join(s.root, "broker.json"), data)
+	})
+}
+
+func inboxNextAction(status TaskStatus, permissions int) string {
+	if permissions > 0 {
+		return "Review each pending permission and resolve it through the CLI"
+	}
+	switch status {
+	case TaskInterventionRequired:
+		return "Inspect retained evidence, then resume, fail, or cancel the task"
+	case TaskResultReady:
+		return "Review the result, then accept, correct, discard, or fail the task"
+	case TaskCancelling:
+		return "Retry cancellation or mark failed after confirmed worker shutdown"
+	default:
+		return "Inspect the task"
+	}
 }
 
 // Reconcile marks a running task that has lost its exact worker identity as
@@ -320,7 +426,7 @@ func (s *Store) Cancel(ctx context.Context, id string) error {
 		return err
 	}
 	switch task.Status {
-	case TaskCompleted, TaskFailed, TaskCancelled, TaskResultReady, TaskAccepted:
+	case TaskCompleted, TaskFailed, TaskCancelled, TaskDiscarded, TaskResultReady, TaskAccepted:
 		return fmt.Errorf("task %q is not cancellable in state %q", id, task.Status)
 	}
 	if task.Status != TaskCancelling {
@@ -353,49 +459,58 @@ func (s *Store) Cancel(ctx context.Context, id string) error {
 }
 
 func (s *Store) stopTaskWorker(ctx context.Context, id string, task Task) error {
-	var identity *ProcessIdentity
+	if task.Status == TaskInterventionRequired && task.Worker == nil && !hasAttemptProcessIdentity(task.Attempts) {
+		return nil
+	}
+	identity := taskWorkerIdentity(task)
+	if task.Worker == nil && len(task.Attempts) == 0 {
+		return nil
+	}
+	graceCtx, cancelGrace := context.WithTimeout(ctx, 5*time.Second)
+	requestErr := s.RequestWorkerCancel(graceCtx, id)
+	if requestErr != nil {
+		cancelGrace()
+		if identity == nil {
+			return fmt.Errorf("cannot confirm worker %q stopped: control socket unavailable and process identity cannot be verified", id)
+		}
+		return stopKnownTaskWorker(ctx, *identity)
+	}
+	err := s.WaitWorkerClosed(graceCtx, id)
+	cancelGrace()
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, context.DeadlineExceeded) || identity == nil {
+		return fmt.Errorf("waiting for worker shutdown: %w", err)
+	}
+	return stopKnownTaskWorker(ctx, *identity)
+}
+
+func taskWorkerIdentity(task Task) *ProcessIdentity {
 	if task.Worker != nil {
 		copy := *task.Worker
-		identity = &copy
-	} else if len(task.Attempts) > 0 {
+		return &copy
+	}
+	if len(task.Attempts) > 0 {
 		last := task.Attempts[len(task.Attempts)-1]
 		if last.ProcessID > 0 && regexpToken.MatchString(last.ProcessStart) {
-			identity = &ProcessIdentity{PID: last.ProcessID, GroupID: last.ProcessID, StartToken: last.ProcessStart}
-		}
-	}
-	if task.Worker != nil || len(task.Attempts) > 0 {
-		graceCtx, cancelGrace := context.WithTimeout(ctx, 5*time.Second)
-		requestErr := s.RequestWorkerCancel(graceCtx, id)
-		if requestErr == nil {
-			if err := s.WaitWorkerClosed(graceCtx, id); err != nil {
-				if !errors.Is(err, context.DeadlineExceeded) || identity == nil || !WorkerMatches(*identity) {
-					cancelGrace()
-					return fmt.Errorf("waiting for worker shutdown: %w", err)
-				}
-				cancelGrace()
-				killCtx, cancelKill := context.WithTimeout(ctx, 5*time.Second)
-				err = StopWorkerGroup(killCtx, *identity)
-				cancelKill()
-				if err != nil {
-					return err
-				}
-			} else {
-				cancelGrace()
-			}
-		} else if identity != nil && WorkerMatches(*identity) {
-			cancelGrace()
-			stopCtx, cancelStop := context.WithTimeout(ctx, 5*time.Second)
-			if err := StopWorkerGroup(stopCtx, *identity); err != nil {
-				cancelStop()
-				return err
-			}
-			cancelStop()
-		} else {
-			cancelGrace()
-			return fmt.Errorf("cannot confirm worker %q stopped: control socket unavailable and process identity cannot be verified", id)
+			return &ProcessIdentity{PID: last.ProcessID, GroupID: last.ProcessID, StartToken: last.ProcessStart}
 		}
 	}
 	return nil
+}
+
+func stopKnownTaskWorker(ctx context.Context, identity ProcessIdentity) error {
+	alive, err := InspectWorker(identity)
+	if err != nil {
+		return fmt.Errorf("worker shutdown remains uncertain: %w", err)
+	}
+	if !alive {
+		return nil
+	}
+	stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return StopWorkerGroup(stopCtx, identity)
 }
 
 // SetWorker records the task-owned process group even before its first ACP attempt,
@@ -449,12 +564,127 @@ func (s *Store) Update(id, eventType, summary string, mutate func(*Task) error) 
 }
 
 func (s *Store) AcceptResult(id, note string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	task, err := s.Read(id)
+	if err != nil {
+		return err
+	}
+	if task.CandidateDigest == "" {
+		return fmt.Errorf("task result has no candidate digest; rerun the task to produce verifiable evidence")
+	}
+	currentDigest, err := s.candidateDigest(ctx, task)
+	if err != nil {
+		return err
+	}
+	if currentDigest != task.CandidateDigest {
+		return fmt.Errorf("task candidate changed after evidence was produced; request a correction or rerun")
+	}
 	return s.Update(id, "principal_accepted", "Principal accepted the retained result", func(task *Task) error {
 		if task.Status != TaskResultReady {
 			return fmt.Errorf("task result is not awaiting acceptance")
 		}
 		task.Status = TaskAccepted
-		decision := PrincipalDecision{Action: PrincipalDecisionAccepted, AcceptedAt: time.Now().UTC(), Note: note}
+		decision := PrincipalDecision{Action: PrincipalDecisionAccepted, AcceptedAt: time.Now().UTC(), Note: note, CandidateDigest: task.CandidateDigest}
+		task.PrincipalDecision = &decision
+		task.PrincipalDecisions = append(task.PrincipalDecisions, decision)
+		return nil
+	})
+}
+
+// RecordCandidateDigest binds the completed attempt's worktree to its retained evidence.
+func (s *Store) RecordCandidateDigest(ctx context.Context, id, attemptID string) error {
+	task, err := s.Read(id)
+	if err != nil {
+		return err
+	}
+	if task.Status != TaskRunning || len(task.Attempts) == 0 || task.Attempts[len(task.Attempts)-1].ID != attemptID {
+		return fmt.Errorf("candidate evidence belongs to a stale or non-running attempt")
+	}
+	digest, err := s.candidateDigest(ctx, task)
+	if err != nil {
+		return err
+	}
+	return s.Update(id, "candidate_evidence_bound", "Completed attempt evidence bound to candidate digest "+digest, func(task *Task) error {
+		if task.Status != TaskRunning || len(task.Attempts) == 0 || task.Attempts[len(task.Attempts)-1].ID != attemptID {
+			return fmt.Errorf("candidate evidence belongs to a stale attempt")
+		}
+		task.CandidateDigest = digest
+		return nil
+	})
+}
+
+// Fail records an operator-declared terminal failure while retaining all task evidence.
+func (s *Store) Fail(id, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return fmt.Errorf("failure reason is required")
+	}
+	task, err := s.Read(id)
+	if err != nil {
+		return err
+	}
+	needsStop := task.Status == TaskQueued || task.Status == TaskRunning || task.Status == TaskCancelling
+	if (task.Status == TaskInterventionRequired || task.Status == TaskResultReady || task.Status == TaskAccepted) && (task.Worker != nil || hasAttemptProcessIdentity(task.Attempts)) {
+		needsStop = true
+	}
+	if needsStop {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := s.stopTaskWorker(stopCtx, id, task); err != nil {
+			return fmt.Errorf("cannot mark task failed until worker shutdown is confirmed: %w", err)
+		}
+	}
+	return s.Update(id, "principal_failed", "Principal marked task failed: "+reason, func(task *Task) error {
+		switch task.Status {
+		case TaskQueued, TaskRunning, TaskCancelling, TaskInterventionRequired, TaskResultReady, TaskAccepted:
+		default:
+			return fmt.Errorf("task %q cannot be marked failed from %q", id, task.Status)
+		}
+		task.Status = TaskFailed
+		if len(task.Attempts) > 0 {
+			last := &task.Attempts[len(task.Attempts)-1]
+			last.Status, last.FinishedAt, last.Error = string(TaskFailed), time.Now().UTC(), reason
+		}
+		return nil
+	})
+}
+
+func hasAttemptProcessIdentity(attempts []Attempt) bool {
+	for _, attempt := range attempts {
+		if attempt.ProcessID > 0 && regexpToken.MatchString(attempt.ProcessStart) {
+			return true
+		}
+	}
+	return false
+}
+
+// DiscardResult closes a delivered result without accepting or integrating it.
+func (s *Store) DiscardResult(id, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return fmt.Errorf("discard reason is required")
+	}
+	task, err := s.Read(id)
+	if err != nil {
+		return err
+	}
+	if task.Status != TaskResultReady {
+		return fmt.Errorf("task %q has no result awaiting disposition from %q", id, task.Status)
+	}
+	if task.Worker != nil || hasAttemptProcessIdentity(task.Attempts) {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := s.stopTaskWorker(ctx, id, task); err != nil {
+			return fmt.Errorf("cannot discard result until worker shutdown is confirmed: %w", err)
+		}
+	}
+	return s.Update(id, "result_discarded", "Principal discarded result: "+reason, func(task *Task) error {
+		if task.Status != TaskResultReady {
+			return fmt.Errorf("task %q has no result awaiting disposition from %q", id, task.Status)
+		}
+		task.Status = TaskDiscarded
+		decision := PrincipalDecision{Action: "discarded", Note: reason, DiscardedAt: time.Now().UTC()}
 		task.PrincipalDecision = &decision
 		task.PrincipalDecisions = append(task.PrincipalDecisions, decision)
 		return nil
@@ -708,17 +938,17 @@ func validTaskTransition(from, to TaskStatus) bool {
 	}
 	switch from {
 	case TaskQueued:
-		return to == TaskRunning || to == TaskCancelling || to == TaskCancelled || to == TaskInterventionRequired
+		return to == TaskRunning || to == TaskCancelling || to == TaskCancelled || to == TaskInterventionRequired || to == TaskFailed
 	case TaskRunning:
 		return to == TaskQueued || to == TaskCancelling || to == TaskCancelled || to == TaskInterventionRequired || to == TaskResultReady || to == TaskFailed
 	case TaskCancelling:
-		return to == TaskCancelled
+		return to == TaskCancelled || to == TaskFailed
 	case TaskInterventionRequired:
 		return to == TaskQueued || to == TaskRunning || to == TaskCancelling || to == TaskCancelled || to == TaskFailed
 	case TaskResultReady:
-		return to == TaskAccepted || to == TaskQueued
+		return to == TaskAccepted || to == TaskQueued || to == TaskFailed || to == TaskCancelled || to == TaskDiscarded
 	case TaskAccepted:
-		return to == TaskCompleted || to == TaskRunning || to == TaskQueued
+		return to == TaskCompleted || to == TaskRunning || to == TaskQueued || to == TaskFailed || to == TaskCancelled
 	default:
 		return false
 	}

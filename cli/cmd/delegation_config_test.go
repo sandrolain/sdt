@@ -42,6 +42,9 @@ func TestValidateDelegationConfig(t *testing.T) {
 		{"permission decisions are closed", func(c *DelegationConfig) {
 			c.PermissionPolicy = []DelegationPermissionRule{{Capability: "shell", Decision: "maybe"}}
 		}, "invalid decision"},
+		{"automatic permission rules require exact scope and expiry", func(c *DelegationConfig) {
+			c.PermissionPolicy = []DelegationPermissionRule{{Capability: "shell", Decision: "allow"}}
+		}, "requires exact operation and scope"},
 		{"cooldowns are positive durations", func(c *DelegationConfig) { c.Agents[0].Cooldown = "0s" }, "cooldown"},
 	}
 	for _, tt := range tests {
