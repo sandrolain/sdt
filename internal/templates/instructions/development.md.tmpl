@@ -19,13 +19,12 @@ planning or writing any non-trivial code.
 - Record the agreed conventions back into the AGENTS.md project block
   (`Conventions` / `Stack`) once stable, and keep them in sync.
 
-## Every ambiguity is decided by the user
+## Delegate routine choices; escalate consequential ones
 
-- Any non-trivial choice — style, architecture, dependency, naming, data model,
-  API shape, error handling, logging, build tooling — defaults to the user.
-- Ask on the fly; if it needs tracking, register an open question in
-  `context/questions/`. Never pick a "reasonable default" for anything that
-  shapes the project.
+Resolve implementation details within the plan and repository conventions. Ask
+before changing behavior or scope, adding meaningful cost or dependencies,
+changing persistent data, or making hard-to-reverse choices. Record decisions
+that affect future maintenance.
 
 ## Library-first development
 

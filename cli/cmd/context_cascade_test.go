@@ -29,6 +29,10 @@ title: a
 status: `+status+`
 updated: `+cascadeFixedTime+`
 ---
+
+## Objectives
+
+- [x] O1 deliver the declared outcome
 `)
 	return rel
 }
@@ -259,6 +263,39 @@ func TestCascadeAnalysisObjectivesBlockCompletion(t *testing.T) {
 	}
 }
 
+func TestCascadeKeepsAnalysisOpenAcrossAnIncompleteSecondWave(t *testing.T) {
+	dir, analysis := completedAnalysisTree(t, "- [x] O1 shipped by wave one\n- [ ] O2 still owed to wave two\n")
+	secondPlan := writeCascadePlan(t, dir, "20260102-000000-a-wave-two", ctxWikiStatusActive, analysis, false)
+	writeCascadeTask(t, dir, "20260102-000000-a-wave-two-phase-1", taskFileStatusPending, secondPlan, " ")
+
+	changes, err := cascadeUp(normalizeContextRef(analysis), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 0 {
+		t.Fatalf("an incomplete second wave must keep the analysis open, got %+v", changes)
+	}
+	if got := frontmatterField(mustReadFile(t, filepath.Join(dir, analysis)), ctxMapStatus); got != ctxWikiStatusActive {
+		t.Fatalf("analysis status = %q, want active", got)
+	}
+}
+
+func TestAnalysisUnfinishedObjectivesCountsDecisionAlias(t *testing.T) {
+	content := `## Objectives
+
+- [x] P1 complete
+- [x] P2 complete
+- [x] P3 complete
+- [ ] P6 deferred reader check for decision P3a
+- [x] P4 complete
+- [x] P5 complete
+`
+	if got := analysisUnfinishedObjectives(content); got != 1 {
+		objectives, declared := parseAnalysisObjectives(content)
+		t.Fatalf("unfinished objectives = %d, want 1 for P6 (declared=%t, objectives=%+v)", got, declared, objectives)
+	}
+}
+
 // TestCascadeAnalysisObjectivesCompleteStillCloses pins the other direction: the
 // gate refuses a completion the checklist denies, it does not refuse every
 // completion. An analysis whose plans are done and whose objectives are all
@@ -278,11 +315,9 @@ func TestCascadeAnalysisObjectivesCompleteStillCloses(t *testing.T) {
 	}
 }
 
-// TestCascadeAnalysisObjectivesAbsentIsUnchanged guards backward compatibility
-// and the boundary of the gate: only the `## Objectives` checklist is read, so
-// an analysis without the section — and one carrying an unticked checklist
-// somewhere else — derives from its plans alone.
-func TestCascadeAnalysisObjectivesAbsentIsUnchanged(t *testing.T) {
+// TestCascadeAnalysisObjectivesAbsentDoesNotClose ensures missing objective
+// declarations cannot imply completion for an implementation analysis.
+func TestCascadeAnalysisObjectivesAbsentDoesNotClose(t *testing.T) {
 	dir, analysis := completedAnalysisTree(t, "- [ ] O1 declared but this is not the section\n")
 	// Move the checklist out of `## Objectives`: it is a note, not objectives.
 	path := filepath.Join(dir, analysis)
@@ -293,22 +328,21 @@ func TestCascadeAnalysisObjectivesAbsentIsUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(changes) != 1 || changes[0].To != taskFileStatusCompleted {
-		t.Fatalf("an analysis without `## Objectives` derives from its plans, got %+v", changes)
+	if len(changes) != 0 {
+		t.Fatalf("an analysis without `## Objectives` must remain open, got %+v", changes)
 	}
 }
 
-// TestCascadeAnalysisObjectivesMalformedIsIgnored keeps the gate from becoming a
-// new failure mode: a checklist line whose id is not leading declares no
-// objective, so it cannot block a derivation.
-func TestCascadeAnalysisObjectivesMalformedIsIgnored(t *testing.T) {
+// TestCascadeAnalysisObjectivesMalformedDoesNotClose ensures a malformed
+// checklist is not mistaken for a declared implementation outcome.
+func TestCascadeAnalysisObjectivesMalformedDoesNotClose(t *testing.T) {
 	_, analysis := completedAnalysisTree(t, "- [ ] see O1 for details\n- [ ] no id at all\n")
 
 	changes, err := cascadeUp(normalizeContextRef(analysis), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(changes) != 1 || changes[0].To != taskFileStatusCompleted {
-		t.Fatalf("a non-declaring checklist must not block, got %+v", changes)
+	if len(changes) != 0 {
+		t.Fatalf("a non-declaring checklist must keep the analysis open, got %+v", changes)
 	}
 }

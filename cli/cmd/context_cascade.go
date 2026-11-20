@@ -292,12 +292,12 @@ func (s *cascadeStore) deriveAnalysisStatus(n *cascadeNode) string {
 }
 
 // analysisUnfinishedObjectives counts the unticked items of an analysis'
-// `## Objectives` checklist, and reports 0 when the analysis declares none —
-// the section is optional, so its absence may never block a derivation.
+// `## Objectives` checklist. An implementation analysis without a declared
+// objective remains unfinished rather than deriving completion from its plans.
 func analysisUnfinishedObjectives(content string) int {
 	objectives, ok := parseAnalysisObjectives(content)
 	if !ok {
-		return 0
+		return 1
 	}
 	unfinished := 0
 	for _, o := range objectives {

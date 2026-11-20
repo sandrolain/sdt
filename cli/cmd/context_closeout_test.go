@@ -77,6 +77,9 @@ func TestContextCloseRecordsCloseoutFromTheLedger(t *testing.T) {
 		"CONFIRMED — phase 1 ran the suite",
 		"sdt agent gate` passed on 2026-01-02",
 		"- **Files affected**: _",
+		"- **Acceptance**: _accepted / pending / not required, with evidence or reason_",
+		"- **Remaining scope**:",
+		"not available — the linked analysis has no declared objectives",
 		"- **Lessons / Do-Not-Repeat candidates**: _",
 		"- **Signal review**: _",
 		"- **Deviations / blockers**: _",
@@ -229,6 +232,7 @@ func TestContextCloseFillsTheAuthoredSlotsFromFlags(t *testing.T) {
 		"--decisions", "flags on close, no second verb",
 		"--lessons", "none",
 		"--signal", "routed: closeout-slots-are-filled-by-the-close",
+		"--acceptance", "not required: no subjective acceptance criterion",
 		"--deviations", "none"))
 	if !strings.Contains(out, "closeout slots to fill: none") {
 		t.Errorf("close still reports slots to fill:\n%s", out)
@@ -260,7 +264,7 @@ func TestContextCloseRerunKeepsTheFlagValues(t *testing.T) {
 	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
 	rel := closeoutPlanFixture(t, dir)
 
-	execute(t, contextCloseCmd, nil, rel, "--decisions", "kept across a rerun")
+	execute(t, contextCloseCmd, nil, rel, "--decisions", "kept across a rerun", "--acceptance", "accepted: approved in review")
 	execute(t, contextCloseCmd, nil, rel)
 
 	entries, err := dirFiles(sdtWorklogDir)
@@ -270,5 +274,8 @@ func TestContextCloseRerunKeepsTheFlagValues(t *testing.T) {
 	content := mustReadFile(t, entries[0])
 	if !strings.Contains(content, "- **Decisions**: kept across a rerun") {
 		t.Errorf("rerun reset the authored field:\n%s", content)
+	}
+	if !strings.Contains(content, "- **Acceptance**: accepted: approved in review") {
+		t.Errorf("rerun reset acceptance:\n%s", content)
 	}
 }

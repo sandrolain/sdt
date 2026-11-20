@@ -31,7 +31,7 @@ Closing a plan also writes its crystallized closeout in the worklog directory: t
 checklist states, the ` + "`## Review`" + ` verdicts (findings included) and the gate result
 are generated from the ledger, while the fields only the author knows can be
 recorded in the same invocation with ` + "`--files`" + `, ` + "`--decisions`" + `, ` + "`--lessons`" + `,
-` + "`--signal`" + ` and ` + "`--deviations`" + `, so the worklog needs no hand edit. A field left
+` + "`--signal`" + `, ` + "`--deviations`" + ` and ` + "`--acceptance`" + `, so the worklog needs no hand edit. Remaining scope is derived from the analysis objectives. A field left
 out keeps its marker; a rerun regenerates the derived part and keeps what the
 author wrote.
 

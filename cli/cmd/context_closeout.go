@@ -33,12 +33,14 @@ type closeoutItem struct {
 
 // closeoutFacts is the part of a closeout the ledger can answer.
 type closeoutFacts struct {
-	PlanRef  string // corpus-relative plan path
-	TaskRef  string // corpus-relative task path, empty for an unsplit plan
-	Slug     string // identity in the heading
-	Items    []closeoutItem
-	Verdicts []string
-	Gate     string
+	PlanRef        string // corpus-relative plan path
+	TaskRef        string // corpus-relative task path, empty for an unsplit plan
+	Slug           string // identity in the heading
+	Items          []closeoutItem
+	Verdicts       []string
+	Gate           string
+	Remaining      []analysisObjective
+	RemainingKnown bool
 }
 
 // closeoutParseLedger reads the checklist, the `## Review` verdicts and the
@@ -151,6 +153,7 @@ var closeoutHumanFields = []struct {
 	Marker string
 }{
 	{"Files affected", "files", "fill with the paths touched by the delivery"},
+	{"Acceptance", "acceptance", "accepted / pending / not required, with evidence or reason"},
 	{"Decisions", "decisions", "small local ones here; an architectural one becomes a decision record, linked"},
 	{"Lessons / Do-Not-Repeat candidates", "lessons", "→ the `context/notes/` lessons note, linked"},
 	{"Signal review", "signal", "routed capture per *Signal review*, or `none`"},
@@ -201,6 +204,16 @@ func closeoutFactsRender(f closeoutFacts, date string, carried map[string]string
 	open := len(f.Items) - done
 	if open > 0 {
 		fmt.Fprintf(&b, "  - **open**: %d item(s) not done in the ledger — see the plan\n", open)
+	}
+	b.WriteString("- **Remaining scope**:\n")
+	if !f.RemainingKnown {
+		b.WriteString("  - _not available — the linked analysis has no declared objectives_\n")
+	} else if len(f.Remaining) == 0 {
+		b.WriteString("  - none — no open declared analysis objectives\n")
+	} else {
+		for _, objective := range f.Remaining {
+			fmt.Fprintf(&b, "  - %s %s\n", objective.ID, objective.Text)
+		}
 	}
 
 	for _, fld := range closeoutHumanFields {
@@ -358,6 +371,7 @@ func closeoutWrite(doc ctxResolvedDoc, fields map[string]string) (string, error)
 	}
 	facts.PlanRef = closeoutRef(planPath)
 	facts.Slug = closeoutSlug(planPath)
+	facts.Remaining, facts.RemainingKnown = closeoutRemainingObjectives(planPath)
 	var taskFacts closeoutFacts
 	if taskPath != "" {
 		taskFacts, err = closeoutParseLedger(taskPath)
@@ -421,6 +435,47 @@ func closeoutWrite(doc ctxResolvedDoc, fields map[string]string) (string, error)
 	}
 	closeoutTouch(entry)
 	return entry, nil
+}
+
+// closeoutRemainingObjectives derives initiative scope from the plan's typed
+// analysis parent. Only unchecked declared objectives are reported.
+func closeoutRemainingObjectives(planPath string) ([]analysisObjective, bool) {
+	//#nosec G304 -- corpus document resolved by the caller
+	data, err := os.ReadFile(planPath)
+	if err != nil {
+		return nil, false
+	}
+	analysisID := parseFrontmatterField(string(data), ctxKeyAnalysisID)
+	files, err := ctxUIDFiles()
+	if err != nil {
+		return nil, false
+	}
+	analysisPath := ""
+	for _, path := range files {
+		if filepath.Dir(path) == sdtAnalysisDir && ctxDocUID(path) == analysisID {
+			analysisPath = path
+			break
+		}
+	}
+	if analysisPath == "" {
+		return nil, false
+	}
+	//#nosec G304 -- typed parent resolved from the plan
+	analysis, err := os.ReadFile(analysisPath)
+	if err != nil {
+		return nil, false
+	}
+	objectives, declared := parseAnalysisObjectives(string(analysis))
+	if !declared {
+		return nil, false
+	}
+	var remaining []analysisObjective
+	for _, objective := range objectives {
+		if !objective.Done {
+			remaining = append(remaining, objective)
+		}
+	}
+	return remaining, true
 }
 
 // closeoutPlanRef reads the plan a task file belongs to from its `links`.

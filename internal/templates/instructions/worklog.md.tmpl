@@ -107,6 +107,8 @@ task file, and only then.
   - [x] <item> — **passed** (ran and verified) | **expected** (written, not run) | **inferred** (static analysis only)
 - **Files affected**: <paths touched>
 - **Review verdicts**: <per finding: CONFIRMED / DISPROVED / UNVERIFIED / DISCREPANT — mirrors the ledger's `## Review` block>
+- **Acceptance**: supplied with `--acceptance` as accepted / pending / not required, plus its evidence or reason
+- **Remaining scope**: generated from unchecked objectives in the linked analysis; `none` only when all declared outcomes are ticked
 - **Decisions**: <small local ones; architectural → decision record, linked>
 - **Lessons / Do-Not-Repeat candidates**: <→ the `context/notes/` lessons note, linked>
 - **Signal review**: <routed capture per *Signal review* below, or `none`>

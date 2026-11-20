@@ -61,10 +61,12 @@ keep a wave set navigable:
 
 ## Bounded change (short path)
 
-A change confined to **one file, one decision**, reversible and adding no public
-surface may run as a single plan without an analysis: this document carries the
-intent in one line, a 1-3 item checklist and the closeout, and it closes like any
-other plan. A change that misses one condition takes the full chain (AGENTS.md).
+A change with a known outcome, limited impact and easy reversal may use a compact
+plan without a separate analysis, even when it touches several files (for example,
+a predictable multi-file rename). A single file is not sufficient by itself: an
+uncertain migration needs analysis before implementation. So do consequential
+behavior, persistent data, significant dependencies or hard-to-reverse effects.
+The compact plan carries the intent, a 1-3 item checklist and the closeout.
 
 ## Workflow (plan → execution)
 

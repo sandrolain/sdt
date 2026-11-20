@@ -30,9 +30,10 @@ user decides the analysis is closed (see `sdt context close`).
 
 A new objective outside an existing analysis/plan starts here: create the
 analysis, then continue plan → execution inside that objective — AGENTS.md (HARD
-RULE 1) states the chain and the few stops it keeps. A **bounded change** — one
-file, one decision, reversible, no new public surface — does not start here: its
-plan carries the intent (`plan.md`).
+RULE 1) states the chain and the few stops it keeps. A **bounded change** may
+skip analysis when its outcome is clear, impact is limited and it is easy to
+reverse; file count is only one signal. Its plan carries the intent (`plan.md`).
+Start with analysis when evidence, uncertainty or consequences need investigation.
 
 Before writing an analysis, **type it**: determine and record its `categories`
 (the work type, from the register below) and state the expected outcome —
@@ -86,7 +87,7 @@ session: <session id>        # optional
 ## Options considered      # optional: only when there is a real trade-off
 ### Option A: <name>
 ### Option B: <name>
-## Objectives              # optional: one checklist item per outcome this analysis must deliver
+## Objectives              # required when this analysis feeds an implementation plan
 - [ ] <id> <outcome>       # id is the identity (e.g. O1, B3); the anchor <!-- c1 --> is CLI-assigned
 ## Plans                   # optional: ordered wave plans derived from this analysis (R2)
 ## Postponed from         # status: postponed only: origin option + why not now + revival condition
@@ -131,7 +132,7 @@ session: <session id>        # optional
   postponed) — R3.
 - **Postponed from** — `status: postponed` analyses only: the origin option, the
   reason it was not chosen now, and the condition that would revive it (R3).
-- **Objectives** (optional) — the **checklist** of outcomes this analysis must
+- **Objectives** — when this analysis feeds an implementation plan, declare the **checklist** of outcomes it must
   deliver, one item each: `- [ ] <id> <outcome>`. The `<id>` is the identity a
   derived plan phase claims with `**Covers:** <id>`; it is authored text (a
   leading uppercase letter plus digits, e.g. `O1`, `B3`), while the
@@ -140,9 +141,9 @@ session: <session id>        # optional
   checklist and nothing else, so a `**B1.**` sentence or a `| B1 |` table cell
   elsewhere in the corpus is never mistaken for a declaration. Ticking an item
   records that the outcome is delivered.
-  The section is **optional and graceful**: an analysis without it is valid, and
-  the coverage check skips it in both directions rather than reporting a gap.
-  When it is present, the check reports a plan phase covering an undeclared id
+  An analysis with no implementation plan may omit it. An implementation analysis
+  without declared objectives cannot be closed by objective-based cascade.
+  The check reports a plan phase covering an undeclared id
   (WARNING), a declared id no derived plan phase covers (SUGGESTION), and a
   **status that disagrees with the checklist** (SUGGESTION, both ways — ticked
   while `active`, or `completed` with items unticked). The second is not proof of
@@ -179,15 +180,14 @@ session: <session id>        # optional
   `instructions/diagram.md` when the project has it; without it the fence reads
   as text and the prose carries the structure.
   `sdt context edit --fence mermaid` writes one.
-- **R1 — split a too-broad analysis into siblings, but only after asking.**
+- **R1 — split independent decisions into sibling analyses within the authorized scope.**
   Split when **any** of: it would carry more than one `## Options considered`
   group belonging to different domains; it would need more than one conclusion;
   its sources span unrelated subjects; it would exceed what one agent session can
-  hold while writing. Then **ask the user in a single
-  question**, proposing the concrete split (file list + slugs + the shared
-  `objective` + which sibling is the umbrella), and never create the sibling set
-  unasked. When the intent is already covered by an active analysis, integrate in
-  place (HARD RULE 1) and do not ask. **Sibling discipline**: distinct slugs and
+  hold while writing. Split when this preserves the requested scope; ask only if
+  decomposition changes scope or requires a consequential choice. When the intent
+  is already covered by an active analysis, integrate in place (HARD RULE 1).
+  **Sibling discipline**: distinct slugs and
   summaries (the near-duplicate lint flags careless ones), each sibling links to
   the umbrella, and the umbrella lists them in a `## Sibling analyses` section.
   `sdt context lint` raises a SUGGESTION past 12 sections or 6 options — the ask

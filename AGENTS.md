@@ -394,7 +394,7 @@ cd web && bun run lint && bun run fmt:check    # oxlint + oxfmt
   subcommand or flag the binary lacks, and `TestToolboxSkillTableMatchesRows`
   keeps the `sdt-toolbox` skill's copy identical. A new verb adds its row in
   the same commit, so the table is never ahead of the binary.
-- **The always-loaded ceiling is 2,420 words**, and the number is owned twice:
+- **The always-loaded ceiling is 2,440 words**, and the number is owned twice:
   `context/instructions/authoring.md` and the pin in
   `cli/cmd/instructions_budget_test.go`. Changing one without the other fails
   `TestInstructionBudgetCoversEveryModule`.

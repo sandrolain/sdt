@@ -69,3 +69,52 @@ func TestCloseoutRemainingSlotsNamesTheMarkers(t *testing.T) {
 		}
 	}
 }
+
+func TestCloseoutDerivesRemainingAnalysisObjectives(t *testing.T) {
+	dir := setupContextProject(t)
+	planRef := closeoutPlanFixture(t, dir)
+	analysisRef := "context/analysis/20260101-000000-parent.md"
+	analysisUID := cascadeUIDFor(analysisRef)
+	writeTestFile(t, filepath.Join(dir, analysisRef), `---
+kind: analysis
+uid: `+analysisUID+`
+summary: initiative outcomes
+status: active
+---
+
+## Objectives
+
+- [ ] O1 remaining outcome
+- [x] O2 delivered outcome
+`)
+	planPath := filepath.Join(dir, planRef)
+	plan := strings.Replace(mustReadFile(t, planPath), "status: active", "status: active\nanalysis_id: "+analysisUID, 1)
+	writeTestFile(t, planPath, plan)
+
+	remaining, known := closeoutRemainingObjectives(planPath)
+	if !known || len(remaining) != 1 || remaining[0].ID != "O1" || remaining[0].Text != "remaining outcome" {
+		t.Fatalf("remaining objectives = %+v, known=%t", remaining, known)
+	}
+}
+
+func TestCloseoutKeepsPartialVerificationVisible(t *testing.T) {
+	rendered := closeoutFactsRender(closeoutFacts{
+		Slug:    "partial-wave",
+		PlanRef: "plan/partial.md",
+		Items:   []closeoutItem{{Text: "implemented migration", Done: true}},
+		Verdicts: []string{
+			"- **Phase 1 — UNVERIFIED.** migration behavior not exercised",
+		},
+		Gate: "2026-01-02 (sdt agent gate) — failed at integration check",
+	}, "2026-01-02", map[string]string{"Acceptance": "pending: integration check remains"})
+	for _, want := range []string{
+		"implemented migration — **expected**",
+		"UNVERIFIED.** migration behavior not exercised",
+		"failed at integration check",
+		"Acceptance**: pending: integration check remains",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("partial closeout lost %q:\n%s", want, rendered)
+		}
+	}
+}
