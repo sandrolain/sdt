@@ -35,6 +35,8 @@ WHEN — the body of an existing document must change and the new text is in han
 
 WHEN NOT — a frontmatter key changes: use sdt context set <doc> <key> <value>.
 A whole new document is created: use sdt context new.
+Pass --expected-revision with the full SHA-256 from
+` + "`sdt sha256 --file <path> --hex`" + ` to refuse a stale write.
 
 RETURNS — the unified diff between the document as it is and as it would be,
 then the write. --dry-run prints the diff and writes nothing. When the new text
@@ -72,6 +74,11 @@ EXAMPLE — sdt context edit plan/x --section wave-2 --file wave-2.md
 // only ever writes the body: lifecycle state stays owned by the CLI.
 func runContextEdit(cmd *cobra.Command, args []string) {
 	doc, err := resolveContextDoc(cmd, args)
+	if err != nil {
+		exitWithError(cmd, err)
+		return
+	}
+	expectedRevision, err := contextExpectedRevision(cmd)
 	if err != nil {
 		exitWithError(cmd, err)
 		return
@@ -157,24 +164,26 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 	newContent := finalizeDocWrite(cmd, doc, "", fm+newBody)
 	diff := unifiedDiff(doc.Path, doc.Path, strings.Split(content, "\n"), strings.Split(newContent, "\n"), 3)
 	dryRun := getBoolFlag(cmd, "dry-run", false)
-	outputContextEdit(cmd, contextEditResult{
+	result := contextEditResult{
 		Path:    doc.Path,
 		Section: getStringFlag(cmd, "section", false),
 		Changed: true,
 		DryRun:  dryRun,
 		Diff:    diff,
-	})
+	}
 	if dryRun {
+		outputContextEdit(cmd, result)
 		if reportDryRunReferences(cmd, doc.Path, fm, newBody) {
 			exit(1)
 			return
 		}
 		return
 	}
-	if err := writeContextDocFile(doc.Path, newContent); err != nil {
-		exitWithError(cmd, err)
+	if err := guardedContextDocWrite(doc.Path, data, newContent, expectedRevision); err != nil {
+		exitWithContextMutationError(cmd, err)
 		return
 	}
+	outputContextEdit(cmd, result)
 }
 
 // validateContextEditInput enforces the body-source and selector rules before
@@ -430,6 +439,7 @@ func splitATXHeading(line string) (int, string, bool) {
 
 func init() {
 	addContextStatusRefFlags(contextEditCmd)
+	addContextExpectedRevisionFlag(contextEditCmd)
 	contextEditCmd.Flags().String("section", "", "Edit only this section (its stable id or its heading)")
 	contextEditCmd.Flags().String("row", "", "Replace the table row whose first cell is this literal")
 	contextEditCmd.Flags().String("fence", "", "Replace the fenced block by 1-based index or by its opening info string")

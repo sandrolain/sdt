@@ -400,6 +400,7 @@ func init() {
 	contextTaskProgressCmd.Flags().String("stream", "", "Split-file label (kebab-case)")
 
 	contextCloseCmd.Flags().Bool("allow-unfinished", false, "Close despite unfinished children/tasks (requires --reason)")
+	addContextExpectedRevisionFlag(contextCloseCmd)
 	contextCloseCmd.Flags().String("reason", "", "Why the document is closed early (required with --allow-unfinished)")
 	for _, fld := range closeoutHumanFields {
 		contextCloseCmd.Flags().String(fld.Flag, "", fld.Label+" recorded in the closeout")

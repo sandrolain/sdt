@@ -250,6 +250,8 @@ selector: they are alternatives, not refinements.
 
 Pass exactly one ` + "`--state`" + `: done, wip, block or pending. ` + "`--state block`" + ` takes an
 ` + "`--reason`" + `. The document's ` + "`updated`" + ` is refreshed when its kind requires it.
+Pass --expected-revision with the full SHA-256 from ` + "`sdt sha256 --file <path> --hex`" + `
+to refuse a stale write.
 The per-state booleans (` + "`--done`" + `, ` + "`--wip`" + `, ` + "`--block`" + `, ` + "`--pending`" + `) still work but are
 deprecated: they name a value where a flag should name a field.
 
@@ -265,6 +267,11 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		doc, err := resolveContextDocPath(args[0])
 		exitWithError(cmd, err)
+		expectedRevision, err := contextExpectedRevision(cmd)
+		exitWithError(cmd, err)
+		if err != nil {
+			return
+		}
 		//#nosec G304 -- user work file
 		data, err := os.ReadFile(doc.Path)
 		exitWithError(cmd, err)
@@ -326,8 +333,9 @@ Examples:
 			}
 		}
 		//#nosec G306 -- user work file
-		if err := os.WriteFile(doc.Path, []byte(updated), 0o644); err != nil {
-			exitWithError(cmd, err)
+		if err := guardedContextDocWrite(doc.Path, data, updated, expectedRevision); err != nil {
+			exitWithContextMutationError(cmd, err)
+			return
 		}
 		if len(args) == 2 {
 			item, _ := resolveChecklistItem(updated, args[1])
@@ -367,6 +375,7 @@ func addProvenanceFlags(c *cobra.Command) {
 }
 
 func init() {
+	addContextExpectedRevisionFlag(contextCheckCmd)
 	contextCheckCmd.Flags().String("state", "", "New state of the selected item(s): done|wip|block|pending")
 	contextCheckCmd.Flags().Bool(taskStatusDone, false, "Mark the item done (deprecated: --state done)")
 	contextCheckCmd.Flags().Bool(taskStatusWip, false, "Mark the item in progress (deprecated: --state wip)")

@@ -364,7 +364,7 @@ func applyDerivedStatus(n *cascadeNode, status string) error {
 	if !changed {
 		return fmt.Errorf("no status field written to %s (missing frontmatter)", n.path)
 	}
-	if err := writeWorkFile(n.path, content); err != nil {
+	if err := guardedContextDocWrite(n.path, []byte(n.content), content, ""); err != nil {
 		return err
 	}
 	n.content = content
@@ -558,7 +558,7 @@ func cascadeAfterWrite(cmd *cobra.Command, path string) []cascadeChange {
 		return nil
 	}
 	changes, err := cascadeUp(path, true)
-	exitWithError(cmd, err)
+	exitWithContextMutationError(cmd, err)
 	outputCascadeChanges(cmd, changes)
 	return changes
 }

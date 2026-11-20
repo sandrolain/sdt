@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -49,7 +50,8 @@ Examples:
   sdt context set plan/<plan-file> status active
   sdt context set analysis/x.md categories '[new-feature, research]'
   sdt context set notes/x.md tags cli --append
-  sdt context set analysis/x.md summary "a quoted: value" --raw`,
+  sdt context set analysis/x.md summary "a quoted: value" --raw
+  sdt context set analysis/x.md summary updated --expected-revision <sha256>`,
 	Args: cobra.ExactArgs(3),
 	Run:  runContextSet,
 }
@@ -62,13 +64,19 @@ other byte. Removing an absent key is a no-op. uid, analysis_id and plan_id are
 refused without --force.
 
 Examples:
-  sdt context unset analysis/x.md categories`,
+  sdt context unset analysis/x.md categories
+  sdt context unset analysis/x.md categories --expected-revision <sha256>`,
 	Args: cobra.ExactArgs(2),
 	Run:  runContextUnset,
 }
 
 func runContextSet(cmd *cobra.Command, args []string) {
 	doc, err := resolveContextDoc(cmd, args[:1])
+	if err != nil {
+		exitWithError(cmd, err)
+		return
+	}
+	expectedRevision, err := contextExpectedRevision(cmd)
 	if err != nil {
 		exitWithError(cmd, err)
 		return
@@ -110,8 +118,8 @@ func runContextSet(cmd *cobra.Command, args []string) {
 
 	doc0 := block.ReplaceBody(content, newYAML)
 	doc0 = finalizeDocWrite(cmd, doc, key, doc0)
-	if err := writeContextDocFile(doc.Path, doc0); err != nil {
-		exitWithError(cmd, err)
+	if err := guardedContextDocWrite(doc.Path, data, doc0, expectedRevision); err != nil {
+		exitWithContextMutationError(cmd, err)
 		return
 	}
 	outputString(cmd, fmt.Sprintf("%s: %s\n", key, rendered))
@@ -175,6 +183,11 @@ func runContextUnset(cmd *cobra.Command, args []string) {
 		exitWithError(cmd, err)
 		return
 	}
+	expectedRevision, err := contextExpectedRevision(cmd)
+	if err != nil {
+		exitWithError(cmd, err)
+		return
+	}
 	key := args[1]
 	if err := checkSetKey(cmd, key); err != nil {
 		exitWithError(cmd, err)
@@ -202,8 +215,8 @@ func runContextUnset(cmd *cobra.Command, args []string) {
 		return
 	}
 	doc0 := finalizeDocWrite(cmd, doc, key, block.ReplaceBody(content, newYAML))
-	if err := writeContextDocFile(doc.Path, doc0); err != nil {
-		exitWithError(cmd, err)
+	if err := guardedContextDocWrite(doc.Path, data, doc0, expectedRevision); err != nil {
+		exitWithContextMutationError(cmd, err)
 		return
 	}
 	outputString(cmd, fmt.Sprintf("removed %s\n", key))
@@ -410,10 +423,23 @@ func removeListItem(items []string, needle string) []string {
 
 func writeContextDocFile(path, content string) error {
 	mode := os.FileMode(0o644)
-	if fi, err := os.Stat(path); err == nil {
-		mode = fi.Mode().Perm()
+	target := path
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		target = resolved
+	} else if !os.IsNotExist(err) {
+		return err
+	} else if info, lerr := os.Lstat(path); lerr == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s is a dangling symlink", path)
 	}
-	if err := os.WriteFile(path, []byte(content), mode); err != nil { //#nosec G306 G703 -- preserves the file's own mode
+	if fi, err := os.Stat(target); err == nil {
+		if !fi.Mode().IsRegular() {
+			return fmt.Errorf("%s is not a regular file", path)
+		}
+		mode = fi.Mode().Perm()
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := writeFileAtomic(target, []byte(content), mode); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
@@ -421,11 +447,13 @@ func writeContextDocFile(path, content string) error {
 
 func init() {
 	addContextStatusRefFlags(contextSetCmd)
+	addContextExpectedRevisionFlag(contextSetCmd)
 	contextSetCmd.Flags().Bool("raw", false, "Force the value to be written as a string")
 	contextSetCmd.Flags().Bool("append", false, "Append the value to a list key")
 	contextSetCmd.Flags().Bool("remove", false, "Remove the value from a list key")
 	contextSetCmd.Flags().Bool("force", false, "Write a CLI-owned key (uid, analysis_id, plan_id)")
 	addContextStatusRefFlags(contextUnsetCmd)
+	addContextExpectedRevisionFlag(contextUnsetCmd)
 	contextUnsetCmd.Flags().Bool("force", false, "Remove a CLI-owned key (uid, analysis_id, plan_id)")
 	addProvenanceFlags(contextSetCmd)
 	addProvenanceFlags(contextUnsetCmd)

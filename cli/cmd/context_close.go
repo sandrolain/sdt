@@ -34,6 +34,8 @@ recorded in the same invocation with ` + "`--files`" + `, ` + "`--decisions`" + 
 ` + "`--signal`" + ` and ` + "`--deviations`" + `, so the worklog needs no hand edit. A field left
 out keeps its marker; a rerun regenerates the derived part and keeps what the
 author wrote.
+Pass --expected-revision with the full SHA-256 from
+` + "`sdt sha256 --file <path> --hex`" + ` to refuse a stale close.
 
 Supported kinds: tasks, plan, analysis.
 
@@ -48,7 +50,7 @@ Examples:
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		doc, err := resolveContextDoc(cmd, args)
-		exitWithError(cmd, err)
+		exitWithContextMutationError(cmd, err)
 		allow := getBoolFlag(cmd, "allow-unfinished", false)
 		reason := strings.TrimSpace(getStringFlag(cmd, "reason", false))
 		entry, err := closeDocument(cmd, doc, allow, reason, closeoutFieldFlags(cmd))
@@ -167,6 +169,10 @@ func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason st
 	if err != nil {
 		return "", err
 	}
+	expectedRevision, err := contextExpectedRevision(cmd)
+	if err != nil {
+		return "", err
+	}
 	content := string(data)
 	if allow {
 		content = appendCloseNote(content, reason)
@@ -178,8 +184,7 @@ func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason st
 		}
 	}
 	content = stampProvenance(content, cmd)
-	//#nosec G306 G703 -- path resolved from the corpus, not from user input
-	if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+	if err := guardedContextDocWrite(doc.Path, data, content, expectedRevision); err != nil {
 		return "", err
 	}
 	entry, err := closeoutWrite(doc, closeout)

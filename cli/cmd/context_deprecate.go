@@ -145,7 +145,10 @@ EXAMPLE — ` + "`sdt context deprecate analysis/20260101-000000-old --by analys
 			patches = append(patches, frontmatterPatch{key: ctxFrontmatterSupersededBy, value: byRef})
 		}
 		previous, err := ctxApplyFrontmatter(cmd, doc, patches)
-		exitWithError(cmd, err)
+		exitWithContextMutationError(cmd, err)
+		if err != nil {
+			return
+		}
 		if previous != "" {
 			res.From = previous
 		}
@@ -156,6 +159,7 @@ EXAMPLE — ` + "`sdt context deprecate analysis/20260101-000000-old --by analys
 
 func init() {
 	f := contextDeprecateCmd.Flags()
+	addContextExpectedRevisionFlag(contextDeprecateCmd)
 	f.String("by", "", "Reference of the document that supersedes this one")
 	f.Bool("dry-run", false, "Report the transition without writing it")
 	addContextStatusRefFlags(contextDeprecateCmd)
