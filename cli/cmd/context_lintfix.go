@@ -168,7 +168,7 @@ func lintFixDoc(path string, includeTerminal bool) ([]string, error) {
 		return nil, nil
 	}
 	//#nosec G306 G703 -- corpus document, 0644 like the rest
-	if err := os.WriteFile(path, []byte(front+body), 0o644); err != nil {
+	if err := writeContextDocFile(path, data, front+body); err != nil {
 		return nil, err
 	}
 	return changes, nil

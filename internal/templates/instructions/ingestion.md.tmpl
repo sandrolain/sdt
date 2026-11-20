@@ -106,7 +106,7 @@ are always skipped.
    archive plan**; **wait for approval**.
 10. On approval: archive processed sources with `sdt context ingest archive
     <source>` (hash check, destination collision guard and a
-    `<basename>.source.yaml` sidecar), append a `worklog/` entry, run
+    `<complete-filename>.meta.yaml` companion), append a `worklog/` entry, run
     `sdt context reindex`. `--force` is only for a source whose run is
     dispositioned but has no converted artifact.
 

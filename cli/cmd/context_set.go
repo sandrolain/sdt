@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -419,30 +418,6 @@ func removeListItem(items []string, needle string) []string {
 		}
 	}
 	return out
-}
-
-func writeContextDocFile(path, content string) error {
-	mode := os.FileMode(0o644)
-	target := path
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		target = resolved
-	} else if !os.IsNotExist(err) {
-		return err
-	} else if info, lerr := os.Lstat(path); lerr == nil && info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%s is a dangling symlink", path)
-	}
-	if fi, err := os.Stat(target); err == nil {
-		if !fi.Mode().IsRegular() {
-			return fmt.Errorf("%s is not a regular file", path)
-		}
-		mode = fi.Mode().Perm()
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	if err := writeFileAtomic(target, []byte(content), mode); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
 }
 
 func init() {

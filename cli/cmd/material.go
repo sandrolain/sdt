@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/metacomp"
 )
 
 // The material lane is a study artefact, not a corpus record: its authoring source
@@ -123,8 +124,9 @@ func init() {
 // ── resolution ─────────────────────────────────────────────────────────────────
 
 type materialFile struct {
-	Path   string
-	Header materialHeader
+	Path     string
+	Header   materialHeader
+	Metadata metacomp.Document
 }
 
 func materialBaseDir() string {
@@ -179,7 +181,15 @@ func loadMaterialFiles() ([]materialFile, error) {
 		first, _, _ := strings.Cut(string(data), "\n")
 		header, headerErr := parseMaterialHeader(first)
 		if headerErr == nil {
-			files = append(files, materialFile{Path: path, Header: header})
+			metadata, found, metadataErr := readMaterialMetadata(path, header)
+			if metadataErr != nil {
+				_ = root.Close() //nolint:errcheck // return the metadata error
+				return nil, fmt.Errorf("material %s: %w", filepath.ToSlash(path), metadataErr)
+			}
+			if !found {
+				metadata = nil
+			}
+			files = append(files, materialFile{Path: path, Header: header, Metadata: metadata})
 		}
 	}
 	if err := root.Close(); err != nil {

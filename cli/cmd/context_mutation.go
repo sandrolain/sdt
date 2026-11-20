@@ -90,7 +90,11 @@ func guardedContextDocWrite(path string, original []byte, proposed, expectedRevi
 		if err := validateContextDocumentSchema(proposed); err != nil {
 			return fmt.Errorf("%s: proposed content: %w", path, err)
 		}
-		return writeContextDocFile(path, proposed)
+		revision := baseRevision
+		if expectedRevision != "" {
+			revision = expectedRevision
+		}
+		return writeContextDocFileAtRevision(path, revision, proposed)
 	})
 }
 
@@ -115,18 +119,6 @@ func contextDocumentLockPath(path string) (string, error) {
 	}
 	sum := sha256.Sum256([]byte(filepath.Clean(target)))
 	return filepath.Join(lockDir, hex.EncodeToString(sum[:])+".lock"), nil
-}
-
-func contextProjectRoot(path string) (string, error) {
-	for dir := filepath.Dir(path); ; dir = filepath.Dir(dir) {
-		if filepath.Base(dir) == sdtWorkDir {
-			return filepath.Dir(dir), nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("%s is not under %s/", path, sdtWorkDir)
-		}
-	}
 }
 
 func validateContextDocumentSchema(content string) error {

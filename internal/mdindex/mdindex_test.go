@@ -106,6 +106,7 @@ func TestScanNamesMaterialsWithoutFrontmatter(t *testing.T) {
 	writeDoc(t, root, "context/renders/materials/s/four-key-metrics.it.md",
 		"<!-- material: concept=wiki/architecture/four-key-metrics; syllabus=s; lang=it -->\n\n# Quattro metriche — guida\n\nbody\n")
 	writeDoc(t, root, "context/renders/materials/s/four-key-metrics.it.ledger.json", "{}\n")
+	writeDoc(t, root, "context/renders/materials/s/four-key-metrics.it.md.meta.yaml", "schema_version: \"1.0\"\n")
 
 	res, err := Scan(root, nil)
 	if err != nil {
@@ -120,6 +121,9 @@ func TestScanNamesMaterialsWithoutFrontmatter(t *testing.T) {
 	}
 	if _, indexed := res.Manifest.Entries["context/renders/materials/s/four-key-metrics.it.ledger.json"]; indexed {
 		t.Error("the ledger sidecar must not be indexed")
+	}
+	if _, indexed := res.Manifest.Entries["context/renders/materials/s/four-key-metrics.it.md.meta.yaml"]; indexed {
+		t.Error("the metadata companion must not be indexed")
 	}
 }
 

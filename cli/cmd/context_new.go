@@ -601,10 +601,13 @@ Examples:
 		}
 
 		status := statusCreated
+		var existing []byte
 		if _, err := os.Stat(path); err == nil {
 			if !force {
 				exitWithError(cmd, fmt.Errorf("%s already exists (use --force to overwrite)", path))
 			}
+			existing, err = os.ReadFile(path) //#nosec G304 -- path resolved under context/
+			exitWithError(cmd, err)
 			status = statusUpdated
 		} else if !os.IsNotExist(err) {
 			exitWithError(cmd, err)
@@ -618,13 +621,14 @@ Examples:
 			content, _ = stampChecklistIDs(content)
 		}
 
-		dir, _ := filepath.Split(path)
-		if err := os.MkdirAll(dir, 0o750); err != nil { //#nosec G301 -- user work dir
-			exitWithError(cmd, err)
+		var writeErr error
+		if status == statusUpdated {
+			writeErr = writeContextDocFile(path, existing, content)
+		} else {
+			writeErr = createContextDocFile(path, content)
 		}
-		//#nosec G306 -- user work file
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			exitWithError(cmd, err)
+		if writeErr != nil {
+			exitWithError(cmd, writeErr)
 		}
 		if relParentPath != "" {
 			if err := linkChildToParent(relParentPath, relChildUID, ctxChildrenField(ctxParentKind(typ))); err != nil {

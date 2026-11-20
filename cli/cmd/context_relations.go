@@ -274,7 +274,7 @@ func linkChildToParent(parentPath, childUID, field string) error {
 	if !changed {
 		return nil
 	}
-	return writeWorkFile(parentPath, updated)
+	return writeWorkFile(parentPath, data, updated)
 }
 
 // stampChildParent injects the typed parent scalar on a child document content
@@ -457,12 +457,12 @@ func runRelationsBackfill(dryRun bool) (ctxRelationsBackfillResult, error) {
 			continue
 		}
 		if act.childChanged {
-			if werr := writeWorkFile(act.path, act.childContent); werr != nil {
+			if werr := writeWorkFile(act.path, act.childOriginal, act.childContent); werr != nil {
 				return res, werr
 			}
 		}
 		if act.parentChanged {
-			if werr := writeWorkFile(act.parentPath, act.parentContent); werr != nil {
+			if werr := writeWorkFile(act.parentPath, act.parentOriginal, act.parentContent); werr != nil {
 				return res, werr
 			}
 		}
@@ -495,12 +495,14 @@ func ctxRelationIndex(files []string) (uidToPath map[string]string, childrenOf m
 
 // relBackfillAction is the computed (not yet applied) mutation for one child.
 type relBackfillAction struct {
-	path          string
-	childContent  string
-	childChanged  bool
-	parentPath    string
-	parentContent string
-	parentChanged bool
+	path           string
+	childOriginal  []byte
+	childContent   string
+	childChanged   bool
+	parentPath     string
+	parentOriginal []byte
+	parentContent  string
+	parentChanged  bool
 }
 
 // deriveRelationBackfill computes the typed parent edge for one document from
@@ -518,7 +520,7 @@ func deriveRelationBackfill(path string, uidToPath map[string]string, childrenOf
 	if childField == "" {
 		return act, false, nil
 	}
-	act = relBackfillAction{path: path, childContent: content}
+	act = relBackfillAction{path: path, childOriginal: data, childContent: content}
 	childUID := parseFrontmatterField(content, ctxFrontmatterUID)
 	if childUID == "" {
 		return act, true, nil
@@ -544,6 +546,7 @@ func deriveRelationBackfill(path string, uidToPath map[string]string, childrenOf
 		return act, true, nil
 	}
 	act.parentPath = parentPath
+	act.parentOriginal = parentData
 	// Reconcile, do not only append: the parent's reverse list is exactly the
 	// uids of the children that name it — this one included, since its edge is
 	// being created now — so a dangling entry is prunable by the same command
@@ -555,9 +558,8 @@ func deriveRelationBackfill(path string, uidToPath map[string]string, childrenOf
 }
 
 // writeWorkFile persists a context work file with a checked error.
-func writeWorkFile(path, content string) error {
-	//#nosec G306,G703 -- user work file
-	return os.WriteFile(path, []byte(content), 0o644)
+func writeWorkFile(path string, expected []byte, content string) error {
+	return writeContextDocFile(path, expected, content)
 }
 
 func outputRelationsBackfill(cmd *cobra.Command, res ctxRelationsBackfillResult) {

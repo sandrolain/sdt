@@ -185,7 +185,15 @@ func materialStatusRowFor(file materialFile, root, concept, syllabus, lang strin
 	deckRel := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt) + ".slide" + sdtMarkdownExt)
 	deckStatus, deckDetail := deckFreshnessOf(root, deckRel, freshness[deckRel])
 	ledgerPath := strings.TrimSuffix(file.Path, sdtMarkdownExt) + ".ledger.json"
-	review, detail, found := materialReviewState(ledgerPath)
+	metadataPath := materialMetadataPathOf(file.Path)
+	var review, detail string
+	var found bool
+	if file.Metadata != nil {
+		review, detail, found = materialMetadataReviewState(file.Metadata)
+		ledgerPath = metadataPath
+	} else {
+		review, detail, found = materialReviewState(ledgerPath)
+	}
 	row := materialStatusRow{
 		Concept: file.Header.Concept, Syllabus: strings.TrimPrefix(file.Header.Syllabus, "syllabi/"),
 		Lang: file.Header.Lang, Freshness: status, Deck: deckStatus, DeckDetail: deckDetail,
@@ -199,6 +207,21 @@ func materialStatusRowFor(file materialFile, root, concept, syllabus, lang strin
 	row.Publishable = status == renderFresh && (deckStatus == "" || deckStatus == renderFresh) &&
 		review == materialReviewRecorded && file.Header.Classification != "" && file.Header.Classification != "undeclared"
 	return row, true
+}
+
+func materialMetadataReviewState(doc map[string]any) (state, detail string, found bool) {
+	review := metadataMap(doc["review"])
+	if review == nil {
+		return materialReviewNotRun, "review extension missing", true
+	}
+	cycle := metadataMap(review["cycle"])
+	if cycle == nil {
+		return materialReviewNotRun, "review cycle missing", true
+	}
+	critic := strings.TrimSpace(metadataString(cycle["critic"]))
+	reader := strings.TrimSpace(metadataString(cycle["reader"]))
+	detail = fmt.Sprintf("critic=%q reader=%q", critic, reader)
+	return materialReviewStateOf(critic, reader, detail)
 }
 
 // deckFreshnessOf keeps the render lane's verdict for the deck beside a guide
@@ -230,6 +253,10 @@ func materialReviewState(path string) (state, detail string, found bool) {
 	critic := strings.TrimSpace(ledger.Cycle.Critic)
 	reader := strings.TrimSpace(ledger.Cycle.Reader)
 	detail = fmt.Sprintf("critic=%q reader=%q", critic, reader)
+	return materialReviewStateOf(critic, reader, detail)
+}
+
+func materialReviewStateOf(critic, reader, detail string) (state, detailResult string, found bool) {
 	switch {
 	case critic == "" || reader == "" ||
 		strings.EqualFold(critic, materialReviewNotRun) || strings.EqualFold(reader, materialReviewNotRun):

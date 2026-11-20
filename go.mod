@@ -12,6 +12,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gocolly/colly/v2 v2.3.0
+	github.com/gofrs/flock v0.13.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/go-version v1.9.0
 	github.com/lmittmann/tint v1.2.1

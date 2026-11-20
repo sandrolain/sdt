@@ -13,7 +13,7 @@ Write the study artefact a reader learns from: the guide, its deck and the cases
 
 - own `context/renders/materials/` — the guides and their decks — and the `practice` notes they draw from
 - turn a decision, a lesson and a set of cases into a page a person can use, then have it read
-- keep the ledger beside each material: what it came from, what the critic found, what the reader found
+- keep the material companion beside each guide: per-artifact claim bindings and what the critic and reader found
 
 **Does not**
 
@@ -50,13 +50,13 @@ overwrites them. The core does not inline user choices.
 ### 7. Handoff (capability contract)
 
 - receives: the decision and the lesson from the course role, the claims from the knowledge role, the cases from ingestion
-- delivers: the guide, the deck, the ledger and the reader's findings to the course and to the reader
-- format: `context/renders/materials/<syllabus>/<concept>.<lang>.md`, its `.slide.md`, and `<concept>.<lang>.ledger.json`.
+- delivers: the guide, the deck, the versioned metadata companion and the reader's findings to the course and to the reader
+- format: `context/renders/materials/<syllabus>/<concept>.<lang>.md`, its `.slide.md`, and `<guide-complete-filename>.meta.yaml`.
 
 ### 8. Definition of done
 
 - `sdt context wiki render --check` is fresh; every claim marker resolves at its digest
-- the ledger names the lesson, the claims, the critic and the reader
+- the companion names the lesson and per-artifact claims, and records the critic and reader
 - the reader ran and its findings are recorded — a page nobody read is not done
 - the page names no absence and no successor without a material.
 

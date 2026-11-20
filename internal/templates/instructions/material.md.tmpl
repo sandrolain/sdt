@@ -109,7 +109,9 @@ The text is written without markers. After the draft, a binder pass:
    claim id with its digest per asserted claim.
 
 The writing context never sees the markers. `sdt context wiki render --check` is the gate on
-the result, and the ledger beside the artefact records what the binder could not bind.
+the result. The canonical `<guide-complete-filename>.meta.yaml` companion binds the guide
+and deck bytes and keeps per-artifact claims plus review provenance; legacy `.ledger.json`
+files remain as migration inputs and are not deleted automatically.
 
 ## Checks before delivery
 

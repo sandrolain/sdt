@@ -22,9 +22,9 @@ profile.
 - Name the file for the source, not for its subject
   (`<origin>-<date>.<ext>`), so two sources on one topic do not collide.
 - A **bulk rename is not an archive**: a file renamed in place carries no
-  `<file>.source.yaml`, so `original_name` exists only for a source
-  `sdt context ingest` archived. The contract has these two shapes, and a missing
-  sidecar on a renamed file is the expected state, not a defect.
+  `<complete-filename>.meta.yaml`, so `original_name` exists only for a source
+  `sdt context ingest` archived. The companion binds `target.path` and exact-byte
+  `target.sha256`; a missing companion on a renamed file is expected.
 
 ## Cite
 
@@ -37,10 +37,11 @@ profile.
 
 ## Classify
 
-- A source may declare what its use allows, on its archive sidecar
-  (`<file>.source.yaml`): `classification: public|internal|confidential` and
-  `license: <as declared>`. `sdt context ingest archive` records both; it never
-  interprets a licence.
+- A source may declare what its use allows in its archive companion
+  (`<complete-filename>.meta.yaml`, under `source_archive`):
+  `classification: public|internal|confidential` and `license: <as declared>`.
+  `sdt context ingest archive` records both; it never interprets a licence.
+  Legacy `.source.yaml` records remain readable during migration.
 - A page **inherits** them from its `sources`: the strictest classification wins
   and one licence is inherited. A page may declare a stricter value, never a
   weaker one, and a set that does not agree must be stated on the page.

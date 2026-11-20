@@ -430,7 +430,7 @@ func closeoutWrite(doc ctxResolvedDoc, fields map[string]string) (string, error)
 		content += "\n"
 	}
 	//#nosec G306 G703 -- corpus path, 0644 like every work file
-	if err := os.WriteFile(entry, []byte(content), 0o644); err != nil {
+	if err := writeContextDocFile(entry, data, content); err != nil {
 		return "", err
 	}
 	closeoutTouch(entry)
@@ -536,7 +536,7 @@ func closeoutWorklogEntry(planRef string) (string, error) {
 		return "", err
 	}
 	//#nosec G306 G703 -- corpus path, 0644 like every work file
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := createContextDocFile(path, content); err != nil {
 		return "", err
 	}
 	return path, nil
@@ -558,7 +558,7 @@ func closeoutTouch(path string) {
 		return
 	}
 	//#nosec G306 G703 -- corpus path
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := writeContextDocFile(path, data, content); err != nil {
 		return
 	}
 }

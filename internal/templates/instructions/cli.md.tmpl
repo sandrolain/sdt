@@ -12,8 +12,7 @@ summary: "The agent's verbs: corpus read/write, the document lifecycle and the q
 - `sdt context new|path|list --type <t>` — create a work file ({{.NewTypes}}), print
   its path ({{.PathTypes}}), list one kind ({{.ListTypes}})
 - `sdt read -p <file|corpus-ref> [--section] [--lines a:b|-N:] [--numbered] [--count]`,
-  `context edit <doc> [--append|--row|--fence]` — one reader with line numbers
-  and a real `--format json`, and a body writer (append, section, row, fence)
+  `context edit <doc> [--append|--row|--fence] [--expect-sha256 <digest>]` — line-numbered reader and body writer; `--expect-sha256` rejects stale proposals; external editors bypass locks.
 - `sdt context get|set|unset <doc> [<key>] [<value>]` — a frontmatter key, bytes
   preserved; `status`/`updated` are CLI-owned
 - `sdt context status get|set|vocab|sync`, `deprecate|rename|rm` — lifecycle; terminal

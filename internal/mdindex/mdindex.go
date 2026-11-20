@@ -275,7 +275,8 @@ func parseEntry(root, id, path string) (*Entry, error) {
 	}
 	// A material carries no frontmatter and is not a corpus kind (decision 0044):
 	// the index gives it a name from its H1 so the tree can group it, and nothing
-	// else. A ledger sidecar is not markdown, so it never reaches this branch.
+	// else. Metadata companions and legacy ledgers are not markdown, so they
+	// never reach this branch.
 	if e.Kind == "" && strings.HasPrefix(id, materialIndexPrefix) {
 		e.Kind = kindMaterial
 		if title := firstHeading(body); title != "" {

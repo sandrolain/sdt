@@ -44,7 +44,7 @@ func TestFeedbackAggregateIsScannedAndArchived(t *testing.T) {
 	if _, err := os.Stat(source); !os.IsNotExist(err) {
 		t.Errorf("the source is still in ingestion/: %v", err)
 	}
-	if _, err := os.Stat("context/refs/feedback-2026-11.md.source.yaml"); err != nil {
+	if _, err := os.Stat("context/refs/feedback-2026-11.md.meta.yaml"); err != nil {
 		t.Errorf("the sidecar was not written: %v", err)
 	}
 }

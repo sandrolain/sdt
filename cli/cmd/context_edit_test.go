@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sandrolain/sdt/internal/contextwrite"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +22,31 @@ func editProbeFixture(t *testing.T) string {
 	writeCtxDoc(t, editProbeDoc,
 		"---\nkind: plan\nuid: "+testUIDv7(9)+"\nsummary: A plan\nstatus: active\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n---\n## Phase 1\nold work\n\n## Phase 2\nmore\n")
 	return editProbeRef
+}
+
+func TestContextEditRejectsStaleExpectedDigestAndRetrySucceeds(t *testing.T) {
+	path := editProbeFixture(t)
+	before := readDoc(t, path)
+	stale := contextwrite.Digest([]byte("older snapshot\n"))
+	var conflictOutput string
+	shouldExitWithCode(t, 1, func() string {
+		conflictOutput = string(execute(t, contextEditCmd, nil, path,
+			"--input", "## Phase 1\nproposal\n", "--expect-sha256", stale))
+		return conflictOutput
+	})
+	if !strings.Contains(conflictOutput, "+proposal") {
+		t.Fatalf("conflict output did not preserve proposed diff:\n%s", conflictOutput)
+	}
+	if got := readDoc(t, path); got != before {
+		t.Fatalf("stale proposal changed document:\n%s", got)
+	}
+
+	current := contextwrite.Digest([]byte(before))
+	execute(t, contextEditCmd, nil, path,
+		"--input", "## Phase 1\nproposal\n", "--expect-sha256", current)
+	if got := readDoc(t, path); !strings.Contains(got, "## Phase 1\nproposal") {
+		t.Fatalf("retry did not apply proposal:\n%s", got)
+	}
 }
 
 func TestContextEditWritesTheBodyAndKeepsFrontmatter(t *testing.T) {

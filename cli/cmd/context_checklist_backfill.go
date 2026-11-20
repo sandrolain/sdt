@@ -97,7 +97,7 @@ func stampChecklistFiles(dryRun bool) (ctxChecklistBackfillResult, error) {
 		if dryRun {
 			continue
 		}
-		if werr := writeWorkFile(path, repaired); werr != nil {
+		if werr := writeWorkFile(path, data, repaired); werr != nil {
 			return res, werr
 		}
 	}

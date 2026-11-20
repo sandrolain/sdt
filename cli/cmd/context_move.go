@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/sandrolain/sdt/internal/contextwrite"
 	"github.com/spf13/cobra"
 )
 
@@ -244,7 +245,7 @@ func ctxApplyRewrite(path, oldPath, newPath string) error {
 		return nil
 	}
 	//#nosec G306,G703 -- user work file
-	return os.WriteFile(path, []byte(updated), 0o644)
+	return writeContextDocFile(path, data, updated)
 }
 
 // ── sdt context rename ──────────────────────────────────────────────────────────
@@ -302,7 +303,12 @@ Examples:
 			}
 			return
 		}
-		if err := os.Rename(doc.Path, newPath); err != nil { //#nosec G306 -- user work file
+		moveData, readErr := os.ReadFile(doc.Path) //#nosec G304 -- user work file
+		if readErr != nil {
+			exitWithError(cmd, readErr)
+			return
+		}
+		if err := contextwrite.Move(sdtProjectRoot(), doc.Path, newPath, contextwrite.Digest(moveData)); err != nil {
 			exitWithError(cmd, err)
 			return
 		}
@@ -311,7 +317,7 @@ Examples:
 		if ctxUIDEligibleKind(doc.Type.kind) {
 			if data, rerr := os.ReadFile(newPath); rerr == nil { //#nosec G304 -- user work file
 				if stamped, ok := stampUIDMissing(string(data)); ok {
-					if werr := writeWorkFile(newPath, stamped); werr != nil {
+					if werr := writeWorkFile(newPath, data, stamped); werr != nil {
 						exitWithError(cmd, werr)
 					}
 				}

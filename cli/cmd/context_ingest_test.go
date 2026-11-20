@@ -55,6 +55,14 @@ func TestContextIngestStatusByBasename(t *testing.T) {
 	}
 }
 
+func TestContextIngestResolverRefusesLegacySidecars(t *testing.T) {
+	setupContextProject(t)
+	writeCtxDoc(t, "context/refs/book.pdf.source.yaml", "source: ingestion/book.pdf\n")
+	if _, err := resolveIngestSource("book.pdf.source.yaml", true); err == nil || !strings.Contains(err.Error(), "sidecar") {
+		t.Fatalf("legacy sidecar must not resolve as an archived source, got %v", err)
+	}
+}
+
 func TestContextIngestArchiveMovesAndRecords(t *testing.T) {
 	setupContextProject(t)
 	source := "context/ingestion/books/book.epub"
@@ -247,7 +255,7 @@ func TestContextIngestArchiveRenamesInstructionNames(t *testing.T) {
 	if _, err := os.Stat(dest); err != nil {
 		t.Errorf("renamed destination missing: %v", err)
 	}
-	sidecar := filepath.Join("context/refs", "AGENTS.md"+ingestSidecarSuffix)
+	sidecar := dest + ingestSidecarSuffix
 	data, err := os.ReadFile(sidecar)
 	if err != nil {
 		t.Fatalf("sidecar missing at %s: %v", sidecar, err)

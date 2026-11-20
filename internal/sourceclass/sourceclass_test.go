@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sandrolain/sdt/internal/metacomp"
 )
 
 // writeSidecar puts one sidecar in the current temp project and returns the
@@ -96,5 +98,38 @@ func TestUnknownVocabularyIsReported(t *testing.T) {
 	got := CheckPage("secret", "", Page{})
 	if len(got) != 1 || !strings.Contains(got[0], "not one of") {
 		t.Errorf("an unknown tier must be reported, got %v", got)
+	}
+}
+
+func TestVersionedCompanionIsCanonicalAndChecksLegacyConflict(t *testing.T) {
+	t.Chdir(t.TempDir())
+	rel := filepath.Join("refs", "book.pdf")
+	target := filepath.Join("context", rel)
+	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	content := []byte{0, 1, 2, 255}
+	if err := os.WriteFile(target, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	doc := metacomp.New(filepath.ToSlash(filepath.Join("context", rel)), metacomp.Digest(content))
+	doc["source_archive"] = map[string]any{"classification": "internal", "license": "CC-BY-4.0"}
+	encoded, err := metacomp.Encode(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target+metacomp.CompanionSuffix, encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	page := ForSources([]string{filepath.ToSlash(rel)})
+	if page.Classification != TierInternal || page.License != "CC-BY-4.0" || len(page.Findings) != 0 {
+		t.Fatalf("versioned companion was not read: %+v", page)
+	}
+	if err := os.WriteFile(target+SidecarSuffix, []byte("classification: public\nlicense: CC-BY-4.0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	page = ForSources([]string{filepath.ToSlash(rel)})
+	if !strings.Contains(strings.Join(page.Findings, " "), "conflicts with canonical .meta.yaml") {
+		t.Fatalf("dual-authority conflict was not reported: %+v", page)
 	}
 }

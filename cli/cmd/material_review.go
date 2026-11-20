@@ -45,7 +45,14 @@ var materialReviewCmd = &cobra.Command{
 		by := strings.TrimSpace(getStringFlag(cmd, "by", false))
 		model := strings.TrimSpace(getStringFlag(cmd, "model", false))
 		ledgerPath := materialLedgerPathOf(ref.Path)
-		if err := materialLedgerRecordReader(ledgerPath, role, verdict, by, model, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		at := time.Now().UTC().Format(time.RFC3339)
+		if ref.Metadata != nil {
+			ledgerPath = materialMetadataPathOf(ref.Path)
+			err = updateMaterialMetadataReview(ledgerPath, role, verdict, by, model, at)
+		} else {
+			err = materialLedgerRecordReader(ledgerPath, role, verdict, by, model, at)
+		}
+		if err != nil {
 			exitWithError(cmd, err)
 			return
 		}

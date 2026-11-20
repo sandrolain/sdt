@@ -273,16 +273,21 @@ func taskStreamFiles(stream, slug string) ([]string, error) {
 }
 
 func readTaskFile(phase, stream, plan string) (string, error) {
+	_, content, err := readTaskFileSnapshot(phase, stream, plan)
+	return content, err
+}
+
+func readTaskFileSnapshot(phase, stream, plan string) ([]byte, string, error) {
 	path := taskFileForRef(phase, stream, plan)
 	//#nosec G304 -- fixed repo path
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("no task list at %s (create one with `sdt context task add \"<step>\" %s`)", path, planFlagForHint(plan))
+			return nil, "", fmt.Errorf("no task list at %s (create one with `sdt context task add \"<step>\" %s`)", path, planFlagForHint(plan))
 		}
-		return "", err
+		return nil, "", err
 	}
-	return string(data), nil
+	return data, string(data), nil
 }
 
 // planFlagForHint renders the --plan fragment for an error hint, or "" when
@@ -548,8 +553,10 @@ var contextTaskAddCmd = &cobra.Command{
 		stream := taskStreamFlag(cmd)
 		path := taskFileForRef(phase, stream, plan)
 		content := ""
+		var original []byte
 		//#nosec G304 -- fixed repo path
 		if data, err := os.ReadFile(path); err == nil {
+			original = data
 			content = string(data)
 		} else if os.IsNotExist(err) {
 			project := ""
@@ -591,8 +598,14 @@ var contextTaskAddCmd = &cobra.Command{
 			exitWithError(cmd, err)
 		}
 		//#nosec G306 -- user work file
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			exitWithError(cmd, err)
+		var writeErr error
+		if original == nil {
+			writeErr = createContextDocFile(path, content)
+		} else {
+			writeErr = writeContextDocFile(path, original, content)
+		}
+		if writeErr != nil {
+			exitWithError(cmd, writeErr)
 		}
 		if planPath != "" && taskUID != "" {
 			if err := linkChildToParent(planPath, taskUID, ctxKeyTasksIDs); err != nil {
@@ -715,7 +728,7 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			phase, plan, err := taskTarget(cmd)
 			exitWithError(cmd, err)
 			stream := taskStreamFlag(cmd)
-			content, err := readTaskFile(phase, stream, plan)
+			original, content, err := readTaskFileSnapshot(phase, stream, plan)
 			exitWithError(cmd, err)
 			updated := ""
 			if len(args) == 1 {
@@ -743,7 +756,7 @@ func taskSetStatusCmd(status string) *cobra.Command {
 			updated = setTaskFileStatus(updated, taskFileNextStatus(status, updated))
 			path := taskFileForRef(phase, stream, plan)
 			//#nosec G306 -- user work file
-			if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+			if err := writeTaskFile(path, original, updated); err != nil {
 				exitWithError(cmd, err)
 			}
 			outputString(cmd, "ok\n")
@@ -782,7 +795,7 @@ Examples:
 		exitWithError(cmd, err)
 		stream := taskStreamFlag(cmd)
 		path, planTarget := reviewTargetPath(phase, stream, plan)
-		content, err := readReviewTarget(path, plan, planTarget)
+		original, content, err := readReviewTargetSnapshot(path, plan, planTarget)
 		exitWithError(cmd, err)
 		findings, err := reviewFindings(cmd)
 		exitWithError(cmd, err)
@@ -796,7 +809,7 @@ Examples:
 		}
 		content = stampProvenance(content, cmd)
 		//#nosec G306 -- user work file
-		if err := os.WriteFile(path, []byte(strings.TrimRight(content, "\n")+"\n"), 0o644); err != nil {
+		if err := writeTaskFile(path, original, strings.TrimRight(content, "\n")+"\n"); err != nil {
 			exitWithError(cmd, err)
 		}
 		outputString(cmd, path+"\n")
@@ -830,18 +843,16 @@ func reviewTargetPath(phase, stream, plan string) (string, bool) {
 	return taskFileForPhaseOrPlan(phase, plan), false
 }
 
-// readReviewTarget reads the resolved review target, naming the missing task file
-// the way the split case always did.
-func readReviewTarget(path, plan string, planTarget bool) (string, error) {
+func readReviewTargetSnapshot(path, plan string, planTarget bool) ([]byte, string, error) {
 	//#nosec G304 -- corpus document resolved above
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) && !planTarget {
-			return "", fmt.Errorf("no task list at %s (create one with `sdt context task add \"<step>\" %s`)", path, planFlagForHint(plan))
+			return nil, "", fmt.Errorf("no task list at %s (create one with `sdt context task add \"<step>\" %s`)", path, planFlagForHint(plan))
 		}
-		return "", err
+		return nil, "", err
 	}
-	return string(data), nil
+	return data, string(data), nil
 }
 
 func reviewFindings(cmd *cobra.Command) ([]reviewFinding, error) {

@@ -506,7 +506,8 @@ func writeCoverage(path string, content []byte, report wikiCoverageReport, dryRu
 	if statErr == nil {
 		mode = info.Mode().Perm()
 	}
-	return os.WriteFile(path, []byte(fm+body), mode) //#nosec G306,G703 -- path resolved under context/wiki, mode preserved
+	_ = mode // writeContextDocFile preserves the current document mode.
+	return writeContextDocFile(path, content, fm+body)
 }
 
 // replaceStructure replaces the `## Structure` section (to the next level-2
