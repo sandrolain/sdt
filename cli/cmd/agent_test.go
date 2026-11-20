@@ -30,6 +30,15 @@ func runInTempDir(t *testing.T) string {
 	return dir
 }
 
+func runInIsolatedTempDir(t *testing.T) string {
+	t.Helper()
+	dir := runInTempDir(t)
+	if err := os.Mkdir(filepath.Join(dir, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -2859,7 +2868,7 @@ func TestConfigShow(t *testing.T) {
 }
 
 func TestConfigShowNotFound(t *testing.T) {
-	runInTempDir(t)
+	runInIsolatedTempDir(t)
 	shouldExitWithCode(t, 1, func() string {
 		return string(execute(t, configShowCmd, nil))
 	})

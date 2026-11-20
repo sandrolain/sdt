@@ -260,7 +260,7 @@ func TestDoc2mdKeepFromNestedDirWritesUnderRoot(t *testing.T) {
 }
 
 func TestDoc2mdKeepWithoutProjectRootFails(t *testing.T) {
-	runInTempDir(t)
+	runInIsolatedTempDir(t)
 	writeTestFile(t, "book.epub", "epub")
 	logs := captureCmdErr(t)
 	withDoc2mdSeams(t, func(_ context.Context, _ doc2md.Options) doc2md.Result {

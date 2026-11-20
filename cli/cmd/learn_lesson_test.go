@@ -13,8 +13,7 @@ import (
 )
 
 func TestLearnMaterialOfFindsTheGuideNotTheDeck(t *testing.T) {
-	root := t.TempDir()
-	t.Chdir(root)
+	runInIsolatedTempDir(t)
 	dir := filepath.Join("context", "renders", "materials", "s")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -44,7 +43,7 @@ func TestLearnMaterialOfFindsTheGuideNotTheDeck(t *testing.T) {
 }
 
 func TestLearnMaterialOfAbsent(t *testing.T) {
-	t.Chdir(t.TempDir())
+	runInIsolatedTempDir(t)
 	got, err := learnMaterialOf("architecture/x")
 	if err != nil {
 		t.Fatalf("an absent material is no error: %v", err)
@@ -73,8 +72,7 @@ func bundlePage() *contextwiki.Page {
 // split readable as the shape the reader now expects.
 func writeLesson(t *testing.T, body string) string {
 	t.Helper()
-	root := t.TempDir()
-	t.Chdir(root)
+	runInIsolatedTempDir(t)
 	lessonBody, items := splitAssessSection(body)
 	path := writeLearningDoc(t, learnLessonPath("architecture/x"), lessonBody)
 	if items != "" {
@@ -96,7 +94,7 @@ func writeAssessmentFor(t *testing.T, conceptID, items string) string {
 // without a lesson: the shape a page quizzed before it is taught takes.
 func writeAssessment(t *testing.T, items string) string {
 	t.Helper()
-	t.Chdir(t.TempDir())
+	runInIsolatedTempDir(t)
 	return writeAssessmentFor(t, "architecture/x", items)
 }
 
@@ -303,8 +301,7 @@ func TestQuizCarriesTheLessonItems(t *testing.T) {
 // TestQuizWithoutALessonSaysSo keeps the old contract visible: no lesson, no
 // questions, and the manifest says whose job they are.
 func TestQuizWithoutALessonSaysSo(t *testing.T) {
-	root := t.TempDir()
-	t.Chdir(root)
+	runInIsolatedTempDir(t)
 	bld := contextwiki.Builder{ByID: map[string]*contextwiki.Page{}}
 	bld.ByID["architecture/x"] = bundlePage()
 	entry, err := learnQuizEntryFor(&bld, &learn.State{}, "architecture/x", false, false)
@@ -433,7 +430,7 @@ func TestLearnBundleWithoutClaims(t *testing.T) {
 // and a syllabus share `context/learning`, and neither is linted as a lesson,
 // while a lesson with a wrong section is still reported.
 func TestLearnValidateSkipsCourseLevels(t *testing.T) {
-	runInTempDir(t)
+	runInIsolatedTempDir(t)
 	fm := "---\nkind: %s\nid: %s\ntitle: t\nsummary: s\nstatus: draft\n" +
 		"created: 2026-10-01T00:00:00Z\nupdated: 2026-10-01T00:00:00Z\n---\n\n## Thread\n\nx\n"
 	theme := writeLearningDoc(t, filepath.Join(sdtLearningDir, "themes", "delivery"+ctxThemeSuffix+sdtMarkdownExt),
@@ -458,7 +455,7 @@ func TestLearnValidateSkipsCourseLevels(t *testing.T) {
 // become invisible: the registry calls no kind its own, and the walk still
 // reports it as a lesson that cannot be used.
 func TestLearnValidateReportsUnclaimedDocuments(t *testing.T) {
-	runInTempDir(t)
+	runInIsolatedTempDir(t)
 	orphan := writeLearningDoc(t, filepath.Join(sdtLearningDir, "unclaimed", "thing"+sdtMarkdownExt),
 		"## Thread\n\nx\n")
 
@@ -469,8 +466,7 @@ func TestLearnValidateReportsUnclaimedDocuments(t *testing.T) {
 }
 
 func TestLearnPracticeOfServesConceptsByPointer(t *testing.T) {
-	root := t.TempDir()
-	t.Chdir(root)
+	runInIsolatedTempDir(t)
 	dir := filepath.Join("context", "learning", "practice")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)

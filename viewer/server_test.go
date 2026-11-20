@@ -205,6 +205,9 @@ func TestResolveRootWalkUp(t *testing.T) {
 
 func TestResolveRootBothAbsent(t *testing.T) {
 	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := resolveRoot("", dir); err == nil {
 		t.Error("expected error when no .sdt.yaml and no --root")
 	}

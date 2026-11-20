@@ -2,10 +2,12 @@ package delegation
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -166,6 +168,189 @@ func TestResolvePermissionWithPolicyAcceptsCurrentAndInvalidatesStaleRequests(t 
 	}
 	if err := stale.ResolvePermissionWithPolicy("permission-stale", "attempt-1", "missing", "allow", "principal", "", "policy-v2", "rule-2"); err == nil {
 		t.Fatal("accepted a request that is not outstanding")
+	}
+}
+
+func createPendingPermissionBatch(t *testing.T, id string) (*Store, uint64) {
+	t.Helper()
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: id, Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Update(id, "attempt_started", "Attempt started", func(task *Task) error {
+		task.Status = TaskRunning
+		task.Attempts = []Attempt{{ID: "attempt-1", Agent: "reviewer", Status: "running"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, requestID := range []string{"request-a", "request-b"} {
+		if err := store.RecordPermission(id, PermissionRecord{
+			RequestID: requestID, AttemptID: "attempt-1", Capability: "file-write",
+			Options:       []PermissionChoice{{OptionID: "allow", Name: "Allow"}, {OptionID: "reject", Name: "Reject"}},
+			PolicyVersion: "policy-v1", Disposition: PermissionPending,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task, err := store.Read(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store, task.Revision
+}
+
+func TestPermissionBatchPersistsMixedChoicesAndIndividualEvents(t *testing.T) {
+	store, before := createPendingPermissionBatch(t, "batch-permissions")
+	if err := store.ResolvePermissionBatchWithPolicy("batch-permissions", "attempt-1", []PermissionBatchDecision{
+		{RequestID: "request-a", OptionID: "allow"}, {RequestID: "request-b", OptionID: "reject"},
+	}, PermissionSourcePrincipal, "bounded task mandate", "policy-v1", "explicit CLI batch decision", "task mandate"); err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.Read("batch-permissions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != TaskRunning || task.Revision != before+2 || len(task.Events) < 2 {
+		t.Fatalf("batch did not advance state once per decision: status=%s revision=%d events=%d", task.Status, task.Revision, len(task.Events))
+	}
+	for i, want := range []string{"allow", "reject"} {
+		record := task.Permissions[i]
+		if record.Disposition != PermissionResolved || record.OptionID != want || record.Source != PermissionSourcePrincipal || record.Rationale != "bounded task mandate" || record.Mandate != "task mandate" {
+			t.Fatalf("decision %d lost exact choice or provenance: %+v", i, record)
+		}
+		if got := task.Events[len(task.Events)-2+i]; got.Type != "permission_resolved" || !strings.Contains(got.Summary, record.RequestID) {
+			t.Fatalf("decision %d has no matching event: %+v", i, got)
+		}
+	}
+	if task.Status == TaskFailed || task.Status == TaskCancelled {
+		t.Fatalf("an offered reject choice closed the task: %s", task.Status)
+	}
+}
+
+func TestPermissionBatchRejectsInvalidInputAtomically(t *testing.T) {
+	tests := []struct {
+		name      string
+		decisions []PermissionBatchDecision
+		version   string
+	}{
+		{name: "not offered", decisions: []PermissionBatchDecision{{RequestID: "request-a", OptionID: "allow"}, {RequestID: "request-b", OptionID: "not-offered"}}, version: "policy-v1"},
+		{name: "changed policy", decisions: []PermissionBatchDecision{{RequestID: "request-a", OptionID: "allow"}, {RequestID: "request-b", OptionID: "allow"}}, version: "policy-v2"},
+		{name: "unknown request", decisions: []PermissionBatchDecision{{RequestID: "request-a", OptionID: "allow"}, {RequestID: "missing", OptionID: "allow"}}, version: "policy-v1"},
+		{name: "duplicate request", decisions: []PermissionBatchDecision{{RequestID: "request-a", OptionID: "allow"}, {RequestID: "request-a", OptionID: "reject"}}, version: "policy-v1"},
+	}
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			id := fmt.Sprintf("batch-invalid-%d", i)
+			store, before := createPendingPermissionBatch(t, id)
+			err := store.ResolvePermissionBatchWithPolicy(id, "attempt-1", tc.decisions, PermissionSourcePrincipal, "bounded task mandate", tc.version, "explicit CLI batch decision", "task mandate")
+			if err == nil {
+				t.Fatal("invalid batch was accepted")
+			}
+			task, readErr := store.Read(id)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if task.Revision != before || task.Status != TaskInterventionRequired || task.Permissions[0].Disposition != PermissionPending || task.Permissions[1].Disposition != PermissionPending {
+				t.Fatalf("invalid batch partially changed durable state: %+v", task)
+			}
+		})
+	}
+}
+
+func TestPermissionBatchRequiresMandateAndKeepsRemainingRequestsActionable(t *testing.T) {
+	t.Run("principal mandate required", func(t *testing.T) {
+		store, before := createPendingPermissionBatch(t, "batch-authority")
+		err := store.ResolvePermissionBatchWithPolicy("batch-authority", "attempt-1", []PermissionBatchDecision{{RequestID: "request-a", OptionID: "allow"}}, PermissionSourcePrincipal, "bounded task mandate", "policy-v1", "explicit CLI batch decision", "")
+		if err == nil {
+			t.Fatal("accepted a principal batch without a mandate reference")
+		}
+		task, err := store.Read("batch-authority")
+		if err != nil || task.Revision != before || task.Permissions[0].Disposition != PermissionPending {
+			t.Fatalf("authority validation mutated state: %+v, %v", task, err)
+		}
+	})
+	t.Run("remaining request preserves intervention", func(t *testing.T) {
+		store, _ := createPendingPermissionBatch(t, "batch-partial")
+		if err := store.ResolvePermissionBatchWithPolicy("batch-partial", "attempt-1", []PermissionBatchDecision{{RequestID: "request-a", OptionID: "allow"}}, PermissionUser, "explicit response", "policy-v1", "explicit CLI batch decision", ""); err != nil {
+			t.Fatal(err)
+		}
+		task, err := store.Read("batch-partial")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.Status != TaskInterventionRequired || task.Permissions[0].Source != PermissionUser || task.Permissions[1].Disposition != PermissionPending {
+			t.Fatalf("partial batch lost pending state or user provenance: %+v", task)
+		}
+	})
+}
+
+func TestPermissionBatchRejectsStaleAttempt(t *testing.T) {
+	store, _ := createPendingPermissionBatch(t, "batch-stale-attempt")
+	if err := store.Update("batch-stale-attempt", "attempt_started", "A newer attempt started", func(task *Task) error {
+		task.Attempts = append(task.Attempts, Attempt{ID: "attempt-2", Agent: "reviewer", Status: "running"})
+		task.Status = TaskRunning
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ResolvePermissionBatchWithPolicy("batch-stale-attempt", "attempt-1", []PermissionBatchDecision{{RequestID: "request-a", OptionID: "allow"}}, PermissionUser, "explicit response", "policy-v1", "explicit CLI batch decision", ""); err == nil {
+		t.Fatal("accepted a stale-attempt permission")
+	}
+	task, err := store.Read("batch-stale-attempt")
+	if err != nil || task.Permissions[0].Disposition != PermissionPending {
+		t.Fatalf("stale-attempt batch mutated a pending record: %+v, %v", task, err)
+	}
+}
+
+func TestPermissionBatchRejectsNonPendingRequestAtomically(t *testing.T) {
+	store, _ := createPendingPermissionBatch(t, "batch-non-pending")
+	if err := store.ResolvePermission("batch-non-pending", "attempt-1", "request-b", "allow", PermissionUser, "explicit response", "policy-v1", "explicit CLI decision"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Read("batch-non-pending")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = store.ResolvePermissionBatchWithPolicy("batch-non-pending", "attempt-1", []PermissionBatchDecision{
+		{RequestID: "request-a", OptionID: "allow"}, {RequestID: "request-b", OptionID: "reject"},
+	}, PermissionSourcePrincipal, "bounded task mandate", "policy-v1", "explicit CLI batch decision", "task mandate")
+	if err == nil {
+		t.Fatal("accepted a batch containing an already resolved request")
+	}
+	after, err := store.Read("batch-non-pending")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Revision != before.Revision || after.Permissions[0].Disposition != PermissionPending || after.Permissions[1].Disposition != PermissionResolved {
+		t.Fatalf("non-pending batch partially changed durable state: before=%+v after=%+v", before, after)
+	}
+}
+
+func TestPermissionBatchRejectsCrossAttemptRequestAtomically(t *testing.T) {
+	store, _ := createPendingPermissionBatch(t, "batch-cross-attempt")
+	if err := store.Update("batch-cross-attempt", "permission_recorded", "Request belongs to an older attempt", func(task *Task) error {
+		task.Permissions[1].AttemptID = "attempt-0"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Read("batch-cross-attempt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = store.ResolvePermissionBatchWithPolicy("batch-cross-attempt", "attempt-1", []PermissionBatchDecision{
+		{RequestID: "request-a", OptionID: "allow"}, {RequestID: "request-b", OptionID: "allow"},
+	}, PermissionSourcePrincipal, "bounded task mandate", "policy-v1", "explicit CLI batch decision", "task mandate")
+	if err == nil {
+		t.Fatal("accepted a batch containing a request from another attempt")
+	}
+	after, err := store.Read("batch-cross-attempt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Revision != before.Revision || after.Permissions[0].Disposition != PermissionPending || after.Permissions[1].Disposition != PermissionPending {
+		t.Fatalf("cross-attempt batch partially changed durable state: before=%+v after=%+v", before, after)
 	}
 }
 

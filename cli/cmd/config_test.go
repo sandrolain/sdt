@@ -38,7 +38,7 @@ func TestGetProjectAndGroup(t *testing.T) {
 	})
 
 	t.Run("no source", func(t *testing.T) {
-		runInTempDir(t)
+		runInIsolatedTempDir(t)
 		c := &cobra.Command{Use: "t"}
 		c.Flags().String("project", "", "")
 		c.Flags().String("group", "", "")

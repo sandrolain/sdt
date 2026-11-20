@@ -36,7 +36,7 @@ permissions of their environment.
 |---|---|
 | Queued or running | Use `sdt agent task wait <id> --timeout 2m`. Timeout returns a nonzero exit and structured timeout state; it leaves tasks running. |
 | Worker health is unknown | Keep the recorded task state. Verify process visibility before trying to recover or start a replacement. |
-| Permission pending | Use `permissions list <id>`. Inspect the request and offered options. Resolve only within authority already granted, otherwise ask the user. Use `permissions resolve <id> <request-id> --option <option-id> --source principal --mandate "<existing authority>" --rationale "<reason>"` with the exact offered ID. Use `--source user` only to relay an explicit user response. |
+| Permission pending | Use `permissions list <id> --outcome pending`. Inspect every request and offered option; ask the user once with the distinct choices when several are pending. Resolve a single request with `permissions resolve <id> <request-id> ...`, or submit a structured decisions list to `permissions resolve-batch <id> --file <decisions.yaml> --source principal --mandate "<existing authority>" --rationale "<reason>"`. Each request needs its own exact offered option ID. The batch records all valid choices atomically; if any request or policy changed, it applies none. Use `--source user` only to relay an explicit user response. |
 | Result ready | Read `result <id>` and relevant artifacts with `result <id> <artifact-name>` using a recorded name such as `result-attempt-1`. Verify changes and evidence before `accept <id>`. Use `correct <id> --instructions "<required change>"` only while attempts and duration remain. |
 | Intervention required without a pending permission | Inspect recent events in `status <id>` and retrieve the worker log with `result <id> --log`. Address the cause and check remaining limits before `resume <id>`. |
 | Provider quota or availability restriction | Use `availability list` to see exclusions and expiry. Respect the provider retry time or local cooldown. A local attempt limit does not measure the remaining provider quota. Reset a key only when authorized and there is evidence the restriction has cleared. |
@@ -50,6 +50,20 @@ Permission history includes pending and resolved records; filter with `--source`
 `--outcome` or `--escalated`. Source and mandate record the caller's declaration;
 the CLI cannot authenticate a human response or interpret natural-language authority.
 Automatic policy decisions remain distinct and do not expand the principal's mandate.
+
+### Resolve independent permission requests together
+
+After inspecting `permissions list <id> --outcome pending`, a principal can ask one grouped question that shows each request's capability, operation, scope, and offered options. Record a separate answer for every request; one choice never authorizes another. Put those exact pairs in a JSON or YAML file:
+
+```yaml
+decisions:
+  - request_id: request-a
+    option_id: allow-once
+  - request_id: request-b
+    option_id: reject-once
+```
+
+Submit them with `permissions resolve-batch <id> --file <decisions.yaml> --source principal --mandate "<existing authority>" --rationale "<reason for these choices>"`. Use `--source user` only when relaying an explicit user response. The CLI revalidates all requests and offered options against the live policy before writing; if one is stale or invalid, none are resolved. The durable record keeps one decision and event per request, then wakes the worker once. If wake delivery fails, it reconciles from persisted state.
 
 For multiple explicit IDs, use `wait <id1> <id2> --any` or `--all`.
 `--any` returns the ready/actionable tasks and remaining IDs in one snapshot.

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,6 +20,7 @@ import (
 const stateSchemaVersion = 1
 
 const (
+	PermissionSourcePrincipal = "principal"
 	PermissionPending         = "pending"
 	PermissionResolved        = "resolved"
 	PermissionUser            = "user"
@@ -184,6 +186,12 @@ type PermissionChoice struct {
 	OptionID string `json:"option_id"`
 	Name     string `json:"name"`
 	Kind     string `json:"kind,omitempty"`
+}
+
+// PermissionBatchDecision selects one exact option for one pending request.
+type PermissionBatchDecision struct {
+	RequestID string `json:"request_id"`
+	OptionID  string `json:"option_id"`
 }
 
 type StateEvent struct {
@@ -917,7 +925,7 @@ func (s *Store) ResolvePermission(id, attemptID, requestID, optionID, source, ra
 	if optionID == "" || source == "" {
 		return fmt.Errorf("permission option and decision source are required")
 	}
-	if source != "principal" && source != PermissionUser {
+	if source != PermissionSourcePrincipal && source != PermissionUser {
 		return fmt.Errorf("invalid permission decision source %q", source)
 	}
 	return s.Update(id, "permission_resolved", "ACP permission request resolved", func(task *Task) error {
@@ -1009,6 +1017,123 @@ func (s *Store) ResolvePermissionWithPolicy(id, attemptID, requestID, optionID, 
 		return s.ResolvePermissionAndWake(id, attemptID, requestID, optionID, source, rationale, currentPolicyVersion, policyRule, mandate...)
 	}
 	return fmt.Errorf("permission request is not outstanding for this attempt")
+}
+
+// ResolvePermissionBatchWithPolicy validates every choice before persisting any
+// of them, then writes one event per decision in one task-locked state update.
+func (s *Store) ResolvePermissionBatchWithPolicy(id, attemptID string, decisions []PermissionBatchDecision, source, rationale, currentPolicyVersion, policyRule, mandate string) error {
+	if err := validatePermissionBatchInput(id, attemptID, decisions, source, rationale, mandate); err != nil {
+		return err
+	}
+	err := s.WithLock("task-"+id, func() error {
+		task, err := s.Read(id)
+		if err != nil {
+			return err
+		}
+		indices, err := validatePermissionBatchForTask(task, attemptID, decisions, currentPolicyVersion)
+		if err != nil {
+			return err
+		}
+		recordPermissionBatch(&task, indices, decisions, source, rationale, currentPolicyVersion, policyRule, mandate)
+		return s.write(task)
+	})
+	if err != nil {
+		return err
+	}
+	_ = s.WakeWorker(id) //nolint:errcheck // Durable decisions precede the wake; the worker also polls.
+	return nil
+}
+
+func validatePermissionBatchInput(id, attemptID string, decisions []PermissionBatchDecision, source, rationale, mandate string) error {
+	if len(decisions) == 0 {
+		return fmt.Errorf("at least one permission decision is required")
+	}
+	if source != PermissionSourcePrincipal && source != PermissionUser {
+		return fmt.Errorf("invalid permission decision source %q", source)
+	}
+	if strings.TrimSpace(rationale) == "" {
+		return fmt.Errorf("permission decision rationale is required")
+	}
+	if source == PermissionSourcePrincipal && strings.TrimSpace(mandate) == "" {
+		return fmt.Errorf("principal permission decisions require an existing mandate")
+	}
+	if !safeID.MatchString(id) || !safeID.MatchString(attemptID) {
+		return fmt.Errorf("invalid task or attempt id")
+	}
+	seen := make(map[string]struct{}, len(decisions))
+	for _, decision := range decisions {
+		if decision.RequestID == "" || decision.OptionID == "" {
+			return fmt.Errorf("each permission decision requires a request id and exact option id")
+		}
+		if _, exists := seen[decision.RequestID]; exists {
+			return fmt.Errorf("permission request %q appears more than once", decision.RequestID)
+		}
+		seen[decision.RequestID] = struct{}{}
+	}
+	return nil
+}
+
+func validatePermissionBatchForTask(task Task, attemptID string, decisions []PermissionBatchDecision, currentPolicyVersion string) ([]int, error) {
+	if len(task.Attempts) == 0 || task.Attempts[len(task.Attempts)-1].ID != attemptID {
+		return nil, fmt.Errorf("permission decisions belong to a stale attempt")
+	}
+	if task.Status != TaskInterventionRequired && task.Status != TaskRunning {
+		return nil, fmt.Errorf("task %q cannot resolve permissions in state %q", task.ID, task.Status)
+	}
+	pending := make(map[string]int, len(decisions))
+	for i := range task.Permissions {
+		record := &task.Permissions[i]
+		if record.AttemptID == attemptID && record.Disposition == PermissionPending {
+			pending[record.RequestID] = i
+		}
+	}
+	indices := make([]int, len(decisions))
+	for i, decision := range decisions {
+		index, exists := pending[decision.RequestID]
+		if !exists {
+			return nil, fmt.Errorf("permission request %q is not pending for this attempt", decision.RequestID)
+		}
+		record := task.Permissions[index]
+		if record.PolicyVersion != currentPolicyVersion {
+			return nil, fmt.Errorf("permission policy changed while request %q was pending", decision.RequestID)
+		}
+		if !hasPermissionChoice(record.Options, decision.OptionID) {
+			return nil, fmt.Errorf("option %q was not offered for request %q", decision.OptionID, decision.RequestID)
+		}
+		indices[i] = index
+	}
+	return indices, nil
+}
+
+func recordPermissionBatch(task *Task, indices []int, decisions []PermissionBatchDecision, source, rationale, currentPolicyVersion, policyRule, mandate string) {
+	now := time.Now().UTC()
+	for i, decision := range decisions {
+		record := &task.Permissions[indices[i]]
+		record.Disposition = PermissionResolved
+		record.OptionID = decision.OptionID
+		record.Source = source
+		record.Rationale = rationale
+		record.Mandate = mandate
+		record.PolicyVersion = currentPolicyVersion
+		record.PolicyRule = policyRule
+		record.ResolvedAt = now
+		task.Revision++
+		task.Events = append(task.Events, StateEvent{
+			ID: task.Revision, At: now, Type: "permission_resolved",
+			Summary: "ACP permission request " + strconv.Quote(decision.RequestID) + " resolved",
+		})
+	}
+	for _, record := range task.Permissions {
+		if record.AttemptID == task.Attempts[len(task.Attempts)-1].ID && record.Disposition == PermissionPending {
+			task.Status = TaskInterventionRequired
+			task.UpdatedAt = now
+			return
+		}
+	}
+	if task.Status == TaskInterventionRequired {
+		task.Status = TaskRunning
+	}
+	task.UpdatedAt = now
 }
 
 func validTaskTransition(from, to TaskStatus) bool {

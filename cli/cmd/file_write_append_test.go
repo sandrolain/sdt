@@ -9,7 +9,7 @@ import (
 // TestWriteAppendCreatesAndKeeps proves the cat >> shape: a missing file is
 // created, an existing one keeps its prior bytes and its mode.
 func TestWriteAppendCreatesAndKeeps(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	fresh := filepath.Join(dir, "fresh.txt")
 	execute(t, fileWriteCmd, []byte("one\n"), "-p", "fresh.txt", "--append")
 	got, err := os.ReadFile(fresh)
@@ -52,7 +52,7 @@ func TestWriteAppendCreatesAndKeeps(t *testing.T) {
 // TestWriteAppendRefusesDirectoryCorpusAndConflict covers the guards: a
 // directory target, a corpus document, and the --overwrite conflict.
 func TestWriteAppendRefusesDirectoryCorpusAndConflict(t *testing.T) {
-	runInTempDir(t)
+	runInIsolatedTempDir(t)
 	shouldExitWithCode(t, 1, func() string {
 		execute(t, fileWriteCmd, []byte("x\n"), "-p", ".", "--append")
 		return ""

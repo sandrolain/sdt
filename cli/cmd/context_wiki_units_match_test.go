@@ -116,7 +116,7 @@ func TestWikiUnitsMatchCapsAtLimit(t *testing.T) {
 }
 
 func TestWikiUnitsMatchWithoutProjectRootFails(t *testing.T) {
-	runInTempDir(t)
+	runInIsolatedTempDir(t)
 	writeTestFile(t, "context/refs/converted/match-abcdef123456.md", unitsMatchArtifact)
 	writeTestFile(t, "context/wiki/architecture/scalability.md",
 		"---\nkind: wiki\ntitle: scalability\nsummary: growth\nstatus: draft\n---\n\nbody\n")

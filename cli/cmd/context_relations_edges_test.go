@@ -10,7 +10,7 @@ import (
 // note whose only reference leaves the corpus.
 func relationsEdgesFixture(t *testing.T) {
 	t.Helper()
-	runInTempDir(t)
+	runInIsolatedTempDir(t)
 	writeCtxDoc(t, "context/analysis/a.md", "---\nkind: analysis\nuid: a-uid\nsummary: parent\n---\n")
 	writeCtxDoc(t, "context/plan/p.md", "---\nkind: plan\nuid: p-uid\nsummary: child\nanalysis_id: a-uid\nsources:\n  - analysis/a.md\nlinks:\n  - notes/n.md\n---\n")
 	writeCtxDoc(t, "context/notes/n.md", "---\nkind: notes\nsummary: outside\nlinks:\n  - refs/converted/x.md\n---\n")

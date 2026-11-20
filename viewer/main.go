@@ -254,6 +254,9 @@ func resolveRoot(rootFlag, cwd string) (string, error) {
 		if _, err := os.Stat(filepath.Join(dir, sdtConfigFile)); err == nil {
 			return dir, nil
 		}
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			break
+		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break

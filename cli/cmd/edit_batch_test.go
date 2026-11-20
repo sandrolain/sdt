@@ -11,7 +11,7 @@ import (
 // writeEditBatchManifest writes a batch manifest and returns its path.
 func writeEditBatchManifest(t *testing.T, content string) string {
 	t.Helper()
-	dir := runInTempDir(t)
+	dir := t.TempDir()
 	p := filepath.Join(dir, "batch.yaml")
 	writeTestFile(t, p, content)
 	return p
@@ -20,7 +20,7 @@ func writeEditBatchManifest(t *testing.T, content string) string {
 // TestEditBatchAppliesManyFiles is the happy path: two files, two pairs each,
 // the count assertion honoured and the diffs printed.
 func TestEditBatchAppliesManyFiles(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	writeTestFile(t, filepath.Join(dir, "a.go"), "alpha one beta\nalpha two\n")
 	writeTestFile(t, filepath.Join(dir, "b.go"), "keep drop\n")
 	manifest := "files:\n" +
@@ -58,7 +58,7 @@ func TestEditBatchAppliesManyFiles(t *testing.T) {
 // TestEditBatchCountGuardRefuses proves the per-pair assertion: count 0 is a
 // guard that refuses when the literal occurs, count N demands exactly N.
 func TestEditBatchCountGuardRefuses(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	writeTestFile(t, filepath.Join(dir, "f.txt"), "x\n")
 	manifest := "files:\n" +
 		"  - file: f.txt\n" +
@@ -95,7 +95,7 @@ func TestEditBatchCountGuardRefuses(t *testing.T) {
 // TestEditBatchPartialIsExitThree proves decision 0037's exit 3: some files
 // applied, some refused, the refused one byte-identical.
 func TestEditBatchPartialIsExitThree(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	writeTestFile(t, filepath.Join(dir, "good.txt"), "a\n")
 	writeTestFile(t, filepath.Join(dir, "bad.txt"), "b\n")
 	manifest := "files:\n" +
@@ -134,7 +134,7 @@ func TestEditBatchPartialIsExitThree(t *testing.T) {
 // TestEditBatchNothingAppliedIsExitOne proves the other exit: when nothing
 // applied the caller cannot mistake the run for a success.
 func TestEditBatchNothingAppliedIsExitOne(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	writeTestFile(t, filepath.Join(dir, "f.txt"), "a\n")
 	manifest := "files:\n" +
 		"  - file: f.txt\n" +
@@ -149,7 +149,7 @@ func TestEditBatchNothingAppliedIsExitOne(t *testing.T) {
 // TestEditBatchJSONAnswer proves the machine-readable shape: per-file,
 // per-pair facts, applied and refused counts.
 func TestEditBatchJSONAnswer(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	writeTestFile(t, filepath.Join(dir, "f.txt"), "x\n")
 	manifest := "files:\n" +
 		"  - file: f.txt\n" +
@@ -172,7 +172,7 @@ func TestEditBatchJSONAnswer(t *testing.T) {
 // TestEditBatchRefusesGuardsAndMixedModes covers the file guards the single
 // form has: symlink, binary, corpus, and a mode flag passed with --batch.
 func TestEditBatchRefusesGuardsAndMixedModes(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	realFile := filepath.Join(dir, "real.txt")
 	writeTestFile(t, realFile, "x\n")
 	if err := os.Symlink(realFile, filepath.Join(dir, "link.txt")); err != nil {
@@ -212,7 +212,7 @@ func TestEditBatchRefusesGuardsAndMixedModes(t *testing.T) {
 // TestEditBatchDryRunWritesNothing proves the review step over the manifest:
 // every diff printed, every file untouched.
 func TestEditBatchDryRunWritesNothing(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	writeTestFile(t, filepath.Join(dir, "f.txt"), "one\n")
 	manifest := "files:\n" +
 		"  - file: f.txt\n" +
@@ -235,7 +235,7 @@ func TestEditBatchDryRunWritesNothing(t *testing.T) {
 // TestEditBatchJSONManifest proves JSON is accepted beside YAML: the leading
 // byte picks the parser.
 func TestEditBatchJSONManifest(t *testing.T) {
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	writeTestFile(t, filepath.Join(dir, "f.txt"), "x\n")
 	manifest := `{"files":[{"file":"f.txt","pairs":[{"old":"x","new":"y"}]}]}`
 	execute(t, editCmd, []byte(manifest), "--batch", "-")

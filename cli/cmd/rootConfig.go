@@ -335,6 +335,10 @@ func findProjectConfigAt() (*ProjectConfig, string, error) {
 				return &cfg, dir, nil
 			}
 		}
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			// A nested repository must not silently inherit an unrelated parent project's config.
+			break
+		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break

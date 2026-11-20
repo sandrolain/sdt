@@ -1233,16 +1233,49 @@ func outputAction(cmd *cobra.Command, text string, value any) error {
 var agentTaskPermissionsCmd = &cobra.Command{Use: "permissions", Short: "Inspect or resolve ACP permission requests"}
 var agentTaskPermissionListCmd = &cobra.Command{Use: "list <task-id>", Args: cobra.ExactArgs(1), RunE: runAgentTaskPermissionList}
 var agentTaskPermissionResolveCmd = &cobra.Command{Use: "resolve <task-id> <request-id>", Args: cobra.ExactArgs(2), RunE: runAgentTaskPermissionResolve}
+var agentTaskPermissionResolveBatchCmd = &cobra.Command{
+	Use:   "resolve-batch <task-id>",
+	Short: "Resolve independent ACP permission requests with exact per-request choices",
+	Long: `Input JSON or YAML with a decisions list; each request_id must map to an option_id
+offered for that request. The batch shares source, rationale, and mandate flags but
+records them separately on every decision. A stale or invalid choice applies none.
+
+Example input:
+  decisions:
+    - request_id: request-a
+      option_id: allow-once
+    - request_id: request-b
+      option_id: reject-once`,
+	Args: cobra.ExactArgs(1), RunE: runAgentTaskPermissionResolveBatch,
+}
+
+type permissionBatchInput struct {
+	Decisions []delegation.PermissionBatchDecision `json:"decisions" yaml:"decisions"`
+}
+
+func decodePermissionBatchInput(raw string) (permissionBatchInput, error) {
+	var input permissionBatchInput
+	if err := yaml.Unmarshal([]byte(raw), &input); err != nil {
+		return permissionBatchInput{}, fmt.Errorf("decode permission batch input: %w", err)
+	}
+	if len(input.Decisions) == 0 {
+		return permissionBatchInput{}, fmt.Errorf("permission batch input must contain at least one decision")
+	}
+	return input, nil
+}
 
 func init() {
-	agentTaskPermissionsCmd.AddCommand(agentTaskPermissionListCmd, agentTaskPermissionResolveCmd)
+	agentTaskPermissionsCmd.AddCommand(agentTaskPermissionListCmd, agentTaskPermissionResolveCmd, agentTaskPermissionResolveBatchCmd)
 	agentTaskPermissionListCmd.Flags().String("source", "", "Filter decision source, including principal, user or policy")
 	agentTaskPermissionListCmd.Flags().String("outcome", "", "Filter recorded disposition, such as pending, resolved or stale")
 	agentTaskPermissionListCmd.Flags().Bool("escalated", false, "Show only requests carrying an escalation reason")
 	agentTaskPermissionResolveCmd.Flags().String("option", "", "Exact offered permission option id")
 	agentTaskPermissionResolveCmd.Flags().String("rationale", "", "Principal decision rationale")
-	agentTaskPermissionResolveCmd.Flags().String("source", "principal", "Decision source: principal or user (explicit user response)")
+	agentTaskPermissionResolveCmd.Flags().String("source", delegation.PermissionSourcePrincipal, "Decision source: principal or user (explicit user response)")
 	agentTaskPermissionResolveCmd.Flags().String("mandate", "", "Existing mandate reference required for a principal decision")
+	agentTaskPermissionResolveBatchCmd.Flags().String("rationale", "", "Rationale recorded for each permission decision")
+	agentTaskPermissionResolveBatchCmd.Flags().String("source", delegation.PermissionSourcePrincipal, "Decision source: principal or user (explicit user response)")
+	agentTaskPermissionResolveBatchCmd.Flags().String("mandate", "", "Existing mandate reference required for a principal decision")
 	agentTaskResultCmd.Flags().Bool("log", false, "Retrieve the retained worker log")
 }
 
@@ -1298,6 +1331,83 @@ func runAgentTaskPermissionResolve(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	return outputAction(cmd, "Permission decision recorded; the worker reconciles durable state even if the wake notification is unavailable.\n", map[string]string{"task_id": args[0], "request_id": args[1], ctxMapStatus: "resolved"})
+}
+
+func runAgentTaskPermissionResolveBatch(cmd *cobra.Command, args []string) error {
+	source := getStringFlag(cmd, "source", false)
+	rationale := getStringFlag(cmd, "rationale", false)
+	mandate := getStringFlag(cmd, "mandate", false)
+	if err := validatePermissionAuthority(source, rationale, mandate); err != nil {
+		return err
+	}
+	input, err := decodePermissionBatchInput(getInputString(cmd, nil))
+	if err != nil {
+		return err
+	}
+	store, err := taskStore()
+	if err != nil {
+		return err
+	}
+	cfg, _, err := findProjectConfigAt()
+	if err != nil {
+		return err
+	}
+	task, err := store.Read(args[0])
+	if err != nil {
+		return err
+	}
+	if len(task.Attempts) == 0 {
+		return fmt.Errorf("task %q has no attempt with pending permissions", args[0])
+	}
+	versionData, err := json.Marshal(cfg.Delegation.PermissionPolicy)
+	if err != nil {
+		return err
+	}
+	digest := sha256.Sum256(versionData)
+	version := hex.EncodeToString(digest[:])
+	if err := store.ResolvePermissionBatchWithPolicy(args[0], task.Attempts[len(task.Attempts)-1].ID, input.Decisions, source, rationale, version, "explicit CLI batch decision", mandate); err != nil {
+		return err
+	}
+	resolved, err := store.Read(args[0])
+	if err != nil {
+		return err
+	}
+	type decisionSummary struct {
+		RequestID  string `json:"request_id"`
+		Capability string `json:"capability"`
+		Operation  string `json:"operation,omitempty"`
+		Scope      string `json:"scope"`
+		OptionID   string `json:"option_id"`
+		OptionName string `json:"option_name"`
+	}
+	summaries := make([]decisionSummary, 0, len(input.Decisions))
+	for _, decision := range input.Decisions {
+		for _, record := range resolved.Permissions {
+			if record.RequestID != decision.RequestID || record.AttemptID != task.Attempts[len(task.Attempts)-1].ID {
+				continue
+			}
+			name := decision.OptionID
+			for _, option := range record.Options {
+				if option.OptionID == decision.OptionID {
+					name = option.Name
+					break
+				}
+			}
+			summaries = append(summaries, decisionSummary{
+				RequestID: record.RequestID, Capability: record.Capability, Operation: record.Operation,
+				Scope: record.Scope, OptionID: decision.OptionID, OptionName: name,
+			})
+			break
+		}
+	}
+	var message strings.Builder
+	fmt.Fprintf(&message, "Recorded %d exact permission decisions; the worker reconciles durable state even if the wake notification is unavailable.\n", len(summaries))
+	for _, summary := range summaries {
+		fmt.Fprintf(&message, "- %q: %q / %q / %q → %q (%q)\n", summary.RequestID, summary.Capability, summary.Operation, summary.Scope, summary.OptionName, summary.OptionID)
+	}
+	return outputAction(cmd, message.String(), map[string]any{
+		delegationFieldTaskID: args[0], "status": resolved.Status, "resolved_count": len(summaries), "decisions": summaries,
+	})
 }
 
 var agentTaskAvailabilityCmd = &cobra.Command{Use: "availability", Short: "Inspect or reset provider availability exclusions"}

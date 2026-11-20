@@ -18,6 +18,7 @@ func TestAgentTaskCommandContractAndBoundedStatus(t *testing.T) {
 		{"agent", "task", "cancel"}, {"agent", "task", "resume"},
 		{"agent", "task", "accept"}, {"agent", "task", "correct"}, {"agent", "task", "fail"}, {"agent", "task", "discard"},
 		{"agent", "task", "inbox", "list"},
+		{"agent", "task", "permissions", "resolve-batch"},
 		{"agent", "task", "apply", "preview"}, {"agent", "task", "apply", "execute"},
 		{"agent", "task", "cleanup", "preview"}, {"agent", "task", "cleanup", "execute"},
 		{"agent", "task", "permissions", "list"}, {"agent", "task", "permissions", "resolve"},

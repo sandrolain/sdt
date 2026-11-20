@@ -39,7 +39,7 @@ func TestLearnMaterialResolverRefusesAmbiguity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Chdir(t.TempDir())
+	runInIsolatedTempDir(t)
 	writeResolverFixture(t, base, "one", "alpha-syllabus-one.it.md")
 	writeResolverFixture(t, base, "two", "alpha-syllabus-two.it.md")
 
@@ -80,7 +80,7 @@ func TestLearnBundleRefusesAmbiguousMaterial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Chdir(t.TempDir())
+	runInIsolatedTempDir(t)
 	writeResolverFixture(t, base, "one", "alpha-syllabus-one.it.md")
 	writeResolverFixture(t, base, "two", "alpha-syllabus-two.it.md")
 	// A page for the concept the fixtures carry, so the bundle's material

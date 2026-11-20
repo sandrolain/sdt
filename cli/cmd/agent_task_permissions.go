@@ -9,13 +9,13 @@ import (
 )
 
 func validatePermissionAuthority(source, rationale, mandate string) error {
-	if source != "principal" && source != "user" {
+	if source != delegation.PermissionSourcePrincipal && source != delegation.PermissionUser {
 		return fmt.Errorf("--source must be principal or user")
 	}
 	if strings.TrimSpace(rationale) == "" {
 		return fmt.Errorf("--rationale must explain the decision")
 	}
-	if source == "principal" && strings.TrimSpace(mandate) == "" {
+	if source == delegation.PermissionSourcePrincipal && strings.TrimSpace(mandate) == "" {
 		return fmt.Errorf("--mandate must reference the existing authority; otherwise ask the user")
 	}
 	return nil

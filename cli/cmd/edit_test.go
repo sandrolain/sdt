@@ -12,7 +12,7 @@ import (
 // absolute path and name.
 func editFixture(t *testing.T, name, content string) (abs, rel string) {
 	t.Helper()
-	dir := runInTempDir(t)
+	dir := runInIsolatedTempDir(t)
 	abs = filepath.Join(dir, name)
 	writeTestFile(t, abs, content)
 	return abs, name
