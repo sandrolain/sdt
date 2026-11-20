@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sandrolain/sdt/internal/filelock"
 )
 
 const stateSchemaVersion = 1
@@ -1214,7 +1216,7 @@ func (s *Store) WithLock(name string, fn func() error) error {
 	if err := os.MkdirAll(lockDir, 0o700); err != nil {
 		return err
 	}
-	return withFileLock(filepath.Join(lockDir, name+".lock"), fn)
+	return filelock.WithLock(filepath.Join(lockDir, name+".lock"), fn)
 }
 
 func (s *Store) taskDir(id string) string   { return filepath.Join(s.root, "tasks", id) }

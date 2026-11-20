@@ -13,13 +13,16 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
+	"syscall"
 	"time"
 )
 
 const (
-	maxTaskSubscribers    = 32
-	workerOperationCancel = "cancel"
+	maxTaskSubscribers     = 32
+	maxWorkerSocketPathLen = 100 // Keep below the 104-byte Unix socket limit on macOS.
+	workerOperationCancel  = "cancel"
 )
 
 type workerSocketOwner struct {
@@ -85,6 +88,9 @@ func (s *Store) Listen(ctx context.Context, taskID string, identity ProcessIdent
 		return nil, err
 	}
 	path, ownerPath := workerSocketPaths(dir, taskID)
+	if err := ensureWorkerSocketDirectory(path); err != nil {
+		return nil, err
+	}
 	if err := removeStaleWorkerSocket(path, ownerPath); err != nil {
 		return nil, err
 	}
@@ -456,9 +462,55 @@ func (s *Store) WaitWorkerClosed(ctx context.Context, taskID string) error {
 }
 
 func workerSocketPaths(dir, taskID string) (string, string) {
-	digest := sha256.Sum256([]byte(taskID))
-	name := hex.EncodeToString(digest[:8])
-	return filepath.Join(dir, name+".sock"), filepath.Join(dir, name+".owner.json")
+	ownerDir := filepath.Clean(dir)
+	delegationRoot := filepath.Dir(ownerDir)
+	absolute, err := filepath.Abs(delegationRoot)
+	if err == nil {
+		delegationRoot = absolute
+	}
+	if resolved, err := filepath.EvalSymlinks(delegationRoot); err == nil {
+		delegationRoot = resolved
+	}
+
+	scope := strconv.Itoa(os.Getuid()) + "\x00" + delegationRoot + "\x00" + taskID
+	socketDigest := sha256.Sum256([]byte(scope))
+	socketName := hex.EncodeToString(socketDigest[:16]) + ".sock"
+	tempRoot := os.TempDir()
+	if absolute, err := filepath.Abs(tempRoot); err == nil {
+		tempRoot = absolute
+	}
+	socketDir := filepath.Join(tempRoot, "sdt-"+strconv.Itoa(os.Getuid()))
+	path := filepath.Join(socketDir, socketName)
+	if len(path) > maxWorkerSocketPathLen {
+		socketDir = filepath.Join("/tmp", "sdt-"+strconv.Itoa(os.Getuid()))
+		path = filepath.Join(socketDir, socketName)
+	}
+
+	ownerDigest := sha256.Sum256([]byte(taskID))
+	ownerName := hex.EncodeToString(ownerDigest[:8])
+	return path, filepath.Join(ownerDir, ownerName+".owner.json")
+}
+
+func ensureWorkerSocketDirectory(path string) error {
+	if len(path) > maxWorkerSocketPathLen {
+		return fmt.Errorf("worker socket path exceeds %d bytes", maxWorkerSocketPathLen)
+	}
+	dir := filepath.Dir(path)
+	if err := os.Mkdir(dir, 0o700); err != nil && !os.IsExist(err) {
+		return err
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() || info.Mode().Perm()&0o077 != 0 || info.Mode().Perm()&0o700 != 0o700 {
+		return fmt.Errorf("worker socket directory %s is not private", dir)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || int64(stat.Uid) != int64(os.Getuid()) {
+		return fmt.Errorf("worker socket directory %s is not owned by the current user", dir)
+	}
+	return nil
 }
 
 func removeStaleWorkerSocket(path, ownerPath string) error {

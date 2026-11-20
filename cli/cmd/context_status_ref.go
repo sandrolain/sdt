@@ -602,6 +602,10 @@ func ctxApplyFrontmatter(cmd *cobra.Command, doc ctxResolvedDoc, patches []front
 	if err != nil {
 		return "", err
 	}
+	expectedRevision, err := contextExpectedRevision(cmd)
+	if err != nil {
+		return "", err
+	}
 	previous := parseFrontmatterField(string(data), ctxMapStatus)
 	content, changed := setFrontmatterFields(string(data), patches)
 	// Lazy identifier stamping: any rewrite of an eligible document also
@@ -620,8 +624,7 @@ func ctxApplyFrontmatter(cmd *cobra.Command, doc ctxResolvedDoc, patches []front
 		}
 		return previous, nil
 	}
-	//#nosec G306,G703 -- a resolved context/ work file
-	if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+	if err := guardedContextDocWrite(doc.Path, data, content, expectedRevision); err != nil {
 		return "", err
 	}
 	return previous, nil
@@ -653,7 +656,8 @@ append-only: only the status field changes, never the body or filename.
 Examples:
   sdt context status set context/analysis/20260920-130000-x.md --status archived
   sdt context status set --type decision --number 0001 --slug auth-choice --status accepted
-  sdt context status set --type proposal --slug provenance --status review`,
+  sdt context status set --type proposal --slug provenance --status review
+  sdt context status set analysis/x.md --status archived --expected-revision <sha256>`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		status := getStringFlag(cmd, "status", true)
@@ -670,7 +674,8 @@ Examples:
 		// an early close is never silent — one verb per job, no second command.
 		if reason := strings.TrimSpace(getStringFlag(cmd, "reason", false)); reason != "" && status == closeTerminalStatus(doc.Type) {
 			if _, err := closeDocument(cmd, doc, true, reason, nil); err != nil {
-				exitWithError(cmd, err)
+				exitWithContextMutationError(cmd, err)
+				return
 			}
 			writeStatusResult(cmd, doc, status)
 			cascadeAfterWrite(cmd, doc.Path)
@@ -684,7 +689,8 @@ Examples:
 			}
 		}
 		if _, err := ctxApplyFrontmatter(cmd, doc, ctxStatusSetPatches(doc.Type, status)); err != nil {
-			exitWithError(cmd, err)
+			exitWithContextMutationError(cmd, err)
+			return
 		}
 
 		writeStatusResult(cmd, doc, status)
@@ -744,6 +750,7 @@ func addContextStatusRefFlags(c *cobra.Command) {
 func init() {
 	addContextStatusRefFlags(contextStatusGetCmd)
 	addContextStatusRefFlags(contextStatusSetCmd)
+	addContextExpectedRevisionFlag(contextStatusSetCmd)
 	contextStatusSetCmd.Flags().String("status", "", "New status value (validated against the kind vocabulary)")
 	contextStatusSetCmd.Flags().Bool("force", false, "Set a terminal status even when derived state disagrees")
 	contextStatusSetCmd.Flags().String("reason", "", "With a terminal status: record why the derived state disagrees (the close path)")
