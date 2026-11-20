@@ -30,7 +30,6 @@ describe("isExcludedPath", () => {
     for (const p of [
       "context/wiki/topic.md",
       "context/wiki/commands.md",
-      "context/commands/index.md",
       "context/instructions/plan.md",
       "context/plan/x.md",
     ]) {

@@ -239,7 +239,6 @@ func TestNormalizeBacklinkRef(t *testing.T) {
 		"context/refs/clone.md":        "",
 		"refs/clone.md":                "",
 		"tmp/scratch.md":               "",
-		"commands/ingest.md":           "context/commands/ingest.md",
 		"":                             "",
 	}
 	for in, want := range cases {

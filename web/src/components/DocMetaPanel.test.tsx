@@ -21,7 +21,6 @@ const DOC = {
     "tags: [alpha, beta]",
     "sources:",
     "  - analysis/a.md",
-    "  - context/commands/c.md",
     "---",
   ].join("\n"),
   markdown: "# First\n\ntext\n\n## Second\n",
@@ -108,12 +107,6 @@ describe("DocMetaPanel", () => {
     expect(link).toBeTruthy();
     // kind glyph + colour from the corpus path fallback, with the human label
     expect(screen.getAllByLabelText("Analyses").length).toBeGreaterThan(0);
-    // sources under context/commands resolve as real corpus links (kind commands)
-    const cmd = screen
-      .getAllByRole("link")
-      .find((el) => el.getAttribute("href") === "/docs/context/commands/c.md");
-    expect(cmd).toBeTruthy();
-    expect(cmd?.getAttribute("title")).toBeNull();
   });
 
   it("renders the TOC under the Sections panel", async () => {

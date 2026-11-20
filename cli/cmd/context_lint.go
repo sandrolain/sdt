@@ -458,15 +458,8 @@ type ctxLintIssue struct {
 	Hint string `json:"hint,omitempty" yaml:"hint,omitempty"`
 }
 
-// ctxLintHints are remediation next-actions keyed by message prefix. Longest,
-// most specific prefixes must come first so a command instruction reference is
-// matched before the generic broken-reference entry.
+// ctxLintHints are remediation next-actions keyed by message prefix.
 var ctxLintHints = []struct{ prefix, hint string }{
-	{"unresolved instruction reference", "fix the target path in the command frontmatter so it resolves to an existing context/instructions/*.md file"},
-	{"command body lacks a `## When not to use`", "add a `## When not to use` section stating when the trigger does NOT apply"},
-	{"command `summary` is", "shorten the command `summary` to at most 1024 chars; it doubles as the trigger tooltip"},
-	{"command file `id` must be", "set `id` to `commands/<filename>` (the trigger identity) so links and lookup stay deterministic"},
-	{"command file `kind` must be", "set `kind: commands` so the trigger filenames and the frontmatter type agree"},
 	{"broken link [[", "fix the [[target]] so it resolves to an existing document (links resolve relative to the document dir; index.md resolves from context/)"},
 	{"broken source reference", "fix the `sources` frontmatter reference so it resolves to an existing context document"},
 	{"broken derived_from reference", "fix the `derived_from` frontmatter reference so it resolves to the prompt/analysis that produced this document"},

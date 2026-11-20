@@ -98,8 +98,7 @@ func agentAppendIfMissing(content, name, body string) string {
 // ── generated per-file markers ─────────────────────────────────────────────────
 
 // agentGeneratedMarkerName returns the marker name for a generated file, scoped
-// by its owning directory so instructions/analysis.md and commands/analysis.md
-// stay distinct.
+// by its owning directory so files with the same name stay distinct.
 
 func agentGeneratedMarkerName(dir, name string) string {
 	return dir + "/" + strings.TrimSuffix(name, sdtMarkdownExt)
