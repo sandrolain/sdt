@@ -101,6 +101,10 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) {
+		configureCommandGroups(cmd.Root())
+		cmd.Print(cmd.UsageString())
+	})
 	pf := rootCmd.PersistentFlags()
 	pf.String("input", "", "Input String")
 	pf.BytesBase64("inb64", []byte{}, "Input Base 64")

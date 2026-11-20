@@ -9,25 +9,28 @@ Time-based One Time Password
 ### Options
 
 ```
-  -a, --account string     TOTP Account Name
-  -l, --algorithm string   TOTP algorithm (SHA1, SHA256, SHA512, MD5) (default "SHA1")
-  -c, --code string        TOTP Code
-  -d, --digits int         TOTP digits (6, 8) (default 6)
-  -h, --help               help for totp
-  -r, --issuer string      TOTP Issuer
-  -p, --period uint        TOTP Period (default 30)
-  -s, --secret string      TOTP Secret (Base 32)
+  -a, --account string      TOTP Account Name
+  -l, --algorithm string    TOTP algorithm (SHA1, SHA256, SHA512, MD5) (default "SHA1")
+  -c, --code string         TOTP Code
+  -d, --digits int          TOTP digits (6, 8) (default 6)
+  -h, --help[=true|false]   help for totp
+  -r, --issuer string       TOTP Issuer
+  -p, --period uint         TOTP Period (default 30)
+  -s, --secret string       TOTP Secret (Base 32)
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --file string         Input File
-      --format string       Output format: text|json|yaml (default "text")
-      --inb64 bytesBase64   Input Base 64
-      --input string        Input String
-      --no-color            Disable ANSI color codes
-      --quiet               Suppress informational messages, only output result
+      --file string             Input File
+      --format string           Output format: text|json|yaml (default "text")
+      --inb64 bytesBase64       Input Base 64
+      --input string            Input String
+      --log-format string       Log format: text|json (default "text")
+      --no-color[=true|false]   Disable ANSI color codes
+      --no-env[=true|false]     Do not load a project-root .env file
+      --progress string         Progress narration on stderr: auto|human|json|none (default "auto")
+      --quiet[=true|false]      Suppress informational messages, only output result
 ```
 
 ### SEE ALSO
@@ -37,4 +40,3 @@ Time-based One Time Password
 * [sdt totp image](sdt_totp_image.md)	 - Generate QR code Image
 * [sdt totp uri](sdt_totp_uri.md)	 - Generate URI
 * [sdt totp verify](sdt_totp_verify.md)	 - Verify Code
-

@@ -37,8 +37,8 @@ var jsonMinifyCmd = &cobra.Command{
 
 var jsonValidCmd = &cobra.Command{
 	Use:   cmdValid,
-	Short: "Validate JSON",
-	Long:  `Validare JSON`,
+	Short: "Validate JSON syntax",
+	Long:  `Validate JSON syntax only. This command does not validate data against a JSON Schema.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		str := getInputString(cmd, args)
 		exitWithError(cmd, utils.ValidJSON(str))

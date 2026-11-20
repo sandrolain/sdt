@@ -70,7 +70,7 @@ type contextNewBatchResult struct {
 
 // runContextNewBatch is the `context new --batch <file>` entry point.
 func runContextNewBatch(cmd *cobra.Command, batchFile string) {
-	for _, name := range []string{ctxFrontmatterType, ctxDocTitleKey, "slug", "input", "file", "inb64", ctxFrontmatterObjective, ctxMapStatus, "source", "note-type", "topic", "entity", "category", "number", "force", "edit"} {
+	for _, name := range []string{ctxFrontmatterType, ctxDocTitleKey, "slug", inputStringFlag, editFileFlag, inputBase64Flag, ctxFrontmatterObjective, ctxMapStatus, "source", "note-type", "topic", "entity", "category", "number", "force", "edit"} {
 		if cmd.Flags().Changed(name) {
 			exitWithError(cmd, fmt.Errorf("--batch carries these fields per entry; drop --%s", name))
 			return

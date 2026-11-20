@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +17,19 @@ var sentenceEndRe = regexp.MustCompile(`[.!?]+[\s]+`)
 // markdownSectionRe matches a markdown heading line.
 var markdownSectionRe = regexp.MustCompile(`(?m)^#{1,6}\s+.+$`)
 
-// truncateToTokens cuts the text so that CountTokens(result, family) <= maxTokens.
+// TruncateResult reports the retained text and its approximate budget metadata.
+type TruncateResult struct {
+	Text              string `json:"text" yaml:"text"`
+	Model             string `json:"model" yaml:"model"`
+	TokenizerFamily   string `json:"tokenizer_family" yaml:"tokenizer_family"`
+	EstimatedTokens   int    `json:"estimated_tokens" yaml:"estimated_tokens"`
+	MaxTokens         int    `json:"max_tokens" yaml:"max_tokens"`
+	Truncated         bool   `json:"truncated" yaml:"truncated"`
+	OmittedCharacters int    `json:"omitted_characters" yaml:"omitted_characters"`
+	Warning           string `json:"warning" yaml:"warning"`
+}
+
+// truncateToTokens cuts text until its approximate token count is at most maxTokens.
 // It uses a binary-search approach over rune offsets for efficiency.
 func truncateToTokens(text, family string, maxTokens int) string {
 	if CountTokens(text, family) <= maxTokens {
@@ -52,6 +67,9 @@ func truncateSentences(text, family string, maxTokens int) string {
 // truncateSections truncates text at a markdown section boundary so the result
 // fits within maxTokens. It keeps whole sections.
 func truncateSections(text, family string, maxTokens int) string {
+	if CountTokens(text, family) <= maxTokens {
+		return text
+	}
 	// Split on heading lines preserving them.
 	locs := markdownSectionRe.FindAllStringIndex(text, -1)
 	if len(locs) == 0 {
@@ -94,8 +112,12 @@ func truncateSections(text, family string, maxTokens int) string {
 
 var truncateCmd = &cobra.Command{
 	Use:   "truncate",
-	Short: "Truncate text to a maximum number of LLM tokens",
-	Long: `Truncate input text so that it fits within a maximum token budget.
+	Short: "Truncate text using an approximate token limit",
+	Long: `Truncate input text until the selected tokenizer approximation is at or
+below --max-tokens. The count is only an estimate and is not provider-exact.
+Text output stays on stdout with the estimate and omission warning on stderr.
+JSON and YAML output include the text, estimate, truncation state, omitted
+character count, and warning as structured fields.
 
 Strategies:
   chars       Hard cut at character level (default)
@@ -129,7 +151,37 @@ Example:
 			result = truncateToTokens(text, family, maxTokens)
 		}
 
-		outputString(cmd, result)
+		omittedChars := utf8.RuneCountInString(text) - utf8.RuneCountInString(result)
+		truncated := result != text
+		warning := tokenEstimateNote(model)
+		if truncated {
+			warning = fmt.Sprintf("input was truncated; %s; omitted %d characters", warning, omittedChars)
+		}
+		metadata := TruncateResult{
+			Text:              result,
+			Model:             model,
+			TokenizerFamily:   family,
+			EstimatedTokens:   CountTokens(result, family),
+			MaxTokens:         maxTokens,
+			Truncated:         truncated,
+			OmittedCharacters: omittedChars,
+			Warning:           warning,
+		}
+
+		switch getFormat(cmd) {
+		case fmtJSON:
+			out, err := json.MarshalIndent(metadata, "", "  ")
+			exitWithError(cmd, err)
+			outputBytes(cmd, out)
+		case fmtYAML:
+			out, err := yaml.Marshal(metadata)
+			exitWithError(cmd, err)
+			outputBytes(cmd, out)
+		default:
+			outputString(cmd, result)
+			cmd.PrintErrf("%s; estimated retained tokens: %d of %d; truncated: %t; omitted characters: %d\n",
+				warning, metadata.EstimatedTokens, maxTokens, truncated, omittedChars)
+		}
 	},
 }
 

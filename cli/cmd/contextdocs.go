@@ -170,18 +170,22 @@ func renderDocsIndex(cmds []docsCommand, generated string) string {
 	b.WriteString("## Commands\n\n")
 
 	grouped := map[string][]docsCommand{}
-	var order []string
 	for _, d := range cmds {
 		first := strings.SplitN(d.path, " ", 2)[0]
-		if _, ok := grouped[first]; !ok {
-			order = append(order, first)
+		category, ok := categoryForCommand(first)
+		if !ok {
+			continue
 		}
-		grouped[first] = append(grouped[first], d)
+		grouped[category.id] = append(grouped[category.id], d)
 	}
-	sort.Strings(order)
-	for _, g := range order {
-		fmt.Fprintf(&b, "### %s\n\n", g)
-		for _, d := range grouped[g] {
+	for _, categoryID := range commandCategoryOrder {
+		entries := grouped[categoryID]
+		if len(entries) == 0 {
+			continue
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].path < entries[j].path })
+		fmt.Fprintf(&b, "### %s\n\n", categoryTitle(categoryID))
+		for _, d := range entries {
 			fmt.Fprintf(&b, "- [sdt %s](%s) — %s\n", d.path, d.file, d.c.Short)
 		}
 		b.WriteString("\n")

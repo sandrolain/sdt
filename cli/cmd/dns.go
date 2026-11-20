@@ -21,11 +21,7 @@ type DNSResult struct {
 func dnsLookup(host, recordType string) ([]string, error) {
 	switch strings.ToUpper(recordType) {
 	case "A", "AAAA":
-		ips, err := net.LookupHost(host)
-		if err != nil {
-			return nil, err
-		}
-		return ips, nil
+		return dnsLookupIPs(host, recordType, net.LookupIP)
 	case "MX":
 		records, err := net.LookupMX(host)
 		if err != nil {
@@ -69,12 +65,34 @@ func dnsLookup(host, recordType string) ([]string, error) {
 	}
 }
 
+func dnsLookupIPs(host, recordType string, lookup func(string) ([]net.IP, error)) ([]string, error) {
+	ips, err := lookup(host)
+	if err != nil {
+		return nil, err
+	}
+
+	recordType = strings.ToUpper(recordType)
+	records := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		if recordType == "A" && ip.To4() != nil {
+			records = append(records, ip.To4().String())
+		}
+		if recordType == "AAAA" && ip.To4() == nil && ip.To16() != nil {
+			records = append(records, ip.String())
+		}
+	}
+	return records, nil
+}
+
 var dnsCmd = &cobra.Command{
 	Use:   "dns",
 	Short: "DNS lookup for a host",
 	Long: `Perform a DNS lookup for the given host and record type.
 
 Supported record types: A (default), AAAA, MX, TXT, CNAME, NS, PTR
+
+A returns only IPv4 addresses; AAAA returns only IPv6 addresses. Address order
+follows the system resolver.
 
 PTR performs a reverse DNS lookup (pass an IP address as --host).
 

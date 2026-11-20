@@ -23,6 +23,7 @@ type CommandManifest struct {
 	Aliases     []string          `json:"aliases,omitempty"     yaml:"aliases,omitempty"`
 	Short       string            `json:"short"                 yaml:"short"`
 	Long        string            `json:"long,omitempty"        yaml:"long,omitempty"`
+	Category    string            `json:"category,omitempty"    yaml:"category,omitempty"`
 	Deprecated  string            `json:"deprecated,omitempty"  yaml:"deprecated,omitempty"`
 	Flags       []FlagManifest    `json:"flags,omitempty"       yaml:"flags,omitempty"`
 	Subcommands []CommandManifest `json:"subcommands,omitempty" yaml:"subcommands,omitempty"`
@@ -38,6 +39,11 @@ func buildCommandManifest(c *cobra.Command) CommandManifest {
 	}
 	if c.Long != c.Short {
 		m.Long = c.Long
+	}
+	if c.Parent() == rootCmd {
+		if category, ok := categoryForCommand(c.Name()); ok {
+			m.Category = category.title
+		}
 	}
 
 	var flags []FlagManifest
@@ -78,9 +84,11 @@ var manifestCmd = &cobra.Command{
 	Short: "Emit a machine-readable manifest of all available commands",
 	Long: `Emit a JSON or YAML manifest of the full command tree.
 
+Each root command includes one of the purpose categories shown in root help.
 Useful for AI agents to auto-discover capabilities without parsing help text.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		root := cmd.Root()
+		configureCommandGroups(root)
 		type manifestRoot struct {
 			Commands []CommandManifest `json:"commands" yaml:"commands"`
 		}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -55,8 +56,8 @@ func TestResolveModelFamily(t *testing.T) {
 
 func TestTokensCmd_text(t *testing.T) {
 	out := execute(t, tokensCmd, []byte("Hello, world!"))
-	if len(out) == 0 {
-		t.Fatal("expected non-empty output")
+	if !strings.HasPrefix(string(out), "Estimated tokens: ") {
+		t.Fatalf("output = %q, want an explicit estimate label", out)
 	}
 }
 
@@ -79,5 +80,28 @@ func TestTokensCmd_model(t *testing.T) {
 	}
 	if result.Model != "llama" {
 		t.Errorf("expected model llama, got %s", result.Model)
+	}
+	if !strings.Contains(result.Note, "not provider-exact") {
+		t.Errorf("note = %q, want estimation limitation", result.Note)
+	}
+}
+
+func TestTokensCmd_unknownModelDisclosesFallback(t *testing.T) {
+	out := execute(t, tokensCmd, []byte("Hello, world!"), "--model", "unknown-model", "--format", "json")
+	var result TokensResult
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("invalid JSON: %v\nout: %s", err, out)
+	}
+	if result.Family != familyCL100K || !strings.Contains(result.Note, "unknown model") || !strings.Contains(result.Note, "cl100k") {
+		t.Fatalf("result does not disclose fallback: %+v", result)
+	}
+}
+
+func TestTokensCmd_unknownModelTextDisclosesFallback(t *testing.T) {
+	out := execute(t, tokensCmd, []byte("Hello, world!"), "--model", "unknown-model")
+	for _, want := range []string{"Estimated tokens:", "unknown model", "cl100k", "not provider-exact"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("output %q does not contain %q", out, want)
+		}
 	}
 }

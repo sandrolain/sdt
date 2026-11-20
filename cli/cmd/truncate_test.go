@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/goccy/go-yaml"
 )
 
 func TestTruncateToTokens_noop(t *testing.T) {
@@ -44,12 +47,59 @@ func TestTruncateSections(t *testing.T) {
 	}
 }
 
+func TestTruncateSectionsLeavesWithinBudgetInputUntouched(t *testing.T) {
+	text := "# Section\n\nContent.\n\n"
+	if got := truncateSections(text, familyCL100K, 100); got != text {
+		t.Fatalf("truncateSections changed an input that already fits: %q", got)
+	}
+}
+
 func TestTruncateCmd_default(t *testing.T) {
 	long := strings.Repeat("word ", 500)
 	out := execute(t, truncateCmd, []byte(long), "--max-tokens", "20")
 	count := CountTokens(string(out), "cl100k")
 	if count > 22 { // allow small trailing newline
 		t.Errorf("expected <= 20 tokens in output, got %d", count)
+	}
+}
+
+func TestTruncateCmdDisclosesEstimateAndOmission(t *testing.T) {
+	_, stderr, err := runRoot(t, "truncate", "--input", strings.Repeat("word ", 100), "--max-tokens", "10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"approximate regex tokenization", "estimated retained tokens:", "truncated: true", "omitted characters:"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr %q does not contain %q", stderr, want)
+		}
+	}
+	if !strings.Contains(stderr, "not provider-exact") {
+		t.Errorf("stderr %q does not disclose estimate limitations", stderr)
+	}
+}
+
+func TestTruncateCmdJSONIncludesEstimateAndOmissionMetadata(t *testing.T) {
+	out := execute(t, truncateCmd, []byte(strings.Repeat("word ", 100)), "--max-tokens", "10", "--format", "json")
+	var result TruncateResult
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if !result.Truncated || result.OmittedCharacters == 0 || result.EstimatedTokens > result.MaxTokens {
+		t.Fatalf("missing truncation metadata: %+v", result)
+	}
+	if !strings.Contains(result.Warning, "input was truncated") || !strings.Contains(result.Warning, "not provider-exact") {
+		t.Fatalf("warning does not disclose the estimate and truncation: %q", result.Warning)
+	}
+}
+
+func TestTruncateCmdYAMLIncludesEstimateAndOmissionMetadata(t *testing.T) {
+	out := execute(t, truncateCmd, []byte(strings.Repeat("word ", 100)), "--max-tokens", "10", "--format", "yaml")
+	var result TruncateResult
+	if err := yaml.Unmarshal(out, &result); err != nil {
+		t.Fatalf("invalid YAML: %v\n%s", err, out)
+	}
+	if !result.Truncated || result.OmittedCharacters == 0 || result.EstimatedTokens > result.MaxTokens {
+		t.Fatalf("missing truncation metadata: %+v", result)
 	}
 }
 

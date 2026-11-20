@@ -72,6 +72,18 @@ func resolveModelFamily(model string) string {
 	return familyCL100K
 }
 
+func tokenModelKnown(model string) bool {
+	_, ok := tokenModels[model]
+	return ok
+}
+
+func tokenEstimateNote(model string) string {
+	if !tokenModelKnown(model) {
+		return fmt.Sprintf("unknown model %q; using the cl100k regex approximation; not provider-exact", model)
+	}
+	return "approximate regex tokenization; not provider-exact"
+}
+
 // TokensResult is the structured output for the tokens command.
 type TokensResult struct {
 	Tokens int    `json:"tokens"          yaml:"tokens"`
@@ -87,8 +99,9 @@ var tokensCmd = &cobra.Command{
 	Long: `Count approximate LLM tokens for the given text.
 
 Uses a regex approximation of the cl100k_base (GPT-4 / Claude) or p50k_base
-(GPT-2) tokenizer without requiring vocabulary data files. The estimate is
-close to the actual count for English prose and source code (within ~2-5%).
+(GPT-2) tokenizer without requiring vocabulary data files. Counts are estimates,
+not provider-exact token counts. Unknown model names use the cl100k approximation
+and are identified in the output.
 
 Supported model aliases (used to select tokenizer family):
   gpt-4, gpt-4o, gpt-3.5, gpt-3.5-turbo   → cl100k_base
@@ -109,13 +122,14 @@ Examples:
 		text := getInputString(cmd, args)
 		count := CountTokens(text, family)
 		chars := utf8.RuneCountInString(text)
+		note := tokenEstimateNote(model)
 
 		result := TokensResult{
 			Tokens: count,
 			Chars:  chars,
 			Model:  model,
 			Family: family,
-			Note:   "approximate count using regex tokenizer pattern",
+			Note:   note,
 		}
 
 		format := getFormat(cmd)
@@ -129,7 +143,7 @@ Examples:
 			exitWithError(cmd, err)
 			outputBytes(cmd, out)
 		default:
-			outputString(cmd, fmt.Sprintf("%d", count))
+			outputString(cmd, fmt.Sprintf("Estimated tokens: %d (%s)", count, note))
 		}
 	},
 }

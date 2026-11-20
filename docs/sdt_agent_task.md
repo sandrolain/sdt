@@ -67,9 +67,11 @@ configured server version and is not inferred from ACP support alone.
 * [sdt agent task cancel](sdt_agent_task_cancel.md)	 -
 * [sdt agent task cleanup](sdt_agent_task_cleanup.md)	 - Preview or explicitly remove retained task resources
 * [sdt agent task correct](sdt_agent_task_correct.md)	 -
+* [sdt agent task list](sdt_agent_task_list.md)	 - List delegated tasks and their next principal action
+* [sdt agent task message](sdt_agent_task_message.md)	 - Exchange untrusted coordination notes within one task
 * [sdt agent task permissions](sdt_agent_task_permissions.md)	 - Inspect or resolve ACP permission requests
 * [sdt agent task result](sdt_agent_task_result.md)	 -
 * [sdt agent task resume](sdt_agent_task_resume.md)	 -
 * [sdt agent task start](sdt_agent_task_start.md)	 - Start a bounded delegated task
 * [sdt agent task status](sdt_agent_task_status.md)	 -
-* [sdt agent task wait](sdt_agent_task_wait.md)	 - Wait for a delegated task to require attention
+* [sdt agent task wait](sdt_agent_task_wait.md)	 - Wait for delegated tasks through worker events

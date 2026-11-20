@@ -1,10 +1,10 @@
 ## sdt json valid
 
-Validate JSON
+Validate JSON syntax
 
 ### Synopsis
 
-Validare JSON
+Validate JSON syntax only. This command does not validate data against a JSON Schema.
 
 ```
 sdt json valid [flags]
@@ -13,21 +13,23 @@ sdt json valid [flags]
 ### Options
 
 ```
-  -h, --help   help for valid
+  -h, --help[=true|false]   help for valid
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --file string         Input File
-      --format string       Output format: text|json|yaml (default "text")
-      --inb64 bytesBase64   Input Base 64
-      --input string        Input String
-      --no-color            Disable ANSI color codes
-      --quiet               Suppress informational messages, only output result
+      --file string             Input File
+      --format string           Output format: text|json|yaml (default "text")
+      --inb64 bytesBase64       Input Base 64
+      --input string            Input String
+      --log-format string       Log format: text|json (default "text")
+      --no-color[=true|false]   Disable ANSI color codes
+      --no-env[=true|false]     Do not load a project-root .env file
+      --progress string         Progress narration on stderr: auto|human|json|none (default "auto")
+      --quiet[=true|false]      Suppress informational messages, only output result
 ```
 
 ### SEE ALSO
 
 * [sdt json](sdt_json.md)	 - JSON Tools
-

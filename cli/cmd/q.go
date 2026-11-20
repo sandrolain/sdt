@@ -123,7 +123,7 @@ func qReadSource(cmd *cobra.Command, args []string, allowGlobalDoc bool) (data [
 }
 
 func qGlobalInputSet(cmd *cobra.Command) bool {
-	for _, name := range []string{"file", "input", "inb64"} {
+	for _, name := range []string{editFileFlag, inputStringFlag, inputBase64Flag} {
 		// cmd.Flag climbs the command tree to the root persistent flags.
 		if f := cmd.Flag(name); f != nil && f.Changed {
 			return true

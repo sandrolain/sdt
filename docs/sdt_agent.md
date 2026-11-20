@@ -49,4 +49,3 @@ reference.
 * [sdt agent roles](sdt_agent_roles.md)	 - Role register and generated role profiles
 * [sdt agent task](sdt_agent_task.md)	 - Delegate and inspect asynchronous ACP tasks
 * [sdt agent verify](sdt_agent_verify.md)	 - Verify the AGENTS.md instruction contract
-

@@ -23,6 +23,8 @@ sdt agent task start [flags]
   -h, --help[=true|false]    help for start
       --id string            Task id (generated when omitted)
       --include strings      Explicit project-relative dirty file to include (repeatable)
+      --phase string         Plan phase or checklist id; omit to link the entire plan
+      --plan string          Project-relative plan reference to link
       --reference strings    Project-relative reference file to copy into the stable task workspace (repeatable)
       --role string          Existing SDT role for the task
       --worktree string      Use an existing dedicated task worktree

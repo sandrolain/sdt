@@ -87,7 +87,7 @@ Exit codes:
 * [sdt html](sdt_html.md)	 - HTML Tools
 * [sdt http](sdt_http.md)	 - HTTP client
 * [sdt image](sdt_image.md)	 - Image tools
-* [sdt ipinfo](sdt_ipinfo.md)	 - IP location
+* [sdt ipinfo](sdt_ipinfo.md)	 - Classify an IP locally or look up an explicit target
 * [sdt json](sdt_json.md)	 - JSON Tools
 * [sdt jwt](sdt_jwt.md)	 - JWT Tools
 * [sdt keypair](sdt_keypair.md)	 - Key pair PEMs
@@ -97,10 +97,8 @@ Exit codes:
 * [sdt material](sdt_material.md)	 - Export a study guide without its authoring machinery
 * [sdt md5](sdt_md5.md)	 - MD5
 * [sdt models](sdt_models.md)	 - Manage local models for semantic search
-* [sdt nslookup](sdt_nslookup.md)	 - NS lookup
 * [sdt password](sdt_password.md)	 - Generate password
 * [sdt port](sdt_port.md)	 - Check if a TCP port is open on a host
-* [sdt prompt](sdt_prompt.md)	 - Manage and render LLM prompt templates
 * [sdt q](sdt_q.md)	 - Query and patch JSON files by gjson path
 * [sdt qrcode](sdt_qrcode.md)	 - QR code
 * [sdt read](sdt_read.md)	 - Read a file or a line range of it
@@ -117,11 +115,10 @@ Exit codes:
 * [sdt time](sdt_time.md)	 - Time Tools
 * [sdt tokens](sdt_tokens.md)	 - Count approximate LLM tokens for the given text
 * [sdt totp](sdt_totp.md)	 - TOTP
-* [sdt truncate](sdt_truncate.md)	 - Truncate text to a maximum number of LLM tokens
+* [sdt truncate](sdt_truncate.md)	 - Truncate text using an approximate token limit
 * [sdt uid](sdt_uid.md)	 - Unique ID
 * [sdt url](sdt_url.md)	 - URL Tools
 * [sdt verify](sdt_verify.md)	 - Verify a signature against data using a public key
 * [sdt version](sdt_version.md)	 - Version will output the current build information
 * [sdt vman](sdt_vman.md)	 - Version Manager
 * [sdt write](sdt_write.md)	 - Write bytes to a file
-

@@ -85,13 +85,15 @@ const (
 	statusRejected  = "rejected"
 
 	// Cobra command Use strings shared across files.
-	useInit   = "init"
-	useList   = "list"
-	useShow   = "show"
-	useCheck  = "check"
-	cmdDocs   = "docs"
-	useDoneID = "done <id>"
-	useAgent  = "agent"
+	useInit         = "init"
+	useList         = "list"
+	useShow         = "show"
+	useCheck        = "check"
+	cmdDocs         = "docs"
+	useDoneID       = "done <id>"
+	useAgent        = "agent"
+	inputStringFlag = "input"
+	inputBase64Flag = "inb64"
 
 	// Role slugs, the closed register namespace. Kept as constants so the same
 	// literal is never repeated across register/templates/derivation.

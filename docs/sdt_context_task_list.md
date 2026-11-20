@@ -1,6 +1,6 @@
 ## sdt context task list
 
-Show a per-phase task list
+Show a task list (optionally one phase section)
 
 ```
 sdt context task list [flags]
@@ -9,23 +9,26 @@ sdt context task list [flags]
 ### Options
 
 ```
-  -h, --help           help for list
-      --phase string   Phase number from the plan, e.g. 1 or 1a (required)
-      --plan string    Plan reference (plan file; default: latest active plan; custom slug for standalone)
+  -h, --help[=true|false]   help for list
+      --phase string        Phase number from the plan, e.g. 1 or 1a (optional; filters to that section)
+      --plan string         Plan reference (plan file; default: latest active plan; custom slug for standalone)
+      --stream string       Split-file label (kebab-case); selects <slug-plan>-<stream>.md
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --file string         Input File
-      --format string       Output format: text|json|yaml (default "text")
-      --inb64 bytesBase64   Input Base 64
-      --input string        Input String
-      --no-color            Disable ANSI color codes
-      --quiet               Suppress informational messages, only output result
+      --file string             Input File
+      --format string           Output format: text|json|yaml (default "text")
+      --inb64 bytesBase64       Input Base 64
+      --input string            Input String
+      --log-format string       Log format: text|json (default "text")
+      --no-color[=true|false]   Disable ANSI color codes
+      --no-env[=true|false]     Do not load a project-root .env file
+      --progress string         Progress narration on stderr: auto|human|json|none (default "auto")
+      --quiet[=true|false]      Suppress informational messages, only output result
 ```
 
 ### SEE ALSO
 
-* [sdt context task](sdt_context_task.md)	 - Manage per-phase task checklists
-
+* [sdt context task](sdt_context_task.md)	 - Manage plan task checklists
