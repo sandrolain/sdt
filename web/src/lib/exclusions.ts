@@ -1,5 +1,5 @@
 /** Corpus paths excluded from tree/viewer/search (mirrors internal/corpus).
- *  commands/ and instructions/ are corpus content; tmp/trash/scripts/refs/sdtdocs stay out. */
+ *  instructions/ is corpus content; tmp/trash/scripts/refs/sdtdocs stay out. */
 const EXCLUDED_DIRS = new Set(["tmp", "trash", "scripts", "refs", "sdtdocs"]);
 
 /** Collapse `.`/`..` and normalize separators to a slash-separated relative path. */

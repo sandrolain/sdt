@@ -32,15 +32,6 @@ func TestExclusionParityWithWebMirror(t *testing.T) {
 			sortedKeys(excludedFiles), sortedKeys(tsFiles))
 	}
 
-	// commands/ is corpus content by design: it must never be excluded on either
-	// side, otherwise the round-10 decision silently regresses.
-	if _, ok := tsDirs["commands"]; ok {
-		t.Error(`"commands" is excluded in exclusions.ts; commands/ is corpus content`)
-	}
-	if _, ok := excludedDirs["commands"]; ok {
-		t.Error(`"commands" excluded in corpus.go; commands/ is corpus content`)
-	}
-
 	assertNoUngatedExclusions(t, src, tsDirs, tsFiles)
 }
 

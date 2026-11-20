@@ -93,7 +93,7 @@ them (path, status, updated).
 
 This is a read-only helper for the workflow commands and the status/doctor hints;
 it is deliberately NOT the resolution authority: a workflow command resolves its
-subject via the prose ladder in context/commands/index.md and asks the user when
+subject via the documented resolution ladder and asks the user when
 the result is not unique. resolve writes nothing.
 
 Types: ` + ctxListHelpText() + `.

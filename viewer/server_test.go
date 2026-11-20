@@ -132,7 +132,6 @@ title: Outside docs
 
 not in the corpus
 `)
-	writeFixture(t, root, "context/commands/ingest.md", "agent command contract")
 	writeFixture(t, root, "context/instructions/project.md", `---
 kind: instructions
 title: Project
@@ -486,8 +485,8 @@ func TestTreeOutput(t *testing.T) {
 	}
 	// corpus exclusions (shared set) plus anything outside the corpus.
 	assertExcludedPaths(t, byPath)
-	if len(out.Entries) != 11 {
-		t.Errorf("expected 11 entries, got %d: %v", len(out.Entries), out.Entries)
+	if len(out.Entries) != 10 {
+		t.Errorf("expected 10 entries, got %d: %v", len(out.Entries), out.Entries)
 	}
 }
 
@@ -542,29 +541,6 @@ func assertExcludedPaths(t *testing.T, byPath map[string]treeEntry) {
 	if _, ok := byPath["../outside.md"]; ok {
 		t.Errorf("outside-corpus path present: ../outside.md")
 	}
-}
-
-// TestTreeCommandsEntry checks that context/commands is corpus content.
-func TestTreeCommandsEntry(t *testing.T) {
-	root := makeCorpus(t)
-	h, _ := newHandler(root)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/tree", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d", rec.Code)
-	}
-	var out struct {
-		Entries []treeEntry `json:"entries"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range out.Entries {
-		if e.Path == "context/commands/ingest.md" {
-			return
-		}
-	}
-	t.Error("commands entry missing: context/commands/ingest.md")
 }
 
 // TestTreeInstructionsEntry checks that context/instructions is corpus content
@@ -771,8 +747,8 @@ func TestDocExcludedCorpus(t *testing.T) {
 			t.Errorf("path %q: status = %d, body = %s", path, rec.Code, rec.Body.String())
 		}
 	}
-	// commands and instructions are corpus content and must be servable now.
-	for _, path := range []string{"context/commands/ingest.md", "context/instructions/project.md"} {
+	// Instructions are corpus content and must be servable now.
+	for _, path := range []string{"context/instructions/project.md"} {
 		req := httptest.NewRequest(http.MethodGet, "/api/doc?path="+url.QueryEscape(path), nil)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
