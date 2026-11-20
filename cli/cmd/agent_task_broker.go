@@ -5,8 +5,11 @@ package cmd
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -157,6 +160,8 @@ func ensureTaskBrokerLocked(root string, store *delegation.Store) (delegation.Br
 }
 
 func runAgentTaskBroker(cmd *cobra.Command, args []string) error {
+	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	token := ""
 	for _, arg := range args {
 		if strings.HasPrefix(arg, brokerWorkerArg) {
@@ -198,27 +203,29 @@ func runAgentTaskBroker(cmd *cobra.Command, args []string) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
-		if err := recordBrokerObservation(store, identity); err != nil {
+		if err := recordBrokerObservation(store, identity, ctx); err != nil {
 			return err
 		}
 		select {
-		case <-cmd.Context().Done():
-			return cmd.Context().Err()
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-ticker.C:
 		}
 	}
 }
 
-func recordBrokerObservation(store *delegation.Store, identity delegation.ProcessIdentity) error {
+func recordBrokerObservation(store *delegation.Store, identity delegation.ProcessIdentity, contexts ...context.Context) error {
+	brokerCtx := context.Background()
+	if len(contexts) > 0 && contexts[0] != nil {
+		brokerCtx = contexts[0]
+	}
 	tasks, err := store.List()
 	if err != nil {
 		return err
 	}
 	for _, task := range tasks {
-		if task.Status == delegation.TaskQueued || task.Status == delegation.TaskRunning || task.Status == delegation.TaskCancelling {
-			if _, err := store.Reconcile(task.ID); err != nil {
-				return fmt.Errorf("reconcile task %s: %w", task.ID, err)
-			}
+		if err := observeTaskVerification(brokerCtx, store, task); err != nil {
+			return err
 		}
 	}
 	tasks, err = store.List()
@@ -251,4 +258,103 @@ func recordBrokerObservation(store *delegation.Store, identity delegation.Proces
 	state.Attention = len(inbox)
 	state.ObservedAt = time.Now().UTC()
 	return store.WriteBrokerState(state)
+}
+
+func observeTaskVerification(ctx context.Context, store *delegation.Store, task delegation.Task) error {
+	if task.Status == delegation.TaskQueued || task.Status == delegation.TaskRunning || task.Status == delegation.TaskCancelling {
+		if _, err := store.Reconcile(task.ID); err != nil {
+			return fmt.Errorf("reconcile task %s: %w", task.ID, err)
+		}
+	}
+	if task.Verification != nil && task.Verification.Status == delegation.VerificationRunning {
+		return store.Update(task.ID, "verification_interrupted", "Broker stopped during declared checks; outcome is unknown", func(task *delegation.Task) error {
+			task.Verification.Status = delegation.VerificationInterrupted
+			task.Verification.FinishedAt = time.Now().UTC()
+			return nil
+		})
+	}
+	if task.Status == delegation.TaskResultReady && task.Verification == nil && len(task.VerificationConfig) > 0 {
+		if err := runTaskVerification(ctx, store, task); err != nil {
+			return fmt.Errorf("verify task %s: %w", task.ID, err)
+		}
+	}
+	return nil
+}
+
+func runTaskVerification(brokerCtx context.Context, store *delegation.Store, task delegation.Task) error {
+	run := &delegation.VerificationRun{Status: delegation.VerificationRunning, CandidateDigest: task.CandidateDigest, StartedAt: time.Now().UTC(), Checks: make([]delegation.VerificationCheckResult, len(task.VerificationConfig))}
+	for i, config := range task.VerificationConfig {
+		run.Checks[i] = delegation.VerificationCheckResult{Name: config.Name, Status: delegation.VerificationPending}
+	}
+	if err := store.Update(task.ID, "verification_started", "Declared result checks started", func(current *delegation.Task) error {
+		if current.Status != delegation.TaskResultReady || current.CandidateDigest != task.CandidateDigest || current.Verification != nil {
+			return fmt.Errorf("task changed before checks started")
+		}
+		current.Verification = run
+		return nil
+	}); err != nil {
+		return err
+	}
+	status := delegation.VerificationPassed
+	if task.CandidateDigest == "" {
+		status = delegation.VerificationStale
+		run.Checks[0].Status = delegation.VerificationStale
+	}
+	for i := range run.Checks {
+		if status != delegation.VerificationPassed {
+			break
+		}
+		status = runOneVerificationCheck(brokerCtx, store, task, run.CandidateDigest, task.VerificationConfig[i], &run.Checks[i])
+	}
+	run.Status, run.FinishedAt = status, time.Now().UTC()
+	return store.Update(task.ID, "verification_"+status, "Declared result checks completed with status "+status, func(current *delegation.Task) error {
+		if current.Verification == nil || current.Verification.CandidateDigest != run.CandidateDigest {
+			return fmt.Errorf("verification run changed")
+		}
+		current.Verification = run
+		return nil
+	})
+}
+
+func runOneVerificationCheck(brokerCtx context.Context, store *delegation.Store, task delegation.Task, digest string, config delegation.VerificationCheckConfig, check *delegation.VerificationCheckResult) string {
+	ctx := brokerCtx
+	cancel := func() {}
+	if !task.Deadline.IsZero() {
+		ctx, cancel = context.WithDeadline(brokerCtx, task.Deadline)
+	}
+	defer cancel()
+	if err := store.ValidateCandidateDigest(ctx, task.ID, digest); err != nil {
+		check.Status = delegation.VerificationStale
+		return delegation.VerificationStale
+	}
+	started := time.Now()
+	// #nosec G204 -- run is snapshotted from the project's explicitly selected gate command.
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", config.Run)
+	cmd.Dir = task.Source.Workspace
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+	cmd.WaitDelay = time.Second
+	err := cmd.Run()
+	ctxErr := ctx.Err()
+	check.Duration = time.Since(started)
+	check.Status, check.ExitCode = delegation.VerificationPassed, 0
+	if err != nil {
+		check.Status = delegation.VerificationFailed
+		if ctxErr != nil {
+			check.Status = delegation.VerificationInterrupted
+		}
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			check.ExitCode = exitErr.ExitCode()
+		}
+	}
+	if err := store.ValidateCandidateDigest(context.Background(), task.ID, digest); err != nil {
+		check.Status = delegation.VerificationStale
+	}
+	return check.Status
 }

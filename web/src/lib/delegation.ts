@@ -18,6 +18,11 @@ export type DelegatedTask = {
   recent_activity?: { id: number; at: string; type: string }[];
   result_ready: boolean;
   next_action: string;
+  verification?: {
+    status: string;
+    candidate_digest: string;
+    checks?: { name: string; status: string; exit_code?: number; duration?: number }[];
+  };
 };
 
 export type DelegationInboxItem = {

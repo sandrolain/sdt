@@ -22,7 +22,14 @@ const (
 	PermissionPending         = "pending"
 	PermissionResolved        = "resolved"
 	PermissionUser            = "user"
+	PermissionStale           = "stale"
 	PrincipalDecisionAccepted = "accepted"
+	VerificationPending       = "pending"
+	VerificationRunning       = "running"
+	VerificationPassed        = "passed"
+	VerificationFailed        = "failed"
+	VerificationInterrupted   = "interrupted"
+	VerificationStale         = "stale"
 )
 
 var safeID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
@@ -45,30 +52,55 @@ const (
 )
 
 type Task struct {
-	SchemaVersion            int                 `json:"schema_version"`
-	ID                       string              `json:"id"`
-	Status                   TaskStatus          `json:"status"`
-	Role                     string              `json:"role"`
-	PlanReference            string              `json:"plan_reference,omitempty"`
-	PlanPhase                string              `json:"plan_phase,omitempty"`
-	RequiredCapabilities     []string            `json:"required_capabilities,omitempty"`
-	CreatedAt                time.Time           `json:"created_at"`
-	UpdatedAt                time.Time           `json:"updated_at"`
-	Deadline                 time.Time           `json:"deadline"`
-	Revision                 uint64              `json:"revision"`
-	ConfigSnapshot           json.RawMessage     `json:"config_snapshot,omitempty"`
-	PermissionPolicySnapshot json.RawMessage     `json:"permission_policy_snapshot,omitempty"`
-	Source                   SourceSnapshot      `json:"source"`
-	Attempts                 []Attempt           `json:"attempts,omitempty"`
-	Artifacts                []Artifact          `json:"artifacts,omitempty"`
-	Permissions              []PermissionRecord  `json:"permissions,omitempty"`
-	Events                   []StateEvent        `json:"events,omitempty"`
-	PrincipalDecision        *PrincipalDecision  `json:"principal_decision,omitempty"`
-	PrincipalDecisions       []PrincipalDecision `json:"principal_decisions,omitempty"`
-	Integration              *IntegrationReceipt `json:"integration,omitempty"`
-	CandidateDigest          string              `json:"candidate_digest,omitempty"`
-	Worker                   *ProcessIdentity    `json:"worker,omitempty"`
-	Correction               string              `json:"correction,omitempty"`
+	SchemaVersion            int                       `json:"schema_version"`
+	ID                       string                    `json:"id"`
+	Status                   TaskStatus                `json:"status"`
+	Role                     string                    `json:"role"`
+	PlanReference            string                    `json:"plan_reference,omitempty"`
+	PlanPhase                string                    `json:"plan_phase,omitempty"`
+	RequiredCapabilities     []string                  `json:"required_capabilities,omitempty"`
+	CreatedAt                time.Time                 `json:"created_at"`
+	UpdatedAt                time.Time                 `json:"updated_at"`
+	Deadline                 time.Time                 `json:"deadline"`
+	Revision                 uint64                    `json:"revision"`
+	ConfigSnapshot           json.RawMessage           `json:"config_snapshot,omitempty"`
+	PermissionPolicySnapshot json.RawMessage           `json:"permission_policy_snapshot,omitempty"`
+	Source                   SourceSnapshot            `json:"source"`
+	Attempts                 []Attempt                 `json:"attempts,omitempty"`
+	Artifacts                []Artifact                `json:"artifacts,omitempty"`
+	Permissions              []PermissionRecord        `json:"permissions,omitempty"`
+	Events                   []StateEvent              `json:"events,omitempty"`
+	PrincipalDecision        *PrincipalDecision        `json:"principal_decision,omitempty"`
+	PrincipalDecisions       []PrincipalDecision       `json:"principal_decisions,omitempty"`
+	Integration              *IntegrationReceipt       `json:"integration,omitempty"`
+	CandidateDigest          string                    `json:"candidate_digest,omitempty"`
+	Verification             *VerificationRun          `json:"verification,omitempty"`
+	VerificationConfig       []VerificationCheckConfig `json:"verification_config,omitempty"`
+	Worker                   *ProcessIdentity          `json:"worker,omitempty"`
+	Correction               string                    `json:"correction,omitempty"`
+}
+
+// VerificationRun records the one broker-owned check run for a result digest.
+type VerificationRun struct {
+	Status          string                    `json:"status"`
+	CandidateDigest string                    `json:"candidate_digest"`
+	StartedAt       time.Time                 `json:"started_at,omitempty"`
+	FinishedAt      time.Time                 `json:"finished_at,omitempty"`
+	Checks          []VerificationCheckResult `json:"checks,omitempty"`
+}
+
+// VerificationCheckConfig snapshots a trusted project-declared gate command.
+type VerificationCheckConfig struct {
+	Name string `json:"name"`
+	Run  string `json:"run"`
+}
+
+// VerificationCheckResult is a digest-bound outcome; commands and output are deliberately absent.
+type VerificationCheckResult struct {
+	Name     string        `json:"name"`
+	Status   string        `json:"status"`
+	ExitCode int           `json:"exit_code,omitempty"`
+	Duration time.Duration `json:"duration,omitempty"`
 }
 
 // InboxItem groups the current actionable state and independent permission requests for one task.
@@ -277,6 +309,10 @@ func (s *Store) Inbox() ([]InboxItem, error) {
 			continue
 		}
 		item.NextAction = inboxNextAction(task.Status, len(item.PendingRequestIDs))
+		if task.Verification != nil && (task.Verification.Status == VerificationFailed || task.Verification.Status == VerificationInterrupted || task.Verification.Status == VerificationStale) {
+			item.Kinds = append(item.Kinds, "verification")
+			item.NextAction = "Review failed or uncertain declared checks before deciding what to do with the result"
+		}
 		items = append(items, item)
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].UpdatedAt.After(items[j].UpdatedAt) })
@@ -570,6 +606,9 @@ func (s *Store) AcceptResult(id, note string) error {
 	if err != nil {
 		return err
 	}
+	if err := verificationReadyForPrincipal(task); err != nil {
+		return err
+	}
 	if task.CandidateDigest == "" {
 		return fmt.Errorf("task result has no candidate digest; rerun the task to produce verifiable evidence")
 	}
@@ -612,6 +651,25 @@ func (s *Store) RecordCandidateDigest(ctx context.Context, id, attemptID string)
 		task.CandidateDigest = digest
 		return nil
 	})
+}
+
+// ValidateCandidateDigest confirms that retained result evidence still matches the workspace.
+func (s *Store) ValidateCandidateDigest(ctx context.Context, id, expected string) error {
+	task, err := s.Read(id)
+	if err != nil {
+		return err
+	}
+	if expected == "" || task.CandidateDigest != expected {
+		return fmt.Errorf("candidate digest changed")
+	}
+	actual, err := s.candidateDigest(ctx, task)
+	if err != nil {
+		return err
+	}
+	if actual != expected {
+		return fmt.Errorf("candidate digest changed")
+	}
+	return nil
 }
 
 // Fail records an operator-declared terminal failure while retaining all task evidence.
@@ -672,6 +730,9 @@ func (s *Store) DiscardResult(id, reason string) error {
 	if task.Status != TaskResultReady {
 		return fmt.Errorf("task %q has no result awaiting disposition from %q", id, task.Status)
 	}
+	if err := verificationReadyForPrincipal(task); err != nil {
+		return err
+	}
 	if task.Worker != nil || hasAttemptProcessIdentity(task.Attempts) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
@@ -700,6 +761,9 @@ func (s *Store) RequestCorrection(id, correction string) error {
 		if task.Status != TaskResultReady && task.Status != TaskAccepted {
 			return fmt.Errorf("task has no result available for correction")
 		}
+		if err := verificationReadyForPrincipal(*task); err != nil {
+			return err
+		}
 		task.Status = TaskQueued
 		task.Correction = correction
 		decision := PrincipalDecision{Action: "correction_requested", CorrectedAt: time.Now().UTC(), Note: correction}
@@ -707,6 +771,13 @@ func (s *Store) RequestCorrection(id, correction string) error {
 		task.PrincipalDecisions = append(task.PrincipalDecisions, decision)
 		return nil
 	})
+}
+
+func verificationReadyForPrincipal(task Task) error {
+	if len(task.VerificationConfig) > 0 && (task.Verification == nil || task.Verification.Status == VerificationRunning) {
+		return fmt.Errorf("declared result checks are pending or running")
+	}
+	return nil
 }
 
 func (s *Store) RecordWorkspace(id, projectRoot string, workspace Workspace, selectedChanges []string, configSnapshot, policySnapshot json.RawMessage) error {
@@ -723,6 +794,14 @@ func (s *Store) RecordWorkspace(id, projectRoot string, workspace Workspace, sel
 			SelectedChanges: append([]string(nil), selectedChanges...),
 			ConfigDigest:    hex.EncodeToString(configDigest[:]), PolicyDigest: hex.EncodeToString(policyDigest[:]),
 		}
+		return nil
+	})
+}
+
+// SetVerificationConfig snapshots the explicitly selected project gate commands.
+func (s *Store) SetVerificationConfig(id string, checks []VerificationCheckConfig) error {
+	return s.Update(id, "verification_configured", "Project-declared result checks snapshotted", func(task *Task) error {
+		task.VerificationConfig = append([]VerificationCheckConfig(nil), checks...)
 		return nil
 	})
 }

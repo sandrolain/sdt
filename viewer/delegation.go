@@ -11,23 +11,24 @@ import (
 )
 
 type delegatedTaskView struct {
-	ID                     string                  `json:"id"`
-	Status                 delegation.TaskStatus   `json:"status"`
-	Role                   string                  `json:"role"`
-	Agent                  string                  `json:"agent,omitempty"`
-	Model                  string                  `json:"model,omitempty"`
-	CreatedAt              string                  `json:"created_at"`
-	LatestAttemptStartedAt string                  `json:"latest_attempt_started_at,omitempty"`
-	Plan                   string                  `json:"plan,omitempty"`
-	Phase                  string                  `json:"phase,omitempty"`
-	Workspace              string                  `json:"workspace,omitempty"`
-	Deadline               string                  `json:"deadline,omitempty"`
-	PendingPermissions     []string                `json:"pending_permissions,omitempty"`
-	PendingPermissionCount int                     `json:"pending_permission_count,omitempty"`
-	TraceArtifacts         []string                `json:"trace_artifacts,omitempty"`
-	RecentActivity         []delegation.StateEvent `json:"recent_activity,omitempty"`
-	ResultReady            bool                    `json:"result_ready"`
-	NextAction             string                  `json:"next_action"`
+	ID                     string                      `json:"id"`
+	Status                 delegation.TaskStatus       `json:"status"`
+	Role                   string                      `json:"role"`
+	Agent                  string                      `json:"agent,omitempty"`
+	Model                  string                      `json:"model,omitempty"`
+	CreatedAt              string                      `json:"created_at"`
+	LatestAttemptStartedAt string                      `json:"latest_attempt_started_at,omitempty"`
+	Plan                   string                      `json:"plan,omitempty"`
+	Phase                  string                      `json:"phase,omitempty"`
+	Workspace              string                      `json:"workspace,omitempty"`
+	Deadline               string                      `json:"deadline,omitempty"`
+	PendingPermissions     []string                    `json:"pending_permissions,omitempty"`
+	PendingPermissionCount int                         `json:"pending_permission_count,omitempty"`
+	TraceArtifacts         []string                    `json:"trace_artifacts,omitempty"`
+	RecentActivity         []delegation.StateEvent     `json:"recent_activity,omitempty"`
+	ResultReady            bool                        `json:"result_ready"`
+	NextAction             string                      `json:"next_action"`
+	Verification           *delegation.VerificationRun `json:"verification,omitempty"`
 }
 
 type delegatedTasksResponse struct {
@@ -78,10 +79,14 @@ func (s *server) handleDelegationTasks(w http.ResponseWriter, r *http.Request) {
 func delegatedTaskViewFor(task delegation.Task, root string) delegatedTaskView {
 	view := delegatedTaskView{
 		ID: task.ID, Status: task.Status, Role: task.Role,
-		Plan:        task.PlanReference,
-		Phase:       task.PlanPhase,
-		ResultReady: task.Status == delegation.TaskResultReady || task.Status == delegation.TaskAccepted,
-		NextAction:  delegationNextAction(task.Status),
+		Plan:         task.PlanReference,
+		Phase:        task.PlanPhase,
+		ResultReady:  task.Status == delegation.TaskResultReady || task.Status == delegation.TaskAccepted,
+		NextAction:   delegationNextAction(task.Status),
+		Verification: task.Verification,
+	}
+	if task.Status == delegation.TaskResultReady && task.Verification != nil && (task.Verification.Status == delegation.VerificationFailed || task.Verification.Status == delegation.VerificationInterrupted || task.Verification.Status == delegation.VerificationStale) {
+		view.NextAction = "Review declared checks before deciding what to do with the result"
 	}
 	if !task.CreatedAt.IsZero() {
 		view.CreatedAt = task.CreatedAt.UTC().Format(time.RFC3339)

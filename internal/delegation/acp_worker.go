@@ -124,7 +124,7 @@ func RunACPAttempt(ctx context.Context, opts ACPWorkerOptions) error { //nolint:
 		return err
 	}
 	for _, permission := range task.Permissions {
-		if permission.AttemptID == opts.AttemptID && (permission.Disposition == PermissionPending || permission.Disposition == "stale" || permission.Disposition == string(TaskCancelled) || permission.Disposition == "expired") {
+		if permission.AttemptID == opts.AttemptID && (permission.Disposition == PermissionPending || permission.Disposition == PermissionStale || permission.Disposition == string(TaskCancelled) || permission.Disposition == "expired") {
 			_ = opts.update("attempt_intervention", "ACP attempt stopped with an unresolved permission request", func(task *Task) error { //nolint:errcheck // Cleanup or secondary reporting must not replace the primary result.
 				if len(task.Attempts) > 0 && task.Attempts[len(task.Attempts)-1].ID == opts.AttemptID {
 					last := &task.Attempts[len(task.Attempts)-1]

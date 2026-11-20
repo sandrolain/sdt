@@ -23,6 +23,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const taskWorkerHealthRunning = "running"
+
 const (
 	delegationFieldTaskID = "task_id"
 	delegationFieldWorker = "worker"
@@ -118,6 +120,10 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 	if err != nil {
 		return err
 	}
+	verificationChecks, err := selectedVerificationChecks(cfg)
+	if err != nil {
+		return err
+	}
 	planReference := strings.TrimSpace(getStringFlag(cmd, "plan", false))
 	planPhase := strings.TrimSpace(getStringFlag(cmd, "phase", false))
 	planReference, err = validateTaskPlanReference(root, planReference, planPhase)
@@ -176,6 +182,9 @@ func runAgentTaskStart(cmd *cobra.Command, _ []string) (runErr error) {
 		return err
 	}
 	if err := store.RecordWorkspace(taskID, root, workspace, selected, configBytes, policyBytes); err != nil {
+		return err
+	}
+	if err := store.SetVerificationConfig(taskID, verificationChecks); err != nil {
 		return err
 	}
 	briefPath := filepath.Join(store.Root(), "tasks", taskID, "artifacts", "brief.md")
@@ -604,11 +613,14 @@ func probeTaskStatus(ctx context.Context, store *delegation.Store, status *taskS
 	probeCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 	if store.ProbeWorker(probeCtx, status.ID) == nil {
-		status.WorkerHealth = "running"
+		status.WorkerHealth = taskWorkerHealthRunning
 	}
 }
 
 func principalNextAction(task delegation.Task) string {
+	if task.Status == delegation.TaskResultReady && task.Verification != nil && (task.Verification.Status == delegation.VerificationFailed || task.Verification.Status == delegation.VerificationInterrupted || task.Verification.Status == delegation.VerificationStale) {
+		return "review declared checks before accepting, correcting, or discarding the result"
+	}
 	if task.Status == delegation.TaskAccepted && task.Integration != nil {
 		return "verify the applied changes and update the linked plan"
 	}
@@ -628,6 +640,34 @@ func principalNextAction(task delegation.Task) string {
 	default:
 		return "inspect task status and choose the next action"
 	}
+}
+
+func selectedVerificationChecks(cfg *ProjectConfig) ([]delegation.VerificationCheckConfig, error) {
+	if cfg == nil || len(cfg.Delegation.VerifyOnResult) == 0 {
+		return nil, nil
+	}
+	if err := validateGateSteps(cfg.Gate); err != nil {
+		return nil, err
+	}
+	steps := make(map[string]GateStep, len(cfg.Gate))
+	for _, step := range cfg.Gate {
+		steps[step.Name] = step
+	}
+	seen := map[string]bool{}
+	checks := make([]delegation.VerificationCheckConfig, 0, len(cfg.Delegation.VerifyOnResult))
+	for _, name := range cfg.Delegation.VerifyOnResult {
+		name = strings.TrimSpace(name)
+		step, ok := steps[name]
+		if !ok || seen[name] {
+			return nil, fmt.Errorf("delegation.verify_on_result contains unknown or duplicate gate name %q", name)
+		}
+		if strings.TrimSpace(step.Run) == "" || strings.TrimSpace(step.Exclude) != "" {
+			return nil, fmt.Errorf("delegation.verify_on_result gate %q must declare a runnable command and no exclusion", name)
+		}
+		seen[name] = true
+		checks = append(checks, delegation.VerificationCheckConfig{Name: step.Name, Run: step.Run})
+	}
+	return checks, nil
 }
 
 func runAgentTaskResult(cmd *cobra.Command, args []string) error {

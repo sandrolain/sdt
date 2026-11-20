@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function renderDelegationTask(phase?: string, inbox: unknown[] = []) {
+async function renderDelegationTask(phase?: string, inbox: unknown[] = [], verification?: unknown) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -25,6 +25,7 @@ async function renderDelegationTask(phase?: string, inbox: unknown[] = []) {
             phase,
             result_ready: false,
             next_action: "Wait for the result",
+            verification,
           },
         ],
         inbox,
@@ -48,6 +49,19 @@ describe("DelegationPage plan scope", () => {
   it("preserves the linked phase scope", async () => {
     const label = await renderDelegationTask("c2");
     expect(label.parentElement?.querySelector("dd")?.textContent).toContain("c2");
+  });
+
+  it("shows declared check failures and keeps acceptance under principal review", async () => {
+    await renderDelegationTask(undefined, [], {
+      status: "failed",
+      candidate_digest: "digest",
+      checks: [{ name: "unit", status: "failed", exit_code: 1 }],
+    });
+    expect(screen.getByText("Declared checks · failed")).toBeTruthy();
+    expect(screen.getByText("unit · failed · exit 1")).toBeTruthy();
+    expect(
+      screen.getByText("Review this outcome before accepting or applying the result."),
+    ).toBeTruthy();
   });
 
   it("shows grouped pending decisions and selects the associated task", async () => {

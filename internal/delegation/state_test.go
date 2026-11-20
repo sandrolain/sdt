@@ -63,6 +63,21 @@ func TestPrincipalAcceptanceAndCorrectionAreRecordedSeparately(t *testing.T) {
 	}
 }
 
+func TestPrincipalDispositionWaitsForDeclaredChecksToSettle(t *testing.T) {
+	task := Task{VerificationConfig: []VerificationCheckConfig{{Name: "unit", Run: "go test ./..."}}}
+	if err := verificationReadyForPrincipal(task); err == nil {
+		t.Fatal("principal disposition was allowed before declared checks started")
+	}
+	task.Verification = &VerificationRun{Status: VerificationRunning}
+	if err := verificationReadyForPrincipal(task); err == nil {
+		t.Fatal("principal disposition was allowed while declared checks were running")
+	}
+	task.Verification.Status = VerificationFailed
+	if err := verificationReadyForPrincipal(task); err != nil {
+		t.Fatalf("settled failure should be available for principal review: %v", err)
+	}
+}
+
 func TestPrincipalCanFailInterruptedTaskAndDiscardReadyResult(t *testing.T) {
 	store := NewStore(t.TempDir())
 	if err := store.Create(Task{ID: "recover-failed", Role: "reviewer"}); err != nil {

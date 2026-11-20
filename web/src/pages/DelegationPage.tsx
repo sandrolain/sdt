@@ -261,6 +261,23 @@ function TaskDetails({ task }: { task: DelegatedTask }) {
         ) : null}
       </dl>
 
+      {task.verification ? (
+        <section className="delegation-next" aria-label="Declared checks">
+          <span>Declared checks · {task.verification.status}</span>
+          <ul>
+            {task.verification.checks?.map((check) => (
+              <li key={check.name}>
+                {check.name} · {check.status}
+                {check.exit_code ? ` · exit ${check.exit_code}` : ""}
+              </li>
+            ))}
+          </ul>
+          {task.verification.status !== "passed" ? (
+            <p>Review this outcome before accepting or applying the result.</p>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="delegation-next" aria-label="Next principal action">
         <span>Next principal action</span>
         <p>{task.next_action}</p>
