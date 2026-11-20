@@ -143,15 +143,16 @@ type ReferenceSnapshot struct {
 }
 
 type Attempt struct {
-	ID           string    `json:"id"`
-	Agent        string    `json:"agent"`
-	Model        string    `json:"model"`
-	Status       string    `json:"status"`
-	StartedAt    time.Time `json:"started_at"`
-	FinishedAt   time.Time `json:"finished_at,omitempty"`
-	ProcessID    int       `json:"process_id,omitempty"`
-	ProcessStart string    `json:"process_start,omitempty"`
-	Error        string    `json:"error,omitempty"`
+	ID                 string    `json:"id"`
+	Agent              string    `json:"agent"`
+	Model              string    `json:"model"`
+	Status             string    `json:"status"`
+	StartedAt          time.Time `json:"started_at"`
+	FinishedAt         time.Time `json:"finished_at,omitempty"`
+	ProcessID          int       `json:"process_id,omitempty"`
+	ProcessStart       string    `json:"process_start,omitempty"`
+	ProcessStartTimeMS int64     `json:"process_start_time_ms,omitempty"`
+	Error              string    `json:"error,omitempty"`
 }
 
 type Artifact struct {
@@ -391,7 +392,11 @@ func (s *Store) Reconcile(id string) (Task, error) {
 					return task, nil
 				}
 			}
-			if identity, found := FindWorker(last.ProcessStart); found {
+			identity, found, findErr := FindWorker(last.ProcessStart)
+			if findErr != nil {
+				return Task{}, fmt.Errorf("worker process inspection is unavailable: %w", findErr)
+			}
+			if found {
 				if err := s.RecordAttemptWorker(id, last.ID, identity); err != nil {
 					return Task{}, err
 				}
@@ -426,7 +431,10 @@ func (s *Store) Reconcile(id string) (Task, error) {
 		}
 	}
 	last := task.Attempts[len(task.Attempts)-1]
-	identity, found := attemptWorker(last)
+	identity, found, inspectErr := attemptWorker(last)
+	if inspectErr != nil {
+		return Task{}, fmt.Errorf("worker process inspection is unavailable: %w", inspectErr)
+	}
 	if found && identity.PID == last.ProcessID {
 		return task, nil
 	}
@@ -538,7 +546,7 @@ func taskWorkerIdentity(task Task) *ProcessIdentity {
 	if len(task.Attempts) > 0 {
 		last := task.Attempts[len(task.Attempts)-1]
 		if last.ProcessID > 0 && regexpToken.MatchString(last.ProcessStart) {
-			return &ProcessIdentity{PID: last.ProcessID, GroupID: last.ProcessID, StartToken: last.ProcessStart}
+			return &ProcessIdentity{PID: last.ProcessID, GroupID: last.ProcessID, StartToken: last.ProcessStart, StartTimeMS: last.ProcessStartTimeMS}
 		}
 	}
 	return nil
@@ -567,8 +575,17 @@ func (s *Store) SetWorker(id string, identity ProcessIdentity) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		probeErr := s.ProbeWorker(ctx, id)
 		cancel()
-		if probeErr == nil || task.Worker != nil && task.Worker.StartToken != identity.StartToken && WorkerMatches(*task.Worker) {
+		if probeErr == nil {
 			return fmt.Errorf("task %q already has a live worker", id)
+		}
+		if task.Worker != nil && task.Worker.StartToken != identity.StartToken {
+			alive, inspectErr := InspectWorker(*task.Worker)
+			if inspectErr != nil && !errors.Is(inspectErr, ErrStaleWorker) {
+				return fmt.Errorf("inspect existing task worker: %w", inspectErr)
+			}
+			if alive {
+				return fmt.Errorf("task %q already has a live worker", id)
+			}
 		}
 		copy := identity
 		task.Worker = &copy
@@ -576,10 +593,16 @@ func (s *Store) SetWorker(id string, identity ProcessIdentity) error {
 	})
 }
 
-func attemptWorker(attempt Attempt) (ProcessIdentity, bool) {
-	identity := ProcessIdentity{PID: attempt.ProcessID, GroupID: attempt.ProcessID, StartToken: attempt.ProcessStart}
-	if WorkerMatches(identity) {
-		return identity, true
+func attemptWorker(attempt Attempt) (ProcessIdentity, bool, error) {
+	identity := ProcessIdentity{PID: attempt.ProcessID, GroupID: attempt.ProcessID, StartToken: attempt.ProcessStart, StartTimeMS: attempt.ProcessStartTimeMS}
+	if attempt.ProcessID > 0 {
+		alive, err := InspectWorker(identity)
+		if err == nil && alive {
+			return identity, true, nil
+		}
+		if err != nil && !errors.Is(err, ErrStaleWorker) {
+			return ProcessIdentity{}, false, err
+		}
 	}
 	return FindWorker(attempt.ProcessStart)
 }
@@ -825,6 +848,10 @@ func (s *Store) RecordAttemptWorker(id, attemptID string, identity ProcessIdenti
 		last := &task.Attempts[len(task.Attempts)-1]
 		last.ProcessID = identity.PID
 		last.ProcessStart = identity.StartToken
+		last.ProcessStartTimeMS = identity.StartTimeMS
+		if last.ProcessStartTimeMS == 0 && task.Worker != nil && task.Worker.StartToken == identity.StartToken {
+			last.ProcessStartTimeMS = task.Worker.StartTimeMS
+		}
 		last.Status = string(TaskRunning)
 		task.Status = TaskRunning
 		return nil
@@ -856,37 +883,58 @@ func (s *Store) BeginAgentAttempt(id string, attempt Attempt, identity ProcessId
 	if !safeID.MatchString(attempt.ID) || attempt.Agent == "" || attempt.Model == "" {
 		return fmt.Errorf("agent attempt identity, agent, and model are required")
 	}
-	if identity.PID > 0 && !WorkerMatches(identity) {
-		return ErrStaleWorker
+	if err := requireLiveWorker(identity); err != nil {
+		return err
 	}
 	return s.Update(id, "agent_attempt_started", "ACP agent attempt started", func(task *Task) error {
-		now := time.Now().UTC()
-		if task.Status == TaskRunning && len(task.Attempts) > 0 {
-			last := &task.Attempts[len(task.Attempts)-1]
-			if last.ID == attempt.ID && last.Status == string(TaskRunning) {
-				last.Agent, last.Model = attempt.Agent, attempt.Model
-				if last.StartedAt.IsZero() {
-					last.StartedAt = now
-				}
-				return nil
-			}
-		}
-		if task.Status != TaskQueued && task.Status != TaskAccepted {
-			return fmt.Errorf("task %q cannot start a new agent attempt from %q", id, task.Status)
-		}
-		for _, current := range task.Attempts {
-			if current.ID == attempt.ID {
-				return fmt.Errorf("attempt %q already exists", attempt.ID)
-			}
-		}
-		attempt.Status, attempt.StartedAt = "running", now
-		if identity.PID > 0 {
-			attempt.ProcessID, attempt.ProcessStart = identity.PID, identity.StartToken
-		}
-		task.Attempts = append(task.Attempts, attempt)
-		task.Status = TaskRunning
-		return nil
+		return applyAgentAttempt(task, id, attempt, identity)
 	})
+}
+
+func requireLiveWorker(identity ProcessIdentity) error {
+	if identity.PID == 0 {
+		return nil
+	}
+	alive, err := InspectWorker(identity)
+	if err != nil {
+		return err
+	}
+	if !alive {
+		return ErrStaleWorker
+	}
+	return nil
+}
+
+func applyAgentAttempt(task *Task, id string, attempt Attempt, identity ProcessIdentity) error {
+	now := time.Now().UTC()
+	if task.Status == TaskRunning && len(task.Attempts) > 0 {
+		last := &task.Attempts[len(task.Attempts)-1]
+		if last.ID == attempt.ID && last.Status == string(TaskRunning) {
+			last.Agent, last.Model = attempt.Agent, attempt.Model
+			if last.StartedAt.IsZero() {
+				last.StartedAt = now
+			}
+			return nil
+		}
+	}
+	if task.Status != TaskQueued && task.Status != TaskAccepted {
+		return fmt.Errorf("task %q cannot start a new agent attempt from %q", id, task.Status)
+	}
+	for _, current := range task.Attempts {
+		if current.ID == attempt.ID {
+			return fmt.Errorf("attempt %q already exists", attempt.ID)
+		}
+	}
+	attempt.Status, attempt.StartedAt = "running", now
+	if identity.PID > 0 {
+		attempt.ProcessID, attempt.ProcessStart, attempt.ProcessStartTimeMS = identity.PID, identity.StartToken, identity.StartTimeMS
+		if attempt.ProcessStartTimeMS == 0 && task.Worker != nil && task.Worker.StartToken == identity.StartToken {
+			attempt.ProcessStartTimeMS = task.Worker.StartTimeMS
+		}
+	}
+	task.Attempts = append(task.Attempts, attempt)
+	task.Status = TaskRunning
+	return nil
 }
 
 // RecordPermission appends a request after assigning it to the current attempt.

@@ -514,6 +514,27 @@ func TestReconcileCapacityReleasesExpiredAndLostWorkers(t *testing.T) {
 	}
 }
 
+func TestReconcileCapacityKeepsReservationWhenWorkerIdentityIsUnavailable(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Create(Task{ID: "unknown-worker", Role: "reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.writeCapacity(CapacityState{Reservations: []CapacityReservation{{
+		TaskID: "unknown-worker", Keys: []string{"entry"},
+		Worker: ProcessIdentity{PID: os.Getpid(), GroupID: os.Getpid(), StartToken: "invalid-token"},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	released, err := store.ReconcileCapacity(time.Now())
+	if err == nil || len(released) != 0 {
+		t.Fatalf("unavailable worker inspection released capacity: %v, %v", released, err)
+	}
+	state, readErr := store.readCapacity()
+	if readErr != nil || len(state.Reservations) != 1 || state.Reservations[0].TaskID != "unknown-worker" {
+		t.Fatalf("unavailable worker inspection changed reservation: %+v, %v", state, readErr)
+	}
+}
+
 func TestStoreLockHelperProcess(t *testing.T) {
 	if os.Getenv(storeHelperEnv) == "" {
 		return

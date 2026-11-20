@@ -57,15 +57,11 @@ func (s *Store) PreviewIntegration(ctx context.Context, id, projectRoot string) 
 	if err := ctx.Err(); err != nil {
 		return IntegrationPreview{}, err
 	}
-	if probeErr == nil || task.Worker != nil && WorkerMatches(*task.Worker) {
+	if probeErr == nil {
 		return IntegrationPreview{}, fmt.Errorf("task %q still has a live worker", id)
 	}
-	if task.Worker == nil {
-		for _, attempt := range task.Attempts {
-			if identity, found := attemptWorker(attempt); found && WorkerMatches(identity) {
-				return IntegrationPreview{}, fmt.Errorf("task %q still has a live attempt worker", id)
-			}
-		}
+	if err := ensureNoLiveWorkers(task, id); err != nil {
+		return IntegrationPreview{}, err
 	}
 	patch, paths, err := snapshotIntegrationPatch(ctx, s, task, workspace)
 	if err != nil {
@@ -108,6 +104,29 @@ func (s *Store) PreviewIntegration(ctx context.Context, id, projectRoot string) 
 	sort.Strings(preview.Conflicts)
 	preview.Conflicts = uniqueStrings(preview.Conflicts)
 	return preview, nil
+}
+
+func ensureNoLiveWorkers(task Task, id string) error {
+	if task.Worker != nil {
+		stopped, err := WorkerStopped(*task.Worker)
+		if err != nil {
+			return fmt.Errorf("inspect worker before integration: %w", err)
+		}
+		if !stopped {
+			return fmt.Errorf("task %q still has a live worker", id)
+		}
+		return nil
+	}
+	for _, attempt := range task.Attempts {
+		_, found, err := attemptWorker(attempt)
+		if err != nil {
+			return fmt.Errorf("inspect attempt worker before integration: %w", err)
+		}
+		if found {
+			return fmt.Errorf("task %q still has a live attempt worker", id)
+		}
+	}
+	return nil
 }
 
 func (s *Store) candidateDigest(ctx context.Context, task Task) (string, error) {

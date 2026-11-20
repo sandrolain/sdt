@@ -4,6 +4,7 @@ package delegation
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -215,6 +216,38 @@ func TestStartAndCancelWorkerProcessGroup(t *testing.T) {
 	}
 	if err := SignalWorkerGroup(identity, 0); err != ErrStaleWorker {
 		t.Fatalf("stale process identity error = %v, want ErrStaleWorker", err)
+	}
+}
+
+func TestInspectWorkerRejectsReusedPIDIdentity(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	identity, err := StartWorker(executable, dir, filepath.Join(dir, "worker.log"), "-test.run=^TestWorkerHelperProcess$")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cleanupWorker(t, identity) })
+	deadline := time.Now().Add(3 * time.Second)
+	for !WorkerMatches(identity) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !WorkerMatches(identity) {
+		t.Fatal("started worker does not match its persisted identity")
+	}
+
+	wrongToken := identity
+	wrongToken.StartToken = "fedcba9876543210fedcba9876543210"
+	if alive, err := InspectWorker(wrongToken); alive || !errors.Is(err, ErrStaleWorker) {
+		t.Fatalf("mismatched token inspection = alive %v, error %v", alive, err)
+	}
+
+	wrongStart := identity
+	wrongStart.StartTimeMS++
+	if alive, err := InspectWorker(wrongStart); alive || !errors.Is(err, ErrStaleWorker) {
+		t.Fatalf("mismatched process start inspection = alive %v, error %v", alive, err)
 	}
 }
 

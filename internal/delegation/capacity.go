@@ -140,12 +140,9 @@ func (s *Store) ReconcileCapacity(now time.Time) ([]string, error) {
 		kept := state.Reservations[:0]
 		for _, reservation := range state.Reservations {
 			expired := !reservation.Deadline.IsZero() && !reservation.Deadline.After(now)
-			workerLost := reservation.Worker.PID > 0 && !WorkerMatches(reservation.Worker)
-			if reservation.Worker.PID == 0 {
-				task, readErr := s.Read(reservation.TaskID)
-				if readErr == nil && task.Worker != nil && !WorkerMatches(*task.Worker) {
-					workerLost = true
-				}
+			workerLost, inspectErr := s.reservationWorkerLost(reservation)
+			if inspectErr != nil {
+				return inspectErr
 			}
 			if expired || workerLost {
 				released = append(released, reservation.TaskID)
@@ -161,6 +158,25 @@ func (s *Store) ReconcileCapacity(now time.Time) ([]string, error) {
 		return nil
 	})
 	return released, err
+}
+
+func (s *Store) reservationWorkerLost(reservation CapacityReservation) (bool, error) {
+	worker := reservation.Worker
+	if worker.PID == 0 {
+		task, err := s.Read(reservation.TaskID)
+		if err != nil || task.Worker == nil {
+			return false, nil
+		}
+		worker = *task.Worker
+	}
+	if worker.PID == 0 {
+		return false, nil
+	}
+	stopped, err := WorkerStopped(worker)
+	if err != nil {
+		return false, fmt.Errorf("inspect worker for task %s before releasing capacity: %w", reservation.TaskID, err)
+	}
+	return stopped, nil
 }
 
 func (s *Store) readCapacity() (CapacityState, error) {

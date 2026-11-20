@@ -1106,12 +1106,22 @@ func ensureTaskWorkerStopped(cmd *cobra.Command, store *delegation.Store, task d
 	if err == nil {
 		return fmt.Errorf("task still has a live worker; wait for it to stop before replacing or cleaning up")
 	}
-	if task.Worker != nil && delegation.WorkerMatches(*task.Worker) {
-		return fmt.Errorf("task still has a live worker; wait for it to stop before replacing or cleaning up")
+	if task.Worker != nil {
+		stopped, inspectErr := delegation.WorkerStopped(*task.Worker)
+		if inspectErr != nil {
+			return fmt.Errorf("cannot confirm task worker stopped: %w", inspectErr)
+		}
+		if !stopped {
+			return fmt.Errorf("task still has a live worker; wait for it to stop before replacing or cleaning up")
+		}
 	}
 	for _, attempt := range task.Attempts {
-		identity := delegation.ProcessIdentity{PID: attempt.ProcessID, GroupID: attempt.ProcessID, StartToken: attempt.ProcessStart}
-		if delegation.WorkerMatches(identity) {
+		identity := delegation.ProcessIdentity{PID: attempt.ProcessID, GroupID: attempt.ProcessID, StartToken: attempt.ProcessStart, StartTimeMS: attempt.ProcessStartTimeMS}
+		stopped, inspectErr := delegation.WorkerStopped(identity)
+		if inspectErr != nil {
+			return fmt.Errorf("cannot confirm attempt worker stopped: %w", inspectErr)
+		}
+		if !stopped {
 			return fmt.Errorf("task still has a live attempt worker; wait for it to stop before replacing or cleaning up")
 		}
 	}
