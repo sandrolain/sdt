@@ -102,6 +102,16 @@ tasks:
       - go tool cover -html=coverage.out -o coverage.html
       - echo "Coverage report generated at coverage.html"
 
+  test-focused:
+    desc: Run selected product packages, e.g. task test-focused -- ./internal/mdstruct --run TestSplitSectionsBasic; no coverage or full gate
+    cmds:
+      - sh scripts/verify.sh focused {{.CLI_ARGS}}
+
+  test-focused:contract:
+    desc: Verify focused-test package selection and pattern forwarding
+    cmds:
+      - sh scripts/verify-focused-test.sh
+
   coverage-check:
     desc: Check the existing profile against per-package coverage floors
     cmds:

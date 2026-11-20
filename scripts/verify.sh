@@ -22,6 +22,52 @@ lint_packages() {
 case "${1:-}" in
     packages) printf '%s\n' "$scope" ;;
     lint-packages) lint_packages ;;
+    focused)
+        shift
+        selected_packages=
+        run_pattern=
+        run_pattern_set=0
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --run)
+                    shift
+                    [ "$#" -gt 0 ] || { echo "FAIL: --run requires a Go test pattern" >&2; exit 2; }
+                    run_pattern=$1
+                    run_pattern_set=1
+                    shift
+                    [ "$#" -eq 0 ] || { echo "FAIL: --run must follow all package paths" >&2; exit 2; }
+                    ;;
+                -* ) echo "FAIL: unsupported focused-test argument: $1" >&2; exit 2 ;;
+                *)
+                    case "$1" in
+                        .|./) package_path=$module ;;
+                        ./*) package_path="$module/${1#./}" ;;
+                        *) package_path=$1 ;;
+                    esac
+                    if ! printf '%s\n' "$scope" | awk -v selected="$package_path" '$0 == selected { found = 1 } END { exit !found }'; then
+                        echo "FAIL: package is not in the product scope: $1" >&2
+                        exit 2
+                    fi
+                    selected_packages="${selected_packages}${selected_packages:+ }$package_path"
+                    shift
+                    ;;
+            esac
+        done
+        [ -n "$selected_packages" ] || { echo "FAIL: specify at least one product package" >&2; exit 2; }
+
+        # Package tokens were matched exactly against `go list` output; disable
+        # globbing before rebuilding the positional arguments for go test.
+        set -f
+        set -- $selected_packages
+        printf 'Focused Go tests; packages: %s\n' "$selected_packages"
+        printf '%s\n' 'Not run: repository-wide coverage, unselected packages, full delivery gate.'
+        if [ "$run_pattern_set" -eq 1 ]; then
+            printf 'Go test pattern: %s\n' "$run_pattern"
+            go test -run "$run_pattern" "$@"
+        else
+            go test "$@"
+        fi
+        ;;
     test) go test -covermode=atomic -coverprofile=coverage.out $scope ;;
     build) go build $scope ;;
     vet) go vet $scope ;;
@@ -80,5 +126,5 @@ case "${1:-}" in
             exit bad
         }' "${2:-coverage.out}"
         ;;
-    *) echo 'usage: sh scripts/verify.sh packages|test|coverage [profile]|build|vet|lint|vuln|fmt|modules' >&2; exit 2 ;;
+    *) echo 'usage: sh scripts/verify.sh packages|focused <package>... [--run pattern]|test|coverage [profile]|build|vet|lint|vuln|fmt|modules' >&2; exit 2 ;;
 esac
