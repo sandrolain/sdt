@@ -531,7 +531,7 @@ func boundedTaskStatus(task delegation.Task) taskStatusSummary {
 	view := taskStatusSummary{ID: task.ID, Status: task.Status, Role: task.Role, Deadline: task.Deadline, AttemptCount: len(task.Attempts)}
 	view.Revision, view.Workspace = task.Revision, task.Source.Workspace
 	view.Plan, view.Phase = task.PlanReference, task.PlanPhase
-	view.NextAction = principalNextAction(task.Status)
+	view.NextAction = principalNextAction(task)
 	view.WorkerHealth = "unrecorded"
 	if task.Worker != nil {
 		view.WorkerHealth = "unknown"
@@ -608,8 +608,11 @@ func probeTaskStatus(ctx context.Context, store *delegation.Store, status *taskS
 	}
 }
 
-func principalNextAction(status delegation.TaskStatus) string {
-	switch status {
+func principalNextAction(task delegation.Task) string {
+	if task.Status == delegation.TaskAccepted && task.Integration != nil {
+		return "verify the applied changes and update the linked plan"
+	}
+	switch task.Status {
 	case delegation.TaskQueued, delegation.TaskRunning:
 		return "wait or inspect status"
 	case delegation.TaskInterventionRequired:

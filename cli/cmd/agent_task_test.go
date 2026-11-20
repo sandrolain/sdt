@@ -45,8 +45,31 @@ func TestAgentTaskCommandContractAndBoundedStatus(t *testing.T) {
 	if view.AttemptCount != 4 || len(view.Attempts) != 3 || len(view.RecentEvents) != 5 || len(view.PendingPermissions) != 1 {
 		t.Fatalf("status summary was not bounded or lost actionable state: %+v", view)
 	}
+	if view.NextAction != "review the result, then accept or request a correction" {
+		t.Fatalf("result-ready task has wrong next action %q", view.NextAction)
+	}
 	if view.Metrics.PrincipalTokens != "unknown" || view.Metrics.DelegateTokens != "unknown" || view.Metrics.PrincipalCostUSD != "unknown" || view.Metrics.DelegateCostUSD != "unknown" || view.Metrics.TotalCostUSD != "unknown" || view.Metrics.CommunicationBytes != "unknown" {
 		t.Fatalf("unobserved metrics were not labeled unknown: %+v", view.Metrics)
+	}
+}
+
+func TestPrincipalNextActionAccountsForIntegrationReceipt(t *testing.T) {
+	tests := []struct {
+		name string
+		task delegation.Task
+		want string
+	}{
+		{name: "accepted before apply", task: delegation.Task{Status: delegation.TaskAccepted}, want: "preview and digest-check apply"},
+		{name: "accepted after apply", task: delegation.Task{Status: delegation.TaskAccepted, Integration: &delegation.IntegrationReceipt{Digest: "digest", Applied: time.Now()}}, want: "verify the applied changes and update the linked plan"},
+		{name: "completed", task: delegation.Task{Status: delegation.TaskCompleted}, want: "verify the applied changes and update the linked plan"},
+		{name: "result ready", task: delegation.Task{Status: delegation.TaskResultReady}, want: "review the result, then accept or request a correction"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := principalNextAction(test.task); got != test.want {
+				t.Fatalf("principalNextAction() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
