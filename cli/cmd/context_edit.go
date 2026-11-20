@@ -9,6 +9,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/contextwrite"
 	"github.com/sandrolain/sdt/internal/mdstruct"
 	"github.com/spf13/cobra"
 )
@@ -41,6 +42,15 @@ then the write. --dry-run prints the diff and writes nothing. When the new text
 leaves the body byte-identical the command reports "no change" and touches
 nothing; the CLI-owned updated field is refreshed on a real edit, as with
 sdt context set.
+
+CONCURRENCY — participating CLI writers serialize on a project-local lock and
+compare the full SHA-256 of the bytes they read before replacing the document.
+Pass --expect-sha256 <digest> when the proposal was prepared from an earlier
+read; a mismatch is refused and the proposed diff remains in the output. Reread,
+reapply the targeted change and retry. Without the flag, this invocation is
+protected from writers that race after its read, but the CLI warns that it
+cannot detect a proposal already stale before the invocation. External editors
+and tools that bypass the CLI are outside the lock protocol.
 
 A SECTION IS THE HEADING AND ITS BODY — --section replaces the whole section, so
 the text must begin with that section's heading, at its own level (for example
@@ -171,7 +181,19 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 		}
 		return
 	}
-	if err := writeContextDocFile(doc.Path, newContent); err != nil {
+	revision := getStringFlag(cmd, "expect-sha256", false)
+	if revision == "" {
+		// Keep old invocations working; the write is still serialized and
+		// detects an intervening mutation, but cannot detect a stale caller.
+		revision = contextwrite.Digest(data)
+		if !getPersistentBool(cmd, "quiet") {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: context edit without --expect-sha256 cannot detect a stale caller; read it with `sdt sha256 %s --hex` and pass the digest\n", doc.Path) //nolint:errcheck // Warning output cannot fail the edit.
+		}
+	} else if err := validateExpectedRevision(revision); err != nil {
+		exitWithError(cmd, err)
+		return
+	}
+	if err := writeContextDocFileAtRevision(doc.Path, revision, newContent); err != nil {
 		exitWithError(cmd, err)
 		return
 	}
@@ -435,6 +457,7 @@ func init() {
 	contextEditCmd.Flags().String("fence", "", "Replace the fenced block by 1-based index or by its opening info string")
 	contextEditCmd.Flags().Bool("append", false, "Append the input after the body, or after --section, instead of replacing")
 	contextEditCmd.Flags().Bool("dry-run", false, "Print the diff without writing")
+	contextEditCmd.Flags().String("expect-sha256", "", "Require the full document SHA-256 read by the caller")
 	contextEditCmd.Flags().Bool("force", false, "Allow an empty body (empties the document, or removes the section)")
 	addProvenanceFlags(contextEditCmd)
 	contextCmd.AddCommand(contextEditCmd)

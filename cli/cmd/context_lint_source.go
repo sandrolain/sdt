@@ -27,7 +27,7 @@ const ctxSourceURLKey = "url"
 // check binds the form, never a closed list that would refuse a valid licence.
 var ctxSourceSPDXRegexp = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+-]*$`)
 
-// ctxSourceSHA256Regexp is a lowercase hex SHA-256, the `.source.yaml` shape.
+// ctxSourceSHA256Regexp is the lowercase full SHA-256 pin shape.
 var ctxSourceSHA256Regexp = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // lintSourceSheet checks the three keys of a source sheet that have a form.

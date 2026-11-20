@@ -170,7 +170,7 @@ func stampEligibleFiles(dryRun bool) (ctxUIDBackfillResult, error) {
 		if dryRun {
 			continue
 		}
-		if werr := writeWorkFile(path, stamped); werr != nil {
+		if werr := writeWorkFile(path, data, stamped); werr != nil {
 			return res, werr
 		}
 	}

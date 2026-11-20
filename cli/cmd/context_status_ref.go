@@ -621,7 +621,7 @@ func ctxApplyFrontmatter(cmd *cobra.Command, doc ctxResolvedDoc, patches []front
 		return previous, nil
 	}
 	//#nosec G306,G703 -- a resolved context/ work file
-	if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+	if err := writeContextDocFile(doc.Path, data, content); err != nil {
 		return "", err
 	}
 	return previous, nil

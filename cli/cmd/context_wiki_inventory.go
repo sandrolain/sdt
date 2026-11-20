@@ -480,14 +480,14 @@ func syncInventoryNote(cmd *cobra.Command, notePath string, syncIndex bool, page
 		return nil
 	}
 	if noteChanged {
-		if err := writeCorpusFile(notePath, updated); err != nil {
+		if err := writeCorpusFile(notePath, []byte(data), updated); err != nil {
 			return err
 		}
 	}
 	if pageChanged {
-		if err := writeCorpusFile(pagePath, pageUpdated); err != nil {
+		if err := writeCorpusFile(pagePath, []byte(pageContent), pageUpdated); err != nil {
 			if noteChanged {
-				if restoreErr := writeCorpusFile(notePath, data); restoreErr != nil {
+				if restoreErr := writeCorpusFile(notePath, []byte(updated), data); restoreErr != nil {
 					return fmt.Errorf("write %s: %w; restore %s: %v", pagePath, err, notePath, restoreErr)
 				}
 			}
@@ -534,12 +534,8 @@ func resolveInventoryIndexPage(note inventoryNote, pageRef string) (string, erro
 	}
 }
 
-func writeCorpusFile(path, content string) error {
-	mode := os.FileMode(0o644)
-	if info, err := os.Stat(path); err == nil {
-		mode = info.Mode().Perm()
-	}
-	return os.WriteFile(path, []byte(content), mode) //#nosec G306,G703 -- corpus path resolved under context/, mode preserved
+func writeCorpusFile(path string, expected []byte, content string) error {
+	return writeContextDocFile(path, expected, content)
 }
 
 func inventoryCountFindings(path string, c inventoryCounts) []inventoryFinding {

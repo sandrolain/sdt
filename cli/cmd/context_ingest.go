@@ -17,7 +17,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+	"github.com/sandrolain/sdt/internal/contextwrite"
 	"github.com/sandrolain/sdt/internal/distill"
+	"github.com/sandrolain/sdt/internal/metacomp"
 	"github.com/sandrolain/sdt/internal/sourceclass"
 )
 
@@ -29,11 +31,12 @@ import (
 // makes the queue and the archive visible and safe.
 
 const (
-	ingestManifestName    = "manifest.yaml"
-	ingestSidecarSuffix   = ".source.yaml"
-	ingestStatusPending   = "pending"
-	ingestStatusConverted = "converted"
-	ingestStatusArchived  = "archived"
+	ingestManifestName        = "manifest.yaml"
+	ingestSidecarSuffix       = metacomp.CompanionSuffix
+	ingestLegacySidecarSuffix = ".source.yaml"
+	ingestStatusPending       = "pending"
+	ingestStatusConverted     = "converted"
+	ingestStatusArchived      = "archived"
 )
 
 type ingestEntry struct {
@@ -127,7 +130,7 @@ var contextIngestArchiveCmd = &cobra.Command{
 
 The destination must not exist. The source's sha256 is checked before the move;
 an unconverted source is refused unless --force is set, because archiving is the
-step after distillation. A sidecar <basename>.source.yaml records the hash and
+step after distillation. A sidecar <complete-filename>.meta.yaml records the hash and
 the converted artifact, so the archive is auditable without frontmatter on the
 binary. A source whose name an agent runtime resolves as instructions (AGENTS.md,
 CLAUDE.md, GEMINI.md, SKILL.md and the other names in the closed list) is stored
@@ -179,6 +182,14 @@ nothing.`,
 			exitWithError(cmd, fmt.Errorf("archive destination %s already exists", corpusRelative(dest)))
 			return
 		}
+		sidecar := dest + ingestSidecarSuffix
+		if _, statErr := os.Lstat(sidecar); statErr == nil {
+			exitWithError(cmd, fmt.Errorf("metadata companion %s already exists", corpusRelative(sidecar)))
+			return
+		} else if !os.IsNotExist(statErr) {
+			exitWithError(cmd, statErr)
+			return
+		}
 		if getBoolFlag(cmd, "dry-run", false) {
 			outputString(cmd, fmt.Sprintf("would archive: %s -> %s (sha256 %s)\n", corpusRelative(path), corpusRelative(dest), sha[:12]))
 			if slug := sanitizeSlug(strings.TrimSuffix(filepath.Base(dest), filepath.Ext(dest))); slug != "" {
@@ -191,7 +202,7 @@ nothing.`,
 			exitWithError(cmd, fmt.Errorf("archive %s: %w", corpusRelative(dest), err))
 			return
 		}
-		if err := os.Rename(path, dest); err != nil {
+		if err := contextwrite.Move(sdtProjectRoot(), path, dest, sha); err != nil {
 			exitWithError(cmd, fmt.Errorf("archive %s: %w", corpusRelative(path), err))
 			return
 		}
@@ -205,17 +216,24 @@ nothing.`,
 			Converted:      converted,
 			ArchivedAt:     time.Now().UTC().Format(time.RFC3339),
 		}
-		out, merr := yaml.Marshal(record)
+		recordBytes, merr := yaml.Marshal(record)
 		if merr != nil {
 			exitWithError(cmd, merr)
 			return
 		}
-		sidecarBase := filepath.Base(dest)
-		if originalName != "" {
-			sidecarBase = originalName
+		recordMap, merr := metacomp.Decode(recordBytes)
+		if merr != nil {
+			exitWithError(cmd, merr)
+			return
 		}
-		sidecar := filepath.Join(filepath.Dir(dest), sidecarBase+ingestSidecarSuffix)
-		if werr := os.WriteFile(sidecar, out, 0o600); werr != nil { //#nosec G306 -- provenance, not a secret but 0600 is the project convention
+		metadata := metacomp.New(corpusRelative(dest), sha)
+		metadata["source_archive"] = map[string]any(recordMap)
+		out, merr := metacomp.Encode(metadata)
+		if merr != nil {
+			exitWithError(cmd, merr)
+			return
+		}
+		if werr := createContextDocFileMode(sidecar, out, 0o600); werr != nil {
 			exitWithError(cmd, werr)
 			return
 		}
@@ -399,7 +417,7 @@ func ingestEntries() ([]ingestEntry, error) {
 			return nil
 		}
 		name := d.Name()
-		if strings.HasPrefix(name, ".") || name == ingestManifestName || strings.HasSuffix(name, ingestSidecarSuffix) {
+		if strings.HasPrefix(name, ".") || name == ingestManifestName || strings.HasSuffix(name, ingestSidecarSuffix) || strings.HasSuffix(name, ingestLegacySidecarSuffix) {
 			return nil
 		}
 		info, ierr := d.Info()
@@ -523,7 +541,7 @@ func resolveIngestSource(ref string, allowRefs bool) (string, error) {
 			return "", fmt.Errorf("%q is outside %s/ and %s/", ref, sdtIngestionDir, sdtRefsDir)
 		}
 		base := filepath.Base(candidate)
-		if base == ingestManifestName || strings.HasSuffix(base, ingestSidecarSuffix) {
+		if base == ingestManifestName || strings.HasSuffix(base, ingestSidecarSuffix) || strings.HasSuffix(base, ingestLegacySidecarSuffix) {
 			return "", fmt.Errorf("%q is a manifest or sidecar, not a source", ref)
 		}
 		return candidate, nil
@@ -548,7 +566,7 @@ func findIngestSourceByName(ref string, allowRefs bool) (string, error) {
 				return nil
 			}
 			name := d.Name()
-			if strings.HasPrefix(name, ".") || name == ingestManifestName || strings.HasSuffix(name, ingestSidecarSuffix) {
+			if strings.HasPrefix(name, ".") || name == ingestManifestName || strings.HasSuffix(name, ingestSidecarSuffix) || strings.HasSuffix(name, ingestLegacySidecarSuffix) {
 				return nil
 			}
 			if name == ref || corpusRelative(path) == ref {
@@ -705,7 +723,7 @@ func rewriteConvertedSource(converted, sha256, archivedCorpus string) (rewritten
 	if !found {
 		return false, nil
 	}
-	if err := root.WriteFile(rel, []byte(updated+rest), 0o644); err != nil {
+	if err := writeContextDocFile(filepath.Join(sdtWorkDir, rel), data, updated+rest); err != nil {
 		return false, err
 	}
 	oldSum := cryptosha.Sum256(data)
@@ -751,7 +769,7 @@ func rewriteCitationDigest(ref, oldSHA, newSHA string) (int, error) {
 				return strings.Replace(match, m[3], newSHA[:len(m[3])], 1)
 			})
 			if updated != body {
-				if err := root.WriteFile(rel, []byte(updated), 0o644); err != nil {
+				if err := writeContextDocFile(path, data, updated); err != nil {
 					return changed, err
 				} //#nosec G306 -- corpus documents use the repository's standard mode
 			}
@@ -822,12 +840,19 @@ func archiveSourceSheet(archivedCorpus string, record ingestArchiveRecord, conve
 			return "", "", err
 		}
 	}
+	original := []byte(content)
 	content = insertFrontmatterScalars(content, keys)
 	if action == "created" {
 		content += "\n" + sourceSheetBody(archivedCorpus, record, converted)
 	}
-	if err := os.WriteFile(plain, []byte(content), 0o644); err != nil { //#nosec G306 -- user work file, `context new`'s own mode
-		return "", "", err
+	var writeErr error
+	if exists {
+		writeErr = writeContextDocFile(plain, original, content)
+	} else {
+		writeErr = createContextDocFile(plain, content)
+	}
+	if writeErr != nil {
+		return "", "", writeErr
 	}
 	return corpusRelative(plain), action, nil
 }

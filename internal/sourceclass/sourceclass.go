@@ -3,7 +3,7 @@
 // several: the strictest wins, and a mix that cannot be flattened is reported
 // rather than resolved.
 //
-// The declaration lives on the archive sidecar (`<basename>.source.yaml`), not on
+// The declaration lives on the archive companion (`<complete-filename>.meta.yaml`), not on
 // the page: a page is a projection of its sources (decision 0035), so the page
 // inherits, and a page that declares its own value may only be stricter.
 package sourceclass
@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/metacomp"
 )
 
 // Tiers, weakest first. An empty tier means the source never declared one, which
@@ -25,7 +26,7 @@ const (
 	TierConfidential = "confidential"
 )
 
-// SidecarSuffix is the archive provenance file written beside a source.
+// SidecarSuffix is the legacy archive suffix retained for compatibility reads.
 const SidecarSuffix = ".source.yaml"
 
 // Tiers returns the closed classification vocabulary, weakest first.
@@ -68,7 +69,11 @@ func ForSources(sources []string) Page {
 	classes := map[string]bool{}
 	licenses := map[string]bool{}
 	for _, src := range sources {
-		meta, ok := readSidecar(src)
+		meta, ok, err := readSidecar(src)
+		if err != nil {
+			page.Findings = append(page.Findings, fmt.Sprintf("source %q metadata is invalid: %v", src, err))
+			continue
+		}
 		if !ok {
 			continue // an unarchived or undeclared source is not a page defect
 		}
@@ -124,21 +129,70 @@ func CheckPage(declaredClassification, declaredLicense string, inherited Page) [
 // readSidecar reads `<source>.source.yaml` relative to the project root. A source
 // is stored corpus-relative (`refs/...`), so the sidecar sits beside it under
 // `context/`.
-func readSidecar(source string) (Meta, bool) {
+func readSidecar(source string) (Meta, bool, error) {
 	rel := strings.TrimSpace(source)
 	if rel == "" {
-		return Meta{}, false
+		return Meta{}, false, nil
 	}
-	path := filepath.Join("context", rel) + SidecarSuffix
-	data, err := os.ReadFile(path) //#nosec G304 -- corpus path built from a frontmatter entry
+	targetRel := filepath.ToSlash(filepath.Join("context", filepath.FromSlash(rel)))
+	doc, found, err := metacomp.ReadTarget(".", targetRel)
 	if err != nil {
-		return Meta{}, false
+		return Meta{}, true, err
 	}
-	var meta Meta
-	if err := yaml.Unmarshal(data, &meta); err != nil {
-		return Meta{}, false
+	newMeta := Meta{}
+	if found {
+		archive := mapValue(doc["source_archive"])
+		if archive == nil {
+			return Meta{}, true, fmt.Errorf("source_archive extension is missing")
+		}
+		newMeta = Meta{Classification: stringValue(archive["classification"]), License: stringValue(archive["license"])}
 	}
-	return meta, true
+	legacyPath := filepath.Join("context", filepath.FromSlash(rel)) + SidecarSuffix
+	data, legacyErr := os.ReadFile(legacyPath) //#nosec G304 -- corpus path built from a frontmatter entry
+	legacyFound := legacyErr == nil
+	if legacyErr != nil && !os.IsNotExist(legacyErr) {
+		return Meta{}, found, legacyErr
+	}
+	if legacyFound {
+		var legacy Meta
+		if err := yaml.Unmarshal(data, &legacy); err != nil {
+			return Meta{}, true, fmt.Errorf("decode legacy sidecar %s: %w", filepath.ToSlash(legacyPath), err)
+		}
+		if found && (legacy.Classification != newMeta.Classification || legacy.License != newMeta.License) {
+			return Meta{}, true, fmt.Errorf("legacy .source.yaml conflicts with canonical .meta.yaml")
+		}
+		if !found {
+			newMeta = legacy
+		}
+	}
+	return newMeta, found || legacyFound, nil
+}
+
+func mapValue(value any) map[string]any {
+	switch m := value.(type) {
+	case map[string]any:
+		return m
+	case map[any]any:
+		out := make(map[string]any, len(m))
+		for key, value := range m {
+			text, ok := key.(string)
+			if !ok {
+				return nil
+			}
+			out[text] = value
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func stringValue(value any) string {
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return text
 }
 
 func joinKeys(set map[string]bool) string {

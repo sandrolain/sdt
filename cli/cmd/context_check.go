@@ -326,7 +326,7 @@ Examples:
 			}
 		}
 		//#nosec G306 -- user work file
-		if err := os.WriteFile(doc.Path, []byte(updated), 0o644); err != nil {
+		if err := writeContextDocFile(doc.Path, data, updated); err != nil {
 			exitWithError(cmd, err)
 		}
 		if len(args) == 2 {

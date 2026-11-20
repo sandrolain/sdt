@@ -87,31 +87,31 @@ func defaultClaimAgent() string {
 
 // setTaskClaim writes claimed_by/claimed_at and marks the file in progress.
 func setTaskClaim(path, agent string) error {
-	content, err := setTaskFrontmatter(path, map[string]string{
+	original, content, err := setTaskFrontmatter(path, map[string]string{
 		ctxClaimedByKey: agent,
 		ctxClaimedAtKey: contextNow().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		return err
 	}
-	return writeContextDocFile(path, setTaskFileStatus(content, taskFileStatusInProgress))
+	return writeContextDocFile(path, original, setTaskFileStatus(content, taskFileStatusInProgress))
 }
 
 // clearTaskClaim removes the claim and sets the file back to pending.
 func clearTaskClaim(path string) error {
-	content, err := unsetTaskFrontmatter(path, ctxClaimedByKey, ctxClaimedAtKey)
+	original, content, err := unsetTaskFrontmatter(path, ctxClaimedByKey, ctxClaimedAtKey)
 	if err != nil {
 		return err
 	}
-	return writeContextDocFile(path, setTaskFileStatus(content, taskFileStatusPending))
+	return writeContextDocFile(path, original, setTaskFileStatus(content, taskFileStatusPending))
 }
 
 // setTaskFrontmatter writes the given top-level keys with byte fidelity,
 // re-parsing between writes because frontmatter.Block.Set is one-shot.
-func setTaskFrontmatter(path string, kv map[string]string) (string, error) {
+func setTaskFrontmatter(path string, kv map[string]string) ([]byte, string, error) {
 	data, err := os.ReadFile(path) //#nosec G304 -- resolved task file
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 	content := string(data)
 	keys := make([]string, 0, len(kv))
@@ -122,36 +122,36 @@ func setTaskFrontmatter(path string, kv map[string]string) (string, error) {
 	for _, k := range keys {
 		block, err := frontmatter.Parse(content)
 		if err != nil {
-			return "", err
+			return nil, "", err
 		}
 		newYAML, err := block.Set(k, frontmatter.Scalar(kv[k]), ctxKeyOrder(""))
 		if err != nil {
-			return "", err
+			return nil, "", err
 		}
 		content = block.ReplaceBody(content, newYAML)
 	}
-	return content, nil
+	return data, content, nil
 }
 
 // unsetTaskFrontmatter removes the given top-level keys with byte fidelity.
-func unsetTaskFrontmatter(path string, keys ...string) (string, error) {
+func unsetTaskFrontmatter(path string, keys ...string) ([]byte, string, error) {
 	data, err := os.ReadFile(path) //#nosec G304 -- resolved task file
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 	content := string(data)
 	for _, k := range keys {
 		block, err := frontmatter.Parse(content)
 		if err != nil {
-			return "", err
+			return nil, "", err
 		}
 		newYAML, err := block.Unset(k)
 		if err != nil {
-			return "", err
+			return nil, "", err
 		}
 		content = block.ReplaceBody(content, newYAML)
 	}
-	return content, nil
+	return data, content, nil
 }
 
 func init() {

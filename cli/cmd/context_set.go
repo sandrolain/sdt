@@ -110,7 +110,7 @@ func runContextSet(cmd *cobra.Command, args []string) {
 
 	doc0 := block.ReplaceBody(content, newYAML)
 	doc0 = finalizeDocWrite(cmd, doc, key, doc0)
-	if err := writeContextDocFile(doc.Path, doc0); err != nil {
+	if err := writeContextDocFile(doc.Path, data, doc0); err != nil {
 		exitWithError(cmd, err)
 		return
 	}
@@ -202,7 +202,7 @@ func runContextUnset(cmd *cobra.Command, args []string) {
 		return
 	}
 	doc0 := finalizeDocWrite(cmd, doc, key, block.ReplaceBody(content, newYAML))
-	if err := writeContextDocFile(doc.Path, doc0); err != nil {
+	if err := writeContextDocFile(doc.Path, data, doc0); err != nil {
 		exitWithError(cmd, err)
 		return
 	}
@@ -406,17 +406,6 @@ func removeListItem(items []string, needle string) []string {
 		}
 	}
 	return out
-}
-
-func writeContextDocFile(path, content string) error {
-	mode := os.FileMode(0o644)
-	if fi, err := os.Stat(path); err == nil {
-		mode = fi.Mode().Perm()
-	}
-	if err := os.WriteFile(path, []byte(content), mode); err != nil { //#nosec G306 G703 -- preserves the file's own mode
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
 }
 
 func init() {

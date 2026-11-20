@@ -529,14 +529,7 @@ func setGeneratedFrontmatterList(content, key string, items []string) (string, e
 
 // writeContextNewBatchPlan creates the plan's parent directory and file.
 func writeContextNewBatchPlan(plan contextNewBatchPlan) error {
-	dir, _ := filepath.Split(plan.Path)
-	if err := os.MkdirAll(dir, 0o750); err != nil { //#nosec G301 -- user work dir
-		return err
-	}
-	if err := os.WriteFile(plan.Path, []byte(plan.Content), 0o644); err != nil { //#nosec G306 -- user work file
-		return err
-	}
-	return nil
+	return createContextDocFile(plan.Path, plan.Content)
 }
 
 // outputContextNewBatch renders the batch outcome.

@@ -53,7 +53,7 @@ Examples:
 			}
 		} else {
 			//#nosec G306 -- user work file
-			if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+			if err := writeContextDocFile(doc.Path, data, content); err != nil {
 				exitWithError(cmd, err)
 			}
 		}

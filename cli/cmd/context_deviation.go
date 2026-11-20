@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -210,7 +209,7 @@ Examples:
 		phase, plan, err := taskTarget(cmd)
 		exitWithError(cmd, err)
 		stream := taskStreamFlag(cmd)
-		content, err := readTaskFile(phase, stream, plan)
+		original, content, err := readTaskFileSnapshot(phase, stream, plan)
 		exitWithError(cmd, err)
 		reason := getStringFlag(cmd, "reason", false)
 		if id := strings.TrimSpace(getStringFlag(cmd, "id", false)); id != "" {
@@ -231,7 +230,7 @@ Examples:
 		content = stampProvenance(content, cmd)
 		path := taskFileForRef(phase, stream, plan)
 		//#nosec G306 -- user work file
-		if err := writeTaskFile(path, content); err != nil {
+		if err := writeTaskFile(path, original, content); err != nil {
 			exitWithError(cmd, err)
 		}
 		outputString(cmd, path+"\n")
@@ -280,7 +279,6 @@ var contextDeviationListCmd = &cobra.Command{
 
 // writeTaskFile writes a task file after a mutation, normalizing the trailing
 // newline so a write never churns the file's last line.
-func writeTaskFile(path, content string) error {
-	//#nosec G304 G306 -- path resolved from the corpus, not from user input
-	return os.WriteFile(path, []byte(strings.TrimRight(content, "\n")+"\n"), 0o644)
+func writeTaskFile(path string, expected []byte, content string) error {
+	return writeContextDocFile(path, expected, strings.TrimRight(content, "\n")+"\n")
 }

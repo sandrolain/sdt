@@ -179,7 +179,7 @@ func closeDocument(cmd *cobra.Command, doc ctxResolvedDoc, allow bool, reason st
 	}
 	content = stampProvenance(content, cmd)
 	//#nosec G306 G703 -- path resolved from the corpus, not from user input
-	if err := os.WriteFile(doc.Path, []byte(content), 0o644); err != nil {
+	if err := writeContextDocFile(doc.Path, data, content); err != nil {
 		return "", err
 	}
 	entry, err := closeoutWrite(doc, closeout)

@@ -4,16 +4,15 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-	"syscall"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sandrolain/sdt/internal/contextwrite"
 	"github.com/spf13/cobra"
 )
 
@@ -96,25 +95,15 @@ func ctxTrashDestination(path string) (string, error) {
 // mounts the trash elsewhere — and only that case falls back to a copy and
 // remove; any other failure is reported as it is, rather than retried as a
 // different operation.
-func ctxMoveFile(src, dst string) error {
+func ctxMoveFile(src, dst string, expected []byte) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil { //#nosec G301 -- user work dir
 		return err
 	}
-	err := os.Rename(src, dst)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, syscall.EXDEV) {
+	root, err := contextProjectRoot(src)
+	if err != nil {
 		return err
 	}
-	data, rerr := os.ReadFile(src) //#nosec G304 -- user work file
-	if rerr != nil {
-		return rerr
-	}
-	if werr := os.WriteFile(dst, data, 0o644); werr != nil { //#nosec G306,G703 -- a path under context/trash
-		return werr
-	}
-	return os.Remove(src)
+	return contextwrite.Move(root, src, dst, contextwrite.Digest(expected))
 }
 
 func outputRmResult(cmd *cobra.Command, res ctxRmResult) {
@@ -195,7 +184,9 @@ EXAMPLE — ` + "`sdt context rm notes/20260101-000000-scratch`" + `
 			outputRmResult(cmd, res)
 			return
 		}
-		if err := ctxMoveFile(doc.Path, dst); err != nil {
+		data, readErr := os.ReadFile(doc.Path) //#nosec G304 -- user work file
+		exitWithError(cmd, readErr)
+		if err := ctxMoveFile(doc.Path, dst, data); err != nil {
 			exitWithError(cmd, err)
 			return
 		}

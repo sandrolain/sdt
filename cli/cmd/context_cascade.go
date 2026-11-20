@@ -364,7 +364,7 @@ func applyDerivedStatus(n *cascadeNode, status string) error {
 	if !changed {
 		return fmt.Errorf("no status field written to %s (missing frontmatter)", n.path)
 	}
-	if err := writeWorkFile(n.path, content); err != nil {
+	if err := writeWorkFile(n.path, []byte(n.content), content); err != nil {
 		return err
 	}
 	n.content = content

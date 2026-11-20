@@ -41,7 +41,7 @@ hand.
 | Group | Keys | Notes |
 |-------|------|-------|
 | identity | `url`, `resource`, `publisher`, `authors`, `year`, `language` | `resource` is `repo`, `article`, `spec`, `book`, `dataset`, `package` or `video`: it decides whether the pin is a commit or an edition |
-| pin | `commit`, `tag`, `sha256`, `bytes`, `captured_at`, `capture_path`, `extract`, `swhid` | a commit pins a repository, `sha256` pins bytes (the `.source.yaml` shape), `extract` points at the `refs/converted/` rendering the corpus actually cites |
+| pin | `commit`, `tag`, `sha256`, `bytes`, `captured_at`, `capture_path`, `extract`, `swhid` | a commit pins a repository, `sha256` pins bytes (the versioned `.meta.yaml` companion), `extract` points at the `refs/converted/` rendering the corpus actually cites |
 | licence | `license`, `license_marker`, `attribution` | `license` is an **SPDX identifier** (`MIT`, `Apache-2.0`, `AGPL-3.0-or-later`), `license_marker` the ✅⚠️⛔🚫❓ of the inventory, `attribution` the line to copy when its text enters a template |
 | custody | `restore`, `checked_at`, `check`, `acquired_by`, `acquired_for` | `restore` is a command (`git clone … && git checkout <sha>`); `check` is the last result (`200`, `404`, `timeout`) |
 | use | `used_by`, `verdict` | `used_by` lists the documents that rest on it; `verdict` is `adopted`, `rejected` or `out-of-scope` plus the reason in the body |
