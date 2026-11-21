@@ -114,3 +114,115 @@ func TestWriteRefusesStaleRevisionAndPreservesDocument(t *testing.T) {
 		t.Fatalf("document = %q after conflict, want current content", got)
 	}
 }
+
+func TestWriteRejectsOutsideRootAndMissingTarget(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.md")
+	if err := os.WriteFile(outside, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(root, outside, Digest([]byte("x")), []byte("y")); err == nil {
+		t.Fatal("outside write accepted")
+	}
+	missing := filepath.Join(root, "context", "missing.md")
+	if err := Write(root, missing, Digest(nil), []byte("y")); err == nil {
+		t.Fatal("missing target write accepted")
+	}
+}
+
+func TestMoveValidatesAndRenames(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "context", "old.md")
+	dst := filepath.Join(root, "context", "nested", "new.md")
+	if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := []byte("document\n")
+	if err := os.WriteFile(src, content, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := Move(root, src, dst, Digest([]byte("stale"))); !errors.Is(err, ErrConflict) {
+		t.Fatalf("stale Move error = %v", err)
+	}
+	if err := Move(root, src, filepath.Join(t.TempDir(), "outside"), Digest(content)); err == nil {
+		t.Fatal("outside move accepted")
+	}
+	if err := Move(root, src, dst, Digest(content)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(content) {
+		t.Fatalf("destination = %q", got)
+	}
+	if _, err := os.Stat(src); !os.IsNotExist(err) {
+		t.Fatalf("source remains: %v", err)
+	}
+	if err := Move(root, dst, src, Digest(content)); err != nil {
+		t.Fatal(err)
+	}
+	if err := Move(root, dst, src, Digest(content)); err == nil {
+		t.Fatal("missing source move accepted")
+	}
+}
+
+func TestMoveRejectsExistingDestination(t *testing.T) {
+	root := t.TempDir()
+	src, dst := filepath.Join(root, "context", "a.md"), filepath.Join(root, "context", "b.md")
+	if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("a")
+	if err := os.WriteFile(src, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dst, []byte("b"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Move(root, src, dst, Digest(data)); err == nil {
+		t.Fatal("existing destination accepted")
+	}
+}
+
+func TestMoveAcrossDevicesCopiesAndRemovesSource(t *testing.T) {
+	root := t.TempDir()
+	src, dst := filepath.Join(root, "src"), filepath.Join(root, "nested", "dst")
+	data := []byte("copy fallback")
+	if err := os.WriteFile(src, data, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := moveAcrossDevices(src, dst, data); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(data) {
+		t.Fatalf("copied data = %q", got)
+	}
+	if _, err := os.Stat(src); !os.IsNotExist(err) {
+		t.Fatalf("source remains: %v", err)
+	}
+	if err := moveAcrossDevices(src, filepath.Join(root, "missing", "dst"), data); err == nil {
+		t.Fatal("missing source accepted")
+	}
+	if err := os.WriteFile(src, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := moveAcrossDevices(src, dst, data); err == nil {
+		t.Fatal("existing destination accepted")
+	}
+}
+
+func TestConflictErrorFormatsRevisionDetails(t *testing.T) {
+	err := (&ConflictError{Expected: "expected", Actual: "actual"}).Error()
+	if err == "" {
+		t.Fatal("empty conflict detail")
+	}
+}

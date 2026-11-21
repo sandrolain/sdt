@@ -147,32 +147,37 @@ func Move(projectRoot, source, destination, expectedRevision string) error {
 		if !errors.Is(err, syscall.EXDEV) {
 			return fmt.Errorf("move context document: %w", err)
 		}
-		info, statErr := os.Stat(src)
-		if statErr != nil {
-			return statErr
-		}
-		out, createErr := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm()) //#nosec G304 -- destination is constrained to the project root above
-		if createErr != nil {
-			return createErr
-		}
-		if _, writeErr := out.Write(current); writeErr != nil {
-			_ = out.Close()    //nolint:errcheck // Best-effort cleanup while returning the write error.
-			_ = os.Remove(dst) //nolint:errcheck // Best-effort cleanup of our exclusive destination.
-			return writeErr
-		}
-		if syncErr := out.Sync(); syncErr != nil {
-			_ = out.Close()    //nolint:errcheck // Best-effort cleanup while returning the sync error.
-			_ = os.Remove(dst) //nolint:errcheck // Best-effort cleanup of our exclusive destination.
-			return syncErr
-		}
-		if closeErr := out.Close(); closeErr != nil {
-			_ = os.Remove(dst) //nolint:errcheck // Best-effort cleanup of our exclusive destination.
-			return closeErr
-		}
-		if removeErr := os.Remove(src); removeErr != nil {
-			_ = os.Remove(dst) //nolint:errcheck // Best-effort cleanup of our exclusive destination.
-			return removeErr
-		}
+		return moveAcrossDevices(src, dst, current)
+	}
+	return nil
+}
+
+func moveAcrossDevices(src, dst string, current []byte) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm()) //#nosec G304 -- destination is constrained to the project root by Move
+	if err != nil {
+		return err
+	}
+	if _, err := out.Write(current); err != nil {
+		_ = out.Close()    //nolint:errcheck // Best-effort cleanup while returning the write error.
+		_ = os.Remove(dst) //nolint:errcheck // Best-effort cleanup of our exclusive destination.
+		return err
+	}
+	if err := out.Sync(); err != nil {
+		_ = out.Close()    //nolint:errcheck // Best-effort cleanup while returning the sync error.
+		_ = os.Remove(dst) //nolint:errcheck // Best-effort cleanup of our exclusive destination.
+		return err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(dst) //nolint:errcheck // Best-effort cleanup while returning the close error.
+		return err
+	}
+	if err := os.Remove(src); err != nil {
+		_ = os.Remove(dst) //nolint:errcheck // Best-effort cleanup when the source could not be removed.
+		return err
 	}
 	return nil
 }

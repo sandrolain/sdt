@@ -38,6 +38,9 @@ func readMaterialMetadata(materialPath string, header materialHeader) (metacomp.
 	if err != nil || !found {
 		return doc, found, err
 	}
+	if err := validateLegacyMaterialLedger(root, materialPath); err != nil {
+		return nil, true, err
+	}
 	material := metadataMap(doc["material"])
 	if material == nil {
 		return nil, true, fmt.Errorf("material extension is missing")
@@ -91,6 +94,25 @@ func readMaterialMetadata(materialPath string, header materialHeader) (metacomp.
 		return nil, true, statErr
 	}
 	return doc, true, nil
+}
+
+func validateLegacyMaterialLedger(root, materialPath string) error {
+	// The canonical companion wins when both generations exist, but check the
+	// retained ledger's mapped fields so a stale second authority is visible.
+	legacyPath := strings.TrimSuffix(materialPath, sdtMarkdownExt) + ".ledger.json"
+	if _, err := os.Stat(legacyPath); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	legacyPlan, err := materialLedgerMigration(root, legacyPath)
+	if err != nil {
+		return fmt.Errorf("legacy material ledger conflicts with canonical companion: %w", err)
+	}
+	if !legacyPlan.Existing {
+		return fmt.Errorf("canonical material companion was not recognized during legacy comparison")
+	}
+	return nil
 }
 
 func metadataClaimsMatch(raw any, headerClaims map[string]string) bool {

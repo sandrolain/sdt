@@ -181,8 +181,8 @@ var fileWriteCmd = &cobra.Command{
 	Long: `Write input bytes to a file.
 
 WHEN — a whole file is being written: a fixture, a derived render, bytes the
-host writer would have written. The input arrives via stdin, ` + "`--input`" + `, ` + "`--file`" + `
-or ` + "`--inb64`" + `; ` + "`--multi`" + ` reads a JSON array and writes one content per comma-
+host writer would have written. The input arrives via stdin, ` + "`--input`" + `, ` + "`--inb64`" + `,
+or ` + "`--source`" + `; ` + "`--multi`" + ` reads a JSON array and writes one content per comma-
 separated path.
 
 WHEN NOT — a surgical change: ` + "`sdt edit`" + ` replaces a guarded literal and
@@ -221,6 +221,10 @@ EXAMPLE — ` + "`sdt context new --type notes … | sdt write -p out.md`" + `,
 			// the input file, while --append's --file is the target.
 			var byt []byte
 			switch {
+			case cmd.Flags().Lookup("source").Changed:
+				data, err := os.ReadFile(getStringFlag(cmd, "source", true)) //#nosec G304 -- source is explicitly named by the caller
+				exitWithError(cmd, err)
+				byt = data
 			case cmd.Flags().Lookup("inb64").Changed:
 				byt = getBytesBase64Flag(cmd, "inb64", true)
 			case cmd.Flags().Lookup("input").Changed:
@@ -234,7 +238,7 @@ EXAMPLE — ` + "`sdt context new --type notes … | sdt write -p out.md`" + `,
 			return
 		}
 
-		byt := getInputBytes(cmd, args)
+		byt := getFileWriteInput(cmd, args)
 
 		var contents [][]byte
 
@@ -285,6 +289,26 @@ EXAMPLE — ` + "`sdt context new --type notes … | sdt write -p out.md`" + `,
 	},
 }
 
+func getFileWriteInput(cmd *cobra.Command, args []string) []byte {
+	if source := getStringFlag(cmd, "source", false); source != "" {
+		data, err := os.ReadFile(source) //#nosec G304 -- source is explicitly named by the caller
+		exitWithError(cmd, err)
+		return data
+	}
+	if cmd.Flags().Lookup("input").Changed {
+		return []byte(getStringFlag(cmd, "input", true))
+	}
+	if cmd.Flags().Lookup("inb64").Changed {
+		return getBytesBase64Flag(cmd, "inb64", true)
+	}
+	if len(args) > 0 {
+		return []byte(strings.Join(args, ""))
+	}
+	data, err := io.ReadAll(cmd.InOrStdin())
+	exitWithError(cmd, err)
+	return data
+}
+
 // runWriteAppend adds the input after a file's current bytes, creating the
 // file when it does not exist — the `cat >>` shape, under the same guards the
 // edit verb applies: no directory, no corpus document, nothing outside the
@@ -306,7 +330,7 @@ func runWriteAppend(cmd *cobra.Command, files string, byt []byte) {
 		exitWithError(cmd, editRefuseCorpus(abs, path))
 		if statErr != nil && os.IsNotExist(statErr) {
 			// Create: the cat >> shape makes the file when it is absent.
-			// #nosec G306 -- a created file is readable on purpose
+			// #nosec G306,G703 -- created files are readable on purpose; the explicit destination passes editRefuseCorpus before writing
 			exitWithError(cmd, os.WriteFile(abs, byt, 0o644))
 		} else {
 			// #nosec G304 -- the path is the command's subject, validated above
@@ -339,6 +363,7 @@ func init() {
 	pf.BoolP("overwrite", "o", false, "Overwrite if already exist")
 	pf.BoolP("binary", "b", false, "Input as Base64 encoded content")
 	pf.Bool("append", false, "Add the input after the file's current bytes (creates the file when absent)")
+	pf.String("source", "", "Read exact input bytes from this source file")
 
 	rootCmd.AddCommand(fileReadCmd)
 	rootCmd.AddCommand(fileWriteCmd)

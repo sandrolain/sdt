@@ -319,12 +319,46 @@ func metadataMigrationPlanFor(root, destination, legacyPath string, proposed []b
 		if readErr != nil || !found {
 			return metadataMigration{}, fmt.Errorf("companion collision at %s: %v", filepath.ToSlash(rootRel), readErr)
 		}
-		_ = doc
+		proposedDoc, decodeErr := metacomp.Decode(proposed)
+		if decodeErr != nil {
+			return metadataMigration{}, fmt.Errorf("decode proposed companion for %s: %w", filepath.ToSlash(rootRel), decodeErr)
+		}
+		matches, compareErr := metadataAuthoritativeFieldsMatch(doc, proposedDoc)
+		if compareErr != nil {
+			return metadataMigration{}, fmt.Errorf("compare companion %s: %w", filepath.ToSlash(rootRel), compareErr)
+		}
+		if !matches {
+			return metadataMigration{}, fmt.Errorf("semantic companion conflict at %s: mapped legacy fields differ", filepath.ToSlash(rootRel))
+		}
 		return metadataMigration{Path: destination, Legacy: legacyPath, Existing: true}, nil
 	} else if !os.IsNotExist(err) {
 		return metadataMigration{}, err
 	}
 	return metadataMigration{Path: destination, Legacy: legacyPath, Bytes: proposed}, nil
+}
+
+func metadataAuthoritativeFieldsMatch(existing, proposed metacomp.Document) (bool, error) {
+	fields := map[string]any{}
+	for _, key := range []string{"schema_version", "target", "material", "source_archive"} {
+		if value, ok := proposed[key]; ok {
+			fields[key] = value
+		}
+	}
+	want, err := json.Marshal(fields)
+	if err != nil {
+		return false, err
+	}
+	actualFields := map[string]any{}
+	for key := range fields {
+		if value, ok := existing[key]; ok {
+			actualFields[key] = value
+		}
+	}
+	actual, err := json.Marshal(actualFields)
+	if err != nil {
+		return false, err
+	}
+	return string(actual) == string(want), nil
 }
 
 func materialLedgerMatchesHeader(ledger map[string]any, header materialHeader) error {

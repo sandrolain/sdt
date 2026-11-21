@@ -84,114 +84,132 @@ EXAMPLE — sdt context edit plan/x --section wave-2 --file wave-2.md
 // runContextEdit replaces the body (or one section) and reports the change. It
 // only ever writes the body: lifecycle state stays owned by the CLI.
 func runContextEdit(cmd *cobra.Command, args []string) {
-	doc, err := resolveContextDoc(cmd, args)
+	state, err := prepareContextEdit(cmd, args)
 	if err != nil {
 		exitWithError(cmd, err)
 		return
+	}
+	newBody, err := transformContextEdit(cmd, state)
+	if err != nil {
+		exitWithError(cmd, err)
+		return
+	}
+	writeContextEdit(cmd, state, newBody)
+}
+
+type contextEditState struct {
+	doc              ctxResolvedDoc
+	data             []byte
+	content          string
+	expectedRevision string
+	newText          string
+	frontmatter      string
+	body             string
+}
+
+func prepareContextEdit(cmd *cobra.Command, args []string) (contextEditState, error) {
+	doc, err := resolveContextDoc(cmd, args)
+	if err != nil {
+		return contextEditState{}, err
 	}
 	expectedRevision, err := contextExpectedRevision(cmd)
 	if err != nil {
-		exitWithError(cmd, err)
-		return
+		return contextEditState{}, err
 	}
-
-	//#nosec G304 -- resolved context document
+	// #nosec G304 -- resolved context document
 	data, err := os.ReadFile(doc.Path)
 	if err != nil {
-		exitWithError(cmd, err)
-		return
+		return contextEditState{}, err
 	}
-	content := string(data)
-
 	newText := getContextBody(cmd, nil)
 	if err := validateContextEditInput(cmd, doc, newText); err != nil {
-		exitWithError(cmd, err)
-		return
+		return contextEditState{}, err
 	}
-	text := ensureTrailingNewline(newText)
+	content := string(data)
+	frontmatter, body := contextwiki.SplitFrontmatter(content)
+	return contextEditState{
+		doc:              doc,
+		data:             data,
+		content:          content,
+		expectedRevision: expectedRevision,
+		newText:          newText,
+		frontmatter:      frontmatter,
+		body:             body,
+	}, nil
+}
+
+func transformContextEdit(cmd *cobra.Command, state contextEditState) (string, error) {
 	section := getStringFlag(cmd, "section", false)
 	row := getStringFlag(cmd, "row", false)
 	fence := getStringFlag(cmd, "fence", false)
-
-	fm, body := contextwiki.SplitFrontmatter(content)
-	// While a fence is open, every section boundary below it is a guess: a
-	// section would run to end of file and its replacement would delete the
-	// tail. Refuse instead of truncating, and say which line to close.
+	text := ensureTrailingNewline(state.newText)
 	if section != "" {
-		if open := mdstruct.UnclosedFence(body); open != nil {
-			exitWithError(cmd, fmt.Errorf("%s: line %d opens a code fence (%s) that never closes, so a section would run to end of file — close the fence, then edit the section", doc.Path, open.Line, open.Marker))
-			return
+		if open := mdstruct.UnclosedFence(state.body); open != nil {
+			return "", fmt.Errorf("%s: line %d opens a code fence (%s) that never closes, so a section would run to end of file — close the fence, then edit the section", state.doc.Path, open.Line, open.Marker)
 		}
 	}
 	var newBody string
+	var err error
 	switch {
 	case row != "":
-		newBody, err = replaceContextRow(body, section, row, text)
-		if err != nil {
-			exitWithError(cmd, fmt.Errorf("%s: %w", doc.Path, err))
-			return
-		}
+		newBody, err = replaceContextRow(state.body, section, row, text)
 	case fence != "":
-		newBody, err = replaceContextFence(body, fence, text)
-		if err != nil {
-			exitWithError(cmd, fmt.Errorf("%s: %w", doc.Path, err))
-			return
-		}
+		newBody, err = replaceContextFence(state.body, fence, text)
 	case getBoolFlag(cmd, "append", false):
-		if strings.TrimSpace(newText) == "" {
-			exitWithError(cmd, fmt.Errorf("nothing to append to %s: pass the text through --input, --file or stdin", doc.Path))
-			return
+		if strings.TrimSpace(state.newText) == "" {
+			return "", fmt.Errorf("nothing to append to %s: pass the text through --input, --file or stdin", state.doc.Path)
 		}
-		newBody, err = appendContextBody(body, section, text)
-		if err != nil {
-			exitWithError(cmd, fmt.Errorf("%s: %w", doc.Path, err))
-			return
-		}
+		newBody, err = appendContextBody(state.body, section, text)
 	case section != "":
-		newBody, err = replaceContextSection(body, section, text)
-		if err != nil {
-			exitWithError(cmd, fmt.Errorf("%s: %w", doc.Path, err))
-			return
-		}
+		newBody, err = replaceContextSection(state.body, section, text)
 	default:
 		newBody = text
 	}
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", state.doc.Path, err)
+	}
 	// A written claim never arrives without an identity: the write path stamps
 	// the same HTML-comment id the corpus uses, and an existing id is untouched.
-	newBody = contextwiki.MintClaimIDs(newBody, newClaimID)
-	if newBody == body {
-		outputContextEdit(cmd, contextEditResult{Path: doc.Path, Section: getStringFlag(cmd, "section", false), DryRun: getBoolFlag(cmd, "dry-run", false)})
+	return contextwiki.MintClaimIDs(newBody, newClaimID), nil
+}
+
+func writeContextEdit(cmd *cobra.Command, state contextEditState, newBody string) {
+	if newBody == state.body {
+		outputContextEdit(cmd, contextEditResult{Path: state.doc.Path, Section: getStringFlag(cmd, "section", false), DryRun: getBoolFlag(cmd, "dry-run", false)})
 		return
 	}
-	// A diagram is never refused for being unconventional: the structural check
-	// warns on the text about to be written and says what it cannot see.
 	if !getPersistentBool(cmd, "quiet") {
-		for _, warning := range diagramWriteWarnings(doc.Path, newBody) {
-			//nolint:errcheck // a stderr notice cannot fail the command
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning)
-		}
+		warnOnContextEditDiagram(cmd, state.doc.Path, newBody)
 	}
-
-	newContent := finalizeDocWrite(cmd, doc, "", fm+newBody)
-	diff := unifiedDiff(doc.Path, doc.Path, strings.Split(content, "\n"), strings.Split(newContent, "\n"), 3)
+	newContent := finalizeDocWrite(cmd, state.doc, "", state.frontmatter+newBody)
+	diff := unifiedDiff(state.doc.Path, state.doc.Path, strings.Split(state.content, "\n"), strings.Split(newContent, "\n"), 3)
 	dryRun := getBoolFlag(cmd, "dry-run", false)
 	result := contextEditResult{
-		Path:    doc.Path,
-		Section: getStringFlag(cmd, "section", false),
-		Changed: true,
-		DryRun:  dryRun,
-		Diff:    diff,
+		Path: state.doc.Path, Section: getStringFlag(cmd, "section", false),
+		Changed: true, DryRun: dryRun, Diff: diff,
 	}
 	if dryRun {
 		outputContextEdit(cmd, result)
-		if reportDryRunReferences(cmd, doc.Path, fm, newBody) {
+		if reportDryRunReferences(cmd, state.doc.Path, state.frontmatter, newBody) {
 			exit(1)
-			return
 		}
 		return
 	}
+	writeContextEditRevision(cmd, state, newContent, newBody, result)
+}
+
+func warnOnContextEditDiagram(cmd *cobra.Command, path, body string) {
+	// A diagram is never refused for being unconventional: the structural check
+	// warns on the text about to be written and says what it cannot see.
+	for _, warning := range diagramWriteWarnings(path, body) {
+		//nolint:errcheck // a stderr notice cannot fail the command
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning)
+	}
+}
+
+func writeContextEditRevision(cmd *cobra.Command, state contextEditState, newContent, newBody string, result contextEditResult) {
 	expectSHA := getStringFlag(cmd, "expect-sha256", false)
-	if expectSHA != "" && expectedRevision != "" {
+	if expectSHA != "" && state.expectedRevision != "" {
 		exitWithError(cmd, fmt.Errorf("pass only one of --expected-revision and --expect-sha256"))
 		return
 	}
@@ -201,16 +219,15 @@ func runContextEdit(cmd *cobra.Command, args []string) {
 			return
 		}
 		outputContextEdit(cmd, result)
-		if err := guardedContextDocWrite(doc.Path, data, newContent, expectSHA); err != nil {
+		if err := guardedContextDocWrite(state.doc.Path, state.data, newContent, expectSHA); err != nil {
 			exitWithError(cmd, err)
-			return
 		}
 		return
 	}
-	if expectedRevision == "" && !getPersistentBool(cmd, "quiet") {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: context edit without --expected-revision cannot detect a stale caller; read it with `sdt sha256 --file %s --hex` and pass the digest\n", doc.Path) //nolint:errcheck // Warning output cannot fail the edit.
+	if state.expectedRevision == "" && !getPersistentBool(cmd, "quiet") {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: context edit without --expected-revision cannot detect a stale caller; read it with `sdt sha256 --file %s --hex` and pass the digest\n", state.doc.Path) //nolint:errcheck // Warning output cannot fail the edit.
 	}
-	if err := guardedContextDocWrite(doc.Path, data, newContent, expectedRevision); err != nil {
+	if err := guardedContextDocWrite(state.doc.Path, state.data, newContent, state.expectedRevision); err != nil {
 		exitWithContextMutationError(cmd, err)
 		return
 	}

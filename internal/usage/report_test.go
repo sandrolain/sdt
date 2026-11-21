@@ -58,3 +58,48 @@ func TestSummarizeCountsOnlyReportedHits(t *testing.T) {
 		t.Fatalf("a call that reported nothing must not count as a miss: %+v", rep)
 	}
 }
+
+func TestSummarizeDurationAndPeakRSS(t *testing.T) {
+	zeroRSS := int64(0)
+	largeRSS := int64(4096)
+	entries := []Entry{
+		{Cmd: "read", MS: 0, RSSBytes: &zeroRSS},
+		{Cmd: "read", MS: 10, RSSBytes: &largeRSS},
+		{Cmd: "gain", MS: 100, RSSBytes: &largeRSS},
+		{Cmd: "internal", MS: 200, Source: SourceInternal, RSSBytes: &largeRSS},
+	}
+
+	report := Summarize(entries, false)
+	if report.MinMS != 0 || report.MeanMS != 5 || report.MaxMS != 10 {
+		t.Fatalf("duration summary = %d/%.1f/%d, want 0/5/10", report.MinMS, report.MeanMS, report.MaxMS)
+	}
+	if report.PeakRSSBytes == nil || *report.PeakRSSBytes != largeRSS {
+		t.Fatalf("peak RSS = %v, want %d", report.PeakRSSBytes, largeRSS)
+	}
+	if len(report.Commands) != 1 {
+		t.Fatalf("commands = %+v, want only read", report.Commands)
+	}
+	row := report.Commands[0]
+	if row.MinMS != 0 || row.MeanMS != 5 || row.MaxMS != 10 {
+		t.Fatalf("command duration = %d/%.1f/%d, want 0/5/10", row.MinMS, row.MeanMS, row.MaxMS)
+	}
+	if row.PeakRSSBytes == nil || *row.PeakRSSBytes != largeRSS {
+		t.Fatalf("command peak RSS = %v, want %d", row.PeakRSSBytes, largeRSS)
+	}
+
+	all := Summarize(entries, true)
+	if all.Calls != 4 || all.PeakRSSBytes == nil || *all.PeakRSSBytes != largeRSS {
+		t.Fatalf("--all summary = %+v", all)
+	}
+}
+
+func TestSummarizeEmptyAndUnavailableRSS(t *testing.T) {
+	empty := Summarize(nil, false)
+	if empty.Calls != 0 || empty.PeakRSSBytes != nil || len(empty.Commands) != 0 {
+		t.Fatalf("empty summary = %+v", empty)
+	}
+	legacy := Summarize([]Entry{{Cmd: "read"}}, false)
+	if legacy.PeakRSSBytes != nil || legacy.Commands[0].PeakRSSBytes != nil {
+		t.Fatalf("legacy summary should have unavailable RSS: %+v", legacy)
+	}
+}

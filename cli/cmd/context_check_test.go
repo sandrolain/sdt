@@ -51,6 +51,21 @@ func TestContextCheckByAnchorAcrossSections(t *testing.T) {
 	}
 }
 
+func TestContextCheckStaleExpectedRevisionPreservesProposal(t *testing.T) {
+	dir := runInTempDir(t)
+	rel := checkDocFixture(t, dir)
+	original := mustReadFile(t, filepath.Join(dir, rel))
+	stale := contextDocumentRevision([]byte(original))
+	current := strings.Replace(original, "- [ ] one", "- [ ] external", 1)
+	writeTestFile(t, filepath.Join(dir, rel), current)
+	shouldExitWithCode(t, 4, func() string {
+		return string(execute(t, contextCheckCmd, nil, rel, "c1", "--done", "--expected-revision", stale))
+	})
+	if got := mustReadFile(t, filepath.Join(dir, rel)); got != current {
+		t.Fatalf("stale check overwrote intervening edit:\n%s", got)
+	}
+}
+
 func TestContextCheckByOrdinalFallback(t *testing.T) {
 	dir := runInTempDir(t)
 	stubContextNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))

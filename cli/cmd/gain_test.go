@@ -79,8 +79,18 @@ func TestUsageRecordHoldsNoArguments(t *testing.T) {
 	}
 	sort.Strings(keys)
 	want := []string{"cmd", "exit", "ms", "out", "ts"}
-	if strings.Join(keys, ",") != strings.Join(want, ",") {
-		t.Fatalf("record keys = %v, want %v", keys, want)
+	if len(keys) < len(want) || len(keys) > len(want)+2 {
+		t.Fatalf("unexpected record keys: %v", keys)
+	}
+	for _, key := range want {
+		if _, ok := record[key]; !ok {
+			t.Fatalf("record is missing %q: %v", key, keys)
+		}
+	}
+	for _, key := range keys {
+		if key != "cmd" && key != "exit" && key != "ms" && key != "out" && key != "ts" && key != "hits" && key != "source" && key != "rss_bytes" {
+			t.Fatalf("unexpected record field %q", key)
+		}
 	}
 	var cmd string
 	if err := json.Unmarshal(record["cmd"], &cmd); err != nil {
@@ -88,6 +98,43 @@ func TestUsageRecordHoldsNoArguments(t *testing.T) {
 	}
 	if cmd != "b64" {
 		t.Fatalf("cmd = %q, want the command path", cmd)
+	}
+}
+
+func TestGainReportsDurationAndMemory(t *testing.T) {
+	root := newUsageProject(t)
+	firstRSS := int64(1024)
+	secondRSS := int64(2048)
+	entries := []usage.Entry{
+		{TS: "2026-10-30T06:00:00Z", Cmd: "read", MS: 5, RSSBytes: &firstRSS},
+		{TS: "2026-10-30T06:00:01Z", Cmd: "read", MS: 15, RSSBytes: &secondRSS},
+		{TS: "2026-10-30T06:00:02Z", Cmd: "write", MS: 20},
+	}
+	for _, entry := range entries {
+		if err := usage.Append(root, entry); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, format := range []string{"json", "yaml"} {
+		out, _, err := runRoot(t, "gain", "--since", "all", "--format", format)
+		if err != nil {
+			t.Fatalf("gain --format %s: %v", format, err)
+		}
+		for _, want := range []string{"min_ms", "mean_ms", "max_ms", "peak_rss_bytes"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("%s output missing %q: %s", format, want, out)
+			}
+		}
+	}
+	out, _, err := runRoot(t, "gain", "--since", "all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"duration ms min 5, mean 13.3, max 20", "peak sdt RSS", "2.0K"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("text output missing %q: %s", want, out)
+		}
 	}
 }
 
@@ -193,6 +240,22 @@ func TestGainTextStatesNoCounterfactual(t *testing.T) {
 	}
 	if !strings.Contains(out, "window") {
 		t.Fatalf("the report must name its window:\n%s", out)
+	}
+	if !strings.Contains(out, "duration ms: unavailable") {
+		t.Fatalf("an empty window must not report zero as a measured duration:\n%s", out)
+	}
+	jsonOut, _, err := runRoot(t, "gain", "--since", "all", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(jsonOut), &payload); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"min_ms", "mean_ms", "max_ms"} {
+		if _, ok := payload[key]; ok {
+			t.Errorf("empty window unexpectedly reports %s", key)
+		}
 	}
 }
 

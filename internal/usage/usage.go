@@ -45,13 +45,14 @@ const (
 // "zero results" and one that reports nothing at all are different facts, and
 // the hit rate must keep the difference.
 type Entry struct {
-	TS     string `json:"ts"`
-	Cmd    string `json:"cmd"`
-	Exit   int    `json:"exit"`
-	MS     int64  `json:"ms"`
-	Out    int64  `json:"out"`
-	Hits   *int   `json:"hits,omitempty"`
-	Source string `json:"source,omitempty"`
+	TS       string `json:"ts"`
+	Cmd      string `json:"cmd"`
+	Exit     int    `json:"exit"`
+	MS       int64  `json:"ms"`
+	Out      int64  `json:"out"`
+	Hits     *int   `json:"hits,omitempty"`
+	Source   string `json:"source,omitempty"`
+	RSSBytes *int64 `json:"rss_bytes,omitempty"`
 }
 
 // Dir is the usage directory under a project root.
@@ -260,6 +261,7 @@ func Finish(root string, code int) error {
 	started = false
 	pending.Exit = code
 	pending.MS = time.Since(began).Milliseconds()
+	pending.RSSBytes = peakRSSBytes()
 	e := pending
 	pending = Entry{}
 	if root == "" {

@@ -81,6 +81,10 @@ type gainPayload struct {
 	Out              int64               `json:"out"               yaml:"out"`
 	HitsReported     int                 `json:"hits_reported"     yaml:"hits_reported"`
 	HitsFound        int                 `json:"hits_found"        yaml:"hits_found"`
+	MinMS            *int64              `json:"min_ms,omitempty"   yaml:"min_ms,omitempty"`
+	MeanMS           *float64            `json:"mean_ms,omitempty"  yaml:"mean_ms,omitempty"`
+	MaxMS            *int64              `json:"max_ms,omitempty"   yaml:"max_ms,omitempty"`
+	PeakRSSBytes     *int64              `json:"peak_rss_bytes,omitempty" yaml:"peak_rss_bytes,omitempty"`
 	ExcludedSelf     int                 `json:"excluded_self"     yaml:"excluded_self"`
 	ExcludedInternal int                 `json:"excluded_internal" yaml:"excluded_internal"`
 	Commands         []usage.CommandStat `json:"commands"          yaml:"commands"`
@@ -93,7 +97,13 @@ func renderGain(cmd *cobra.Command, spec string, since, until time.Time, rep usa
 		Calls: rep.Calls, Failures: rep.Failures, Out: rep.Out,
 		HitsReported: rep.HitsReported, HitsFound: rep.HitsFound,
 		ExcludedSelf: rep.ExcludedSelf, ExcludedInternal: rep.ExcludedInternal,
-		Commands: rep.Commands,
+		PeakRSSBytes: rep.PeakRSSBytes,
+		Commands:     rep.Commands,
+	}
+	if rep.Calls > 0 {
+		payload.MinMS = &rep.MinMS
+		payload.MeanMS = &rep.MeanMS
+		payload.MaxMS = &rep.MaxMS
 	}
 	format := getFormat(cmd)
 	if getBoolFlag(cmd, "json", false) {
@@ -123,19 +133,33 @@ func gainText(p gainPayload) string {
 	}
 	fmt.Fprintf(&b, "window %s .. %s (%s)\n", from, p.Until, p.Window)
 	fmt.Fprintf(&b, "calls %d, failures %d, stdout %s\n", p.Calls, p.Failures, humanSize(p.Out))
+	if p.MinMS == nil || p.MeanMS == nil || p.MaxMS == nil {
+		b.WriteString("duration ms: unavailable\n")
+	} else {
+		fmt.Fprintf(&b, "duration ms min %d, mean %.1f, max %d\n", *p.MinMS, *p.MeanMS, *p.MaxMS)
+	}
+	if p.PeakRSSBytes == nil {
+		b.WriteString("peak sdt RSS: unavailable\n")
+	} else {
+		fmt.Fprintf(&b, "peak sdt RSS: %s\n", humanSize(*p.PeakRSSBytes))
+	}
 	fmt.Fprintf(&b, "hits %s\n\n", hitSummary(p.HitsFound, p.HitsReported))
 
 	width := len("COMMAND")
 	for _, row := range p.Commands {
 		width = max(width, len(row.Command))
 	}
-	fmt.Fprintf(&b, "%-*s  %5s  %4s  %8s  %s\n", width, "COMMAND", "CALLS", "FAIL", "STDOUT", "HITS")
+	fmt.Fprintf(&b, "%-*s  %5s  %4s  %8s  %s  %10s  %s\n", width, "COMMAND", "CALLS", "FAIL", "STDOUT", "HITS", "MS MIN/AVG/MAX", "PEAK RSS")
 	for _, row := range p.Commands {
 		hits := "-"
 		if row.HitsReported > 0 {
 			hits = fmt.Sprintf("%d/%d", row.HitsFound, row.HitsReported)
 		}
-		fmt.Fprintf(&b, "%-*s  %5d  %4d  %8s  %s\n", width, row.Command, row.Calls, row.Failures, humanSize(row.Out), hits)
+		rss := "-"
+		if row.PeakRSSBytes != nil {
+			rss = humanSize(*row.PeakRSSBytes)
+		}
+		fmt.Fprintf(&b, "%-*s  %5d  %4d  %8s  %s  %d/%.1f/%d  %s\n", width, row.Command, row.Calls, row.Failures, humanSize(row.Out), hits, row.MinMS, row.MeanMS, row.MaxMS, rss)
 	}
 	if len(p.Commands) == 0 {
 		b.WriteString("(nothing recorded in this window)\n")
