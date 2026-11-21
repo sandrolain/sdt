@@ -177,9 +177,13 @@ func TestMaterialMigrationResumesAfterPartialWrite(t *testing.T) {
 	if !resumed.Existing {
 		t.Fatal("rerun did not recognize the already-written companion")
 	}
-	if err := os.Remove(plan.Path); err != nil { t.Fatal(err) }
+	if err := os.Remove(plan.Path); err != nil {
+		t.Fatal(err)
+	}
 	rolledBack, err := materialLedgerMigration(sdtProjectRoot(), ledger)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if rolledBack.Existing || len(rolledBack.Bytes) == 0 {
 		t.Fatal("rollback did not return an additive migration plan")
 	}

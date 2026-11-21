@@ -42,62 +42,15 @@ func Summarize(entries []Entry, includeAll bool) Report {
 	var rep Report
 	rows := map[string]*CommandStat{}
 	for _, e := range entries {
-		self := e.Cmd == "gain"
-		internal := e.Source == SourceInternal
-		if !includeAll {
-			if self {
-				rep.ExcludedSelf++
-			}
-			if internal {
-				rep.ExcludedInternal++
-			}
-			if self || internal {
-				continue
-			}
+		if !includeEntry(e, includeAll, &rep) {
+			continue
 		}
 		row, ok := rows[e.Cmd]
 		if !ok {
 			row = &CommandStat{Command: e.Cmd}
 			rows[e.Cmd] = row
 		}
-		row.Calls++
-		if row.Calls == 1 || e.MS < row.MinMS {
-			row.MinMS = e.MS
-		}
-		if row.Calls == 1 || e.MS > row.MaxMS {
-			row.MaxMS = e.MS
-		}
-		rep.ElapsedMS += e.MS
-		row.MeanMS += float64(e.MS)
-		if e.RSSBytes != nil && (row.PeakRSSBytes == nil || *e.RSSBytes > *row.PeakRSSBytes) {
-			value := *e.RSSBytes
-			row.PeakRSSBytes = &value
-		}
-		if e.RSSBytes != nil && (rep.PeakRSSBytes == nil || *e.RSSBytes > *rep.PeakRSSBytes) {
-			value := *e.RSSBytes
-			rep.PeakRSSBytes = &value
-		}
-		if rep.Calls == 0 || e.MS < rep.MinMS {
-			rep.MinMS = e.MS
-		}
-		if rep.Calls == 0 || e.MS > rep.MaxMS {
-			rep.MaxMS = e.MS
-		}
-		rep.Calls++
-		row.Out += e.Out
-		rep.Out += e.Out
-		if e.Exit != 0 {
-			row.Failures++
-			rep.Failures++
-		}
-		if e.Hits != nil {
-			row.HitsReported++
-			rep.HitsReported++
-			if *e.Hits > 0 {
-				row.HitsFound++
-				rep.HitsFound++
-			}
-		}
+		addEntry(&rep, row, e)
 	}
 	if rep.Calls > 0 {
 		rep.MeanMS = float64(rep.ElapsedMS) / float64(rep.Calls)
@@ -118,4 +71,62 @@ func Summarize(entries []Entry, includeAll bool) Report {
 		return rep.Commands[i].Command < rep.Commands[j].Command
 	})
 	return rep
+}
+
+func includeEntry(e Entry, includeAll bool, rep *Report) bool {
+	if includeAll {
+		return true
+	}
+	self := e.Cmd == "gain"
+	internal := e.Source == SourceInternal
+	if self {
+		rep.ExcludedSelf++
+	}
+	if internal {
+		rep.ExcludedInternal++
+	}
+	return !self && !internal
+}
+
+func addEntry(rep *Report, row *CommandStat, e Entry) {
+	row.Calls++
+	if row.Calls == 1 || e.MS < row.MinMS {
+		row.MinMS = e.MS
+	}
+	if row.Calls == 1 || e.MS > row.MaxMS {
+		row.MaxMS = e.MS
+	}
+	if rep.Calls == 0 || e.MS < rep.MinMS {
+		rep.MinMS = e.MS
+	}
+	if rep.Calls == 0 || e.MS > rep.MaxMS {
+		rep.MaxMS = e.MS
+	}
+	rep.ElapsedMS += e.MS
+	row.MeanMS += float64(e.MS)
+	updatePeakRSS(&row.PeakRSSBytes, e.RSSBytes)
+	updatePeakRSS(&rep.PeakRSSBytes, e.RSSBytes)
+	rep.Calls++
+	row.Out += e.Out
+	rep.Out += e.Out
+	if e.Exit != 0 {
+		row.Failures++
+		rep.Failures++
+	}
+	if e.Hits != nil {
+		row.HitsReported++
+		rep.HitsReported++
+		if *e.Hits > 0 {
+			row.HitsFound++
+			rep.HitsFound++
+		}
+	}
+}
+
+func updatePeakRSS(current **int64, sample *int64) {
+	if sample == nil || (*current != nil && *sample <= **current) {
+		return
+	}
+	value := *sample
+	*current = &value
 }
