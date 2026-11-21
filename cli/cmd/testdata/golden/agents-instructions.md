@@ -214,8 +214,9 @@ and plan. Exploratory work investigates before implementation planning
 
 Sub-agents and the no-silent-downgrade rule: `plan.md`.
 
-Before closing a phase run the verify-step; the suite runs once at delivery
-(`development.md`). A document and the code disagreeing is `DISCREPANT`, reported
+Before closing a phase run the verify-step; at local delivery use the project's
+change-aware checks when available, while CI/release retains its complete
+required suite (`development.md`). A document and the code disagreeing is `DISCREPANT`, reported
 not resolved (`context/instructions/reconciliation.md`). Then `sdt context reindex` and
 `sdt context lint` — with the baseline, the claim is **no new findings**, never
 "clean" — and `sdt agent gate` for a hard gate (`--record --plan <ref>` appends

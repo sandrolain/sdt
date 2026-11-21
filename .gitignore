@@ -36,6 +36,8 @@ trivi-results.json
 .openchamber/
 .agents/
 skills-lock.json
+/scripts/verifydelivery/coverage.out
+/scripts/verifydelivery/context/
 
 # Nodejs
 /node_modules

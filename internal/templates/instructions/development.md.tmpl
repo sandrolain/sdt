@@ -196,9 +196,12 @@ every turn.
   never a floating `@latest`): a floating tool changes under you, and an offline
   run then fails on a tool you did not choose. When this does not apply: a project
   with no floating toolchain is unaffected.
-- Scope a per-edit validation to the **files touched**; run the full suite in the
-  plan's Validation phase, not on every edit — a full suite can be slow or hang
-  offline, and it gates delivery, not each step.
+- For each edit, test changed code, its consumers, and affected integration
+  surfaces. Use the project's change-aware local gate; uncertain or shared
+  impact falls back to its full gate. Discover commands here — never assume
+  another project's runner.
+- Targeted success is scoped evidence. CI/release requires the full declared set;
+  run it once at delivery, not after every edit.
 - A type-check that skips the test tree is not the build gate: run the project's
   build before claiming the code compiles. When this does not apply: no
   type-checker, or one that covers the whole tree, has no gap to mind.
@@ -280,10 +283,7 @@ tracks the work.
 - **The verify-step closes a phase**: completeness, coherence, correctness, in that
   order, prioritizing CRITICAL / WARNING / SUGGESTION and degrading gracefully when
   a check cannot run.
-- **Suite cadence: once, at delivery.** Per edit, validate only what covers the
-  files you touched; the full build/test/lint suite runs in the plan's final
-  Validation phase or at the commit gate, never on every edit — a per-edit full
-  suite is slow and can hang offline.
+- See *Pin the toolchain* for the check-selection rule and cadence.
 - **Reindex after the change**: `sdt context reindex` and `sdt context lint`; run
   `sdt context resume` to read the recorded execution state (it reports the paper,
   not live work) and spot a stale in-progress file. `sdt agent doctor` reports

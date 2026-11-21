@@ -1,0 +1,31 @@
+---
+name: sdt-verification
+description: >
+  Use this skill to choose and run checks for a code change or plan delivery:
+  inspect the project's own verification contract, select the smallest safe
+  change-aware set, and report which full checks remain for CI or release.
+---
+
+# SDT verification skill
+
+Read `context/instructions/development.md` and the plan's validation phase.
+Discover commands and required checks from the repository itself; do not assume
+a Taskfile, a focused-test command, or this skill's project's tooling exists.
+
+1. Map changed files to their owning packages, direct consumers, generated
+   outputs, and cross-surface integration checks. Include the full package suite
+   for each affected scope; avoid test-name filtering as the delivery minimum.
+2. Prefer the project's declared change-aware local gate. If it does not expose
+   one, choose the relevant commands from its own manifests and CI workflow.
+   Add acceptance checks required by the task; never remove checks required by
+   the project.
+3. Use the full required gate when shared build/test configuration, dependencies,
+   toolchains, generated instructions, or uncertain impact makes a targeted map
+   unsafe. In CI and release validation, use the complete required set.
+4. Record the exact commands, selected scope, results, elapsed time when
+   available, and checks deferred to CI. A targeted pass is not a full-suite
+   pass; if a check could not run, name the environmental or tooling reason.
+
+For example, a project may expose a focused package test and a separate
+change-aware delivery task. Inspect that project's Taskfile or other declared
+runner before invoking either; those names are examples, not portable commands.

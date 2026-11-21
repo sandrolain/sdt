@@ -22,6 +22,23 @@ lint_packages() {
 case "${1:-}" in
     packages) printf '%s\n' "$scope" ;;
     lint-packages) lint_packages ;;
+    entry-metadata)
+        fail=0
+        for entry in main.go:version main.go:commit main.go:date cli/main.go:version cli/main.go:commit cli/main.go:date viewer/main.go:version viewer/main.go:commit viewer/main.go:date; do
+            file=${entry%%:*}
+            var=${entry##*:}
+            if [ ! -f "$file" ]; then
+                echo "FAIL: main package file $file is missing" >&2
+                fail=1
+                continue
+            fi
+            if ! grep -Eq "^[[:space:]]*${var}[[:space:]]*=" "$file"; then
+                echo "FAIL: -X main.${var} target is not declared in $file (go silently ignores stale -X targets)" >&2
+                fail=1
+            fi
+        done
+        [ "$fail" -eq 0 ]
+        ;;
     focused)
         shift
         selected_packages=
@@ -79,10 +96,40 @@ case "${1:-}" in
             gofmt -l "$dir"/*.go
         done)
         if [ -n "$files" ]; then printf '%s\n' "$files"; exit 1; fi
+        tool_files=$(gofmt -l scripts/verifydelivery/*.go)
+        if [ -n "$tool_files" ]; then printf '%s\n' "$tool_files"; exit 1; fi
         ;;
     modules)
         go mod tidy -diff
         go mod verify
+        (cd scripts/verifydelivery && go mod tidy -diff && go mod verify)
+        ;;
+    delivery-tool-test)
+        output=$(cd scripts/verifydelivery && go test -cover ./...)
+        printf '%s\n' "$output"
+        printf '%s\n' "$output" | awk '
+            /coverage:/ {
+                for (i = 1; i <= NF; i++) {
+                    if ($i == "coverage:") {
+                        coverage = $(i + 1)
+                        break
+                    }
+                }
+                sub(/%.*/, "", coverage)
+                if (coverage + 0 < 70) {
+                    printf "FAIL: delivery tool coverage %.1f%% < 70.0%%\n", coverage + 0
+                    failed = 1
+                }
+                found = 1
+            }
+            END {
+                if (!found) {
+                    print "FAIL: delivery tool did not report package coverage"
+                    failed = 1
+                }
+                exit failed
+            }
+        '
         ;;
     coverage)
         expected=$(printf '%s\n' "$scope" | paste -sd ' ' -)
@@ -126,5 +173,5 @@ case "${1:-}" in
             exit bad
         }' "${2:-coverage.out}"
         ;;
-    *) echo 'usage: sh scripts/verify.sh packages|focused <package>... [--run pattern]|test|coverage [profile]|build|vet|lint|vuln|fmt|modules' >&2; exit 2 ;;
+    *) echo 'usage: sh scripts/verify.sh packages|lint-packages|focused <package>... [--run pattern]|entry-metadata|delivery-tool-test|test|coverage [profile]|build|vet|lint|vuln|fmt|modules' >&2; exit 2 ;;
 esac

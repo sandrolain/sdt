@@ -112,6 +112,11 @@ tasks:
     cmds:
       - sh scripts/verify-focused-test.sh
 
+  delivery:
+    desc: Run change-aware local delivery checks; pass --full for the complete gate
+    cmds:
+      - sh scripts/verify-delivery.sh {{.CLI_ARGS}}
+
   coverage-check:
     desc: Check the existing profile against per-package coverage floors
     cmds:
@@ -153,7 +158,7 @@ tasks:
   fmt:
     desc: Format Go code with simplification (project dirs only)
     cmds:
-      - gofmt -s -l -w cli internal viewer main.go
+      - gofmt -s -l -w cli internal viewer scripts/verifydelivery main.go
 
   lint:
     desc: Run golangci-lint (project packages)
@@ -168,19 +173,7 @@ tasks:
   verify:vars:
     desc: Fail when a -X ldflags target no longer resolves in the main packages
     cmds:
-      - |
-        fail=0
-        for entry in main.go:version main.go:commit main.go:date cli/main.go:version cli/main.go:commit cli/main.go:date viewer/main.go:version viewer/main.go:commit viewer/main.go:date; do
-          file="${entry%%:*}"; var="${entry##*:}"
-          if [ ! -f "$file" ]; then
-            echo "FAIL: main package file $file is missing"; fail=1; continue
-          fi
-          if ! grep -Eq "^[[:space:]]*${var}[[:space:]]*=" "$file"; then
-            echo "FAIL: -X main.${var} target is not declared in $file (go silently ignores stale -X targets)"
-            fail=1
-          fi
-        done
-        exit $fail
+      - sh scripts/verify.sh entry-metadata
 
   govulncheck:
     desc: Run Go vulnerability check using govulncheck (product scope only)

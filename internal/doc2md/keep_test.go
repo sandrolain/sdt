@@ -145,7 +145,10 @@ func TestRenderSummaryAndLinks(t *testing.T) {
 func TestKeepIsIdempotent(t *testing.T) {
 	src := tempSource(t, "report.csv", "a,b\n1,2\n")
 	dir := filepath.Join(t.TempDir(), "converted")
-	doc := Document{Source: src, Converter: "anydoc", Markdown: "# T\n"}
+	doc := Document{
+		Source: src, Converter: "anydoc", Markdown: "# T\n",
+		Now: time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC),
+	}
 
 	path, created, err := Keep(doc, dir)
 	if err != nil {
