@@ -30,16 +30,19 @@ const learnQuizVersion = 1
 // that shipped its answers would stop being zero-hint. `--with-key` is the one
 // opt-in that adds the frozen key and its grading rule.
 type learnQuizItem struct {
-	ID         string `json:"id" yaml:"id"`
-	Type       string `json:"type" yaml:"type"`
-	Prompt     string `json:"prompt" yaml:"prompt"`
-	Objective  int    `json:"objective" yaml:"objective"`
-	Claim      string `json:"claim" yaml:"claim"`
-	Expected   string `json:"expected,omitempty" yaml:"expected,omitempty"`
-	Rubric     string `json:"rubric,omitempty" yaml:"rubric,omitempty"`
-	Grading    string `json:"grading,omitempty" yaml:"grading,omitempty"`
-	Provenance string `json:"provenance,omitempty" yaml:"provenance,omitempty"`
-	Frozen     string `json:"frozen,omitempty" yaml:"frozen,omitempty"`
+	ID                string              `json:"id" yaml:"id"`
+	Type              string              `json:"type" yaml:"type"`
+	Prompt            string              `json:"prompt" yaml:"prompt"`
+	Objective         int                 `json:"objective" yaml:"objective"`
+	Claim             string              `json:"claim" yaml:"claim"`
+	Expected          string              `json:"expected,omitempty" yaml:"expected,omitempty"`
+	Rubric            string              `json:"rubric,omitempty" yaml:"rubric,omitempty"`
+	Grading           string              `json:"grading,omitempty" yaml:"grading,omitempty"`
+	Provenance        string              `json:"provenance,omitempty" yaml:"provenance,omitempty"`
+	Frozen            string              `json:"frozen,omitempty" yaml:"frozen,omitempty"`
+	Interaction       string              `json:"interaction,omitempty" yaml:"interaction,omitempty"`
+	Options           []learnChoiceOption `json:"options,omitempty" yaml:"options,omitempty"`
+	ExplanationPrompt string              `json:"explanation_prompt,omitempty" yaml:"explanation_prompt,omitempty"`
 }
 
 // learnQuizEntry is one concept to be quizzed, with the evidence an answer cites
@@ -74,7 +77,7 @@ and says so, and its questions are yours to write.
 
 RETURNS — a manifest (version, hinted and keyed flags, one entry per concept with
 its title, evidence and — when the concept has a lesson — its items as
-prompt/type/claim) or, with ` + "`--validate <file>`" + `, the validation verdict. It
+prompt/type/claim and any choice options, without the answer key) or, with ` + "`--validate <file>`" + `, the validation verdict. It
 carries no expected answer: zero-hint by default, and ` + "`--hint`" + ` opts into the
 page summary only. ` + "`--with-key`" + ` adds the frozen key, its grading rule and its
 provenance, which is what ` + "`sdt learn answer`" + ` grades against and the only way the
@@ -199,6 +202,8 @@ func learnQuizItemsFor(conceptID string, withKey bool) []learnQuizItem {
 		item := learnQuizItem{
 			ID: it.ID, Type: it.Type, Prompt: it.Prompt,
 			Objective: it.Objective, Claim: it.Claim,
+			Interaction: it.Interaction, Options: it.ChoiceOptions,
+			ExplanationPrompt: it.ExplanationPrompt,
 		}
 		if withKey {
 			item.Expected = it.Expected

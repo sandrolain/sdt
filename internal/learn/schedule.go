@@ -116,14 +116,20 @@ func ScheduleDays(reason string) int {
 //   - `correct` with a hint is hesitant whatever the item type: the learner got
 //     there with help, so the answer is not independent evidence.
 //   - `correct` with no hint on a `transfer` item earns `transfer_success`.
-//   - `correct` with no hint after an earlier success earns `durable_success`:
-//     the success repeated, which is the only way mastery is reached.
+//   - `correct` with no hint and an independent retrieval/transfer pair earns
+//     `durable_success`; repeating one item is insufficient.
 //   - any other correct answer is `independent_success`.
 //   - a success that follows a `failure` is downgraded one rung: re-earning a
 //     concept takes longer than keeping it.
 //
 // An ungradable or unknown grade schedules nothing (0, "").
 func Schedule(grade string, hint int, itemType, priorReason string) (days int, reason string) {
+	return ScheduleWithEvidence(grade, hint, itemType, priorReason, false)
+}
+
+// ScheduleWithEvidence uses independently demonstrated retrieval and transfer
+// as the only way to earn the durable interval.
+func ScheduleWithEvidence(grade string, hint int, itemType, priorReason string, durableEvidence bool) (days int, reason string) {
 	switch grade {
 	case GradeIncorrect:
 		return ScheduleDays(ReasonFailure), ReasonFailure
@@ -137,10 +143,10 @@ func Schedule(grade string, hint int, itemType, priorReason string) (days int, r
 	switch {
 	case hint > 0:
 		earned = ReasonCorrectButHesitant
+	case durableEvidence:
+		earned = ReasonDurableSuccess
 	case itemType == ItemTypeTransfer:
 		earned = ReasonTransferSuccess
-	case isSuccessReason(priorReason):
-		earned = ReasonDurableSuccess
 	default:
 		earned = ReasonIndependentSuccess
 	}
@@ -148,15 +154,6 @@ func Schedule(grade string, hint int, itemType, priorReason string) (days int, r
 		earned = downgradeReason(earned)
 	}
 	return ScheduleDays(earned), earned
-}
-
-// isSuccessReason reports whether a reason records a correct answer.
-func isSuccessReason(reason string) bool {
-	switch reason {
-	case ReasonIndependentSuccess, ReasonTransferSuccess, ReasonDurableSuccess:
-		return true
-	}
-	return false
 }
 
 // downgradeReason drops one rung down the ladder, floored at `new_or_fragile`.

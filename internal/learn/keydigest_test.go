@@ -38,6 +38,16 @@ func TestKeyDigestFreezesTheVerdict(t *testing.T) {
 			t.Errorf("changing the %s left the digest unchanged", tc.name)
 		}
 	}
+	choiceBase := KeyDigest(expected, rubric, grading, distractor, "multiple-choice", `[{"id":"a","text":"A"}]`, "partial-credit")
+	if choiceBase == KeyDigest(expected, rubric, grading, distractor, "multiple-choice", `[{"id":"a","text":"A"}]`, "exact-set") {
+		t.Error("changing the choice scoring policy left the digest unchanged")
+	}
+	if choiceBase == KeyDigest(expected, rubric, grading, distractor, "single-choice", `[{"id":"a","text":"A"}]`, "partial-credit") {
+		t.Error("changing the interaction left the digest unchanged")
+	}
+	if choiceBase == KeyDigest(expected, rubric, grading, distractor, "multiple-choice", `[{"id":"a","text":"B"}]`, "partial-credit") {
+		t.Error("changing option content left the digest unchanged")
+	}
 
 	// A field holding the separator cannot impersonate two fields.
 	if KeyDigest("a"+keyDigestSeparator+"b", "", "", "") == KeyDigest("a", "b", "", "") {

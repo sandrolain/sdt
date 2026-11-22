@@ -487,7 +487,7 @@ func TestLearnRecordNeverImpliesMastery(t *testing.T) {
 	}
 
 	execute(t, learnRecordCmd, nil,
-		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct")
+		"--concept", "architecture/v2", "--item", "v-3", "--grade", "correct")
 	if got := loadRecorded(t).Concepts[0].LastAssessed.Understanding; got != learn.UnderstandingSolid {
 		t.Errorf("a second independent success may reach solid, got %q", got)
 	}

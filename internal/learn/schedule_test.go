@@ -25,7 +25,6 @@ func TestScheduleLadder(t *testing.T) {
 		{"a hint beats a transfer item", GradeCorrect, 1, ItemTypeTransfer, "", 3, ReasonCorrectButHesitant},
 		{"independent success", GradeCorrect, 0, ItemTypeRecall, "", 7, ReasonIndependentSuccess},
 		{"transfer success", GradeCorrect, 0, ItemTypeTransfer, "", 14, ReasonTransferSuccess},
-		{"durable success repeats an independent one", GradeCorrect, 0, ItemTypeRecall, ReasonIndependentSuccess, 30, ReasonDurableSuccess},
 		{"success after a failure is downgraded", GradeCorrect, 0, ItemTypeRecall, ReasonFailure, 3, ReasonCorrectButHesitant},
 		{"a transfer after a failure loses one rung", GradeCorrect, 0, ItemTypeTransfer, ReasonFailure, 7, ReasonIndependentSuccess},
 		{"ungradable schedules nothing", GradeUngradable, 0, ItemTypeRecall, "", 0, ""},
@@ -39,6 +38,9 @@ func TestScheduleLadder(t *testing.T) {
 					tc.grade, tc.hint, tc.itemType, tc.prior, days, reason, tc.wantDays, tc.wantReason)
 			}
 		})
+	}
+	if days, reason := ScheduleWithEvidence(GradeCorrect, 0, ItemTypeTransfer, "", true); days != 30 || reason != ReasonDurableSuccess {
+		t.Errorf("a retrieval-transfer pair = (%d, %q), want (30, %q)", days, reason, ReasonDurableSuccess)
 	}
 }
 

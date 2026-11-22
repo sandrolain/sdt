@@ -20,6 +20,27 @@ func writeState(t *testing.T, body string) string {
 	return root
 }
 
+func TestLearnerStateIsIsolatedByProjectRoot(t *testing.T) {
+	first, second := t.TempDir(), t.TempDir()
+	if err := Save(first, &State{Profile: Profile{Name: "first learner"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(second, &State{Profile: Profile{Name: "second learner"}}); err != nil {
+		t.Fatal(err)
+	}
+	a, err := Load(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := Load(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Profile.Name != "first learner" || b.Profile.Name != "second learner" {
+		t.Fatalf("learner data crossed project roots: first=%q second=%q", a.Profile.Name, b.Profile.Name)
+	}
+}
+
 const VALID = `version: 1
 profile:
   name: a learner

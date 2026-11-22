@@ -1,0 +1,43 @@
+---
+name: sdt-learning
+description: >
+  Use this skill to teach, explain, quiz, practise or review a concept in an SDT
+  project: check readiness, resolve scope and prerequisites, adapt to evidence,
+  and stop within the learning contract.
+---
+
+<!-- sdt:begin:skills/sdt-learning/SKILL -->
+
+# SDT learning skill
+
+Read `context/instructions/learning.md` and `context/instructions/wiki.md` before
+teaching. The learning instruction is the durable contract; this skill supplies
+the invocation-time route.
+
+1. Classify the request as learn, explain, quiz, practise or review. If two intents
+   fit equally, ask which one the learner wants.
+2. Resolve the requested concept with `sdt learn inspect`; check readiness with
+   `sdt learn check`. Stop when the page or lesson is not ready. Do not invent a
+   readiness exception or silently widen the topic.
+3. Read the learner state with `sdt learn status` or `sdt learn resume`. Resolve
+   prerequisites before teaching. Teach an unlearned prerequisite first or name
+   the gap plainly.
+4. Follow the selected mode and its question budget in
+   `context/instructions/learning.md`. For learn mode, explain from the cited
+   page, show one worked example, ask one retrieval/application, then one transfer.
+   Use the learner's answer to choose a hint or diagnose a misconception; do not
+   reveal the key before an attempt.
+5. Grade deterministic answers with `sdt learn answer`. If the response needs a
+   rubric judgement, explain that it is manual and do not present it as a
+   deterministic score. For an explicit record request, retain the complete
+   response using `sdt learn record --response`, along with the grade and hint.
+   Never write learner state as a side effect.
+6. Stop when the mode's budget is spent, the lesson is incomplete, the learner
+   asks to stop, or the remaining answer is ungradable. State what was covered,
+   what remains weak and the next due action. Do not turn an assessment into a
+   new published item or mutate the questionnaire.
+
+Keep every explanation grounded in named wiki claims. Learner responses remain
+local learner evidence and never enter exported content packages.
+
+<!-- sdt:end:skills/sdt-learning/SKILL -->

@@ -90,6 +90,38 @@ func TestGradeManualIsUngradable(t *testing.T) {
 	}
 }
 
+func TestGradeChoiceAnswerIsOrderIndependentAndUsesDeclaredScoring(t *testing.T) {
+	ids := []string{"a", "b", "c"}
+	expected := `["a","b"]`
+	if got := GradeChoiceAnswer(expected, `["b","a"]`, "exact-set", ids); got.Grade != GradeCorrect {
+		t.Fatalf("choice ordering changed an exact answer: %+v", got)
+	}
+	cases := []struct {
+		answer string
+		grade  string
+		score  float64
+	}{
+		{`["a","b"]`, GradeCorrect, 1},
+		{`["a"]`, GradePartiallyCorrect, 0.5},
+		{`["a","c"]`, GradeIncorrect, 0},
+		{`["a","b","c"]`, GradePartiallyCorrect, 0.5},
+	}
+	for _, tc := range cases {
+		got := GradeChoiceAnswer(expected, tc.answer, "partial-credit", ids)
+		if got.Grade != tc.grade || got.Coverage != tc.score {
+			t.Errorf("answer %s got grade=%s score=%v, want grade=%s score=%v", tc.answer, got.Grade, got.Coverage, tc.grade, tc.score)
+		}
+	}
+}
+
+func TestGradeChoiceAnswerRefusesMalformedAndUnknownIds(t *testing.T) {
+	for _, answer := range []string{`not-json`, `"a"`, `["unknown"]`, `["a","a"]`} {
+		if got := GradeChoiceAnswer(`["a"]`, answer, "exact-set", []string{"a", "b"}); got.Grade != GradeUngradable {
+			t.Errorf("answer %q grade = %s, want ungradable", answer, got.Grade)
+		}
+	}
+}
+
 // TestAutoRulePicksFromTheItem pins the automatic choice: a number on both sides is
 // numeric, a recall or diagnose item with no number is exact, everything else is
 // graded by coverage.

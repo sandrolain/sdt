@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,7 +49,17 @@ type learnLessonItem struct {
 	// KeyDigest is the digest computed from the row as it now reads. It is what the
 	// author copies into the `key_hash` cell and what a mismatched cell is
 	// compared with, so no caller ever recomputes it a second way.
-	KeyDigest string `json:"key_digest,omitempty" yaml:"key_digest,omitempty"`
+	KeyDigest         string              `json:"key_digest,omitempty" yaml:"key_digest,omitempty"`
+	Interaction       string              `json:"interaction,omitempty" yaml:"interaction,omitempty"`
+	Options           string              `json:"options,omitempty" yaml:"options,omitempty"`
+	Scoring           string              `json:"scoring,omitempty" yaml:"scoring,omitempty"`
+	ExplanationPrompt string              `json:"explanation_prompt,omitempty" yaml:"explanation_prompt,omitempty"`
+	ChoiceOptions     []learnChoiceOption `json:"-" yaml:"-"`
+}
+
+type learnChoiceOption struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
 }
 
 // learnLessonGradingRules is the closed grading vocabulary. `auto` picks a rule
@@ -61,7 +72,7 @@ var learnLessonProvenances = []string{materialLane, "ai_generated", "mixed", lea
 
 // learnLessonOptionalColumns is the optional trailing header, in order. A lesson
 // that carries none of them is still valid: every optional value has a default.
-var learnLessonOptionalColumns = []string{"grading", "provenance", "frozen", "hash", "key_hash"}
+var learnLessonOptionalColumns = []string{"grading", "provenance", "frozen", "hash", "key_hash", "interaction", "options", "scoring", "explanation_prompt"}
 
 // Defaults an absent optional cell takes.
 const (
@@ -367,24 +378,43 @@ func learnLessonItemsOf(assess string) []learnLessonItem {
 			n = 0
 		}
 		it := learnLessonItem{
-			ID:         learnLessonCell(cells, index, "id"),
-			Objective:  n,
-			Type:       learnLessonCell(cells, index, "type"),
-			Prompt:     learnLessonCell(cells, index, "prompt"),
-			Expected:   learnLessonCell(cells, index, "expected"),
-			Rubric:     learnLessonCell(cells, index, "rubric"),
-			Distractor: learnLessonCell(cells, index, "distractor"),
-			Claim:      learnLessonCell(cells, index, ctxFrontmatterClaim),
-			Grading:    learnLessonDefault(learnLessonCell(cells, index, "grading"), learnGradingAuto),
-			Provenance: learnLessonDefault(learnLessonCell(cells, index, "provenance"), learnProvenanceUnknown),
-			Frozen:     learnLessonCell(cells, index, "frozen"),
-			Hash:       learnLessonCell(cells, index, "hash"),
-			KeyHash:    learnLessonCell(cells, index, "key_hash"),
+			ID:                learnLessonCell(cells, index, "id"),
+			Objective:         n,
+			Type:              learnLessonCell(cells, index, "type"),
+			Prompt:            learnLessonCell(cells, index, "prompt"),
+			Expected:          learnLessonCell(cells, index, "expected"),
+			Rubric:            learnLessonCell(cells, index, "rubric"),
+			Distractor:        learnLessonCell(cells, index, "distractor"),
+			Claim:             learnLessonCell(cells, index, ctxFrontmatterClaim),
+			Grading:           learnLessonDefault(learnLessonCell(cells, index, "grading"), learnGradingAuto),
+			Provenance:        learnLessonDefault(learnLessonCell(cells, index, "provenance"), learnProvenanceUnknown),
+			Frozen:            learnLessonCell(cells, index, "frozen"),
+			Hash:              learnLessonCell(cells, index, "hash"),
+			KeyHash:           learnLessonCell(cells, index, "key_hash"),
+			Interaction:       learnLessonCell(cells, index, "interaction"),
+			Options:           learnLessonCell(cells, index, "options"),
+			Scoring:           learnLessonCell(cells, index, "scoring"),
+			ExplanationPrompt: learnLessonCell(cells, index, "explanation_prompt"),
 		}
-		it.KeyDigest = learn.KeyDigest(it.Expected, it.Rubric, it.Grading, it.Distractor)
+		it.Scoring = learnLessonDefault(it.Scoring, learn.ScoringExactSet)
+		if it.Interaction == "" {
+			it.Scoring = ""
+		} else {
+			if err := json.Unmarshal([]byte(it.Options), &it.ChoiceOptions); err != nil {
+				it.ChoiceOptions = nil // lint reports the malformed source cell
+			}
+		}
+		it.KeyDigest = learnItemKeyDigest(it)
 		items = append(items, it)
 	}
 	return items
+}
+
+func learnItemKeyDigest(it learnLessonItem) string {
+	if it.Interaction == "" {
+		return learn.KeyDigest(it.Expected, it.Rubric, it.Grading, it.Distractor)
+	}
+	return learn.KeyDigest(it.Expected, it.Rubric, it.Grading, it.Distractor, it.Interaction, it.Options, it.Scoring)
 }
 
 // learnLessonHeaderIndex maps every header cell to its column. It returns nil when

@@ -130,6 +130,7 @@ func freezeTable(table string) string {
 	}
 	gradingCol := col("grading")
 	expectedCol, rubricCol, distractorCol := col("expected"), col("rubric"), col("distractor")
+	interactionCol, optionsCol, scoringCol := col("interaction"), col("options"), col("scoring")
 	var out strings.Builder
 	out.WriteString("| " + strings.Join(header, " | ") + " | key_hash |\n")
 	out.WriteString("|" + strings.Repeat(" --- |", len(header)+1) + "\n")
@@ -138,7 +139,16 @@ func freezeTable(table string) string {
 		if grading == "" {
 			grading = learnGradingAuto
 		}
-		digest := learn.KeyDigest(cell(cells, expectedCol), cell(cells, rubricCol), grading, cell(cells, distractorCol))
+		item := learnLessonItem{
+			Expected: cell(cells, expectedCol), Rubric: cell(cells, rubricCol),
+			Grading: grading, Distractor: cell(cells, distractorCol),
+			Interaction: cell(cells, interactionCol), Options: cell(cells, optionsCol),
+			Scoring: cell(cells, scoringCol),
+		}
+		if item.Interaction != "" {
+			item.Scoring = learnLessonDefault(item.Scoring, "exact-set")
+		}
+		digest := learnItemKeyDigest(item)
 		out.WriteString("| " + strings.Join(cells, " | ") + " | " + digest + " |\n")
 	}
 	return out.String()

@@ -1,6 +1,7 @@
 package learn
 
 import (
+	"encoding/json"
 	"math"
 	"regexp"
 	"strconv"
@@ -15,6 +16,16 @@ const (
 	ItemTypeDiagnose = "diagnose"
 	ItemTypeApply    = "apply"
 	ItemTypeTransfer = "transfer"
+)
+
+// Choice interactions and score policies shared by the lesson parser and grader.
+const (
+	InteractionSingleChoice      = "single-choice"
+	InteractionMultipleChoice    = "multiple-choice"
+	InteractionTrueFalse         = "true-false"
+	InteractionChoiceExplanation = "choice-explanation"
+	ScoringExactSet              = "exact-set"
+	ScoringPartialCredit         = "partial-credit"
 )
 
 // Grading rules are the closed vocabulary an item may name. `auto` picks one from
@@ -85,6 +96,92 @@ func GradeAnswer(rule, expected, answer, itemType string) Answer {
 		out.Grade = GradeUngradable
 	}
 	return out
+}
+
+// GradeChoiceAnswer grades a JSON array of selected option ids. Selection order
+// is immaterial; malformed, duplicate and unknown ids are ungradable.
+func GradeChoiceAnswer(expectedJSON, answerJSON, scoring string, optionIDs []string) Answer {
+	if scoring == "" {
+		scoring = ScoringExactSet
+	}
+	out := Answer{Rule: scoring, Expected: expectedJSON}
+	var expected, selected []string
+	if json.Unmarshal([]byte(expectedJSON), &expected) != nil || len(expected) == 0 ||
+		json.Unmarshal([]byte(answerJSON), &selected) != nil {
+		out.Grade = GradeUngradable
+		return out
+	}
+	known := make(map[string]bool, len(optionIDs))
+	for _, id := range optionIDs {
+		if id == "" || known[id] {
+			out.Grade = GradeUngradable
+			return out
+		}
+		known[id] = true
+	}
+	want := make(map[string]bool, len(expected))
+	for _, id := range expected {
+		if !known[id] || want[id] {
+			out.Grade = GradeUngradable
+			return out
+		}
+		want[id] = true
+	}
+	got := make(map[string]bool, len(selected))
+	for _, id := range selected {
+		if !known[id] || got[id] {
+			out.Grade = GradeUngradable
+			return out
+		}
+		got[id] = true
+	}
+	if scoring == ScoringExactSet {
+		if sameStringSet(want, got) {
+			out.Grade = GradeCorrect
+		} else {
+			out.Grade = GradeIncorrect
+		}
+		return out
+	}
+	if scoring != "partial-credit" {
+		out.Grade = GradeUngradable
+		return out
+	}
+	correct := 0
+	for id := range got {
+		if want[id] {
+			correct++
+		}
+	}
+	score := float64(correct-(len(got)-correct)) / float64(len(want))
+	if score < 0 {
+		score = 0
+	}
+	if score > 1 {
+		score = 1
+	}
+	out.Coverage = score
+	switch {
+	case score == 1:
+		out.Grade = GradeCorrect
+	case score > 0:
+		out.Grade = GradePartiallyCorrect
+	default:
+		out.Grade = GradeIncorrect
+	}
+	return out
+}
+
+func sameStringSet(left, right map[string]bool) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for value := range left {
+		if !right[value] {
+			return false
+		}
+	}
+	return true
 }
 
 // AutoRule picks the rule from the item's shape: a number on both sides is

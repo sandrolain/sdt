@@ -75,20 +75,35 @@ writes. It may exist with no lesson — a page quizzed before it is taught:
 `learn quiz`, `learn answer` and `learn record` read it either way, while
 `sdt learn check` keeps a lesson among its six rules.
 
-Its only section is `## Items`. `key_hash`, the last column, is the digest of what
-decides a verdict — `expected`, `rubric`, `grading` and `distractor`, never the
-prompt — so a key edit moves it and a wording edit does not. **Never compute it by
-hand**: `sdt learn lesson <concept> --format json` carries each row's `key_digest`,
-the value the cell holds. A cell that disagrees with its row is refused on read
+Its only section is `## Items`. `key_hash` is the digest of what decides a verdict
+— `expected`, `rubric`, `grading` and `distractor`; for a choice interaction it
+also includes `interaction`, `options` and `scoring` — never the prompt, so a key
+edit moves it and a wording edit does not. **Never compute it by hand**:
+`sdt learn lesson <concept> --format json` carries each row's `key_digest`, the
+value the cell holds. A cell that disagrees with its row is refused on read
 (quiz, answer, record) and reported by `sdt context lint`.
 
 ## The item table
 
 ```markdown
-| id | objective | type | prompt | expected | rubric | distractor | claim | grading | provenance | frozen | hash | key_hash |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| four-key-metrics-1 | 1 | recall | Name the four metrics. | deployment frequency; lead time for changes; change failure rate; time to restore service | all four, no extras | the four are individual performance targets | architecture/four-key-metrics#c-ab12cd34 | exact | material | 2026-10-28 | 4af036062f63 | 9f1c2d7a4b06 |
+| id | objective | type | prompt | expected | rubric | distractor | claim | grading | provenance | frozen | hash | key_hash | interaction | options | scoring | explanation_prompt |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| four-key-metrics-1 | 1 | recall | Name the four metrics. | deployment frequency; lead time for changes; change failure rate; time to restore service | all four, no extras | the four are individual performance targets | architecture/four-key-metrics#c-ab12cd34 | exact | material | 2026-10-28 | 4af036062f63 | 9f1c2d7a4b06 |  |  |  |  |
 ```
+
+The four optional trailing columns enable portable QTI choice interactions.
+`interaction` is `single-choice`, `multiple-choice`, `true-false` or
+`choice-explanation`; `options` is a JSON array of `{ "id": "stable-id",
+"text": "Option text" }`; `expected` is a JSON array of the correct option ids.
+IDs are unique within the item and remain stable across wording edits. `scoring`
+defaults to `exact-set`; `partial-credit` is only valid for multiple choice and
+scores `(correct selected - incorrect selected) / correct option count`, clamped
+to 0..1. `choice-explanation` adds an ungraded free-text response using
+`explanation_prompt`; it does not alter the choice key. Rows with these columns
+empty keep their existing free-answer grading semantics.
+
+Export a frozen choice bank with `sdt learn export-qti <concept> > bank.zip`.
+The package carries assessment content only, never learner identity or attempts.
 
 - **`objective`** is 1-based against the lesson's `objectives`; every
   objective needs at least one item, and an index outside the list is a defect.

@@ -70,8 +70,8 @@ const learnV2LessonOptional = learnV2LessonFM + `## Assess
 |---|---|---|---|---|---|---|---|---|---|---|
 | v-1 | 1 | recall | name it | alpha; beta | both | gamma | architecture/v2#c-11111111 | exact | material | 2026-10-01 |
 | v-2 | 2 | apply | apply it | 2/4 = 50% | the ratio | 2 per day | architecture/v2#c-22222222 | numeric | material | 2026-10-01 |
-| v-3 | 2 | transfer | apply it here | names the window and the zero days | names both | the raw count | architecture/v2#c-22222222 | keywords | ai_generated | 2026-10-01 |
-| v-4 | 2 | transfer | explain it | any defensible answer | judged | a guess | architecture/v2#c-22222222 | manual | unknown | 2026-10-01 |
+| v-3 | 1 | transfer | apply it here | names the window and the zero days | names both | the raw count | architecture/v2#c-22222222 | keywords | ai_generated | 2026-10-01 |
+| v-4 | 2 | transfer | explain it | any defensible answer | explains how the measured portion relates to the full reporting window | a guess | architecture/v2#c-22222222 | manual | unknown | 2026-10-01 |
 
 ## Transfer
 
@@ -84,7 +84,7 @@ const learnV2LessonBase = learnV2LessonFM + `## Assess
 |---|---|---|---|---|---|---|---|
 | v-1 | 1 | recall | name it | alpha; beta | both | gamma | architecture/v2#c-11111111 |
 | v-2 | 2 | apply | apply it | 2/4 = 50% | the ratio | 2 per day | architecture/v2#c-22222222 |
-| v-3 | 2 | transfer | apply it here | names the window and the zero days | names both | the raw count | architecture/v2#c-22222222 |
+| v-3 | 1 | transfer | apply it here | names the window and the zero days | names both | the raw count | architecture/v2#c-22222222 |
 
 ## Transfer
 
@@ -182,6 +182,83 @@ func TestLearnLessonLintAcceptsOptionalColumns(t *testing.T) {
 	}
 }
 
+func TestLearnAssessmentParsesChoiceInteractionColumns(t *testing.T) {
+	content := `## Items
+
+| id | objective | type | prompt | expected | rubric | distractor | claim | grading | provenance | frozen | hash | key_hash | interaction | options | scoring | explanation_prompt |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| item-1 | 1 | recall | Pick one | ["yes"] | selects the correct option | no | architecture/x#c-11111111 | exact | material | 2026-10-01 | digest |  | single-choice | [{"id":"yes","text":"Yes"},{"id":"no","text":"No"}] |  |  |
+`
+	items := learnAssessmentItemsOf(content)
+	if len(items) != 1 {
+		t.Fatalf("items = %d, want 1", len(items))
+	}
+	item := items[0]
+	if item.Interaction != "single-choice" || item.Scoring != "exact-set" || len(item.ChoiceOptions) != 2 || item.ChoiceOptions[0].ID != "yes" {
+		t.Fatalf("choice columns were not parsed: %+v", item)
+	}
+	if item.KeyDigest == learn.KeyDigest(item.Expected, item.Rubric, item.Grading, item.Distractor) {
+		t.Fatal("choice key digest did not include the interaction fields")
+	}
+	if issues := lintChoiceFields("assessment.md", item.ID, item.Interaction, item.Options, item.Expected, "", ""); len(issues) != 0 {
+		t.Fatalf("valid single-choice item produced findings: %+v", issues)
+	}
+}
+
+func TestLearnQuizChoiceOptionsRemainKeyFreeByDefault(t *testing.T) {
+	runInTempDir(t)
+	learnV2Fixture(t)
+	items := `| id | objective | type | prompt | expected | rubric | distractor | claim | interaction | options | scoring |
+|---|---|---|---|---|---|---|---|---|---|---|
+| choice-1 | 1 | recall | Pick one | ["yes"] | selects yes | no | architecture/v2#c-11111111 | single-choice | [{"id":"yes","text":"Yes"},{"id":"no","text":"No"}] | exact-set |
+`
+	writeAssessmentFor(t, "architecture/v2", items)
+	zeroHint := learnQuizItemsFor("architecture/v2", false)
+	if len(zeroHint) != 1 || zeroHint[0].Interaction != "single-choice" || len(zeroHint[0].Options) != 2 || zeroHint[0].Expected != "" {
+		t.Fatalf("zero-hint choice item is incomplete or leaked its key: %+v", zeroHint)
+	}
+	keyed := learnQuizItemsFor("architecture/v2", true)
+	if len(keyed) != 1 || keyed[0].Expected != `["yes"]` {
+		t.Fatalf("explicit key did not include the expected option ids: %+v", keyed)
+	}
+}
+
+func TestLearnExportQTIExcludesLearnerResponses(t *testing.T) {
+	runInTempDir(t)
+	learnV2Fixture(t)
+	items := `| id | objective | type | prompt | expected | rubric | distractor | claim | interaction | options | scoring |
+|---|---|---|---|---|---|---|---|---|---|---|
+| choice-1 | 1 | recall | Pick one | ["yes"] | selects yes | no | architecture/v2#c-11111111 | single-choice | [{"id":"yes","text":"Yes"},{"id":"no","text":"No"}] | exact-set |
+`
+	writeAssessmentFor(t, "architecture/v2", items)
+	privateResponse := "private learner response"
+	execute(t, learnRecordCmd, nil, "--concept", "architecture/v2", "--item", "choice-1",
+		"--grade", "correct", "--response", privateResponse)
+	archive := execute(t, learnExportQTICmd, nil, "architecture/v2")
+	if len(archive) == 0 || strings.Contains(string(archive), privateResponse) {
+		t.Fatal("QTI export was empty or contained learner response data")
+	}
+}
+
+func TestLintChoiceFieldsRejectsInvalidBindings(t *testing.T) {
+	options := `[{"id":"yes","text":"Yes"},{"id":"no","text":"No"}]`
+	cases := []struct {
+		name, interaction, options, expected, scoring, explanation string
+	}{
+		{"duplicate option id", "single-choice", `[{"id":"yes","text":"Yes"},{"id":"yes","text":"No"}]`, `["yes"]`, "exact-set", ""},
+		{"unknown answer id", "single-choice", options, `["missing"]`, "exact-set", ""},
+		{"partial credit on single choice", "single-choice", options, `["yes"]`, "partial-credit", ""},
+		{"missing explanation prompt", "choice-explanation", options, `["yes"]`, "exact-set", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if issues := lintChoiceFields("assessment.md", "item-1", tc.interaction, tc.options, tc.expected, tc.scoring, tc.explanation); len(issues) == 0 {
+				t.Fatal("invalid choice item produced no findings")
+			}
+		})
+	}
+}
+
 // TestLearnValidateRejectsBadOptionalValues covers the value half of the contract:
 // an unknown grading rule, an unknown provenance and a freeze after the update.
 func TestLearnValidateRejectsBadOptionalValues(t *testing.T) {
@@ -258,6 +335,54 @@ func TestLearnAnswerIsReadOnly(t *testing.T) {
 	}
 }
 
+func TestManualRubricAttemptRetainsParaphraseAndEvaluator(t *testing.T) {
+	runInTempDir(t)
+	learnV2Fixture(t)
+	response := "The measure describes the proportion of the reporting window that meets the condition."
+
+	var graded string
+	shouldExitWithCode(t, 4, func() string {
+		graded = string(execute(t, learnAnswerCmd, nil,
+			"--concept", "architecture/v2", "--item", "v-4", "--answer", response, "--format", "json"))
+		return graded
+	})
+	var report learnAnswerReport
+	if err := json.Unmarshal([]byte(graded), &report); err != nil {
+		t.Fatalf("decode manual verdict: %v", err)
+	}
+	if report.Grade != learn.GradeUngradable || report.Rule != learn.RuleManual || report.Rubric == "" {
+		t.Fatalf("manual rubric must not masquerade as deterministic grading: %+v", report)
+	}
+	// The paraphrase explains the measured portion in relation to the reporting
+	// window, matching the rubric. The deterministic grader itself returned ungradable.
+	execute(t, learnRecordCmd, nil, "--concept", "architecture/v2", "--item", "v-4",
+		"--grade", "correct", "--response", response)
+	attempt := loadRecorded(t).Concepts[0].LastAttempt
+	if attempt == nil || attempt.Evaluator != "manual" || attempt.Rule != learn.RuleManual || attempt.Response != response {
+		t.Fatalf("manual attempt provenance was not preserved: %+v", attempt)
+	}
+}
+
+func TestDurableEvidenceRejectsAnAttemptAgainstAnOldKey(t *testing.T) {
+	runInTempDir(t)
+	learnV2Fixture(t)
+	b := loadV2Bundle(t)
+	retrieval, transfer := b.Items[0], b.Items[2]
+	meta := learningMetadataForConcept("architecture/v2")
+	objectiveHash := learnObjectiveHash(meta.Objectives, retrieval.Objective)
+	old := learn.Attempt{Item: retrieval.ID, Type: retrieval.Type, Grade: learn.GradeCorrect,
+		KeyHash: "old-key", ClaimHash: retrieval.Hash, ObjectiveHash: objectiveHash}
+	current := learn.Attempt{Item: transfer.ID, Type: transfer.Type, Grade: learn.GradeCorrect,
+		KeyHash: transfer.KeyDigest, ClaimHash: transfer.Hash, ObjectiveHash: objectiveHash}
+	if learnHasDistinctRetrievalAndTransfer("architecture/v2", []learn.Attempt{old}, current) {
+		t.Fatal("an attempt bound to an old key must not establish current durable evidence")
+	}
+	old.KeyHash = retrieval.KeyDigest
+	if !learnHasDistinctRetrievalAndTransfer("architecture/v2", []learn.Attempt{old}, current) {
+		t.Fatal("a current retrieval/transfer pair on one objective should establish durable evidence")
+	}
+}
+
 // TestLearnQuizKeyIsOptIn proves the default manifest stays key-free and that
 // --with-key is the only way the frozen key enters it.
 func TestLearnQuizKeyIsOptIn(t *testing.T) {
@@ -308,7 +433,7 @@ func TestLearnRecordGradeTransition(t *testing.T) {
 
 	// A first correct answer never reaches solid, and schedules independently.
 	execute(t, learnRecordCmd, nil,
-		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct", "--hint", "0")
+		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct", "--hint", "0", "--response", "retrieval response")
 	c := loadRecorded(t).Concepts[0]
 	if c.LastAssessed.Understanding != learn.UnderstandingPartial {
 		t.Errorf("a first answer must be capped at partial, got %q", c.LastAssessed.Understanding)
@@ -320,6 +445,9 @@ func TestLearnRecordGradeTransition(t *testing.T) {
 		c.LastAttempt.Item != "v-1" || c.LastAttempt.Hint != 0 {
 		t.Errorf("the attempt was not stored: %+v", c.LastAttempt)
 	}
+	if c.LastAttempt.Response != "retrieval response" || c.LastAttempt.Evaluator != "deterministic" || c.LastAttempt.Rule != learn.RuleExact {
+		t.Errorf("response and grading provenance were not stored: %+v", c.LastAttempt)
+	}
 	if c.LastAssessed.Basis != learn.BasisInferred || c.LastAttempt.Basis != learn.BasisInferred {
 		t.Errorf("an unclaimed basis must stay inferred (the weaker claim), got %+v", c.LastAssessed)
 	}
@@ -327,12 +455,20 @@ func TestLearnRecordGradeTransition(t *testing.T) {
 		t.Errorf("the assessment must be stamped, got %q", c.LastAssessed.At)
 	}
 
-	// A second independent success reaches solid and earns the durable interval.
+	// Repeating the same item is more evidence of exposure, not independent mastery.
 	execute(t, learnRecordCmd, nil,
 		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct", "--hint", "0")
 	c = loadRecorded(t).Concepts[0]
+	if c.LastAssessed.Understanding != learn.UnderstandingPartial || c.ScheduleReason != learn.ReasonIndependentSuccess {
+		t.Errorf("repeating one item must not create durable evidence: level=%q schedule=%q", c.LastAssessed.Understanding, c.ScheduleReason)
+	}
+
+	// A distinct transfer on the same objective completes the evidence pair.
+	execute(t, learnRecordCmd, nil,
+		"--concept", "architecture/v2", "--item", "v-3", "--grade", "correct", "--hint", "0", "--response", "transfer response")
+	c = loadRecorded(t).Concepts[0]
 	if c.LastAssessed.Understanding != learn.UnderstandingSolid {
-		t.Errorf("a second demonstration may reach solid, got %q", c.LastAssessed.Understanding)
+		t.Errorf("a second demonstration may reach solid, got %q; attempts=%+v", c.LastAssessed.Understanding, c.Attempts)
 	}
 	if c.NextReview != "2026-11-12" || c.ScheduleReason != learn.ReasonDurableSuccess {
 		t.Errorf("durable schedule = %q/%q", c.NextReview, c.ScheduleReason)
@@ -349,40 +485,28 @@ func TestLearnRecordGradeTransition(t *testing.T) {
 		t.Errorf("hesitant schedule = %q/%q", c.NextReview, c.ScheduleReason)
 	}
 
-	// An incorrect answer fails and comes back tomorrow.
-	execute(t, learnRecordCmd, nil,
-		"--concept", "architecture/v2", "--item", "v-1", "--grade", "incorrect")
-	c = loadRecorded(t).Concepts[0]
-	if c.LastAssessed.Understanding != learn.UnderstandingWeak {
-		t.Errorf("an incorrect answer must be weak, got %q", c.LastAssessed.Understanding)
-	}
-	if c.NextReview != "2026-10-14" || c.ScheduleReason != learn.ReasonFailure {
-		t.Errorf("failure schedule = %q/%q", c.NextReview, c.ScheduleReason)
+}
+
+func TestLearnRecordFailureAndExplicitReviewOverride(t *testing.T) {
+	runInTempDir(t)
+	learnV2Fixture(t)
+	stubContextNow(t, time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC))
+	execute(t, learnRecordCmd, nil, "--concept", "architecture/v2", "--item", "v-1", "--grade", "incorrect")
+	c := loadRecorded(t).Concepts[0]
+	if c.LastAssessed.Understanding != learn.UnderstandingWeak || c.NextReview != "2026-10-14" || c.ScheduleReason != learn.ReasonFailure {
+		t.Fatalf("failure state = %+v", c)
 	}
 
-	// A transfer item earns the transfer interval — downgraded one rung because the
-	// answer before it was a failure: re-earning takes longer than keeping.
-	execute(t, learnRecordCmd, nil,
-		"--concept", "architecture/v2", "--item", "v-3", "--grade", "correct", "--hint", "0")
+	// A current retrieval/transfer pair earns a durable interval.
+	execute(t, learnRecordCmd, nil, "--concept", "architecture/v2", "--item", "v-1", "--grade", "correct")
+	execute(t, learnRecordCmd, nil, "--concept", "architecture/v2", "--item", "v-3", "--grade", "correct")
 	c = loadRecorded(t).Concepts[0]
-	if c.NextReview != "2026-10-20" || c.ScheduleReason != learn.ReasonIndependentSuccess {
-		t.Errorf("transfer schedule after a failure = %q/%q", c.NextReview, c.ScheduleReason)
+	if c.ScheduleReason != learn.ReasonDurableSuccess {
+		t.Fatalf("retrieval/transfer evidence should be durable: %q", c.ScheduleReason)
 	}
 
-	// Without a failure behind it, the same transfer earns its full interval.
 	execute(t, learnRecordCmd, nil,
-		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct", "--hint", "0")
-	execute(t, learnRecordCmd, nil,
-		"--concept", "architecture/v2", "--item", "v-3", "--grade", "correct", "--hint", "0")
-	c = loadRecorded(t).Concepts[0]
-	if c.NextReview != "2026-10-27" || c.ScheduleReason != learn.ReasonTransferSuccess {
-		t.Errorf("transfer schedule = %q/%q", c.NextReview, c.ScheduleReason)
-	}
-
-	// An explicit date wins and carries no computed reason.
-	execute(t, learnRecordCmd, nil,
-		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct", "--hint", "0",
-		"--next-review", "2026-12-01")
+		"--concept", "architecture/v2", "--item", "v-1", "--grade", "correct", "--next-review", "2026-12-01")
 	c = loadRecorded(t).Concepts[0]
 	if c.NextReview != "2026-12-01" || c.ScheduleReason != "" {
 		t.Errorf("explicit date = %q/%q", c.NextReview, c.ScheduleReason)

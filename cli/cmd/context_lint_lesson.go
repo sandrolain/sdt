@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -44,6 +45,8 @@ const ctxLessonItemTransfer = learn.ItemTypeTransfer
 // ctxLessonClaimRefRegexp is the claim reference grammar an item row carries:
 // a page id, then the anchor the page stamps on the claim.
 var ctxLessonClaimRefRegexp = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*#(?:claim-[0-9]+|c-[a-z0-9]{8})$`)
+
+var ctxChoiceOptionIDRegexp = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 
 // lintLesson validates a lesson document's body: the three sections in order, no
 // item table of its own. An empty body is the template's scaffold and is not a
@@ -123,13 +126,145 @@ func lintAssessmentKeys(path string, index map[string]int, items [][]string) []c
 		if expected != "" && strings.EqualFold(strings.TrimSpace(expected), strings.TrimSpace(distractor)) {
 			add(fmt.Sprintf("item %q uses its expected answer as the distractor", id))
 		}
-		computed := learn.KeyDigest(expected, learnLessonCell(cells, index, "rubric"), grading, distractor)
+		interaction := learnLessonCell(cells, index, "interaction")
+		options := learnLessonCell(cells, index, "options")
+		scoring := learnLessonCell(cells, index, "scoring")
+		item := learnLessonItem{
+			Expected:    expected,
+			Rubric:      learnLessonCell(cells, index, "rubric"),
+			Grading:     grading,
+			Distractor:  distractor,
+			Interaction: interaction,
+			Options:     options,
+			Scoring:     scoring,
+		}
+		if item.Interaction != "" {
+			item.Scoring = learnLessonDefault(item.Scoring, learn.ScoringExactSet)
+		}
+		computed := learnItemKeyDigest(item)
 		switch stored := learnLessonCell(cells, index, "key_hash"); {
 		case stored == "":
 			add(fmt.Sprintf("item %q carries no key_hash: its key is not frozen (the row now hashes to %s)", id, computed))
 		case stored != computed:
 			add(fmt.Sprintf("item %q key_hash %s disagrees with its row (%s): the key moved after it was frozen", id, stored, computed))
 		}
+		issues = append(issues, lintChoiceFields(path, id, interaction, options, expected, scoring, learnLessonCell(cells, index, "explanation_prompt"))...)
+		if interaction != "" && grading != learn.RuleAuto && grading != learn.RuleExact {
+			add(fmt.Sprintf("item %q choice interaction must use auto or exact grading; QTI scoring is declared in scoring", id))
+		}
+	}
+	return issues
+}
+
+func lintChoiceFields(path, id, interaction, options, expected, scoring, explanationPrompt string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	if interaction == "" {
+		if options != "" || scoring != "" || explanationPrompt != "" {
+			issues = append(issues, choiceIssue(path, id, "has choice metadata without an interaction"))
+		}
+		return issues
+	}
+	if !knownChoiceInteraction(interaction) {
+		issues = append(issues, choiceIssue(path, id, fmt.Sprintf("interaction %q is unsupported", interaction)))
+		return issues
+	}
+	choices, optionIssues, ok := lintChoiceOptions(path, id, options)
+	issues = append(issues, optionIssues...)
+	if !ok {
+		return issues
+	}
+	correct, keyIssues, ok := lintChoiceKey(path, id, expected, choices)
+	issues = append(issues, keyIssues...)
+	if !ok {
+		return issues
+	}
+	scoring = learnLessonDefault(scoring, learn.ScoringExactSet)
+	issues = append(issues, lintChoiceScoring(path, id, interaction, scoring)...)
+	issues = append(issues, lintChoiceCardinality(path, id, interaction, len(choices), len(correct))...)
+	issues = append(issues, lintChoiceExplanation(path, id, interaction, explanationPrompt)...)
+	return issues
+}
+
+func choiceIssue(path, id, message string) ctxLintIssue {
+	return ctxLintIssue{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("item %q %s", id, message)}
+}
+
+func knownChoiceInteraction(interaction string) bool {
+	return containsItem([]string{learn.InteractionSingleChoice, learn.InteractionMultipleChoice,
+		learn.InteractionTrueFalse, learn.InteractionChoiceExplanation}, interaction)
+}
+
+func lintChoiceOptions(path, id, raw string) ([]learnChoiceOption, []ctxLintIssue, bool) {
+	var choices []learnChoiceOption
+	if err := json.Unmarshal([]byte(raw), &choices); err != nil || len(choices) < 2 {
+		return nil, []ctxLintIssue{choiceIssue(path, id, "options must be a JSON array of at least two {id,text} objects")}, false
+	}
+	var issues []ctxLintIssue
+	ids := map[string]bool{}
+	for _, choice := range choices {
+		if !ctxChoiceOptionIDRegexp.MatchString(choice.ID) || strings.TrimSpace(choice.Text) == "" {
+			issues = append(issues, choiceIssue(path, id, "has an option with an invalid id or empty text"))
+		}
+		if ids[choice.ID] {
+			issues = append(issues, choiceIssue(path, id, fmt.Sprintf("repeats option id %q", choice.ID)))
+		}
+		ids[choice.ID] = true
+	}
+	return choices, issues, true
+}
+
+func lintChoiceKey(path, id, raw string, choices []learnChoiceOption) ([]string, []ctxLintIssue, bool) {
+	var correct []string
+	if err := json.Unmarshal([]byte(raw), &correct); err != nil || len(correct) == 0 {
+		return nil, []ctxLintIssue{choiceIssue(path, id, "expected must be a JSON array of correct option ids")}, false
+	}
+	known := make(map[string]bool, len(choices))
+	for _, choice := range choices {
+		known[choice.ID] = true
+	}
+	var issues []ctxLintIssue
+	seen := map[string]bool{}
+	for _, answer := range correct {
+		if seen[answer] {
+			issues = append(issues, choiceIssue(path, id, fmt.Sprintf("repeats expected option id %q", answer)))
+		}
+		if !known[answer] {
+			issues = append(issues, choiceIssue(path, id, fmt.Sprintf("expected option id %q is not present in options", answer)))
+		}
+		seen[answer] = true
+	}
+	return correct, issues, true
+}
+
+func lintChoiceCardinality(path, id, interaction string, optionCount, correctCount int) []ctxLintIssue {
+	var issues []ctxLintIssue
+	if (interaction == learn.InteractionSingleChoice || interaction == learn.InteractionTrueFalse || interaction == learn.InteractionChoiceExplanation) && correctCount != 1 {
+		issues = append(issues, choiceIssue(path, id, "requires exactly one expected option id"))
+	}
+	if interaction == learn.InteractionTrueFalse && optionCount != 2 {
+		issues = append(issues, choiceIssue(path, id, "true-false requires exactly two options"))
+	}
+	return issues
+}
+
+func lintChoiceScoring(path, id, interaction, scoring string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	if scoring != learn.ScoringExactSet && scoring != learn.ScoringPartialCredit {
+		issues = append(issues, choiceIssue(path, id, fmt.Sprintf("scoring %q must be exact-set or partial-credit", scoring)))
+	}
+	if scoring == learn.ScoringPartialCredit && interaction != learn.InteractionMultipleChoice {
+		issues = append(issues, choiceIssue(path, id, "partial-credit is supported only for multiple-choice"))
+	}
+	return issues
+}
+
+func lintChoiceExplanation(path, id, interaction, prompt string) []ctxLintIssue {
+	var issues []ctxLintIssue
+	if interaction == learn.InteractionChoiceExplanation && strings.TrimSpace(prompt) == "" {
+		issues = append(issues, choiceIssue(path, id, "choice-explanation requires explanation_prompt"))
+	}
+	if interaction != learn.InteractionChoiceExplanation && prompt != "" {
+		issues = append(issues, choiceIssue(path, id, "explanation_prompt is only valid for choice-explanation"))
 	}
 	return issues
 }

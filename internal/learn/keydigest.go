@@ -11,14 +11,14 @@ import (
 // An item carries two digests and they answer two different questions. `hash`
 // pins the wiki claim the item was written against: when the claim moves, the
 // item is stale and must be re-read. `key_hash` pins the four cells that decide
-// whether an answer is right — expected, rubric, grading and distractor — so a
-// key edit re-freezes the item and a prompt edit does not.
+// whether an answer is right — expected, rubric, grading and distractor — plus
+// any optional interaction/scoring fields, so a key edit re-freezes the item.
 //
 // Two duties, two digests: freezing is an integrity rule for the quiz that is
 // served, never a security boundary. A key in a Markdown file stays readable by
 // anyone the file is readable to.
 
-// keyDigestSeparator joins the four fields. It is the ASCII unit separator, a
+// keyDigestSeparator joins the key fields. It is the ASCII unit separator, a
 // byte no cell can carry: a rubric may contain any punctuation, so any printable
 // separator could be smuggled into a field and make two different keys collide.
 const keyDigestSeparator = "\x1f"
@@ -31,13 +31,22 @@ const keyDigestLength = 12
 // answer, rubric, grading rule and distractor, joined by a separator no cell can
 // contain. The fields are trimmed first, so trailing whitespace in a Markdown
 // cell never moves the digest.
-func KeyDigest(expected, rubric, grading, distractor string) string {
-	joined := strings.Join([]string{
+func KeyDigest(expected, rubric, grading, distractor string, choiceFields ...string) string {
+	fields := []string{
 		strings.TrimSpace(expected),
 		strings.TrimSpace(rubric),
 		strings.TrimSpace(grading),
 		strings.TrimSpace(distractor),
-	}, keyDigestSeparator)
+	}
+	// Keep the historic digest byte-for-byte stable for rows without choice
+	// metadata. New choice rows include interaction, serialized options and
+	// scoring so any answer basis change makes the frozen key stale.
+	if len(choiceFields) > 0 {
+		for _, field := range choiceFields {
+			fields = append(fields, strings.TrimSpace(field))
+		}
+	}
+	joined := strings.Join(fields, keyDigestSeparator)
 	sum := sha256.Sum256([]byte(joined))
 	return hex.EncodeToString(sum[:])[:keyDigestLength]
 }

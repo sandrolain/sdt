@@ -149,8 +149,15 @@ type Attempt struct {
 	// At is an RFC3339 UTC stamp.
 	At    string `yaml:"at,omitempty"`
 	Item  string `yaml:"item,omitempty"`
+	Type  string `yaml:"type,omitempty"`
 	Grade string `yaml:"grade,omitempty"`
-	Hint  int    `yaml:"hint,omitempty"`
+	// Response is the learner's complete submitted answer. Learner state is local
+	// and may contain personal information; content packages never include it.
+	Response string `yaml:"response,omitempty"`
+	// Evaluator identifies deterministic grading or a manual rubric judgement.
+	Evaluator string `yaml:"evaluator,omitempty"`
+	Rule      string `yaml:"rule,omitempty"`
+	Hint      int    `yaml:"hint,omitempty"`
 	// Basis is observed or inferred; empty means inferred (the weaker claim).
 	Basis string `yaml:"basis,omitempty"`
 	// These digests bind the attempt to the answer key, supporting claim and
@@ -480,6 +487,14 @@ func (a *Attempt) validate(id string) error {
 	}
 	if a.Hint < 0 {
 		return fmt.Errorf("concept %q: last_attempt.hint %d cannot be negative", id, a.Hint)
+	}
+	switch a.Evaluator {
+	case "", "deterministic", "manual":
+	default:
+		return fmt.Errorf("concept %q: last_attempt.evaluator %q is not deterministic or manual", id, a.Evaluator)
+	}
+	if a.Rule != "" && !KnownGradingRule(a.Rule) && a.Rule != ScoringExactSet && a.Rule != ScoringPartialCredit {
+		return fmt.Errorf("concept %q: last_attempt.rule %q is not a known grading rule", id, a.Rule)
 	}
 	return nil
 }

@@ -46,9 +46,10 @@ type learnRecordResult struct {
 
 // learnRecordGrade is the graded-answer input of one record call.
 type learnRecordGrade struct {
-	Grade string
-	Item  string
-	Hint  int
+	Grade    string
+	Item     string
+	Hint     int
+	Response string
 }
 
 var learnRecordCmd = &cobra.Command{
@@ -85,6 +86,7 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 		wikiID := strings.TrimSpace(getStringFlag(cmd, "concept", false))
 		gradeValue := strings.TrimSpace(getStringFlag(cmd, "grade", false))
 		itemID := strings.TrimSpace(getStringFlag(cmd, "item", false))
+		response := getStringFlag(cmd, "response", false)
 		hint := getIntFlag(cmd, "hint", false)
 		goalArgs := getStringArrayFlag(cmd, "goal", false)
 		goalStatus := strings.TrimSpace(getStringFlag(cmd, "goal-status", false))
@@ -98,7 +100,7 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 			exitWithError(cmd, fmt.Errorf("nothing to record: pass --concept, --goal, --profile or --session"))
 			return
 		}
-		if err := learnRecordCheckGrade(gradeValue, itemID, hint, wikiID); err != nil {
+		if err := learnRecordCheckGrade(gradeValue, itemID, hint, wikiID, response); err != nil {
 			exitWithError(cmd, err)
 			return
 		}
@@ -147,7 +149,7 @@ EXAMPLE — sdt learn record --concept architecture/four-key-metrics --item fkm-
 					"a learner record anchors to a page, never to recall", wikiID))
 				return
 			}
-			grade := learnRecordGrade{Grade: gradeValue, Item: itemID, Hint: hint}
+			grade := learnRecordGrade{Grade: gradeValue, Item: itemID, Hint: hint, Response: response}
 			rec, created, err := learnRecordAssess(st, bld, page, grade, cmd, now)
 			if err != nil {
 				if errors.Is(err, errLearnBankNotCurrent) {
@@ -272,7 +274,7 @@ func learnRecordCheckGoal(status, audience string, goals []string) error {
 
 // learnRecordCheckGrade refuses a graded call that cannot be applied: an item
 // belongs to a graded answer, and a hint rung without a grade has nothing to cap.
-func learnRecordCheckGrade(grade, item string, hint int, concept string) error {
+func learnRecordCheckGrade(grade, item string, hint int, concept, response string) error {
 	if item != "" && grade == "" {
 		return fmt.Errorf("--item belongs to a graded answer: pass --grade %s",
 			strings.Join(learn.Grades(), "|"))
@@ -284,6 +286,9 @@ func learnRecordCheckGrade(grade, item string, hint int, concept string) error {
 		return fmt.Errorf("--hint belongs to a graded answer: pass --grade")
 	}
 	if grade == "" {
+		if response != "" {
+			return fmt.Errorf("--response belongs to a graded attempt: pass --grade and --item")
+		}
 		return nil
 	}
 	if !learn.KnownGrade(grade) {
@@ -301,14 +306,14 @@ func learnRecordCheckGrade(grade, item string, hint int, concept string) error {
 // learnUnderstandingFor maps a grade to the standing it may claim. The ceiling is
 // the point: a correct answer that needed a hint is at most partial, and a first
 // answer is never solid, so one answer never implies mastery.
-func learnUnderstandingFor(grade string, hint int, prior *learn.Assessment) string {
+func learnUnderstandingFor(grade string, hint int, durableEvidence bool) string {
 	switch grade {
 	case learn.GradeIncorrect:
 		return learn.UnderstandingWeak
 	case learn.GradePartiallyCorrect:
 		return learn.UnderstandingPartial
 	case learn.GradeCorrect:
-		if hint > 0 || prior == nil {
+		if hint > 0 || !durableEvidence {
 			return learn.UnderstandingPartial
 		}
 		return learn.UnderstandingSolid
@@ -337,39 +342,8 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 		basis = learn.BasisInferred // the weaker claim is the default
 	}
 	if grade.Grade != "" {
-		item, ok := learnLessonItemByID(p.ID, grade.Item)
-		if !ok {
-			return nil, false, fmt.Errorf("concept %q has no item %q in its assessment: an attempt cites an item, never a guess",
-				p.ID, grade.Item)
-		}
-		if learnItemKeyStale(item) {
-			return nil, false, learnRefuseBank(fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before recording an attempt",
-				learnAssessmentPath(p.ID), item.ID, item.KeyHash, item.KeyDigest))
-		}
-		if outcome, live := learnItemClaimVerdict(bld, p.ID, item); outcome == learnClaimStale || outcome == learnClaimBroken {
-			return nil, false, learnRefuseBank(learnClaimRefused(p.ID, item, outcome, live, "recording an attempt"))
-		}
-		level := learnUnderstandingFor(grade.Grade, grade.Hint, rec.LastAssessed)
-		attempt := learn.Attempt{
-			At: now.Format(learn.TimeLayout), Item: grade.Item,
-			Grade: grade.Grade, Hint: grade.Hint, Basis: basis,
-			KeyHash: item.KeyDigest, ClaimHash: item.Hash,
-			ObjectiveHash: learnObjectiveHash(learningMetadataForConcept(p.ID).Objectives, item.Objective),
-		}
-		learnAppendAttempt(rec, attempt)
-		rec.HintLevel = grade.Hint
-		if nr := strings.TrimSpace(getStringFlag(cmd, "next-review", false)); nr != "" {
-			rec.NextReview = nr
-			rec.ScheduleReason = ""
-		} else {
-			days, reason := learn.Schedule(grade.Grade, grade.Hint, item.Type, rec.ScheduleReason)
-			rec.NextReview = learn.ScheduleDate(now, days)
-			rec.ScheduleReason = reason
-		}
-		rec.LastAssessed = &learn.Assessment{
-			At:            now.Format(learn.TimeLayout),
-			Basis:         basis,
-			Understanding: level,
+		if err := learnRecordGradeAttempt(rec, bld, p, grade, cmd, now, basis); err != nil {
+			return nil, false, err
 		}
 	}
 	if prereq := getStringArrayFlag(cmd, "prerequisite", false); len(prereq) > 0 {
@@ -408,6 +382,90 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 		}
 	}
 	return rec, created, nil
+}
+
+func learnRecordGradeAttempt(rec *learn.Concept, bld *contextwiki.Builder, p *contextwiki.Page,
+	grade learnRecordGrade, cmd *cobra.Command, now time.Time, basis string) error {
+	item, ok := learnLessonItemByID(p.ID, grade.Item)
+	if !ok {
+		return fmt.Errorf("concept %q has no item %q in its assessment: an attempt cites an item, never a guess", p.ID, grade.Item)
+	}
+	if learnItemKeyStale(item) {
+		return learnRefuseBank(fmt.Errorf("%s: item %q carries a key_hash that disagrees with its row (stored %s, row %s); re-freeze it before recording an attempt",
+			learnAssessmentPath(p.ID), item.ID, item.KeyHash, item.KeyDigest))
+	}
+	if outcome, live := learnItemClaimVerdict(bld, p.ID, item); outcome == learnClaimStale || outcome == learnClaimBroken {
+		return learnRefuseBank(learnClaimRefused(p.ID, item, outcome, live, "recording an attempt"))
+	}
+	attempt := learn.Attempt{
+		At: now.Format(learn.TimeLayout), Item: grade.Item, Type: item.Type,
+		Grade: grade.Grade, Hint: grade.Hint, Basis: basis, Response: grade.Response,
+		KeyHash: item.KeyDigest, ClaimHash: item.Hash,
+		ObjectiveHash: learnObjectiveHash(learningMetadataForConcept(p.ID).Objectives, item.Objective),
+	}
+	learnAttemptEvaluator(&attempt, item, grade.Response)
+	learnAppendAttempt(rec, attempt)
+	durable := learnHasDistinctRetrievalAndTransfer(p.ID, rec.Attempts, attempt)
+	rec.HintLevel = grade.Hint
+	if nr := strings.TrimSpace(getStringFlag(cmd, "next-review", false)); nr != "" {
+		rec.NextReview, rec.ScheduleReason = nr, ""
+	} else {
+		days, reason := learn.ScheduleWithEvidence(grade.Grade, grade.Hint, item.Type, rec.ScheduleReason, durable)
+		rec.NextReview, rec.ScheduleReason = learn.ScheduleDate(now, days), reason
+	}
+	rec.LastAssessed = &learn.Assessment{
+		At: now.Format(learn.TimeLayout), Basis: basis,
+		Understanding: learnUnderstandingFor(grade.Grade, grade.Hint, durable),
+	}
+	return nil
+}
+
+func learnAttemptEvaluator(attempt *learn.Attempt, item learnLessonItem, response string) {
+	if item.Grading == learn.RuleManual {
+		attempt.Evaluator, attempt.Rule = "manual", learn.RuleManual
+		return
+	}
+	attempt.Evaluator = "deterministic"
+	if item.Interaction != "" {
+		attempt.Rule = learnLessonDefault(item.Scoring, learn.ScoringExactSet)
+		return
+	}
+	attempt.Rule = item.Grading
+	if attempt.Rule == "" || attempt.Rule == learn.RuleAuto {
+		attempt.Rule = learn.AutoRule(item.Expected, response, item.Type)
+	}
+}
+
+// learnHasDistinctRetrievalAndTransfer requires two current, unhinted answers on
+// distinct items bound to the same objective: one recall/diagnose/apply and one
+// transfer. Historical attempts from a changed key, claim or objective do not
+// count toward current standing.
+func learnHasDistinctRetrievalAndTransfer(concept string, attempts []learn.Attempt, current learn.Attempt) bool {
+	if current.Grade != learn.GradeCorrect || current.Hint != 0 || current.Item == "" || current.ObjectiveHash == "" {
+		return false
+	}
+	currentTransfer := current.Type == learn.ItemTypeTransfer
+	currentRetrieval := current.Type == learn.ItemTypeRecall || current.Type == learn.ItemTypeDiagnose || current.Type == learn.ItemTypeApply
+	if !currentTransfer && !currentRetrieval {
+		return false
+	}
+	for _, prior := range attempts {
+		if prior.Item == current.Item || prior.Grade != learn.GradeCorrect || prior.Hint != 0 ||
+			prior.ObjectiveHash != current.ObjectiveHash || prior.KeyHash == "" {
+			continue
+		}
+		item, ok := learnLessonItemByID(concept, prior.Item)
+		if !ok || learnItemKeyStale(item) || prior.KeyHash != item.KeyDigest || prior.ClaimHash != item.Hash ||
+			prior.ObjectiveHash != learnObjectiveHash(learningMetadataForConcept(concept).Objectives, item.Objective) {
+			continue
+		}
+		priorTransfer := prior.Type == learn.ItemTypeTransfer
+		priorRetrieval := prior.Type == learn.ItemTypeRecall || prior.Type == learn.ItemTypeDiagnose || prior.Type == learn.ItemTypeApply
+		if (currentTransfer && priorRetrieval) || (currentRetrieval && priorTransfer) {
+			return true
+		}
+	}
+	return false
 }
 
 func learnAppendAttempt(concept *learn.Concept, attempt learn.Attempt) {
@@ -592,6 +650,7 @@ func init() {
 	f.String("concept", "", "Wiki page id of the concept being assessed")
 	f.String("grade", "", "Graded answer: "+strings.Join(learn.Grades(), ", ")+" (the standing is derived from it)")
 	f.String("item", "", "Item id the answer was given on (required with --grade)")
+	f.String("response", "", "Complete learner response to retain with the attempt (local learner state)")
 	f.Int("hint", 0, "Hint rung the answer needed, 0 for none (caps the standing)")
 	f.String("basis", "", "Provenance of the rating: observed or inferred (default inferred)")
 	f.String("misconception", "", "Open misconception to record, as the learner stated it")

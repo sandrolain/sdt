@@ -45,8 +45,12 @@ incorrect one, 4 when the answer cannot be graded, the concept or item is not in
 the corpus, or the item's bank is not current (a ` + "`key_hash`" + ` or ` + "`hash`" + ` that no longer
 matches its row). Reads only; ` + "`sdt learn record`" + ` is what writes the verdict.
 
+For a QTI choice item, pass selected option ids as a JSON array, for example
+` + "`--answer '[\"a\",\"b\"]'`" + `. Unknown or duplicate option ids are ungradable.
+
 EXAMPLE — sdt learn answer --concept architecture/four-key-metrics --item fkm-3 --answer "5.56%"
-          sdt learn answer --concept architecture/four-key-metrics --item fkm-1 --answer "deployment frequency" --format json`,
+          sdt learn answer --concept architecture/four-key-metrics --item fkm-1 --answer "deployment frequency" --format json
+          sdt learn answer --concept architecture/four-key-metrics --item fkm-choice --answer '["a","b"]'`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, _ []string) {
 		concept := strings.TrimSpace(getStringFlag(cmd, "concept", false))
@@ -76,7 +80,16 @@ EXAMPLE — sdt learn answer --concept architecture/four-key-metrics --item fkm-
 			learnExitWith(learnClaimRefused(page.ID, item, outcome, live, "grading"), 4)
 			return
 		}
-		verdict := learn.GradeAnswer(item.Grading, item.Expected, answer, item.Type)
+		var verdict learn.Answer
+		if item.Interaction != "" {
+			optionIDs := make([]string, 0, len(item.ChoiceOptions))
+			for _, option := range item.ChoiceOptions {
+				optionIDs = append(optionIDs, option.ID)
+			}
+			verdict = learn.GradeChoiceAnswer(item.Expected, answer, item.Scoring, optionIDs)
+		} else {
+			verdict = learn.GradeAnswer(item.Grading, item.Expected, answer, item.Type)
+		}
 		report := learnAnswerReport{
 			Concept: page.ID, Item: item.ID, Type: item.Type,
 			Grade: verdict.Grade, Rule: verdict.Rule,

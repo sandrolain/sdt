@@ -7,6 +7,8 @@ summary: "Learning a topic, reviewing it, being quizzed on it, practising it, or
 `context/instructions/learning.md` is the contract for the learning lane: the
 agent teaches from the **local wiki** and the learner's own evidence, never from
 general recall.
+The **sdt-learning skill** routes a learning request through readiness, scope,
+prerequisite, diagnostic and stop checks before teaching.
 Read it with `context/instructions/wiki.md`; add `instructions/ingestion.md` for a
 source, `instructions/course.md` for a theme or a syllabus, and
 `instructions/research.md` only when the user asks to ground a gap. Their usage
@@ -127,10 +129,13 @@ lesson defect, fixed in the lesson, not in the state.
    "<text>"`. It returns the grade, the rule that decided it, the key and the
    rubric. Exit `0` is correct or partially correct, `1` incorrect, `4` ungradable.
 3. On an explicit request only, record it: `sdt learn record --concept <c> --item
-   <i> --grade <g> --hint <n>`. The verb applies the ceiling (`incorrect` → weak,
-   `partially_correct` → partial, `correct` → partial; solid needs an earlier
-   demonstration) and computes the review date with its reason — the ladder is in
-   `sdt learn record --help`, and a success after a failure loses one rung.
+   <i> --grade <g> --hint <n> --response "<complete answer>"`. The local learner
+   state retains the complete response, grading mode/rule and the frozen content
+   bindings. Do not put attempt data in QTI packages. A first correct answer is
+   partial; `solid` and `durable_success` require unhinted correct answers on
+   distinct items tied to the same objective, one retrieval/apply/diagnose and one
+   transfer. The review interval is computed with its reason — see
+   `sdt learn record --help`; a success after a failure loses one rung.
 4. `ungradable` writes nothing: hand the answer back and say why. Never invent a
    verdict, and never record an answer the learner did not give.
 
