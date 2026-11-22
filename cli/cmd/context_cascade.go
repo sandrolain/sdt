@@ -241,7 +241,7 @@ func derivePlanOwnChecklist(path string) string {
 			section = strings.TrimSpace(strings.TrimPrefix(trimmed, "## "))
 			continue
 		}
-		if strings.EqualFold(section, "completion criteria") {
+		if strings.EqualFold(section, "completion criteria") || strings.EqualFold(section, "deviations") || strings.EqualFold(section, "review") {
 			continue
 		}
 		switch {

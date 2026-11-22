@@ -378,7 +378,12 @@ Examples:
 		cfg, root, err := findProjectConfigAt()
 		exitWithError(cmd, err)
 		if cfg == nil {
-			exitWithError(cmd, fmt.Errorf("no %s found walking up from the current directory", sdtConfigFile))
+			exitWithError(cmd, withCLIDiagnostic(
+				fmt.Errorf("no %s found walking up from the current directory", sdtConfigFile),
+				"The delivery gate is configured by the project's .sdt.yaml file, and no project configuration was found.",
+				"Initialize project identity and then declare the gate steps under gate: in .sdt.yaml.",
+				"sdt config init",
+			))
 			return
 		}
 		exitWithError(cmd, validateGateSteps(cfg.Gate))
@@ -432,7 +437,12 @@ Examples:
 			}
 		}
 		if failed != "" {
-			exitWithError(cmd, fmt.Errorf("delivery gate failed at step %q", failed))
+			exitWithError(cmd, withCLIDiagnostic(
+				fmt.Errorf("delivery gate failed at step %q", failed),
+				"A command declared in .sdt.yaml exited unsuccessfully; the report names the failing step and its captured output.",
+				"Use the step output and its context/tmp log to fix the check, then rerun the delivery gate.",
+				"",
+			))
 		}
 	},
 }

@@ -27,6 +27,20 @@ func TestCloseoutCopiesReviewVerdictsVerbatim(t *testing.T) {
 	}
 }
 
+func TestCloseoutKeepsReviewAndDeviationRecordsOutOfChecklist(t *testing.T) {
+	body := "## Phase 1\n\n- [x] delivered\n\n## Deviations\n\n- [ ] fix — recorded departure\n\n## Review\n\nNot executed.\n\n### Findings\n\n- [ ] finding — CONFIRMED <!-- c1 -->\n\n### Gate\n\n2026-01-01T00:00:00Z (sdt agent gate) — passed\n"
+	items, verdicts, gate := closeoutScanLedger(body)
+	if len(items) != 1 || items[0].Text != "delivered" || !items[0].Done {
+		t.Fatalf("checklist items = %+v, want only the completed phase item", items)
+	}
+	if len(verdicts) != 1 || !strings.Contains(verdicts[0], "finding — CONFIRMED") || strings.Contains(strings.Join(verdicts, "\n"), "Not executed.") {
+		t.Fatalf("review verdicts = %+v", verdicts)
+	}
+	if !strings.Contains(gate, "passed") {
+		t.Fatalf("gate = %q, want recorded pass", gate)
+	}
+}
+
 // TestCloseoutCarriesOnlyDeclaredFields proves a bold verdict line is never read
 // back as a human field, which used to duplicate the whole review on a rerun.
 func TestCloseoutCarriesOnlyDeclaredFields(t *testing.T) {

@@ -400,13 +400,87 @@ func finishProgress(ok bool, code int, reason string) {
 // The logger writes to the command error stream, so stdout keeps carrying
 // results only. cmd is accepted so call sites stay uniform; the installed
 // logger already knows where to write.
-func exitWithError(_ *cobra.Command, err error) {
+func exitWithError(cmd *cobra.Command, err error) {
 	if err == nil {
 		return
 	}
-	slog.Error(err.Error())
+	attrs := cliDiagnosticAttrs(cmd, err)
+	slog.Error(err.Error(), attrs...)
 	finishProgress(false, 1, "error")
 	exit(1)
+}
+
+func cliDiagnosticAttrs(cmd *cobra.Command, err error) []any {
+	attrs := []any{}
+	var diagnostic *cliDiagnosticError
+	if errors.As(err, &diagnostic) {
+		attrs = append(attrs, "cause", diagnostic.cause)
+		if diagnostic.remedy != "" {
+			attrs = append(attrs, "remedy", diagnostic.remedy)
+		}
+		var root *cobra.Command
+		if cmd != nil {
+			root = cmd.Root()
+		}
+		if diagnostic.command != "" && commandReferenceExists(root, diagnostic.command) {
+			attrs = append(attrs, "remedy_command", diagnostic.command)
+		}
+	}
+	return attrs
+}
+
+type cliDiagnosticError struct {
+	err     error
+	cause   string
+	remedy  string
+	command string
+}
+
+func (e *cliDiagnosticError) Error() string { return e.err.Error() }
+func (e *cliDiagnosticError) Unwrap() error { return e.err }
+
+func withCLIDiagnostic(err error, cause, remedy, command string) error {
+	if err == nil {
+		return nil
+	}
+	return &cliDiagnosticError{err: err, cause: cause, remedy: remedy, command: command}
+}
+
+func commandReferenceExists(root *cobra.Command, reference string) bool {
+	parts := strings.Fields(reference)
+	if root == nil || len(parts) == 0 {
+		return false
+	}
+	if parts[0] == root.Name() {
+		parts = parts[1:]
+	}
+	if len(parts) == 0 {
+		return false
+	}
+	current := root
+	for _, part := range parts {
+		var next *cobra.Command
+		for _, child := range current.Commands() {
+			if child.Name() == part {
+				next = child
+				break
+			}
+			for _, alias := range child.Aliases {
+				if alias == part {
+					next = child
+					break
+				}
+			}
+			if next != nil {
+				break
+			}
+		}
+		if next == nil {
+			return false
+		}
+		current = next
+	}
+	return true
 }
 
 // exitWithJunk ends an invocation that did its work only partially — some items

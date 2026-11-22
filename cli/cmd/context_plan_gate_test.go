@@ -62,6 +62,37 @@ func TestDerivePlanOwnChecklistOnlyCompletionDerivesNothing(t *testing.T) {
 	}
 }
 
+func TestDerivePlanOwnChecklistIgnoresRecordSections(t *testing.T) {
+	dir := runInTempDir(t)
+	rel := "context/plan/20260101-000000-record-plan.md"
+	writeTestFile(t, filepath.Join(dir, rel), `---
+kind: plan
+status: active
+---
+
+## Phase 1 — One
+
+- [x] shipped
+
+## Deviations
+
+- [ ] fix — recorded departure
+
+## Review
+
+### Findings
+
+- [ ] finding — CONFIRMED <!-- c1 -->
+
+### Gate
+
+2026-01-01T00:00:00Z (sdt agent gate) — passed
+`)
+	if got := derivePlanOwnChecklist(filepath.Join(dir, rel)); got != taskFileStatusCompleted {
+		t.Fatalf("review/deviation records changed derived status to %q", got)
+	}
+}
+
 // TestContextCloseUnsplAnPlanIgnoresIntentBoxes is the end-to-end gate: close
 // succeeds on a finished phase checklist with the completion box still open, and
 // it names the closeout slots it left to fill.

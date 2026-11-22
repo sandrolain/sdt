@@ -450,6 +450,7 @@ func lintRFCAndPromptContract(path, content, kind string, prio func(string) stri
 // ctxIndexLine renders one index row: relative path + summary.
 
 type ctxLintIssue struct {
+	ID       string `json:"id" yaml:"id"`
 	Path     string `json:"path" yaml:"path"`
 	Priority string `json:"priority" yaml:"priority"`
 	Message  string `json:"message" yaml:"message"`
@@ -550,6 +551,7 @@ func ctxLintHint(message string) string {
 // decorateLintHints attaches the curated Hint to every issue in place.
 func decorateLintHints(issues []ctxLintIssue) []ctxLintIssue {
 	for i := range issues {
+		issues[i].ID = lintFindingID(issues[i].Path, issues[i].Priority, issues[i].Message)
 		issues[i].Hint = ctxLintHint(issues[i].Message)
 	}
 	return issues
@@ -571,10 +573,11 @@ const (
 )
 
 func (i ctxLintIssue) String() string {
+	line := fmt.Sprintf("[%s] %s: %s", i.Priority, i.Path, i.Message)
 	if i.Hint == "" {
-		return fmt.Sprintf("[%s] %s: %s", i.Priority, i.Path, i.Message)
+		return line + fmt.Sprintf(" — id: %s", i.ID)
 	}
-	return fmt.Sprintf("[%s] %s: %s — hint: %s", i.Priority, i.Path, i.Message, i.Hint)
+	return fmt.Sprintf("%s — hint: %s — id: %s", line, i.Hint, i.ID)
 }
 
 // ctxLinkRegexp matches a `[[path]]` wiki-style link or a plain relative path.
@@ -1839,6 +1842,13 @@ With --security, additionally scan the selected documents (or the whole corpus)
 for prompt-injection phrases, credential/secret literals, invisible/zero-width
 Unicode and exfil patterns (advisory WARNING).
 
+The versioned baseline is migrated from v1 to v2 only by an explicit
+--baseline-write. Legacy first-observation dates and rationales stay unknown.
+Use --baseline-review <id> with --baseline-status "to fix" or "justified exception"
+to record a review; exceptions also require --baseline-rationale and --baseline-scope.
+Use --changes-since <RFC3339> to list detection, review, resolution and reassessment
+events recorded since that time.
+
 With --custody, print the custody report after the findings: four corpus counts
 (cited refs/ artifacts without a source sheet, gone sheets whose capture_path
 still exists, sheets whose sha256 disagrees with the file they pin, gone sheets
@@ -1865,6 +1875,56 @@ unless --fix-terminal is given, because a rule adopted today does not rewrite a
 closed document. Every change is named on stdout.`,
 	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		if reviewID := getStringFlag(cmd, "baseline-review", false); reviewID != "" {
+			if len(args) > 0 || getBoolFlag(cmd, "baseline-write", false) || getStringFlag(cmd, "changes-since", false) != "" {
+				exitWithError(cmd, fmt.Errorf("--baseline-review cannot be combined with --baseline-write or --changes-since"))
+			}
+			err := reviewLintBaseline(reviewID, getStringFlag(cmd, "baseline-status", false), getStringFlag(cmd, "baseline-rationale", false), getStringFlag(cmd, "baseline-scope", false))
+			exitWithError(cmd, err)
+			outputString(cmd, fmt.Sprintf("baseline finding %s reviewed\n", reviewID))
+			return
+		}
+		if getStringFlag(cmd, "baseline-status", false) != "" || getStringFlag(cmd, "baseline-rationale", false) != "" || getStringFlag(cmd, "baseline-scope", false) != "" {
+			exitWithError(cmd, fmt.Errorf("--baseline-status, --baseline-rationale and --baseline-scope require --baseline-review"))
+		}
+		if since := getStringFlag(cmd, "changes-since", false); since != "" {
+			if len(args) > 0 || getBoolFlag(cmd, "baseline-write", false) {
+				exitWithError(cmd, fmt.Errorf("--changes-since cannot be combined with paths or --baseline-write"))
+			}
+			changes, err := lintBaselineChangesSince(since)
+			exitWithError(cmd, err)
+			switch getFormat(cmd) {
+			case fmtJSON:
+				data, merr := json.MarshalIndent(changes, "", "  ")
+				exitWithError(cmd, merr)
+				outputBytes(cmd, append(data, '\n'))
+			case fmtYAML:
+				data, merr := yaml.Marshal(changes)
+				exitWithError(cmd, merr)
+				outputBytes(cmd, data)
+			default:
+				if changes.HistoryIncomplete {
+					outputString(cmd, "History incomplete: migrated legacy findings have unknown earlier history.\n")
+				}
+				if len(changes.Changes) == 0 {
+					outputString(cmd, "No recorded baseline changes since "+since+".\n")
+				} else {
+					var report strings.Builder
+					for _, change := range changes.Changes {
+						fmt.Fprintf(&report, "%s %s %s [%s] %s — %s", change.At, change.Change, change.ID, change.Priority, change.Path, change.Message)
+						if change.Status != "" {
+							fmt.Fprintf(&report, " (status: %s)", change.Status)
+						}
+						if len(change.Fields) > 0 {
+							fmt.Fprintf(&report, " (changed: %s)", strings.Join(change.Fields, ", "))
+						}
+						report.WriteByte('\n')
+					}
+					outputString(cmd, report.String())
+				}
+			}
+			return
+		}
 		// The digest-resolution walk (citation misses) and the custody report
 		// are per-run views of context/refs/: start every invocation cold.
 		resetCtxRefDigestCache()
@@ -2005,9 +2065,18 @@ closed document. Every change is named on stdout.`,
 		// baseline file the behaviour is unchanged.
 		wroteBaseline := false
 		if getBoolFlag(cmd, "baseline-write", false) {
-			added, removed, berr := writeLintBaseline(issues)
+			selected := map[string]bool(nil)
+			if len(args) > 0 {
+				selected = make(map[string]bool, len(args))
+				for _, ref := range args {
+					path, perr := resolveContextLintPath(ref)
+					exitWithError(cmd, perr)
+					selected[path] = true
+				}
+			}
+			recorded, added, removed, berr := writeLintBaseline(issues, selected)
 			exitWithError(cmd, berr)
-			outputString(cmd, fmt.Sprintf("baseline written: %d finding(s) recorded (+%d accepted, -%d gone)\n", len(issues), added, removed))
+			outputString(cmd, fmt.Sprintf("baseline written: %d finding(s) recorded (+%d accepted, -%d gone)\n", recorded, added, removed))
 			wroteBaseline = true
 		}
 		if !wroteBaseline && !getBoolFlag(cmd, "all", false) {

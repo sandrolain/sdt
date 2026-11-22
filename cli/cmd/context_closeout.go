@@ -21,8 +21,9 @@ import (
 // and keeps the human ones, so a second close is a refresh and not a duplicate.
 
 const (
-	closeoutHeadingPrefix = "### Closeout — "
-	closeoutGateSection   = "gate"
+	closeoutHeadingPrefix     = "### Closeout — "
+	closeoutGateSection       = "gate"
+	closeoutDeviationsSection = "deviations"
 )
 
 // closeoutItem is one checklist line of the ledger and its recorded state.
@@ -87,6 +88,9 @@ func closeoutScanLedger(body string) ([]closeoutItem, []string, string) {
 		case trimmed == "## Review":
 			section = ctxReviewVerb
 			continue
+		case trimmed == "## Deviations":
+			section = closeoutDeviationsSection
+			continue
 		case trimmed == "### Findings" && section == ctxReviewVerb:
 			// A finding belongs to the review block, not to a new section: its
 			// bullets carry the verdict token and are the record the closeout
@@ -96,14 +100,19 @@ func closeoutScanLedger(body string) ([]closeoutItem, []string, string) {
 			section = ""
 		}
 		if m := closeoutItemRegexp.FindStringSubmatch(trimmed); m != nil {
-			items = append(items, closeoutItem{Text: strings.TrimSpace(m[2]), Done: strings.ToLower(m[1]) == "x"})
-			continue
+			if section != ctxReviewVerb && section != closeoutGateSection && section != closeoutDeviationsSection {
+				items = append(items, closeoutItem{Text: strings.TrimSpace(m[2]), Done: strings.ToLower(m[1]) == "x"})
+				continue
+			}
 		}
 		if trimmed == "" {
 			continue
 		}
 		switch section {
 		case ctxReviewVerb:
+			if trimmed == "Not executed." {
+				continue
+			}
 			// The verdicts are copied verbatim, indentation included: a
 			// continuation line is part of its finding, not a second one.
 			verdicts = append(verdicts, line)
@@ -157,7 +166,7 @@ var closeoutHumanFields = []struct {
 	{"Decisions", "decisions", "small local ones here; an architectural one becomes a decision record, linked"},
 	{"Lessons / Do-Not-Repeat candidates", "lessons", "→ the `context/notes/` lessons note, linked"},
 	{"Signal review", "signal", "routed capture per *Signal review*, or `none`"},
-	{"Deviations / blockers", "deviations", "explicit, with resolution or open status"},
+	{"Deviations / blockers", closeoutDeviationsSection, "explicit, with resolution or open status"},
 }
 
 // closeoutFieldFlags reads the author-supplied closeout fields from the close
