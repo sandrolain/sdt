@@ -4,12 +4,10 @@ title: "Ingestion \u2192 Wiki \u2192 Refs (knowledge pipeline)"
 summary: "Knowledge pipeline: ingest external sources and convert non-markdown into the corpus."
 ---
 
-The three-stage knowledge pipeline on top of `context/`: source material lands
-in `context/ingestion/`, the **sdt-ingestion skill** distils it into
-knowledge-graph pages under `context/wiki/`, and consumed sources are archived
-to `context/refs/`. No CLI ingests files — placement is manual (user),
-distillation is agent work. This file is the durable contract: read it on a new
-ingestion request, and invoke the pipeline through the skill.
+The knowledge pipeline: sources land in `context/ingestion/`, the
+**sdt-ingestion skill** distils them into `context/wiki/` pages, and consumed
+sources move to `context/refs/`. Placement is manual; distillation is agent
+work. Read this contract for each new request and invoke it through the skill.
 
 ## Run card
 
@@ -35,9 +33,10 @@ Retention: `sources.md`; deletion check: `lint --custody`.
 user drops files → ingestion/ (pending)
       │
       ▼ sdt-ingestion skill: distil → write/update wiki/ pages
-      │                                      │
-      ▼ (user approves write + archive plan) ▼
-agent moves sources → refs/ (archived)   sync node status
+      │
+      ▼ show updates; consult on substantive contradiction/meaning change
+      │
+      ▼ explicit archive approval → refs/ (archived) + status sync
 ```
 
 - `ingestion/` and `refs/` are **immutable**: never edit, merge or refactor a
@@ -101,10 +100,11 @@ are always skipped.
 8a. **Propose the validation lane** (*The validation lane*): compute the
    shortlist with `sdt context wiki claims --validate`, present it as a table and
    take **one** confirmation for the set. Nothing leaves the process before that
-   answer; the acquisitions ride the write + archive approval of the next step.
-9. Persist the scope with `ingest plan ... --write`, then present the **write +
-   archive plan**; **wait for approval**.
-10. On approval: archive processed sources with `sdt context ingest archive
+   answer; this confirmation selects validation work, not routine wiki updates.
+9. Persist the scope with `ingest plan ... --write`, apply the pertinent wiki
+   updates authorized by the ingestion request, then show the result. Consult
+   before changing established meaning or resolving a substantive contradiction.
+10. Archive only the sources the user explicitly authorizes with `sdt context ingest archive
     <source>` (hash check, destination collision guard and a
     `<complete-filename>.meta.yaml` companion), append a `worklog/` entry, run
     `sdt context reindex`. `--force` is only for a source whose run is

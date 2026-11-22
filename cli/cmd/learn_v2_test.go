@@ -19,10 +19,6 @@ title: V2 concept
 type: concept
 status: active
 summary: a concept with a graded lesson
-learning:
-  objectives:
-    - "name it"
-    - "apply it"
 ---
 ## Summary
 
@@ -43,6 +39,11 @@ kind: lesson
 id: architecture/v2
 concept: architecture/v2
 title: V2 — lesson
+objectives:
+  - "name it"
+  - "apply it"
+difficulty: intermediate
+minutes: 10
 summary: "graded lesson"
 status: draft
 created: 2026-10-01T00:00:00Z

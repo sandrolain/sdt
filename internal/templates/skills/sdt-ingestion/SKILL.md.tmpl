@@ -11,9 +11,9 @@ description: >
 # SDT ingestion skill
 
 The knowledge pipeline in one line: sources land in `context/ingestion/`
-(user), the agent distils them into `context/wiki/` pages, and consumed sources
-move to `context/refs/` only after the user approves the write-and-archive
-plan.
+(user), the agent distils them into `context/wiki/` pages as authorized by the
+ingestion request, and consumed sources move to `context/refs/` only after
+explicit archive approval.
 
 1. Read `context/instructions/ingestion.md` **before any distillation** — the
    invocation scope (`all`, one file, a glob, a URL), the routing test
@@ -23,9 +23,10 @@ plan.
    the routing test measures.
 3. Write and update wiki pages per `context/instructions/wiki.md` — one concept
    per page, atomic cited claims, typed `relations`.
-4. **Approve-before-archive**: present the write-and-archive plan and wait for
-   the user's approval before anything leaves `context/ingestion/`. The archive
-   move (pending → archived) is the only legal mutation of the immutable dirs.
+4. Apply pertinent wiki updates and show the result. Consult before a substantive
+   contradiction or a change to established meaning. Source archiving is a
+   separate action: name the files and wait for explicit approval before anything
+   leaves `context/ingestion/`.
 5. On verification doubts, `context/instructions/distillation.md` and the
    research lane (`research.md`) own the reading discipline; this skill owns the
    pipeline gates.

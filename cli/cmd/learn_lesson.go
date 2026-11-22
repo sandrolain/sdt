@@ -273,31 +273,24 @@ func learnBundleOf(bld *contextwiki.Builder, p *contextwiki.Page) (learnLessonBu
 	if materialErr != nil {
 		return learnLessonBundle{}, materialErr
 	}
+	data, err := os.ReadFile(learnLessonPath(p.ID)) //#nosec G304 -- path from the resolved concept id
+	if err != nil {
+		return learnLessonBundle{Concept: p.ID, Title: p.Title, Prerequisites: learnPrerequisites(bld, p), Material: material, Practice: learnPracticeOf(p.ID), Missing: []string{fmt.Sprintf("no lesson document at %s", learnLessonPath(p.ID))}}, nil
+	}
+	lessonContent := string(data)
+	meta := learningMetadataFrom(lessonContent)
 	b := learnLessonBundle{
 		Concept:       p.ID,
 		Title:         p.Title,
-		Objectives:    learningObjectivesOf(p.Frontmatter),
+		Objectives:    meta.Objectives,
+		Difficulty:    meta.Difficulty,
+		Minutes:       meta.Minutes,
 		Prerequisites: learnPrerequisites(bld, p),
 		Items:         []learnLessonItem{},
 		Material:      material,
 		Practice:      learnPracticeOf(p.ID),
 	}
-	if block, ok := learningBlockOf(p.Frontmatter); ok {
-		if d, ok := block["difficulty"].(string); ok {
-			b.Difficulty = d
-		}
-		if m, ok := block["minutes"]; ok {
-			if n, err := strconv.Atoi(fmt.Sprintf("%v", m)); err == nil {
-				b.Minutes = n
-			}
-		}
-	}
-	data, err := os.ReadFile(learnLessonPath(p.ID)) //#nosec G304 -- path from the page id
-	if err != nil {
-		b.Missing = []string{fmt.Sprintf("no lesson document at %s", learnLessonPath(p.ID))}
-		return b, nil
-	}
-	body := documentBody(string(data))
+	body := documentBody(lessonContent)
 	_, sections := markdownSections(body)
 	example := sections["Worked example"]
 	b.Example = learnWorkedExample{
@@ -626,9 +619,9 @@ func learnValidateLesson(bld *contextwiki.Builder, path string) ([]string, learn
 	if page == nil {
 		return append(issues, fmt.Sprintf("%s: no wiki page %q for this lesson", path, concept)), counts
 	}
-	objectives := learningObjectivesOf(page.Frontmatter)
+	objectives := learningMetadataForConcept(concept).Objectives
 	if len(objectives) == 0 {
-		issues = append(issues, fmt.Sprintf("%s: page %q carries no `learning.objectives` to align items with", path, concept))
+		issues = append(issues, fmt.Sprintf("%s: lesson for %q carries no objectives to align items with", path, concept))
 	}
 	// The items live in the concept's assessment document: the lesson no longer
 	// carries a table of its own, so a concept without a bank has no item at all.
@@ -691,9 +684,9 @@ func learnValidateItems(bld *contextwiki.Builder, path, concept string, items []
 			issues = append(issues, fmt.Sprintf("%s: item %q is frozen at %s, after the document was last updated (%s)",
 				path, it.ID, it.Frozen, updated))
 		}
-		if it.Objective < 1 || it.Objective > len(objectives) {
+		if it.Objective < 1 || (len(objectives) > 0 && it.Objective > len(objectives)) {
 			issues = append(issues, fmt.Sprintf("%s: item %q points at objective %d, the page has %d", path, it.ID, it.Objective, len(objectives)))
-		} else {
+		} else if len(objectives) > 0 {
 			covered[it.Objective] = true
 		}
 		found, c := learnResolveItemClaim(path, concept, it, byID, anchorSet)
@@ -743,7 +736,7 @@ func learnValidateAssessment(bld *contextwiki.Builder, path string) ([]string, l
 		// second report would be the same finding twice.
 		return issues, counts
 	}
-	found, c := learnValidateItems(bld, path, concept, learnAssessmentItemsOf(content), learningObjectivesOf(page.Frontmatter), parseFrontmatterField(content, "updated"))
+	found, c := learnValidateItems(bld, path, concept, learnAssessmentItemsOf(content), learningMetadataForConcept(concept).Objectives, parseFrontmatterField(content, "updated"))
 	return append(issues, found...), c
 }
 
@@ -785,7 +778,7 @@ func learnCoverage(bld *contextwiki.Builder) []learnCoverageRow {
 		row := learnCoverageRow{Concept: concept}
 		page := bld.Resolve(concept)
 		if page != nil {
-			row.Objectives = len(learningObjectivesOf(page.Frontmatter))
+			row.Objectives = len(learningMetadataForConcept(concept).Objectives)
 		}
 		items := learnAssessmentObjectiveRefs(concept)
 		row.Items = len(items)

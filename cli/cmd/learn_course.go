@@ -273,7 +273,7 @@ func learnCourseCoverage(bld *contextwiki.Builder, kind string, members []learnC
 		if page == nil {
 			continue
 		}
-		objectives := learningObjectivesOf(page.Frontmatter)
+		objectives := learningMetadataForConcept(slot.Lesson).Objectives
 		items, _ := learnAssessmentItems(slot.Lesson)
 		if len(items) == 0 {
 			items, _ = learnLessonItemsForCoverage(slot.Lesson)

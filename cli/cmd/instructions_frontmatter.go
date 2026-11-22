@@ -39,10 +39,10 @@ var frontmatterFamilyRegister = []frontmatterFamily{
 		Keys: []string{ctxFrontmatterVerifiedAt, ctxFrontmatterVerifiedAgnst}},
 	{Slug: "rigor", Title: "Rigor", Summary: "the review dial a plan is held to",
 		Keys: []string{ctxFrontmatterRigor}},
-	{Slug: "objectives", Title: "Objectives", Summary: "the grouping key and the objective checklist",
+	{Slug: ctxLearningObjectives, Title: "Objectives", Summary: "the grouping key and the objective checklist",
 		Keys: []string{ctxFrontmatterObjective}},
-	{Slug: "learning", Title: "Learning block", Summary: "the objectives, difficulty and review time a concept page states",
-		Keys: []string{ctxFrontmatterLearning}},
+	{Slug: "learning", Title: "Lesson learning metadata", Summary: "the objectives, difficulty and review time carried by a lesson",
+		Keys: []string{ctxLearningObjectives, ctxLearningDifficulty, ctxLearningMinutes}},
 }
 
 // frontmatterFamilyBySlug resolves a slug against the register.

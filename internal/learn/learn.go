@@ -142,9 +142,9 @@ type Assessment struct {
 	Understanding string `yaml:"understanding,omitempty"`
 }
 
-// Attempt is the last graded answer on a concept: which item, what grade, how much
-// hint it needed and where the grade came from. It is the evidence behind the
-// standing, kept beside it rather than folded into it.
+// Attempt is one graded answer on a concept: which item, what grade, how much
+// hint it needed and where the grade came from. Attempts remain historical
+// evidence rather than being overwritten by a later reassessment.
 type Attempt struct {
 	// At is an RFC3339 UTC stamp.
 	At    string `yaml:"at,omitempty"`
@@ -153,6 +153,11 @@ type Attempt struct {
 	Hint  int    `yaml:"hint,omitempty"`
 	// Basis is observed or inferred; empty means inferred (the weaker claim).
 	Basis string `yaml:"basis,omitempty"`
+	// These digests bind the attempt to the answer key, supporting claim and
+	// learning objective as they stood when the learner answered.
+	KeyHash       string `yaml:"key_hash,omitempty"`
+	ClaimHash     string `yaml:"claim_hash,omitempty"`
+	ObjectiveHash string `yaml:"objective_hash,omitempty"`
 }
 
 // Concept is one concept record: the wiki page it maps to, its prerequisites,
@@ -180,6 +185,9 @@ type Concept struct {
 	ScheduleReason string `yaml:"schedule_reason,omitempty"`
 	// LastAttempt is the last graded answer, when one was recorded.
 	LastAttempt *Attempt `yaml:"last_attempt,omitempty"`
+	// Attempts retains graded answers by item; LastAttempt remains the latest
+	// answer used by existing summaries and review scheduling.
+	Attempts []Attempt `yaml:"attempts,omitempty"`
 }
 
 // Session is one session-log entry: when it happened, what it covered, what stayed
@@ -430,6 +438,11 @@ func (c *Concept) validate() error {
 	if c.LastAttempt != nil {
 		if err := c.LastAttempt.validate(c.ID); err != nil {
 			return err
+		}
+	}
+	for i := range c.Attempts {
+		if err := c.Attempts[i].validate(c.ID); err != nil {
+			return fmt.Errorf("concept %q: attempts[%d]: %w", c.ID, i, err)
 		}
 	}
 	if c.MisconceptionKind != "" && !KnownMisconceptionKind(c.MisconceptionKind) {

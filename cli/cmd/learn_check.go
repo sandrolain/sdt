@@ -140,7 +140,8 @@ EXAMPLE — sdt learn check architecture/four-key-metrics
 // learnReadinessOf applies the six rules to one page and its lesson.
 func learnReadinessOf(p *contextwiki.Page) learnCheckEntry {
 	lessonPath := learnLessonPath(p.ID)
-	objectives := learningObjectivesOf(p.Frontmatter)
+	metadata := learningMetadataForConcept(p.ID)
+	objectives := metadata.Objectives
 	r := learnReadiness{Page: p, Lesson: lessonPath, Objectives: objectives}
 	// The items live in the concept's bank, which exists with or without a lesson.
 	r.Items = learnAssessmentObjectiveRefs(p.ID)
@@ -160,11 +161,7 @@ func learnReadinessOf(p *contextwiki.Page) learnCheckEntry {
 		Items:      len(r.Items),
 		Lesson:     r.Lesson,
 	}
-	if block, ok := learningBlockOf(p.Frontmatter); ok {
-		if d, ok := block["difficulty"].(string); ok {
-			e.Difficulty = d
-		}
-	}
+	e.Difficulty = metadata.Difficulty
 	if parseFrontmatterField(p.Frontmatter, ctxFrontmatterVerifiedAt) != "" {
 		e.Stamp = learnStampVerified
 	}
@@ -183,7 +180,7 @@ func learnReadinessOf(p *contextwiki.Page) learnCheckEntry {
 		refuse("maturity is `wip`: the page is still being written")
 	}
 	if len(objectives) == 0 {
-		refuse("no `learning:` block: the page states no objective, so nothing can be assessed")
+		refuse("the lesson carries no objectives, so nothing can be assessed")
 	}
 	if r.Lesson == "" {
 		refuse(fmt.Sprintf("no lesson for this concept (expected %s)", learnLessonPath(p.ID)))

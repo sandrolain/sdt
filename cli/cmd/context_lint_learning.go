@@ -2,11 +2,18 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/goccy/go-yaml"
 
 	"github.com/sandrolain/sdt/internal/contextwiki"
+)
+
+const (
+	ctxLearningObjectives = "objectives"
+	ctxLearningDifficulty = "difficulty"
+	ctxLearningMinutes    = "minutes"
 )
 
 // ── learning block (concept pages) ────────────────────────────────────────────
@@ -40,79 +47,79 @@ const (
 	ctxLearningMaxMinutes    = 60
 )
 
-// learningBlockOf parses the optional `learning:` block out of a document's
-// frontmatter (with its delimiters), returning the block when it is present and a
-// map. A missing block and a malformed document both return false.
-func learningBlockOf(frontmatter string) (map[string]any, bool) {
-	fm, _ := contextwiki.SplitFrontmatter(frontmatter)
-	if fm == "" {
-		return nil, false
-	}
-	var doc map[string]any
-	if err := yaml.Unmarshal([]byte(fm), &doc); err != nil {
-		return nil, false
-	}
-	raw, ok := doc[ctxFrontmatterLearning]
-	if !ok {
-		return nil, false
-	}
-	block, ok := raw.(map[string]any)
-	return block, ok
+type learnMetadata struct {
+	Objectives []string
+	Difficulty string
+	Minutes    int
 }
 
-// learningBlockPresent returns the raw `learning:` value when the frontmatter
-// carries the key at all, so a malformed block is distinguishable from an absent
-// one.
-func learningBlockPresent(frontmatter string) (any, bool) {
+func learningMetadataFields(frontmatter string) map[string]any {
 	fm, _ := contextwiki.SplitFrontmatter(frontmatter)
 	if fm == "" {
-		return nil, false
-	}
-	var doc map[string]any
-	if err := yaml.Unmarshal([]byte(fm), &doc); err != nil {
-		return nil, false
-	}
-	raw, ok := doc[ctxFrontmatterLearning]
-	return raw, ok
-}
-
-// learningObjectivesOf returns a page's objectives, or nil when it carries none.
-func learningObjectivesOf(frontmatter string) []string {
-	block, ok := learningBlockOf(frontmatter)
-	if !ok {
 		return nil
 	}
-	return learningObjectives(block["objectives"])
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(fm), &doc); err != nil {
+		return nil
+	}
+	return doc
 }
 
-// lintLearningBlock validates the optional `learning:` block on a wiki page: the
-// objective count and shape, the difficulty vocabulary and the time bound.
+func learningMetadataForConcept(concept string) learnMetadata {
+	data, err := os.ReadFile(learnLessonPath(concept)) //#nosec G304 -- path comes from a resolved concept id
+	if err != nil {
+		return learnMetadata{}
+	}
+	return learningMetadataFrom(string(data))
+}
+
+func learningMetadataFrom(content string) learnMetadata {
+	fields := learningMetadataFields(content)
+	meta := learnMetadata{Objectives: learningObjectives(fields[ctxLearningObjectives])}
+	if difficulty, ok := fields[ctxLearningDifficulty].(string); ok {
+		meta.Difficulty = difficulty
+	}
+	if n, ok := learningMinutes(fields[ctxLearningMinutes]); ok {
+		meta.Minutes = n
+	}
+	return meta
+}
+
+// lintLearningBlock rejects the retired wiki field and validates lesson-owned
+// objective metadata. No wiki fallback is supported while the project evolves.
 func lintLearningBlock(path, content, kind string) []ctxLintIssue {
-	if kind != ctxTypeWiki {
+	fields := learningMetadataFields(content)
+	if kind == ctxTypeWiki {
+		if _, present := fields[ctxFrontmatterLearning]; present {
+			return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "wiki `learning:` is obsolete; move objectives, difficulty and minutes to the matching lesson"}}
+		}
 		return nil
 	}
-	block, ok := learningBlockOf(content)
-	if !ok {
-		if _, present := learningBlockPresent(content); present {
-			return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "`learning:` must be a map with `objectives`, `difficulty` and `minutes`"}}
-		}
+	if kind != ctxTypeLesson {
 		return nil
 	}
 	var issues []ctxLintIssue
-	add := func(sev, msg string) {
-		issues = append(issues, ctxLintIssue{Path: path, Priority: sev, Message: msg})
-	}
-	for key := range block {
-		switch key {
-		case "objectives", "difficulty", "minutes":
-		default:
-			add(ctxLintWarning, fmt.Sprintf("`learning.%s` is not part of the block (only objectives, difficulty, minutes)", key))
-		}
-	}
+	issues = append(issues, lintLearningObjectives(path, fields[ctxLearningObjectives])...)
+	issues = append(issues, lintLearningDifficulty(path, fields[ctxLearningDifficulty])...)
+	return append(issues, lintLearningMinutes(path, fields[ctxLearningMinutes])...)
+}
 
-	issues = append(issues, lintLearningObjectives(path, block["objectives"])...)
-	issues = append(issues, lintLearningDifficulty(path, block["difficulty"])...)
-	return append(issues, lintLearningMinutes(path, block["minutes"])...)
+func learningMinutes(raw any) (int, bool) {
+	switch n := raw.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case uint64:
+		if n > uint64(^uint(0)>>1) {
+			return 0, false
+		}
+		return int(n), true
+	case float64:
+		return int(n), n == float64(int(n))
+	default:
+		return 0, false
+	}
 }
 
 // lintLearningObjectives checks the objectives list: its size, empties,
@@ -124,21 +131,21 @@ func lintLearningObjectives(path string, raw any) []ctxLintIssue {
 	}
 	objectives := learningObjectives(raw)
 	if len(objectives) == 0 {
-		warn(fmt.Sprintf("`learning.objectives` must list %d-%d observable objectives", ctxLearningMinObjectives, ctxLearningMaxObjectives))
+		warn(fmt.Sprintf("`objectives` must list %d-%d observable objectives", ctxLearningMinObjectives, ctxLearningMaxObjectives))
 		return issues
 	}
 	if len(objectives) < ctxLearningMinObjectives || len(objectives) > ctxLearningMaxObjectives {
-		warn(fmt.Sprintf("`learning.objectives` has %d entr(ies), want %d-%d", len(objectives), ctxLearningMinObjectives, ctxLearningMaxObjectives))
+		warn(fmt.Sprintf("`objectives` has %d entr(ies), want %d-%d", len(objectives), ctxLearningMinObjectives, ctxLearningMaxObjectives))
 	}
 	seen := map[string]bool{}
 	for _, o := range objectives {
 		norm := strings.ToLower(strings.TrimSpace(o))
 		if norm == "" {
-			warn("`learning.objectives` carries an empty entry")
+			warn("`objectives` carries an empty entry")
 			continue
 		}
 		if seen[norm] {
-			warn(fmt.Sprintf("`learning.objectives` repeats %q", o))
+			warn(fmt.Sprintf("`objectives` repeats %q", o))
 		}
 		seen[norm] = true
 		if first := strings.Fields(norm)[0]; !containsItem(ctxLearningVerbPrefixes, first) {
@@ -155,10 +162,10 @@ func lintLearningObjectives(path string, raw any) []ctxLintIssue {
 func lintLearningDifficulty(path string, raw any) []ctxLintIssue {
 	d, isString := raw.(string)
 	if !isString || d == "" {
-		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "`learning.difficulty` is missing (one of " + strings.Join(ctxLearningDifficulties, ", ") + ")"}}
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: "`difficulty` is missing (one of " + strings.Join(ctxLearningDifficulties, ", ") + ")"}}
 	}
 	if !containsItem(ctxLearningDifficulties, d) {
-		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("`learning.difficulty` %q is not one of %s", d, strings.Join(ctxLearningDifficulties, ", "))}}
+		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: fmt.Sprintf("`difficulty` %q is not one of %s", d, strings.Join(ctxLearningDifficulties, ", "))}}
 	}
 	return nil
 }
@@ -169,11 +176,11 @@ func lintLearningMinutes(path string, raw any) []ctxLintIssue {
 		return []ctxLintIssue{{Path: path, Priority: ctxLintWarning, Message: msg}}
 	}
 	outside := func(v any) []ctxLintIssue {
-		return warn(fmt.Sprintf("`learning.minutes` %v is outside %d-%d", v, ctxLearningMinMinutes, ctxLearningMaxMinutes))
+		return warn(fmt.Sprintf("`minutes` %v is outside %d-%d", v, ctxLearningMinMinutes, ctxLearningMaxMinutes))
 	}
 	switch m := raw.(type) {
 	case nil:
-		return warn("`learning.minutes` is missing (the review time, in minutes)")
+		return warn("`minutes` is missing (the review time, in minutes)")
 	case int:
 		if m < ctxLearningMinMinutes || m > ctxLearningMaxMinutes {
 			return outside(m)
@@ -191,7 +198,7 @@ func lintLearningMinutes(path string, raw any) []ctxLintIssue {
 			return outside(m)
 		}
 	default:
-		return warn("`learning.minutes` must be a number")
+		return warn("`minutes` must be a number")
 	}
 	return nil
 }
@@ -199,6 +206,9 @@ func lintLearningMinutes(path string, raw any) []ctxLintIssue {
 // learningObjectives reads the objectives list from the block, tolerating the
 // YAML shapes a hand-written file may use (a sequence of strings).
 func learningObjectives(raw any) []string {
+	if list, ok := raw.([]string); ok {
+		return append([]string(nil), list...)
+	}
 	list, ok := raw.([]any)
 	if !ok {
 		return nil

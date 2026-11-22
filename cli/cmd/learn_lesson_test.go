@@ -53,7 +53,7 @@ func TestLearnMaterialOfAbsent(t *testing.T) {
 	}
 }
 
-// bundlePage is a page the builder would hand over: a learning block and two
+// bundlePage is a page the builder would hand over: a pure concept and two
 // claim anchors in the body.
 func bundlePage() *contextwiki.Page {
 	return &contextwiki.Page{
@@ -74,7 +74,8 @@ func writeLesson(t *testing.T, body string) string {
 	t.Helper()
 	runInIsolatedTempDir(t)
 	lessonBody, items := splitAssessSection(body)
-	path := writeLearningDoc(t, learnLessonPath("architecture/x"), lessonBody)
+	frontmatter := "---\nkind: lesson\nid: architecture/x\nobjectives:\n  - \"name the parts\"\n  - \"apply the rule\"\ndifficulty: intermediate\nminutes: 10\n---\n\n"
+	path := writeLearningDoc(t, learnLessonPath("architecture/x"), frontmatter+lessonBody)
 	if items != "" {
 		writeAssessmentFor(t, "architecture/x", items)
 	}
@@ -232,11 +233,21 @@ func TestLearnValidateRejectsEachFailureMode(t *testing.T) {
 			ID: "architecture/x", Status: ctxWikiStatusActive,
 			Frontmatter: "---\nkind: wiki\nid: architecture/x\n---\n",
 			Body:        "1. {#claim-1} a\n2. {#claim-2} b\n",
-		}, "no `learning.objectives`"},
+		}, "carries no objectives"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			writeLesson(t, tc.body)
+			lessonPath := writeLesson(t, tc.body)
+			if tc.name == "no page objectives" {
+				data, err := os.ReadFile(lessonPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				content := strings.Replace(string(data), "objectives:\n  - \"name the parts\"\n  - \"apply the rule\"\ndifficulty: intermediate\nminutes: 10\n", "", 1)
+				if err := os.WriteFile(lessonPath, []byte(content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 			bld := &contextwiki.Builder{Pages: nil, ByID: map[string]*contextwiki.Page{}}
 			if tc.page != nil {
 				bld.ByID[tc.page.ID] = tc.page

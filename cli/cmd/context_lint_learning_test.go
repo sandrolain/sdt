@@ -6,15 +6,14 @@ import (
 )
 
 const learningGoodPage = `---
-kind: wiki
+kind: lesson
 id: architecture/four-key-metrics
 type: concept
-learning:
-  objectives:
-    - "name the four metrics and the pipeline point each is measured at"
-    - "calculate change failure rate from failures over deploys"
-  difficulty: intermediate
-  minutes: 12
+objectives:
+  - "name the four metrics and the pipeline point each is measured at"
+  - "calculate change failure rate from failures over deploys"
+difficulty: intermediate
+minutes: 12
 ---
 
 ## Summary
@@ -29,14 +28,16 @@ func TestLearningFamilyIsRegistered(t *testing.T) {
 	if !ok {
 		t.Fatal("learning is not a registered frontmatter family")
 	}
-	if !containsItem(fam.Keys, ctxFrontmatterLearning) {
-		t.Errorf("family keys = %v, want %q", fam.Keys, ctxFrontmatterLearning)
+	for _, key := range []string{"objectives", "difficulty", "minutes"} {
+		if !containsItem(fam.Keys, key) {
+			t.Errorf("family keys = %v, want %q", fam.Keys, key)
+		}
 	}
 }
 
 // TestLearningBlockAcceptsAShapedBlock is the green case for the page block.
-func TestLearningBlockAcceptsAShapedBlock(t *testing.T) {
-	issues := lintLearningBlock("context/wiki/x.md", learningGoodPage, ctxTypeWiki)
+func TestLessonLearningMetadataAcceptsACompleteShape(t *testing.T) {
+	issues := lintLearningBlock("context/learning/x.md", learningGoodPage, ctxTypeLesson)
 	for _, i := range issues {
 		if i.Priority == ctxLintWarning {
 			t.Errorf("a well-shaped block produced a WARNING: %s", i.Message)
@@ -44,12 +45,11 @@ func TestLearningBlockAcceptsAShapedBlock(t *testing.T) {
 	}
 }
 
-// TestLearningBlockAbsentIsNotAFinding proves the family is optional: adoption is
-// gradual and a page without objectives must stay silent.
-func TestLearningBlockAbsentIsNotAFinding(t *testing.T) {
-	page := "---\nkind: wiki\nid: a/b\n---\n\n## Summary\n\nx\n"
-	if issues := lintLearningBlock("context/wiki/x.md", page, ctxTypeWiki); len(issues) != 0 {
-		t.Errorf("a page without a learning block produced %d finding(s)", len(issues))
+func TestWikiLearningMetadataIsRejected(t *testing.T) {
+	page := "---\nkind: wiki\nid: a/b\nlearning: {objectives: [do thing]}\n---\n\n## Summary\n\nx\n"
+	issues := lintLearningBlock("context/wiki/x.md", page, ctxTypeWiki)
+	if len(issues) != 1 || !strings.Contains(issues[0].Message, "obsolete") {
+		t.Fatalf("legacy wiki metadata was not rejected: %+v", issues)
 	}
 }
 
@@ -69,13 +69,13 @@ func TestLearningBlockRejectsBadValues(t *testing.T) {
 		want   string
 	}{
 		{"one objective", func(s string) string {
-			return strings.Replace(s, "    - \"calculate change failure rate from failures over deploys\"\n", "", 1)
+			return strings.Replace(s, "  - \"calculate change failure rate from failures over deploys\"\n", "", 1)
 		}, "want 2-4"},
 		{"five objectives", func(s string) string {
-			return strings.Replace(s, "  difficulty:", "    - \"apply the reporting window rule\"\n    - \"choose a dashboard audience\"\n    - \"justify weekly discussion\"\n  difficulty:", 1)
+			return strings.Replace(s, "difficulty:", "  - \"apply the reporting window rule\"\n  - \"choose a dashboard audience\"\n  - \"justify weekly discussion\"\ndifficulty:", 1)
 		}, "want 2-4"},
 		{"duplicate objective", func(s string) string {
-			return strings.Replace(s, "    - \"calculate change failure rate from failures over deploys\"", "    - \"name the four metrics and the pipeline point each is measured at\"", 1)
+			return strings.Replace(s, "  - \"calculate change failure rate from failures over deploys\"", "  - \"name the four metrics and the pipeline point each is measured at\"", 1)
 		}, "repeats"},
 		{"bad difficulty", func(s string) string {
 			return strings.Replace(s, "difficulty: intermediate", "difficulty: expert", 1)
@@ -89,16 +89,13 @@ func TestLearningBlockRejectsBadValues(t *testing.T) {
 		{"minutes not a number", func(s string) string {
 			return strings.Replace(s, "minutes: 12", "minutes: twelve", 1)
 		}, "must be a number"},
-		{"unknown key", func(s string) string {
-			return strings.Replace(s, "minutes: 12", "minutes: 12\n  grade: pass", 1)
-		}, "not part of the block"},
-		{"not a map", func(s string) string {
-			return "---\nkind: wiki\nlearning: 12\n---\n\n## Summary\n\nx\n"
-		}, "must be a map"},
+		{"objectives not a list", func(s string) string {
+			return strings.Replace(s, "objectives:\n  -", "objectives: none\n# -", 1)
+		}, "must list 2-4"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			issues := lintLearningBlock("context/wiki/x.md", tc.mutate(learningGoodPage), ctxTypeWiki)
+			issues := lintLearningBlock("context/learning/x.md", tc.mutate(learningGoodPage), ctxTypeLesson)
 			joined := ""
 			for _, i := range issues {
 				joined += i.Message + "\n"
@@ -114,7 +111,7 @@ func TestLearningBlockRejectsBadValues(t *testing.T) {
 // without being refused: the verb set is a suggestion, not a closed gate.
 func TestLearningObjectiveVerbIsAdvisory(t *testing.T) {
 	page := strings.Replace(learningGoodPage, "name the four metrics", "grok the four metrics", 1)
-	issues := lintLearningBlock("context/wiki/x.md", page, ctxTypeWiki)
+	issues := lintLearningBlock("context/learning/x.md", page, ctxTypeLesson)
 	found := false
 	for _, i := range issues {
 		if i.Priority == ctxLintSuggestion && strings.Contains(i.Message, "grok") {

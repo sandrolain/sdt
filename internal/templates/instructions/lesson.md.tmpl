@@ -21,20 +21,19 @@ only.
   (`context/learning/architecture/four-key-metrics.md` teaches
   `wiki/architecture/four-key-metrics`), and its `concept` field repeats it so a
   lesson read alone names its page.
-- **The page owns the knowledge.** Objectives, difficulty and pacing live in the
-  page's `learning:` block, and this is its whole shape:
+- **The wiki owns pure concept knowledge.** Objectives, difficulty and pacing
+  live in the lesson frontmatter:
 
   ```yaml
-  learning:
-    objectives:
-      - "name the four metrics and the pipeline point each is measured at"
-      - "calculate a metric over its reporting window"
-    difficulty: intermediate   # introductory | intermediate | advanced
-    minutes: 12                # 5-60, the review time
+  objectives:
+    - "name the four metrics and the pipeline point each is measured at"
+    - "calculate a metric over its reporting window"
+  difficulty: intermediate   # introductory | intermediate | advanced
+  minutes: 12                # 5-60, the review time
   ```
 
-  A lesson never restates them: an item points at one by its 1-based index, so
-  `objective: 2` means the second entry above and nothing else.
+  An assessment item points at one by its 1-based index, so `objective: 2` means
+  the second entry above. Preserve this order when editing objectives.
 - **The lesson's own frontmatter is written by `context new --type lesson`**:
   `kind: lesson`, `uid`, `id` (equal to the concept id), `concept` (the same id,
   repeated so the file names its page), `summary`, `status`, the timestamps,
@@ -91,7 +90,7 @@ the value the cell holds. A cell that disagrees with its row is refused on read
 | four-key-metrics-1 | 1 | recall | Name the four metrics. | deployment frequency; lead time for changes; change failure rate; time to restore service | all four, no extras | the four are individual performance targets | architecture/four-key-metrics#c-ab12cd34 | exact | material | 2026-10-28 | 4af036062f63 | 9f1c2d7a4b06 |
 ```
 
-- **`objective`** is 1-based against the page's `learning.objectives`; every
+- **`objective`** is 1-based against the lesson's `objectives`; every
   objective needs at least one item, and an index outside the list is a defect.
 - **`id`** is free but unique and stable: an attempt cites it, so renaming one
   orphans the answer that used it.
@@ -138,9 +137,10 @@ sdt learn lesson --coverage             # objective → item matrix
 sdt learn check <concept>               # is this concept teachable, and if not why
 ```
 
-`sdt learn check` refuses a page that cannot carry a lesson — not `active`, fewer
-than four claims, `maturity: wip`, no `learning:` block, no lesson, an objective
-without an item. It judges the **page**; a lesson's own `status` is its lifecycle
+`sdt learn check` refuses a concept that cannot carry a complete lesson — page not
+`active`, fewer than four claims, `maturity: wip`, no lesson objectives, no lesson,
+or an objective without an item. It judges both the **page** and lesson metadata;
+a lesson's own `status` is its lifecycle
 and is not part of the verdict. A **missing `verified_at` is not a refusal**: a
 stamp is provenance, not validity, and it is reported as a note. `--verified-only`
 filters on it when a caller wants a freshness subset.
@@ -149,7 +149,7 @@ filters on it when a caller wants a freshness subset.
 
 - One lesson per concept; a second lesson for the same page is a split signal, not
   a variant.
-- No answers stored in the page, no objectives stored here, no learner state in
-  either: `context/learning/learner.yaml` holds what a learner demonstrated.
+- No answers stored in the page or lesson, and no learner state in either:
+  `context/learning/learner.yaml` holds what a learner demonstrated.
 - Never promote a page to `active` because a lesson needs it. The page is verified
   against its spans first (`wiki.md`), and the lesson follows.

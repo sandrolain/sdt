@@ -18,10 +18,17 @@ func lessonFixture(t *testing.T, pageFM, lessonBody string, withLesson bool) *co
 	if err := os.MkdirAll(filepath.Join(sdtLearningDir, "architecture"), 0o750); err != nil {
 		t.Fatal(err)
 	}
+	noObjectives := strings.Contains(pageFM, "test_no_objectives: true")
+	pageFM = strings.Replace(pageFM, "test_no_objectives: true\n", "", 1)
 	fm := "---\n" + pageFM + "---\n\n## Summary\n\nx\n"
 	if withLesson {
 		lessonBody, items := splitAssessSection(lessonBody)
-		writeLearningDoc(t, learnLessonPath("architecture/x"), lessonBody)
+		metadata := "objectives:\n  - \"name the parts\"\n  - \"apply the rule\"\ndifficulty: intermediate\nminutes: 10\n"
+		if noObjectives {
+			metadata = ""
+		}
+		lesson := "---\nkind: lesson\nid: architecture/x\n" + metadata + "---\n\n" + lessonBody
+		writeLearningDoc(t, learnLessonPath("architecture/x"), lesson)
 		if items != "" {
 			writeAssessmentFor(t, "architecture/x", items)
 		}
@@ -36,8 +43,7 @@ func lessonFixture(t *testing.T, pageFM, lessonBody string, withLesson bool) *co
 	}
 }
 
-const checkPageFM = "kind: wiki\nid: architecture/x\n" +
-	"learning:\n  objectives:\n    - \"name the parts\"\n    - \"apply the rule\"\n  difficulty: intermediate\n  minutes: 10\n"
+const checkPageFM = "kind: wiki\nid: architecture/x\n"
 
 const checkLessonBody = `## Prerequisites
 
@@ -85,7 +91,7 @@ func TestReadinessRulesEachRefuse(t *testing.T) {
 		{"not active", checkPageFM, 4, ctxWikiStatusDraft, true, checkLessonBody, "page status"},
 		{"too few claims", checkPageFM, 3, ctxWikiStatusActive, true, checkLessonBody, "fewer than the 4"},
 		{"maturity wip", checkPageFM + "maturity: wip\n", 4, ctxWikiStatusActive, true, checkLessonBody, "maturity is `wip`"},
-		{"no learning block", "kind: wiki\nid: architecture/x\n", 4, ctxWikiStatusActive, true, checkLessonBody, "no `learning:` block"},
+		{"no objectives", checkPageFM + "test_no_objectives: true\n", 4, ctxWikiStatusActive, true, checkLessonBody, "lesson carries no objectives"},
 		{"no lesson", checkPageFM, 4, ctxWikiStatusActive, false, "", "no lesson for this concept"},
 		{"objective without item", checkPageFM, 4, ctxWikiStatusActive, true,
 			strings.Replace(checkLessonBody, "| a-2 | 2 |", "| a-2 | 1 |", 1), "have no item"},

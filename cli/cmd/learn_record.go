@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -348,10 +350,13 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 			return nil, false, learnRefuseBank(learnClaimRefused(p.ID, item, outcome, live, "recording an attempt"))
 		}
 		level := learnUnderstandingFor(grade.Grade, grade.Hint, rec.LastAssessed)
-		rec.LastAttempt = &learn.Attempt{
+		attempt := learn.Attempt{
 			At: now.Format(learn.TimeLayout), Item: grade.Item,
 			Grade: grade.Grade, Hint: grade.Hint, Basis: basis,
+			KeyHash: item.KeyDigest, ClaimHash: item.Hash,
+			ObjectiveHash: learnObjectiveHash(learningMetadataForConcept(p.ID).Objectives, item.Objective),
 		}
+		learnAppendAttempt(rec, attempt)
 		rec.HintLevel = grade.Hint
 		if nr := strings.TrimSpace(getStringFlag(cmd, "next-review", false)); nr != "" {
 			rec.NextReview = nr
@@ -403,6 +408,22 @@ func learnRecordAssess(st *learn.State, bld *contextwiki.Builder, p *contextwiki
 		}
 	}
 	return rec, created, nil
+}
+
+func learnAppendAttempt(concept *learn.Concept, attempt learn.Attempt) {
+	if len(concept.Attempts) == 0 && concept.LastAttempt != nil {
+		concept.Attempts = append(concept.Attempts, *concept.LastAttempt)
+	}
+	concept.Attempts = append(concept.Attempts, attempt)
+	concept.LastAttempt = &concept.Attempts[len(concept.Attempts)-1]
+}
+
+func learnObjectiveHash(objectives []string, index int) string {
+	if index < 1 || index > len(objectives) {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(strings.TrimSpace(objectives[index-1])))
+	return hex.EncodeToString(digest[:])
 }
 
 // learnEvidenceAdd appends locators, skipping blanks and repeats, so a repeated

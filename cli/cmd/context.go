@@ -230,7 +230,7 @@ func deprecatedNotice(cmd *cobra.Command, replacement string) {
 }
 
 var contextCmd = &cobra.Command{
-	Use:     "context",
+	Use:     gitIgnoreModeContext,
 	Aliases: []string{"ctx"},
 	Short:   "Context Tools (context/ work files)",
 	Long: `Manage the agent working files under context/: the documents, their state, and

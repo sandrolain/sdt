@@ -13,10 +13,10 @@ course` reads them and `sdt learn record` remains the only writer of what a
 learner demonstrated.
 
 The three things a level sits above, named once: a **page**
-(`context/wiki/<concept-id>.md`) owns the claims and the objectives, a **lesson**
-(`context/learning/<concept-id>.md`) owns the worked example and the curriculum
-order, and its **assessment** (`<concept-id>.assessment.md`) owns the items and
-their keys.
+(`context/wiki/<concept-id>.md`) owns pure concept knowledge, a **lesson**
+(`context/learning/<concept-id>.md`) owns objectives, difficulty, duration, the
+worked example and curriculum order, and its **assessment**
+(`<concept-id>.assessment.md`) owns the items and their keys.
 
 Read it with `instructions/lesson.md` (the unit a level groups) and
 `instructions/learning.md` (how a session runs). This module covers the two
@@ -78,11 +78,11 @@ outcome: "decide which measure drives a decision, and defend its reporting windo
 ```
 
 - **The level vocabulary is the page's.** `from_level` and `to_level` use the same
-  three words as a page's `learning.difficulty`, so the two never drift; an
+  three words as a lesson's `difficulty`, so the two never drift; an
   unknown level and a pair that ends below where it starts are refused.
 - **An outcome is not a list of objectives.** It is one sentence about what the
-  learner can do at the end. The objectives stay on the concept page each lesson
-  teaches, which is beside the lesson and not a level of this hierarchy.
+  learner can do at the end. Objectives stay on each lesson and are not repeated
+  by a level in this hierarchy.
 - **`## Thread` says who it is for and why this order.** The intake states the
   facts; the section states the argument for the sequence.
 

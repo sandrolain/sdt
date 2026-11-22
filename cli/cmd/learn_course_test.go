@@ -14,9 +14,7 @@ import (
 // count.
 func writeCourseConcept(t *testing.T, id string, dependsOn ...string) {
 	t.Helper()
-	fm := "---\nkind: wiki\nid: " + id + "\nstatus: active\n" +
-		"learning:\n  objectives:\n    - \"name the parts\"\n    - \"apply the rule\"\n" +
-		"  difficulty: intermediate\n  minutes: 5\n"
+	fm := "---\nkind: wiki\nid: " + id + "\nstatus: active\n"
 	if len(dependsOn) > 0 {
 		fm += "relations:\n  depends_on:\n"
 		for _, dep := range dependsOn {
@@ -28,6 +26,7 @@ func writeCourseConcept(t *testing.T, id string, dependsOn ...string) {
 	writeLearningDoc(t, filepath.Join(sdtWikiDir, filepath.FromSlash(id)+sdtMarkdownExt), fm+"---\n\n"+body)
 
 	lesson := "---\nkind: lesson\nid: " + id + "\nconcept: " + id +
+		"\nobjectives:\n  - \"name the parts\"\n  - \"apply the rule\"\ndifficulty: intermediate\nminutes: 5" +
 		"\nsummary: s\nstatus: active\ncreated: 2026-11-01T00:00:00Z\nupdated: 2026-11-01T00:00:00Z\n---\n\n" +
 		"## Prerequisites\n\n## Worked example\n\n`source_span`: refs/x.md@5772ca09:1-2\n\n## Transfer\n\nA new case.\n"
 	writeLearningDoc(t, learnLessonPath(id), lesson)
@@ -225,10 +224,10 @@ func TestLearnCourseCoverageIsTwoFacts(t *testing.T) {
 func TestLearnCourseCoverageNamesAnUncoveredObjective(t *testing.T) {
 	runInTempDir(t)
 	writeCourseConcept(t, "architecture/a")
-	page := filepath.Join(sdtWikiDir, "architecture", "a.md")
-	doc := mustReadFile(t, page)
-	doc = strings.Replace(doc, "    - \"apply the rule\"", "    - \"apply the rule\"\n    - \"judge a case\"", 1)
-	writeLearningDoc(t, page, doc)
+	lesson := learnLessonPath("architecture/a")
+	doc := mustReadFile(t, lesson)
+	doc = strings.Replace(doc, "  - \"apply the rule\"", "  - \"apply the rule\"\n  - \"judge a case\"", 1)
+	writeLearningDoc(t, lesson, doc)
 	writeCourseLevel(t, learnCourseTheme, "themes/metrics", []string{"architecture/a"})
 
 	var out string

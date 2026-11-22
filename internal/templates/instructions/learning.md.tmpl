@@ -28,7 +28,7 @@ policy — stated here once, applied in one function:
 2. the page carries at least **4 claims** (three items need three distinct claims,
    the `transfer` item a fourth);
 3. `maturity` is not `wip`;
-4. the page carries a `learning:` block with 2–4 objectives;
+4. the lesson carries 2–4 objectives, difficulty and review minutes;
 5. a lesson document exists for the concept (`context/learning/<concept-id>.md`);
 6. every objective has at least one item.
 
@@ -141,6 +141,12 @@ sentence beside it, and name the concept it was mistaken for. Close a goal when 
 retrieval and a transfer showed its outcome, never when the session ended. The flags
 are in `sdt learn record --help`.
 
+## Revisions
+
+Attempts retain key, claim and objective bindings; `sdt learn review` flags
+changed bindings and unbound history for reassessment. Append attempts; only
+each item's latest is current.
+
 ## No score
 
 Never report a score, a percentage, a streak or an XP total. A grade is a fact
@@ -149,11 +155,10 @@ report those three, never a composite that pretends to summarise them.
 
 ## Cite
 
-Every explanation names the page it came from (`wiki/<id>`); a claim the pages do
-not carry is marked **not in the corpus**, never filled in from recall. What the
-learner asserts is an **observation**: it is recorded in the learner state and
-never promoted to a wiki claim except by an explicit, user-approved wiki write
-(`wiki.md`).
+Name the source page (`wiki/<id>`) for every explanation. Mark unsupported claims
+**not in the corpus**; never fill gaps from recall. Learner assertions are
+**observations** in learner state, promoted to wiki claims only by explicit,
+user-approved write (`wiki.md`).
 
 ## Close the session
 

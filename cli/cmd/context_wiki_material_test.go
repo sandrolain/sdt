@@ -334,11 +334,12 @@ func writeObjectivePage(t *testing.T, id string, n int) {
 	t.Helper()
 	objectives := ""
 	for i := 1; i <= n; i++ {
-		objectives += "    - \"objective " + string(rune('0'+i)) + "\"\n"
+		objectives += "  - \"name objective " + string(rune('0'+i)) + "\"\n"
 	}
-	body := strings.Replace(materialPage, "project: p\n", "project: p\nlearning:\n  objectives:\n"+objectives, 1)
-	body = strings.Replace(body, "architecture/alpha", id, 1)
+	body := strings.Replace(materialPage, "architecture/alpha", id, 1)
 	writeCtxDoc(t, "context/wiki/"+id+".md", body)
+	lesson := "---\nkind: lesson\nid: " + id + "\nobjectives:\n" + objectives + "difficulty: intermediate\nminutes: 10\n---\n"
+	writeCtxDoc(t, learnLessonPath(id), lesson)
 }
 
 // TestWikiMaterialProseObjectiveCount proves the section contract is countable: one

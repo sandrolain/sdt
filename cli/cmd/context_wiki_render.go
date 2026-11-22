@@ -133,7 +133,7 @@ func materialProseIssue(concept, body string, page *contextwiki.Page) (string, s
 	// The section contract (decisions 0041, 0045): one numbered marker per learning
 	// objective, no number twice, no number the page does not have. The section
 	// names and the order are editorial; only the count is mechanical.
-	objectives := learningObjectivesOf(page.Frontmatter)
+	objectives := learningMetadataForConcept(page.ID).Objectives
 	seen := map[int]int{}
 	for _, match := range materialObjectiveRe.FindAllStringSubmatch(body, -1) {
 		n, convErr := strconv.Atoi(match[1])

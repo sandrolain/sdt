@@ -8,15 +8,17 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/sandrolain/sdt/internal/contextwiki"
 	"github.com/sandrolain/sdt/internal/learn"
 )
 
 // learnReviewEntry is one row of the review queue: a concept, why it is queued
 // (due or weak) and how far its review date sits from today.
 type learnReviewEntry struct {
-	Concept learnView `json:"concept" yaml:"concept"`
-	Reason  string    `json:"reason" yaml:"reason"` // due | weak
-	DueIn   int       `json:"due_in_days" yaml:"due_in_days"`
+	Concept  learnView `json:"concept" yaml:"concept"`
+	Reason   string    `json:"reason" yaml:"reason"` // revision | due | weak
+	DueIn    int       `json:"due_in_days" yaml:"due_in_days"`
+	Revision string    `json:"revision,omitempty" yaml:"revision,omitempty"`
 }
 
 // learnReviewQueues splits the recorded concepts into the due ones (review date
@@ -93,8 +95,19 @@ EXAMPLE — sdt learn review
 	Run: func(cmd *cobra.Command, _ []string) {
 		st := loadLearnState(cmd)
 		now := contextNow()
+		bld, _, err := contextwiki.LoadWiki(sdtWikiDir)
+		if err != nil {
+			outputString(cmd, "warning: revision claim checks unavailable: "+err.Error()+"\n")
+			bld = nil
+		}
 		due, _ := learnReviewQueues(st, now)
 		rows := make([]learnReviewEntry, 0, len(due)+len(st.Concepts))
+		for i := range st.Concepts {
+			concept := &st.Concepts[i]
+			if reason := learnAttemptRevisionReason(concept, bld); reason != "" {
+				rows = append(rows, learnReviewEntry{Concept: learnViewOf(concept), Reason: "revision", DueIn: learnDueIn(concept.NextReview, now), Revision: reason})
+			}
+		}
 		for _, v := range due {
 			rows = append(rows, learnReviewEntry{Concept: v, Reason: "due", DueIn: learnDueIn(v.NextReview, now)})
 		}
@@ -114,7 +127,10 @@ EXAMPLE — sdt learn review
 				return
 			}
 			for _, r := range rows {
-				line := fmt.Sprintf("%-5s %-26s %s", r.Reason, r.Concept.ID, r.Concept.Title)
+				line := fmt.Sprintf("%-8s %-26s %s", r.Reason, r.Concept.ID, r.Concept.Title)
+				if r.Revision != "" {
+					line += " · " + r.Revision
+				}
 				if r.Concept.Understanding != "" {
 					line += " (" + r.Concept.Understanding + ")"
 				}
@@ -129,6 +145,55 @@ EXAMPLE — sdt learn review
 			learnSuggestNext(cmd, st, "")
 		})
 	},
+}
+
+func learnAttemptRevisionReason(concept *learn.Concept, bld *contextwiki.Builder) string {
+	if concept == nil {
+		return ""
+	}
+	attempts := make([]*learn.Attempt, 0, len(concept.Attempts)+1)
+	for i := range concept.Attempts {
+		attempts = append(attempts, &concept.Attempts[i])
+	}
+	if concept.LastAttempt != nil && (len(attempts) == 0 || attempts[len(attempts)-1].Item != concept.LastAttempt.Item || attempts[len(attempts)-1].At != concept.LastAttempt.At) {
+		attempts = append(attempts, concept.LastAttempt)
+	}
+	seen := map[string]bool{}
+	for i := len(attempts) - 1; i >= 0; i-- {
+		attempt := attempts[i]
+		if seen[attempt.Item] {
+			continue
+		}
+		seen[attempt.Item] = true
+		if reason := learnSingleAttemptRevisionReason(concept, bld, attempt); reason != "" {
+			return reason
+		}
+	}
+	return ""
+}
+
+func learnSingleAttemptRevisionReason(concept *learn.Concept, bld *contextwiki.Builder, attempt *learn.Attempt) string {
+	if attempt.KeyHash == "" || attempt.ClaimHash == "" || attempt.ObjectiveHash == "" {
+		return "historical attempt has no version binding; reassess against the current lesson"
+	}
+	item, ok := learnLessonItemByID(concept.Wiki, attempt.Item)
+	if !ok {
+		return "attempted item is absent; reassess against the current lesson"
+	}
+	if attempt.KeyHash != item.KeyDigest {
+		return "assessment key changed; reassess this item"
+	}
+	if bld != nil {
+		verdict, live := learnItemClaimVerdict(bld, concept.Wiki, item)
+		if verdict == learnClaimStale || verdict == learnClaimBroken || (live != "" && attempt.ClaimHash != live) {
+			return "supporting claim changed; reassess this item"
+		}
+	}
+	metadata := learningMetadataForConcept(concept.Wiki)
+	if attempt.ObjectiveHash != learnObjectiveHash(metadata.Objectives, item.Objective) {
+		return "learning objective changed; reassess this item"
+	}
+	return ""
 }
 
 // learnDueIn returns the whole days between today and a review date (negative
