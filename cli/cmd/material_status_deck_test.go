@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sandrolain/sdt/internal/contextwiki"
 )
 
 // materialDeckFixture reads one deck fixture and makes its header live: the
@@ -117,5 +119,16 @@ func TestMaterialStatusDeckKeepsFreshnessSemantics(t *testing.T) {
 	}
 	if !strings.Contains(row.TechnicalDetail, "deck "+row.Deck) {
 		t.Errorf("technical detail = %q, want the lane verdict named", row.TechnicalDetail)
+	}
+	bld, _, loadErr := contextwiki.LoadWiki(sdtWikiDir)
+	if loadErr != nil {
+		t.Fatalf("LoadWiki: %v", loadErr)
+	}
+	report := deriveTopicReadiness("architecture/alpha", "materials", bld.Resolve("architecture/alpha"))
+	if got := report.Stages[3].Status; got != "stale" {
+		t.Errorf("overview material stage = %q, want stale for stale deck: %+v", got, report.Stages[3])
+	}
+	if !strings.Contains(strings.Join(report.Stages[3].Reasons, " "), "deck=stale") {
+		t.Errorf("overview findings do not retain the stale deck: %+v", report.Stages[3])
 	}
 }

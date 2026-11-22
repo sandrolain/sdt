@@ -215,7 +215,7 @@ func materialStatusDeck(root, deckRel string, freshness map[string]string) (stri
 }
 
 func fillMaterialTechnical(row *materialStatusRow, path string, wiki *contextwiki.Builder) {
-	row.Technical = "source-check"
+	row.Technical = materialTechnicalSourceCheck
 	content, err := os.ReadFile(path) //#nosec G304 -- path came from loadMaterialFiles walking the material lane
 	if err != nil {
 		row.Technical = learnProvenanceUnknown
@@ -248,7 +248,7 @@ func fillMaterialDistribution(row *materialStatusRow) {
 
 func fillMaterialDeckTechnical(row *materialStatusRow) {
 	if row.Deck == renderFresh {
-		if row.Technical == "source-check" {
+		if row.Technical == materialTechnicalSourceCheck {
 			row.TechnicalDetail = "source checks passed; deck is fresh; package link, asset and consumer rendering validation not run"
 		}
 		return

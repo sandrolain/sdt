@@ -34,7 +34,11 @@ const (
 	// dataset or package — with its pin, licence and custody status
 	// (`source.md`). It is a document, not a second store: the catalogue is the
 	// corpus (`analysis/20261102-155254-…`).
-	ctxTypeSource = "source"
+	ctxTypeSource            = "source"
+	ctxSourceStatusCandidate = "candidate"
+	ctxSourceStatusCurated   = "curated"
+	ctxSourceStatusUsed      = "used"
+	ctxSourceStatusRetired   = "retired"
 	// ctxSourceStatusGone is the terminal custody word of a source sheet: the
 	// material is no longer at its address, or no longer on disk, and `restore`
 	// says how it returns. Named once because the registry, the deprecate verb and
