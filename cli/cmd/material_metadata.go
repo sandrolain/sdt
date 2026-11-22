@@ -52,7 +52,7 @@ func readMaterialMetadata(materialPath string, header materialHeader) (metacomp.
 		return nil, true, fmt.Errorf("inline guide header disagrees with canonical companion")
 	}
 	artifacts := metadataMap(material["artifacts"])
-	guide := metadataMap(artifacts["guide"])
+	guide := metadataMap(artifacts[materialArtifactGuide])
 	guideClaims := guide[metadataClaimsKey]
 	if guideClaims == nil {
 		guideClaims = material[metadataClaimsKey] // compatibility for early schema-1 companions
@@ -70,7 +70,7 @@ func readMaterialMetadata(materialPath string, header materialHeader) (metacomp.
 		if artifact == nil {
 			continue
 		}
-		if metadataString(artifact[metadataRoleKey]) != "slide_deck" {
+		if metadataString(artifact[metadataRoleKey]) != materialArtifactDeck {
 			continue
 		}
 		if filepath.ToSlash(filepath.Clean(metadataString(artifact[ctxMapPath]))) != filepath.ToSlash(deckRel) {
@@ -82,7 +82,7 @@ func readMaterialMetadata(materialPath string, header materialHeader) (metacomp.
 		}
 		first, _, _ := strings.Cut(string(data), "\n")
 		deckHeader, parseErr := parseMaterialHeader(first)
-		deck := metadataMap(artifacts["slide_deck"])
+		deck := metadataMap(artifacts[materialArtifactDeck])
 		if parseErr != nil || !sameMaterialIdentity(header, deckHeader) || !metadataClaimsMatch(deck[metadataClaimsKey], deckHeader.Claims) {
 			return nil, true, fmt.Errorf("inline slide deck header disagrees with canonical companion")
 		}

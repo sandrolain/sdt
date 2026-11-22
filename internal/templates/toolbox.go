@@ -35,11 +35,12 @@ type ToolboxRow struct {
 // The command names that appear on more than one row, so the table's data and
 // the gate's lookups agree on one spelling.
 const (
-	toolboxCmdContext = "context"
-	toolboxCmdRead    = "read"
-	toolboxCmdAgent   = "agent"
-	toolboxSubEdit    = "edit"
-	toolboxSubTask    = "task"
+	toolboxCmdContext  = "context"
+	toolboxCmdRead     = "read"
+	toolboxCmdAgent    = "agent"
+	toolboxCmdMaterial = "material"
+	toolboxSubEdit     = "edit"
+	toolboxSubTask     = "task"
 )
 
 // ToolboxRows is the ordered table. Order is by how often the operation comes
@@ -57,7 +58,7 @@ func ToolboxRows() []ToolboxRow {
 			Replaces: "`grep`",
 		},
 		{
-			Operation: "what a term in the corpus means",
+			Operation: "term meaning",
 			Display:   "`sdt context wiki glossary`",
 			Command:   toolboxCmdContext,
 			Path: []string{
@@ -179,7 +180,7 @@ func ToolboxRows() []ToolboxRow {
 			Replaces:  "guesswork",
 		},
 		{
-			Operation: "start and track delegated agent work",
+			Operation: "track delegated work",
 			Display:   "`sdt agent task start --role <role> --brief <goal> --plan <ref> --phase <phase>`",
 			Command:   toolboxCmdAgent,
 			Path:      []string{toolboxCmdAgent, toolboxSubTask, "start"},
@@ -187,21 +188,21 @@ func ToolboxRows() []ToolboxRow {
 			Replaces:  "manual agent handoffs and status polling",
 		},
 		{
-			Operation: "resume delegated work and recover its next principal action",
+			Operation: "resume delegated work",
 			Display:   "`sdt agent task list`",
 			Command:   toolboxCmdAgent,
 			Path:      []string{toolboxCmdAgent, toolboxSubTask, "list"},
 			Replaces:  "manual task-state reconstruction",
 		},
 		{
-			Operation: "coordinate participants within one delegated task",
+			Operation: "coordinate delegated work",
 			Display:   "`sdt agent task message send|list <task-id>`",
 			Command:   toolboxCmdAgent,
 			Path:      []string{toolboxCmdAgent, toolboxSubTask, "message"},
 			Replaces:  "untracked agent handoffs",
 		},
 		{
-			Operation: "preview and apply accepted delegated changes",
+			Operation: "apply accepted delegated changes",
 			Display:   "`sdt agent task apply preview|execute <task-id>`",
 			Command:   toolboxCmdAgent,
 			Path:      []string{"agent", "task", "apply"},
@@ -225,6 +226,34 @@ func ToolboxRows() []ToolboxRow {
 				"diff",
 			},
 			Replaces: "`magick`/`sharp`",
+		},
+		{
+			Operation: "manage recipient profiles",
+			Display:   "`sdt material profile create|check <id> <revision>`",
+			Command:   toolboxCmdMaterial,
+			Path:      []string{toolboxCmdMaterial, "profile"},
+			Replaces:  "manual YAML",
+		},
+		{
+			Operation: "export a syllabus ZIP",
+			Display:   "`sdt material package export <syllabus-id>`",
+			Command:   toolboxCmdMaterial,
+			Path:      []string{toolboxCmdMaterial, "package"},
+			Replaces:  "manual ZIP",
+		},
+		{
+			Operation: "material/asset privacy",
+			Display:   "`sdt material privacy set|asset`",
+			Command:   toolboxCmdMaterial,
+			Path:      []string{toolboxCmdMaterial, "privacy"},
+			Replaces:  "manual edits",
+		},
+		{
+			Operation: "manage source-linked briefs",
+			Display:   "`sdt material brief create|check|bind <material-id> <revision>`",
+			Command:   toolboxCmdMaterial,
+			Path:      []string{toolboxCmdMaterial, "brief"},
+			Replaces:  "manual YAML",
 		},
 	}
 }

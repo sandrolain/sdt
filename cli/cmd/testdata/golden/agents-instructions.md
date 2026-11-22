@@ -11,7 +11,7 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 | Need | Verb | Instead of |
 |---|---|---|
 | corpus, by meaning | `sdt context search <q>` | `grep` |
-| what a term in the corpus means | `sdt context wiki glossary` | recalling a definition |
+| term meaning | `sdt context wiki glossary` | recalling a definition |
 | a cold corpus: what it holds | `sdt context map` | guessing from `ls` |
 | a book, by meaning, without an index | `sdt chunk search <artifact> <q>` | a throwaway search index |
 | corpus text, line range, numbered | `sdt read -p <ref> [--lines a:b] [--numbered] [--count]` | `cat`/`sed -n`/host reader |
@@ -27,33 +27,34 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 | literal, pattern, batch or block | `sdt edit --old/--new [--regex] [--lines a:b] [--from-marker/--to-marker]` | `python3`/`sed -i` |
 | document state | `sdt context check/status/close` | none |
 | what SDT actually did | `sdt gain` | guesswork |
-| start and track delegated agent work | `sdt agent task start --role <role> --brief <goal> --plan <ref> --phase <phase>` | manual agent handoffs and status polling |
-| resume delegated work and recover its next principal action | `sdt agent task list` | manual task-state reconstruction |
-| coordinate participants within one delegated task | `sdt agent task message send|list <task-id>` | untracked agent handoffs |
-| preview and apply accepted delegated changes | `sdt agent task apply preview|execute <task-id>` | manual worktree patch transfer |
+| track delegated work | `sdt agent task start --role <role> --brief <goal> --plan <ref> --phase <phase>` | manual agent handoffs and status polling |
+| resume delegated work | `sdt agent task list` | manual task-state reconstruction |
+| coordinate delegated work | `sdt agent task message send|list <task-id>` | untracked agent handoffs |
+| apply accepted delegated changes | `sdt agent task apply preview|execute <task-id>` | manual worktree patch transfer |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
+| manage recipient profiles | `sdt material profile create|check <id> <revision>` | manual YAML |
+| export a syllabus ZIP | `sdt material package export <syllabus-id>` | manual ZIP |
+| material/asset privacy | `sdt material privacy set|asset` | manual edits |
+| manage source-linked briefs | `sdt material brief create|check|bind <material-id> <revision>` | manual YAML |
 
 ### HARD RULES (apply always)
 
-1. **Intent gate — declare the chain, then proceed.** Classify new work using
-   `plan.md`. Start standard or exploratory work with analysis and
-   lightweight work with one compact plan. Integrate into the current
-   objective. Answer trivial questions inline. Stop for commits, deletion,
-   spending, consequential decisions, acceptance of an analysis option,
-   or rule 4.
-2. **Immutable past docs** — touch a past analysis/plan only when the user points
-   to it; "integrate/modify" never means editing a past document unasked.
-   *Don't:* rewrite a past analysis so it agrees with the change you just made.
-3. **Temp files in `context/tmp/`** — all temp files go inside the project;
-   never write or execute temporary files outside it.
-   *Don't:* drop scratch files in `/tmp` or the repo root.
+1. **Intent gate — declare the chain, then proceed.** Classify work via
+   `plan.md`. Standard or exploratory work starts with analysis; lightweight
+   work gets one compact plan. Integrate into the current objective and answer
+   trivial questions inline. Stop for commits, deletion, spending, consequential
+   decisions, accepting an analysis option, or rule 4.
+2. **Immutable past docs** — touch past analyses/plans only when the user points
+   to them. "Integrate/modify" never authorizes editing them.
+3. **Temp files in `context/tmp/`** — never write or run them in `/tmp` or the
+   repo root.
 4. **Ask before touching AGENTS.md** — request the user's confirmation before
    creating or modifying AGENTS.md.
    *Don't:* "improve" the rules while doing an unrelated task.
-5. **Project block auto-fill** — fill only the missing or placeholder sections,
-   from project evidence (repo files, not guesses), after asking (rule 4).
-   *Don't:* write a plausible command you never read in a Taskfile/manifest.
+5. **Project block auto-fill** — after rule-4 approval, fill only missing or
+   placeholder sections from project evidence. Never guess commands absent from a
+   Taskfile or manifest.
 6. **Frontmatter + `summary`** — every work file under `context/` starts with
    YAML frontmatter (kind correct for the file type, mandatory `summary`); the
    index (`sdt context reindex`) and lint depend on it. Each per-type

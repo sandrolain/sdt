@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 func TestDocFileName(t *testing.T) {
@@ -41,6 +43,15 @@ func TestCollectLeafCommands(t *testing.T) {
 	}
 	if !names["context-task-add.md"] {
 		t.Error("expected context-task-add.md among leaves")
+	}
+}
+
+func TestCollectCommandTreeIncludesRunEOnlyCommands(t *testing.T) {
+	cmd := &cobra.Command{Use: "export", RunE: func(*cobra.Command, []string) error { return nil }}
+	var collected []leafCommand
+	collectCommandTree(cmd, "material package", &collected)
+	if len(collected) != 1 || collected[0].path != "material package export" {
+		t.Fatalf("collectCommandTree() = %+v, want RunE command material package export", collected)
 	}
 }
 

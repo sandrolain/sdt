@@ -27,8 +27,8 @@ func materialDeckFixture(t *testing.T, base, name, claims string) string {
 // their frontmatter: a leading `<!-- material: … -->`, then a blank line, then
 // a `---` the render cannot read as a frontmatter opener, so the theme and
 // paginate keys are slide text and no frontmatter opens the document. It is
-// reported render-broken instead of fresh, the row says why, and publishable
-// says no with it. The correctly-authored deck — the header comment, then the
+// reported render-broken instead of fresh, the row says why, and technical
+// usability reports the issue. The correctly-authored deck — the header comment, then the
 // `---` frontmatter, the shape every material deck in the corpus carries —
 // passes the check and stays fresh.
 func TestMaterialStatusDeckRenderBroken(t *testing.T) {
@@ -62,11 +62,8 @@ func TestMaterialStatusDeckRenderBroken(t *testing.T) {
 	if !strings.Contains(row.DeckDetail, "frontmatter") {
 		t.Errorf("the row does not say why: %+v", row)
 	}
-	if row.Publishable {
-		t.Errorf("a render-broken deck is not publishable: %+v", row)
-	}
-	if reason := publishableReason(row); !strings.Contains(reason, "deck render-broken") {
-		t.Errorf("publishableReason = %q, want the deck named", reason)
+	if row.Technical != "issues" || !strings.Contains(row.TechnicalDetail, "deck render-broken") {
+		t.Errorf("technical report = %+v, want the broken deck named", row)
 	}
 
 	// The same deck, correctly authored: the header comment, then the
@@ -118,7 +115,7 @@ func TestMaterialStatusDeckKeepsFreshnessSemantics(t *testing.T) {
 	if row.Deck != renderStale {
 		t.Errorf("deck = %q, want the lane's stale", row.Deck)
 	}
-	if !strings.Contains(publishableReason(row), "deck "+row.Deck) {
-		t.Errorf("publishableReason = %q, want the lane verdict named", publishableReason(row))
+	if !strings.Contains(row.TechnicalDetail, "deck "+row.Deck) {
+		t.Errorf("technical detail = %q, want the lane verdict named", row.TechnicalDetail)
 	}
 }

@@ -41,8 +41,11 @@ func TestMaterialStatusNoLedger(t *testing.T) {
 		t.Fatalf("expected one row, got %+v", rows)
 	}
 	row := rows[0]
-	if row.Freshness != renderFresh || row.Review != "not run" || row.Publishable {
-		t.Errorf("a fresh material with no ledger is unreviewed and not publishable, got %+v", row)
+	if row.Freshness != renderFresh || row.Review != "not run" || row.Distributability != "blocked" {
+		t.Errorf("currency, review and undeclared rights are reported independently, got %+v", row)
+	}
+	if row.Deck != renderMissing || row.Technical != "issues" || !strings.Contains(row.TechnicalDetail, "deck file is absent") {
+		t.Errorf("the guide-and-deck target reports a missing deck as a technical blocker, got %+v", row)
 	}
 	if !strings.Contains(row.Detail, "no ledger") {
 		t.Errorf("the missing ledger must be named, got %q", row.Detail)
@@ -52,7 +55,7 @@ func TestMaterialStatusNoLedger(t *testing.T) {
 func TestMaterialStatusNotRunLedger(t *testing.T) {
 	writeMaterialStatusFixture(t, "undeclared", `{"cycle":{"critic":"not run","reader":"not run"}}`)
 	row := runMaterialStatus(t)[0]
-	if row.Review != "not run" || row.Publishable {
+	if row.Review != "not run" {
 		t.Errorf("an explicit not-run ledger is still not run, got %+v", row)
 	}
 }
@@ -60,7 +63,7 @@ func TestMaterialStatusNotRunLedger(t *testing.T) {
 func TestMaterialStatusPendingLedger(t *testing.T) {
 	writeMaterialStatusFixture(t, "undeclared", `{"cycle":{"critic":"cold read","reader":"to run"}}`)
 	row := runMaterialStatus(t)[0]
-	if row.Review != "pending" || row.Publishable {
+	if row.Review != "pending" {
 		t.Errorf("a reader to run is pending, not passed, got %+v", row)
 	}
 }
@@ -71,22 +74,28 @@ func TestMaterialStatusRecordedButUndeclared(t *testing.T) {
 	if row.Review != "recorded" {
 		t.Fatalf("both cycle fields recorded is a recorded review, got %+v", row)
 	}
-	if row.Publishable {
-		t.Errorf("an undeclared classification blocks publishable, got %+v", row)
-	}
-	if reason := publishableReason(row); !strings.Contains(reason, "classification undeclared") {
-		t.Errorf("the reason must name the classification, got %q", reason)
+	if row.Distributability != "blocked" || !strings.Contains(row.DistributionDetail, "undeclared") {
+		t.Errorf("undeclared rights block distribution with a reason, got %+v", row)
 	}
 }
 
-func TestMaterialStatusPublishable(t *testing.T) {
+func TestMaterialStatusReportsIndependentDimensions(t *testing.T) {
 	writeMaterialStatusFixture(t, "public", `{"cycle":{"critic":"cold read","reader":"cold read, passes"}}`)
 	row := runMaterialStatus(t)[0]
-	if !row.Publishable || row.Review != "recorded" || row.Freshness != renderFresh {
-		t.Errorf("fresh + recorded + declared is publishable, got %+v", row)
+	if row.Review != "recorded" || row.Freshness != renderFresh || row.Technical != "issues" || row.Distributability != "not assessed" {
+		t.Errorf("the four dimensions are reported without an overall readiness claim, got %+v", row)
 	}
-	if reason := publishableReason(row); reason != "" {
-		t.Errorf("a publishable row carries no reason, got %q", reason)
+	encoded, err := json.Marshal(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "publishable") {
+		t.Errorf("status must not expose an unsupported overall verdict: %s", encoded)
+	}
+	for _, key := range []string{`"currency"`, `"review"`, `"technical"`, `"distributability"`} {
+		if !strings.Contains(string(encoded), key) {
+			t.Errorf("status omits readiness dimension %s: %s", key, encoded)
+		}
 	}
 }
 
@@ -123,8 +132,8 @@ func TestMaterialStatusDeckFresh(t *testing.T) {
 	digests := liveDigests(t, "architecture/alpha")
 	writeStatusDeck(t, digests["c-aaaaaaaa"])
 	row := runMaterialStatus(t)[0]
-	if row.Deck != renderFresh || !row.Publishable {
-		t.Errorf("a fresh guide and a fresh deck with a recorded review are publishable, got %+v", row)
+	if row.Deck != renderFresh || row.Technical != "source-check" {
+		t.Errorf("a fresh guide and deck pass the source checks, got %+v", row)
 	}
 }
 
@@ -132,10 +141,10 @@ func TestMaterialStatusDeckStale(t *testing.T) {
 	writeMaterialStatusFixture(t, "public", `{"cycle":{"critic":"cold read","reader":"cold read, passes"}}`)
 	writeStatusDeck(t, "000000000000")
 	row := runMaterialStatus(t)[0]
-	if row.Deck != renderStale || row.Publishable {
-		t.Errorf("a stale deck blocks publishable, got %+v", row)
+	if row.Deck != renderStale || row.Technical != "issues" {
+		t.Errorf("a stale deck is a technical issue, got %+v", row)
 	}
-	if reason := publishableReason(row); !strings.Contains(reason, "deck stale") {
-		t.Errorf("the reason must name the deck, got %q", reason)
+	if !strings.Contains(row.TechnicalDetail, "deck stale") {
+		t.Errorf("the technical reason must name the deck, got %q", row.TechnicalDetail)
 	}
 }

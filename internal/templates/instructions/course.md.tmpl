@@ -75,7 +75,16 @@ audience: "senior developers moving into an architect role"
 from_level: intermediate   # introductory | intermediate | advanced
 to_level: advanced
 outcome: "decide which measure drives a decision, and defend its reporting window"
+privacy: none              # none | personal | real
 ```
+
+Every syllabus, theme, lesson, assessment and practice note included in a portable package
+declares `privacy: none|personal|real` in its frontmatter. `personal` and `real` require
+`privacy_clearance: {status: cleared, basis: "short review basis"}`. No declaration is treated as
+unreviewed and blocks package export.
+Declare guide/deck privacy with `sdt material privacy set <material-id> <artifact> <value>`;
+declare a local asset with `sdt material privacy asset <context-relative-path> <value>`. Add
+`--basis` for `personal`/`real`.
 
 - **The level vocabulary is the page's.** `from_level` and `to_level` use the same
   three words as a lesson's `difficulty`, so the two never drift; an

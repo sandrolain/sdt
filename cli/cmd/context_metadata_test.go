@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -225,6 +226,25 @@ func TestExistingCompanionMatchesMappedFieldsAndPreservesReviewData(t *testing.T
 	decoded, _, err := metacomp.ReadTarget(root, target)
 	if err != nil || metadataString(metadataMap(decoded["review"])["reader"]) != "approved" {
 		t.Fatalf("companion review data changed: %#v, err %v", decoded, err)
+	}
+}
+
+func TestLegacyMaterialProjectionIgnoresNewCompanionFields(t *testing.T) {
+	legacy := map[string]any{
+		"concept": "architecture/sample", "syllabus": "syllabi/software-architect", "lang": "it",
+		"classification": "public", "claims": []any{map[string]any{"id": "c1", "digest": "d1"}},
+	}
+	companion := map[string]any{
+		"concept": "architecture/sample", "syllabus": "syllabi/software-architect", "lang": "it",
+		"classification": "public", "claims": []any{map[string]any{"id": "c1", "digest": "d1"}},
+		"privacy": "real", "privacy_clearance": map[string]any{"status": "cleared", "basis": "public example"},
+	}
+	if !reflect.DeepEqual(projectLegacyMaterialFields(legacy), projectLegacyMaterialFields(companion)) {
+		t.Fatal("new companion fields should not conflict with the legacy ledger projection")
+	}
+	companion["concept"] = "architecture/changed"
+	if reflect.DeepEqual(projectLegacyMaterialFields(legacy), projectLegacyMaterialFields(companion)) {
+		t.Fatal("mapped legacy field mismatch was ignored")
 	}
 }
 

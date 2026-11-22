@@ -37,6 +37,45 @@ func Digest(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// Create writes a new context-relative file once. The rooted filesystem API
+// prevents a symlink inside the project from redirecting creation outside it.
+func Create(projectRoot, relativePath string, content []byte, mode os.FileMode) error {
+	relativePath = filepath.Clean(filepath.FromSlash(relativePath))
+	if relativePath == "." || filepath.IsAbs(relativePath) || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("context create target %q must be project-relative", relativePath)
+	}
+	if mode&^0o777 != 0 {
+		return fmt.Errorf("context create mode %v is invalid", mode)
+	}
+	root, err := os.OpenRoot(projectRoot)
+	if err != nil {
+		return fmt.Errorf("open project root: %w", err)
+	}
+	defer root.Close() //nolint:errcheck // root cleanup after create
+	if err := root.MkdirAll(filepath.Dir(relativePath), 0o750); err != nil {
+		return fmt.Errorf("create context directory: %w", err)
+	}
+	file, err := root.OpenFile(relativePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		return fmt.Errorf("create context file %q: %w", relativePath, err)
+	}
+	if _, err := file.Write(content); err != nil {
+		_ = file.Close()              //nolint:errcheck // best-effort close after write failure
+		_ = root.Remove(relativePath) //nolint:errcheck // best-effort cleanup of partial file
+		return fmt.Errorf("write context file %q: %w", relativePath, err)
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()              //nolint:errcheck // best-effort close after sync failure
+		_ = root.Remove(relativePath) //nolint:errcheck // best-effort cleanup of partial file
+		return fmt.Errorf("sync context file %q: %w", relativePath, err)
+	}
+	if err := file.Close(); err != nil {
+		_ = root.Remove(relativePath) //nolint:errcheck // best-effort cleanup after close failure
+		return fmt.Errorf("close context file %q: %w", relativePath, err)
+	}
+	return nil
+}
+
 // Write replaces path only if its current bytes still match expected. A
 // project-local lock serializes participating writers; the temporary file is
 // created beside the target so rename stays on the same filesystem.

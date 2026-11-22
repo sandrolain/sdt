@@ -20,6 +20,10 @@ concept may have several notes.
   lessons is written once. There is no per-concept file.
 - **It is written at ingestion**, because that is where the source is read and the
   transformation is decided.
+- **Its frontmatter declares privacy** when it may travel in a package:
+  `privacy: none|personal|real`. `personal` and `real` require
+  `privacy_clearance: {status: cleared, basis: "short review basis"}`. An absent or incomplete
+  declaration blocks package export.
 - **It is not a copy.** The source's case is assimilated: the mechanism is preserved and at
   least two of names, numbers and setting change. `transformation:` names what changed and what
   was kept, and a case whose surface keeps everything but the wording is a paraphrase, not a

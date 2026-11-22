@@ -45,7 +45,7 @@ var cobraBuiltins = map[string]struct{}{"help": {}, "completion": {}}
 
 // collectCommandTree is the single walk of the command tree: it yields every
 // runnable command that the schema, the generated docs and any future surface
-// should agree on. Runnable means a `Run` function, **whether or not the command
+// should agree on. Runnable means a `Run` or `RunE` function, **whether or not the command
 // also has sub-commands**: `sdt b64 <text>` and `sdt doc2md <file>... [flags]` are
 // the primary forms of their commands, and a walk that required an empty
 // sub-command list described them nowhere. Hidden commands and cobra's built-ins
@@ -66,7 +66,7 @@ func collectCommandTree(c *cobra.Command, path string, out *[]leafCommand) {
 		full = path + " " + c.Name()
 	}
 	subs := c.Commands()
-	if c.Run != nil {
+	if c.Run != nil || c.RunE != nil {
 		*out = append(*out, leafCommand{path: full, c: c})
 	}
 	for _, sub := range subs {

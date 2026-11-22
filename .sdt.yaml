@@ -11,7 +11,7 @@ gate:
     run: 'sh scripts/verify-delivery.sh'
 instructions:
   profiles: [core, knowledge, ui, vector, slides, mindmap, diagram, browser, security, roles]
-  frontmatter: [maturity, warrant, evidence, verified, rigor, objectives, learning]
+  frontmatter: [maturity, warrant, evidence, verified, rigor, objectives, learning, privacy]
 
 agent:
   command: ["opencode", "acp"]

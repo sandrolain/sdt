@@ -15,38 +15,55 @@ owns the sequence.
 
 ## The brief
 
-You do not start from the wiki page. You start from a brief with six fields:
+You do not start from the wiki page. You start from an immutable, versioned brief with these
+fields:
 
-- **Reader**: who reads, and what they already know.
-- **Decision**: the concrete choice they must be able to make afterwards.
-- **Facts available**: the only source of content — the claims, in prose, without ids.
-- **Cases**: the scenes from the practice notes, with names and figures, used as given.
-- **Shape**: the section order, when it differs from the default.
-- **Measure**: the word range and any other limit.
+- **Reader**: either an exact recipient profile id and revision, or the material-specific
+  knowledge, terminology, register, examples and accessibility needs. A profile is optional for
+  an occasional brief.
+- **Outcome**: what the reader will be able to decide, explain or do after the material.
+- **Content scope**: the claims and objectives that belong in this material.
+- **Sources**: version-bound claims, objectives, lesson and reviewed cases. Record the claim
+  digest or source revision used; do not rely on a mutable path alone.
+- **Forms**: one or more forms chosen to serve the outcome.
+- **Length**: an explicit word range and any other material-specific limits.
+- **Overrides**: each profile override names its field, value and reason.
+- **Teaching examples**: each invented teaching example states what source mechanism it
+  preserves; label it explicitly rather than presenting its details as source facts.
+
+Store a profile revision as `context/learning/profiles/<profile-id>/<revision>.yaml` and a brief
+as `context/learning/briefs/<material-id>/<revision>.yaml`. A material id is its path under
+`context/renders/materials`, without `.md`. Create and validate them through
+`sdt material profile create|check` and `sdt material brief create|check`. Bind a completed guide
+with `sdt material brief bind <material-id> <revision>`; the exact binding lives in its
+`.meta.yaml` companion. A later brief revision never rewrites the one a material already cites.
+Briefs and review sidecars are authoring data and are excluded from reader packages. A referenced
+recipient profile may travel when it is needed to interpret the material and its rights allow the
+package target.
 
 You may also receive the existing guide. It is a source of facts and a trace, not a model to
 follow: when it contradicts the brief, the brief wins. If a field is missing or two fields
-contradict each other, ask one short question before writing.
+contradict each other, resolve the conflict before writing. A repeated source reference with two
+versions is a conflict, not a choice for the writer to guess.
 
 ## The shape
 
-Unless the brief says otherwise, a guide carries these parts, in this order.
+Choose the form from the outcome. Combine forms when the material needs more than one job; omit
+sections that do not support that outcome.
 
-1. **The decision.** A few lines in the second person that put the reader in front of a
-   concrete choice. No definitions, no list of facts; the facts come later, where they belong.
-2. **The concepts**, each with the point from which it is read or used, and — where the brief
-   asks — what it cannot see or cannot say.
-3. **A worked example**, with figures that add up.
-4. **The brief's case**, used to apply the concepts, not as an anecdote.
-5. **An exercise**: three numbered steps, in order, with a concrete result (a table, a line,
-   a justified choice).
-6. **The check**: one line after the exercise naming the evaluation bank of the page and its
-   items, two per objective; the key stays in the bank. It names items, never answers, and it
-   is generated from the bank, so a count that does not match the objectives leaves it out.
-7. **What it presupposes**: the pages, techniques or terms the reader must already know, and
-   where the guide sits in the course. It is not a maxim.
+- **Conceptual explanation** gives the mental model, mechanisms and boundaries needed to
+  understand the concept.
+- **Procedural guide** gives the ordered actions, branches and completion conditions needed to
+  carry out a task.
+- **Decision case** gives a concrete situation, evidence and constraints, then asks for a
+  consequential choice.
+- **Operational reference** gives the compact definitions, signals and actions needed at the
+  point of work.
 
-Never state what the page lacks, and never name a successor that has no material.
+Use a worked example, a case, a retrieval prompt or an exercise only when it advances the stated
+outcome. A short recall prompt is purposeful when retrieval supports later application or
+retention; it is not a required section or a substitute for transfer. Never state what the page
+lacks, and never name a successor that has no material.
 
 ## Style
 
@@ -59,12 +76,6 @@ Never state what the page lacks, and never name a successor that has no material
   the same section. Never alone, before the case.
 - Every section answers a question the reader is actually asking, and its title says so.
 - Use the cases' names and figures exactly as given.
-
-For tone, not content:
-
-> Lunedì il titolare del negozio ti chiede perché gli incassi di ottobre sono scesi. Hai
-> l'elenco degli scontrini e un'ora di tempo. Devi scegliere che cosa guardare e che cosa dire.
-> Non devi imparare tutti gli indicatori: sono la materia prima da cui scegli.
 
 ## Facts
 
@@ -95,6 +106,11 @@ invented: the source's dashboard is its own system, and a guide that borrows its
 teaches the reader nothing about theirs. Cite the figure to the span that carries it; shape
 defers to `instructions/diagram.md` when the project has one.
 
+An image or screenshot must do a task-essential explanatory job. Before inclusion, verify its
+rights, privacy, provenance and standalone availability; provide an accessible description that
+states the information the image conveys. Do not include an original source figure or a decorative
+image. If the image or its description cannot travel with the package, record the blocker.
+
 ## The binder
 
 The text is written without markers. After the draft, a binder pass:
@@ -113,6 +129,10 @@ the result. The canonical `<guide-complete-filename>.meta.yaml` companion binds 
 and deck bytes and keeps per-artifact claims plus review provenance; legacy `.ledger.json`
 files remain as migration inputs and are not deleted automatically.
 
+Declare `privacy: none|personal|real` on artifacts and source assets; assets use
+`<filename>.meta.yaml`. Set it with `sdt material privacy set|asset`. `personal`/`real` need
+`--basis`; diagrams inherit privacy. Missing values block export.
+
 ## Checks before delivery
 
 - Recompute every arithmetic operation and every reading of a percentage in words: 2 out of 36
@@ -123,9 +143,9 @@ files remain as migration inputs and are not deleted automatically.
 - Check that every foreign term is glossed at first use.
 - Check that no marker, HTML comment or LaTeX is left in the draft — the binder adds the first.
 - Check that every fact appears in the brief; if not, remove it or flag it.
-- Check that the presupposition names prerequisites, not a maxim.
-- Check that every item id in the check line exists in the page's assessment, and that the
-  two-per-objective count still holds.
+- Check that every selected source binding still resolves to the version named by the brief.
+- Check that a retrieval prompt or exercise serves the outcome and does not reveal its answer.
+- Check that required assets and their accessible descriptions resolve from the exported package.
 
 Deliver the files, then three things: the final lengths, the errors corrected in the existing
 version, and the places where you interpreted the facts beyond the brief, so the reviewer
@@ -133,11 +153,5 @@ knows where to look.
 
 ## The references
 
-Two chosen passages are the register the material imitates; read one before drafting and
-match its shape, never its content. The project declares its own two, recorded beside this
-module by whoever owns the corpus: one **transformed analogy** — the mechanism preserved, the
-surface new, the transformation declared — and one **decisional case** — a situation that
-forces a choice, the evidence to gather before committing, the commitment it licenses. The
-counterexample, when one exists, is recorded beside them.
-
-A draft that reads unlike either is a register defect the critique pass names.
+Use the project's transformed analogy and decisional case as tone references, never as sources.
+Match their shape; critique names any register mismatch.

@@ -84,8 +84,8 @@ func TestMaterialReviewMakesStatusRecorded(t *testing.T) {
 	if rows[0].Review != "recorded" {
 		t.Errorf("a recorded verdict is reported as recorded, got %+v", rows[0])
 	}
-	if !rows[0].Publishable {
-		t.Errorf("fresh + recorded + declared classification is publishable, got %+v", rows[0])
+	if rows[0].Review != "recorded" || rows[0].Distributability != "not assessed" {
+		t.Errorf("the recorded review is reported independently from package readiness, got %+v", rows[0])
 	}
 }
 

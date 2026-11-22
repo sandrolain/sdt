@@ -43,6 +43,8 @@ var frontmatterFamilyRegister = []frontmatterFamily{
 		Keys: []string{ctxFrontmatterObjective}},
 	{Slug: "learning", Title: "Lesson learning metadata", Summary: "the objectives, difficulty and review time carried by a lesson",
 		Keys: []string{ctxLearningObjectives, ctxLearningDifficulty, ctxLearningMinutes}},
+	{Slug: ctxFrontmatterPrivacy, Title: "Privacy declaration", Summary: "whether a resource contains no, personal or real-world data and its clearance basis",
+		Keys: []string{ctxFrontmatterPrivacy, "privacy_clearance"}},
 }
 
 // frontmatterFamilyBySlug resolves a slug against the register.

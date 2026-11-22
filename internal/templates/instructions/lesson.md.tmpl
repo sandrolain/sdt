@@ -26,7 +26,12 @@ only.
     - "calculate a metric over its reporting window"
   difficulty: intermediate   # introductory | intermediate | advanced
   minutes: 12                # 5-60, the review time
+  privacy: none              # none | personal | real
   ```
+
+  Every lesson and assessment declares `privacy: none|personal|real`. For `personal` or `real`,
+  add `privacy_clearance: {status: cleared, basis: "short review basis"}`. A package refuses
+  an undeclared value or a sensitive value without clearance; it never assumes `none`.
 
   Items point to objectives by 1-based index; preserve their order.
 - **Create with `context new --type lesson`.** It writes `kind`, `uid`, `id`,

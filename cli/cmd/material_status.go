@@ -12,24 +12,27 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/spf13/cobra"
+
+	"github.com/sandrolain/sdt/internal/contextwiki"
 )
 
-// The delivery boundary has three independent states: freshness says the
-// derivation still matches its page, review says the ledger records a critic and
-// a reader, and publishable says both hold and the rights position is declared.
-// A fresh material is not a reviewed one, and an unrun review is never "passed".
+// Material status reports evidence by dimension. It deliberately has no overall
+// readiness verdict: a material can be current and reviewed while its package
+// has not been built or checked for a destination.
 
 var materialStatusCmd = &cobra.Command{
 	Use:   "status [<concept>]",
-	Short: "Report freshness, review and publishability",
-	Long: `Report the three states of each guide, one row per concept and language.
+	Short: "Report material readiness dimensions",
+	Long: `Report currency, content review, technical usability and distributability
+for each guide, one row per concept and language.
 
-Freshness is the render lane's verdict (fresh/stale/missing/orphan). Review comes
-from the ledger beside the guide: materialReviewNotRun when the critic or the reader is
-empty or says so, "pending" when one says "to run", materialReviewRecorded otherwise — the
-raw text is carried, never rewritten into "passed". Publishable requires all
-three: fresh, a recorded review, and a classification that is not "undeclared".
-Exit 0: a status is a report, not a gate.`,
+Currency is the render lane's freshness verdict. Review comes from the guide's
+review record. Technical status reports source-level findings and whether a
+deck is present, current and renderable. This status targets the guide and its
+deck. Distributability reports the declared rights
+classification, but does not claim a package is ready: run
+"sdt material package export" to build and validate the destination package.
+There is no overall ready/publishable verdict. Exit 0: this is a report, not a gate.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		concept := ""
@@ -52,13 +55,22 @@ Exit 0: a status is a report, not a gate.`,
 			outputBytes(cmd, data)
 		default:
 			for _, row := range rows {
-				line := fmt.Sprintf("%s  %s  %s  %s", row.Concept, row.Lang, row.Syllabus, row.Freshness)
+				line := fmt.Sprintf("%s  %s  %s  currency: %s", row.Concept, row.Lang, row.Syllabus, row.Freshness)
+				if row.CurrencyDetail != "" {
+					line += " (" + row.CurrencyDetail + ")"
+				}
 				if row.Deck != "" {
 					line += "  deck: " + row.Deck
 				}
-				line += fmt.Sprintf("  review: %s  publishable: %s", row.Review, yesNo(row.Publishable))
-				if reason := publishableReason(row); reason != "" {
-					line += " — " + reason
+				line += fmt.Sprintf("  review: %s  technical: %s  distribution: %s", row.Review, row.Technical, row.Distributability)
+				if row.Detail != "" {
+					line += " — review detail: " + row.Detail
+				}
+				if row.TechnicalDetail != "" {
+					line += " — technical detail: " + row.TechnicalDetail
+				}
+				if row.DistributionDetail != "" {
+					line += " — distribution detail: " + row.DistributionDetail
 				}
 				outputString(cmd, line+"\n")
 			}
@@ -80,50 +92,21 @@ type materialLedger struct {
 }
 
 type materialStatusRow struct {
-	Concept        string `json:"concept" yaml:"concept"`
-	Syllabus       string `json:"syllabus" yaml:"syllabus"`
-	Lang           string `json:"lang" yaml:"lang"`
-	Freshness      string `json:"freshness" yaml:"freshness"`
-	Deck           string `json:"deck,omitempty" yaml:"deck,omitempty"`
-	DeckDetail     string `json:"deck_detail,omitempty" yaml:"deck_detail,omitempty"`
-	Review         string `json:"review" yaml:"review"`
-	Publishable    bool   `json:"publishable" yaml:"publishable"`
-	Classification string `json:"classification" yaml:"classification"`
-	Ledger         string `json:"ledger,omitempty" yaml:"ledger,omitempty"`
-	Detail         string `json:"detail,omitempty" yaml:"detail,omitempty"`
-}
-
-func yesNo(v bool) string {
-	if v {
-		return "yes"
-	}
-	return "no"
-}
-
-// publishableReason names the first unmet gate, so a reader can tell an
-// unreviewed material from one whose rights are undeclared.
-func publishableReason(row materialStatusRow) string {
-	if row.Publishable {
-		return ""
-	}
-	var reasons []string
-	if row.Freshness != renderFresh {
-		reasons = append(reasons, "freshness "+row.Freshness)
-	}
-	if row.Deck != "" && row.Deck != renderFresh {
-		if row.DeckDetail != "" {
-			reasons = append(reasons, "deck "+row.Deck+" ("+row.DeckDetail+")")
-		} else {
-			reasons = append(reasons, "deck "+row.Deck)
-		}
-	}
-	if row.Review != materialReviewRecorded {
-		reasons = append(reasons, "review "+row.Review)
-	}
-	if row.Classification == "" || row.Classification == "undeclared" {
-		reasons = append(reasons, "classification undeclared")
-	}
-	return strings.Join(reasons, "; ")
+	Concept            string `json:"concept" yaml:"concept"`
+	Syllabus           string `json:"syllabus" yaml:"syllabus"`
+	Lang               string `json:"lang" yaml:"lang"`
+	Freshness          string `json:"currency" yaml:"currency"`
+	CurrencyDetail     string `json:"currency_detail,omitempty" yaml:"currency_detail,omitempty"`
+	Deck               string `json:"deck,omitempty" yaml:"deck,omitempty"`
+	DeckDetail         string `json:"deck_detail,omitempty" yaml:"deck_detail,omitempty"`
+	Review             string `json:"review" yaml:"review"`
+	Classification     string `json:"classification" yaml:"classification"`
+	Technical          string `json:"technical" yaml:"technical"`
+	Distributability   string `json:"distributability" yaml:"distributability"`
+	TechnicalDetail    string `json:"technical_detail,omitempty" yaml:"technical_detail,omitempty"`
+	DistributionDetail string `json:"distribution_detail,omitempty" yaml:"distribution_detail,omitempty"`
+	Ledger             string `json:"ledger,omitempty" yaml:"ledger,omitempty"`
+	Detail             string `json:"detail,omitempty" yaml:"detail,omitempty"`
 }
 
 func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, error) {
@@ -144,15 +127,17 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 		return nil, err
 	}
 	freshness := map[string]string{}
+	currencyDetails := map[string]string{}
 	for _, row := range report {
 		freshness[filepath.ToSlash(row.Path)] = row.Status
+		currencyDetails[filepath.ToSlash(row.Path)] = row.Detail
 	}
 
 	concept = strings.TrimPrefix(concept, "wiki/")
 	syllabus = strings.TrimPrefix(syllabus, "syllabi/")
 	rows := make([]materialStatusRow, 0, len(files))
 	for _, file := range files {
-		if row, ok := materialStatusRowFor(file, root, concept, syllabus, lang, freshness); ok {
+		if row, ok := materialStatusRowFor(file, root, concept, syllabus, lang, freshness, currencyDetails, builder); ok {
 			rows = append(rows, row)
 		}
 	}
@@ -168,10 +153,8 @@ func materialStatusRows(concept, syllabus, lang string) ([]materialStatusRow, er
 	return rows, nil
 }
 
-func materialStatusRowFor(file materialFile, root, concept, syllabus, lang string, freshness map[string]string) (materialStatusRow, bool) {
-	if concept != "" && file.Header.Concept != concept ||
-		syllabus != "" && strings.TrimPrefix(file.Header.Syllabus, "syllabi/") != syllabus ||
-		lang != "" && file.Header.Lang != lang {
+func materialStatusRowFor(file materialFile, root, concept, syllabus, lang string, freshness, currencyDetails map[string]string, wiki *contextwiki.Builder) (materialStatusRow, bool) {
+	if !materialStatusMatches(file, concept, syllabus, lang) {
 		return materialStatusRow{}, false
 	}
 	rel, relErr := filepath.Rel(root, file.Path)
@@ -182,31 +165,103 @@ func materialStatusRowFor(file materialFile, root, concept, syllabus, lang strin
 	if status == "" {
 		status = learnProvenanceUnknown
 	}
-	deckRel := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt) + ".slide" + sdtMarkdownExt)
-	deckStatus, deckDetail := deckFreshnessOf(root, deckRel, freshness[deckRel])
 	ledgerPath := strings.TrimSuffix(file.Path, sdtMarkdownExt) + ".ledger.json"
 	metadataPath := materialMetadataPathOf(file.Path)
-	var review, detail string
-	var found bool
 	if file.Metadata != nil {
-		review, detail, found = materialMetadataReviewState(file.Metadata)
 		ledgerPath = metadataPath
-	} else {
-		review, detail, found = materialReviewState(ledgerPath)
 	}
+	review, detail, found := materialStatusReview(file, ledgerPath)
 	row := materialStatusRow{
 		Concept: file.Header.Concept, Syllabus: strings.TrimPrefix(file.Header.Syllabus, "syllabi/"),
-		Lang: file.Header.Lang, Freshness: status, Deck: deckStatus, DeckDetail: deckDetail,
+		Lang: file.Header.Lang, Freshness: status, CurrencyDetail: currencyDetails[filepath.ToSlash(rel)],
 		Review: review, Classification: file.Header.Classification, Detail: detail,
 	}
+	fillMaterialTechnical(&row, file.Path, wiki)
+	fillMaterialDistribution(&row)
 	if found {
 		if ledgerRel, err := filepath.Rel(root, ledgerPath); err == nil {
 			row.Ledger = filepath.ToSlash(ledgerRel)
 		}
 	}
-	row.Publishable = status == renderFresh && (deckStatus == "" || deckStatus == renderFresh) &&
-		review == materialReviewRecorded && file.Header.Classification != "" && file.Header.Classification != "undeclared"
+	deckRel := filepath.ToSlash(strings.TrimSuffix(rel, sdtMarkdownExt) + ".slide" + sdtMarkdownExt)
+	row.Deck, row.DeckDetail = materialStatusDeck(root, deckRel, freshness)
+	fillMaterialDeckTechnical(&row)
 	return row, true
+}
+
+func materialStatusMatches(file materialFile, concept, syllabus, lang string) bool {
+	return (concept == "" || file.Header.Concept == concept) &&
+		(syllabus == "" || strings.TrimPrefix(file.Header.Syllabus, "syllabi/") == syllabus) &&
+		(lang == "" || file.Header.Lang == lang)
+}
+
+func materialStatusReview(file materialFile, ledgerPath string) (string, string, bool) {
+	if file.Metadata != nil {
+		return materialMetadataReviewState(file.Metadata)
+	}
+	return materialReviewState(ledgerPath)
+}
+
+func materialStatusDeck(root, deckRel string, freshness map[string]string) (string, string) {
+	laneStatus := freshness[deckRel]
+	status, detail := deckFreshnessOf(root, deckRel, laneStatus)
+	if laneStatus != "" {
+		return status, detail
+	}
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(deckRel))); os.IsNotExist(err) {
+		return renderMissing, "deck file is absent"
+	}
+	return learnProvenanceUnknown, "deck is not present in the freshness report"
+}
+
+func fillMaterialTechnical(row *materialStatusRow, path string, wiki *contextwiki.Builder) {
+	row.Technical = "source-check"
+	content, err := os.ReadFile(path) //#nosec G304 -- path came from loadMaterialFiles walking the material lane
+	if err != nil {
+		row.Technical = learnProvenanceUnknown
+		row.TechnicalDetail = "could not read guide: " + err.Error()
+		return
+	}
+	clean, _ := cleanMaterialText(string(content), wiki)
+	findings := checkMaterialContents(path, clean, wiki)
+	if len(findings) == 0 {
+		row.TechnicalDetail = "source checks passed; package link, asset and consumer rendering validation not run"
+		return
+	}
+	row.Technical = "issues"
+	messages := make([]string, 0, len(findings))
+	for _, finding := range findings {
+		messages = append(messages, finding.Message)
+	}
+	row.TechnicalDetail = strings.Join(messages, "; ")
+}
+
+func fillMaterialDistribution(row *materialStatusRow) {
+	row.Distributability = "not assessed"
+	if row.Classification == "" || row.Classification == "undeclared" {
+		row.Distributability = "blocked"
+		row.DistributionDetail = "rights classification undeclared"
+		return
+	}
+	row.DistributionDetail = "declared classification does not prove destination compatibility; package export evaluates rights and validates the ZIP"
+}
+
+func fillMaterialDeckTechnical(row *materialStatusRow) {
+	if row.Deck == renderFresh {
+		if row.Technical == "source-check" {
+			row.TechnicalDetail = "source checks passed; deck is fresh; package link, asset and consumer rendering validation not run"
+		}
+		return
+	}
+	row.Technical = "issues"
+	reason := "deck " + row.Deck
+	if row.DeckDetail != "" {
+		reason += ": " + row.DeckDetail
+	}
+	if row.TechnicalDetail != "" {
+		row.TechnicalDetail += "; "
+	}
+	row.TechnicalDetail += reason
 }
 
 func materialMetadataReviewState(doc map[string]any) (state, detail string, found bool) {

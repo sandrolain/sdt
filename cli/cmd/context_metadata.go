@@ -14,10 +14,12 @@ import (
 )
 
 const (
-	metadataLangKey   = "lang"
-	metadataClaimsKey = "claims"
-	metadataFilesKey  = "files"
-	metadataRoleKey   = "role"
+	metadataLangKey       = "lang"
+	metadataClaimsKey     = "claims"
+	metadataFilesKey      = "files"
+	metadataRoleKey       = "role"
+	materialArtifactGuide = "guide"
+	materialArtifactDeck  = "slide_deck"
 )
 
 var contextMetadataCmd = &cobra.Command{Use: "metadata", Short: "Validate and migrate metadata companions"}
@@ -205,9 +207,9 @@ func materialLedgerMigration(root, legacyPath string) (metadataMigration, error)
 		return metadataMigration{}, err
 	}
 	material := map[string]any{
-		"concept": header.Concept, ctxTypeSyllabus: header.Syllabus, metadataLangKey: header.Lang,
+		ctxFrontmatterConcept: header.Concept, ctxTypeSyllabus: header.Syllabus, metadataLangKey: header.Lang,
 		"classification": header.Classification,
-		"artifacts":      map[string]any{"guide": map[string]any{metadataClaimsKey: headerClaims(header)}},
+		"artifacts":      map[string]any{materialArtifactGuide: map[string]any{metadataClaimsKey: headerClaims(header)}},
 	}
 	for _, key := range []string{metadataClaimsKey, metadataFilesKey, ctxTypeLesson} {
 		if value, ok := legacy[key]; ok {
@@ -236,7 +238,7 @@ func materialLedgerMigration(root, legacyPath string) (metadataMigration, error)
 		if !ok {
 			return metadataMigration{}, fmt.Errorf("material artifact map could not be built")
 		}
-		artifacts["slide_deck"] = map[string]any{metadataClaimsKey: headerClaims(deckHeader)}
+		artifacts[materialArtifactDeck] = map[string]any{metadataClaimsKey: headerClaims(deckHeader)}
 		deckRel, relErr := filepath.Rel(root, deckPath)
 		if relErr != nil {
 			return metadataMigration{}, relErr
@@ -245,7 +247,7 @@ func materialLedgerMigration(root, legacyPath string) (metadataMigration, error)
 			return metadataMigration{}, fmt.Errorf("ledger %s file list: %w", corpusRelative(legacyPath), err)
 		}
 		doc["related_artifacts"] = []any{map[string]any{
-			metadataRoleKey: "slide_deck", ctxMapPath: filepath.ToSlash(deckRel), ctxSourceSheetSHA256: metacomp.Digest(deckBytes),
+			metadataRoleKey: materialArtifactDeck, ctxMapPath: filepath.ToSlash(deckRel), ctxSourceSheetSHA256: metacomp.Digest(deckBytes),
 		}}
 	} else if !os.IsNotExist(readErr) {
 		return metadataMigration{}, readErr
@@ -339,8 +341,11 @@ func metadataMigrationPlanFor(root, destination, legacyPath string, proposed []b
 
 func metadataAuthoritativeFieldsMatch(existing, proposed metacomp.Document) (bool, error) {
 	fields := map[string]any{}
-	for _, key := range []string{"schema_version", "target", "material", "source_archive"} {
+	for _, key := range []string{"schema_version", "target", materialLane, "source_archive"} {
 		if value, ok := proposed[key]; ok {
+			if key == materialLane {
+				value = projectLegacyMaterialFields(metadataMap(value))
+			}
 			fields[key] = value
 		}
 	}
@@ -351,6 +356,9 @@ func metadataAuthoritativeFieldsMatch(existing, proposed metacomp.Document) (boo
 	actualFields := map[string]any{}
 	for key := range fields {
 		if value, ok := existing[key]; ok {
+			if key == materialLane {
+				value = projectLegacyMaterialFields(metadataMap(value))
+			}
 			actualFields[key] = value
 		}
 	}
@@ -359,6 +367,33 @@ func metadataAuthoritativeFieldsMatch(existing, proposed metacomp.Document) (boo
 		return false, err
 	}
 	return string(actual) == string(want), nil
+}
+
+// projectLegacyMaterialFields compares only fields representable by a legacy
+// ledger. New companion fields (for example privacy declarations and review
+// provenance) remain authoritative in the companion without making the
+// retained ledger appear corrupt.
+func projectLegacyMaterialFields(material map[string]any) map[string]any {
+	projected := map[string]any{}
+	for _, key := range []string{"concept", ctxTypeSyllabus, metadataLangKey, "classification", metadataClaimsKey, metadataFilesKey, ctxTypeLesson} {
+		if value, ok := material[key]; ok {
+			projected[key] = value
+		}
+	}
+	if artifacts := metadataMap(material["artifacts"]); artifacts != nil {
+		projectedArtifacts := map[string]any{}
+		for _, name := range []string{materialArtifactGuide, materialArtifactDeck} {
+			if artifact := metadataMap(artifacts[name]); artifact != nil {
+				if claims, ok := artifact[metadataClaimsKey]; ok {
+					projectedArtifacts[name] = map[string]any{metadataClaimsKey: claims}
+				}
+			}
+		}
+		if len(projectedArtifacts) > 0 {
+			projected["artifacts"] = projectedArtifacts
+		}
+	}
+	return projected
 }
 
 func materialLedgerMatchesHeader(ledger map[string]any, header materialHeader) error {

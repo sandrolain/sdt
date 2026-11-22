@@ -92,6 +92,7 @@ const (
 	// objectives, difficulty and review time, the page's half of the teaching
 	// pair whose other half is the lesson document.
 	ctxFrontmatterLearning = "learning"
+	ctxFrontmatterPrivacy  = "privacy"
 	// ctxFrontmatterConcept is the key a lesson uses to name the page it teaches.
 	ctxFrontmatterConcept  = "concept"
 	ctxMaturitySuperseded  = "superseded"
@@ -248,7 +249,7 @@ func lintFrontmatterReferences(path, content string, prio func(string) string) [
 	for _, field := range ctxReferenceFields {
 		for _, ref := range parseFrontmatterList(content, field) {
 			// `links: none` is the explicit "no relation" opt-out, not a path.
-			if field == ctxFrontmatterLinks && strings.TrimSpace(ref) == "none" {
+			if field == ctxFrontmatterLinks && strings.TrimSpace(ref) == privacyNone {
 				continue
 			}
 			if _, ok := ctxResolvePath(sdtWorkDir, ref); ok {
@@ -439,7 +440,7 @@ func lintRFCAndPromptContract(path, content, kind string, prio func(string) stri
 	if kind != ctxTypeProposal && kind != ctxTypePrompt {
 		return issues
 	}
-	for _, field := range []string{"title", ctxMapStatus, ctxFrontmatterCreated, statusUpdated} {
+	for _, field := range []string{ctxDocTitleKey, ctxMapStatus, ctxFrontmatterCreated, statusUpdated} {
 		if parseFrontmatterField(content, field) == "" {
 			issues = append(issues, ctxLintIssue{Path: path, Priority: prio(ctxLintCritical), Message: "frontmatter missing mandatory `" + field + "`"})
 		}
@@ -2166,6 +2167,9 @@ func lintOptionalFrontmatterFamilies(path, content, kind string, prio func(strin
 	if families["learning"] {
 		// A concept page's objectives block: absent is normal, present is checked.
 		issues = append(issues, lintLearningBlock(path, content, kind)...)
+	}
+	if families[ctxFrontmatterPrivacy] {
+		issues = append(issues, lintPrivacyDeclaration(path, content)...)
 	}
 	return issues
 }

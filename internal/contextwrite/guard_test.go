@@ -8,6 +8,48 @@ import (
 	"testing"
 )
 
+func TestCreateWritesOnlyNewRootedRelativeFiles(t *testing.T) {
+	root := t.TempDir()
+	if err := Create(root, "context/invalid-mode", []byte("x"), 0o1000); err == nil {
+		t.Fatal("Create accepted mode bits outside the permission mask")
+	}
+	if err := Create(root, "context/learning/profiles/a/1.yaml", []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "context", "learning", "profiles", "a", "1.yaml")
+	if data, err := os.ReadFile(path); err != nil || string(data) != "version: 1\n" {
+		t.Fatalf("created file = %q, %v", data, err)
+	}
+	if err := Create(root, "context/learning/profiles/a/1.yaml", []byte("version: 2\n"), 0o644); err == nil {
+		t.Fatal("Create overwrote an existing version")
+	}
+	for _, target := range []string{"../outside", "/absolute", ".."} {
+		if err := Create(root, target, []byte("x"), 0o644); err == nil {
+			t.Errorf("Create accepted unsafe path %q", target)
+		}
+	}
+	if err := Create(filepath.Join(root, "missing-root"), "context/file", []byte("x"), 0o600); err == nil {
+		t.Fatal("Create accepted a missing project root")
+	}
+}
+
+func TestCreateRefusesSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "context", "learning"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "context", "learning", "profiles")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	if err := Create(root, "context/learning/profiles/a/1.yaml", []byte("private\n"), 0o644); err == nil {
+		t.Fatal("Create wrote through a symlink outside the project")
+	}
+	if entries, err := os.ReadDir(outside); err != nil || len(entries) != 0 {
+		t.Fatalf("outside directory entries = %v, %v", entries, err)
+	}
+}
+
 func TestWriteReplacesOnlyExpectedRevision(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "context", "wiki", "page.md")

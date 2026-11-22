@@ -543,9 +543,9 @@ func boundedTaskStatus(task delegation.Task) taskStatusSummary {
 	view.NextAction = principalNextAction(task)
 	view.WorkerHealth = "unrecorded"
 	if task.Worker != nil {
-		view.WorkerHealth = "unknown"
+		view.WorkerHealth = learnProvenanceUnknown
 	}
-	view.ProviderQuota = "unknown"
+	view.ProviderQuota = learnProvenanceUnknown
 	var limits struct {
 		MaxAttempts int `json:"max_attempts"`
 	}
@@ -1416,7 +1416,7 @@ func runAgentTaskPermissionResolveBatch(cmd *cobra.Command, args []string) error
 		fmt.Fprintf(&message, "- %q: %q / %q / %q → %q (%q)\n", summary.RequestID, summary.Capability, summary.Operation, summary.Scope, summary.OptionName, summary.OptionID)
 	}
 	return outputAction(cmd, message.String(), map[string]any{
-		delegationFieldTaskID: args[0], "status": resolved.Status, "resolved_count": len(summaries), "decisions": summaries,
+		delegationFieldTaskID: args[0], ctxMapStatus: resolved.Status, "resolved_count": len(summaries), "decisions": summaries,
 	})
 }
 
