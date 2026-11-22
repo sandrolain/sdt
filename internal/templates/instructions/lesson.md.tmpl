@@ -4,12 +4,10 @@ title: "Lesson and assessment — the teaching composition and the item bank ove
 summary: "A lesson carries the worked example and the curricular order for one wiki concept; its assessment carries the frozen items. Neither is a second copy of the page."
 ---
 
-`context/learning/<concept-id>.md` is the **lesson** for one wiki concept: the
-composition that turns a page into something teachable. `context/learning/<concept-id>.assessment.md`
-is the **assessment** beside it: the item bank, with the key kept out of the page
-that is served to the learner. Both are documents, not a runtime — `sdt learn
-lesson <concept>` composes the lesson and `sdt learn record` is the only writer of
-what a learner demonstrated.
+`context/learning/<concept-id>.md` is the **lesson** for one wiki concept;
+`context/learning/<concept-id>.assessment.md` is its item bank. Both are
+documents, not a runtime: `sdt learn lesson` composes the lesson and
+`sdt learn record` alone writes learner evidence. Keep the key out of learner views.
 
 Read it with `instructions/wiki.md` (the page it teaches) and
 `instructions/learning.md` (how a session runs). This module covers the artefact
@@ -17,10 +15,8 @@ only.
 
 ## What a lesson is
 
-- **One concept, one lesson, the same id.** The lesson id equals the wiki page id
-  (`context/learning/architecture/four-key-metrics.md` teaches
-  `wiki/architecture/four-key-metrics`), and its `concept` field repeats it so a
-  lesson read alone names its page.
+- **One concept, one lesson, the same id.** Its `id` and `concept` equal the wiki
+  page id (for example, `architecture/four-key-metrics`).
 - **The wiki owns pure concept knowledge.** Objectives, difficulty and pacing
   live in the lesson frontmatter:
 
@@ -32,14 +28,10 @@ only.
   minutes: 12                # 5-60, the review time
   ```
 
-  An assessment item points at one by its 1-based index, so `objective: 2` means
-  the second entry above. Preserve this order when editing objectives.
-- **The lesson's own frontmatter is written by `context new --type lesson`**:
-  `kind: lesson`, `uid`, `id` (equal to the concept id), `concept` (the same id,
-  repeated so the file names its page), `summary`, `status`, the timestamps,
-  `project`, and `links`/`sources` pointing at `wiki/<concept-id>.md`. The
-  lesson's `status` is its own lifecycle, not a teaching verdict: `sdt learn
-  check` judges the page.
+  Items point to objectives by 1-based index; preserve their order.
+- **Create with `context new --type lesson`.** It writes `kind`, `uid`, `id`,
+  `concept`, `summary`, `status`, timestamps, `project` and wiki links/sources.
+  Lesson status is lifecycle; `sdt learn check` judges teachability.
 - **A lesson is not a page.** No claim is introduced here. Every item names the
   claim it rests on (`<page-id>#claim-N`) and every example names the span it was
   re-expressed from.
@@ -48,32 +40,22 @@ only.
 
 `## Prerequisites` · `## Worked example` · `## Transfer`
 
-- **Prerequisites** — the curricular order, written as what to learn first and
-  why. This is not `relations.depends_on`, which is logical dependency; a lesson
-  states what a learner needs before this one.
-- **Worked example** — one example, carried through to its answer, with its
-  provenance in `source_span` (`refs/<file>@<sha>:<start>-<end>`: the sha pins the
-  converted refs file, and the numbers are **line** offsets in it). Re-express the
-  example in our words and cite the span; do not paste the source. This is the one
-  place where numbers, thresholds and arithmetic the page deliberately omits are
-  allowed, because they are the lesson's subject. **Cite and re-express is the
-  rule**: one single clause may be quoted verbatim where the exact wording carries
-  the meaning (a definition, a threshold), marked as a quote with the same span;
-  everything longer is re-expressed. The decision is the user's (2026-10-28).
-- **Transfer** — one case the learner has not seen, posed without its solution. The
-  lesson carries no item table: the items live in the assessment document below,
-  so the page a learner is shown never carries the key.
+- **Prerequisites** — what to learn first and why. This curricular order differs
+  from logical `relations.depends_on`.
+- **Worked example** — one solved example with `source_span` in
+  `refs/<file>@<sha>:<start>-<end>` (line offsets). Cite and re-express; do not
+  paste the source. Numbers omitted from the page may appear here. Quote only one
+  short clause when exact wording matters, with its span (user decision,
+  2026-10-28).
+- **Transfer** — one unseen case without its solution. Items and keys stay in the
+  assessment, not the learner-facing page.
 
 ## The assessment document
 
-`context/learning/<concept-id>.assessment.md` holds the **item bank** of one
-concept, beside its lesson: `kind: assessment`, `id: <concept-id>.assessment`,
-`concept: <concept-id>`, then `title`, `summary`, `status` (`draft` · `active` ·
-`archived`), the timestamps, `project` and `links`/`sources` at
-`wiki/<concept-id>.md` — what `sdt context new --type assessment --slug <concept-id>`
-writes. It may exist with no lesson — a page quizzed before it is taught:
-`learn quiz`, `learn answer` and `learn record` read it either way, while
-`sdt learn check` keeps a lesson among its six rules.
+The assessment uses `kind: assessment`, id `<concept-id>.assessment`, its
+`concept`, title/summary/status/timestamps/project and wiki links/sources; create
+it with `context new --type assessment --slug <concept-id>`. It may precede a
+lesson: quiz, answer and record can read it, while `learn check` requires a lesson.
 
 Its only section is `## Items`. `key_hash` is the digest of what decides a verdict
 — `expected`, `rubric`, `grading` and `distractor`; for a choice interaction it
@@ -107,41 +89,27 @@ The package carries assessment content only, never learner identity or attempts.
 
 - **`objective`** is 1-based against the lesson's `objectives`; every
   objective needs at least one item, and an index outside the list is a defect.
-- **`id`** is free but unique and stable: an attempt cites it, so renaming one
-  orphans the answer that used it.
+- **`id`** is unique and stable; renaming it orphans attempts.
 - **`prompt`** asks the question and carries no part of the answer; **`rubric`**
   says what a complete answer shows; **`grading`** is `auto`, `exact`, `numeric`,
   `keywords` or `manual` (`auto` picks from the item's shape); **`provenance`** is
   `material`, `ai_generated`, `mixed` or `unknown`; **`frozen`** is the day the key
   was written.
-- **`claim`** is `<page-id>#c-<id>`, where `<page-id>` is the id **without** the
-  `wiki/` prefix and `c-<id>` is the claim's stable id
-  (`architecture/four-key-metrics#c-ab12cd34`). An item whose claim does not
-  support its expected answer is the defect this column exists to surface. The
-  positional `#claim-N` is the legacy form, reported until migrated.
-- **`hash`** pins the claim's digest, the fingerprint of the text the item was
-  written against. Read it from `sdt learn lesson <concept> --format json` (the
-  `claims` array) or from the `claim <id> <digest>` line of the text form.
-  `sdt learn lesson --validate` reports `stale` when the claim now says something
-  else, `unverified` when no digest was pinned — worth clearing before shipping,
-  and recommended rather than required: no date makes a missing digest an error —
-  and `broken` when the id is gone.
-- **`type`** is `recall`, `diagnose`, `apply` or `transfer`, and it *is* the
-  item's difficulty ladder in that order, never a number. The page's `difficulty`
-  paces the lesson; the two are not the same scale. An `apply` item may rest on the
-  worked example, and its rubric says so.
-- **`expected`** is the answer, not a hint: precise for recall, with its tolerance
-  for a numeric apply (`2/36 = 5.56% (±0.1 percentage points)`). State unit and
-  rounding once; a rate over one day and the reported metric over its window are
-  two numbers, so an item says which one it asks for. An answer the page does not
-  determine is marked **not in the corpus**, never filled from recall. **Write it
-  from the page, never from the span**: the worked example may carry what the page
-  leaves out, an item's key may not.
+- **`claim`** is `<page-id>#c-<id>` without the `wiki/` prefix. It must support
+  the expected answer; positional `#claim-N` is reported until migrated.
+- **`hash`** pins the claim text digest; read it from `sdt learn lesson --format
+  json` or its text output. Validation reports `stale`, `unverified` (recommended
+  to clear before shipping) or `broken` when the claim is gone.
+- **`type`** is `recall`, `diagnose`, `apply` or `transfer`, an ordered ladder
+  separate from page difficulty. An `apply` may use the worked example; say so in
+  its rubric.
+- **`expected`** is the answer, not a hint. For numeric answers, state unit,
+  rounding and tolerance. Mark unsupported answers **not in the corpus**; derive
+  keys from the page, never from a worked-example span.
 - **`distractor`** is a real wrong model — the page's counter-case or a
   boundary — never a random option, and never the expected answer.
-- At least one item per concept is `transfer`: the same idea in a case the page did
-  not cover. The `## Transfer` **section** poses open work for a session to run; the
-  `transfer` **item** is its assessable form — one section, one such item.
+- Include a `transfer` item for an unseen case. The `## Transfer` section poses
+  open work; the item makes it assessable.
 
 ## Check before you ship
 
