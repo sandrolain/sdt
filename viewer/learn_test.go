@@ -34,6 +34,18 @@ func localLearnRequest(method, target, body string) *http.Request {
 	return req
 }
 
+func TestLearnRunnerUsesConfiguredCLI(t *testing.T) {
+	s := &server{
+		cmd:         &delegator{bin: "/project/bin/sdt", root: t.TempDir()},
+		learn:       learnRunner{},
+		writeReason: "",
+	}
+	del, reason := s.learnRunner()
+	if reason != "" || del != s.cmd {
+		t.Fatalf("learning CLI = %#v, reason %q; want configured delegator %#v", del, reason, s.cmd)
+	}
+}
+
 func TestLearnQTIIsLocalAndExtractsItems(t *testing.T) {
 	archive, err := qti.WritePackage(qti.Package{ID: "test", Items: []qti.Item{{
 		ID: "item-1", Title: "Item", Prompt: "Choose", Interaction: "single-choice",

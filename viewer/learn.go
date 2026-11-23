@@ -13,7 +13,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -53,14 +52,16 @@ type learnRunner struct {
 // a CLI answers 503 with the reason instead of failing per request.
 func (s *server) learnRunner() (*delegator, string) {
 	s.learn.once.Do(func() {
-		self := s.self
-		if self == "" {
-			if path, err := os.Executable(); err == nil {
-				self = path
+		// Learning routes must use the same resolved CLI as the document-state
+		// routes. Re-resolving here can select a different `sdt` from PATH than
+		// the one explicitly configured with --sdt-bin.
+		s.learn.del = s.cmd
+		if s.cmd == nil {
+			s.learn.reason = s.writeReason
+			if s.learn.reason == "" {
+				s.learn.reason = noCLIReason
 			}
 		}
-		del, reason := newDelegator(s.root, "", self)
-		s.learn.del, s.learn.reason = del, reason
 		s.learn.runBinary = runLearnBinary
 	})
 	return s.learn.del, s.learn.reason
