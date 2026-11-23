@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -237,6 +239,29 @@ func TestLearnExportQTIExcludesLearnerResponses(t *testing.T) {
 	archive := execute(t, learnExportQTICmd, nil, "architecture/v2")
 	if len(archive) == 0 || strings.Contains(string(archive), privateResponse) {
 		t.Fatal("QTI export was empty or contained learner response data")
+	}
+}
+
+func TestLearnExportQTISupportedOnlyKeepsQTIItemsInMixedBank(t *testing.T) {
+	runInTempDir(t)
+	learnV2Fixture(t)
+	items := `| id | objective | type | prompt | expected | rubric | distractor | claim | interaction | options | scoring |
+|---|---|---|---|---|---|---|---|---|---|---|
+| recall-1 | 1 | recall | Name it | the name | exact phrase | wrong | architecture/v2#c-11111111 |  |  |  |
+| choice-1 | 2 | apply | Pick one | ["yes"] | selects yes | no | architecture/v2#c-22222222 | single-choice | [{"id":"yes","text":"Yes"},{"id":"no","text":"No"}] | exact-set |
+`
+	writeAssessmentFor(t, "architecture/v2", items)
+	archive := execute(t, learnExportQTICmd, nil, "architecture/v2", "--supported-only")
+	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, file := range reader.File {
+		paths = append(paths, file.Name)
+	}
+	if strings.Contains(strings.Join(paths, " "), "recall-1") || !strings.Contains(strings.Join(paths, " "), "choice-1") {
+		t.Fatalf("supported-only package paths = %v", paths)
 	}
 }
 

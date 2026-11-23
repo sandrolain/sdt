@@ -18,7 +18,7 @@ consumer; it never contains learner identity or attempts. Redirect stdout to a
 file, for example: sdt learn export-qti architecture/example > bank.zip.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		archive, err := qtiPackageForConcept(cmd, args[0])
+		archive, err := qtiPackageForConceptOptions(cmd, args[0], getBoolFlag(cmd, "supported-only", false))
 		if err != nil {
 			return err
 		}
@@ -28,6 +28,10 @@ file, for example: sdt learn export-qti architecture/example > bank.zip.`,
 }
 
 func qtiPackageForConcept(cmd *cobra.Command, concept string) ([]byte, error) {
+	return qtiPackageForConceptOptions(cmd, concept, false)
+}
+
+func qtiPackageForConceptOptions(cmd *cobra.Command, concept string, supportedOnly bool) ([]byte, error) {
 	items, ok := learnAssessmentItems(concept)
 	if !ok {
 		return nil, fmt.Errorf("no assessment bank for %q", concept)
@@ -41,6 +45,9 @@ func qtiPackageForConcept(cmd *cobra.Command, concept string) ([]byte, error) {
 	}
 	packageItems := make([]qti.Item, 0, len(items))
 	for _, item := range items {
+		if supportedOnly && item.Interaction == "" {
+			continue
+		}
 		if item.KeyHash == "" || item.KeyHash != item.KeyDigest {
 			return nil, fmt.Errorf("item %q has no current key_hash; freeze the key before export", item.ID)
 		}
@@ -65,6 +72,9 @@ func qtiPackageForConcept(cmd *cobra.Command, concept string) ([]byte, error) {
 			Options:     choices, Correct: correct, Scoring: item.Scoring,
 			ExplanationPrompt: item.ExplanationPrompt,
 		})
+	}
+	if len(packageItems) == 0 && supportedOnly {
+		return nil, fmt.Errorf("assessment %q has no supported QTI items", concept)
 	}
 	return qti.WritePackage(qti.Package{ID: qtiSafeID(page.ID), Title: page.Title, Items: packageItems})
 }
@@ -92,5 +102,6 @@ func isASCIIAlpha(value rune) bool {
 }
 
 func init() {
+	learnExportQTICmd.Flags().Bool("supported-only", false, "Skip assessment items without a QTI interaction")
 	learnCmd.AddCommand(learnExportQTICmd)
 }

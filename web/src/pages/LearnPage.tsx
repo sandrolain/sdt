@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchCourse, fetchLesson, type CourseBundle, type LessonBundle } from "../lib/learn";
 import { renderMarkdown } from "../lib/markdown";
+import { QtiPracticeList } from "./QtiPracticeItem";
 
 /**
  * The learning surface: a course view and a lesson reader, read-only over the
@@ -161,13 +162,7 @@ function LessonView({ lesson }: { lesson: LessonBundle }) {
       {items.length ? (
         <>
           <h2>Questions</h2>
-          <ol>
-            {items.map((item) => (
-              <li key={item.id}>
-                {item.prompt} <span className="oc-muted">({item.type})</span>
-              </li>
-            ))}
-          </ol>
+          <QtiPracticeList lesson={lesson} items={items} />
         </>
       ) : null}
 

@@ -1,12 +1,17 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/sandrolain/sdt/internal/qti"
 )
 
 // learnServer builds a server whose learning routes run the given fake CLI.
@@ -17,6 +22,86 @@ func learnServer(t *testing.T, run func(ctx context.Context, bin, dir string, ar
 	s.learn.once.Do(func() {})
 	s.learn.del = &delegator{bin: "sdt", root: s.root, run: run}
 	return s
+}
+
+func localLearnRequest(method, target, body string) *http.Request {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.Host = "127.0.0.1:8080"
+	req.Header.Set("Origin", "http://127.0.0.1:8080")
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req
+}
+
+func TestLearnQTIIsLocalAndExtractsItems(t *testing.T) {
+	archive, err := qti.WritePackage(qti.Package{ID: "test", Items: []qti.Item{{
+		ID: "item-1", Title: "Item", Prompt: "Choose", Interaction: "single-choice",
+		Options: []qti.Option{{ID: "yes", Text: "Yes"}, {ID: "no", Text: "No"}},
+		Correct: []string{"yes"}, Scoring: "exact-set",
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := learnServer(t, func(context.Context, string, string, ...string) (string, error) { return "", nil })
+	s.cmd = s.learn.del
+	var exportArgs []string
+	s.learn.runBinary = func(_ context.Context, _ string, _ string, args ...string) ([]byte, string, error) {
+		exportArgs = append([]string(nil), args...)
+		return archive, "", nil
+	}
+	rec := httptest.NewRecorder()
+	s.handleLearnQTI(rec, httptest.NewRequest(http.MethodGet, "/api/learn/qti?concept=architecture/x", nil))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("non-local request status = %d, want 403", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	s.handleLearnQTI(rec, localLearnRequest(http.MethodGet, "/api/learn/qti?concept=architecture/x", ""))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var response struct {
+		Items map[string]string `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(response.Items["item-1"], `<qti-assessment-item`) {
+		t.Fatalf("QTI XML was not returned: %#v", response.Items)
+	}
+	if strings.Join(exportArgs, " ") != "learn export-qti architecture/x --supported-only" {
+		t.Errorf("QTI export argv = %v", exportArgs)
+	}
+	if _, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive))); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLearnRecordRegradesAndStoresFullResponse(t *testing.T) {
+	var calls [][]string
+	s := learnServer(t, func(_ context.Context, _ string, _ string, args ...string) (string, error) {
+		calls = append(calls, append([]string(nil), args...))
+		if args[1] == "answer" {
+			return `{"grade":"correct","rule":"exact-set"}`, nil
+		}
+		return `{"ok":true}`, nil
+	})
+	s.cmd = s.learn.del
+	body := `{"concept":"architecture/x","item":"item-1","responses":{"RESPONSE":["yes"],"EXPLANATION":"because"},"grade":"incorrect"}`
+	rec := httptest.NewRecorder()
+	s.handleLearnRecord(rec, localLearnRequest(http.MethodPost, "/api/learn/record", body))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"grade":"correct"`) {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(calls) != 2 || calls[0][1] != "answer" || calls[1][1] != "record" {
+		t.Fatalf("CLI calls = %v", calls)
+	}
+	if !strings.Contains(strings.Join(calls[0], " "), `--answer ["yes"]`) {
+		t.Errorf("grader did not receive normalized option IDs: %v", calls[0])
+	}
+	if !strings.Contains(strings.Join(calls[1], " "), `"EXPLANATION":"because"`) {
+		t.Errorf("full response was not recorded: %v", calls[1])
+	}
 }
 
 // TestLearnCourseProxiesTheCLI proves the route asks the CLI and passes its answer

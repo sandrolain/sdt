@@ -74,6 +74,11 @@ export type LessonBundle = {
   missing?: string[];
 };
 
+export type QtiPackage = { items: Record<string, string> };
+export type QtiResponses = Record<string, unknown>;
+
+export type RecordedAttempt = { ok: true; grade: string };
+
 /** fetchCourse reads one syllabus: themes, lessons and readiness. */
 export function fetchCourse(syllabus: string): Promise<CourseBundle> {
   return fetchJSON<CourseBundle>(`/api/learn/course?syllabus=${encodeURIComponent(syllabus)}`);
@@ -82,6 +87,24 @@ export function fetchCourse(syllabus: string): Promise<CourseBundle> {
 /** fetchLesson reads one concept's teaching bundle, key-free. */
 export function fetchLesson(concept: string): Promise<LessonBundle> {
   return fetchJSON<LessonBundle>(`/api/learn/lesson?concept=${encodeURIComponent(concept)}`);
+}
+
+/** fetchQTI loads the local practice copy of the frozen QTI item bank. */
+export function fetchQTI(concept: string): Promise<QtiPackage> {
+  return fetchJSON<QtiPackage>(`/api/learn/qti?concept=${encodeURIComponent(concept)}`);
+}
+
+/** recordAttempt asks the server to regrade and persist only after an explicit action. */
+export function recordAttempt(
+  concept: string,
+  item: string,
+  responses: QtiResponses,
+): Promise<RecordedAttempt> {
+  return fetchJSON<RecordedAttempt>("/api/learn/record", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ concept, item, responses }),
+  });
 }
 
 /** courseOfLesson reports which syllabus a concept belongs to, when the corpus

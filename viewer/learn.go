@@ -1,21 +1,20 @@
 package main
 
-// Read-only learning surface: the course view and the lesson reader ask the CLI
-// what it already composes instead of re-implementing it here. Decision 0043:
-// `/api/learn/course` and `/api/learn/lesson` run `sdt learn … --format json`
-// through the same delegation the document-state routes use (decision 0027), so
-// the bundle's shape has one implementation and the viewer cannot drift from it.
-//
-// Nothing here writes, and nothing here is gated on a loopback bind: the verbs it
-// runs are read-only, and a view over the corpus is the viewer's ordinary work.
+// The course and lesson views ask the CLI for their composed bundles. Local QTI
+// practice exposes only supported item XML, while attempt writes are explicit and
+// regraded by the CLI. Both QTI routes share the viewer's loopback/origin gate.
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
@@ -26,6 +25,8 @@ const (
 	// learnCoursePath and learnLessonPath are the two read-only learning routes.
 	learnCoursePath = "/api/learn/course"
 	learnLessonPath = "/api/learn/lesson"
+	learnQTIPath    = "/api/learn/qti"
+	learnRecordPath = "/api/learn/record"
 	// learnTimeout bounds one bundle run; the CLI answers from the corpus in
 	// milliseconds, and the budget only has to outlast a cold start.
 	learnTimeout = 15 * time.Second
@@ -38,12 +39,14 @@ const (
 // path and never argv. The same rule the corpus registry uses, narrowed to what a
 // route needs.
 var learnIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9/_.-]*$`)
+var learnItemIDRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 
 // learnRunner resolves the CLI once, on first use, and reports why it could not.
 type learnRunner struct {
-	once   sync.Once
-	del    *delegator
-	reason string
+	once      sync.Once
+	del       *delegator
+	reason    string
+	runBinary func(context.Context, string, string, ...string) ([]byte, string, error)
 }
 
 // runner returns the delegator, resolving the CLI on first call. A viewer without
@@ -58,8 +61,177 @@ func (s *server) learnRunner() (*delegator, string) {
 		}
 		del, reason := newDelegator(s.root, "", self)
 		s.learn.del, s.learn.reason = del, reason
+		s.learn.runBinary = runLearnBinary
 	})
 	return s.learn.del, s.learn.reason
+}
+
+// runLearnBinary keeps the export's ZIP on stdout and diagnostics on stderr.
+func runLearnBinary(ctx context.Context, bin, dir string, args ...string) ([]byte, string, error) {
+	// #nosec G204,G702 -- bin is resolved by the viewer delegator; argv is a fixed
+	// verb plus a validated corpus concept, and execution uses no shell.
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Dir = dir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	return stdout.Bytes(), stderr.String(), err
+}
+
+// handleLearnQTI returns the current frozen item XML for local practice. QTI
+// carries the answer key, so the route is available only through the same
+// loopback/origin gate as other viewer capabilities.
+func (s *server) handleLearnQTI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet || s.cmd == nil || !sameOrigin(r) {
+		writeErr(w, http.StatusForbidden, "QTI practice requires the local viewer origin")
+		return
+	}
+	concept := strings.TrimSpace(r.URL.Query().Get("concept"))
+	if !learnIDRe.MatchString(concept) || strings.Contains(concept, "..") {
+		writeErr(w, http.StatusBadRequest, "concept is not a corpus id")
+		return
+	}
+	del, reason := s.learnRunner()
+	if del == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{learnErrorKey: reason})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), learnTimeout)
+	defer cancel()
+	archive, stderr, err := s.learn.runBinary(ctx, del.bin, del.root, "learn", "export-qti", concept, "--supported-only")
+	if err != nil {
+		if strings.Contains(stderr, "has no supported QTI items") {
+			writeJSON(w, http.StatusOK, map[string]any{"items": map[string]string{}})
+			return
+		}
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{learnErrorKey: learnFailure(stderr, err)})
+		return
+	}
+	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "the CLI returned an invalid QTI package")
+		return
+	}
+	items := make(map[string]string)
+	for _, file := range reader.File {
+		if !strings.HasPrefix(file.Name, "items/") || !strings.HasSuffix(file.Name, ".xml") {
+			continue
+		}
+		id := strings.TrimSuffix(strings.TrimPrefix(file.Name, "items/"), ".xml")
+		if !learnItemIDRe.MatchString(id) {
+			continue
+		}
+		item, openErr := file.Open()
+		if openErr != nil {
+			writeErr(w, http.StatusBadGateway, "the QTI item could not be read")
+			return
+		}
+		data, readErr := io.ReadAll(io.LimitReader(item, 2<<20))
+		closeErr := item.Close()
+		if readErr != nil || closeErr != nil {
+			writeErr(w, http.StatusBadGateway, "the QTI item could not be read")
+			return
+		}
+		items[id] = string(data)
+	}
+	if len(items) == 0 {
+		writeErr(w, http.StatusUnprocessableEntity, "the assessment has no supported QTI items")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+type learnRecordRequest struct {
+	Concept   string                     `json:"concept"`
+	Item      string                     `json:"item"`
+	Responses map[string]json.RawMessage `json:"responses"`
+}
+
+// handleLearnRecord stores only an explicitly submitted attempt. It derives the
+// grade from the CLI and treats the browser's QTI outcomes as presentation only.
+func (s *server) handleLearnRecord(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || s.cmd == nil || !sameOrigin(r) {
+		writeErr(w, http.StatusForbidden, "attempt recording requires the local viewer origin")
+		return
+	}
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		writeErr(w, http.StatusBadRequest, "expected application/json")
+		return
+	}
+	var req learnRecordRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "malformed request body")
+		return
+	}
+	req.Concept, req.Item = strings.TrimSpace(req.Concept), strings.TrimSpace(req.Item)
+	if !learnIDRe.MatchString(req.Concept) || strings.Contains(req.Concept, "..") || !learnItemIDRe.MatchString(req.Item) {
+		writeErr(w, http.StatusBadRequest, "concept or item is not a corpus id")
+		return
+	}
+	selected, ok := learnSelectedOptions(req.Responses["RESPONSE"])
+	if !ok || len(selected) == 0 {
+		writeErr(w, http.StatusBadRequest, "a QTI RESPONSE selection is required")
+		return
+	}
+	answer, err := json.Marshal(selected)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "responses must be JSON values")
+		return
+	}
+	response, err := json.Marshal(req.Responses)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "responses must be JSON values")
+		return
+	}
+	del, reason := s.learnRunner()
+	if del == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{learnErrorKey: reason})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), learnTimeout)
+	defer cancel()
+	gradeOut, gradeErr := del.run(ctx, del.bin, del.root, "learn", "answer", "--concept", req.Concept, "--item", req.Item, "--answer", string(answer), "--format", "json")
+	var grade struct {
+		Grade string `json:"grade"`
+		Rule  string `json:"rule"`
+	}
+	if json.Unmarshal([]byte(gradeOut), &grade) != nil || (gradeErr != nil && grade.Grade == "") {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{learnErrorKey: learnFailure(gradeOut, gradeErr)})
+		return
+	}
+	if grade.Grade != "correct" && grade.Grade != "partially_correct" && grade.Grade != "incorrect" {
+		writeErr(w, http.StatusUnprocessableEntity, "the CLI could not grade this response")
+		return
+	}
+	if grade.Rule != "exact-set" && grade.Rule != "partial-credit" {
+		writeErr(w, http.StatusUnprocessableEntity, "the assessment item has no supported QTI interaction")
+		return
+	}
+	recordOut, recordErr := del.run(ctx, del.bin, del.root, "learn", "record", "--concept", req.Concept, "--item", req.Item, "--grade", grade.Grade, "--response", string(response), "--format", "json")
+	if recordErr != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{learnErrorKey: learnFailure(recordOut, recordErr)})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "grade": grade.Grade})
+}
+
+func learnSelectedOptions(raw json.RawMessage) ([]string, bool) {
+	var one string
+	if json.Unmarshal(raw, &one) == nil {
+		return []string{one}, learnItemIDRe.MatchString(one)
+	}
+	var many []string
+	if json.Unmarshal(raw, &many) != nil {
+		return nil, false
+	}
+	seen := make(map[string]bool, len(many))
+	for _, id := range many {
+		if !learnItemIDRe.MatchString(id) || seen[id] {
+			return nil, false
+		}
+		seen[id] = true
+	}
+	return many, true
 }
 
 // handleLearnCourse answers the course view: one syllabus with its themes, its

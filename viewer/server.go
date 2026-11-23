@@ -105,8 +105,7 @@ type server struct {
 	// self is this binary's own path, which a configured command may name: a program is
 	// looked for on PATH and then beside the viewer, exactly as the sdt companion is.
 	self string
-	// learn resolves the CLI for the read-only learning routes, once, on first use
-	// (decision 0043). It is not the mutator's: those are gated, these are not.
+	// learn resolves the CLI used by the learning views and local QTI routes once.
 	learn        learnRunner
 	agentMu      sync.Mutex
 	agentStreams map[*agentStream]struct{}
@@ -243,6 +242,8 @@ func (s *server) mux() http.Handler {
 	mux.HandleFunc(contextCommandPath, s.handleContextCommand)
 	mux.HandleFunc(learnCoursePath, s.handleLearnCourse)
 	mux.HandleFunc(learnLessonPath, s.handleLearnLesson)
+	mux.HandleFunc(learnQTIPath, s.handleLearnQTI)
+	mux.HandleFunc(learnRecordPath, s.handleLearnRecord)
 	mux.HandleFunc("/", s.handleIndex)
 	return mux
 }
