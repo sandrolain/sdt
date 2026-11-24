@@ -368,8 +368,42 @@ func startProgress(cmd *cobra.Command) error {
 	}
 	resolved := progress.Resolve(mode, cmd.ErrOrStderr(), getPersistentBool(cmd, "quiet"))
 	progressReporter = progress.New(cmd.ErrOrStderr(), resolved)
-	usage.Begin(invokedCommand(cmd))
+	usage.Begin(invokedCommand(cmd), usageOptions(cmd))
 	return nil
+}
+
+func usageOptions(cmd *cobra.Command) usage.BeginOptions {
+	var options usage.BeginOptions
+	if strings.EqualFold(os.Getenv(usage.EnvOff), "off") {
+		return options
+	}
+	cfg, root, err := findProjectConfigAt()
+	if err != nil || root == "" || cfg == nil || (cfg.Usage.Enabled != nil && !*cfg.Usage.Enabled) {
+		return options
+	}
+	options.CaptureArgs = cfg.Usage.Arguments
+	options.Args = invocationArgs(cmd)
+	options.Memory = cfg.Usage.Memory == nil || *cfg.Usage.Memory
+	options.CPU = cfg.Usage.CPU
+	return options
+}
+
+func invocationArgs(cmd *cobra.Command) []string {
+	args := append([]string(nil), os.Args[1:]...)
+	command := strings.Fields(invokedCommand(cmd))
+	if len(args) >= len(command) {
+		matches := true
+		for i := range command {
+			if args[i] != command[i] {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return args[len(command):]
+		}
+	}
+	return args
 }
 
 // invokedCommand is the command path without the executable: "context search",

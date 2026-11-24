@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -79,7 +80,7 @@ func TestUsageRecordHoldsNoArguments(t *testing.T) {
 	}
 	sort.Strings(keys)
 	want := []string{"cmd", "exit", "ms", "out", "ts"}
-	if len(keys) < len(want) || len(keys) > len(want)+2 {
+	if len(keys) < len(want) || len(keys) > len(want)+4 {
 		t.Fatalf("unexpected record keys: %v", keys)
 	}
 	for _, key := range want {
@@ -88,7 +89,7 @@ func TestUsageRecordHoldsNoArguments(t *testing.T) {
 		}
 	}
 	for _, key := range keys {
-		if key != "cmd" && key != "exit" && key != "ms" && key != "out" && key != "ts" && key != "hits" && key != "source" && key != "rss_bytes" {
+		if key != "cmd" && key != "exit" && key != "ms" && key != "out" && key != "ts" && key != "hits" && key != "source" && key != "rss_bytes" && key != "go_allocated_bytes" {
 			t.Fatalf("unexpected record field %q", key)
 		}
 	}
@@ -98,6 +99,60 @@ func TestUsageRecordHoldsNoArguments(t *testing.T) {
 	}
 	if cmd != "b64" {
 		t.Fatalf("cmd = %q, want the command path", cmd)
+	}
+}
+
+func TestUsageArgumentsAndMetricsAreConfigurableAndGainHidesArgv(t *testing.T) {
+	root := newUsageProject(t)
+	config := "project: test\ngroup: test\nusage:\n  arguments: true\n  memory: true\n  cpu: true\n"
+	if err := os.WriteFile(filepath.Join(root, ".sdt.yaml"), []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	originalArgs := os.Args
+	os.Args = []string{"sdt", "b64", "--input", "private query", "--progress", "none"}
+	t.Cleanup(func() { os.Args = originalArgs })
+	if _, _, err := runRoot(t, "b64", "--input", "private query", "--progress", "none"); err != nil {
+		t.Fatal(err)
+	}
+	lines := usageLines(t, root)
+	if len(lines) != 1 {
+		t.Fatalf("records = %v", lines)
+	}
+	var record map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(lines[0]), &record); err != nil {
+		t.Fatal(err)
+	}
+	var argv []string
+	if err := json.Unmarshal(record["argv"], &argv); err != nil {
+		t.Fatalf("argv missing or invalid: %v", err)
+	}
+	if !strings.Contains(strings.Join(argv, " "), "private query") {
+		t.Fatalf("argv = %q", argv)
+	}
+	for _, key := range []string{"go_allocated_bytes"} {
+		if _, ok := record[key]; !ok {
+			t.Errorf("record missing %s: %s", key, lines[0])
+		}
+	}
+	for _, key := range []string{"rss_bytes", "cpu_user_ms", "cpu_system_ms", "cpu_peak_percent"} {
+		_, present := record[key]
+		if supported := runtime.GOOS == "darwin" || runtime.GOOS == "linux"; supported != present {
+			t.Errorf("platform %s support for %s = %v: %s", runtime.GOOS, key, present, lines[0])
+		}
+	}
+	out, _, err := runRoot(t, "gain", "--since", "all", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "private query") || strings.Contains(out, "argv") {
+		t.Fatalf("gain leaked argv: %s", out)
+	}
+	var payload gainPayload
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.GoAllocatedBytes == nil || *payload.GoAllocatedBytes <= 0 || payload.CPUPeakPercent == nil {
+		t.Fatalf("resource report = %+v", payload)
 	}
 }
 

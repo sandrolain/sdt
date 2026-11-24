@@ -1,7 +1,5 @@
-// Package usage is the counted-usage log: one local, content-free line per
-// invocation, so `sdt gain` reports what SDT actually did instead of what it was
-// expected to do. A record carries the command path and four numbers — never an
-// argument, a path, a query, an environment value or any content.
+// Package usage writes one local counted-usage line per invocation. Argument
+// capture is opt-in and bounded; aggregate reports never expose captured argv.
 package usage
 
 import (
@@ -11,11 +9,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
+
+func allocatedBytes() uint64 {
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	return stats.TotalAlloc
+}
 
 const (
 	// EnvOff disables the log for every command of the process.
@@ -37,6 +43,7 @@ const (
 	tsLayout       = time.RFC3339
 	maxLine        = 4096
 	keepMonths     = 6
+	maxArgsBytes   = 1024
 	dirPermission  = 0o700
 	filePermission = 0o600
 )
@@ -45,14 +52,30 @@ const (
 // "zero results" and one that reports nothing at all are different facts, and
 // the hit rate must keep the difference.
 type Entry struct {
-	TS       string `json:"ts"`
-	Cmd      string `json:"cmd"`
-	Exit     int    `json:"exit"`
-	MS       int64  `json:"ms"`
-	Out      int64  `json:"out"`
-	Hits     *int   `json:"hits,omitempty"`
-	Source   string `json:"source,omitempty"`
-	RSSBytes *int64 `json:"rss_bytes,omitempty"`
+	TS               string   `json:"ts"`
+	Cmd              string   `json:"cmd"`
+	Exit             int      `json:"exit"`
+	MS               int64    `json:"ms"`
+	Out              int64    `json:"out"`
+	Hits             *int     `json:"hits,omitempty"`
+	Source           string   `json:"source,omitempty"`
+	RSSBytes         *int64   `json:"rss_bytes,omitempty"`
+	Argv             []string `json:"argv,omitempty"`
+	ArgvTruncated    bool     `json:"argv_truncated,omitempty"`
+	GoAllocatedBytes *int64   `json:"go_allocated_bytes,omitempty"`
+	CPUUserMS        *int64   `json:"cpu_user_ms,omitempty"`
+	CPUSystemMS      *int64   `json:"cpu_system_ms,omitempty"`
+	CPUPeakPercent   *float64 `json:"cpu_peak_percent,omitempty"`
+}
+
+// BeginOptions controls which optional data is collected for one invocation.
+// Memory defaults to true when Begin is called without explicit options, for
+// compatibility with the existing RSS record.
+type BeginOptions struct {
+	CaptureArgs bool
+	Args        []string
+	Memory      bool
+	CPU         bool
 }
 
 // Dir is the usage directory under a project root.
@@ -218,20 +241,130 @@ func ParseWindow(v string, now time.Time) (time.Time, error) {
 // package state is the honest shape — the same reason logging keeps a default
 // logger.
 var (
-	pending Entry
-	began   time.Time
-	started bool
+	pending      Entry
+	began        time.Time
+	started      bool
+	beginOptions BeginOptions
+	allocStart   uint64
+	cpuStop      chan struct{}
+	cpuDone      chan struct{}
+	cpuPeak      float64
+	cpuSamples   int
+	cpuStart     processCPUTime
 )
 
 // Begin opens the record for the command about to run.
-func Begin(cmd string) {
+func Begin(cmd string, options ...BeginOptions) {
 	now := time.Now().UTC()
 	began = time.Now()
 	pending = Entry{TS: now.Format(tsLayout), Cmd: cmd}
+	beginOptions = BeginOptions{Memory: true}
+	if len(options) > 0 {
+		beginOptions = options[0]
+	}
+	if beginOptions.Memory {
+		allocStart = allocatedBytes()
+	}
+	if beginOptions.CaptureArgs {
+		pending.Argv, pending.ArgvTruncated = boundedArgs(beginOptions.Args)
+	}
 	if strings.EqualFold(os.Getenv(EnvSource), SourceInternal) {
 		pending.Source = SourceInternal
 	}
 	started = true
+	if beginOptions.CPU {
+		cpuPeak = 0
+		cpuSamples = 0
+		cpuStart, _ = cpuTimes()
+		cpuStop, cpuDone = make(chan struct{}), make(chan struct{})
+		go sampleCPU(cpuStop, cpuDone)
+	}
+}
+
+func sampleCPU(stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	lastWall, lastCPU := time.Now(), cpuStart
+	for {
+		select {
+		case <-stop:
+			return
+		case now := <-ticker.C:
+			current, ok := cpuTimes()
+			if !ok {
+				continue
+			}
+			wallMS := now.Sub(lastWall).Milliseconds()
+			cpuMS := current.userMS + current.systemMS - lastCPU.userMS - lastCPU.systemMS
+			if wallMS > 0 && cpuMS >= 0 {
+				percent := float64(cpuMS) * 100 / float64(wallMS)
+				cpuSamples++
+				if percent > cpuPeak {
+					cpuPeak = percent
+				}
+			}
+			lastWall, lastCPU = now, current
+		}
+	}
+}
+
+func boundedArgs(args []string) ([]string, bool) {
+	encoded, err := json.Marshal(args)
+	if err != nil {
+		return nil, true
+	}
+	if len(encoded) <= maxArgsBytes {
+		return append([]string(nil), args...), false
+	}
+
+	bounded := make([]string, 0, len(args))
+	used := 2 // JSON array brackets.
+	for _, arg := range args {
+		item, err := json.Marshal(arg)
+		if err != nil {
+			return bounded, true
+		}
+		separator := 0
+		if len(bounded) > 0 {
+			separator = 1
+		}
+		if used+separator+len(item) <= maxArgsBytes {
+			bounded = append(bounded, arg)
+			used += separator + len(item)
+			continue
+		}
+
+		budget := maxArgsBytes - used - separator
+		prefix := truncateStringToJSONBudget(arg, budget)
+		prefixJSON, err := json.Marshal(prefix)
+		if err != nil {
+			return bounded, true
+		}
+		if len(prefixJSON) <= budget && (prefix != "" || arg == "") {
+			bounded = append(bounded, prefix)
+		}
+		return bounded, true
+	}
+	return bounded, true
+}
+
+func truncateStringToJSONBudget(value string, budget int) string {
+	if budget < 2 {
+		return ""
+	}
+	var prefix strings.Builder
+	for len(value) > 0 {
+		r, size := utf8.DecodeRuneInString(value)
+		candidate := prefix.String() + string(r)
+		encoded, err := json.Marshal(candidate)
+		if err != nil || len(encoded) > budget {
+			break
+		}
+		prefix.WriteRune(r)
+		value = value[size:]
+	}
+	return prefix.String()
 }
 
 // Hits records how many items the command returned. Only a command that knows
@@ -261,9 +394,34 @@ func Finish(root string, code int) error {
 	started = false
 	pending.Exit = code
 	pending.MS = time.Since(began).Milliseconds()
-	pending.RSSBytes = peakRSSBytes()
+	if beginOptions.Memory {
+		pending.RSSBytes = peakRSSBytes()
+		end := allocatedBytes()
+		if end >= allocStart {
+			delta := end - allocStart
+			if delta <= uint64(^uint64(0)>>1) {
+				value := int64(delta)
+				pending.GoAllocatedBytes = &value
+			}
+		}
+	}
+	if beginOptions.CPU {
+		close(cpuStop)
+		<-cpuDone
+		if end, ok := cpuTimes(); ok {
+			user, system := end.userMS-cpuStart.userMS, end.systemMS-cpuStart.systemMS
+			pending.CPUUserMS, pending.CPUSystemMS = &user, &system
+			if cpuSamples == 0 && time.Since(began) > 0 {
+				peak := float64(user+system) * 100 / float64(time.Since(began).Milliseconds()+1)
+				cpuPeak = peak
+			}
+			peak := cpuPeak
+			pending.CPUPeakPercent = &peak
+		}
+	}
 	e := pending
 	pending = Entry{}
+	beginOptions = BeginOptions{}
 	if root == "" {
 		return nil
 	}

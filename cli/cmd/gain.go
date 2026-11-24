@@ -28,13 +28,15 @@ whether the searches return anything, instead of guessing.
 WHEN NOT — you want a cost estimate. No counterfactual saving is computed: the
 log holds what happened, never what would have happened without SDT.
 
-The log lives at <root>/.sdt/usage/usage-YYYY-MM.jsonl and holds the command
-path, the exit code, the duration, the bytes written to stdout and an optional
-hit count. It never holds an argument, a path, a query or any content.
-` + "`SDT_USAGE=off`" + ` disables it, as does ` + "`usage.enabled: false`" + ` in .sdt.yaml.
+The log lives at <root>/.sdt/usage/usage-YYYY-MM.jsonl. It records command,
+exit, duration, stdout bytes and optional hits/source. usage.arguments (default
+off) opts into argv capture bounded to 1 KiB. usage.memory (default on) records
+peak RSS and cumulative Go allocations; usage.cpu (default off) records process
+user/system time and sampled peak utilization. sdt gain never displays argv.
+SDT_USAGE=off disables it, as does usage.enabled: false in .sdt.yaml.
 
-` + "`gain`" + ` itself and the internal calls SDT makes on its own behalf are excluded
-from the totals and counted separately; ` + "`--all`" + ` includes them.`,
+gain itself and the internal calls SDT makes on its own behalf are excluded
+from the totals and counted separately; --all includes them.`,
 	Example: `  sdt gain
   sdt gain --since 30d
   sdt gain --since all --json`,
@@ -85,6 +87,10 @@ type gainPayload struct {
 	MeanMS           *float64            `json:"mean_ms,omitempty"  yaml:"mean_ms,omitempty"`
 	MaxMS            *int64              `json:"max_ms,omitempty"   yaml:"max_ms,omitempty"`
 	PeakRSSBytes     *int64              `json:"peak_rss_bytes,omitempty" yaml:"peak_rss_bytes,omitempty"`
+	GoAllocatedBytes *int64              `json:"go_allocated_bytes,omitempty" yaml:"go_allocated_bytes,omitempty"`
+	CPUUserMS        *int64              `json:"cpu_user_ms,omitempty" yaml:"cpu_user_ms,omitempty"`
+	CPUSystemMS      *int64              `json:"cpu_system_ms,omitempty" yaml:"cpu_system_ms,omitempty"`
+	CPUPeakPercent   *float64            `json:"cpu_peak_percent,omitempty" yaml:"cpu_peak_percent,omitempty"`
 	ExcludedSelf     int                 `json:"excluded_self"     yaml:"excluded_self"`
 	ExcludedInternal int                 `json:"excluded_internal" yaml:"excluded_internal"`
 	Commands         []usage.CommandStat `json:"commands"          yaml:"commands"`
@@ -97,8 +103,10 @@ func renderGain(cmd *cobra.Command, spec string, since, until time.Time, rep usa
 		Calls: rep.Calls, Failures: rep.Failures, Out: rep.Out,
 		HitsReported: rep.HitsReported, HitsFound: rep.HitsFound,
 		ExcludedSelf: rep.ExcludedSelf, ExcludedInternal: rep.ExcludedInternal,
-		PeakRSSBytes: rep.PeakRSSBytes,
-		Commands:     rep.Commands,
+		PeakRSSBytes:     rep.PeakRSSBytes,
+		GoAllocatedBytes: rep.GoAllocatedBytes,
+		CPUUserMS:        rep.CPUUserMS, CPUSystemMS: rep.CPUSystemMS, CPUPeakPercent: rep.CPUPeakPercent,
+		Commands: rep.Commands,
 	}
 	if rep.Calls > 0 {
 		payload.MinMS = &rep.MinMS
@@ -143,23 +151,13 @@ func gainText(p gainPayload) string {
 	} else {
 		fmt.Fprintf(&b, "peak sdt RSS: %s\n", humanSize(*p.PeakRSSBytes))
 	}
+	writeGainResourceSummary(&b, p)
 	fmt.Fprintf(&b, "hits %s\n\n", hitSummary(p.HitsFound, p.HitsReported))
 
-	width := len("COMMAND")
+	width := gainCommandWidth(p.Commands)
+	writeGainTableHeader(&b, width)
 	for _, row := range p.Commands {
-		width = max(width, len(row.Command))
-	}
-	fmt.Fprintf(&b, "%-*s  %5s  %4s  %8s  %s  %10s  %s\n", width, "COMMAND", "CALLS", "FAIL", "STDOUT", "HITS", "MS MIN/AVG/MAX", "PEAK RSS")
-	for _, row := range p.Commands {
-		hits := "-"
-		if row.HitsReported > 0 {
-			hits = fmt.Sprintf("%d/%d", row.HitsFound, row.HitsReported)
-		}
-		rss := "-"
-		if row.PeakRSSBytes != nil {
-			rss = humanSize(*row.PeakRSSBytes)
-		}
-		fmt.Fprintf(&b, "%-*s  %5d  %4d  %8s  %s  %d/%.1f/%d  %s\n", width, row.Command, row.Calls, row.Failures, humanSize(row.Out), hits, row.MinMS, row.MeanMS, row.MaxMS, rss)
+		b.WriteString(formatGainRow(row, width))
 	}
 	if len(p.Commands) == 0 {
 		b.WriteString("(nothing recorded in this window)\n")
@@ -167,6 +165,62 @@ func gainText(p gainPayload) string {
 	fmt.Fprintf(&b, "\nexcluded %d self, %d internal (--all includes them)\n", p.ExcludedSelf, p.ExcludedInternal)
 	b.WriteString("No counterfactual saving is computed: these are counted facts, not a claim about what the commands would have cost without SDT.\n")
 	return b.String()
+}
+
+func writeGainResourceSummary(b *strings.Builder, p gainPayload) {
+	if p.GoAllocatedBytes != nil {
+		fmt.Fprintf(b, "Go allocated: %s\n", humanSize(*p.GoAllocatedBytes))
+	}
+	if p.CPUPeakPercent == nil {
+		return
+	}
+	user, system := "not recorded", "not recorded"
+	if p.CPUUserMS != nil {
+		user = fmt.Sprint(*p.CPUUserMS)
+	}
+	if p.CPUSystemMS != nil {
+		system = fmt.Sprint(*p.CPUSystemMS)
+	}
+	fmt.Fprintf(b, "process CPU user/system: %s/%s ms, sampled peak %.1f%%\n", user, system, *p.CPUPeakPercent)
+}
+
+func gainCommandWidth(rows []usage.CommandStat) int {
+	width := len("COMMAND")
+	for _, row := range rows {
+		width = max(width, len(row.Command))
+	}
+	return width
+}
+
+func writeGainTableHeader(b *strings.Builder, width int) {
+	fmt.Fprintf(b, "%-*s  %5s  %4s  %8s  %s  %10s  %8s  %11s  %8s  %s\n", width, "COMMAND", "CALLS", "FAIL", "STDOUT", "HITS", "MS MIN/AVG/MAX", "ALLOC", "CPU USER/SYS", "CPU PEAK", "PEAK RSS")
+}
+
+func formatGainRow(row usage.CommandStat, width int) string {
+	hits, rss, alloc, cpuTime, cpuPeak := "-", "-", "-", "-", "-"
+	if row.HitsReported > 0 {
+		hits = fmt.Sprintf("%d/%d", row.HitsFound, row.HitsReported)
+	}
+	if row.PeakRSSBytes != nil {
+		rss = humanSize(*row.PeakRSSBytes)
+	}
+	if row.GoAllocatedBytes != nil {
+		alloc = humanSize(*row.GoAllocatedBytes)
+	}
+	if row.CPUUserMS != nil || row.CPUSystemMS != nil {
+		user, system := "-", "-"
+		if row.CPUUserMS != nil {
+			user = fmt.Sprint(*row.CPUUserMS)
+		}
+		if row.CPUSystemMS != nil {
+			system = fmt.Sprint(*row.CPUSystemMS)
+		}
+		cpuTime = fmt.Sprintf("%s/%s", user, system)
+	}
+	if row.CPUPeakPercent != nil {
+		cpuPeak = fmt.Sprintf("%.1f%%", *row.CPUPeakPercent)
+	}
+	return fmt.Sprintf("%-*s  %5d  %4d  %8s  %s  %d/%.1f/%d  %8s  %11s  %8s  %s\n", width, row.Command, row.Calls, row.Failures, humanSize(row.Out), hits, row.MinMS, row.MeanMS, row.MaxMS, alloc, cpuTime, cpuPeak, rss)
 }
 
 // hitSummary phrases the hit rate over the calls that reported a count.

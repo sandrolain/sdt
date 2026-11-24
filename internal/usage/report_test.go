@@ -103,3 +103,33 @@ func TestSummarizeEmptyAndUnavailableRSS(t *testing.T) {
 		t.Fatalf("legacy summary should have unavailable RSS: %+v", legacy)
 	}
 }
+
+func TestSummarizeResourceMetrics(t *testing.T) {
+	alloc1, alloc2 := int64(100), int64(250)
+	user1, user2 := int64(4), int64(7)
+	system1, system2 := int64(3), int64(2)
+	peak1, peak2 := 85.0, 170.0
+	report := Summarize([]Entry{
+		{Cmd: "read", GoAllocatedBytes: &alloc1, CPUUserMS: &user1, CPUSystemMS: &system1, CPUPeakPercent: &peak1},
+		{Cmd: "read", GoAllocatedBytes: &alloc2, CPUUserMS: &user2, CPUSystemMS: &system2, CPUPeakPercent: &peak2},
+	}, false)
+	row := report.Commands[0]
+	if report.GoAllocatedBytes == nil || *report.GoAllocatedBytes != 350 || report.CPUUserMS == nil || *report.CPUUserMS != 11 || report.CPUSystemMS == nil || *report.CPUSystemMS != 5 || report.CPUPeakPercent == nil || *report.CPUPeakPercent != 170 {
+		t.Fatalf("report metrics = %+v", report)
+	}
+	if row.GoAllocatedBytes == nil || *row.GoAllocatedBytes != 350 || row.CPUUserMS == nil || *row.CPUUserMS != 11 || row.CPUSystemMS == nil || *row.CPUSystemMS != 5 || row.CPUPeakPercent == nil || *row.CPUPeakPercent != 170 {
+		t.Fatalf("command metrics = %+v", row)
+	}
+}
+
+func TestSummarizePreservesRecordedZeroAgainstUnavailableMetrics(t *testing.T) {
+	zero := int64(0)
+	report := Summarize([]Entry{{Cmd: "one", CPUUserMS: &zero}, {Cmd: "two"}}, false)
+	if report.CPUUserMS == nil || *report.CPUUserMS != 0 || report.CPUSystemMS != nil {
+		t.Fatalf("zero and unavailable metrics collapsed: %+v", report)
+	}
+	first, second := report.Commands[0], report.Commands[1]
+	if first.Command != "one" || first.CPUUserMS == nil || *first.CPUUserMS != 0 || second.CPUUserMS != nil {
+		t.Fatalf("per-command zero and unavailable metrics collapsed: %+v", report.Commands)
+	}
+}

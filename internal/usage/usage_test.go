@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -225,6 +226,67 @@ func TestFinishWithoutBegin(t *testing.T) {
 	}
 }
 
+func TestBoundedArgsStaysWithinJSONBudget(t *testing.T) {
+	args, truncated := boundedArgs([]string{"--query", strings.Repeat("è\"\\", 1000)})
+	encoded, err := json.Marshal(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !truncated || len(encoded) > maxArgsBytes {
+		t.Fatalf("truncated=%v encoded bytes=%d", truncated, len(encoded))
+	}
+	var decoded []string
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBeginCaptureArgsIsOptInAndMemoryIsIndependent(t *testing.T) {
+	root := t.TempDir()
+	Begin("search", BeginOptions{CaptureArgs: true, Args: []string{"--query", "private query"}, Memory: false})
+	if err := Finish(root, 0); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := Read(root, time.Time{})
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("entries=%v err=%v", entries, err)
+	}
+	if strings.Join(entries[0].Argv, " ") != "--query private query" || entries[0].RSSBytes != nil || entries[0].GoAllocatedBytes != nil {
+		t.Fatalf("captured entry = %+v", entries[0])
+	}
+	Begin("search", BeginOptions{Memory: false})
+	if err := Finish(root, 0); err != nil {
+		t.Fatal(err)
+	}
+	entries, err = Read(root, time.Time{})
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("entries=%v err=%v", entries, err)
+	}
+	if entries[1].Argv != nil {
+		t.Fatalf("argv captured without opt-in: %+v", entries[1])
+	}
+}
+
+func BenchmarkUsageCPUSamplingOverhead(b *testing.B) {
+	for _, enabled := range []bool{false, true} {
+		name := "disabled"
+		if enabled {
+			name = "enabled"
+		}
+		b.Run(name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				Begin("benchmark", BeginOptions{Memory: false, CPU: enabled})
+				until := time.Now().Add(120 * time.Millisecond)
+				for time.Now().Before(until) {
+				}
+				if err := Finish("", 0); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func TestFinishTwiceWritesOneEntry(t *testing.T) {
 	root := t.TempDir()
 	Begin("ls")
@@ -247,7 +309,7 @@ func TestFinishTwiceWritesOneEntry(t *testing.T) {
 // and no field may ever carry an argument, a path or a query.
 func TestEntryKeysAreTheContract(t *testing.T) {
 	root := t.TempDir()
-	Begin("b64")
+	Begin("b64", BeginOptions{Memory: false})
 	Finish(root, 0) //nolint:errcheck // the read below is the assertion
 	entries, err := Read(root, time.Time{})
 	if err != nil {

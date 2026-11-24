@@ -85,10 +85,13 @@ type DelegationPermissionRule struct {
 	ValidFor   string `json:"valid_for,omitempty" yaml:"valid_for,omitempty"`
 }
 
-// UsageConfig is the `usage:` block. Enabled is a pointer so that "not
-// declared" keeps the default (on) instead of reading as "off".
+// UsageConfig is the `usage:` block. Arguments and CPU default off; Enabled and
+// Memory are pointers so absent keys preserve their default-on behavior.
 type UsageConfig struct {
-	Enabled *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Enabled   *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Arguments bool  `json:"arguments,omitempty" yaml:"arguments,omitempty"`
+	Memory    *bool `json:"memory,omitempty" yaml:"memory,omitempty"`
+	CPU       bool  `json:"cpu,omitempty" yaml:"cpu,omitempty"`
 }
 
 // ResearchProviderConfig is one `research:` entry.

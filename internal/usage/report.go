@@ -4,31 +4,39 @@ import "sort"
 
 // CommandStat is one row of the counted report.
 type CommandStat struct {
-	Command      string  `json:"command"       yaml:"command"`
-	Calls        int     `json:"calls"         yaml:"calls"`
-	Failures     int     `json:"failures"      yaml:"failures"`
-	Out          int64   `json:"out"           yaml:"out"`
-	HitsReported int     `json:"hits_reported" yaml:"hits_reported"`
-	HitsFound    int     `json:"hits_found"    yaml:"hits_found"`
-	MinMS        int64   `json:"min_ms"         yaml:"min_ms"`
-	MeanMS       float64 `json:"mean_ms"        yaml:"mean_ms"`
-	MaxMS        int64   `json:"max_ms"         yaml:"max_ms"`
-	PeakRSSBytes *int64  `json:"peak_rss_bytes,omitempty" yaml:"peak_rss_bytes,omitempty"`
+	Command          string   `json:"command"       yaml:"command"`
+	Calls            int      `json:"calls"         yaml:"calls"`
+	Failures         int      `json:"failures"      yaml:"failures"`
+	Out              int64    `json:"out"           yaml:"out"`
+	HitsReported     int      `json:"hits_reported" yaml:"hits_reported"`
+	HitsFound        int      `json:"hits_found"    yaml:"hits_found"`
+	MinMS            int64    `json:"min_ms"         yaml:"min_ms"`
+	MeanMS           float64  `json:"mean_ms"        yaml:"mean_ms"`
+	MaxMS            int64    `json:"max_ms"         yaml:"max_ms"`
+	PeakRSSBytes     *int64   `json:"peak_rss_bytes,omitempty" yaml:"peak_rss_bytes,omitempty"`
+	GoAllocatedBytes *int64   `json:"go_allocated_bytes,omitempty" yaml:"go_allocated_bytes,omitempty"`
+	CPUUserMS        *int64   `json:"cpu_user_ms,omitempty" yaml:"cpu_user_ms,omitempty"`
+	CPUSystemMS      *int64   `json:"cpu_system_ms,omitempty" yaml:"cpu_system_ms,omitempty"`
+	CPUPeakPercent   *float64 `json:"cpu_peak_percent,omitempty" yaml:"cpu_peak_percent,omitempty"`
 }
 
 // Report is the counted summary of a window: facts, never a counterfactual.
 type Report struct {
-	Calls        int
-	Failures     int
-	Out          int64
-	HitsReported int
-	HitsFound    int
-	MinMS        int64
-	MeanMS       float64
-	MaxMS        int64
-	ElapsedMS    int64
-	PeakRSSBytes *int64
-	Commands     []CommandStat
+	Calls            int
+	Failures         int
+	Out              int64
+	HitsReported     int
+	HitsFound        int
+	MinMS            int64
+	MeanMS           float64
+	MaxMS            int64
+	ElapsedMS        int64
+	PeakRSSBytes     *int64
+	GoAllocatedBytes *int64
+	CPUUserMS        *int64
+	CPUSystemMS      *int64
+	CPUPeakPercent   *float64
+	Commands         []CommandStat
 	// ExcludedSelf and ExcludedInternal are what the report left out, so a
 	// reader can tell a quiet week from a filter.
 	ExcludedSelf     int
@@ -106,6 +114,14 @@ func addEntry(rep *Report, row *CommandStat, e Entry) {
 	row.MeanMS += float64(e.MS)
 	updatePeakRSS(&row.PeakRSSBytes, e.RSSBytes)
 	updatePeakRSS(&rep.PeakRSSBytes, e.RSSBytes)
+	addMetric(&row.GoAllocatedBytes, e.GoAllocatedBytes)
+	addMetric(&rep.GoAllocatedBytes, e.GoAllocatedBytes)
+	addMetric(&row.CPUUserMS, e.CPUUserMS)
+	addMetric(&rep.CPUUserMS, e.CPUUserMS)
+	addMetric(&row.CPUSystemMS, e.CPUSystemMS)
+	addMetric(&rep.CPUSystemMS, e.CPUSystemMS)
+	updatePeakFloat(&row.CPUPeakPercent, e.CPUPeakPercent)
+	updatePeakFloat(&rep.CPUPeakPercent, e.CPUPeakPercent)
 	rep.Calls++
 	row.Out += e.Out
 	rep.Out += e.Out
@@ -121,6 +137,25 @@ func addEntry(rep *Report, row *CommandStat, e Entry) {
 			rep.HitsFound++
 		}
 	}
+}
+
+func addMetric(total **int64, sample *int64) {
+	if sample == nil {
+		return
+	}
+	if *total == nil {
+		value := int64(0)
+		*total = &value
+	}
+	**total += *sample
+}
+
+func updatePeakFloat(current **float64, sample *float64) {
+	if sample == nil || (*current != nil && *sample <= **current) {
+		return
+	}
+	value := *sample
+	*current = &value
 }
 
 func updatePeakRSS(current **int64, sample *int64) {
