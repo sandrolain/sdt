@@ -78,6 +78,7 @@ func init() {
 		keypairCmd:  {id: categoryDevelopmentMaintenance},
 		md5Cmd:      {id: categoryDevelopmentMaintenance},
 		modelsCmd:   {id: categoryDevelopmentMaintenance},
+		parallelCmd: {id: categoryDevelopmentMaintenance},
 		passwordCmd: {id: categoryDevelopmentMaintenance},
 		portCmd:     {id: categoryDevelopmentMaintenance},
 		qrcodeCmd:   {id: categoryDevelopmentMaintenance},

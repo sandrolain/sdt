@@ -209,6 +209,13 @@ func ToolboxRows() []ToolboxRow {
 			Replaces:  "manual worktree patch transfer",
 		},
 		{
+			Operation: "several commands at once",
+			Display:   "`sdt parallel --cmd '<json argv>'`",
+			Command:   "parallel",
+			Flags:     []string{"cmd"},
+			Replaces:  "shell job control",
+		},
+		{
 			Operation: "colour contrast from two values",
 			Display:   "`sdt color contrast <fg> <bg>`",
 			Command:   "color",

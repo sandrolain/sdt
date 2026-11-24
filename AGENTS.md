@@ -35,6 +35,7 @@ Pick by the operation; if the verb cannot, use the host tool and say so.
 | resume delegated work | `sdt agent task list` | manual task-state reconstruction |
 | coordinate delegated work | `sdt agent task message send|list <task-id>` | untracked agent handoffs |
 | apply accepted delegated changes | `sdt agent task apply preview|execute <task-id>` | manual worktree patch transfer |
+| several commands at once | `sdt parallel --cmd '<json argv>'` | shell job control |
 | colour contrast from two values | `sdt color contrast <fg> <bg>` | a calculator |
 | image size and pixel diff | `sdt image inspect|diff` | `magick`/`sharp` |
 | manage recipient profiles | `sdt material profile create|check <id> <revision>` | manual YAML |
