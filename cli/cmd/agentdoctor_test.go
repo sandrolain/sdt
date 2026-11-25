@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -360,7 +361,11 @@ func TestGateWithoutADeclarationSaysSoAndPasses(t *testing.T) {
 // every line, so the run can be diagnosed after the fact.
 func TestGateFailureKeepsTheFullOutputAndShowsTheTail(t *testing.T) {
 	dir := runInTempDir(t)
-	writeGateConfig(t, GateStep{Name: "web lint", Run: "for i in $(seq 1 30); do echo line $i; done; exit 3"})
+	writeGateConfig(t, GateStep{Name: "web lint", Run: "for i in $(seq 1 30); do echo line $i; done; echo stderr-marker >&2; exit 3"})
+	var stderr bytes.Buffer
+	previousStderr := rootCmd.ErrOrStderr()
+	rootCmd.SetErr(&stderr)
+	t.Cleanup(func() { rootCmd.SetErr(previousStderr) })
 	var out string
 	shouldExitWithCode(t, 1, func() string { out = string(execute(t, agentGateCmd, nil)); return out })
 
@@ -373,13 +378,16 @@ func TestGateFailureKeepsTheFullOutputAndShowsTheTail(t *testing.T) {
 	if strings.Contains(out, "  line 1\n") {
 		t.Errorf("the console shows the head of the output:\n%s", out)
 	}
+	if !strings.Contains(stderr.String(), "line 1\n") || !strings.Contains(stderr.String(), "stderr-marker\n") {
+		t.Errorf("live stderr stream lost child output:\n%s", stderr.String())
+	}
 
 	logs, err := filepath.Glob(filepath.Join(dir, "context", "tmp", "gate-*.log"))
 	if err != nil || len(logs) != 1 {
 		t.Fatalf("logs = %v (%v), want one", logs, err)
 	}
 	full := mustReadFile(t, logs[0])
-	if !strings.Contains(full, "line 1\n") || !strings.Contains(full, "line 30") {
+	if !strings.Contains(full, "line 1\n") || !strings.Contains(full, "line 30") || !strings.Contains(full, "stderr-marker") {
 		t.Errorf("the log is not the full output:\n%s", full)
 	}
 }

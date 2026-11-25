@@ -354,9 +354,11 @@ include every declared step. A step with an exclude reason is reported as exclud
 steps after a failure are not-run. Neither outcome is counted as a passed check.
 
 Each step's ` + "`run`" + ` is a shell command line executed with /bin/sh -c in the
-project root, so a step can expand its own package list. Nothing is assumed about
-the toolchain: with no ` + "`gate:`" + ` declared the command reports "no gate declared"
-and exits 0, and a missing tool surfaces as that step failing.
+project root, so a step can expand its own package list. Its stdout and stderr are
+streamed to the gate's stderr as it runs; stdout stays reserved for the final
+report. Nothing is assumed about the toolchain: with no ` + "`gate:`" + ` declared
+the command reports "no gate declared" and exits 0, and a missing tool surfaces
+as that step failing.
 
 A failing step's console block is the tail of its output — the head is usually the
 echo of the command — and the whole output is written to
@@ -396,7 +398,7 @@ Examples:
 		exitWithError(cmd, err)
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		failed := report.execute(ctx, root)
+		failed := report.execute(ctx, root, cmd.ErrOrStderr())
 		exitWithError(cmd, report.validate())
 		results := report.Results
 		switch getFormat(cmd) {

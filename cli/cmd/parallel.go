@@ -52,7 +52,8 @@ func runParallel(argvs [][]string) []parallelResult {
 		go func(i int, argv []string) {
 			defer wg.Done()
 			var stdout, stderr bytes.Buffer
-			c := exec.Command(argv[0], argv[1:]...) //nolint:gosec // the caller names the argv explicitly; no shell is involved
+			//#nosec G204 -- the caller explicitly selects the executable and arguments; no shell is involved.
+			c := exec.Command(argv[0], argv[1:]...)
 			c.Stdout = &stdout
 			c.Stderr = &stderr
 			res := parallelResult{Index: i + 1, Argv: argv}

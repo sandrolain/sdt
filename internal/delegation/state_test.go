@@ -14,6 +14,30 @@ import (
 
 const storeHelperEnv = "SDT_DELEGATION_STORE_HELPER"
 
+func TestBrokerStatePersistence(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "state")
+	store := NewStore(root)
+	initial, err := store.ReadBrokerState()
+	if err != nil || initial.Worker != nil || initial.Attention != 0 || len(initial.Revisions) != 0 {
+		t.Fatalf("missing state: %+v, %v", initial, err)
+	}
+	want := BrokerState{Attention: 2, Revisions: map[string]uint64{"task-1": 3}}
+	if err := store.WriteBrokerState(want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := NewStore(root).ReadBrokerState()
+	if err != nil || got.Attention != 2 || len(got.Revisions) != 1 || got.Revisions["task-1"] != 3 {
+		t.Fatalf("persisted state: %+v, %v", got, err)
+	}
+	path := filepath.Join(store.root, "broker.json")
+	if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ReadBrokerState(); err == nil || !strings.Contains(err.Error(), "decode broker state") {
+		t.Fatalf("corrupt state error: %v", err)
+	}
+}
+
 func TestStoreCreateUpdateAndRejectsInvalidIDs(t *testing.T) {
 	store := NewStore(t.TempDir())
 	if err := store.Create(Task{ID: "task-1", Role: "reviewer", Deadline: time.Now().Add(time.Hour)}); err != nil {

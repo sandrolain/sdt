@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,7 +61,20 @@ func newGateReport(root string, steps []GateStep) (gateReport, error) {
 	return r, nil
 }
 
-func (r *gateReport) execute(ctx context.Context, root string) string {
+// gateLiveOutput forwards diagnostics without changing the step's outcome if
+// the consumer closes stderr. The separate capture still receives every write.
+type gateLiveOutput struct{ io.Writer }
+
+func (w *gateLiveOutput) Write(p []byte) (int, error) {
+	if w.Writer != nil {
+		if n, err := w.Writer.Write(p); err != nil || n != len(p) {
+			w.Writer = nil
+		}
+	}
+	return len(p), nil
+}
+
+func (r *gateReport) execute(ctx context.Context, root string, stderr io.Writer) string {
 	failed := ""
 	for _, step := range r.Configuration {
 		result := gateStepResult{Step: step.Name, Status: gateStatusNotRun, Reason: "stopped after failure at " + failed}
@@ -79,7 +94,10 @@ func (r *gateReport) execute(ctx context.Context, root string) string {
 			// Descendants holding the pipe open must not prevent an interrupted
 			// gate from writing the unknown outcomes of the remaining checks.
 			command.WaitDelay = time.Second
-			out, err := command.CombinedOutput()
+			var captured bytes.Buffer
+			output := io.MultiWriter(&captured, &gateLiveOutput{stderr})
+			command.Stdout, command.Stderr = output, output
+			err := command.Run()
 			result.Duration = contextNow().Sub(started)
 			result.Status, result.Reason = gateStatusPassed, "command exited successfully"
 			if err != nil {
@@ -87,7 +105,7 @@ func (r *gateReport) execute(ctx context.Context, root string) string {
 				if ctx.Err() != nil {
 					result.Reason = ctx.Err().Error()
 				}
-				result.Detail, result.Log = gateFailureDetail(step.Name, out)
+				result.Detail, result.Log = gateFailureDetail(step.Name, captured.Bytes())
 				failed = step.Name
 				r.Status = gateStatusFailed
 			} else if r.Status != gateStatusFailed {
